@@ -39,7 +39,6 @@ export async function withTxRetry<T>(
   while (true) {
     attempt += 1;
     try {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-return -- same empty-schema degenerate typing as prisma.service.ts, see its comment
       return await prisma.$transaction(fn);
     } catch (error) {
       if (!isSerializationFailure(error) || attempt >= maxAttempts) {

@@ -1,0 +1,37 @@
+# Starter list of well-known disposable/temporary email domains.
+# This is a small, hand-curated STARTER set, not the full open list that
+# docs/02_DATABASE.md §3.3 describes ("загружается из файла
+# disposable_domains.txt (открытый список), обновляется джобой раз в
+# месяц"). Replace/extend this file from a maintained open-source
+# disposable-domains list (and wire the monthly refresh job) before
+# relying on it in production — tracked as a stage 1.4 / ops follow-up,
+# not invented here.
+mailinator.com
+guerrillamail.com
+10minutemail.com
+tempmail.com
+throwawaymail.com
+yopmail.com
+trashmail.com
+sharklasers.com
+getnada.com
+maildrop.cc
+fakeinbox.com
+mailnesia.com
+dispostable.com
+mintemail.com
+temp-mail.org
+mailcatch.com
+spamgourmet.com
+emailondeck.com
+tempinbox.com
+moakt.com
+incognitomail.com
+mailsac.com
+mohmal.com
+guerrillamailblock.com
+grr.la
+spam4.me
+mailnull.com
+tempmailo.com
+burnermail.io

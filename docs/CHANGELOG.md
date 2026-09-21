@@ -121,3 +121,98 @@ live (not just written) — `npm run build`, `npm run lint`, `npm run test`
 Next: stage 1.3 (Prisma models for auth — users, user_identifiers,
 sessions, auth_events, user_consents, legal_documents, onboarding_state,
 feature_flags, i18n_* — migrations + seed) per docs/01_FOUNDATION_AUTH.md §15.
+
+## Stage 1.3 (DB schema for auth) — 2026-09-21
+
+Per docs/01_FOUNDATION_AUTH.md §15 stage 1.3. `prisma validate`,
+`prisma generate`, `npm run lint`, `npm run test`, `npm run test:e2e`,
+`npm run build` all pass. **Not yet verified against a live CockroachDB**
+(same sandbox limitation as stages 1.1/1.2 — no Docker) — see below.
+
+- `apps/api/prisma/schema.prisma`: added the 6 enums (`user_role`,
+  `user_status`, `theme_pref`, `identifier_type`, `consent_type`,
+  `legal_doc_type`) and 13 models needed for stages 1.4-1.7, per
+  docs/02_DATABASE.md §4.A/§4.B: `User`, `UserIdentifier`, `Session`,
+  `AuthEvent`, `LegalDocument`, `UserConsent`, `OnboardingState`,
+  `BlockedEmailDomain`, `FeatureFlag`, `I18nLanguage`, `I18nKey`,
+  `I18nTranslation`, `I18nBundleVersion`. `BlockedEmailDomain` was added
+  even though file 01's stage-1.3 model list doesn't name it explicitly,
+  because file 01 itself scopes this stage to "what's necessary for stages
+  1.4-1.7", and stage 1.4's `POST /users/me/contacts/request` needs it
+  for the disposable/relay-domain check (§10.5, §11 step 3A). Everything
+  else in file 02 (profiles, cases, bids, feed, chats, subscriptions,
+  moderation) is intentionally not modeled yet.
+- Judgment calls made where file 02 §4 doesn't spell out every column
+  (documented as comments in schema.prisma, repeated here for visibility):
+  - `users.avatar_file_id` is a bare `Uuid` column with no Prisma relation
+    — the `files` table is out of scope this stage, so the FK is deferred
+    to whichever stage adds file uploads.
+  - `sessions.replaced_by_session_id` is a bare `Uuid` column (rotation
+    chain pointer), not an enforced self-referential FK — kept simple
+    since the spec doesn't require DB-level enforcement here.
+  - Partial indexes (`users(email)`/`users(phone_e164)` WHERE NOT NULL,
+    `sessions(user_id)` WHERE `revoked_at IS NULL`) and hash-sharded
+    indexes on `auth_events(created_at)` are **not yet created** — file 02
+    §5 explicitly assigns those to stage 2.6 ("raw SQL"), not this stage.
+    Plain (non-partial) indexes are in place as a stand-in for query
+    performance until then. Same for the `lawbid_app`/`lawbid_retention`
+    DB role grants that make `auth_events`/`user_consents` append-only at
+    the DB level (§6.2/6.3) — not created yet, deferred to stage 2.6.
+  - Timestamp columns (`created_at`/`updated_at`) follow file 02's own
+    pattern: included by default per §1.3's general rule, except where a
+    table's own column list in §4.A/§4.B explicitly overrides it —
+    `feature_flags`/`i18n_translations`/`i18n_bundle_versions` get only
+    `updated_at` (matches their explicit listing), `auth_events`/
+    `user_consents` get only `created_at` (append-only, §6.2), and
+    `blocked_email_domains`/`i18n_languages` get neither (treated as
+    reference/seed tables, same minimal shape as `states`/`practice_areas`
+    in §3.1/3.2, which also have no timestamp columns).
+- Migration: `apps/api/prisma/migrations/20260921223144_stage_1_3_auth_schema/`,
+  generated with `prisma migrate diff --from-empty --to-schema-datamodel
+  --script` (no live CockroachDB to run `prisma migrate dev` against, same
+  as prior stages). The SQL itself was reviewed (enums, tables, FKs with
+  `ON DELETE RESTRICT` matching docs/02_DATABASE.md §1.4's rule for
+  legally-significant data) but **has not been applied to a real
+  database** — that verification (`docker compose up` + `prisma migrate
+  deploy`) is still owed before this is trusted in an environment where
+  DB behavior matters.
+- Seed script: `apps/api/prisma/seed.ts`, wired via `package.json`'s
+  `prisma.seed`. Idempotent (`upsert`), ordered per docs/02_DATABASE.md
+  §7.2 filtered to this stage's tables (`i18n_languages` → 
+  `blocked_email_domains` → `feature_flags` → `legal_documents` → admin):
+  - `i18n_languages`: `en` (default, active), `ru` (active), per §3.3.
+  - `blocked_email_domains`: `privaterelay.appleid.com` (`apple_relay`) +
+    a **starter** disposable-domain list (`prisma/seed/disposable_domains.txt`,
+    ~30 well-known domains, hand-curated). This is explicitly NOT the full
+    open list §3.3 describes ("обновляется джобой раз в месяц") — that
+    full list + its monthly refresh job is a real follow-up, not invented
+    here, and the file's own header says so.
+  - `feature_flags`: the exact 9 starter flags + values from file 01 §15
+    stage 1.8 (`video_posts=false`, `profile_promotion=false`,
+    `stripe_identity=false`, `persona_verification=false`,
+    `auto_bar_check=false`, `phone_login=true`, `email_login=true`,
+    `apple_login=true`, `google_login=true`) — seeded now because stage
+    1.3's own acceptance line requires flag rows to exist, even though the
+    flags module itself (Redis cache, `/config/bootstrap`) is stage 1.8.
+  - `legal_documents`: 4 stub docs (`terms`/`privacy`/`disclaimer`/
+    `client_contact_sharing`, locale `en`, version `1.0`) with clearly
+    labeled placeholder text — real legal copy must come from the product
+    owner/lawyer per §3.3's own note, not written here.
+  - Admin: reads `SEED_ADMIN_EMAIL` from the environment per §3.3; skips
+    with a warning (doesn't fail) if unset, so the seed stays safe to run
+    without it in dev/CI.
+  - **Not yet run against a live DB** — same reason as the migration
+    above.
+- Confirms stage 1.2's own prediction: now that real models exist, `npm run lint`'s auto-fix removed the two now-unnecessary `eslint-disable-next-line @typescript-eslint/no-unsafe-call` comments in `src/prisma/prisma.service.ts` and `src/prisma/tx-retry.util.ts` — the generated Prisma Client's `$connect`/`$disconnect`/`$transaction` types are no longer degraded to `any`.
+- Known/accepted, out of scope for this stage (unchanged from prior
+  stages): `npm audit` findings via `multer`/Nest 12; a pre-existing
+  `tsc --noEmit` strict-null warning in
+  `src/throttler/redis-throttler-storage.service.spec.ts` (2 occurrences)
+  that predates this stage and isn't touched by it — `npm run test`/
+  `npm run lint` both pass regardless since neither runs raw `tsc
+  --noEmit` across spec files with this exact diagnostic surfaced.
+
+Next: stage 1.4 (auth backend — OTP mock provider, email OTP, Apple/Google
+token validation, JWT issuance, refresh rotation, sessions, reauth,
+logout, rate limits, auth_events) per docs/01_FOUNDATION_AUTH.md §15 —
+per the user's pacing request, this is tomorrow's work, not today's.

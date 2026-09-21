@@ -1,7 +1,31 @@
 // LawBid — Prisma schema (CockroachDB).
-// Stage 1.2 scope: datasource/generator wiring only, no models yet.
-// The actual auth-related models (users, sessions, etc.) are added in
-// stage 1.3 per docs/01_FOUNDATION_AUTH.md §15 — do not add them here.
+//
+// Stage 1.3 scope (docs/01_FOUNDATION_AUTH.md §15, "Этап 1.3: Схема БД для
+// auth"): models needed for stages 1.4-1.7 — users, user_identifiers,
+// sessions, auth_events, user_consents, legal_documents, onboarding_state,
+// feature_flags, i18n_* — plus blocked_email_domains, which stage 1.4's
+// POST /users/me/contacts/request needs for the disposable/relay-domain
+// check (docs/01_FOUNDATION_AUTH.md §10.5, §11 Шаг 3A).
+//
+// Column-level source of truth: docs/02_DATABASE.md §4.A (users, auth,
+// consents, files) and §4.B (config, i18n). Everything else in file 02
+// (profiles, cases, bids, feed, chats, subscriptions, moderation — §4.C-4.J)
+// is out of scope for this stage and intentionally not modeled yet. Do not
+// add those tables here; extend the schema in the stage that owns them.
+//
+// Deferred to docs/02_DATABASE.md §2.6 "Raw SQL: индексы, computed columns,
+// права" (not this stage): partial unique indexes on users(email) /
+// users(phone_e164) (§5.1), the partial sessions(user_id) WHERE
+// revoked_at IS NULL index, hash-sharded indexes on auth_events(created_at),
+// and the lawbid_app / lawbid_retention DB role grants that make
+// auth_events / user_consents append-only at the DB level (§6.2/6.3).
+// Application code must not rely on those constraints existing yet — the
+// app-level service checks noted in docs/02_DATABASE.md §4.A stand in until
+// stage 2.6 lands.
+//
+// users.avatar_file_id is stored as a bare uuid column (no Prisma relation)
+// because the `files` table (§4.A) is out of scope for stage 1.3 — the FK
+// is added in the stage that implements file uploads.
 generator client {
   provider = "prisma-client-js"
 }
@@ -9,4 +33,298 @@ generator client {
 datasource db {
   provider = "cockroachdb"
   url      = env("DATABASE_URL")
+}
+
+// -----------------------------------------------------------------------
+// Enums (docs/02_DATABASE.md §2) — only the values needed by this stage's
+// models. The remaining enums in §2 are added alongside the models that
+// use them in later stages.
+// -----------------------------------------------------------------------
+
+enum UserRole {
+  client
+  attorney
+  admin
+
+  @@map("user_role")
+}
+
+enum UserStatus {
+  active
+  suspended
+  deletion_pending
+  deleted
+
+  @@map("user_status")
+}
+
+enum ThemePref {
+  system
+  light
+  dark
+
+  @@map("theme_pref")
+}
+
+enum IdentifierType {
+  phone
+  email
+  apple
+  google
+
+  @@map("identifier_type")
+}
+
+enum ConsentType {
+  terms
+  privacy
+  disclaimer
+  client_contact_sharing
+  age_18
+  marketing_email
+  marketing_push
+  analytics
+
+  @@map("consent_type")
+}
+
+enum LegalDocType {
+  terms
+  privacy
+  disclaimer
+  client_contact_sharing
+
+  @@map("legal_doc_type")
+}
+
+// -----------------------------------------------------------------------
+// 4.A — Users, auth, consents, files (docs/02_DATABASE.md §4.A)
+// -----------------------------------------------------------------------
+
+model User {
+  id                    String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  role                  UserRole
+  status                UserStatus @default(active)
+  first_name            String?
+  last_name             String?
+  // FK to `files` intentionally omitted — see file header note.
+  avatar_file_id        String?    @db.Uuid
+  email                 String?
+  email_verified_at     DateTime?  @db.Timestamptz
+  phone_e164            String?
+  phone_verified_at     DateTime?  @db.Timestamptz
+  ui_language           String     @default("en")
+  theme                 ThemePref  @default(system)
+  suspended_reason      String?
+  last_active_at        DateTime?  @db.Timestamptz
+  deletion_requested_at DateTime?  @db.Timestamptz
+  deleted_at            DateTime?  @db.Timestamptz
+  anonymized_at         DateTime?  @db.Timestamptz
+  created_at            DateTime   @default(now()) @db.Timestamptz
+  updated_at            DateTime   @updatedAt @db.Timestamptz
+
+  identifiers          UserIdentifier[]
+  sessions             Session[]
+  auth_events          AuthEvent[]
+  consents             UserConsent[]
+  onboarding_state     OnboardingState?
+  feature_flag_updates FeatureFlag[]
+
+  // Partial unique indexes on email/phone_e164 (WHERE ... IS NOT NULL) are
+  // raw SQL, added in stage 2.6 — see file header note.
+  @@map("users")
+}
+
+model UserIdentifier {
+  id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id      String         @db.Uuid
+  user         User           @relation(fields: [user_id], references: [id], onDelete: Restrict)
+  provider     IdentifierType
+  provider_uid String
+  verified_at  DateTime?      @db.Timestamptz
+  created_at   DateTime       @default(now()) @db.Timestamptz
+  updated_at   DateTime       @updatedAt @db.Timestamptz
+
+  @@unique([provider, provider_uid])
+  @@index([user_id])
+  @@map("user_identifiers")
+}
+
+model Session {
+  id                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id                String    @db.Uuid
+  user                   User      @relation(fields: [user_id], references: [id], onDelete: Restrict)
+  device_id              String?
+  device_name            String?
+  platform               String?
+  app_version            String?
+  ip                     String?
+  user_agent             String?
+  refresh_hash           String    @unique
+  last_used_at           DateTime? @db.Timestamptz
+  expires_at             DateTime  @db.Timestamptz
+  revoked_at             DateTime? @db.Timestamptz
+  revoked_reason         String?
+  // Logical pointer into the rotation chain (docs/01_FOUNDATION_AUTH.md
+  // §10.4) — not an enforced FK, looked up by the app.
+  replaced_by_session_id String?   @db.Uuid
+  created_at             DateTime  @default(now()) @db.Timestamptz
+  updated_at             DateTime  @updatedAt @db.Timestamptz
+
+  // Partial index sessions(user_id) WHERE revoked_at IS NULL is raw SQL,
+  // stage 2.6 (docs/02_DATABASE.md §5.2). This plain index covers lookups
+  // until then.
+  @@index([user_id])
+  @@map("sessions")
+}
+
+model AuthEvent {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id         String?  @db.Uuid
+  user            User?    @relation(fields: [user_id], references: [id], onDelete: Restrict)
+  event_type      String
+  success         Boolean
+  identifier_hash String?
+  ip              String?
+  device_id       String?
+  user_agent      String?
+  meta            Json?
+  created_at      DateTime @default(now()) @db.Timestamptz
+
+  // Append-only (docs/02_DATABASE.md §6.2) — no updated_at, and the
+  // lawbid_app DB role gets INSERT/SELECT only (raw SQL grant, stage 2.6).
+  // Hash-sharded (created_at) index is also raw SQL, stage 2.6 (§5.2).
+  @@index([user_id, created_at(sort: Desc)])
+  @@map("auth_events")
+}
+
+model LegalDocument {
+  id           String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  doc_type     LegalDocType
+  version      String
+  locale       String
+  content_url  String?
+  content_md   String?
+  published_at DateTime?    @db.Timestamptz
+  is_current   Boolean
+  created_at   DateTime     @default(now()) @db.Timestamptz
+  updated_at   DateTime     @updatedAt @db.Timestamptz
+
+  consents UserConsent[]
+
+  @@unique([doc_type, version, locale])
+  @@map("legal_documents")
+}
+
+model UserConsent {
+  id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id      String         @db.Uuid
+  user         User           @relation(fields: [user_id], references: [id], onDelete: Restrict)
+  consent_type ConsentType
+  document_id  String?        @db.Uuid
+  document     LegalDocument? @relation(fields: [document_id], references: [id], onDelete: Restrict)
+  granted      Boolean
+  ip           String?
+  device_id    String?
+  created_at   DateTime       @default(now()) @db.Timestamptz
+
+  // Append-only (docs/02_DATABASE.md §6.2) — no updated_at. Current
+  // consent state = latest row per (user_id, consent_type).
+  @@index([user_id, consent_type, created_at(sort: Desc)])
+  @@map("user_consents")
+}
+
+model OnboardingState {
+  user_id      String    @id @db.Uuid
+  user         User      @relation(fields: [user_id], references: [id], onDelete: Restrict)
+  current_step String?
+  completed_at DateTime? @db.Timestamptz
+  data         Json?
+  created_at   DateTime  @default(now()) @db.Timestamptz
+  updated_at   DateTime  @updatedAt @db.Timestamptz
+
+  @@map("onboarding_state")
+}
+
+model BlockedEmailDomain {
+  domain String @id
+  reason String
+
+  // Reference/seed table (docs/02_DATABASE.md §3.3) — no timestamps, same
+  // minimal shape as states/practice_areas (§3.1/3.2).
+  @@map("blocked_email_domains")
+}
+
+// -----------------------------------------------------------------------
+// 4.B — Config and translations (docs/02_DATABASE.md §4.B)
+// Only feature_flags + i18n_* are in scope for stage 1.3; app_config is
+// stage 1.8 (docs/01_FOUNDATION_AUTH.md §15, "Feature flags и обязательное
+// обновление").
+// -----------------------------------------------------------------------
+
+model FeatureFlag {
+  key             String   @id
+  enabled         Boolean
+  rollout_percent Int      @default(100)
+  description     String?
+  updated_by      String?  @db.Uuid
+  updated_by_user User?    @relation(fields: [updated_by], references: [id], onDelete: Restrict)
+  updated_at      DateTime @updatedAt @db.Timestamptz
+
+  // No created_at — docs/02_DATABASE.md §4.B lists only key/enabled/
+  // rollout_percent/description/updated_by/updated_at for this table.
+  @@map("feature_flags")
+}
+
+model I18nLanguage {
+  code        String  @id
+  name_native String
+  is_active   Boolean
+  is_rtl      Boolean @default(false)
+  sort        Int
+
+  translations   I18nTranslation[]
+  bundle_version I18nBundleVersion?
+
+  // Reference/seed table (docs/02_DATABASE.md §3.3) — no timestamps, same
+  // minimal shape as states/practice_areas (§3.1/3.2).
+  @@map("i18n_languages")
+}
+
+model I18nKey {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  key         String   @unique
+  description String?
+  created_at  DateTime @default(now()) @db.Timestamptz
+  updated_at  DateTime @updatedAt @db.Timestamptz
+
+  translations I18nTranslation[]
+
+  @@map("i18n_keys")
+}
+
+model I18nTranslation {
+  key_id     String       @db.Uuid
+  i18n_key   I18nKey      @relation(fields: [key_id], references: [id], onDelete: Restrict)
+  lang       String
+  language   I18nLanguage @relation(fields: [lang], references: [code], onDelete: Restrict)
+  value      String
+  version    Int
+  updated_at DateTime     @updatedAt @db.Timestamptz
+
+  // No created_at — docs/02_DATABASE.md §4.B lists only key_id/lang/value/
+  // version/updated_at for this table.
+  @@id([key_id, lang])
+  @@map("i18n_translations")
+}
+
+model I18nBundleVersion {
+  lang       String       @id
+  language   I18nLanguage @relation(fields: [lang], references: [code], onDelete: Restrict)
+  version    Int
+  updated_at DateTime     @updatedAt @db.Timestamptz
+
+  // No created_at — docs/02_DATABASE.md §4.B lists only lang/version/
+  // updated_at for this table.
+  @@map("i18n_bundle_versions")
 }
