@@ -1,0 +1,12 @@
+// LawBid — Prisma schema (CockroachDB).
+// Stage 1.2 scope: datasource/generator wiring only, no models yet.
+// The actual auth-related models (users, sessions, etc.) are added in
+// stage 1.3 per docs/01_FOUNDATION_AUTH.md §15 — do not add them here.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "cockroachdb"
+  url      = env("DATABASE_URL")
+}
