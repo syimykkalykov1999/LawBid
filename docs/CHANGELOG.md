@@ -216,3 +216,38 @@ Next: stage 1.4 (auth backend — OTP mock provider, email OTP, Apple/Google
 token validation, JWT issuance, refresh rotation, sessions, reauth,
 logout, rate limits, auth_events) per docs/01_FOUNDATION_AUTH.md §15 —
 per the user's pacing request, this is tomorrow's work, not today's.
+
+## Verification note — 2026-09-21 (same day as stage 1.3)
+
+The sandbox has no Docker, so every prior stage flagged "not yet verified
+against a live CockroachDB/Redis" as owed. Verified it for real today
+without Docker: downloaded the official CockroachDB v24.1.5 linux-arm64
+binary directly (works standalone, no install needed) and extracted a
+working `redis-server` from Ubuntu's `.deb` packages by hand (no root
+available in this sandbox, so `dpkg -x` per package + resolving shared-lib
+dependencies one at a time, rather than `apt-get install`).
+
+Against that real, running CockroachDB + Redis:
+- `prisma migrate deploy` applied the stage 1.3 migration cleanly — the
+  first real proof the hand-generated `migration.sql` is valid CockroachDB
+  SQL, not just internally consistent per `prisma validate`.
+- `prisma db seed` ran for real: 2 languages, 30 blocked domains, 9
+  feature flags, 4 legal document stubs, and one real `admin` user row
+  (email `syimykkalykov2@gmail.com`, i.e. the project owner's own account,
+  used only inside this throwaway local instance).
+- The built API (`dist/src/main.js`) started against the real DB/Redis and
+  responded to real HTTP requests: `GET /health/ready` → 200,
+  `GET /docs-json` → real OpenAPI doc listing the actual routes, and two
+  identical `POST /api/v1/dev/echo` calls with the same `Idempotency-Key`
+  returned byte-identical responses (same `receivedId`/`echoedAt`) — the
+  idempotency replay working against real Redis, not the e2e test's
+  `FakeRedis` stub. `redis-cli keys *` showed real `throttle:*` and
+  `idempotency:*` keys, confirming the rate limiter and idempotency layer
+  are both really talking to Redis.
+
+This was a one-off local verification inside the sandbox, not a
+deployment — the processes were stopped afterward and nothing is
+reachable from outside the sandbox. No code changed; this note exists so
+a future session doesn't have to re-derive that stages 1.1-1.3 are proven
+end-to-end, only that the *deployment* environment (real `docker compose
+up`, or prod infra) still needs its own separate verification.
