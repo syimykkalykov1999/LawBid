@@ -251,3 +251,256 @@ reachable from outside the sandbox. No code changed; this note exists so
 a future session doesn't have to re-derive that stages 1.1-1.3 are proven
 end-to-end, only that the *deployment* environment (real `docker compose
 up`, or prod infra) still needs its own separate verification.
+
+## Stage 1.4 (auth backend) — 2026-09-21
+
+Full backend implementation of docs/01_FOUNDATION_AUTH.md §10 + the
+POST /users/me/* endpoints §10.5 lists alongside it: phone/email OTP
+login, Apple/Google social login, JWT access tokens + rotating opaque
+refresh tokens with reuse detection, sessions ("active devices"),
+reauth, contact verification, consents, and the start of account
+deletion. Built with `ecc:architect` and `ecc:code-architect` consulted
+up front for the hard design calls (session model, reuse-detection
+mechanism, build order), then implemented directly against those
+recommendations — not merged with any other stage, no work done ahead
+on stage 1.5+.
+
+### New Prisma schema (additive to the stage 1.3 migration, not editing it)
+
+- `Session.session_chain_id` (UUID, indexed): a stable id across refresh
+  rotations. One chain = one login on one device; each row is one
+  refresh-token generation within that chain. This is the JWT `sid`
+  claim and the key for `GET/DELETE /auth/sessions` and the Redis
+  revocation blacklist — revoking a whole chain (logout-all, reuse
+  detected, account deletion) is one indexed `UPDATE ... WHERE
+  session_chain_id = ?` instead of walking `replaced_by_session_id`
+  history.
+- `User.role` changed `UserRole` → `UserRole?` (nullable). Caught while
+  designing `IdentityService.findOrCreateForOtp`: the spec's own
+  onboarding flow (file 1 §11) chooses role AFTER first login, so a
+  NOT NULL constraint on account creation was a real bug in the
+  already-committed stage 1.3 schema, not a hypothetical. Fixed with a
+  new migration rather than editing the applied one, per .cursorrules.
+- Both changes are hand-written SQL (`ALTER TABLE ... ADD COLUMN`,
+  `ALTER COLUMN ... DROP NOT NULL`) rather than `prisma migrate diff`
+  output — the sandbox has no persistent DB for the diff tool's shadow
+  database, same constraint noted for stage 1.3's migration.
+
+### Judgment calls (spec silent or internally inconsistent — resolved, not invented)
+
+- **Twilio Verify vs. local OTP hashing (real conflict, not a style
+  choice):** §15 stage 1.4 names "Twilio Verify" as the SMS provider,
+  but §10.6 requires storing the OTP as a local hash so LawBid's own
+  attempt/lockout logic applies — Verify is a managed product that
+  generates and checks the code itself and never hands the code back.
+  Resolved by implementing against Twilio's plain Messages (SMS send)
+  API instead: LawBid generates the code, hashes it, and Verify-style
+  managed retry/lockout is fully replaced by `OtpService`'s own Lua
+  script. This makes the SMS and email providers structurally identical
+  (`send(identifier, code): Promise<void>`).
+- **No auto-merge on social-login email match, ever** (`IdentityService`):
+  §10.3 says "автослияние только при подтверждённом владении обоими
+  идентификаторами" — read narrowly, that could justify merging when an
+  IdP asserts a verified email. Rejected: an IdP's `email_verified`
+  claim proves the IdP verified it at some point, not that the human
+  presenting the token controls that inbox right now (forged/stale
+  Google Workspace email, a relay address that changed hands). Any
+  match against an existing verified email returns
+  `409 ACCOUNT_EXISTS_USE_OTHER_METHOD` with a masked identifier +
+  available methods; merging only ever happens through the
+  already-authenticated `POST /auth/identifiers`.
+- **Refresh-rotation retry vs. reuse (session.service.ts):** a client
+  retrying `/auth/refresh` after a timeout that actually succeeded
+  server-side looks identical, at the DB level, to a stolen-token
+  replay (both hit an already-`rotated` row). Mitigated with a
+  same-`device_id`, same-replacement-session grace window
+  (`REFRESH_ROTATION_GRACE_SECONDS`, default 10s): treated as a benign
+  reject (plain `AUTH_REFRESH_INVALID`), not a chain-wide revoke. A
+  reuse attempt from a *different* device_id inside or outside the
+  window still triggers full chain revocation. Verified by e2e tests
+  for both branches.
+- **`POST /auth/reauth` body:** the spec's summary table gives
+  `{method: "otp", code}` with no identifier — but the server has no
+  other way to know which of the user's possibly-several verified
+  identifiers the client requested a code for. Added `identifier` to
+  the DTO; the service additionally checks it belongs to and is
+  verified for the CURRENT user before accepting the code.
+  `method: "biometric"` from §10.1 is NOT implemented — a server can't
+  verify an on-device Face ID/Touch ID assertion without platform key
+  attestation (App Attest/Play Integrity), which is exactly what the
+  `FEATURE_ATTESTATION` flag stubs but does not build this stage.
+- **Reauth token transport:** the spec names the token but not how it's
+  sent back on a subsequent sensitive request. Chose an `X-Reauth-Token`
+  header (`ReauthGuard`), single-use (Redis `SET ... NX` on the token's
+  `jti`), bound to the same user AND session chain that minted it.
+- **`DELETE /users/me` scope, this stage only:** starts the 14-day grace
+  period (`status → deletion_pending`, `deletion_requested_at` set,
+  every session revoked immediately) and nothing else. The full §10.7
+  pipeline (scrub PII, delete S3 docs, close cases, reject bids, cancel
+  Stripe subscription, 5-year pseudonymized case-journal retention)
+  needs tables from files 2-5 that don't exist yet, plus a scheduled job
+  for the 14-day boundary — explicitly deferred, not silently dropped.
+  Login-during-grace-period auto-cancellation (`"можно отменить входом"`)
+  IS implemented, at both login sites (`AuthService.verifyOtp`,
+  `SocialAuthService.login`).
+- **Contact uniqueness checked at VERIFY, not REQUEST** (`ContactsService`):
+  rejecting an already-claimed phone/email at request time would let an
+  attacker enumerate registered contacts by trying to add them to a
+  throwaway account. Checked only after the caller proves they received
+  the code at that inbox/number.
+- **`/auth/otp/request` returns `200`, not Nest's POST default `201`** —
+  it triggers a side effect (send a code), it doesn't create a
+  resource. Every other token-issuing POST (`verify`, `social`,
+  `refresh`) legitimately creates a Session and keeps the `201` default.
+
+### New env vars, error codes, files
+
+- ~25 new env vars (`env.schema.ts`): JWT signing keys/TTLs
+  (`JWT_KEYS` supports multiple `kid:secret` pairs for rotation), OTP
+  secrets/tuning, SMS/email provider selection + credentials (required
+  conditionally via `.superRefine`), auth-specific rate limits, social
+  login audiences, `FEATURE_ATTESTATION`. `OTP_DEV_FIXED_CODE` (forces
+  every code to `000000`) is boot-refused outside `NODE_ENV=development`
+  **or `test`** — extended to `test` this stage (see Verification note)
+  since e2e tests need a deterministic code and the mock providers never
+  expose the real one anywhere, not even logs.
+- ~18 new `ErrorCode` members. `TOKEN_EXPIRED` is load-bearing (§10.4:
+  the mobile client's dio interceptor keys off that exact string to
+  trigger silent refresh) — `JwtAuthGuard` is the one and only place
+  that can throw it, and only for a genuinely expired token.
+- `apps/api/src/modules/auth/`: services (`token`, `otp`, `rate-limit`,
+  `identity`, `session`, `session-revocation`, `auth-event`), SMS/email
+  provider interfaces + mock/real implementations, social verifiers
+  (`GoogleTokenVerifier` via `google-auth-library`, `AppleTokenVerifier`
+  via `jose`'s remote JWKS — Apple has no official Node SDK), guards
+  (`JwtAuthGuard` global, `ReauthGuard` route-level), decorators
+  (`@Public`, `@CurrentUser`, `@ReauthRequired`), DTOs, `AuthService`
+  (OTP + refresh + sessions + reauth + identifiers orchestration),
+  `SocialAuthService` (independent branch), `AuthController`,
+  `AuthModule`.
+- `apps/api/src/modules/users/`: `ContactsService`, `ConsentsService`,
+  `AccountDeletionService`, `UsersController`, `UsersModule` (imports
+  `AuthModule` for its exported `OtpService`/`IdentityService`/
+  `SessionRevocationService`/`ReauthGuard`/`AuthEventService` rather
+  than re-providing them).
+- Unit tests: `token.service.spec.ts` (sign/verify round-trip, kid
+  rotation, the expired-vs-invalid distinction §10.4 depends on),
+  `identity.service.spec.ts` (the no-auto-merge policy, including that
+  `user.create` is provably never called on a collision).
+- `apps/api/test/auth.e2e-spec.ts`: the four required acceptance
+  scenarios from §15 stage 1.4, run against real infra — see
+  Verification note below.
+
+### Bugs found and fixed during this stage's own verification (not hypothetical — each one failed a real build/lint/test/e2e run first)
+
+- **`Mock*/Twilio*/Ses*` inside a `/** */` doc comment in `auth.module.ts`
+  contained a literal `*/`, closing the comment early** — `tsc` failed
+  with ~127 cascading syntax errors. Reworded.
+- **`IdentityService` was built but never added to `AuthModule`'s
+  `exports`** — `UsersModule`'s `ContactsService` (which needs it for
+  the contact-uniqueness check) failed Nest's DI resolution at real
+  boot (`UnknownDependenciesException`), caught by actually running
+  `node dist/src/main.js`, not by `tsc`/`prisma validate` (neither
+  checks DI wiring). Added to the exports list.
+- **`@nestjs/jwt@12` and `jose` are ESM-only packages.** `nest build`
+  and `prisma validate` both stayed green regardless (neither one loads
+  the module graph at runtime), and a real `node dist/src/main.js` boot
+  loads them fine (Node 22+ transparently supports `require(esm)`) — but
+  Jest's own CJS module system does not by default, so every unit/e2e
+  test importing anything through `AuthModule` failed with
+  `ERR_REQUIRE_ESM` until `transformIgnorePatterns` was added to both
+  `package.json`'s `jest` block and `test/jest-e2e.json`. Documented as
+  a Jest-tooling-only issue, confirmed NOT a production runtime bug by
+  directly booting the built app.
+- **Stacking two `@ValidateIf` decorators on one property does not
+  scope each to "the validator immediately below it"** the way it
+  reads. `OtpRequestDto`/`OtpVerifyDto`/`ReauthDto`/`ContactRequestDto`/
+  `ContactVerifyDto` all originally wrote `@ValidateIf(phone) @IsE164Phone()
+  @ValidateIf(email) @IsEmail()` on the same `identifier`/`value` field,
+  intending "validate as phone when channel=phone, as email when
+  channel=email." class-validator's conditional metadata doesn't
+  compose that way; a malformed phone number sailed straight through
+  `ValidationPipe` with `forbidNonWhitelisted` still on — caught by the
+  e2e suite's "rejects a malformed identifier with VALIDATION_ERROR"
+  test, which got a `401` instead of the expected `400`. Fixed by
+  replacing the pattern everywhere with a single custom validator
+  (`IsIdentifierForChannel`/`IsPhoneOrEmailIdentifier` in
+  `auth/dto/validators.ts`) that branches internally instead of relying
+  on stacked conditionals — a fix with real, checked-in test coverage,
+  not a guess.
+- **`HealthController`/`DevEchoController` weren't marked `@Public()`.**
+  Once `AuthModule` registers `JwtAuthGuard` as the global `APP_GUARD`,
+  every route 401s without an explicit opt-out — including
+  `GET /health/ready`, which a load balancer/k8s probe will never send a
+  bearer token to. Caught by the pre-existing stage 1.2 `app.e2e-spec.ts`
+  regressing from `200` to `401` on a totally unrelated route, which is
+  exactly the kind of regression that test suite exists to catch.
+  Both controllers marked `@Public()`.
+
+### Known limitations, honestly stated
+
+- `TwilioSmsProvider`/`SesEmailProvider` are implemented for real (not
+  stubbed) but have never made a live call — no Twilio/AWS credentials
+  exist in this sandbox. `MockSmsProvider`/`MockEmailProvider` are what
+  every test in this stage actually exercises.
+- No unit tests for `SessionService`'s reuse-detection/benign-retry
+  branching or `OtpService`'s Lua-script lockout logic in isolation —
+  both are Redis/Lua-atomicity-dependent enough that a mocked-Redis unit
+  test would mostly test the mock, not the logic. Covered instead by
+  the real-infra e2e suite (scenario 2 = lockout, scenario 3 = both
+  reuse-detection branches), which is a stronger guarantee for exactly
+  this code, not a lesser one — but it means there is no *unit*-level
+  regression signal for these two files specifically.
+- Consents endpoint records whatever the client sends; it does not
+  itself enforce that `age_18`/`terms`/`privacy`/`disclaimer` were
+  granted — that gate belongs to onboarding's guard logic (file 1 §11),
+  not yet built.
+- No admin "suspend a user" endpoint exists yet (nothing sets
+  `status='suspended'` in this stage) — the suspended-account rejection
+  path is real and e2e-tested by setting the status directly via
+  Prisma, exactly the way a future admin endpoint would.
+
+## Verification note — 2026-09-21 (same day as stage 1.4)
+
+Same no-Docker sandbox constraint as stage 1.3's verification note, same
+solution (hand-extracted CockroachDB v24.1.5 + Redis binaries), same
+"processes die between tool calls" constraint (infra start, migrate,
+build, and test run all happen inside one shell invocation). This time,
+against that real CockroachDB + Redis:
+
+- `prisma migrate deploy` applied all 3 migrations (stage 1.3's + both
+  stage 1.4 migrations) cleanly to two real databases (`lawbid` and a
+  separate `lawbid_test`).
+- `npm run build`, `npm run lint`, `npm run test` (17 unit tests) all
+  green.
+- **`npm run test:e2e` — 14/14 tests green, across both suites, against
+  real infra**: the pre-existing stage 1.2 plumbing suite
+  (`app.e2e-spec.ts`, unmodified in intent, needed the `@Public()` fixes
+  above to keep passing) and the new `auth.e2e-spec.ts` covering all
+  four required acceptance scenarios from §15 stage 1.4 word for word:
+  successful phone login (+ a structural check that email-shaped
+  identifiers are accepted by validation, without requiring a live SMTP
+  target); 5 wrong codes → lockout, and a fresh `/otp/request` provably
+  does NOT reset the lock (the 6th attempt, even with the CORRECT code,
+  stays `423 AUTH_OTP_LOCKED`); refresh-token reuse from a different
+  device → `401 AUTH_REFRESH_REUSE_DETECTED` AND the newest,
+  legitimately-rotated-to token from that same chain fails afterward
+  too (plus a second test proving the grace-window benign-retry path
+  does NOT trip reuse detection); suspended/deleted accounts rejected
+  at verify with the right error code while `/otp/request` still
+  returns an identical `200`, and a `deletion_pending` account is
+  auto-cancelled by a successful login.
+- Every full-login e2e scenario drives the flow through `channel=phone`
+  (`MockSmsProvider` has zero I/O) rather than `email`
+  (`MockEmailProvider` genuinely dials `SMTP_HOST:SMTP_PORT`, and this
+  sandbox has no SMTP server) — documented in `auth.e2e-spec.ts`'s own
+  file doc, not hidden. `AuthService`/`OtpService`/`SessionService` treat
+  both channels identically; only the leaf provider differs.
+- All four bugs listed above under "Bugs found and fixed" were caught
+  by this exact verification pass, in this order, each one blocking the
+  next command in the same script until fixed — none were found by
+  inspection alone.
+
+Services were stopped after the run; nothing from this verification is
+reachable from outside the sandbox, and no code was committed until
+this pass was fully green.

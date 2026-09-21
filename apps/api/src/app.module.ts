@@ -7,6 +7,8 @@ import { PrismaModule } from './prisma/prisma.module';
 import { RedisModule } from './redis/redis.module';
 import { ThrottlerModule } from './throttler/throttler.module';
 import { HealthModule } from './modules/health/health.module';
+import { AuthModule } from './modules/auth/auth.module';
+import { UsersModule } from './modules/users/users.module';
 import { DevModule } from './modules/dev/dev.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
@@ -27,11 +29,21 @@ const isDev =
           paths: [
             'req.headers.authorization',
             'req.headers.cookie',
+            'req.headers["x-reauth-token"]',
             'req.body.phone',
             'req.body.email',
+            // Stage 1.4 (docs/CHANGELOG.md): auth/contacts DTOs use a
+            // generic `identifier` field (phone OR email, see
+            // OtpRequestDto/OtpVerifyDto/ReauthDto) and `value` (Contacts
+            // DTOs) instead of separate phone/email fields — both are PII
+            // and must be redacted the same as the literal names above.
+            'req.body.identifier',
+            'req.body.value',
             'req.body.code',
             'req.body.refreshToken',
             'req.body.idToken',
+            'req.body.nonce',
+            'req.body.reauthToken',
           ],
           censor: '[REDACTED]',
         },
@@ -45,6 +57,12 @@ const isDev =
     RedisModule,
     ThrottlerModule,
     HealthModule,
+    // Registered after ThrottlerModule so JwtAuthGuard (global APP_GUARD
+    // from AuthModule) runs AFTER the global ThrottlerGuard in Nest's
+    // guard execution order — cheap per-IP rate limiting rejects before
+    // any JWT verification work happens (see auth.module.ts doc comment).
+    AuthModule,
+    UsersModule,
     ...(isDev ? [DevModule] : []),
   ],
   providers: [

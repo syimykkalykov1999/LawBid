@@ -103,7 +103,13 @@ enum LegalDocType {
 
 model User {
   id                    String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  role                  UserRole
+  // Nullable: docs/01_FOUNDATION_AUTH.md §11 "Guard-логика навигации" treats "no role yet"
+  // as a real intermediate state ("нет роли → /onboarding/role") -- a user exists
+  // from the moment OTP/social login succeeds (stage 1.4), but role is
+  // chosen afterward during onboarding step 2, not at creation. Added in
+  // stage 1.4 (docs/CHANGELOG.md) -- the stage 1.3 migration is not
+  // modified, only extended, per .cursorrules.
+  role                  UserRole?
   status                UserStatus @default(active)
   first_name            String?
   last_name             String?
@@ -151,9 +157,23 @@ model UserIdentifier {
 }
 
 model Session {
-  id                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id                String    @db.Uuid
-  user                   User      @relation(fields: [user_id], references: [id], onDelete: Restrict)
+  id      String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id String @db.Uuid
+  user    User   @relation(fields: [user_id], references: [id], onDelete: Restrict)
+
+  // Stable across refresh rotation (docs/01_FOUNDATION_AUTH.md §10.4): one
+  // chain = one device/login. Each `Session` row is one refresh-token
+  // generation within that chain; `id` therefore changes every rotation,
+  // but `session_chain_id` does not. The JWT `sid` claim, `GET
+  // /auth/sessions`, and `DELETE /auth/sessions/:id` all key off the chain
+  // id, not the row id, so the "active devices" list stays stable and
+  // "revoke the whole chain on refresh-token reuse" is a single indexed
+  // UPDATE (`WHERE session_chain_id = ? AND revoked_at IS NULL`) instead of
+  // walking `replaced_by_session_id` back through the rotation history.
+  // Added in stage 1.4 (docs/CHANGELOG.md), additive to the stage 1.3
+  // migration — that migration is not modified, only extended.
+  session_chain_id String @db.Uuid
+
   device_id              String?
   device_name            String?
   platform               String?
@@ -165,8 +185,9 @@ model Session {
   expires_at             DateTime  @db.Timestamptz
   revoked_at             DateTime? @db.Timestamptz
   revoked_reason         String?
-  // Logical pointer into the rotation chain (docs/01_FOUNDATION_AUTH.md
-  // §10.4) — not an enforced FK, looked up by the app.
+  // Audit trail of rotation order within a chain — NOT used for revocation
+  // logic anymore (see session_chain_id above), kept as a bare pointer
+  // (not an enforced FK) purely for forensic "what replaced what" queries.
   replaced_by_session_id String?   @db.Uuid
   created_at             DateTime  @default(now()) @db.Timestamptz
   updated_at             DateTime  @updatedAt @db.Timestamptz
@@ -175,6 +196,7 @@ model Session {
   // stage 2.6 (docs/02_DATABASE.md §5.2). This plain index covers lookups
   // until then.
   @@index([user_id])
+  @@index([session_chain_id])
   @@map("sessions")
 }
 

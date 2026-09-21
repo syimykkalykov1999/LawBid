@@ -1,0 +1,237 @@
+import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { randomUUID } from 'node:crypto';
+import type { Session } from '@prisma/client';
+import { PrismaService } from '../../../prisma/prisma.service';
+import { withTxRetry } from '../../../prisma/tx-retry.util';
+import { TokenService } from './token.service';
+import { SessionRevocationService } from './session-revocation.service';
+import { AuthEventService, AUTH_EVENT_TYPES } from './auth-event.service';
+
+export interface DeviceInfo {
+  deviceId?: string;
+  deviceName?: string;
+  platform?: string;
+  appVersion?: string;
+}
+
+export interface RequestMeta {
+  ip?: string;
+  userAgent?: string;
+}
+
+export type RefreshOutcome =
+  | { status: 'ok'; session: Session; refreshTokenRaw: string }
+  | { status: 'invalid' }
+  | { status: 'expired' }
+  | { status: 'reuse_detected'; sessionChainId: string };
+
+/**
+ * Owns the `Session` row lifecycle: creating a new chain at login, rotating
+ * it on refresh, listing/ending chains. Reuse-detection mechanism
+ * (docs/CHANGELOG.md, stage 1.4): a hash lookup that hits an ALREADY
+ * revoked row with revoked_reason='rotated' IS the detection — the chain
+ * doesn't need to be walked to detect reuse, only to decide the blast
+ * radius of revoking it (handled by SessionRevocationService via
+ * session_chain_id, O(1) regardless of chain length).
+ */
+@Injectable()
+export class SessionService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly tokenService: TokenService,
+    private readonly revocation: SessionRevocationService,
+    private readonly authEvents: AuthEventService,
+    private readonly config: ConfigService,
+  ) {}
+
+  async createSession(
+    userId: string,
+    device: DeviceInfo,
+    meta: RequestMeta,
+  ): Promise<{ session: Session; refreshTokenRaw: string }> {
+    const { raw, hash } = this.tokenService.generateRefreshToken();
+    const sessionChainId = randomUUID();
+
+    const session = await this.prisma.session.create({
+      data: {
+        user_id: userId,
+        session_chain_id: sessionChainId,
+        device_id: device.deviceId,
+        device_name: device.deviceName,
+        platform: device.platform,
+        app_version: device.appVersion,
+        ip: meta.ip,
+        user_agent: meta.userAgent,
+        refresh_hash: hash,
+        last_used_at: new Date(),
+        expires_at: this.tokenService.refreshExpiryDate(),
+      },
+    });
+
+    return { session, refreshTokenRaw: raw };
+  }
+
+  /** True if this is the first session ever created for this user on this
+   * device_id — used for the (stubbed, no-op-notification) new-device
+   * signal in docs/01_FOUNDATION_AUTH.md §10.6. */
+  async isNewDevice(
+    userId: string,
+    deviceId: string | undefined,
+  ): Promise<boolean> {
+    if (!deviceId) return false;
+    const existing = await this.prisma.session.findFirst({
+      where: { user_id: userId, device_id: deviceId },
+      select: { id: true },
+    });
+    return existing === null;
+  }
+
+  async rotate(
+    rawRefreshToken: string,
+    device: DeviceInfo,
+    meta: RequestMeta,
+  ): Promise<RefreshOutcome> {
+    const hash = this.tokenService.hashRefreshToken(rawRefreshToken);
+    const found = await this.prisma.session.findUnique({
+      where: { refresh_hash: hash },
+    });
+
+    if (!found) {
+      return { status: 'invalid' };
+    }
+
+    if (found.revoked_at !== null) {
+      if (found.revoked_reason === 'rotated') {
+        const withinGrace = await this.isBenignRetry(found, device);
+        if (withinGrace) {
+          // docs/CHANGELOG.md stage 1.4 (ask-item A6): a client retrying
+          // after a network timeout that actually reached the server
+          // looks identical to a stolen-token replay at the DB level.
+          // Treat a same-device retry inside the grace window as benign:
+          // reject without nuking the chain, so the user just has to
+          // retry/re-login instead of losing every other device's session.
+          return { status: 'invalid' };
+        }
+        await withTxRetry(this.prisma, async (tx) => {
+          await this.revocation.revokeChain(
+            found.session_chain_id,
+            'reuse_detected',
+            tx,
+          );
+          await this.authEvents.record(
+            {
+              userId: found.user_id,
+              eventType: AUTH_EVENT_TYPES.REFRESH_REUSE_DETECTED,
+              success: false,
+              deviceId: device.deviceId,
+              ip: meta.ip,
+              userAgent: meta.userAgent,
+            },
+            tx,
+          );
+        });
+        return {
+          status: 'reuse_detected',
+          sessionChainId: found.session_chain_id,
+        };
+      }
+      // Revoked for any other reason (logout, logout_all, admin_block,
+      // account_deletion) — already inert, no further action needed.
+      return { status: 'invalid' };
+    }
+
+    if (found.expires_at.getTime() < Date.now()) {
+      return { status: 'expired' };
+    }
+
+    const { raw, hash: newHash } = this.tokenService.generateRefreshToken();
+    const session = await withTxRetry(this.prisma, async (tx) => {
+      const newSession = await tx.session.create({
+        data: {
+          user_id: found.user_id,
+          session_chain_id: found.session_chain_id,
+          device_id: device.deviceId ?? found.device_id,
+          device_name: device.deviceName ?? found.device_name,
+          platform: device.platform ?? found.platform,
+          app_version: device.appVersion ?? found.app_version,
+          ip: meta.ip ?? found.ip,
+          user_agent: meta.userAgent ?? found.user_agent,
+          refresh_hash: newHash,
+          last_used_at: new Date(),
+          expires_at: this.tokenService.refreshExpiryDate(),
+        },
+      });
+      await tx.session.update({
+        where: { id: found.id },
+        data: {
+          revoked_at: new Date(),
+          revoked_reason: 'rotated',
+          replaced_by_session_id: newSession.id,
+        },
+      });
+      await this.authEvents.record(
+        {
+          userId: found.user_id,
+          eventType: AUTH_EVENT_TYPES.TOKEN_REFRESHED,
+          success: true,
+          deviceId: device.deviceId,
+          ip: meta.ip,
+          userAgent: meta.userAgent,
+        },
+        tx,
+      );
+      return newSession;
+    });
+
+    return { status: 'ok', session, refreshTokenRaw: raw };
+  }
+
+  async listActiveChains(userId: string): Promise<Session[]> {
+    return this.prisma.session.findMany({
+      where: { user_id: userId, revoked_at: null },
+      orderBy: { last_used_at: 'desc' },
+    });
+  }
+
+  /** Ownership-checked: throws by returning false if the chain doesn't
+   * belong to this user, so the controller can 404 rather than leaking
+   * whether a session id exists for someone else's account. */
+  async belongsToUser(
+    sessionChainId: string,
+    userId: string,
+  ): Promise<boolean> {
+    const row = await this.prisma.session.findFirst({
+      where: { session_chain_id: sessionChainId, user_id: userId },
+      select: { id: true },
+    });
+    return row !== null;
+  }
+
+  /** docs/CHANGELOG.md stage 1.4 (ask-item A6, mitigation b): a rotation
+   * replay within REFRESH_ROTATION_GRACE_SECONDS of the old row's
+   * revocation, from the same device_id, is far more likely a client
+   * retry racing a timeout than a stolen token — a real thief doesn't
+   * know the rotated-away token's replacement device_id. */
+  private async isBenignRetry(
+    revokedRow: Session,
+    device: DeviceInfo,
+  ): Promise<boolean> {
+    if (!revokedRow.replaced_by_session_id || !device.deviceId) return false;
+    const graceMs = this.gracePeriodMs();
+    const revokedAt = revokedRow.updated_at.getTime();
+    if (Date.now() - revokedAt > graceMs) return false;
+
+    const replacement = await this.prisma.session.findUnique({
+      where: { id: revokedRow.replaced_by_session_id },
+      select: { device_id: true },
+    });
+    return replacement?.device_id === device.deviceId;
+  }
+
+  private gracePeriodMs(): number {
+    return (
+      this.config.getOrThrow<number>('REFRESH_ROTATION_GRACE_SECONDS') * 1000
+    );
+  }
+}
