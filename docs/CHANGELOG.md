@@ -1157,3 +1157,36 @@ the AppButton fix above.
 Next step for the user: run `flutter test --update-goldens` once more (the
 welcome goldens were never captured before, since the test hung before
 reaching the screenshot), then `flutter test` should be fully green.
+
+
+## Welcome-screen design tweak — 2026-09-22 (owner request, seen after first real run)
+
+Now that the app actually runs on-device (Android emulator, first time this
+project's history), the owner asked for 2 visual tweaks to the welcome
+screen after seeing it live: (1) put the scales-of-justice logo BELOW the
+title text instead of above it, (2) enlarge the logo since the space
+between the title and the phone button looked empty on a real screen —
+stretch it, don't reposition it.
+
+Consulted a design-reasoning subagent (read `docs/07_DESIGN_SYSTEM.md` §5/
+§6.1 + the current widget code) before touching anything, since the file
+carried an explicit prior "don't touch this screen" note from the owner —
+this is a new, explicit override of that note from the same owner, given
+after seeing the screen run for real.
+
+Change in `welcome_screen.dart`: reordered to title → SizedBox(35) →
+ScalesLogo → SizedBox(16) → button (was ScalesLogo → SizedBox(35) → title
+→ ...); `ScalesLogo.size` raised 236 → 300 — the design doc's own stated
+ceiling for this logo (§5.1: width ≤ 300), which fits horizontally with
+16px+ margin at the narrowest common phone width (360pt). No other spacing
+values changed — the existing 35px/16px gaps were reused between the
+swapped elements. Estimated total content height (~540px) still clears
+safe-area height on both a 390×844 (iPhone 13/14) and a tighter 360×800
+Android screen without needing to scroll.
+
+Updated the file-level doc comment (previously said "do not touch this
+screen") to describe the new approved layout instead.
+
+Known follow-up: this invalidates the (never-yet-generated) welcome-screen
+goldens; the user needs to run `flutter test --update-goldens` again before
+the golden suite is green, then those 2 new PNGs should get committed.

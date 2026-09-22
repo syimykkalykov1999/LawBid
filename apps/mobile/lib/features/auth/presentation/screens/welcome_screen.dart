@@ -7,14 +7,13 @@ import '../../../../core/l10n/l10n_providers.dart';
 import '../../application/onboarding_flow.dart';
 import '../../auth_routes.dart';
 
-/// `/welcome` (file 07 §6.1). **Do not change this screen's layout/visual
-/// design** — the owner explicitly approved it and asked it not to be
-/// touched ("вот приветствие мне очень нравится не трогай пожалуйста
-/// приветствие", this conversation) beyond the two bug fixes already made
-/// in the reference preview artifact (email icon fill, role-card checkmark
-/// — neither is on this screen). This implementation follows that approved
-/// layout exactly: scales logo → title → phone button → 3 social icons →
-/// legal fine print, nothing else.
+/// `/welcome` (file 07 §6.1). Layout, 2026-09-22 revision (owner request,
+/// this conversation, after seeing it run on-device): title text first,
+/// THEN the scales logo below it (was logo-then-title), and the logo
+/// enlarged to `size: 300` (the design doc's stated ceiling, §5.1) to fill
+/// the empty space that was visible between the title and the phone button
+/// on a real device. Order: title → scales logo → phone button → 3 social
+/// icons → legal fine print.
 class WelcomeScreen extends ConsumerWidget {
   const WelcomeScreen({super.key});
 
@@ -48,13 +47,13 @@ class WelcomeScreen extends ConsumerWidget {
           child: Column(
             children: [
               const SizedBox(height: 54),
-              const ScalesLogo(size: 236, animated: true, semanticLabel: 'LawBid'),
-              const SizedBox(height: 35),
               Text(
                 t.t('auth.welcome.title'),
                 textAlign: TextAlign.center,
                 style: typography.titleWelcome.copyWith(color: colors.text),
               ),
+              const SizedBox(height: 35),
+              const ScalesLogo(size: 300, animated: true, semanticLabel: 'LawBid'),
               const SizedBox(height: 16),
               GavelStrikeButton(
                 label: t.t('auth.welcome.phone'),
