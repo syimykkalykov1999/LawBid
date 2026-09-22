@@ -1406,3 +1406,65 @@ Affects goldens: any dark-theme golden showing the welcome screen's phone
 button or the scales logo will mismatch until the next
 `--update-goldens` pass, rolled into the same pending refresh as the
 earlier color/layout changes this session.
+
+### Settings screen split out of the Profile tab (owner follow-up, 2026-09-22)
+
+Owner correction: the theme switcher was sitting directly on the Profile
+tab stub (a bare `SegmentedButton`, stage-1.5 placeholder) — not how
+Instagram/TikTok do it, and not what file 01 §3.6 actually specifies
+either ("Настройки (гамбургер): Аккаунт, Безопасность, Язык, Тема,
+Подписка, История кейсов, Уведомления, Помощь, Правовая информация,
+Выйти, Удалить аккаунт").
+
+- New `SettingsScreen` (`features/profile/presentation/screens/
+  settings_screen.dart`), route `/profile/settings`, pushed on the root
+  navigator (same reasoning as `/create`: full-screen, not a shell tab).
+  Lists every §3.6 row. Only Тема and Язык are wired to real controllers
+  (Тема: a 3-way System/Light/Dark bottom sheet, file 01 §8.1's exact set
+  — the Profile stub's old `SegmentedButton` only ever exposed 2 of the
+  3 via icon-toggle logic elsewhere; this restores all 3. Язык: reuses
+  `LanguagePickerSheet` from the welcome-screen work). Every other row
+  (Аккаунт, Безопасность, Подписка, История кейсов, Уведомления, Помощь,
+  Правовая информация, Выйти, Удалить аккаунт) shows the same "not built
+  yet" affordance already used elsewhere — those genuinely belong to
+  file 3 (Подписка), file 4 (История кейсов), file 5 (deeper notification
+  categories), or Этап 1.7's still-missing Flutter auth-networking layer
+  (Аккаунт/Безопасность/Выйти/Удалить аккаунт — see this session's
+  stage-1 completion audit, same date, for what's actually missing there).
+- `ProfileScreen` is back to a pure stage-1.5 stub: title + a gear icon
+  (`Icons.settings_outlined`) that pushes `/profile/settings`. No more
+  theme control lives directly on the tab.
+- `AppRoutes.profileSettings` added; wired in `app_router.dart`.
+- `static_translator.dart`: added the `settings.*` key family (both
+  languages).
+
+### Stage-1 completion audit (2026-09-22)
+
+Owner asked for a serious, honest stock-take before any move to file 2 —
+delegated to a subagent (read-only, no code changes) to check docs/
+01_FOUNDATION_AUTH.md §15/§16 against the actual repo rather than
+guessing from memory. Summary (full findings kept in this session's
+transcript, not restated in full here to keep this entry short):
+
+- ✅ done: Этап 1.1 (monorepo skeleton), 1.2 (backend core), 1.3 (auth DB
+  schema — all 13 models + migrations + seed), 1.4 (auth backend — OTP/
+  Apple/Google/JWT/sessions/reauth, e2e-tested), 1.5 (Flutter design
+  system + shell + goldens).
+- 🟡 partial: 1.6 (backend i18n module: **not started** — no
+  `modules/i18n` anywhere in apps/api; Flutter side is the documented
+  `StaticTranslator` stopgap only, no `drift` dependency at all). 1.7
+  (screens exist, but **zero** networking wiring — no `dio`,
+  `flutter_secure_storage`, `local_auth`, `sign_in_with_apple`, or
+  `google_sign_in` in pubspec.yaml; `AuthRepository` is a stub; no
+  `SessionState`; no active-devices or account-deletion screens on the
+  Flutter side despite the backend endpoints existing).
+- ❌ not started: Этап 1.8 (feature flags module, `GET /config/bootstrap`).
+- §16 DoD: no CI workflow file exists at all (`.github/workflows` is a
+  placeholder README); Dart client isn't generated from Swagger. Rest
+  (no secrets, no bare TODOs, CHANGELOG itself) check out.
+
+**Conclusion: file 1 is NOT done.** The backend core/auth and the Flutter
+design system are genuinely solid, but the two halves aren't wired
+together yet (no real network calls from the app), backend i18n and
+feature flags haven't been started, and there's no CI. File 2 is not on
+the table until these close.

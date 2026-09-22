@@ -7,6 +7,7 @@ import '../../features/create/presentation/screens/create_screen.dart';
 import '../../features/feed/presentation/screens/feed_screen.dart';
 import '../../features/mine/presentation/screens/mine_screen.dart';
 import '../../features/profile/presentation/screens/profile_screen.dart';
+import '../../features/profile/presentation/screens/settings_screen.dart';
 import '../../features/search/presentation/screens/search_screen.dart';
 import 'app_routes.dart';
 import 'guards/auth_guard.dart';
@@ -57,6 +58,11 @@ GoRouter appRouter(Ref ref) {
         path: AppRoutes.create,
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const CreateScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.profileSettings,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const SettingsScreen(),
       ),
       ...authRoutes(),
     ],

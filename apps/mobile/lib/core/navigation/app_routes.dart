@@ -7,7 +7,13 @@ abstract final class AppRoutes {
   static const profile = '/profile';
 
   /// Full-screen "+" creation flow (file 07 §3.4: "Экран открывается как
-  /// full-screen с крестиком") — pushed on the ROOT navigator, not a shell
+  /// full-screen с крестиком") -- pushed on the ROOT navigator, not a shell
   /// branch, so it covers the bottom nav entirely.
   static const create = '/create';
+
+  /// Pushed on the ROOT navigator (2026-09-22 owner follow-up, file 01
+  /// §3.6's "Настройки (гамбургер)"), same reasoning as [create]: a
+  /// full-screen settings page should cover the bottom nav, not live
+  /// inside the profile tab's own shell branch.
+  static const profileSettings = '/profile/settings';
 }
