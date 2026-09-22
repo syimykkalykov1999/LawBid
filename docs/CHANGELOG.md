@@ -918,3 +918,170 @@ flutter test
 Please run this and tell me what `flutter analyze`/`flutter test` actually
 report — same as every prior stage, I'd rather fix real errors than claim
 this is verified when it isn't.
+
+## Toolchain bootstrap + dependency migration — 2026-09-22 (post stage 1.7)
+
+First time the Flutter app was actually built/analyzed rather than
+hand-verified. Two separate pieces of work happened in this session:
+getting a real Flutter/Xcode/Android toolchain onto your Mac (previously
+nothing was installed), and then fixing a real, non-trivial dependency
+crisis that blocked `build_runner` once codegen was actually attempted.
+
+### Toolchain installed on your Mac
+
+Flutter 3.47.5 (stable), Xcode 27.0 (license accepted, first-launch
+components installed), CocoaPods 1.17.0, Android Studio + Android SDK
+(cmdline-tools + licenses accepted), iOS 27.0 Simulator runtime. `flutter
+doctor -v` is green except Chrome (irrelevant — no web target). Docker,
+Node, git were already present.
+
+### The dependency crisis and why versions moved
+
+`dart run build_runner build` failed on the very first real attempt with
+an `analyzer_plugin` / `Element` -> `Element2` mismatch. Root cause,
+confirmed via pub.dev's API: `analyzer` did an internal API migration
+(`Element` -> `Element2`) partway through its 7.x line without a major
+version bump, which broke `analyzer_plugin` (pinned by `custom_lint_core`
+at `^0.12.0`), which is pulled in transitively by every 2.x version of
+`riverpod_generator` (2.0.0 through 2.6.5, all of them - confirmed by
+checking each release's own pinned deps) via
+`riverpod_generator -> riverpod_analyzer_utils -> custom_lint_core`. This
+is unrelated to our own code; it's a permanent break in that specific
+dependency chain against any analyzer version the current Dart SDK
+accepts. Three different `dependency_overrides` pin attempts (forcing
+various `analyzer`/`analyzer_plugin`/`custom_lint_core` combinations) all
+failed for related reasons (missing SDK `_macros` package below analyzer
+7.3.0; the same Element2 break re-appearing one layer up in
+`riverpod_analyzer_utils` itself, which was also never updated for it).
+
+**Decision**: stop patching around Riverpod 2.x and move the whole
+codegen stack to its current major versions, which dropped
+`analyzer_plugin`/`custom_lint_core` out of the graph entirely -
+confirmed in `pubspec.lock`, neither package appears anymore.
+
+| package | before | after |
+|---|---|---|
+| `flutter_riverpod` | `^2.6.1` | `^3.4.3` |
+| `riverpod_annotation` | `^2.6.1` | `^4.0.7` |
+| `riverpod_generator` (dev) | `^2.6.3` | `^4.0.9` |
+| `freezed_annotation` | `^2.4.4` | `^3.1.0` |
+| `freezed` (dev) | `^2.5.7` | `^4.0.2` |
+| `json_annotation` | `^4.9.0` | `^4.12.0` |
+| `json_serializable` (dev) | `^6.9.0` | `^6.14.1` |
+| `build_runner` (dev) | `^2.4.13` | `^2.16.1` |
+
+This is a real breaking API migration for the whole app's state-management
+layer (Riverpod 2->3), not just a version bump, and it changed freezed's
+own union syntax (see below). `custom_lint`/`riverpod_lint` (IDE-only lint
+tooling, not used by app code/build/tests) were removed rather than
+migrated to their 3.x line, to keep this fix scoped to "unblock the
+build" - re-adding them (now trivially compatible with Riverpod 3.x, no
+version conflict) is a separate, optional decision, not done here.
+
+### Freezed 2.x -> 4.x syntax migration (real compile errors, now fixed)
+
+Freezed 4.x requires an explicit class modifier on any `@freezed` class
+that didn't need one under 2.x - the old bare `class X with _$X` compiles
+but silently drops union support:
+
+- `OtpVerifyResult` (multi-variant union: success/invalid/expired/
+  networkError) -> `sealed class`.
+- `OnboardingFlowState` (single-variant state class) -> `abstract class`.
+
+Bigger, easy-to-miss gotcha found only by reading the generated
+`.freezed.dart` output: freezed 4.x generates `when`/`map`/`maybeWhen`/etc.
+as an **extension** (`extension OtpVerifyResultPatterns on
+OtpVerifyResult`) instead of an instance method on the old `_$X` mixin.
+Extension methods require the *declaring file* to be imported wherever
+they're called - not just the type, which can otherwise reach a file
+purely through return-type inference (as `OtpVerifyResult` did here, via
+`AuthRepository.verifyOtp()`). `onboarding_flow.dart` called `.when()` on
+an `OtpVerifyResult` without ever importing `otp_verify_result.dart`
+directly, which compiled fine under freezed 2.x's instance-method
+`when()` but is a hard error under 4.x. Fixed by adding the direct import.
+Worth remembering for any future freezed union: **always import the
+union's own file at every call site that uses `.when()`/`.map()`**, don't
+rely on transitive type visibility.
+
+### Other real compile errors fixed (Flutter SDK imports)
+
+`flutter create` regenerated `android/`/`ios/` around the existing `lib/`
+non-destructively (verified via `git diff` - only `analysis_options.yaml`
+picked up `build/**`/`android/**`/`ios/**` in its `exclude:` list,
+benign). Its stock `test/widget_test.dart` referenced a template `MyApp`
+class that doesn't exist in this app and was deleted (our actual tests
+are the golden tests under `test/features/auth/golden/` and
+`test/design_system/golden/`).
+
+Three files used Flutter SDK symbols without importing the library that
+declares them - likely always latent, surfaced only once real analysis
+ran:
+
+- `gavel_strike_button.dart` - `HapticFeedback` needs
+  `package:flutter/services.dart`.
+- `app_text_field.dart` - `TextInputFormatter` needs the same.
+- `app_router.dart` - `GlobalKey`/`NavigatorState` need
+  `package:flutter/widgets.dart`.
+
+### Lint cleanup (warnings, not errors)
+
+Fixed the handful of real `warning`-level items from the first
+`flutter analyze` run: an unused `onboarding_local_store.dart` import in
+`onboarding_flow.dart` (already reachable via `auth_providers.dart`), an
+unused `flutter_test` import in 5 golden-test files (redundant -
+`golden_toolkit` re-exports it), and 2 `unnecessary_import`s
+(`app_router.dart`'s `flutter_riverpod` - already re-exported by
+`riverpod_annotation`; `profile_screen.dart`'s `theme_mode_providers.dart`
+- already re-exported by `design_system.dart`).
+
+**Not touched**: the remaining ~380 `info`-level items (line length >80,
+`always_use_package_imports`, required-before-optional param ordering,
+`prefer_int_literals`, etc.) are pre-existing `very_good_analysis` style
+debt across files from stages 1.5/1.7, not caused by this session's
+migration and not blocking the build. Left for a dedicated lint pass
+rather than burning a large diff here; `dart fix --apply` will
+mechanically clear a meaningful chunk of them. One `deprecated_member_use`
+(`SemanticsService.announce` -> `sendAnnouncement`) and 2
+`unawaited_futures` were also left as-is - deliberately, since I have no
+way to check the exact new API signature or test the change against a
+live analyzer from this sandbox, and getting an a11y-relevant announce
+call wrong is worse than leaving a working deprecated call in place.
+
+### Version-consistency audit (why this shouldn't drift again)
+
+Checked `pubspec.lock` against `pubspec.yaml` end to end: every dependency
+has an explicit `^` constraint (nothing left on an unbounded/`any`
+version that could silently jump a major version on a future `pub get`),
+`analyzer_plugin`/`custom_lint_core` are confirmed absent from the
+resolved graph, and the Dart SDK constraint (`>=3.5.0 <4.0.0`) is
+satisfied by the Flutter 3.47.5 toolchain now installed. **`pubspec.lock`
+itself had never been committed** (present on disk, untracked in git) -
+for an app (not a package) this is the actual mechanism that pins exact
+resolved versions for every future `pub get`/CI run/teammate, so it's
+committed as part of this change. Going forward, the version-safety rule
+for this repo is: commit `pubspec.lock` on every dependency change, don't
+hand-edit it, and re-run `flutter pub get` (which updates it
+deterministically) rather than deleting it.
+
+### What I still could not do
+
+Same structural limitation as every prior stage: this sandbox
+(`device_bash`) is a separate Linux ARM64 VM with no Flutter/Dart/Xcode -
+confirmed again this session (`which flutter dart` -> nothing). Everything
+above was verified by reading the actual generated `.freezed.dart` output
+and `pubspec.lock`, and by re-deriving each error from first principles
+(freezed's own generated extension code, Flutter SDK library exports),
+not by running `flutter analyze` myself. **I did not run `flutter
+analyze`/`flutter test`/`flutter run` after this second round of fixes.**
+Please run:
+
+```bash
+cd apps/mobile
+dart run build_runner build --delete-conflicting-outputs
+flutter analyze
+flutter test
+```
+
+and tell me what's real. If `flutter analyze` comes back at 0 errors,
+next step is `flutter run` (simulator or device) - the actual first run
+of this app in the project's history.

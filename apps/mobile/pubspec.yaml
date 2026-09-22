@@ -12,8 +12,8 @@ dependencies:
   cupertino_icons: ^1.0.8
 
   # State management (file 01 §5.1)
-  flutter_riverpod: ^2.6.1
-  riverpod_annotation: ^2.6.1
+  flutter_riverpod: ^3.4.3
+  riverpod_annotation: ^4.0.7
 
   # Navigation — StatefulShellRoute.indexedStack (file 01 §5.1 names "go_router с ShellRoute";
   # this is the modern variant that preserves each tab's own Navigator stack, chosen per
@@ -22,8 +22,8 @@ dependencies:
 
   # Models (stage 1.5 doesn't define any yet; locked in now so stage 1.7+ doesn't fight
   # version skew across the monorepo)
-  freezed_annotation: ^2.4.4
-  json_annotation: ^4.9.0
+  freezed_annotation: ^3.1.0
+  json_annotation: ^4.12.0
 
   # Local key-value persistence (theme mode now; auth/session/feature-flags in later stages,
   # all behind the same repository-interface pattern — see LocalKvStore)
@@ -32,12 +32,19 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  riverpod_generator: ^2.6.3
-  build_runner: ^2.4.13
-  freezed: ^2.5.7
-  json_serializable: ^6.9.0
-  custom_lint: ^0.7.0
-  riverpod_lint: ^2.6.3
+  riverpod_generator: ^4.0.9
+  build_runner: ^2.16.1
+  freezed: ^4.0.2
+  json_serializable: ^6.14.1
+  # custom_lint / riverpod_lint: TEMPORARILY REMOVED — 2026-09-22, UPDATE 2026-09-22.
+  # Original reason: custom_lint ^0.7.x pulled analyzer_plugin ~0.12.0, which broke against
+  # the analyzer version resolved elsewhere in the graph (Element -> Element2 migration),
+  # failing `dart run build_runner build` entirely.
+  # Update: the app's whole Riverpod 2->3 / Freezed 2->4 migration (see CHANGELOG, same date)
+  # already happened to fix the build, so custom_lint 0.8.1 + riverpod_lint ^3.x (which need
+  # riverpod 3.x) are now compatible with this pubspec — no longer blocked. Not re-added here
+  # anyway, to keep this pass scoped to "unblock the build"; re-adding IDE-lint-only tooling
+  # is a separate, deliberate decision, not a version-conflict problem anymore. See CHANGELOG.
   very_good_analysis: ^6.0.0
   golden_toolkit: ^0.15.0
 
@@ -61,3 +68,10 @@ flutter:
           weight: 500
         - asset: assets/fonts/Inter-Variable.ttf
           weight: 600
+
+dependency_overrides:
+  # Riverpod bumped 2.x -> 3.x on 2026-09-22 specifically to escape this: riverpod_generator
+  # 2.x's analyzer-touching chain (riverpod_analyzer_utils, custom_lint_core, analyzer_plugin)
+  # was never updated for analyzer's Element -> Element2 migration and cannot build against any
+  # analyzer version the current Dart SDK accepts. 3.x/4.x generations fix this. No overrides
+  # needed after the bump; keeping this file present as a documented marker.

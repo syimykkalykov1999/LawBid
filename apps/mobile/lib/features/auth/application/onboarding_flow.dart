@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../shared/domain/user_role.dart';
-import '../data/onboarding_local_store.dart';
+import '../domain/otp_verify_result.dart';
 import '../domain/onboarding_flow_state.dart';
 import '../domain/onboarding_step.dart';
 import 'auth_providers.dart';

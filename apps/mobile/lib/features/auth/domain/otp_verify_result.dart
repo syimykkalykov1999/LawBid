@@ -9,7 +9,7 @@ part 'otp_verify_result.freezed.dart';
 /// per the stage-1.7 architecture review (ecc:code-architect,
 /// docs/CHANGELOG.md).
 @freezed
-class OtpVerifyResult with _$OtpVerifyResult {
+sealed class OtpVerifyResult with _$OtpVerifyResult {
   const factory OtpVerifyResult.success() = OtpVerifySuccess;
   const factory OtpVerifyResult.invalid() = OtpVerifyInvalid;
   const factory OtpVerifyResult.expired() = OtpVerifyExpired;

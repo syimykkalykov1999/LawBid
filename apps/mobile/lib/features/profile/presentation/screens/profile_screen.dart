@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/design_system/design_system.dart';
 import '../../../../core/l10n/l10n_providers.dart';
-import '../../../../core/design_system/theme/theme_mode_providers.dart';
 
 /// Stage 1.5 stub (file 01 §15). Real content (public/closed profile,
 /// settings) is file 3. Doubles as the theme-mode toggle demo for this

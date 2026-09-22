@@ -13,7 +13,7 @@ part 'onboarding_flow_state.freezed.dart';
 /// `OnboardingFlow` (application/onboarding_flow.dart) and the stage-1.7
 /// architecture review in docs/CHANGELOG.md.
 @freezed
-class OnboardingFlowState with _$OnboardingFlowState {
+abstract class OnboardingFlowState with _$OnboardingFlowState {
   const factory OnboardingFlowState({
     @Default(OnboardingStep.welcome) OnboardingStep step,
     String? phoneNumber,
