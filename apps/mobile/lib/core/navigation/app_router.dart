@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../features/auth/auth_routes.dart';
 import '../../features/create/presentation/screens/create_screen.dart';
 import '../../features/feed/presentation/screens/feed_screen.dart';
 import '../../features/mine/presentation/screens/mine_screen.dart';
@@ -17,16 +18,19 @@ part 'app_router.g.dart';
 /// App-wide router (file 01 §5.1: go_router + ShellRoute; stage 1.5 uses
 /// `StatefulShellRoute.indexedStack` — see main_shell.dart doc comment).
 ///
-/// `redirect:` already wires in [authGuardRedirect] even though it's a
-/// stage-1.5 no-op stub, so stage 1.7's real guard logic is a change inside
-/// that one function, not a router restructure.
+/// `initialLocation` is [AuthRoutes.welcome], not [AppRoutes.feed] (changed
+/// in stage 1.7, docs/CHANGELOG.md): before the auth/onboarding screens
+/// existed there was nothing else to land on, so `/feed` was the only
+/// sensible default. Now that `/welcome` → phone → otp → role exists, a
+/// cold start should go through it — see [authGuardRedirect]'s doc comment
+/// for what this guard can and can't yet enforce.
 @riverpod
 GoRouter appRouter(Ref ref) {
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
-    initialLocation: AppRoutes.feed,
+    initialLocation: AuthRoutes.welcome,
     observers: [routeObserver],
-    redirect: authGuardRedirect,
+    redirect: (context, state) => authGuardRedirect(context, state, ref),
     routes: [
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) => MainShell(navigationShell: navigationShell),
@@ -54,6 +58,7 @@ GoRouter appRouter(Ref ref) {
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const CreateScreen(),
       ),
+      ...authRoutes(),
     ],
   );
 }

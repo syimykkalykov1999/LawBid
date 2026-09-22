@@ -6,6 +6,16 @@ import 'package:flutter/material.dart';
 import '../../theme/app_color_tokens.dart';
 import '../../tokens/app_motion.dart';
 import 'app_button.dart';
+import 'app_icon_button.dart';
+
+// `GavelStrikeIconButton` (stage 1.7, docs/CHANGELOG.md — file 07 §7.4 lists
+// the welcome screen's 3 social-login icon buttons among the gavel-strike
+// buttons) shares this file's private `_GavelStrikeOverlay`/
+// `_GavelStrikePainter`/`_keyframe` — a `part of` split rather than
+// duplicating ~120 lines of overlay/painter code, since Dart's `_private`
+// scoping is per-library (per-file) and those three are otherwise
+// unreachable from a second file.
+part 'gavel_strike_icon_button.dart';
 
 /// Wraps [AppButton] with the judge's-gavel tap animation (file 07 §7).
 /// Used ONLY on the buttons listed in file 07 §7.4; everywhere else use a

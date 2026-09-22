@@ -697,3 +697,224 @@ only fills in what's missing (platform folders) — it does not overwrite
 the Dart source written this stage. Please run this and tell me what
 `flutter analyze`/`flutter test` actually report; I'll fix whatever's
 real rather than guessing.
+
+## Stage 1.7 (auth/onboarding screens) — 2026-09-22
+
+**Scope of this entry, stated up front (per the owner's standing "always
+check you're going strictly by ТЗ" instruction):** file 01 §15's full
+stage-1.7 scope is `AuthRepository` + dio interceptors (auth/refresh/
+idempotency/retry) + secure token storage + `SessionState` +
+`AppRouterGuard` + Apple/Google native SDKs + SMS autofill + biometric
+reauth + consents/18+ + "Активные устройства" + account deletion + "Скачать
+мои данные". **None of that is built in this entry.** What IS built: the 4
+screens file 07 §6/D.3 actually specifies (welcome, phone, otp, role) as
+real, wired-up Flutter UI, working end-to-end against a stub backend, per
+the owner's explicit instruction this session ("Начинай писать реальные
+экраны этапа 1.7"). The rest of file 01 §15's stage-1.7 list is a
+separate, not-yet-started pass — see "Known limitations" below for exactly
+what that means in practice (e.g. the 10-item manual acceptance checklist
+in file 01 §15 is NOT satisfiable yet; only items 2 and 4 are even
+partially exercisable with what exists now).
+
+Consulted `ecc:code-architect` (routing/state/repository architecture) and
+`ecc:a11y-architect` (screen-level accessibility) before writing any
+screen code, per the owner's instruction to run design/architecture
+decisions past the subagents first.
+
+### What was built
+
+**New `features/auth` module** (`apps/mobile/lib/features/auth/`):
+- `domain/onboarding_step.dart`, `domain/onboarding_flow_state.dart`
+  (freezed), `domain/otp_verify_result.dart` (freezed union: success/
+  invalid/expired/networkError, not a bare `bool`).
+- `data/auth_repository.dart` (interface) + `data/stub_auth_repository.dart`
+  (accepts any 6-digit code except the reserved `000000`, simulated 500ms
+  latency, no real network call) + `data/onboarding_local_store.dart`
+  (persists ONLY `{step, phoneNumber}` — never the OTP code — for
+  resume-after-kill).
+- `application/auth_providers.dart` + `application/onboarding_flow.dart`
+  (`@riverpod` notifier driving all 4 screens from one shared state —
+  screens genuinely share data: the phone number typed on screen 2 shows
+  on screen 3).
+- `auth_routes.dart`: 4 flat `GoRoute`s (`/welcome`, `/auth/phone`,
+  `/auth/otp`, `/onboarding/role`) appended beside (not nested inside) the
+  `StatefulShellRoute` — onboarding isn't a shell tab. `context.push()` for
+  forward nav between the 4 screens (preserves back-stack state);
+  `context.go()` only for the final role→shell transition.
+- `presentation/screens/{welcome,phone,otp,role}_screen.dart` — built to
+  file 07 §6.1-§6.4's exact numeric layout (offsets, gaps, font tokens),
+  reusing stage-1.5 components (`ScalesLogo`, `GavelStrikeButton`,
+  `AppButton`, `AppTextField`, `AppOtpField`, `RoleCard`, `LegalText`,
+  `WatermarkScales`).
+
+**Design-system additions/changes** (`core/design_system/`):
+- `widgets/display/brand_glyphs.dart`: `EmailGlyph`/`AppleGlyph`/
+  `GoogleGlyph`/`ChevronGlyph` — hand-drawn `CustomPainter`s (same pattern
+  as `ScalesLogo`/`WatermarkScales`/the gavel), geometry transcribed
+  point-for-point from the owner-approved welcome-screen preview artifact's
+  SVG paths, so these render pixel-true to what was already reviewed.
+- `widgets/buttons/app_back_button.dart`: `AppBackButton` (22px chevron in
+  a 44×44 tap target, file 07 §6.2/§9).
+- `widgets/buttons/gavel_strike_icon_button.dart`: `GavelStrikeIconButton`
+  — file 07 §7.4 lists the welcome screen's 3 social-login icon buttons
+  among the gavel-strike buttons (re-read closely: "«Продолжить с
+  телефоном» **(и три иконки соцвхода на приветствии)**"), which stage
+  1.5's `GavelStrikeButton` (wraps `AppButton` only) can't drive. Shares
+  `GavelStrikeButton`'s private overlay/painter via a `part`/`part of`
+  split rather than duplicating ~120 lines — see that file's top comment.
+  `AppIconButton` gained an optional `onTapDown` pass-through hook
+  (additive, mirrors `AppButton`'s existing one) so the wrapper can learn
+  the tap position.
+- `widgets/inputs/app_otp_field.dart` **restructured**: was 6 independent
+  `TextField`s; now backed by ONE real (invisible) `TextField` owning
+  focus/keyboard/`AutofillHints.oneTimeCode`, with the 6 boxes as a purely
+  presentational `IgnorePointer` overlay. Per `ecc:a11y-architect`: 6
+  separate fields both read badly to a screen reader (walked as 6 unrelated
+  fields instead of one "код подтверждения" field) and don't reliably
+  receive SMS-autofill (which needs one real target). Public API
+  (`onCompleted`/`onChanged`/`errorText`/`autofocus`) unchanged.
+- `theme/theme_mode_providers.dart`: `sharedPreferencesProvider`/
+  `localKvStoreProvider` moved out to a new `core/persistence/
+  persistence_providers.dart` — local-storage bootstrap isn't a
+  design-system concern, `theme_mode_providers.dart` was just its first
+  (stage-1.5) consumer; `OnboardingLocalStore` is the second, and neither
+  should import through the theme folder to reach it. `main.dart`'s import
+  updated accordingly; no provider name changed.
+
+**Routing/guard** (`core/navigation/`):
+- `app_router.dart`: `initialLocation` changed from `/feed` to `/welcome`
+  (there was no auth flow to default away from before this stage);
+  `authRoutes()` appended; `redirect` now closes over `ref` and calls
+  `authGuardRedirect(context, state, ref)`.
+- `guards/auth_guard.dart`: no longer a no-op. Resumes in-progress
+  onboarding (file 01 §15 acceptance item 4) by redirecting to the saved
+  step whenever the current route doesn't match it. Doc comment states
+  plainly what this guard still can't do (see Known limitations).
+
+**Localization**: `core/l10n/static_translator.dart` gained the full
+`auth.*`/`onboarding.*`/`brand.*` key set from file 07 §8 (ru column,
+copied verbatim) plus a small necessary addition (`common.back`,
+`auth.phone.fieldLabel`, `auth.phone.error.invalid`) — same "necessary,
+spec-consistent, not in file 07 §8's table" category as stage 1.5's
+`nav.*`/`empty.*`/`error.*` keys. This is a direct, documented consequence
+of building stage 1.7 before stage 1.6 (see judgment call #1 below).
+
+**Tests**: `test/features/auth/golden/auth_screens_golden_test.dart` — 4
+screens × 2 themes (8 goldens), per file 07 §9's "4 экрана × 2 темы"
+requirement. The 3 additional state-variant goldens file 07 §9 also asks
+for (field error / button loading / selected role card) are **not**
+included — see Known limitations.
+
+### Judgment calls (owner asked to flag these rather than silently decide)
+
+1. **Building stage 1.7's screens before stage 1.6's real localization
+   exists.** The owner's instruction this session was explicit and
+   unambiguous ("Начинай писать реальные экраны этапа 1.7... продолжай с
+   сабагентами"), so this proceeds rather than stalling to ask — but the
+   consequence is real: the `auth.*` strings now live in `StaticTranslator`
+   (a hardcoded Russian map), not the real xlsx-backed L10n layer. File 01
+   §15 stage-1.7's own acceptance item 7 ("Переключение языка и темы
+   сохраняется") can't be exercised for language yet — there's no second
+   language to switch to. When stage 1.6 lands, these keys move into
+   `translations_seed.xlsx` and (per the `Translator` interface's whole
+   design point) no call site changes.
+2. **Scope is "screens" — exactly file 07 §6/D.3's 4 screens — not file 01
+   §15's full stage-1.7 list.** Explained at the top of this entry.
+   `StubAuthRepository` stands in for the real backend; swapping it is a
+   provider-override change (`authRepositoryProvider`), not a call-site
+   change, by design — same pattern as `themeModeRepositoryProvider`.
+3. **`GavelStrikeIconButton` as a `part`/`part of` sibling of
+   `GavelStrikeButton`, not a merged shared base class.** The two
+   `_State` classes are near-mirrors (one wraps `AppButton`, one wraps
+   `AppIconButton`). Extracting a real shared animation-controller base
+   would be the more elegant long-term answer, but doing that refactor to
+   the already-committed, already-golden-tested `GavelStrikeButton` in the
+   same pass as new screens felt like unnecessary risk to working code —
+   flagged so a future pass can revisit if the drift between the two state
+   classes ever becomes a real maintenance problem.
+4. **Google's brand glyph rendered monochrome (`colors.text`), not
+   Google's real multi-color "G".** File 07 §4's generic `AppIconButton`
+   definition ("20px icon в цвете `text`") doesn't carve out an exception
+   for Google the way file 07 §2 explicitly does for the Attorney card's
+   navy. Google's own brand guidelines actually call for the full-color
+   mark on a "Sign in with Google" button — flagging this specific tension
+   for the owner rather than silently picking one reading. Easy to add a
+   `AppColorsFixed`-style exception later if wanted (same pattern as the
+   Attorney navy).
+5. **US-only phone number field, no country picker.** File 07 §6.2 shows a
+   static "US +1" chip in the reference preview and doesn't spec a country
+   selector; the product is explicitly US-market. `_CountryChip` is a
+   non-interactive display element for now.
+6. **60-second OTP resend cooldown.** Not specified anywhere in file 07 §6.3
+   — a conventional SMS-OTP default, not derived from spec text.
+7. **`initialLocation` changed from `/feed` to `/welcome`.** Necessary now
+   that an auth flow exists to default into — see Known limitations for
+   what this does NOT yet solve (returning-user cold starts).
+
+### Known limitations, honestly stated
+
+- **This code has not been run**, same sandbox constraint as every prior
+  stage — no Flutter/Dart SDK reachable here at all. Verified with the
+  same automated sweep as stage 1.5 (brace/paren/bracket balance +
+  relative-import resolution + `part`/`part of` pairing) across all 27
+  touched files, 0 issues found beyond the 5 build-runner-generated files
+  that are expected to be absent (`*.g.dart`/`*.freezed.dart` — see
+  Bootstrapping below). That sweep cannot catch type errors, so please
+  run `flutter analyze`/`flutter test` and tell me what's real.
+- **No `prefer_const_constructors` pass.** `very_good_analysis` (the lint
+  base) will very likely flag a number of missed `const` on literal
+  widgets across the new screen files — I did not attempt to hand-verify
+  const-correctness for ~17 files without being able to run `dart fix
+  --apply`/`flutter analyze` to confirm each one is actually safe. Running
+  `dart fix --apply` after `flutter analyze` should clear most of these
+  mechanically.
+- **`currentUserRoleProvider` is still hardcoded to `UserRole.client`.**
+  `RoleScreen` calls `OnboardingFlow.selectRole()`, which is stored in
+  `OnboardingFlowState.selectedRole`, but nothing wires that into the
+  app's actual role/session state yet — that needs `SessionState`, which
+  is part of the not-yet-started full auth pass. Concretely: today, an
+  Attorney who finishes onboarding still sees the Client-flavored bottom
+  nav on `/feed`.
+- **No persisted "is logged in" signal at all.** `OnboardingLocalStore`
+  only tracks in-progress onboarding and is cleared on completion — there
+  is no token/session persisted anywhere yet. A real returning user who
+  finished onboarding yesterday will see `/welcome` again on the next cold
+  start, not `/feed`, until secure token storage + `SessionState` exist.
+  Stated plainly in `auth_guard.dart`'s own doc comment too.
+- **Consents/18+ screen not built.** File 07 §6.5 lists it in the logical
+  flow order ("код → согласия и 18+ → выбор роли") but file 07 itself
+  explicitly excludes it from D.3's scope ("Экраны, не показанные в
+  макете (согласия, ...) выполняются... в этом же стиле" — i.e., later).
+  Current flow goes straight from a verified OTP to role selection.
+- **3 of file 07 §9's required golden-test states are missing** (field
+  error, button loading, selected role card) — they need interaction
+  sequences (`tester.tap`/`tester.enterText`) timed against the stub's
+  simulated network delay, which I had no way to actually run and iterate
+  on here. Flagged in the test file itself.
+- **Apple/Google buttons and the Terms/Privacy legal links show a "not
+  built yet" snackbar** rather than doing anything — matches what the
+  owner-approved preview artifact already showed for those three buttons,
+  and legal-document pages are file 06 territory, not yet built.
+- **No manual on-device check has happened** (can't — no Flutter SDK here).
+  The file 07 §11 D.3 acceptance checklist (pixel comparison against the
+  mockup, gavel strike on all 4 buttons, checkmark position, 16px title gap)
+  needs your eyes on your Mac.
+
+### Bootstrapping on your Mac
+
+Same commands as stage 1.5 — `build_runner` now also generates this
+stage's freezed unions/state class and the `OnboardingFlow` notifier:
+
+```bash
+cd apps/mobile
+flutter pub get
+dart run build_runner build --delete-conflicting-outputs
+dart fix --apply          # mechanical lint fixes (see const-constructors note above)
+flutter analyze
+flutter test --update-goldens   # first run only
+flutter test
+```
+
+Please run this and tell me what `flutter analyze`/`flutter test` actually
+report — same as every prior stage, I'd rather fix real errors than claim
+this is verified when it isn't.
