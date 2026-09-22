@@ -1131,3 +1131,29 @@ confirm 0 failures, then `flutter run` — analyze is clean, so the app
 should now actually launch. You don't need to paste the full output back;
 a one-line "passed" / "app launched" (or just the error line, if any) is
 enough.
+
+
+## Welcome-screen golden fix — 2026-09-22 (3rd real flutter test bug found)
+
+`welcome screen - light` / `welcome screen - dark` were the last 2 failing
+goldens (`pumpAndSettle timed out`), same signature as the earlier AppButton
+loading fix. Root cause, confirmed by reading source (not guessed): the
+welcome screen renders `ScalesLogo(size: 236, animated: true, ...)`
+(file 07 §6.1/§5.2), and `ScalesLogo`'s `_ScalesLogoState.initState()`
+creates `AnimationController(vsync: this, duration: const Duration(days: 1))`
+then `.repeat()`s it once running (`_syncTicking()`), i.e. it never
+naturally settles. `screenMatchesGolden`'s default internal
+`pumpAndSettle()` therefore hangs against it, identical to the
+`CircularProgressIndicator` case fixed earlier for `AppButton`.
+
+Fix: in `test/features/auth/golden/auth_screens_golden_test.dart`, only the
+`welcome` screen case now passes
+`customPump: (tester) => tester.pump(const Duration(milliseconds: 100))` to
+`screenMatchesGolden`; the other 3 screens (phone/otp/role, no infinite
+animation) keep the default settle-based pump. No application widget code
+was touched — test-file-only fix, same pattern/confidence level noted for
+the AppButton fix above.
+
+Next step for the user: run `flutter test --update-goldens` once more (the
+welcome goldens were never captured before, since the test hung before
+reaching the screenshot), then `flutter test` should be fully green.

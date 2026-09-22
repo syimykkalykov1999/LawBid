@@ -47,7 +47,21 @@ void main() {
           ),
           surfaceSize: const Size(390, 844),
         );
-        await screenMatchesGolden(tester, 'auth_${entry.key}_screen_$themeName');
+        if (entry.key == 'welcome') {
+          // WelcomeScreen renders ScalesLogo(animated: true), which drives an
+          // AnimationController.repeat() (1-day duration, infinite) per file
+          // 07 SS5.2 - the default internal pumpAndSettle() inside
+          // screenMatchesGolden never settles against it (same root cause as
+          // the AppButton loading golden, see that test's file-level note).
+          // Pump one fixed frame instead.
+          await screenMatchesGolden(
+            tester,
+            'auth_${entry.key}_screen_$themeName',
+            customPump: (tester) => tester.pump(const Duration(milliseconds: 100)),
+          );
+        } else {
+          await screenMatchesGolden(tester, 'auth_${entry.key}_screen_$themeName');
+        }
       });
     }
   }
