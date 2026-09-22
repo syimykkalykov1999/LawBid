@@ -5,8 +5,10 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/design_system/design_system.dart';
 import '../../../../core/l10n/l10n_providers.dart';
 import '../../../../core/l10n/widgets/language_picker_sheet.dart';
+import '../../../../core/navigation/app_routes.dart';
 import '../../application/onboarding_flow.dart';
 import '../../auth_routes.dart';
+import '../../domain/onboarding_step.dart';
 
 /// `/welcome` (file 07 §6.1). Layout, 2026-09-22 revision (owner request,
 /// this conversation, after seeing it run on-device): title text first,
@@ -61,6 +63,32 @@ class WelcomeScreen extends ConsumerWidget {
       );
     }
 
+    // Phase 3 of the auth networking work (docs/CHANGELOG.md): Apple/
+    // Google buttons now drive real native sign-in via
+    // `OnboardingFlow.signInWithApple()`/`.signInWithGoogle()`, mirroring
+    // `OtpScreen._handleCompleted`'s post-success navigation (read
+    // `state.step` after the call resolves and either push the role
+    // screen or go straight to the feed). A `false` result with no
+    // `errorMessage` means the user cancelled the native sheet — nothing
+    // to show, they can just tap again.
+    Future<void> handleSocialSignIn(Future<bool> Function() signIn) async {
+      final ok = await signIn();
+      if (!context.mounted) return;
+      if (ok) {
+        final step = ref.read(onboardingFlowProvider).step;
+        if (step == OnboardingStep.role) {
+          context.push(AuthRoutes.role);
+        } else if (step == OnboardingStep.completed) {
+          context.go(AppRoutes.feed);
+        }
+        return;
+      }
+      final message = ref.read(onboardingFlowProvider).errorMessage;
+      if (message != null) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      }
+    }
+
     // Legal-document screens (Terms/Privacy) are out of scope for this
     // stage-1.7 "screens" slice — served from file 06's legal-document
     // bootstrap config, not yet built. Same "not built yet" affordance as
@@ -71,6 +99,7 @@ class WelcomeScreen extends ConsumerWidget {
       );
     }
 
+    final flowState = ref.watch(onboardingFlowProvider);
     final themeMode = ref.watch(themeModeControllerProvider).value ?? ThemeMode.system;
     final isDark = themeMode == ThemeMode.dark ||
         (themeMode == ThemeMode.system &&
@@ -168,7 +197,12 @@ class WelcomeScreen extends ConsumerWidget {
                             child: GavelStrikeIconButton(
                               icon: const AppleGlyph(),
                               semanticLabel: t.t('auth.welcome.apple'),
-                              onPressed: showNotBuiltYet,
+                              isLoading: flowState.isSubmitting,
+                              onPressed: () => handleSocialSignIn(
+                                () => ref
+                                    .read(onboardingFlowProvider.notifier)
+                                    .signInWithApple(),
+                              ),
                             ),
                           ),
                           const SizedBox(width: 8),
@@ -176,7 +210,12 @@ class WelcomeScreen extends ConsumerWidget {
                             child: GavelStrikeIconButton(
                               icon: const GoogleGlyph(),
                               semanticLabel: t.t('auth.welcome.google'),
-                              onPressed: showNotBuiltYet,
+                              isLoading: flowState.isSubmitting,
+                              onPressed: () => handleSocialSignIn(
+                                () => ref
+                                    .read(onboardingFlowProvider.notifier)
+                                    .signInWithGoogle(),
+                              ),
                             ),
                           ),
                         ],

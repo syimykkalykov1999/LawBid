@@ -15,6 +15,15 @@ abstract final class ApiErrorCodes {
   static const authOtpLocked = 'AUTH_OTP_LOCKED';
   static const authOtpRequestLimit = 'AUTH_OTP_REQUEST_LIMIT';
   static const rateLimited = 'RATE_LIMITED';
+
+  // Social login (Phase 3 of the auth networking work, docs/CHANGELOG.md)
+  // — copied verbatim from apps/api/src/common/errors/error-code.enum.ts.
+  static const authSocialTokenInvalid = 'AUTH_SOCIAL_TOKEN_INVALID';
+  static const authSocialProviderUnavailable = 'AUTH_SOCIAL_PROVIDER_UNAVAILABLE';
+  static const authProviderDisabled = 'AUTH_PROVIDER_DISABLED';
+  static const accountExistsUseOtherMethod = 'ACCOUNT_EXISTS_USE_OTHER_METHOD';
+  static const accountSuspended = 'ACCOUNT_SUSPENDED';
+  static const accountDeleted = 'ACCOUNT_DELETED';
 }
 
 /// Parsed form of the backend's error envelope (docs/01_FOUNDATION_AUTH.md

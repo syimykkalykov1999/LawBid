@@ -2,10 +2,13 @@ import 'dart:async';
 
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../../core/l10n/l10n_providers.dart';
 import '../../../shared/domain/user_role.dart';
+import '../data/auth_repository.dart';
 import '../domain/otp_verify_result.dart';
 import '../domain/onboarding_flow_state.dart';
 import '../domain/onboarding_step.dart';
+import '../domain/social_login_result.dart';
 import 'auth_providers.dart';
 
 part 'onboarding_flow.g.dart';
@@ -26,11 +29,12 @@ class OnboardingFlow extends _$OnboardingFlow {
       .read(onboardingLocalStoreProvider)
       .save(step: state.step, phoneNumber: state.phoneNumber);
 
-  /// Welcome screen's "Продолжить с телефоном" — screen 1 → 2. Email/
-  /// Apple/Google are buttons on the welcome screen too (file 07 §6.1) but
-  /// their sign-in logic needs the native SDKs this app doesn't wire up
-  /// yet (phase 3, per this pass's blueprint) — tapping them shows a "not
-  /// built yet" message for now rather than pretending to authenticate.
+  /// Welcome screen's "Продолжить с телефоном" — screen 1 → 2. Email is
+  /// also a button on the welcome screen (file 07 §6.1) but its sign-in
+  /// logic has no native SDK to wire up (there's no "email SDK") and stays
+  /// a "not built yet" affordance; Apple/Google are wired for real as of
+  /// Phase 3 (docs/CHANGELOG.md) — see [signInWithApple]/[signInWithGoogle]
+  /// below.
   void goToPhoneStep() {
     state = state.copyWith(step: OnboardingStep.phone, errorMessage: null);
     unawaited(_persist());
@@ -109,6 +113,90 @@ class OnboardingFlow extends _$OnboardingFlow {
       },
       networkError: () async {
         state = state.copyWith(isSubmitting: false, errorMessage: 'Ошибка сети, попробуйте снова');
+        return false;
+      },
+    );
+  }
+
+  /// Welcome screen's Apple button (file 07 §6.1). Phase 3 of the auth
+  /// networking work (docs/CHANGELOG.md) — native sign-in via
+  /// `AuthRepository.signInWithApple()`, then the same isNewUser →
+  /// role-step / else → `completeOnboarding()` branch as [verifyOtp]
+  /// above. Unlike [verifyOtp], a cancelled native sheet
+  /// (`SocialLoginResult.cancelled()`) is not an error — no
+  /// `errorMessage` is set for it, so the welcome screen shows nothing and
+  /// the user can just try again.
+  Future<bool> signInWithApple() =>
+      _signInWithSocial((repo) => repo.signInWithApple());
+
+  /// Same as [signInWithApple], via Google.
+  Future<bool> signInWithGoogle() =>
+      _signInWithSocial((repo) => repo.signInWithGoogle());
+
+  Future<bool> _signInWithSocial(
+    Future<SocialLoginResult> Function(AuthRepository) signIn,
+  ) async {
+    state = state.copyWith(isSubmitting: true, errorMessage: null);
+    final result = await signIn(ref.read(authRepositoryProvider));
+    final t = ref.read(translatorProvider);
+    return result.when(
+      success: (isNewUser) async {
+        state = state.copyWith(isSubmitting: false);
+        if (isNewUser) {
+          state = state.copyWith(step: OnboardingStep.role);
+          unawaited(_persist());
+        } else {
+          await completeOnboarding();
+        }
+        return true;
+      },
+      cancelled: () async {
+        state = state.copyWith(isSubmitting: false);
+        return false;
+      },
+      invalidToken: () async {
+        state = state.copyWith(
+          isSubmitting: false,
+          errorMessage: t.t('auth.social.error.invalidToken'),
+        );
+        return false;
+      },
+      providerDisabled: () async {
+        state = state.copyWith(
+          isSubmitting: false,
+          errorMessage: t.t('auth.social.error.providerDisabled'),
+        );
+        return false;
+      },
+      accountExists: (maskedIdentifier, availableMethods) async {
+        state = state.copyWith(
+          isSubmitting: false,
+          errorMessage: t.t('auth.social.error.accountExists', {
+            'identifier': maskedIdentifier,
+            'methods': availableMethods.join(', '),
+          }),
+        );
+        return false;
+      },
+      suspended: () async {
+        state = state.copyWith(
+          isSubmitting: false,
+          errorMessage: t.t('auth.social.error.suspended'),
+        );
+        return false;
+      },
+      deleted: () async {
+        state = state.copyWith(
+          isSubmitting: false,
+          errorMessage: t.t('auth.social.error.deleted'),
+        );
+        return false;
+      },
+      networkError: () async {
+        state = state.copyWith(
+          isSubmitting: false,
+          errorMessage: t.t('auth.social.error.network'),
+        );
         return false;
       },
     );

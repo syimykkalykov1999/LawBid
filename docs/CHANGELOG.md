@@ -1559,3 +1559,141 @@ Required before trusting this:
 - Every file touched was checked for balanced parens/braces/brackets and
   for relative imports resolving to real files, but that's a mechanical
   check, not a substitute for `flutter analyze`.
+
+### Flutter auth networking, Phase 3: Apple/Google native sign-in wired to `POST /auth/social` (2026-09-22)
+
+Continues directly after the Phase 1+2 dio/session/OTP networking pass
+(previous entry, same date, commit 152e193): welcome screen's Apple/Google
+buttons were UI-only, wired to a "not built yet" snackbar, explicitly left
+that way pending this work. The backend (`POST /auth/social`) was already
+fully implemented — controller, DTO, Apple JWKS verifier, Google verifier,
+same `AuthTokensResult` envelope as otp/verify — so this pass is Flutter-only.
+
+New (`features/auth/data/social_auth_native_client.dart`):
+`SocialAuthNativeClient` interface + `SocialCredential` (provider-agnostic
+result: provider/idToken/nonce/firstName?/lastName?) + `PlatformSocialAuth
+NativeClient`, the real implementation over `sign_in_with_apple` +
+`google_sign_in`. `SocialAuthCancelledException` normalizes both packages'
+own cancellation exception types into one the repository can branch on.
+
+New (`features/auth/domain/social_login_result.dart`): freezed union
+mirroring `otp_verify_result.dart`'s style — `success(isNewUser)`,
+`cancelled()`, `invalidToken()`, `providerDisabled()`,
+`accountExists(maskedIdentifier, availableMethods)`, `suspended()`,
+`deleted()`, `networkError()`. `.freezed.dart` NOT regenerated here (no
+`dart` binary reachable from this bridge) — `dart run build_runner build`
+is required before this compiles.
+
+Modified: `auth_dtos.dart` (added `SocialLoginPayload`, mirrors the
+backend's `SocialLoginDto` 1:1). `auth_api_client.dart` (added
+`socialLogin()`, same `_skipAuth`/`_unwrap`/`DioException`-catch pattern as
+`verifyOtp`). `auth_repository.dart` (interface gained
+`signInWithApple()`/`signInWithGoogle()`; STILL OUT OF SCOPE note narrowed
+to biometric reauth + active-devices/account-deletion only). `real_auth_
+repository.dart` (`_signInWithSocial` — catches
+`SocialAuthCancelledException` from the native client, then on success
+calls `SessionController.applyTokens` same as `verifyOtp`; on `ApiException`
+switches `e.code` over 6 new `ApiErrorCodes` constants; `AUTH_PROVIDER_
+DISABLED` and `AUTH_SOCIAL_PROVIDER_UNAVAILABLE` both map to the one
+`providerDisabled()` UI variant since the user-facing message is the same
+either way). `stub_auth_repository.dart` (matching stub methods, always
+succeed as a new user, so golden/widget tests overriding
+`authRepositoryProvider` keep compiling — none exercise the social buttons
+today). `auth_providers.dart` (new `socialAuthNativeClientProvider` ->
+`PlatformSocialAuthNativeClient`, wired into `RealAuthRepository`'s 4th
+constructor arg; reuses the existing `deviceInfoProvider`).
+`onboarding_flow.dart` (`signInWithApple()`/`signInWithGoogle()` — same
+isNewUser -> role-step / else -> `completeOnboarding()` branch as
+`verifyOtp`; unlike `verifyOtp`, `cancelled()` sets no `errorMessage` since
+a dismissed native sheet isn't a failure). `welcome_screen.dart` (Apple/
+Google `GavelStrikeIconButton`s now call the new flow methods and mirror
+`otp_screen.dart`'s `_handleCompleted` navigation — read `state.step` after
+the call and push the role screen or go to the feed; Email's button is
+UNCHANGED, still `showNotBuiltYet`, since there's no "email SDK" to wire).
+`api_error.dart` (6 new `ApiErrorCodes` constants, copied verbatim from
+apps/api's `ErrorCode` enum: `AUTH_SOCIAL_TOKEN_INVALID`,
+`AUTH_SOCIAL_PROVIDER_UNAVAILABLE`, `AUTH_PROVIDER_DISABLED`,
+`ACCOUNT_EXISTS_USE_OTHER_METHOD`, `ACCOUNT_SUSPENDED`,
+`ACCOUNT_DELETED`). `static_translator.dart` (6 new `auth.social.error.*`
+RU/EN keys; `accountExists`'s message interpolates `{identifier}`/
+`{methods}` from the 409's `details`). `pubspec.yaml` (added
+`sign_in_with_apple: ^6.1.4`, `google_sign_in: ^7.2.0`, `crypto: ^3.0.6`).
+
+**Google nonce — flagged as unverified, read before trusting this in
+production.** The backend's Google verifier checks
+`idToken.payload.nonce == nonce` (raw, no hashing), so the exact same raw
+nonce this app generates has to land verbatim in the Google-issued ID
+token's `nonce` claim. `google_sign_in`'s nonce support
+(flutter/packages#9267, closing flutter/flutter#85439) puts the `nonce`
+parameter on `GoogleSignIn.initialize(...)`, NOT on `authenticate()` — this
+pass re-calls `initialize(nonce: ...)` immediately before every
+`authenticate()` call to get a fresh nonce per attempt, but:
+1. The package's own docs (7.1.1 changelog) say `initialize()` must be
+   called **exactly once** per app run — re-calling it per sign-in attempt
+   may not behave as intended and needs a real-device check.
+2. At the time this was researched, the PR's iOS platform-channel side
+   still carried its own upstream TODO about depending on a
+   `GoogleSignIn-iOS` SDK version bump before the nonce actually reaches
+   the native call — so on iOS specifically, the nonce may not land in the
+   ID token even though the Dart API accepts it without error.
+
+A `TODO(nonce-verify)` comment sits directly on `signInWithGoogle()` in
+`social_auth_native_client.dart` with this same detail. If real Google
+logins come back `AUTH_SOCIAL_TOKEN_INVALID`, decode the returned
+`idToken`'s JWT payload and confirm its `nonce` claim actually equals the
+raw nonce this method generated — that is the first thing to check. Apple's
+nonce handling has no equivalent risk: `getAppleIDCredential(nonce: ...)`
+embeds whatever string it's given directly into the identityToken, which
+is why this pass hashes on the way IN (`sha256(rawNonce)` to Apple) and
+sends the raw nonce to the backend, matching the backend's
+`sha256(rawNonce_hex) == idToken.payload.nonce` check exactly.
+
+**Native config — placeholders that need the owner's real Apple/Google
+console credentials before this ships:**
+- `apps/mobile/ios/Runner/Runner.entitlements` (new file):
+  `com.apple.developer.applesignin = [Default]`. This is NOT yet wired
+  into the Xcode project — `Runner.xcodeproj/project.pbxproj` has no
+  `CODE_SIGN_ENTITLEMENTS` build setting for any configuration today, and
+  this pass deliberately did not add one by hand: `.pbxproj` is a fragile,
+  easy-to-corrupt format and wiring a new entitlements file into it
+  correctly needs a working Xcode to verify. **Action needed**: open the
+  project in Xcode, select the Runner target -> Signing & Capabilities ->
+  "+ Capability" -> "Sign in with Apple". Xcode will link this file (or
+  generate an equivalent one and this file can be deleted) and set
+  `CODE_SIGN_ENTITLEMENTS` correctly for all 3 build configurations
+  itself.
+- `apps/mobile/ios/Runner/Info.plist`: added a `CFBundleURLTypes` entry
+  with `CFBundleURLSchemes` = `TODO-FILL-FROM-GOOGLE-CLOUD-CONSOLE` —
+  replace with the real REVERSED_CLIENT_ID from this iOS app's OAuth
+  client in Google Cloud Console before Google sign-in can work on iOS.
+- `social_auth_native_client.dart`'s `signInWithGoogle()`: no
+  `clientId`/`serverClientId` is passed to `GoogleSignIn.instance
+  .initialize()` at all yet — left out rather than guessed. iOS needs one
+  of those (or a `GIDClientID` Info.plist key) for `initialize()` to
+  succeed; if the backend's Google verifier checks the ID token's audience
+  against a web OAuth client (typical for a server-side verifier),
+  Android needs `serverClientId` too.
+- Android: per the research behind this pass's blueprint, `google_sign_in`
+  7.x's Credential-Manager-based implementation needs no
+  `google-services.json` or Gradle plugin for this — `AndroidManifest.xml`
+  was read and needs no changes. Not independently re-verified from this
+  bridge.
+- No real Apple Team ID, Google OAuth client ID, or SHA-1 fingerprint was
+  fabricated anywhere — every placeholder above is an obvious
+  `TODO-FILL-FROM-GOOGLE-CLOUD-CONSOLE` token, not a plausible-looking fake
+  value.
+
+**Not verified — no way to in this environment** (same bridge limitation
+as the Phase 1+2 entry above): no `flutter`/`dart`/Xcode/`adb` reachable,
+so nothing here has been compiled, analyzed, or run.
+- `flutter pub get` (new dependencies) and `dart run build_runner build`
+  (`social_login_result.freezed.dart` doesn't exist yet) are both
+  required before this compiles.
+- The Google nonce risk above, the iOS entitlements wiring, and the actual
+  `sign_in_with_apple`/`google_sign_in` API surface (verified against
+  pub.dev documentation and the flutter/packages PR that added nonce
+  support, not against a running build) all need a real device pass.
+- Every file touched was checked for balanced parens/braces/brackets
+  (and, for the two `.plist` files, well-formed XML) and for every new
+  relative import resolving to a real file — mechanical checks, not a
+  substitute for `flutter analyze`.

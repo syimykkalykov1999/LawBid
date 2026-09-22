@@ -9,6 +9,7 @@ import '../data/auth_dtos.dart';
 import '../data/auth_repository.dart';
 import '../data/onboarding_local_store.dart';
 import '../data/real_auth_repository.dart';
+import '../data/social_auth_native_client.dart';
 
 /// dio-backed [AuthApiClient], built from the shared [dioProvider].
 final authApiClientProvider = Provider<AuthApiClient>(
@@ -28,6 +29,13 @@ final deviceInfoProvider = Provider<DeviceInfo>(
   ),
 );
 
+/// Native Apple/Google sign-in (Phase 3 of the auth networking work,
+/// docs/CHANGELOG.md) — `const`, so this is cheap to rebuild; swappable in
+/// tests the same way [authRepositoryProvider] is.
+final socialAuthNativeClientProvider = Provider<SocialAuthNativeClient>(
+  (ref) => const PlatformSocialAuthNativeClient(),
+);
+
 /// Swappable per the same pattern as `themeModeRepositoryProvider`
 /// (docs/CHANGELOG.md stage 1.5). Real-backend wiring pass
 /// (docs/CHANGELOG.md, stage-1.7-auth): `RealAuthRepository` is now the
@@ -41,6 +49,7 @@ final authRepositoryProvider = Provider<AuthRepository>(
     ref.watch(authApiClientProvider),
     ref.watch(sessionControllerProvider.notifier),
     ref.watch(deviceInfoProvider),
+    ref.watch(socialAuthNativeClientProvider),
   ),
 );
 

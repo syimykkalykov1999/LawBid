@@ -53,6 +53,23 @@ class AuthApiClient {
     }
   }
 
+  /// `POST /auth/social` (Phase 3 of the auth networking work,
+  /// docs/CHANGELOG.md) — same envelope/`_skipAuth`/`_unwrap` pattern as
+  /// [verifyOtp] above; this is the other endpoint that issues tokens
+  /// rather than requiring them.
+  Future<AuthTokensResult> socialLogin(SocialLoginPayload payload) async {
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        '/auth/social',
+        data: payload.toJson(),
+        options: _skipAuth,
+      );
+      return AuthTokensResult.fromJson(_unwrap(response));
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
   Future<AuthTokensResult> refresh({
     required String refreshToken,
     DeviceInfo? deviceInfo,

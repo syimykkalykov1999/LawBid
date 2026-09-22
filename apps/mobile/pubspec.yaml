@@ -36,6 +36,17 @@ dependencies:
   dio: ^5.9.0
   flutter_secure_storage: ^9.2.4
 
+  # Social login (Phase 3 of the auth networking work, docs/CHANGELOG.md):
+  # native Apple/Google sign-in SDKs, exchanged against the already-live
+  # `POST /auth/social` backend endpoint. `crypto` is only for the SHA-256
+  # hash Apple's nonce verification needs — see
+  # features/auth/data/social_auth_native_client.dart's doc comment for
+  # the exact contract (Apple wants a hashed nonce, Google wants the raw
+  # one — see that file's `TODO(nonce-verify)` on the google_sign_in side).
+  sign_in_with_apple: ^6.1.4
+  google_sign_in: ^7.2.0
+  crypto: ^3.0.6
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

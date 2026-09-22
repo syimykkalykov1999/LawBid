@@ -87,6 +87,18 @@ class StaticTranslatorRu extends _MapTranslator {
         'auth.welcome.legal.terms': 'Условия',
         'auth.welcome.legal.privacy': 'Политику конфиденциальности',
         'auth.welcome.notBuiltYet': 'Этот способ входа пока не реализован (этап 1.4/1.7)',
+        // Phase 3 of the auth networking work (docs/CHANGELOG.md) —
+        // `POST /auth/social` failure modes surfaced by
+        // OnboardingFlow._signInWithSocial. {identifier}/{methods} are
+        // filled from the backend's ACCOUNT_EXISTS_USE_OTHER_METHOD
+        // `details.maskedIdentifier`/`details.availableMethods`.
+        'auth.social.error.invalidToken': 'Не удалось подтвердить вход. Попробуйте снова.',
+        'auth.social.error.providerDisabled': 'Этот способ входа временно недоступен.',
+        'auth.social.error.accountExists':
+            'Аккаунт с {identifier} уже существует. Войдите через: {methods}.',
+        'auth.social.error.suspended': 'Аккаунт заблокирован. Обратитесь в поддержку.',
+        'auth.social.error.deleted': 'Этот аккаунт был удалён.',
+        'auth.social.error.network': 'Ошибка сети, попробуйте снова',
         'auth.phone.title': 'Ваш номер телефона',
         'auth.phone.subtitle': 'Мы отправим код подтверждения. Пароль не нужен.',
         'auth.phone.submit': 'Получить код',
@@ -170,6 +182,15 @@ class StaticTranslatorEn extends _MapTranslator {
         'auth.welcome.legal.terms': 'Terms',
         'auth.welcome.legal.privacy': 'Privacy Policy',
         'auth.welcome.notBuiltYet': "This sign-in method isn't available yet (stage 1.4/1.7)",
+        // Phase 3 of the auth networking work (docs/CHANGELOG.md) — see
+        // the matching RU comment above.
+        'auth.social.error.invalidToken': "Couldn't verify sign-in. Please try again.",
+        'auth.social.error.providerDisabled': 'This sign-in method is temporarily unavailable.',
+        'auth.social.error.accountExists':
+            'An account with {identifier} already exists. Sign in with: {methods}.',
+        'auth.social.error.suspended': 'This account has been suspended. Contact support.',
+        'auth.social.error.deleted': 'This account has been deleted.',
+        'auth.social.error.network': 'Network error, please try again',
         'auth.phone.title': 'Your phone number',
         'auth.phone.subtitle': "We'll text you a verification code. No password needed.",
         'auth.phone.submit': 'Get code',

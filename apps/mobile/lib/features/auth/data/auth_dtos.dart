@@ -60,6 +60,42 @@ class OtpVerifyPayload {
   };
 }
 
+/// `POST /auth/social` request body (`SocialLoginDto` —
+/// apps/api/src/modules/auth/dto/social-login.dto.ts). `nonce` is always
+/// the RAW nonce the native SDK call was seeded with — see
+/// `PlatformSocialAuthNativeClient`'s doc comment
+/// (data/social_auth_native_client.dart) for why Apple's is hashed only on
+/// the way INTO the native call, never here. `firstName`/`lastName` are
+/// Apple-only in practice (see that same file's doc comment on
+/// `signInWithApple`) but the field names are provider-agnostic to match
+/// the DTO.
+class SocialLoginPayload {
+  const SocialLoginPayload({
+    required this.provider,
+    required this.idToken,
+    required this.nonce,
+    this.firstName,
+    this.lastName,
+    this.deviceInfo,
+  });
+
+  final String provider;
+  final String idToken;
+  final String nonce;
+  final String? firstName;
+  final String? lastName;
+  final DeviceInfo? deviceInfo;
+
+  Map<String, dynamic> toJson() => {
+    'provider': provider,
+    'idToken': idToken,
+    'nonce': nonce,
+    if (firstName != null) 'firstName': firstName,
+    if (lastName != null) 'lastName': lastName,
+    if (deviceInfo != null) 'deviceInfo': deviceInfo!.toJson(),
+  };
+}
+
 /// `POST /auth/refresh` request body (`RefreshTokenDto`). `deviceInfo` is
 /// not in the docs table's request shape but IS accepted by the DTO — see
 /// that file's doc comment on why it matters for the grace-window match.
