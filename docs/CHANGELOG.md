@@ -1246,3 +1246,60 @@ project's standing rule (never merge/skip ТЗ stages without direction),
 raised these 4 as an explicit scope question back to the owner rather than
 silently building partial/fake versions of stage-1.4/1.6 work under a
 "quick fix" banner.
+
+
+## Bilingual RU/EN toggle + theme toggle on welcome screen — 2026-09-22 (owner request, scope-checked against file 01)
+
+Follow-up to the earlier scope question (same day, this conversation): owner
+chose "leave social-login buttons as-is" (they need stage 1.4 backend +
+Apple/Google native SDK config, correctly out of reach of a UI pass), and
+"add a working RU/EN language button on welcome now, real i18n system still
+waits for stage 1.6", plus a theme toggle button on welcome too (owner's own
+placement choice — file 01 doesn't spec a theme control on this screen,
+only in Settings, which doesn't exist yet).
+
+New files (`lib/core/l10n/`):
+- `app_language.dart` — `enum AppLanguage { ru, en }`.
+- `language_repository.dart` / `local_language_repository.dart` — same
+  interface-behind-a-local-implementation shape as
+  `ThemeModeRepository`/`LocalThemeModeRepository`, persisted via the same
+  `LocalKvStore`. Defaults to `AppLanguage.en` when nothing is persisted yet
+  (file 01 §1: English is the default interface language).
+- `language_providers.dart` — `LanguageController` (`@riverpod`, same
+  build()/set-and-persist shape as `ThemeModeController`).
+
+Changed:
+- `static_translator.dart` — split into `StaticTranslatorRu` (unchanged RU
+  copy) and `StaticTranslatorEn` (new). Every existing key got an English
+  counterpart, not just the auth/onboarding ones — otherwise flipping to
+  English would have hit the `assert(value != null, ...)` on any stub
+  screen (nav/feed/search/etc.) that only ever had Russian.
+- `l10n_providers.dart` — `translatorProvider` now watches
+  `languageControllerProvider` and returns the matching translator.
+- `welcome_screen.dart` — added a fixed header row above the scrollable
+  content: a theme toggle `AppChip` (sun/moon icon, top-left, cycles
+  light<->dark) and a language toggle `AppChip` (globe icon + current
+  language code, top-right, cycles ru<->en). Neither is in file 07 §10.2's
+  spec for this screen (which asks only for a small language-switcher
+  link, no theme control) — explicit owner override of screen 07's spec,
+  given verbally in this conversation.
+
+Caught and fixed before committing: a mid-edit connection drop to the
+owner's Mac left the file with an unbalanced paren/bracket count (2 parens,
+1 bracket short) — the new outer `Column`/`Expanded` wrapper around the
+existing scrollable content was opened but its closing tail hadn't been
+updated to match. Caught by an automated brace/paren/bracket balance check
+before ever asking the owner to run `flutter analyze`, not by a build
+failure on their machine.
+
+**Requires `dart run build_runner build --delete-conflicting-outputs`**
+before this builds — `language_providers.dart` uses `@riverpod` codegen
+(`part 'language_providers.g.dart'`) and that generated file doesn't exist
+yet; same step already familiar from the earlier Riverpod/Freezed
+migration this session.
+
+Known follow-up: switching the app's runtime default to English (per file
+01 §1) will make the just-generated welcome-screen goldens (light/dark,
+captured in Russian) mismatch on the next `flutter test` run — expected,
+not a regression; another `--update-goldens` pass is needed once this
+builds.

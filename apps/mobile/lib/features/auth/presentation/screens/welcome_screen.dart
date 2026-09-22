@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/design_system/design_system.dart';
+import '../../../../core/l10n/app_language.dart';
 import '../../../../core/l10n/l10n_providers.dart';
+import '../../../../core/l10n/language_providers.dart';
 import '../../application/onboarding_flow.dart';
 import '../../auth_routes.dart';
 
@@ -17,6 +19,15 @@ import '../../auth_routes.dart';
 /// just following the content, since the owner found the bottom of the
 /// screen felt empty on a real device. Order: title → scales logo → phone
 /// button → 3 social icons → (flexible space) → legal fine print.
+///
+/// Fixed header row above the scrollable content (owner request, same
+/// conversation): a theme toggle chip top-left and a language toggle chip
+/// top-right — NOT in file 07 §10.2's spec for this screen (which only
+/// calls for a small language-switcher link, no theme control here at
+/// all), but an explicit owner override, given after seeing the app run
+/// for real. The language toggle is a stopgap 2-language (RU/EN) switch
+/// ahead of stage 1.6's real i18n system — see
+/// core/l10n/static_translator.dart's doc comment.
 class WelcomeScreen extends ConsumerWidget {
   const WelcomeScreen({super.key});
 
@@ -42,18 +53,60 @@ class WelcomeScreen extends ConsumerWidget {
       );
     }
 
+    final themeMode = ref.watch(themeModeControllerProvider).value ?? ThemeMode.system;
+    final isDark = themeMode == ThemeMode.dark ||
+        (themeMode == ThemeMode.system &&
+            MediaQuery.platformBrightnessOf(context) == Brightness.dark);
+    final language = ref.watch(languageControllerProvider).value ?? AppLanguage.en;
+
     return Scaffold(
       backgroundColor: colors.bg,
       body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            return SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenSide),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                child: IntrinsicHeight(
-                  child: Column(
-                    children: [
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.screenSide,
+                vertical: 8,
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  AppChip(
+                    label: t.t('theme.toggle.label'),
+                    leading: Icon(
+                      isDark ? Icons.dark_mode_outlined : Icons.light_mode_outlined,
+                      size: 16,
+                      color: colors.text,
+                    ),
+                    onTap: () {
+                      ref
+                          .read(themeModeControllerProvider.notifier)
+                          .setThemeMode(isDark ? ThemeMode.light : ThemeMode.dark);
+                    },
+                  ),
+                  AppChip(
+                    label: t.t('lang.toggle.label'),
+                    leading: Icon(Icons.language, size: 16, color: colors.text),
+                    onTap: () {
+                      ref
+                          .read(languageControllerProvider.notifier)
+                          .setLanguage(language == AppLanguage.ru ? AppLanguage.en : AppLanguage.ru);
+                    },
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  return SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenSide),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                      child: IntrinsicHeight(
+                        child: Column(
+                          children: [
                       const SizedBox(height: 54),
                       Text(
                         t.t('auth.welcome.title'),
@@ -134,7 +187,10 @@ class WelcomeScreen extends ConsumerWidget {
                 ),
               ),
             );
-          },
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );
