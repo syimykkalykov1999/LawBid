@@ -3,9 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/design_system/design_system.dart';
-import '../../../../core/l10n/app_language.dart';
 import '../../../../core/l10n/l10n_providers.dart';
-import '../../../../core/l10n/language_providers.dart';
+import '../../../../core/l10n/widgets/language_picker_sheet.dart';
 import '../../application/onboarding_flow.dart';
 import '../../auth_routes.dart';
 
@@ -27,9 +26,12 @@ import '../../auth_routes.dart';
 /// control here at all), but an explicit owner override, given after
 /// seeing the app run for real. Icon-only (day/night glyph, globe glyph,
 /// no visible text label — 2026-09-22 owner follow-up); [AppIconButton]
-/// carries the a11y label via `semanticLabel` instead. The language
-/// toggle is a stopgap 2-language (RU/EN) switch ahead of stage 1.6's
-/// real i18n system — see core/l10n/static_translator.dart's doc comment.
+/// carries the a11y label via `semanticLabel` instead. The globe icon no
+/// longer toggles ru<->en directly (2026-09-22 owner follow-up, second
+/// voice message) — it opens [LanguagePickerSheet] (search field + list,
+/// most-popular-first), which today only lets you actually pick `ru`/`en`
+/// (see `language_catalog.dart`) ahead of stage 1.6's real i18n system —
+/// see core/l10n/static_translator.dart's doc comment.
 ///
 /// The phone/social-button block is centered (two [Spacer]s, not fixed
 /// gaps) between the logo and the legal fine print, on both themes
@@ -73,7 +75,6 @@ class WelcomeScreen extends ConsumerWidget {
     final isDark = themeMode == ThemeMode.dark ||
         (themeMode == ThemeMode.system &&
             MediaQuery.platformBrightnessOf(context) == Brightness.dark);
-    final language = ref.watch(languageControllerProvider).value ?? AppLanguage.en;
 
     return Scaffold(
       backgroundColor: colors.bg,
@@ -100,11 +101,7 @@ class WelcomeScreen extends ConsumerWidget {
                   AppIconButton(
                     icon: const Icon(Icons.language),
                     semanticLabel: t.t('lang.toggle.label'),
-                    onPressed: () {
-                      ref
-                          .read(languageControllerProvider.notifier)
-                          .setLanguage(language == AppLanguage.ru ? AppLanguage.en : AppLanguage.ru);
-                    },
+                    onPressed: () => LanguagePickerSheet.show(context),
                   ),
                 ],
               ),

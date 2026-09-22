@@ -1343,3 +1343,41 @@ Affects goldens: `scales_logo_static.png` and any light-theme screen
 golden that shows the logo (welcome, phone/otp/role screens) will now
 mismatch on `flutter test` until the next `--update-goldens` pass —
 rolled into the same pending golden-refresh noted in the previous entry.
+
+### Language picker: search + list instead of a direct ru<->en toggle (owner follow-up, 2026-09-22)
+
+Owner's globe icon feedback: tapping it shouldn't instantly flip
+ru<->en — it should open a search field with a language list below,
+"most popular first," sized to grow as more languages are added over
+time rather than the current hardcoded 2.
+
+- `core/l10n/language_catalog.dart` (new): `LanguageCatalogEntry` (code,
+  native name, English name, optional `AppLanguage`) + `kLanguageCatalog`,
+  18 entries ordered: the 2 working languages first (`en`, `ru`), then 16
+  roadmap placeholders ordered by relevance to a US legal-services
+  marketplace (roughly the most common languages spoken at home in the
+  US per Census ACS data — file 01 §1's target market — not raw global
+  speaker counts). Only `en`/`ru` carry a non-null `AppLanguage`; the
+  rest are search/browsable but not selectable yet.
+- `core/l10n/widgets/language_picker_sheet.dart` (new): `LanguagePickerSheet`,
+  a modal bottom sheet — drag handle, title, `AppTextField` search
+  (filters by native name / English name / code), then the filtered list.
+  Enabled rows are tappable (sets the language, pops); roadmap rows render
+  at 45% opacity with a "coming soon" trailing badge instead of the
+  country-code badge. Current language shows a gold check instead of its
+  badge.
+- `welcome_screen.dart`: globe `AppIconButton.onPressed` now calls
+  `LanguagePickerSheet.show(context)` instead of toggling
+  `languageControllerProvider` directly; the now-unused `language` local
+  and its imports (`app_language.dart`, `language_providers.dart`) were
+  dropped from this file (the picker sheet owns that read/write now).
+- `static_translator.dart`: added `lang.picker.title`,
+  `lang.picker.search.hint`, `lang.picker.empty`, `lang.picker.comingSoon`
+  (both languages); `lang.toggle.label` reworded from the bare code
+  (`RU`/`EN`) to a real action description (`Выбрать язык`/`Choose
+  language`) since it's now the sheet's a11y label, not visible chip text.
+
+Not yet wired: stage 1.6's real i18n layer is what will actually turn
+the 16 placeholder languages into working ones — this only builds the
+picker UI and the data shape it reads from, per the owner's explicit
+"add them gradually over time" framing.
