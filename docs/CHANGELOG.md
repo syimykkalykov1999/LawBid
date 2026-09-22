@@ -1303,3 +1303,30 @@ Known follow-up: switching the app's runtime default to English (per file
 captured in Russian) mismatch on the next `flutter test` run — expected,
 not a regression; another `--update-goldens` pass is needed once this
 builds.
+
+### Welcome screen: icon-only toggles, centered buttons, light-theme logo color (owner follow-up, 2026-09-22)
+
+Voice-message follow-up from the owner after seeing the header row on
+device. Three changes, `welcome_screen.dart`:
+
+- Theme/language toggle: replaced the two `AppChip`s (icon + text label)
+  with `AppIconButton` (already used for the email/Apple/Google buttons —
+  44x44, `surface` fill, bordered), icon-only, no visible text. The
+  a11y label moves to `AppIconButton.semanticLabel` instead of visible
+  text, so screen readers are unaffected.
+- Phone/social-button block: was a fixed gap below the logo; now sits
+  between two `Spacer()`s (logo → Spacer → buttons → Spacer → legal text),
+  centering it in whatever vertical room is left, on both themes — same
+  `LayoutBuilder`/`ConstrainedBox`/`IntrinsicHeight` pinning setup as
+  before, just two flex gaps instead of one.
+- Light theme only: `ScalesLogo.strokeColor` is now overridden to
+  `colors.accent` (`#0A1A3F`, the same navy used for the phone button's
+  fill) instead of the default `goldStroke` — the owner found the default
+  read as too close to black against the white background. Dark theme is
+  untouched (`strokeColor: null`, falls back to its own `goldStroke`,
+  which the owner said was fine as-is).
+
+Not yet done: `flutter test --update-goldens` for the welcome screen
+(light/dark) — the layout changed again, so the two golden PNGs left
+uncommitted from the previous pass are still stale and need another
+capture once the owner confirms this builds and looks right on-device.

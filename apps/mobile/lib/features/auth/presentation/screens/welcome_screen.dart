@@ -21,13 +21,22 @@ import '../../auth_routes.dart';
 /// button → 3 social icons → (flexible space) → legal fine print.
 ///
 /// Fixed header row above the scrollable content (owner request, same
-/// conversation): a theme toggle chip top-left and a language toggle chip
-/// top-right — NOT in file 07 §10.2's spec for this screen (which only
-/// calls for a small language-switcher link, no theme control here at
-/// all), but an explicit owner override, given after seeing the app run
-/// for real. The language toggle is a stopgap 2-language (RU/EN) switch
-/// ahead of stage 1.6's real i18n system — see
-/// core/l10n/static_translator.dart's doc comment.
+/// conversation): a theme toggle icon button top-left and a language
+/// toggle icon button top-right — NOT in file 07 §10.2's spec for this
+/// screen (which only calls for a small language-switcher link, no theme
+/// control here at all), but an explicit owner override, given after
+/// seeing the app run for real. Icon-only (day/night glyph, globe glyph,
+/// no visible text label — 2026-09-22 owner follow-up); [AppIconButton]
+/// carries the a11y label via `semanticLabel` instead. The language
+/// toggle is a stopgap 2-language (RU/EN) switch ahead of stage 1.6's
+/// real i18n system — see core/l10n/static_translator.dart's doc comment.
+///
+/// The phone/social-button block is centered (two [Spacer]s, not fixed
+/// gaps) between the logo and the legal fine print, on both themes
+/// (2026-09-22 owner follow-up). In light theme the logo's stroke color
+/// is overridden to `colors.accent` (the same navy used for the phone
+/// button's fill) instead of the default gold stroke, which read as too
+/// close to black against the white background; dark theme is untouched.
 class WelcomeScreen extends ConsumerWidget {
   const WelcomeScreen({super.key});
 
@@ -72,23 +81,19 @@ class WelcomeScreen extends ConsumerWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  AppChip(
-                    label: t.t('theme.toggle.label'),
-                    leading: Icon(
-                      isDark ? Icons.dark_mode_outlined : Icons.light_mode_outlined,
-                      size: 16,
-                      color: colors.text,
-                    ),
-                    onTap: () {
+                  AppIconButton(
+                    icon: Icon(isDark ? Icons.dark_mode_outlined : Icons.light_mode_outlined),
+                    semanticLabel: t.t('theme.toggle.label'),
+                    onPressed: () {
                       ref
                           .read(themeModeControllerProvider.notifier)
                           .setThemeMode(isDark ? ThemeMode.light : ThemeMode.dark);
                     },
                   ),
-                  AppChip(
-                    label: t.t('lang.toggle.label'),
-                    leading: Icon(Icons.language, size: 16, color: colors.text),
-                    onTap: () {
+                  AppIconButton(
+                    icon: const Icon(Icons.language),
+                    semanticLabel: t.t('lang.toggle.label'),
+                    onPressed: () {
                       ref
                           .read(languageControllerProvider.notifier)
                           .setLanguage(language == AppLanguage.ru ? AppLanguage.en : AppLanguage.ru);
@@ -114,13 +119,19 @@ class WelcomeScreen extends ConsumerWidget {
                         style: typography.titleWelcome.copyWith(color: colors.text),
                       ),
                       const SizedBox(height: 35),
-                      const ScalesLogo(
+                      ScalesLogo(
                         size: 236,
                         animated: true,
                         semanticLabel: 'LawBid',
                         standExtension: 50,
+                        strokeColor: isDark ? null : colors.accent,
                       ),
-                      const SizedBox(height: 28),
+                      // Flexible, not fixed (owner request, 2026-09-22:
+                      // center the phone/social buttons between the logo
+                      // and the legal text) -- paired with the second
+                      // Spacer further down, so this block sits mid-way in
+                      // whatever room is left, on both themes.
+                      const Spacer(),
                       GavelStrikeButton(
                         label: t.t('auth.welcome.phone'),
                         icon: Icons.call,
@@ -163,15 +174,14 @@ class WelcomeScreen extends ConsumerWidget {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 16),
-                      // Flexible spacer, not a fixed gap: absorbs whatever
-                      // room is left so the legal text sits flush at the
-                      // bottom on tall screens, while still scrolling
-                      // normally (no overflow) on short ones — see the
-                      // LayoutBuilder/ConstrainedBox/IntrinsicHeight setup
-                      // above, the standard Flutter idiom for "pin to
-                      // bottom of a Column that must also remain
-                      // scrollable."
+                      // Second flexible spacer (see the one above the phone
+                      // button): the pair centers the button block between the
+                      // logo and the legal text, while still pinning the legal
+                      // text flush to the bottom on tall screens and scrolling
+                      // normally (no overflow) on short ones -- see the
+                      // LayoutBuilder/ConstrainedBox/IntrinsicHeight setup above,
+                      // the standard Flutter idiom for pinning to the bottom of a
+                      // Column that must also remain scrollable.
                       const Spacer(),
                       LegalText(
                         text: t.t('auth.welcome.legal'),
