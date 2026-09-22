@@ -1,0 +1,63 @@
+name: lawbid
+description: "LawBid — доска объявлений для клиентов и адвокатов (US legal-services marketplace)."
+publish_to: "none"
+version: 0.1.0+1
+
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+
+  # State management (file 01 §5.1)
+  flutter_riverpod: ^2.6.1
+  riverpod_annotation: ^2.6.1
+
+  # Navigation — StatefulShellRoute.indexedStack (file 01 §5.1 names "go_router с ShellRoute";
+  # this is the modern variant that preserves each tab's own Navigator stack, chosen per
+  # stage 1.5 architecture review — see docs/CHANGELOG.md stage 1.5 entry)
+  go_router: ^14.6.2
+
+  # Models (stage 1.5 doesn't define any yet; locked in now so stage 1.7+ doesn't fight
+  # version skew across the monorepo)
+  freezed_annotation: ^2.4.4
+  json_annotation: ^4.9.0
+
+  # Local key-value persistence (theme mode now; auth/session/feature-flags in later stages,
+  # all behind the same repository-interface pattern — see LocalKvStore)
+  shared_preferences: ^2.3.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  riverpod_generator: ^2.6.3
+  build_runner: ^2.4.13
+  freezed: ^2.5.7
+  json_serializable: ^6.9.0
+  custom_lint: ^0.7.0
+  riverpod_lint: ^2.6.3
+  very_good_analysis: ^6.0.0
+  golden_toolkit: ^0.15.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/fonts/OFL-SourceSerif4.txt
+    - assets/fonts/OFL-Inter.txt
+
+  fonts:
+    - family: Source Serif 4
+      fonts:
+        - asset: assets/fonts/SourceSerif4-Variable.ttf
+          weight: 600
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-Variable.ttf
+          weight: 400
+        - asset: assets/fonts/Inter-Variable.ttf
+          weight: 500
+        - asset: assets/fonts/Inter-Variable.ttf
+          weight: 600

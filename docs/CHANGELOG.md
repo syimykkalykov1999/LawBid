@@ -504,3 +504,196 @@ against that real CockroachDB + Redis:
 Services were stopped after the run; nothing from this verification is
 reachable from outside the sandbox, and no code was committed until
 this pass was fully green.
+
+## Stage 1.5 (Flutter design system + skeleton) — 2026-09-22
+
+Scope: file 01 §15 "Этап 1.5" + file 07 §11 "Этап D.1" and "Этап D.2"
+(D.3 — the actual registration screens — is stage 1.7, not this stage).
+Per the owner's explicit instruction this session, the design-system
+architecture and the accessibility review of the fixed visual design
+were done with subagents (`ecc:code-architect`, `ecc:a11y-architect`)
+*before* any Dart code was written, not just architecture as in prior
+stages — both reports are reflected in the decisions below.
+
+This is the first Flutter code in the repo. `apps/mobile` had only a
+placeholder README before this stage.
+
+### What was built
+
+- **Theme**: `AppColorTokens`/`AppTypographyTokens` as `ThemeExtension`s
+  (file 07 §2-§3 token tables reproduced exactly, both themes),
+  `AppTheme.light()`/`.dark()`, theme-mode persistence
+  (`ThemeModeRepository` interface + `LocalThemeModeRepository` +
+  Riverpod `ThemeModeController`) — deliberately swappable so stage 1.7
+  can add server sync behind the same interface without touching call
+  sites.
+- **13 base widgets** (file 01 §15's list + file 07 §4's additions):
+  `AppButton`, `AppIconButton`, `GavelStrikeButton`, `AppTextField`,
+  `AppOtpField`, `AppChip`, `AppCard`, `AppAvatar`, `RoleCard`,
+  `ScalesLogo`, `WatermarkScales`, `AppSkeleton`, `AppEmptyState`,
+  `AppErrorState`, `LegalText`, `AppTopBar`, `AppBottomNav` — all
+  token-driven, zero hardcoded hex/strings in widget code (see
+  "Temporary string-keying layer" below for how strings are avoided
+  before stage 1.6's real L10n exists).
+- **`ScalesLogo`** (file 07 §5): `CustomPainter`, one widget for both the
+  large-animated and small-static usages (`animated: bool` gates
+  whether an `AnimationController`/`Ticker` is even created). Swing
+  physics = the exact `angle(t)` formula in §5.2; pauses via
+  `WidgetsBindingObserver` (app backgrounded) and `RouteAware` (screen
+  not current — added `core/navigation/route_observer.dart`, a shared
+  `RouteObserver` app.dart must register); never starts ticking at all
+  under `MediaQuery.disableAnimations` (not just frozen — the
+  controller itself doesn't run, checked in `didChangeDependencies` via
+  a `_syncTicking()` gate, not `initState`, since `MediaQuery` isn't
+  reliably available that early).
+- **`GavelStrikeButton`** (file 07 §7): wraps `AppButton` (doesn't
+  reimplement its chrome/press-scale), `Overlay`-based strike effect
+  (pedestal + gavel + expanding ring, all per the exact geometry/timing
+  in §7.2-§7.3), haptic pulse at the 52% "hit" keyframe, ~700ms
+  action-fire delay, repeated taps mid-animation ignored,
+  `RepaintBoundary`-isolated, `OverlayEntry` removal guarded by
+  `.mounted` (an entry can outlive its Overlay if the whole route is
+  popped mid-animation — checked, not assumed).
+- **Navigation**: `StatefulShellRoute.indexedStack` with 4 branches
+  (Лента/Поиск/Моё/Профиль) + `/create` as a root-navigator route (file
+  07 §3.4: full-screen with a close ✕, not a 5th tab). `AppBottomNav`
+  is role-**unaware** by design — role only changes tab icons/labels via
+  `bottom_nav_config.dart`, never route topology; a stub
+  `currentUserRoleProvider` (always `client`) stands in for real session
+  state until stage 1.7. `authGuardRedirect` is wired into the router
+  as a no-op stub with the real signature, so stage 1.7's actual
+  guard logic is a one-function change, not a router restructure.
+- **5 stub screens** (Лента, Поиск, Моё, Профиль, «+»/Создать), each
+  showing `AppTopBar` + `AppEmptyState`; Профиль additionally hosts a
+  `SegmentedButton` theme-mode switcher as this stage's concrete proof
+  of the "переключение тем" acceptance criterion.
+- **Fonts**: real Source Serif 4 and Inter **variable-font** `.ttf`
+  files (with their `OFL.txt` licenses) downloaded from Google Fonts'
+  official `google/fonts` GitHub repo and committed to
+  `assets/fonts/` — not fabricated placeholder files. `pubspec.yaml`
+  declares the same variable-font file 3× under different `weight:`
+  values for Inter (400/500/600) and once for Source Serif 4 (600,
+  the only weight file 07 uses), which is the standard technique for
+  exposing a variable font's weight axis through Flutter's normal
+  `FontWeight` API.
+- **Golden + widget tests**: 4 base widgets × 2 themes (`AppButton`
+  incl. loading state, `RoleCard` both role variants, `ScalesLogo`
+  static pose, `AppBottomNav`) via `golden_toolkit`, plus non-golden
+  widget tests for the two animated widgets covering exactly what file
+  07 §9 requires: gavel skipped under `disableAnimations`, repeated
+  taps during the strike ignored, clean dispose mid-animation for both
+  `GavelStrikeButton` and `ScalesLogo`. A unit test covers
+  `AppColorTokens.copyWith`/`.lerp`.
+
+### Judgment calls (documented per standing instruction)
+
+1. **`StatefulShellRoute.indexedStack`, not plain `ShellRoute`.** File
+   01 §15 says "ShellRoute" literally; `ecc:code-architect` flagged that
+   the plain variant loses per-tab Navigator/scroll state the moment
+   files 2-6 nest real screens under each tab, and retrofitting later
+   is expensive. Chose the modern variant now — same behavior for
+   stage 1.5's stub screens, correct foundation for later stages.
+2. **WCAG 2.2 non-text-contrast fix for the gold focus/selection
+   border, added without changing the approved gold color.**
+   `ecc:a11y-architect` computed the actual contrast ratios for every
+   color pair in file 07 §2 and found one real failure: `#C9A24A` gold
+   on white/light `surface` (the focused-field / focused-OTP-cell /
+   selected-role-card border) measures **2.40:1**, below the WCAG 2.2
+   SC 1.4.11 minimum of 3:1 for a UI state boundary (dark theme is
+   unaffected — 7.51:1). File 07 explicitly says not to alter its
+   approved colors/components without asking the owner
+   ("ничего не «улучшать» и не менять по своему усмотрению" /
+   "новый компонент — сначала вопрос владельцу"), so the gold value
+   itself was **not** touched. Instead, `AppColorTokens.focusRingGlow`
+   (a soft gold-tinted `BoxShadow`, `#40C9A24A`, transparent in dark
+   theme where it's not needed) was added as a second, non-color visual
+   cue on `AppTextField`/`AppOtpField` when focused, and on `RoleCard`
+   when selected in light theme. **This is a real, load-bearing
+   accessibility fix, not decoration — please tell me if you'd rather
+   it be reverted or done differently; it's isolated to one named
+   token so it's a one-line change either way.**
+3. **Temporary string-keying layer (`core/l10n/`) ahead of stage 1.6.**
+   File 07 §D.1's own acceptance line says stage 1.5 must have "нет
+   hardcode-цветов и строк" (no hardcoded strings), but the real
+   localization system (xlsx import, drift cache, live switch) is
+   stage 1.6, not built yet. Added a minimal `Translator` interface +
+   `StaticTranslator` (a hardcoded Russian `Map<String,String>`) behind
+   a `translatorProvider`, so every stage-1.5 widget already calls
+   `t('key')` instead of embedding literal strings, and stage 1.6 only
+   has to swap the provider override — no call-site changes. The keys
+   used (`nav.tab.*`, `empty.default.message`, etc.) are **not** in
+   file 07 §8's translation table (which only covers the auth/
+   onboarding screens built in stage 1.7) — file 01 §3 gives their
+   Russian copy directly ("Лента | Поиск | + | Моё | Профиль"), so
+   these are a necessary, spec-consistent addition, flagged here so
+   stage 1.6 merges them into `translations_seed.xlsx` instead of
+   re-deriving them from scratch.
+4. **`golden_toolkit`, not raw `matchesGoldenFile`.** Recommended by
+   `ecc:code-architect`: `testGoldens`/`loadAppFonts()` embeds the real
+   bundled Source Serif 4/Inter into the test binary (otherwise
+   `flutter test` substitutes a placeholder font and the goldens
+   wouldn't reflect the actually-approved typography). Tradeoff: golden
+   rendering can drift slightly across OS/font-hinting — generate/
+   verify goldens in one consistent environment (ideally CI), not ad
+   hoc on your Mac each time.
+5. **Attorney role card's fixed navy styling lives in one named,
+   commented constant (`AppColorsFixed`), not folded into the themed
+   token system**, because file 07 §2 makes it explicitly
+   theme-invariant ("всегда тёмно-синяя ... в обеих темах") — forcing
+   it through `ThemeExtension.lerp` would be wrong (it should never
+   lerp toward a light-theme color). Documented inline as an approved,
+   deliberate exception so a future "why is this the only hardcoded
+   color" question has an answer at the point of use.
+
+### Known limitations, honestly stated
+
+- **This code has not been run.** The cloud sandbox this session
+  operates in has no Flutter SDK and no way to install one (confirmed
+  again this stage — see "Bootstrapping on your Mac" below); every
+  file was hand-written against file 07's numeric spec and cross-
+  checked with an automated brace-balance + import-resolution sweep
+  (56 files, 0 issues), but that is not a substitute for
+  `flutter analyze`/`flutter test` actually running. Please run them
+  (see below) and tell me what fails — I'd rather fix real errors you
+  hit than claim this is verified when it isn't.
+- **`ScalesLogo`'s pan-swing math (rotation direction, bowl-curve arc
+  direction) is the single piece of this stage authored purely from
+  the coordinate spec without any way to render and eyeball it.**
+  Flagged in the widget's own doc comment too. Everything else (colors,
+  type, button/field/card layout, the gavel strike, navigation) is
+  much lower-risk because it doesn't depend on getting a rotation
+  sign or an arc-sweep direction right by pure reasoning.
+- **No `android/`/`ios/` platform folders yet** — `flutter create` was
+  never run (can't run the `flutter` binary in this sandbox at all, not
+  even to scaffold). `flutter test`/`flutter analyze` don't need them;
+  actually running the app on your Android device (promised for stage
+  1.7) does. See "Bootstrapping on your Mac" below.
+- **`*.g.dart` files (Riverpod codegen) do not exist yet** — they're
+  build artifacts (gitignored), generated by `dart run build_runner
+  build`, which needs the Dart SDK. This is normal for any
+  riverpod_generator project, not a gap specific to this stage.
+- **Golden baseline `.png` files do not exist yet** — first
+  `flutter test` run needs `--update-goldens` to create them; they then
+  get committed and every subsequent run compares against them.
+- The WCAG gold-border fix (judgment call #2 above) is a real,
+  intentional design change beyond file 07's literal pixels, even
+  though it doesn't touch the approved gold color value itself —
+  flagged prominently in case the owner wants to review it specifically.
+
+### Bootstrapping on your Mac (needed before anything above can be verified)
+
+```bash
+cd apps/mobile
+flutter create --org com.lawbid --project-name lawbid --platforms=android,ios .
+flutter pub get
+dart run build_runner build --delete-conflicting-outputs
+flutter analyze
+flutter test --update-goldens   # first run only, to create golden baselines
+flutter test                    # subsequent runs
+```
+
+`flutter create .` on a directory that already has `lib/`/`pubspec.yaml`
+only fills in what's missing (platform folders) — it does not overwrite
+the Dart source written this stage. Please run this and tell me what
+`flutter analyze`/`flutter test` actually report; I'll fix whatever's
+real rather than guessing.
