@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/design_system/design_system.dart';
 import '../../../../core/l10n/l10n_providers.dart';
 import '../../../../core/l10n/translator.dart';
+import '../../../../core/navigation/app_routes.dart';
 import '../../application/onboarding_flow.dart';
 import '../../auth_routes.dart';
 import '../../domain/onboarding_step.dart';
@@ -48,7 +49,18 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
 
   Future<void> _handleCompleted(String code) async {
     final ok = await ref.read(onboardingFlowProvider.notifier).verifyOtp(code);
-    if (ok && mounted) context.push(AuthRoutes.role);
+    if (!ok || !mounted) return;
+    // Real-backend wiring pass (docs/CHANGELOG.md, stage-1.7-auth):
+    // OnboardingFlow.verifyOtp already branched on isNewUser and moved
+    // `state.step` accordingly — new user -> role, existing user ->
+    // completed (and cleared the resume checkpoint). Read it back here
+    // rather than assuming success always means "go to role".
+    final step = ref.read(onboardingFlowProvider).step;
+    if (step == OnboardingStep.role) {
+      context.push(AuthRoutes.role);
+    } else if (step == OnboardingStep.completed) {
+      context.go(AppRoutes.feed);
+    }
   }
 
   @override

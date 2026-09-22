@@ -28,11 +28,9 @@ class OnboardingFlow extends _$OnboardingFlow {
 
   /// Welcome screen's "Продолжить с телефоном" — screen 1 → 2. Email/
   /// Apple/Google are buttons on the welcome screen too (file 07 §6.1) but
-  /// their sign-in logic needs the native SDKs / real backend this stub
-  /// layer doesn't have yet (see [AuthRepository] doc comment) — tapping
-  /// them shows a "not built yet" message for now rather than pretending to
-  /// authenticate. This mirrors exactly what the owner-approved preview
-  /// artifact already showed for those three buttons.
+  /// their sign-in logic needs the native SDKs this app doesn't wire up
+  /// yet (phase 3, per this pass's blueprint) — tapping them shows a "not
+  /// built yet" message for now rather than pretending to authenticate.
   void goToPhoneStep() {
     state = state.copyWith(step: OnboardingStep.phone, errorMessage: null);
     unawaited(_persist());
@@ -64,26 +62,52 @@ class OnboardingFlow extends _$OnboardingFlow {
     await ref.read(authRepositoryProvider).requestOtp(phone);
   }
 
+  /// Real-backend wiring pass (docs/CHANGELOG.md, stage-1.7-auth): branches
+  /// on `AuthTokensResult.isNewUser` (surfaced via
+  /// `OtpVerifyResult.success.isNewUser`) — an existing user who re-verifies
+  /// (e.g. signing back in on a new device) skips the role step entirely
+  /// and lands straight in the shell; a brand-new user proceeds to role
+  /// selection exactly as before. `OtpScreen._handleCompleted` reads
+  /// `state.step` after this returns to decide where to navigate.
   Future<bool> verifyOtp(String code) async {
     final phone = state.phoneNumber;
     if (phone == null) return false;
     state = state.copyWith(isSubmitting: true, errorMessage: null);
     final result = await ref.read(authRepositoryProvider).verifyOtp(phoneNumber: phone, code: code);
     return result.when(
-      success: () {
-        state = state.copyWith(step: OnboardingStep.role, otpVerified: true, isSubmitting: false);
-        unawaited(_persist());
+      success: (isNewUser) async {
+        state = state.copyWith(otpVerified: true, isSubmitting: false);
+        if (isNewUser) {
+          state = state.copyWith(step: OnboardingStep.role);
+          unawaited(_persist());
+        } else {
+          await completeOnboarding();
+        }
         return true;
       },
-      invalid: () {
+      invalid: () async {
         state = state.copyWith(isSubmitting: false, errorMessage: 'Неверный код');
         return false;
       },
-      expired: () {
+      expired: () async {
         state = state.copyWith(isSubmitting: false, errorMessage: 'Код истёк, запросите новый');
         return false;
       },
-      networkError: () {
+      locked: () async {
+        state = state.copyWith(
+          isSubmitting: false,
+          errorMessage: 'Слишком много попыток. Запросите код позже.',
+        );
+        return false;
+      },
+      rateLimited: (retryAfterSeconds) async {
+        state = state.copyWith(
+          isSubmitting: false,
+          errorMessage: 'Слишком много попыток. Повторите через $retryAfterSeconds с.',
+        );
+        return false;
+      },
+      networkError: () async {
         state = state.copyWith(isSubmitting: false, errorMessage: 'Ошибка сети, попробуйте снова');
         return false;
       },
@@ -94,17 +118,17 @@ class OnboardingFlow extends _$OnboardingFlow {
     state = state.copyWith(selectedRole: role);
   }
 
-  /// Role screen's "Продолжить". Clears the resume-after-kill checkpoint —
-  /// once onboarding is complete there's nothing left to resume.
+  /// Role screen's "Продолжить" (and the existing-user fast path in
+  /// [verifyOtp] above). Clears the resume-after-kill checkpoint — once
+  /// onboarding is complete there's nothing left to resume.
   ///
   /// KNOWN GAP (docs/CHANGELOG.md, flagged for the owner): this does NOT
   /// yet write into `currentUserRoleProvider` (shared/domain/
   /// current_role_provider.dart), which stays hardcoded to `UserRole.client`
-  /// per its stage-1.5 stub doc comment. Wiring the real selected role into
-  /// the app's session/role state needs `SessionState`, which is part of
-  /// the not-yet-started full auth pass — see [AuthRepository]. Until then,
-  /// an Attorney who finishes onboarding still sees the Client-flavored
-  /// bottom nav.
+  /// per its stage-1.5 stub doc comment. The backend has no endpoint to
+  /// persist the chosen role yet either (this pass's blueprint says not to
+  /// add one) — an Attorney who finishes onboarding still sees the
+  /// Client-flavored bottom nav until a later pass adds that endpoint.
   Future<void> completeOnboarding() async {
     state = state.copyWith(step: OnboardingStep.completed);
     await ref.read(onboardingLocalStoreProvider).clear();

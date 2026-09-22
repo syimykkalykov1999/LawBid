@@ -29,6 +29,13 @@ dependencies:
   # all behind the same repository-interface pattern — see LocalKvStore)
   shared_preferences: ^2.3.3
 
+  # Networking (real backend wiring pass, docs/CHANGELOG.md): dio for the
+  # HTTP client + interceptors (headers/auth/refresh), flutter_secure_storage
+  # for the refresh token only (see core/session/token_secure_store.dart's
+  # doc comment for why it's not in LocalKvStore/SharedPreferences).
+  dio: ^5.9.0
+  flutter_secure_storage: ^9.2.4
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

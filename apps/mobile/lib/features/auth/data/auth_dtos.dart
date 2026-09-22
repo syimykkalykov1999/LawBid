@@ -1,0 +1,100 @@
+/// Hand-written request/response DTOs for the auth endpoints wired in this
+/// pass (otp/request, otp/verify, refresh, logout —
+/// docs/01_FOUNDATION_AUTH.md §10.5). `packages/api-contract` is an empty
+/// stub (README only, no generator wired) — these are hand-written rather
+/// than generated, matching the engineering judgment recorded in
+/// docs/CHANGELOG.md for this pass. Keep field names/shapes in sync with
+/// apps/api/src/modules/auth/dto/*.dto.ts by hand until that package is
+/// real.
+library;
+
+/// Mirrors `DeviceInfoDto` (apps/api/src/modules/auth/dto/device-info.dto.ts).
+/// Every field is optional — omitting the whole object still works, it
+/// just loses the "new device" signal and the refresh grace-window's
+/// benign-retry match (see `RefreshTokenDto`'s doc comment in apps/api).
+class DeviceInfo {
+  const DeviceInfo({this.deviceId, this.deviceName, this.platform, this.appVersion});
+
+  final String? deviceId;
+  final String? deviceName;
+  final String? platform;
+  final String? appVersion;
+
+  Map<String, dynamic> toJson() => {
+    if (deviceId != null) 'deviceId': deviceId,
+    if (deviceName != null) 'deviceName': deviceName,
+    if (platform != null) 'platform': platform,
+    if (appVersion != null) 'appVersion': appVersion,
+  };
+}
+
+/// `POST /auth/otp/request` request body (`OtpRequestDto`).
+class OtpRequestPayload {
+  const OtpRequestPayload({required this.channel, required this.identifier});
+
+  final String channel;
+  final String identifier;
+
+  Map<String, dynamic> toJson() => {'channel': channel, 'identifier': identifier};
+}
+
+/// `POST /auth/otp/verify` request body (`OtpVerifyDto`).
+class OtpVerifyPayload {
+  const OtpVerifyPayload({
+    required this.channel,
+    required this.identifier,
+    required this.code,
+    this.deviceInfo,
+  });
+
+  final String channel;
+  final String identifier;
+  final String code;
+  final DeviceInfo? deviceInfo;
+
+  Map<String, dynamic> toJson() => {
+    'channel': channel,
+    'identifier': identifier,
+    'code': code,
+    if (deviceInfo != null) 'deviceInfo': deviceInfo!.toJson(),
+  };
+}
+
+/// `POST /auth/refresh` request body (`RefreshTokenDto`). `deviceInfo` is
+/// not in the docs table's request shape but IS accepted by the DTO — see
+/// that file's doc comment on why it matters for the grace-window match.
+class RefreshPayload {
+  const RefreshPayload({required this.refreshToken, this.deviceInfo});
+
+  final String refreshToken;
+  final DeviceInfo? deviceInfo;
+
+  Map<String, dynamic> toJson() => {
+    'refreshToken': refreshToken,
+    if (deviceInfo != null) 'deviceInfo': deviceInfo!.toJson(),
+  };
+}
+
+/// Mirrors `AuthTokensResult`
+/// (apps/api/src/modules/auth/social/auth-result.types.ts) — the shared
+/// response shape for otp/verify, social login, and refresh.
+class AuthTokensResult {
+  const AuthTokensResult({
+    required this.accessToken,
+    required this.refreshToken,
+    required this.accessTokenExpiresIn,
+    required this.isNewUser,
+  });
+
+  factory AuthTokensResult.fromJson(Map<String, dynamic> json) => AuthTokensResult(
+    accessToken: json['accessToken'] as String,
+    refreshToken: json['refreshToken'] as String,
+    accessTokenExpiresIn: json['accessTokenExpiresIn'] as int,
+    isNewUser: json['isNewUser'] as bool,
+  );
+
+  final String accessToken;
+  final String refreshToken;
+  final int accessTokenExpiresIn;
+  final bool isNewUser;
+}

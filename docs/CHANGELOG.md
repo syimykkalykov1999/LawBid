@@ -1468,3 +1468,94 @@ design system are genuinely solid, but the two halves aren't wired
 together yet (no real network calls from the app), backend i18n and
 feature flags haven't been started, and there's no CI. File 2 is not on
 the table until these close.
+
+### Flutter auth networking: real dio-backed `AuthRepository` wired to the live backend (2026-09-22)
+
+Closed the gap the stage-1 completion audit flagged (previous entry,
+same date): the auth screens existed but made zero real network calls.
+This pass wires `apps/mobile`'s onboarding flow to the already-live
+`apps/api` `/auth/*` endpoints (docs/01_FOUNDATION_AUTH.md §10.4/§10.5),
+scoped to otp/request, otp/verify, refresh, and logout — Apple/Google
+native SDK wiring, biometric reauth, and the active-devices/
+account-deletion screens are later phases, deliberately out of scope
+here.
+
+New (`core/network/`): `api_error.dart` (`ApiException` — parses the
+backend's `{error:{code,message,details,requestId}}` envelope; a
+synthetic `NETWORK_ERROR` code covers timeouts/non-JSON responses),
+`headers_interceptor.dart` (`X-Platform`/`X-App-Version`/
+`Accept-Language`/`X-Device-Id`; the device id is a locally-generated
+UUID persisted via the existing `LocalKvStore` — not secret, no secure
+storage needed), `auth_interceptor.dart` (attaches
+`Authorization: Bearer <token>` unless `extra['skipAuth']`; on
+`TOKEN_EXPIRED` — and ONLY that code, per `ErrorCode.TOKEN_EXPIRED`'s
+doc comment in apps/api warning against looping on `UNAUTHORIZED`/
+`AUTH_SESSION_REVOKED` — refreshes once via `SessionController` and
+retries the original request), `dio_client.dart` (`dioProvider`; base
+URL defaults to `http://10.0.2.2:3000/api/v1`, the Android emulator's
+host-loopback alias, overridable via `--dart-define=API_BASE_URL=...`).
+
+New (`core/session/`): `session_state.dart` (freezed `SessionState` —
+access token + decoded JWT claims `sub/role/sid/verified/
+subscriptionStatus` + expiry; deliberately does NOT hold the refresh
+token), `token_secure_store.dart` (`flutter_secure_storage` wrapper,
+refresh-token only), `refresh_coordinator.dart` (single-flight
+`/auth/refresh` — concurrent `TOKEN_EXPIRED` hits all await the same
+call instead of racing separate refreshes, which the backend's rotation
+would otherwise treat as reuse and revoke; this is file 01 §15's manual
+QA item "параллельные запросы не ломаются"), `session_providers.dart`
+(`@Riverpod(keepAlive: true) class SessionController` — `build()`
+returns `SessionState?`; `bootstrap()` exchanges a stored refresh token
+for a session before the first frame and never throws; `applyTokens()`
+base64url-decodes the JWT payload for claims, no verification library
+added since the backend already verified the signature; `clear()`).
+
+New (`features/auth/data/`): `auth_dtos.dart` (hand-written
+request/response classes — `packages/api-contract` is still an empty
+stub, README only, no generator wired), `auth_api_client.dart`
+(`AuthApiClient` — one method per endpoint, throws `ApiException`),
+`real_auth_repository.dart` (`RealAuthRepository implements
+AuthRepository` — phone channel hardcoded since onboarding is phone-only
+today; on verify success calls `SessionController.applyTokens`; maps
+`AUTH_OTP_INVALID/EXPIRED/LOCKED` and `AUTH_OTP_REQUEST_LIMIT`/
+`RATE_LIMITED` to the union's new variants).
+
+Modified: `otp_verify_result.dart` — `success` gained `{required bool
+isNewUser}`, added `locked()`/`rateLimited(int retryAfterSeconds)`.
+`auth_repository.dart` — interface gained `logout()`.
+`auth_providers.dart` — `authRepositoryProvider` now defaults to
+`RealAuthRepository` (built from `dioProvider`); `StubAuthRepository`
+stays in the codebase for `test/features/auth/golden/
+auth_screens_golden_test.dart` (unaffected — it never reads
+`authRepositoryProvider` since it only renders screens statically, no
+interaction). `onboarding_flow.dart` — `verifyOtp` branches on
+`isNewUser`: false skips straight to `completeOnboarding()` (existing
+user), true proceeds to the role step exactly as before.
+`otp_screen.dart` — `_handleCompleted` now reads `state.step` after
+`verifyOtp` instead of assuming success always means "go to role".
+`auth_guard.dart` — added real session gating (no session + not
+mid-onboarding → `/welcome`; session present + sitting on an auth route
+→ `/feed`) alongside the existing onboarding-resume check, which still
+takes priority. `main.dart` — builds a `ProviderContainer` and awaits
+`SessionController.bootstrap()` before `runApp`, via
+`UncontrolledProviderScope`, so the router's first redirect decision
+sees real session data. `pubspec.yaml` — added `dio: ^5.9.0` and
+`flutter_secure_storage: ^9.2.4`.
+
+**Not verified — no way to in this environment**: this pass was done
+via a remote shell bridge to the Mac with no `flutter`/`dart` binary
+reachable, so nothing here has been compiled, analyzed, or run.
+Required before trusting this:
+- `dart run build_runner build` — `otp_verify_result.dart` and
+  `session_state.dart` (freezed) and `session_providers.dart`/
+  `onboarding_flow.dart` (riverpod codegen) all need their generated
+  parts regenerated; the checked-in `otp_verify_result.freezed.dart` is
+  now stale against the new union shape.
+- A real run against the live backend (`docker compose up` +
+  `apps/api`) on an emulator/device: the otp → verify → session →
+  guard-redirect path, the refresh-on-`TOKEN_EXPIRED` retry, and the
+  concurrent-refresh single-flight behavior are all unverified beyond
+  manual code review.
+- Every file touched was checked for balanced parens/braces/brackets and
+  for relative imports resolving to real files, but that's a mechanical
+  check, not a substitute for `flutter analyze`.
