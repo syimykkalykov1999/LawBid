@@ -1190,3 +1190,59 @@ screen") to describe the new approved layout instead.
 Known follow-up: this invalidates the (never-yet-generated) welcome-screen
 goldens; the user needs to run `flutter test --update-goldens` again before
 the golden suite is green, then those 2 new PNGs should get committed.
+
+
+## Welcome-screen design correction — 2026-09-22 (owner correction of the previous tweak)
+
+Owner corrected the previous change (logo size 236->300): they did NOT want
+the whole logo enlarged, only the scale's stand/base stretched downward,
+keeping the topper/beam/pans at normal proportions. Also asked for the
+legal fine print to be pinned to the very bottom of the screen (not just
+following the content), and a bit more breathing room between the logo and
+the phone button.
+
+Changes:
+- `scales_logo.dart`: `ScalesLogo`/`_ScalesPainter` gained a new
+  `standExtension` param (design-space units, same coordinate space as
+  everything else the painter draws, default 0 - every other call site
+  is pixel-identical). Only the stand line and the 2 base lines move; the
+  topper circle, beam, and both pans are untouched.
+- `welcome_screen.dart`: logo `size` reverted to 236 (the 300 from the
+  prior commit is gone), `standExtension: 50` added. Logo-to-button gap
+  16->28. Legal text is now pinned to the bottom via the standard Flutter
+  "scrollable column with a pinned footer" idiom: `LayoutBuilder` +
+  `ConstrainedBox(minHeight: viewport height)` + `IntrinsicHeight` +
+  `Spacer()` right before the legal text - absorbs leftover vertical space
+  on tall screens, still scrolls normally (no overflow) on short ones.
+
+Known follow-up: this invalidates the just-generated (uncommitted) welcome
+golden PNGs again - need another `flutter test --update-goldens` pass
+before committing them.
+
+### Scope check against file 01 for the owner's other 3 requests (same message)
+
+The owner also asked, in the same message, for (1) the English copy to
+"actually be English" - checked: it is NOT. `static_translator.dart` is
+explicitly a stage-1.5-only, Russian-only stopgap (its own doc comment says
+so) with zero English strings anywhere and no language-switching mechanism
+at all; file 01 §1 requires English as the DEFAULT language, and the real
+L10n layer (backend i18n module + Flutter L10n with live language
+switching) is its own separate stage, Этап 1.6, not yet built. This isn't a
+one-string fix - flagging it rather than hacking a single English literal
+into a table whose own doc comment says English belongs in stage 1.6's
+`translations_seed.xlsx`. (2) A language switcher on the welcome screen -
+file 01 §10.2 screen B DOES explicitly call for "Переключатель языка
+(мелкая ссылка)" on this exact screen, so this is a real, spec-confirmed
+gap from stage 1.7 - genuinely missed, worth adding, but meaningfully
+blocked on (1): there's currently nothing to switch TO. (3) A theme
+switcher - file 01 only specs this inside the Settings screen (§3,
+line 87) and as a general stage-1.7 acceptance-checklist item (#7), not on
+the welcome screen specifically; Settings doesn't exist yet (only a
+profile_screen.dart stub). (4) Working Apple/Google/Email buttons - these
+need stage 1.4's backend (OTP/Apple-Google token validation) plus native
+SDK configuration (Apple Developer + Google Cloud OAuth credentials the
+owner must provide/configure) - out of reach of a UI polish pass. Per this
+project's standing rule (never merge/skip ТЗ stages without direction),
+raised these 4 as an explicit scope question back to the owner rather than
+silently building partial/fake versions of stage-1.4/1.6 work under a
+"quick fix" banner.

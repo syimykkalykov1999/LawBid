@@ -28,13 +28,25 @@ class ScalesLogo extends StatefulWidget {
     this.animated = false,
     this.strokeColor,
     this.semanticLabel = 'LawBid',
+    this.standExtension = 0,
   });
 
-  /// Width of the widget; height follows the 300x212 design aspect ratio.
+  /// Width of the widget; height follows the 300x212 design aspect ratio,
+  /// plus [standExtension].
   final double size;
   final bool animated;
   final Color? strokeColor;
   final String? semanticLabel;
+
+  /// Extra length (in the same 300x212 design-space units as everything
+  /// else the painter draws, so it scales with [size] like the rest of the
+  /// drawing) added ONLY to the stand/base at the bottom — the topper,
+  /// beam, and pans keep their normal proportions. 2026-09-22 owner
+  /// request: fill empty space below the logo on the welcome screen by
+  /// stretching the stand, not by enlarging the whole logo. Default 0
+  /// keeps every other call site (feed-header static logo, golden tests)
+  /// pixel-identical.
+  final double standExtension;
 
   @override
   State<ScalesLogo> createState() => _ScalesLogoState();
@@ -128,7 +140,7 @@ class _ScalesLogoState extends State<ScalesLogo>
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final height = widget.size * 212 / 300;
+    final height = widget.size * (212 + widget.standExtension) / 300;
 
     Widget paint(double tSeconds) {
       return CustomPaint(
@@ -138,6 +150,7 @@ class _ScalesLogoState extends State<ScalesLogo>
           scale: widget.size / 300,
           colors: colors,
           strokeColorOverride: widget.strokeColor,
+          standExtension: widget.standExtension,
         ),
       );
     }
@@ -166,12 +179,14 @@ class _ScalesPainter extends CustomPainter {
     required this.scale,
     required this.colors,
     this.strokeColorOverride,
+    this.standExtension = 0,
   });
 
   final double tSeconds;
   final double scale;
   final AppColorTokens colors;
   final Color? strokeColorOverride;
+  final double standExtension;
 
   /// angle(t) = 5.5*sin(1.35t) + 1.6*sin(2.9t + 1), degrees (file 07 §5.2).
   double get _angleDeg =>
@@ -204,11 +219,18 @@ class _ScalesPainter extends CustomPainter {
 
     // Топпер: круг (150,16) r5, только контур.
     canvas.drawCircle(const Offset(150, 16), 5, linePaint);
-    // Стойка.
-    canvas.drawLine(const Offset(150, 21), const Offset(150, 192), linePaint);
-    // Основание.
-    canvas.drawLine(const Offset(112, 192), const Offset(188, 192), linePaint);
-    canvas.drawLine(const Offset(122, 203), const Offset(178, 203), linePaint);
+    // Стойка — удлинена на standExtension (owner request, 2026-09-22),
+    // топпер/коромысло/чаши выше не трогаем.
+    final standBottomY = 192 + standExtension;
+    canvas.drawLine(const Offset(150, 21), Offset(150, standBottomY), linePaint);
+    // Основание — сдвинуто вниз вместе со стойкой, тот же зазор 11 между
+    // линиями, что и раньше (203-192).
+    canvas.drawLine(Offset(112, standBottomY), Offset(188, standBottomY), linePaint);
+    canvas.drawLine(
+      Offset(122, standBottomY + 11),
+      Offset(178, standBottomY + 11),
+      linePaint,
+    );
 
     final angleRad = _angleDeg * math.pi / 180;
     final leftEnd = Offset(150 - 100 * math.cos(angleRad), 44 - 100 * math.sin(angleRad));
@@ -314,6 +336,8 @@ class _ScalesPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _ScalesPainter oldDelegate) {
-    return oldDelegate.tSeconds != tSeconds || oldDelegate.colors != colors;
+    return oldDelegate.tSeconds != tSeconds ||
+        oldDelegate.colors != colors ||
+        oldDelegate.standExtension != standExtension;
   }
 }
