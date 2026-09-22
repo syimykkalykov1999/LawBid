@@ -1085,3 +1085,49 @@ flutter test
 and tell me what's real. If `flutter analyze` comes back at 0 errors,
 next step is `flutter run` (simulator or device) - the actual first run
 of this app in the project's history.
+
+## Verification note — 2026-09-22 (real flutter analyze/build_runner/test output, first time ever)
+
+User ran the actual commands on their Mac and pasted real output for the
+first time this whole project. Confirms the previous entry's fixes worked:
+`dart run build_runner build` succeeded, and the re-run `flutter analyze`
+came back with 416 issues and **zero `error` lines** — every remaining
+item is `warning`/`info` (pre-existing style debt). The 6 real compile
+errors from the entry above are gone.
+
+`flutter test` then surfaced two categories of failure, neither of which
+`flutter analyze` catches:
+
+1. **Golden image comparisons fail with "non-existent file"** for every
+   golden test (`app_button_*`, `role_card_*`, `app_bottom_nav_*`,
+   `scales_logo_*`). This is expected, not a bug — no `goldens/*.png`
+   baseline images have ever been generated (this is the first time these
+   tests have run). Fixed by `flutter test --update-goldens` once, per
+   the Bootstrapping commands below; not something to "fix" in code.
+2. **Two real bugs**, fixed here:
+   - `RoleCard` (`role_card.dart`) overflowed its `Column` by 7px
+     (client) / 25px (attorney) inside the golden test's `surfaceSize`.
+     File 07 §4 doesn't specify a fixed card height — `RoleCard` is
+     correctly content-sized — so the bug was the golden test's guessed
+     `surfaceSize: Size(320, 130)`, picked before it could ever be
+     rendered against real font metrics. Bumped to `Size(320, 180)` in
+     `role_card_golden_test.dart` (both client/attorney, both themes).
+   - `AppButton`'s loading golden test hit `pumpAndSettle timed out`.
+     Root cause: the loading state renders an indeterminate
+     `CircularProgressIndicator`, which animates forever, and
+     `screenMatchesGolden` calls `tester.pumpAndSettle()` internally by
+     default — which can never settle against an infinite animation.
+     Fixed with golden_toolkit's `customPump` parameter (pump one fixed
+     100ms frame instead of settling) on the loading variant only; the
+     default-state test is untouched since it has no animation to settle.
+
+Both fixes are test-file-only — no application widget code changed.
+`RoleCard`'s actual layout behavior (content-sized, not fixed-height) is
+correct per spec and was left alone.
+
+Not verified from here (same sandbox limitation as ever): please run
+`flutter test --update-goldens` once, then `flutter test` again to
+confirm 0 failures, then `flutter run` — analyze is clean, so the app
+should now actually launch. You don't need to paste the full output back;
+a one-line "passed" / "app launched" (or just the error line, if any) is
+enough.

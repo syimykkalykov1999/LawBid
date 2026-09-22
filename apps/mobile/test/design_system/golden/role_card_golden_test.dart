@@ -23,7 +23,7 @@ void main() {
           ),
         ),
         wrapper: materialAppWrapper(theme: theme),
-        surfaceSize: const Size(320, 130),
+        surfaceSize: const Size(320, 180),
       );
       await screenMatchesGolden(tester, 'role_card_client_$name');
     });
@@ -43,7 +43,7 @@ void main() {
           ),
         ),
         wrapper: materialAppWrapper(theme: theme),
-        surfaceSize: const Size(320, 130),
+        surfaceSize: const Size(320, 180),
       );
       await screenMatchesGolden(tester, 'role_card_attorney_$name');
     });

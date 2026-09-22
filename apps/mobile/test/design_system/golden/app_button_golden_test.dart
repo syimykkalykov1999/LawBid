@@ -31,7 +31,14 @@ void main() {
         wrapper: materialAppWrapper(theme: theme),
         surfaceSize: const Size(320, 100),
       );
-      await screenMatchesGolden(tester, 'app_button_loading_$name');
+      // Indeterminate CircularProgressIndicator animates forever - the
+      // default internal pumpAndSettle() never settles against it, so pump
+      // a single fixed frame instead (see file-level note in this test).
+      await screenMatchesGolden(
+        tester,
+        'app_button_loading_$name',
+        customPump: (tester) => tester.pump(const Duration(milliseconds: 100)),
+      );
     });
   }
 }
