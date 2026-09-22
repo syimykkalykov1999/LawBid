@@ -33,10 +33,17 @@ import '../../auth_routes.dart';
 ///
 /// The phone/social-button block is centered (two [Spacer]s, not fixed
 /// gaps) between the logo and the legal fine print, on both themes
-/// (2026-09-22 owner follow-up). In light theme the logo's stroke color
-/// is overridden to `colors.accent` (the same navy used for the phone
-/// button's fill) instead of the default gold stroke, which read as too
-/// close to black against the white background; dark theme is untouched.
+/// (2026-09-22 owner follow-up).
+///
+/// The scales logo's stand/beam/pan-outline stays the default gold
+/// stroke in BOTH themes. An earlier pass here wrongly overrode it to
+/// navy in light theme; reverted per owner correction — only the
+/// pan/bowl fill was meant to pick up the button's color, and
+/// [AppColorTokens.panFill] in light theme is already `#0A1A3F`, the
+/// same navy as the phone button's fill (`AppColorsLight.accent`), so no
+/// code change was needed there — just removing the stroke override that
+/// had made the whole logo read as one flat navy shape instead of gold
+/// lines around navy/gold pans.
 class WelcomeScreen extends ConsumerWidget {
   const WelcomeScreen({super.key});
 
@@ -119,12 +126,11 @@ class WelcomeScreen extends ConsumerWidget {
                         style: typography.titleWelcome.copyWith(color: colors.text),
                       ),
                       const SizedBox(height: 35),
-                      ScalesLogo(
+                      const ScalesLogo(
                         size: 236,
                         animated: true,
                         semanticLabel: 'LawBid',
                         standExtension: 50,
-                        strokeColor: isDark ? null : colors.accent,
                       ),
                       // Flexible, not fixed (owner request, 2026-09-22:
                       // center the phone/social buttons between the logo
