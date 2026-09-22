@@ -13,6 +13,13 @@ abstract final class AppColorsLight {
   static const Color border = Color(0xFFDDE2EE);
   static const Color accent = Color(0xFF0A1A3F);
   static const Color onAccent = Color(0xFFFFFFFF);
+
+  /// Owner-requested brighter CTA pair (2026-09-22, dark theme -- see
+  /// [AppColorsDark.ctaBright]'s doc comment for why this exists). Light
+  /// theme was never part of that complaint, so these just mirror
+  /// [accent]/[onAccent] unchanged -- no visible difference here.
+  static const Color ctaBright = accent;
+  static const Color onCtaBright = onAccent;
   static const Color gold = Color(0xFFC9A24A);
   static const Color goldStroke = Color(0xFFB08A2E);
   static const Color goldLight = Color(0xFFE3C877);
@@ -46,12 +53,26 @@ abstract final class AppColorsDark {
   static const Color border = Color(0xFF2A2A31);
   static const Color accent = Color(0xFFC9A24A);
   static const Color onAccent = Color(0xFF0B0B0D);
+
+  /// Owner follow-up (2026-09-22): the gold [accent] read too dull/dark
+  /// for the welcome screen's phone button in dark theme -- asked for a
+  /// brighter color, settled on white. Scoped as its own token pair
+  /// (`AppButtonVariant.ctaBright` in app_button.dart) rather than
+  /// changing [accent] itself, since [accent] also drives the bottom nav
+  /// selection color and every OTHER primary button (role/phone/otp
+  /// screens, error-state retry) that the owner did not ask to change.
+  static const Color ctaBright = Color(0xFFFFFFFF);
+  static const Color onCtaBright = Color(0xFF0B0B0D);
   static const Color gold = Color(0xFFC9A24A);
   static const Color goldStroke = Color(0xFFD4AF5A);
   static const Color goldLight = Color(0xFFE3C877);
   static const Color goldDark = Color(0xFF8E6F26);
   static const Color navy = Color(0xFF0A1A3F);
-  static const Color panFill = Color(0xFFC9A24A);
+  /// White (2026-09-22 owner follow-up, same message as [ctaBright]): was
+  /// `#C9A24A` (gold) -- owner found the pan fill too dull alongside the
+  /// gold accent button and asked for a brighter color on both, settled
+  /// on white. [panText] (navy) already reads fine against it, unchanged.
+  static const Color panFill = Color(0xFFFFFFFF);
   static const Color panText = Color(0xFF0A1A3F);
   static const double watermarkOpacity = 0.10;
 

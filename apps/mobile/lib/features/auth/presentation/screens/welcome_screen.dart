@@ -139,6 +139,10 @@ class WelcomeScreen extends ConsumerWidget {
                         label: t.t('auth.welcome.phone'),
                         icon: Icons.call,
                         height: 48,
+                        // Brighter in dark theme only (owner follow-up,
+                        // 2026-09-22): gold read too dull here. Every
+                        // other primary button keeps the default variant.
+                        variant: isDark ? AppButtonVariant.ctaBright : AppButtonVariant.primary,
                         onPressed: () {
                           ref.read(onboardingFlowProvider.notifier).goToPhoneStep();
                           context.push(AuthRoutes.phone);

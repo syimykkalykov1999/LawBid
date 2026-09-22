@@ -1381,3 +1381,28 @@ Not yet wired: stage 1.6's real i18n layer is what will actually turn
 the 16 placeholder languages into working ones — this only builds the
 picker UI and the data shape it reads from, per the owner's explicit
 "add them gradually over time" framing.
+
+### Dark theme: brighter phone button + pan fill, white (owner follow-up, 2026-09-22)
+
+Owner disliked the gold phone-button/pan color in dark theme, asked for
+something brighter, settled on white. Scoped narrowly rather than
+repainting `AppColorTokens.accent` (which also drives the bottom nav's
+selection color and the phone/role/otp/error-retry primary buttons the
+owner did not mention):
+
+- New token pair `AppColorTokens.ctaBright`/`onCtaBright`. Light theme:
+  equals `accent`/`onAccent` (no visible change — this was never a light-
+  theme complaint). Dark theme: white / near-black (`#FFFFFF` / `#0B0B0D`).
+- New `AppButtonVariant.ctaBright` (`app_button.dart`) using that pair.
+  `welcome_screen.dart`'s phone `GavelStrikeButton` now passes
+  `variant: isDark ? AppButtonVariant.ctaBright : AppButtonVariant.primary`
+  — every other `AppButton`/`GavelStrikeButton` call site is untouched.
+- `AppColorsDark.panFill` (the scale pans' fill, i.e. the "чаша" the owner
+  named) changed from gold (`#C9A24A`) to white (`#FFFFFF`). `panText`
+  (navy) already reads fine on white, left unchanged. Light theme's
+  `panFill` untouched (already navy from an earlier pass this session).
+
+Affects goldens: any dark-theme golden showing the welcome screen's phone
+button or the scales logo will mismatch until the next
+`--update-goldens` pass, rolled into the same pending refresh as the
+earlier color/layout changes this session.

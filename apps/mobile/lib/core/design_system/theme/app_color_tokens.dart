@@ -14,6 +14,8 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
     required this.border,
     required this.accent,
     required this.onAccent,
+    required this.ctaBright,
+    required this.onCtaBright,
     required this.gold,
     required this.goldStroke,
     required this.goldLight,
@@ -36,6 +38,8 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
         border: AppColorsLight.border,
         accent: AppColorsLight.accent,
         onAccent: AppColorsLight.onAccent,
+        ctaBright: AppColorsLight.ctaBright,
+        onCtaBright: AppColorsLight.onCtaBright,
         gold: AppColorsLight.gold,
         goldStroke: AppColorsLight.goldStroke,
         goldLight: AppColorsLight.goldLight,
@@ -58,6 +62,8 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
         border: AppColorsDark.border,
         accent: AppColorsDark.accent,
         onAccent: AppColorsDark.onAccent,
+        ctaBright: AppColorsDark.ctaBright,
+        onCtaBright: AppColorsDark.onCtaBright,
         gold: AppColorsDark.gold,
         goldStroke: AppColorsDark.goldStroke,
         goldLight: AppColorsDark.goldLight,
@@ -79,6 +85,8 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
   final Color border;
   final Color accent;
   final Color onAccent;
+  final Color ctaBright;
+  final Color onCtaBright;
   final Color gold;
   final Color goldStroke;
   final Color goldLight;
@@ -101,6 +109,8 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
     Color? border,
     Color? accent,
     Color? onAccent,
+    Color? ctaBright,
+    Color? onCtaBright,
     Color? gold,
     Color? goldStroke,
     Color? goldLight,
@@ -122,6 +132,8 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
       border: border ?? this.border,
       accent: accent ?? this.accent,
       onAccent: onAccent ?? this.onAccent,
+      ctaBright: ctaBright ?? this.ctaBright,
+      onCtaBright: onCtaBright ?? this.onCtaBright,
       gold: gold ?? this.gold,
       goldStroke: goldStroke ?? this.goldStroke,
       goldLight: goldLight ?? this.goldLight,
@@ -148,6 +160,8 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
       border: Color.lerp(border, other.border, t)!,
       accent: Color.lerp(accent, other.accent, t)!,
       onAccent: Color.lerp(onAccent, other.onAccent, t)!,
+      ctaBright: Color.lerp(ctaBright, other.ctaBright, t)!,
+      onCtaBright: Color.lerp(onCtaBright, other.onCtaBright, t)!,
       gold: Color.lerp(gold, other.gold, t)!,
       goldStroke: Color.lerp(goldStroke, other.goldStroke, t)!,
       goldLight: Color.lerp(goldLight, other.goldLight, t)!,

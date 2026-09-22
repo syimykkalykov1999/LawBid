@@ -6,7 +6,17 @@ import '../../tokens/app_motion.dart';
 import '../../tokens/app_radii.dart';
 import '../../tokens/app_spacing.dart';
 
-enum AppButtonVariant { primary, secondary }
+enum AppButtonVariant {
+  primary,
+  secondary,
+
+  /// Same shape/behavior as [primary], different color pair
+  /// (`colors.ctaBright`/`colors.onCtaBright`) -- added 2026-09-22 for the
+  /// welcome screen's phone button in dark theme only (owner found the
+  /// default gold too dull there); every other primary-button call site
+  /// is unaffected since they keep passing [primary].
+  ctaBright,
+}
 
 /// Primary/secondary action button (file 07 §4 "AppButton").
 ///
@@ -69,6 +79,9 @@ class _AppButtonState extends State<AppButton> {
       case AppButtonVariant.primary:
         background = colors.accent;
         foreground = colors.onAccent;
+      case AppButtonVariant.ctaBright:
+        background = colors.ctaBright;
+        foreground = colors.onCtaBright;
       case AppButtonVariant.secondary:
         background = colors.surface;
         foreground = colors.text;
