@@ -19,7 +19,11 @@ abstract final class AppColorsLight {
   static const Color goldDark = Color(0xFF8E6F26);
   static const Color navy = Color(0xFF0A1A3F);
   static const Color panFill = Color(0xFF0A1A3F);
-  static const Color panText = Color(0xFFE3C877);
+  /// White (2026-09-22 owner follow-up): was `#E3C877` (gold), same gold
+  /// as [goldLight] -- owner asked for the "Law"/"Bid" pan word to read
+  /// white against the navy [panFill], light theme only. Dark theme's
+  /// pan text stays its existing navy-on-gold, untouched.
+  static const Color panText = Color(0xFFFFFFFF);
   static const double watermarkOpacity = 0.07;
 
   /// A11y mitigation (docs/CHANGELOG.md stage 1.5): the approved gold border

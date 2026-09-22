@@ -1330,3 +1330,16 @@ Not yet done: `flutter test --update-goldens` for the welcome screen
 (light/dark) — the layout changed again, so the two golden PNGs left
 uncommitted from the previous pass are still stale and need another
 capture once the owner confirms this builds and looks right on-device.
+
+### Light-theme pan text: gold → white (owner follow-up, 2026-09-22)
+
+`app_colors.dart`: `AppColorsLight.panText` changed from `#E3C877` (gold)
+to `#FFFFFF` (white) — the "Law"/"Bid" word drawn on each scale pan now
+reads white against the navy `panFill`, light theme only. Dark theme's
+`panText` (`#0A1A3F` navy-on-gold) is untouched. Only consumer is
+`scales_logo.dart`'s `_drawPan`, so no other call sites affected.
+
+Affects goldens: `scales_logo_static.png` and any light-theme screen
+golden that shows the logo (welcome, phone/otp/role screens) will now
+mismatch on `flutter test` until the next `--update-goldens` pass —
+rolled into the same pending golden-refresh noted in the previous entry.
