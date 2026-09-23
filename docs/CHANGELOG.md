@@ -2660,3 +2660,159 @@ New `apps/mobile/lib/core/feature_flags/`:
   every new relative import verified to resolve to a real file,
   mechanically, in addition to the real `tsc`/`eslint`/`jest`/`nest
   build` runs above for the backend half.
+
+## CI pipeline (file 01 §16 DoD, final remaining item) — 2026-09-23
+
+Added the CI that docs/CHANGELOG.md's own stage-1-completion audit (above,
+"§16 DoD: no CI workflow file exists at all") flagged as the last open
+item of file 1's Definition of Done. `.github/workflows` held only a
+placeholder README before this; it now has three real workflows.
+
+### What was built
+
+- **`.github/workflows/api-ci.yml`** — on every PR/push to `main`/`master`
+  touching `apps/api/**` (or root `package(-lock).json`/`docker-compose
+  .yml`): starts CockroachDB v24.1.5 + Redis 7 + Mailhog service
+  containers (versions/images matching `docker-compose.yml`), `npm ci`,
+  `prisma generate` / `prisma validate` / `prisma migrate deploy` against
+  the clean CockroachDB, `npm run lint` (the repo's own `eslint --fix`
+  script, followed by a `git diff --exit-code` check so a needed fix
+  fails the build instead of silently passing), `tsc --noEmit`,
+  `npm run test:cov` (uploads the coverage report as a build artifact —
+  no threshold gate added; file 01 states no coverage number, and the
+  ≥80% figure in docs/06_PRODUCTION.md §9.1 is file-6 test-policy scope),
+  `npm run test:e2e` against the real service containers, and an
+  advisory (`continue-on-error`) `npm audit --audit-level=high`.
+- **`.github/workflows/mobile-ci.yml`** — on every PR/push touching
+  `apps/mobile/**`: an `analyze-and-test` job (`flutter pub get`,
+  `dart run build_runner build --delete-conflicting-outputs` for the
+  freezed/riverpod/json_serializable/drift codegen the repo gitignores,
+  `flutter analyze`, two advisory grep-based checks for hardcoded string
+  literals and hardcoded colors, `flutter test` covering unit/widget/
+  golden tests), then `build-android` and `build-ios` jobs (each gated on
+  `analyze-and-test` passing first) doing an unsigned debug build-check
+  only (`flutter build apk --debug`, `flutter build ios --debug
+  --no-codesign`) — no signing, no store upload, per §16 DoD's "сборка
+  Android и iOS" line, not the fuller Fastlane release pipeline that's
+  docs/06_PRODUCTION.md §7.4 (file 6) scope.
+- **`.github/workflows/secret-scan.yml`** — `gitleaks`, repo-wide (not
+  path-filtered), on every PR/push to `main`/`master`. Directly covers
+  §16 DoD's "Ни один секрет не лежит в репозитории" line. Diff-only on
+  PRs, full scan on push, via the action's own default behavior.
+- Replaced the `.github/workflows/README.md` placeholder with a real
+  description of the three workflows and the judgment calls below.
+
+### Design calls the spec left silent (all flagged in-file too)
+
+- **Database is CockroachDB, not Postgres.** Earlier framing of this work
+  assumed Postgres+Redis service containers; the repo's actual
+  `docker-compose.yml` and every `DATABASE_URL` in the repo use
+  CockroachDB v24.1.5. `api-ci.yml` starts CockroachDB, not Postgres.
+  GitHub Actions' `services:` block cannot override a service image's
+  command, and CockroachDB's image needs one (`start-single-node
+  --insecure`), so it's started via a manual `docker run` + health-poll
+  step instead of `services:`; Redis and Mailhog use real `services:`
+  entries since their default commands need no args. MinIO was left out
+  entirely — no file-upload/S3 code exists yet (`schema.prisma`'s own
+  comments mark the `files` table out of stage-1.3 scope), so there's
+  nothing for it to back.
+- **Hardcoded-string and hardcoded-color checks are advisory, not
+  blocking.** Stage 1.6 in §15 calls for a "CI-проверка на строковые
+  литералы в presentation/", and docs/06_PRODUCTION.md §7.2.3 reiterates
+  both checks (strings + colors) as required PR checks — real, not
+  invented, requirements. But a real grep against the current `lib/` tree
+  found pre-existing violations neither in this task's scope to fix:
+  `phone_screen.dart`'s `Text('US +1', ...)`, `role_card.dart`'s
+  `Text('PRO', ...)`, and `delete_account_screen.dart`'s two
+  `Colors.white` uses. Making either check blocking today would fail CI
+  on day one over unrelated pre-existing code, not over anything this
+  change introduced. Both run as `continue-on-error: true` with a
+  `::warning::` annotation instead, clearly marked in-file as needing to
+  be tightened to blocking once those are cleared.
+- **`npm audit --audit-level=high` is advisory, not blocking**, for the
+  same reason: it currently exits 1 with 9 pre-existing high-severity
+  transitive vulnerabilities (`multer` via `@nestjs/platform-express`,
+  `uuid` via `exceljs`), fixable only via `npm audit fix --force` —  a
+  real breaking-change dependency-upgrade decision (major bumps of
+  `@nestjs/platform-express` and `exceljs`) that doesn't belong inside a
+  CI-pipeline task done sight-unseen of what those upgrades break.
+- **`analyze-and-test` in `mobile-ci.yml` runs on `macos-latest`, not
+  `ubuntu-latest`.** This repo's golden tests render real embedded fonts
+  via `golden_toolkit`'s `loadAppFonts()` (`test/flutter_test_config
+  .dart`), not a placeholder font, and the goldens were generated on a
+  macOS dev machine — cross-OS font rasterization differences are a
+  known source of false-positive golden failures. The spec doesn't say
+  which OS CI should use; matching the OS the goldens were generated on
+  was judged lower-risk than the cheaper `ubuntu-latest`, at the cost of
+  slower/more expensive macOS runners for that job (`build-android`
+  still uses `ubuntu-latest`). Golden tests themselves were NOT made
+  non-blocking — if they still fail on a real PR with no visual
+  regression, the fix is regenerating them on macOS via `flutter test
+  --update-goldens`, not loosening this job.
+- **Flutter/Dart pinned to `channel: stable`, not an exact version.**
+  `pubspec.yaml` only declares a floor (`sdk: ">=3.5.0 <4.0.0"`); no
+  `.fvmrc` or equivalent pins an exact one. Its own comments describe a
+  Riverpod 2→3 / Freezed 2→4 migration done specifically to work with a
+  newer analyzer than Flutter's 3.5.0-era release shipped, so pinning to
+  that historical floor would likely fail `build_runner`. `stable`
+  always satisfies the floor; pinning an exact version for full
+  reproducibility is flagged in-file as follow-up work once the team
+  settles on one.
+- **No coverage-percentage gate added.** File 01 §16 doesn't state a
+  number; the ≥80% figure only appears in docs/06_PRODUCTION.md §9.1
+  (file 6's test policy). Coverage is generated and uploaded as a build
+  artifact for visibility, not gated.
+- **No Docker-image build step.** docs/06_PRODUCTION.md §7.2 item 5
+  calls for one (file 6 scope), but no `Dockerfile` exists anywhere in
+  the repo yet — nothing to build. Left out rather than inventing one.
+- **No OpenAPI-diff / Dart-client-regeneration check.** Also
+  docs/06_PRODUCTION.md §7.2 item 2, file 6 scope, and no Dart-client
+  generator is wired into the repo yet (§16 DoD's "Dart-client сгенерирован
+  из него" is a manual checklist item at this stage, not an automated
+  one). Left out for the same reason.
+
+### Incidental fix (required to make the CI this task adds actually pass)
+
+- `apps/api/src/throttler/redis-throttler-storage.service.spec.ts`: `let
+  last;` was implicitly possibly-`undefined` under strict mode, causing
+  `tsc --noEmit error TS18048` on both post-loop uses. This is the exact
+  pre-existing error the stage-1.6/1.8 entries above already found and
+  explicitly attributed to `HEAD`, not their own changes — confirmed
+  still present, unrelated to this task, but it would have made the new
+  `api-ci.yml` typecheck step red from its very first run. Fixed with a
+  typed `Awaited<ReturnType<typeof storage.increment>> | undefined`
+  declaration and two non-null assertions justified by the loop always
+  running 4 iterations before either use. No other line changed.
+
+### Verification
+
+- **Real, in this bridge** (node `v22.23.2`/npm `10.9.8`, confirmed
+  reachable): `npx tsc --noEmit` in `apps/api` — 0 errors (after the fix
+  above; was 2 before it). `npx eslint "{src,apps,libs,test}/**/*.ts"
+  --fix` (the repo's own `lint` script) — 0 errors, and `git status`
+  confirmed it touched nothing beyond the intentional fix above. `npx
+  jest` — 12 suites / 69 tests, all passing. `npm audit --audit-level=high
+  --workspace apps/api` — confirmed it currently exits 1 (9 high, 2
+  moderate), which is exactly why that CI step is advisory, not the
+  workflow's own bug. These are the same commands/flags `api-ci.yml`
+  runs, run directly rather than through the workflow.
+- **Not verified, no way to in this bridge**: the `prisma migrate
+  deploy`/e2e-test steps (no reachable Postgres/CockroachDB/Redis from
+  this bridge — confirmed, matches every prior entry's same limitation),
+  every mobile-ci.yml step (no `flutter`/`dart` binary reachable from
+  this bridge — confirmed with `which`), and — the part no local bridge
+  can ever verify — that the YAML actually schedules, that the
+  `services:`/manual-`docker run` CockroachDB setup behaves as designed
+  on a real GitHub-hosted runner, that `subosito/flutter-action@v2`
+  resolves a real `stable` Flutter satisfying the pubspec floor, and
+  that `gitleaks-action@v2` runs cleanly against this repo's actual git
+  history. **All three workflow files were syntax-validated with
+  Python's `yaml.safe_load` (all three parse) and every file path /
+  npm-script name they reference was checked against the real repo
+  (`apps/api/package.json`, `apps/mobile/pubspec.yaml`,
+  `docker-compose.yml`) rather than assumed** — but none of them have
+  actually been triggered by a real PR or push. The true test is the
+  first real PR/push against `main`/`master` after this commit; expect
+  to iterate on at least the CockroachDB startup step and the Flutter
+  `stable`-channel resolution the first time they run for real.
+

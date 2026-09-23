@@ -1,0 +1,164 @@
+# Mobile CI — docs/01_FOUNDATION_AUTH.md §16 DoD ("CI зелёный: ...,
+# сборка Android и iOS"), scoped to apps/mobile.
+#
+# No melos/fvm config exists in the repo (single Flutter app, not a
+# multi-package workspace), so every step runs directly against
+# apps/mobile with `working-directory`.
+#
+# Flutter/Dart version: pubspec.yaml only pins a floor
+# (`sdk: ">=3.5.0 <4.0.0"`), not an exact version — no .fvmrc or lockfile
+# pins one either. This workflow uses `channel: stable` (always satisfies
+# that floor) rather than a pinned old version like the historical
+# 3.5.0 minimum, because pubspec.yaml's own comments describe a Riverpod
+# 2->3 / Freezed 2->4 migration done specifically to work with a newer
+# analyzer than the 3.5.0-era Flutter ships — pinning to the old floor
+# would likely fail codegen. Once the team wants fully reproducible builds,
+# pin an exact `flutter-version` here (and commit an .fvmrc) instead of
+# floating on `stable`.
+
+name: Mobile CI
+
+on:
+  pull_request:
+    branches: [main, master]
+    paths:
+      - "apps/mobile/**"
+      - ".github/workflows/mobile-ci.yml"
+  push:
+    branches: [main, master]
+    paths:
+      - "apps/mobile/**"
+      - ".github/workflows/mobile-ci.yml"
+
+concurrency:
+  group: mobile-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze-and-test:
+    name: Analyze, lint checks, unit/widget/golden tests
+    # Runs on macOS, not the usual ubuntu-latest, specifically because the
+    # golden-test PNGs under apps/mobile/test/**/goldens/ were generated on
+    # a macOS dev machine, and this repo's golden tests render real
+    # embedded fonts via golden_toolkit's loadAppFonts() (see
+    # test/flutter_test_config.dart) rather than a placeholder font — text
+    # rasterization for those real fonts is known to differ subtly between
+    # macOS and Linux, which risks false-positive golden failures on
+    # ubuntu-latest that have nothing to do with an actual regression. This
+    # was a judgment call (spec is silent on runner OS) — see docs/
+    # CHANGELOG.md's CI-pipeline entry. If goldens still fail here on a
+    # real PR with no visual regression, they need regenerating on macOS
+    # via `flutter test --update-goldens` and committing the new PNGs, not
+    # silencing this job.
+    runs-on: macos-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: "stable"
+
+      - name: flutter pub get
+        working-directory: apps/mobile
+        run: flutter pub get
+
+      - name: Generate code (freezed/riverpod/json_serializable/drift)
+        working-directory: apps/mobile
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: flutter analyze
+        working-directory: apps/mobile
+        run: flutter analyze
+
+      - name: Check for hardcoded string literals in presentation/ (advisory)
+        # file 01 §15 stage 1.6 and §9.4, reiterated as a required PR check
+        # in file 06 §7.2.3 — ADVISORY here, not blocking: a real scan
+        # found pre-existing violations (e.g. phone_screen.dart's "US +1"
+        # prefix) that aren't part of this CI-pipeline task's scope to fix.
+        # Making this blocking today would break CI on day one for an
+        # unrelated, pre-existing issue. See docs/CHANGELOG.md's
+        # CI-pipeline entry. Tighten to blocking once those are cleared —
+        # tracked there, not a bare TODO.
+        working-directory: apps/mobile
+        continue-on-error: true
+        run: |
+          hits=$(grep -rnE "Text(\.rich)?\(\s*['\"]" lib --include="*.dart" \
+            | grep -v -E '\.g\.dart|\.freezed\.dart' || true)
+          if [ -n "$hits" ]; then
+            echo "$hits"
+            echo "::warning::Hardcoded string literal(s) found under lib/ — see file 01 §9.4 (localization)."
+          fi
+
+      - name: Check for hardcoded colors outside design_system/ (advisory)
+        # file 01 §8.1 ("никаких hardcode-цветов в виджетах"), reiterated
+        # in file 06 §7.2.3 — ADVISORY here for the same reason as the
+        # string-literal check above: pre-existing violations exist
+        # (delete_account_screen.dart's Colors.white usages).
+        working-directory: apps/mobile
+        continue-on-error: true
+        run: |
+          hits=$(grep -rnE "Colors\.[a-zA-Z]+|Color\(0x" lib --include="*.dart" \
+            | grep -v -E '\.g\.dart|\.freezed\.dart' \
+            | grep -v 'lib/core/design_system/' || true)
+          if [ -n "$hits" ]; then
+            echo "$hits"
+            echo "::warning::Hardcoded Color(s) found outside core/design_system/ — see file 01 §8.1."
+          fi
+
+      - name: flutter test (unit, widget, golden)
+        working-directory: apps/mobile
+        run: flutter test
+
+  build-android:
+    name: Build check — Android (debug)
+    needs: analyze-and-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: "stable"
+
+      - name: flutter pub get
+        working-directory: apps/mobile
+        run: flutter pub get
+
+      - name: Generate code (freezed/riverpod/json_serializable/drift)
+        working-directory: apps/mobile
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Build debug APK (build-check only — no signing, no publish)
+        working-directory: apps/mobile
+        run: flutter build apk --debug
+
+  build-ios:
+    name: Build check — iOS (debug, unsigned)
+    needs: analyze-and-test
+    runs-on: macos-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: "stable"
+
+      - name: flutter pub get
+        working-directory: apps/mobile
+        run: flutter pub get
+
+      - name: Generate code (freezed/riverpod/json_serializable/drift)
+        working-directory: apps/mobile
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Build debug iOS app (build-check only — no codesign, no publish)
+        working-directory: apps/mobile
+        run: flutter build ios --debug --no-codesign

@@ -18,13 +18,14 @@ describe('RedisThrottlerStorageService', () => {
     const redis = new FakeRedis();
     const storage = new RedisThrottlerStorageService(redis as never);
 
-    let last;
+    let last: Awaited<ReturnType<typeof storage.increment>> | undefined;
     for (let i = 0; i < 4; i += 1) {
       last = await storage.increment('client-b', 60, 3, 120, 'default');
     }
 
-    expect(last.isBlocked).toBe(true);
-    expect(last.timeToBlockExpire).toBe(120);
+    // The loop above always runs (4 iterations), so `last` is always assigned.
+    expect(last!.isBlocked).toBe(true);
+    expect(last!.timeToBlockExpire).toBe(120);
 
     // A subsequent call while still blocked reports isBlocked without
     // incrementing the underlying hits counter further.

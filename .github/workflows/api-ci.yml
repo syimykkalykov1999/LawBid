@@ -1,0 +1,188 @@
+# Backend CI — docs/01_FOUNDATION_AUTH.md §16 DoD ("CI зелёный: lint, unit,
+# e2e"), scoped to apps/api. See docs/06_PRODUCTION.md §7.2 for the full
+# eventual PR-check list (file 6 scope) — this workflow implements the
+# subset that's file-1 scope and buildable with what exists in the repo
+# today (no OpenAPI-diff/Dart-client-regen check, no Docker image build:
+# no Dockerfile exists yet, and Dart-client generation isn't wired up yet).
+#
+# Service containers mirror docker-compose.yml's dev infra:
+#   - CockroachDB v24.1.5 (single-node, insecure) — started via a manual
+#     `docker run` step, not the `services:` block, because CockroachDB's
+#     image needs a command (`start-single-node --insecure`) and GitHub
+#     Actions service containers cannot override a service image's command.
+#   - Redis 7 — a real `services:` entry (its default command needs no args).
+#   - Mailhog — a real `services:` entry, for the email-OTP path some future
+#     e2e test may exercise (current e2e suite only drives the phone-OTP
+#     path — see test/auth.e2e-spec.ts's doc comment — so this isn't
+#     exercised today, but it's cheap to have ready and matches
+#     docker-compose.yml).
+# MinIO is intentionally NOT started: no file-upload/S3 code exists yet
+# (prisma/schema.prisma's own comments mark the `files` table out of scope
+# for stage 1.3), so there is nothing for it to back in file-1 CI.
+
+name: API CI
+
+on:
+  pull_request:
+    branches: [main, master]
+    paths:
+      - "apps/api/**"
+      - "package.json"
+      - "package-lock.json"
+      - "docker-compose.yml"
+      - ".github/workflows/api-ci.yml"
+  push:
+    branches: [main, master]
+    paths:
+      - "apps/api/**"
+      - "package.json"
+      - "package-lock.json"
+      - "docker-compose.yml"
+      - ".github/workflows/api-ci.yml"
+
+concurrency:
+  group: api-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  api-ci:
+    name: Lint, typecheck, unit + e2e tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    # Every var here matches apps/api/.env.test's known-good test values
+    # (docs/CHANGELOG.md stage 1.4) so the app boots exactly as it does
+    # locally against `docker compose up`. apps/api/.env* is gitignored, so
+    # nothing is loaded from a file in CI — these are the only source.
+    env:
+      NODE_ENV: test
+      PORT: "3000"
+      DATABASE_URL: "postgresql://root@localhost:26257/lawbid_ci?sslmode=disable"
+      REDIS_URL: "redis://localhost:6379"
+      SUBSCRIPTION_PAST_DUE_GRACE_DAYS: "3"
+      JWT_KEYS: "ci1:ci_secret_at_least_32_characters_long_aaaa"
+      JWT_ACTIVE_KID: "ci1"
+      JWT_ACCESS_TTL_SECONDS: "900"
+      JWT_REFRESH_TTL_DAYS: "60"
+      REAUTH_TOKEN_TTL_SECONDS: "300"
+      REFRESH_ROTATION_GRACE_SECONDS: "10"
+      OTP_CODE_SECRET: "ci_otp_code_secret_at_least_32_chars_bbbb"
+      OTP_KEY_PEPPER: "ci_otp_key_pepper_at_least_32_chars_cccc"
+      AUTH_EVENT_PEPPER: "ci_auth_event_pepper_at_least_32_chars_dddd"
+      OTP_CODE_TTL_SECONDS: "600"
+      OTP_MAX_ATTEMPTS: "5"
+      OTP_LOCKOUT_SECONDS: "900"
+      OTP_RATE_LIMIT_PER_IDENTIFIER_PER_HOUR: "5"
+      OTP_RATE_LIMIT_PER_IP_PER_HOUR: "10"
+      AUTH_OTP_VERIFY_LIMIT_PER_HOUR: "10"
+      AUTH_SOCIAL_LIMIT_PER_IP_PER_HOUR: "20"
+      AUTH_REFRESH_LIMIT_PER_IP_PER_HOUR: "60"
+      OTP_DEV_FIXED_CODE: "true"
+      SMS_PROVIDER: "mock"
+      EMAIL_PROVIDER: "mock"
+      SMTP_HOST: "localhost"
+      SMTP_PORT: "1025"
+      GOOGLE_CLIENT_IDS: ""
+      APPLE_BUNDLE_IDS: ""
+      FEATURE_ATTESTATION: "false"
+
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      mailhog:
+        image: mailhog/mailhog:latest
+        ports:
+          - 1025:1025
+          - 8025:8025
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies (root workspace, hoisted)
+        run: npm ci
+
+      - name: Start CockroachDB v24.1.5 (matches docker-compose.yml)
+        run: |
+          docker run -d --name cockroach \
+            -p 26257:26257 -p 8080:8080 \
+            cockroachdb/cockroach:v24.1.5 start-single-node --insecure
+
+      - name: Wait for CockroachDB to be ready
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf "http://localhost:8080/health?ready=1" > /dev/null; then
+              echo "CockroachDB is ready"
+              exit 0
+            fi
+            echo "Waiting for CockroachDB... ($i/30)"
+            sleep 2
+          done
+          echo "CockroachDB did not become ready in time" >&2
+          docker logs cockroach || true
+          exit 1
+
+      - name: Create CI database
+        run: docker exec cockroach cockroach sql --insecure -e "CREATE DATABASE IF NOT EXISTS lawbid_ci"
+
+      - name: Prisma generate
+        working-directory: apps/api
+        run: npx prisma generate
+
+      - name: Prisma validate
+        working-directory: apps/api
+        run: npx prisma validate
+
+      - name: Apply migrations to a clean database
+        working-directory: apps/api
+        run: npx prisma migrate deploy
+
+      - name: Lint
+        run: npm run lint --workspace apps/api
+
+      - name: Fail if lint --fix changed committed files
+        # apps/api's "lint" script runs eslint --fix; if that touches
+        # anything, the committed code wasn't actually clean.
+        run: git diff --exit-code -- apps/api
+
+      - name: Typecheck
+        working-directory: apps/api
+        run: npx tsc --noEmit
+
+      - name: Unit tests (with coverage)
+        run: npm run test:cov --workspace apps/api
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-coverage
+          path: apps/api/coverage
+          retention-days: 14
+
+      - name: e2e tests (real CockroachDB + Redis)
+        run: npm run test:e2e --workspace apps/api
+
+      - name: Dependency audit (advisory)
+        # ADVISORY, not blocking: `npm audit --audit-level=high` currently
+        # reports 9 pre-existing high-severity transitive vulnerabilities
+        # (multer via @nestjs/platform-express, uuid via exceljs), fixable
+        # only via `npm audit fix --force`, which would force major/breaking
+        # version bumps of @nestjs/platform-express and exceljs — a real
+        # dependency-upgrade decision out of scope for the CI-pipeline work
+        # this workflow was added for (file 01 §16 DoD). See docs/
+        # CHANGELOG.md's CI-pipeline entry. Tracked as follow-up work, not a
+        # bare TODO here.
+        continue-on-error: true
+        run: npm audit --audit-level=high --workspace apps/api
