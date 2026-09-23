@@ -11,9 +11,18 @@
 //
 // All upserts are idempotent: re-running this script must never create
 // duplicates (docs/02_DATABASE.md §7.2).
+//
+// Stage 1.6 addition (docs/01_FOUNDATION_AUTH.md §15 "Этап 1.6"):
+// seedI18nTranslations() loads translations_seed.xlsx below and upserts
+// i18n_keys/i18n_translations/i18n_bundle_versions through the same
+// parse+validate path as POST /admin/i18n/import.
 import { PrismaClient } from '@prisma/client';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import {
+  buildParsedWorkbook,
+  parseTranslationsFile,
+} from '../src/modules/i18n/xlsx/i18n-workbook.util';
 
 const prisma = new PrismaClient();
 
@@ -48,6 +57,111 @@ async function seedI18nLanguages(): Promise<void> {
 // docs/02_DATABASE.md §3.3: privaterelay.appleid.com (apple_relay) + a
 // disposable-domains list loaded from disposable_domains.txt. See that
 // file's header for why it's a starter list, not the full open list.
+// docs/01_FOUNDATION_AUTH.md §15, "Этап 1.6": "Создать translations_seed
+// .xlsx (en+ru) ... и загрузить seed-скриптом." Reuses the exact
+// parse/validate logic the real POST /admin/i18n/import endpoint uses
+// (src/modules/i18n/xlsx/i18n-workbook.util.ts) rather than a second,
+// looser parser just for seeding — the seed file has to pass the same
+// §9.3 validation (duplicate keys, required en, placeholder parity,
+// known language columns) a real admin upload would.
+//
+// Idempotent by diffing against current DB state (not a bare upsert of
+// everything every run): re-running this with an unchanged xlsx bumps
+// nothing, matching this file's "never create duplicates" contract and
+// keeping i18n_bundle_versions.version from incrementing on every seed
+// run. No withTxRetry here (unlike I18nImportService's apply path) —
+// this file doesn't use transactions anywhere else; a seed script runs
+// once against a fresh/dev DB, not under the concurrent write load
+// withTxRetry exists for.
+async function seedI18nTranslations(): Promise<void> {
+  const seedPath = join(__dirname, 'seed', 'translations_seed.xlsx');
+  const buffer = readFileSync(seedPath);
+  const grid = await parseTranslationsFile(buffer);
+  const { workbook, errors } = buildParsedWorkbook(grid);
+  if (errors.length > 0) {
+    throw new Error(
+      `translations_seed.xlsx failed validation:\n${errors
+        .map((e) => `  ${JSON.stringify(e)}`)
+        .join('\n')}`,
+    );
+  }
+
+  const existingKeys = await prisma.i18nKey.findMany({
+    where: { key: { in: workbook.rows.map((r) => r.key) } },
+    include: { translations: true },
+  });
+  const existingByKey = new Map(existingKeys.map((k) => [k.key, k]));
+
+  const changedKeys: { key: string; lang: string }[] = [];
+  const affectedLangs = new Set<string>();
+  for (const row of workbook.rows) {
+    const existing = existingByKey.get(row.key);
+    const existingValues = new Map(
+      (existing?.translations ?? []).map((t) => [t.lang, t.value]),
+    );
+    for (const [lang, value] of Object.entries(row.values)) {
+      if (existingValues.get(lang) !== value) {
+        changedKeys.push({ key: row.key, lang });
+        affectedLangs.add(lang);
+      }
+    }
+  }
+
+  if (changedKeys.length === 0) {
+    console.log(
+      `  i18n_translations: 0 changed (already up to date — ${workbook.rows.length} keys x ${workbook.languageCodes.length} langs)`,
+    );
+    return;
+  }
+
+  const versionByLang = new Map<string, number>();
+  for (const lang of affectedLangs) {
+    const bundleVersion = await prisma.i18nBundleVersion.findUnique({
+      where: { lang },
+    });
+    versionByLang.set(lang, (bundleVersion?.version ?? 0) + 1);
+  }
+
+  const rowByKey = new Map(workbook.rows.map((r) => [r.key, r]));
+  const keyIdByKey = new Map<string, string>();
+  for (const key of new Set(changedKeys.map((c) => c.key))) {
+    const keyRow = await prisma.i18nKey.upsert({
+      where: { key },
+      create: { key },
+      update: {},
+    });
+    keyIdByKey.set(key, keyRow.id);
+  }
+
+  for (const { key, lang } of changedKeys) {
+    const value = rowByKey.get(key)?.values[lang];
+    const keyId = keyIdByKey.get(key);
+    const version = versionByLang.get(lang);
+    if (value === undefined || keyId === undefined || version === undefined) {
+      throw new Error(
+        `i18n seed: inconsistent state for key "${key}" lang "${lang}"`,
+      );
+    }
+    await prisma.i18nTranslation.upsert({
+      where: { key_id_lang: { key_id: keyId, lang } },
+      create: { key_id: keyId, lang, value, version },
+      update: { value, version },
+    });
+  }
+
+  for (const [lang, version] of versionByLang) {
+    await prisma.i18nBundleVersion.upsert({
+      where: { lang },
+      create: { lang, version },
+      update: { version },
+    });
+  }
+
+  console.log(
+    `  i18n_translations: ${changedKeys.length} upserted across ${affectedLangs.size} language(s) (${workbook.rows.length} keys total)`,
+  );
+}
+
 async function seedBlockedEmailDomains(): Promise<void> {
   const disposablePath = join(__dirname, 'seed', 'disposable_domains.txt');
   const disposableDomains = readFileSync(disposablePath, 'utf-8')
@@ -186,6 +300,7 @@ async function main(): Promise<void> {
   console.log('Seeding LawBid (stage 1.3 scope)...');
   // Order per docs/02_DATABASE.md §7.2, filtered to stage-1.3 tables.
   await seedI18nLanguages();
+  await seedI18nTranslations();
   await seedBlockedEmailDomains();
   await seedFeatureFlags();
   await seedLegalDocuments();

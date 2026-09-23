@@ -1953,3 +1953,214 @@ as every prior phase's entry): no `flutter`/`dart`/Xcode/`adb` reachable.
   well-formed XML), and every new relative import was checked to resolve
   to a real file that exists at that path — mechanical checks, not a
   substitute for `flutter analyze`.
+## Stage 1.6 (backend i18n module) — 2026-09-23
+
+Backend half only of docs/01_FOUNDATION_AUTH.md §15 "Этап 1.6" ("Бэкенд:
+модуль i18n (импорт/экспорт xlsx/csv, dry-run, bundle с ETag, версии)").
+The Flutter half (§9.4's `L10n` layer replacing `StaticTranslatorRu/En`,
+drift cache, live language switching) is a separate, not-yet-started
+task — `static_translator.dart` is untouched here except as a read-only
+source for seed data (see below).
+
+### Research first, against §9 in full, not just the stage-15 bullet
+
+§9.3 turned out to be fully explicit about the backend shape — not a case
+needing a "reasonable default" judgment call: exact table names
+(`i18n_languages`, `i18n_keys`, `i18n_translations`, all already modeled
+in `apps/api/prisma/schema.prisma` since stage 1.3 — no new migration
+needed this stage), exact endpoints (`GET /i18n/languages`, `GET
+/i18n/bundle/:lang?since=version` with ETag/304, `POST /admin/i18n/import`
+with `dry-run`/`apply` modes, `GET /admin/i18n/export`), and an explicit
+validation list ("дубликаты ключей, пустые значения для en, несовпадение
+плейсхолдеров, неизвестные языки"). So this is **DB-backed via Prisma,
+not static JSON files** — the static-JSON fallback the task brief
+floated as a default was for a case where the spec stays quiet on
+storage; §9.3 does not.
+
+### What was built
+
+- `apps/api/src/modules/i18n/` — new NestJS module, controller/service/
+  DTO/guard shape copied from `auth`/`users` (thin controllers, logic in
+  services, class-validator DTOs, `ApiException`-style errors via the
+  existing `AllExceptionsFilter`).
+  - `controllers/i18n.controller.ts` — public (`@Public()`) `GET
+    /i18n/languages` and `GET /i18n/bundle/:lang`. The bundle route is
+    the one place in this codebase that bypasses the global
+    `ResponseInterceptor`'s `{data:...}` envelope on purpose (`@Res()`
+    without `passthrough`, Nest's documented raw-response pattern) — it's
+    the only way to send a spec-correct empty-body **304** for a matching
+    `ETag`. `since=<version>` is a separate delta-poll path that always
+    returns 200 with a (possibly empty) JSON body; ETag/304 only applies
+    to the plain conditional GET (no `since`).
+  - `controllers/i18n-admin.controller.ts` — `POST /admin/i18n/import`
+    (multipart `file` field, `?mode=dry-run|apply`, defaults to
+    `dry-run` — an import call never writes unless explicitly told to)
+    and `GET /admin/i18n/export` (streams an .xlsx). Gated by a new
+    `AdminGuard` (route-level, checks `req.user.role === 'admin'` off the
+    JWT claims already set by the global `JwtAuthGuard`) — deliberately
+    NOT a general `@Roles()`/RBAC system: there's exactly one role gate
+    needed anywhere in the backend so far, and a real admin module with
+    broader RBAC is file 6 ("админка") scope. Revisit if a second
+    admin-gated feature shows up before then.
+  - `services/i18n-languages.service.ts` — `GET /i18n/languages` +
+    the shared "is this language known and active" check (throws the new
+    `I18N_LANGUAGE_NOT_FOUND` error code otherwise). i18n_languages is
+    the single source of truth for supported locales — deliberately
+    **not** a hardcoded enum/constant, because the whole point of the
+    import flow (and this stage's own acceptance criterion) is that
+    uploading a file with a new language column adds that language
+    without a redeploy.
+  - `services/i18n-bundle.service.ts` — version lookup (Redis-cached,
+    5-minute safety-net TTL, actively invalidated by
+    `I18nImportService` right after an apply-mode commit) and the
+    full/delta translation query.
+  - `services/i18n-import.service.ts` — parses the upload, runs every
+    §9.3-listed validation, diffs against current DB state (new keys /
+    changed (key,lang) pairs / unchanged count), and — apply mode, zero
+    validation errors only — writes: auto-creates any language column
+    not yet in `i18n_languages` (native-name lookup table in
+    `language-names.ts`, starter set of ~20 common ISO 639-1 codes,
+    falls back to the uppercased code for anything else), upserts
+    `i18n_keys`/`i18n_translations` for changed pairs only (an unchanged
+    value in the file is left untouched, not rewritten), bumps
+    `i18n_bundle_versions` by +1 per **affected** language only (a
+    language with no actual changes in this import keeps its version),
+    all inside one `withTxRetry` transaction per `.cursorrules`.
+  - `services/i18n-export.service.ts` — builds an .xlsx from current DB
+    state in the same column shape §9.2 specifies, so an exported file
+    re-imports as a zero-change dry-run.
+  - `xlsx/i18n-workbook.util.ts` — the actual parsing/validation/
+    building logic, as plain, dependency-injection-free functions (no
+    Prisma/Nest imports) so they're directly unit-testable. Sniffs
+    xlsx-vs-CSV by content (ZIP magic bytes), not filename/mimetype.
+    CSV parsing is a small hand-written RFC 4180 parser (quoted fields,
+    embedded commas/newlines, `""` escaping, BOM stripping) — no
+    external CSV dependency needed.
+  - `error-code.enum.ts` — two new codes, `I18N_LANGUAGE_NOT_FOUND` and
+    `I18N_IMPORT_INVALID`, following the existing naming convention
+    exactly (checked there is no `LOCALE_NOT_SUPPORTED`-style code
+    already in use to collide with).
+  - Registered in `app.module.ts` in the same slot as `UsersModule`.
+
+### xlsx library: exceljs, not the more common `xlsx` (SheetJS) package — a security call, not a style preference
+
+Tried `xlsx@0.18.5` (the npm-registry package) first, since it's the most
+commonly reached-for name. `npm audit` flagged it with **two HIGH
+severity, "No fix available" advisories tied to the package itself**:
+prototype pollution (GHSA-4r6h-8v6p-xvw6) and a ReDoS
+(GHSA-5pgg-2g8v-p4x9) — SheetJS stopped shipping security fixes to the
+npm registry itself (they publish patched builds from their own CDN
+instead, outside this project's normal dependency flow). That's a real
+risk sitting directly on the admin file-upload parsing path, so it was
+uninstalled again and `exceljs@4.4.0` used instead — actively
+maintained, no unfixed advisory tied to itself (`npm audit` shows only a
+moderate, fixable-but-breaking `uuid` transitive advisory, left alone
+rather than forcing a breaking exceljs downgrade for a moderate,
+non-crypto-use issue). §9.2/§9.3 name the **file format** ("xlsx"), not
+a specific library, so this is within the letter of the spec.
+
+For the record, confirmed by diffing `package-lock.json` against the
+prior commit: the `multer` HIGH-severity advisories `npm audit` also
+shows are **pre-existing** (multer already came in transitively via
+`@nestjs/platform-express`, which this stage did not touch or add) —
+not introduced by this work.
+
+New deps in `apps/api/package.json`: `exceljs@^4.4.0` (dependency),
+`@types/multer@^2.0.0` (devDependency — multer itself was already
+present transitively; only its types were missing).
+
+### `translations_seed.xlsx` + seed script
+
+`apps/api/prisma/seed/translations_seed.xlsx` (en+ru, 116 keys) is new,
+built from `apps/mobile/lib/core/l10n/static_translator.dart`'s current
+`StaticTranslatorRu`/`StaticTranslatorEn` maps (parsed out of the Dart
+source, not retyped by hand — verified both classes have the exact same
+116 keys and zero `{placeholder}` mismatches between the two languages
+before writing the file). `prisma/seed.ts` gained `seedI18nTranslations()`,
+which loads that file through the **same** `parseTranslationsFile`/
+`buildParsedWorkbook` functions the real import endpoint uses (not a
+second, looser parser), then diffs against DB state the same way
+`I18nImportService.apply` does, so re-running the seed script is a true
+no-op once already applied (doesn't bump `i18n_bundle_versions` on every
+re-run). Confirmed by actually running `parseTranslationsFile` +
+`buildParsedWorkbook` against the committed file via `ts-node`: 116 rows,
+`languageCodes: ['en','ru']`, **0 validation errors** — the file the
+import endpoint's own validation would accept.
+
+### Explicitly out of scope, and why
+
+- **Server error-message localization** (translating `AllExceptionsFilter`'s
+  `message` field by request `Accept-Language`) — not built. Nothing in
+  §9.3's endpoint list or §15's stage-1.6 bullet asks for it; §7 already
+  says the client localizes by `code`, not `message`
+  ("Клиент показывает локализованный текст по code, а не по message").
+  A real Accept-Language-aware server-message layer would be new scope
+  the spec doesn't ask this stage to build (.cursorrules: "ничего не
+  добавляй заодно").
+- **CLDR pluralization** (`.one/.few/.many/.other` key-suffix rules,
+  §9.2) — the import validator does not enforce plural-suffix structure.
+  §9.3's own "Импорт валидирует" list names exactly four checks (dup
+  keys, required en, placeholder parity, unknown languages) and
+  pluralization isn't one of them; actually rendering plural forms is a
+  client-side (§9.4) concern regardless.
+- **Import-time key-naming-format validation** (§9.2: "только lowercase
+  и точки") — deliberately not enforced. The real, already-shipped key
+  set in `static_translator.dart` (e.g. `deleteAccount.reauth.biometric
+  .button`) already uses camelCase segments, not pure lowercase — adding
+  a stricter validator than the actual established convention would
+  reject the very seed file this stage was asked to build. Also not one
+  of §9.3's four explicitly-named import validations.
+- **CI lint for string literals in Flutter's `presentation/`** (§9.4) —
+  Dart/Flutter-side tooling, not backend.
+- **Full admin RBAC** — see AdminGuard's doc comment above; single
+  role check now, file 6 scope for anything broader.
+
+### Verification
+
+- **Real `npx tsc --noEmit` run** (node/npm confirmed reachable from
+  this bridge, `v22.23.2`/`10.9.8`) against the whole `apps/api`
+  project: zero errors in every file this stage touched. The only two
+  remaining `tsc` errors (`redis-throttler-storage.service.spec.ts`,
+  `'last' is possibly 'undefined'`) are pre-existing — confirmed by
+  `git stash`-ing every tracked change from this stage and re-running
+  `tsc` against clean `HEAD`, where the same two errors appear
+  unchanged (then `git stash pop`, working tree confirmed restored
+  intact — `git status` after showed the same 6 modified + 4 untracked
+  paths as before the stash).
+- **Real `npx eslint` run** (project's own flat config, not a generic
+  lint) against every new/changed file: zero errors after fixing what
+  it caught (missing prettier formatting, one genuinely-unnecessary
+  type assertion, and an `@typescript-eslint/unbound-method` false
+  positive that went away once a test fixture's fake Prisma client was
+  restructured from a class to a plain factory function, matching
+  `identity.service.spec.ts`'s existing convention).
+- **Real `npx jest` run**, not a manual walkthrough: 29 new unit tests
+  (pure-function tests for the CSV/xlsx parser and every §9.3 validation
+  rule; fake-Prisma/fake-Redis tests for `I18nBundleService`'s
+  cache-aside version logic and `I18nImportService`'s diff/apply/
+  version-bump logic, same fake-object style as `identity.service.spec
+  .ts` — a plain factory function, not a `TestingModule`, no DB/Redis
+  needed to actually run these). Full suite: **46/46 passing**, no
+  regressions in the 17 pre-existing tests.
+- **Not verified — no way to in this environment**: no docker-compose
+  services confirmed running (skipped starting them, per this session's
+  own instructions, rather than guess at a possibly-live DB), so nothing
+  that needs a real CockroachDB/Redis was run: `prisma migrate deploy`
+  wasn't re-run (not needed — no schema change this stage), `npm run
+  --workspace apps/api prisma db seed` was not run against a real DB,
+  and no NestJS instance was ever actually booted, so the two `@Res()`
+  raw-response routes (bundle ETag/304, xlsx export headers), the real
+  multer file-upload path, and the full request → guard → controller →
+  service → Prisma chain are unverified beyond `tsc`/`eslint`/unit
+  tests and manual reading. Next real verification step: boot the API
+  against `docker compose up`'s Postgres-compatible CockroachDB + Redis,
+  `prisma migrate deploy && npm run --workspace apps/api prisma db
+  seed`, then curl `GET /api/v1/i18n/languages`, `GET /api/v1/i18n/
+  bundle/en`, and (as an admin JWT) `POST /api/v1/admin/i18n/import
+  ?mode=dry-run` with a modified `translations_seed.xlsx` that adds an
+  `es` column, confirming the stage's own acceptance criterion end to
+  end.
+- Every touched/created file was balance-checked (parens/braces/
+  brackets) and every new relative import verified to resolve to a real
+  file on disk, mechanically (not a substitute for the `tsc`/`eslint`/
+  `jest` runs above, which are the real verification here).

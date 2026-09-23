@@ -9,6 +9,7 @@ import { ThrottlerModule } from './throttler/throttler.module';
 import { HealthModule } from './modules/health/health.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
+import { I18nModule } from './modules/i18n/i18n.module';
 import { DevModule } from './modules/dev/dev.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
@@ -63,6 +64,7 @@ const isDev =
     // any JWT verification work happens (see auth.module.ts doc comment).
     AuthModule,
     UsersModule,
+    I18nModule,
     ...(isDev ? [DevModule] : []),
   ],
   providers: [
