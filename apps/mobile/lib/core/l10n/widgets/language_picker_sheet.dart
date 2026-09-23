@@ -5,6 +5,7 @@ import '../../design_system/design_system.dart';
 import '../app_language.dart';
 import '../l10n_providers.dart';
 import '../language_catalog.dart';
+import '../language_catalog_provider.dart';
 import '../language_providers.dart';
 
 /// Search + list language picker (2026-09-22 owner voice follow-up):
@@ -15,8 +16,12 @@ import '../language_providers.dart';
 ///
 /// Only the catalog rows with a non-null [LanguageCatalogEntry.appLanguage]
 /// are actually selectable today (`ru`, `en`); the rest render dimmed with
-/// a "coming soon" trailing badge so the owner can see the intended full
-/// list shape immediately, ahead of stage 1.6 actually adding them.
+/// a "coming soon" trailing badge. The list itself is now backend-driven
+/// (`languageCatalogProvider`, GET /i18n/languages — see
+/// language_catalog_provider.dart) with the compiled-in
+/// `kLanguageCatalog` as its offline/loading fallback, so a language the
+/// backend adds shows up here (as "coming soon" until it also gets an
+/// [AppLanguage] case + real strings) without an app update.
 class LanguagePickerSheet extends ConsumerStatefulWidget {
   const LanguagePickerSheet({super.key});
 
@@ -49,10 +54,15 @@ class _LanguagePickerSheetState extends ConsumerState<LanguagePickerSheet> {
     super.dispose();
   }
 
-  List<LanguageCatalogEntry> _filtered() {
+  /// [catalog] is `languageCatalogProvider`'s current value when it has
+  /// one — see [build] below for why a still-loading/errored fetch falls
+  /// back to the compiled-in [kLanguageCatalog] rather than an empty list
+  /// or a spinner (owner request was "search + list", not a loading
+  /// state).
+  List<LanguageCatalogEntry> _filtered(List<LanguageCatalogEntry> catalog) {
     final q = _query.trim().toLowerCase();
-    if (q.isEmpty) return kLanguageCatalog;
-    return kLanguageCatalog.where((entry) {
+    if (q.isEmpty) return catalog;
+    return catalog.where((entry) {
       return entry.nativeName.toLowerCase().contains(q) ||
           entry.englishName.toLowerCase().contains(q) ||
           entry.code.toLowerCase().contains(q);
@@ -65,7 +75,13 @@ class _LanguagePickerSheetState extends ConsumerState<LanguagePickerSheet> {
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final t = ref.watch(translatorProvider);
     final currentLanguage = ref.watch(languageControllerProvider).value ?? AppLanguage.en;
-    final results = _filtered();
+    // Backend-driven catalog (GET /i18n/languages, see
+    // language_catalog_provider.dart), falling back to the compiled-in
+    // kLanguageCatalog while the fetch is in flight or if it fails — same
+    // "never block/blank the UI on network" principle as the translator
+    // layer itself.
+    final catalog = ref.watch(languageCatalogProvider).valueOrNull ?? kLanguageCatalog;
+    final results = _filtered(catalog);
 
     return SafeArea(
       top: false,

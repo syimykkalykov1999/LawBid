@@ -3,11 +3,14 @@
 /// even though the real localization layer (file 01 §15, stage 1.6: xlsx
 /// import/export, drift cache, live language switch) doesn't exist yet.
 ///
-/// TEMPORARY SHAPE, NOT THE REAL L10N API: stage 1.6 replaces
-/// [StaticTranslator] with the real `L10n` layer behind this SAME interface,
-/// so call sites (`ref.watch(translatorProvider).t('key')`) do not change —
-/// only the provider override in main.dart does. Documented as an explicit
-/// stage-ordering judgment call in docs/CHANGELOG.md stage 1.5.
+/// UPDATE, stage 1.6 (docs/CHANGELOG.md): `l10n_providers.dart`'s
+/// `translatorProvider` now returns `L10nTranslator` (l10n_translator.dart),
+/// a real backend-driven implementation of THIS SAME interface — the
+/// static maps in static_translator.dart (`StaticTranslatorRu`/`En`) are
+/// kept on as its compiled-in seed/fallback layer, not deleted. Every call
+/// site (`ref.watch(translatorProvider).t('key')`) is unchanged; only that
+/// provider's implementation is. Documented as an explicit stage-ordering
+/// judgment call in docs/CHANGELOG.md stage 1.5.
 abstract interface class Translator {
   String t(String key, [Map<String, String>? params]);
 }

@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app.dart';
+import 'core/l10n/l10n_providers.dart';
 import 'core/persistence/persistence_providers.dart';
 import 'core/session/session_providers.dart';
 
@@ -23,5 +26,18 @@ Future<void> main() async {
   // `SessionController.bootstrap`'s doc comment.
   await container.read(sessionControllerProvider.notifier).bootstrap();
 
+  // L10n cache bootstrap (docs/01_FOUNDATION_AUTH.md §9.4: "читает кэш из
+  // drift → показывает UI"): LOCAL-ONLY (Drift read, seeded from the
+  // compiled-in static maps on a brand-new install) — no network call, so
+  // this never delays first paint. See
+  // `L10nCacheController.bootstrap`'s doc comment.
+  await container.read(l10nCacheControllerProvider.notifier).bootstrap();
+
   runApp(UncontrolledProviderScope(container: container, child: const LawBidApp()));
+
+  // The network half of the same boot sequence ("...→ в фоне запрашивает
+  // bundle?since= → обновляет"), fired AFTER `runApp` so it can never delay
+  // first paint. Best-effort — failures are swallowed inside
+  // `L10nRepository.refresh`.
+  unawaited(container.read(l10nCacheControllerProvider.notifier).refreshInBackground());
 }

@@ -9,9 +9,15 @@ import 'translator.dart';
 /// Every key that existed in the app (not just auth/onboarding) has an
 /// English counterpart here, specifically so switching languages never hits
 /// the `assert(value != null, ...)` below on a stub screen that only had
-/// Russian before. Stage 1.6 replaces this whole file with the real L10n
-/// layer behind the same [Translator] interface (see translator.dart doc
-/// comment) — call sites (`t('key')`) do not change.
+/// Russian before.
+///
+/// UPDATE, stage 1.6 (docs/CHANGELOG.md): this file is NOT replaced —
+/// `L10nTranslator` (l10n_translator.dart) keeps these two classes as its
+/// seed/fallback layer (compiled-in strings for a brand-new install before
+/// any network round-trip, and for any key a synced bundle doesn't have
+/// yet), via the [seedEntries] getter below. Call sites (`t('key')`) still
+/// don't change — only `l10n_providers.dart`'s `translatorProvider`
+/// implementation does.
 ///
 /// File 01 §1 specifies English as the DEFAULT interface language — see
 /// [LocalLanguageRepository] in local_language_repository.dart, which
@@ -20,6 +26,13 @@ abstract class _MapTranslator implements Translator {
   const _MapTranslator();
 
   Map<String, String> get _strings;
+
+  /// Public view of [_strings] — stage 1.6's `L10nTranslator`
+  /// (l10n_translator.dart) uses this both to pre-seed the Drift cache on a
+  /// brand-new install (`L10nDatabase.seedIfEmpty`) and as the compiled-in
+  /// fallback layer for any key a synced bundle doesn't (yet) have. Added
+  /// for that reuse, not a change to this class's own behavior.
+  Map<String, String> get seedEntries => _strings;
 
   @override
   String t(String key, [Map<String, String>? params]) {

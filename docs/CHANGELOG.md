@@ -2164,3 +2164,194 @@ import endpoint's own validation would accept.
   brackets) and every new relative import verified to resolve to a real
   file on disk, mechanically (not a substitute for the `tsc`/`eslint`/
   `jest` runs above, which are the real verification here).
+
+## Stage 1.6 (Flutter L10n layer) — 2026-09-23
+
+Flutter half of docs/01_FOUNDATION_AUTH.md §15 "Этап 1.6" / §9.4: the
+real, backend-driven `L10n` layer that replaces `StaticTranslatorRu`/`En`
+(stage-1.5/1.7 stopgap) as `translatorProvider`'s implementation, wired
+against the backend module the previous entry ("Stage 1.6 (backend i18n
+module)") just built (`GET /i18n/languages`, `GET
+/i18n/bundle/:lang?since=version`). Written entirely through the
+`mcp__remote-devices__device_bash` bridge to the owner's Mac — no
+dart/flutter binary is reachable from this environment, so nothing here
+was compiled, analyzed, or run. See "Not verified" below before treating
+any of this as working code.
+
+### What was built
+
+- `apps/mobile/lib/core/l10n/l10n_database.dart` — new Drift database
+  (`L10nDatabase`, tables `L10nTranslations` (lang, entryKey, value) and
+  `L10nBundleMeta` (lang, version)). `loadLanguage()` is the fast,
+  synchronous-enough-for-boot local read; `applyBundle()` upserts a
+  full-or-delta bundle response in one batch; `seedIfEmpty()` writes the
+  compiled-in seed map for a language ONLY if that language has never
+  been synced (version 0, no rows) — a real synced bundle can never be
+  clobbered by a stale seed.
+- `apps/mobile/lib/core/l10n/i18n_api_client.dart` — new `I18nApiClient`
+  (`GET /i18n/languages` → `List<I18nLanguageDto>`, `GET
+  /i18n/bundle/:lang?since=` → `I18nBundleResult {lang, version,
+  translations}`), same `skipAuth`/`ApiException.fromDioException`
+  pattern as `AuthApiClient` — both `/i18n/*` routes are `@Public()`
+  server-side, confirmed by reading `i18n.controller.ts` directly
+  (`67ad...`/`66579bc`), not assumed.
+- `apps/mobile/lib/core/l10n/l10n_repository.dart` — new `L10nRepository`,
+  a plain (non-Riverpod) class gluing the two together: `loadCached`
+  (local-only), `seedIfEmpty`, and `refresh` (best-effort — ANY failure,
+  offline or otherwise, is swallowed and reported as `null`, never
+  rethrown).
+- `apps/mobile/lib/core/l10n/l10n_translator.dart` — new `L10nTranslator
+  implements Translator`, the SAME public shape as `StaticTranslatorRu/En`
+  (`t(key, [params])`, synchronous). Layered fallback: (1) the Drift-
+  backed cache for the current language, (2) `StaticTranslatorRu/En`'s
+  compiled-in map for that language (exposed via a new public
+  `seedEntries` getter added to `_MapTranslator` in
+  `static_translator.dart` — the only change to that file besides doc
+  comments; its two classes and all ~116 keys are otherwise untouched, per
+  the task brief), (3) the raw key string (already `_MapTranslator.t`'s
+  own last-resort behavior).
+- `apps/mobile/lib/core/l10n/l10n_providers.dart` (rewritten, same file):
+  `l10nDatabaseProvider`, `i18nApiClientProvider`, `l10nRepositoryProvider`,
+  and the new `L10nCacheController` (`@Riverpod(keepAlive: true)`,
+  codegen — matches `SessionController`'s style), which owns the
+  in-memory `Map<String, String>` cache `translatorProvider` reads. Two
+  entry points, both called from `main.dart` (see below):
+  `bootstrap()` (local-only, no network) and `refreshInBackground()`
+  (best-effort network). `build()` itself does no I/O — it only
+  registers `ref.listen` on `languageControllerProvider` so a language
+  switch later (via `LanguagePickerSheet`) re-triggers the same
+  load-then-refresh for the new language, without flashing back to
+  `const {}` first (which `ref.watch` would have caused — see that file's
+  doc comment for why `ref.listen` was chosen deliberately over
+  `ref.watch` here).
+  `translatorProvider` itself keeps its exact pre-existing shape
+  (`Provider<Translator>`) and is still what every screen calls via
+  `ref.watch(translatorProvider).t('key')` — UNCHANGED, confirmed by
+  grep across all 17 files that reference it; none needed touching.
+- `apps/mobile/lib/core/l10n/language_catalog_provider.dart` — new
+  `languageCatalogProvider` (`@riverpod`, `Future<List
+  <LanguageCatalogEntry>>`), merging live `GET /i18n/languages` into the
+  compiled-in `kLanguageCatalog`: a code already in the hardcoded catalog
+  keeps its curated order/`englishName`/`appLanguage`, only refreshing
+  `nativeName` from the backend; a code the backend has that the
+  hardcoded catalog doesn't gets appended (backend `sort` order) as a new
+  row — the "picker grows without an app update" behavior the owner
+  asked for (2026-09-22 voice follow-up, per `language_catalog.dart`'s
+  existing doc comment). Falls back to `kLanguageCatalog` unchanged on
+  any failure.
+- `apps/mobile/lib/core/l10n/widgets/language_picker_sheet.dart` — now
+  reads `ref.watch(languageCatalogProvider).valueOrNull ??
+  kLanguageCatalog` instead of the static constant directly; the fallback
+  covers both "still loading" and "failed", so the sheet never shows a
+  spinner or an empty list.
+- `apps/mobile/lib/main.dart` — added two calls around the existing
+  `SessionController.bootstrap()` await: `await
+  container.read(l10nCacheControllerProvider.notifier).bootstrap()`
+  BEFORE `runApp` (local Drift read only), and `unawaited(...
+  .refreshInBackground())` AFTER `runApp` (the network half) — matches
+  §9.4's boot sequence ("читает кэш из drift → показывает UI → в фоне
+  запрашивает bundle?since= → обновляет") and the task's explicit
+  "don't block startup on network, only on the local Drift read"
+  instruction.
+- `apps/mobile/pubspec.yaml` — added `drift` + `drift_flutter`
+  (dependencies) and `drift_dev` (dev, codegen) — this app had no local-db
+  package at all before this pass (`shared_preferences` only), so this is
+  a fresh addition, not building on existing drift infra. Versions
+  (`^2.23.0`/`^0.2.4`/`^2.23.0`) are reasonable-as-of-training-data
+  picks, NOT verified against `pub.dev`'s actual current resolvable set —
+  see "Not verified" below.
+
+### Fallback-layering design (the exact behavior, end to end)
+
+1. **Cached Drift bundle** for the currently-selected language — last
+   value synced from `GET /i18n/bundle/:lang?since=`, kept in memory as a
+   plain `Map<String, String>` (`L10nCacheController.state`) so
+   `Translator.t()` stays synchronous.
+2. **Compiled-in seed map** — `StaticTranslatorRu`/`StaticTranslatorEn`'s
+   existing ~116-key tables (via the new `seedEntries` getter), used both
+   to pre-populate Drift on a brand-new install (`seedIfEmpty`, so the
+   FIRST paint of a zero-network install already has correct strings, not
+   blank ones) and as `L10nTranslator`'s live per-key fallback for
+   anything the cached bundle is missing (e.g. a key the client added
+   that the backend bundle hasn't caught up to yet).
+3. **Raw key string** — `_MapTranslator.t()`'s own existing last-resort
+   behavior (unchanged), reached only if a key is in neither the cache
+   nor the seed map.
+A real bundle sync (`applyBundle`) always overwrites the seed at the
+per-key level going forward — `seedIfEmpty` only ever fires once, before
+the first successful sync, and never re-fires afterward (guarded by
+`existingVersion > 0`), so the seed can't go stale-but-still-served once
+real data exists.
+
+### Design calls made because the spec (and the task brief) were silent
+
+- **`since=` delta-poll over ETag/304 conditional-GET for the background
+  refresh.** The task brief described client-side 304 handling; reading
+  the actual backend controller (`i18n.controller.ts`) showed the 304
+  path only fires for a plain conditional GET with `If-None-Match` AND no
+  `since` — which this client never sends. §9.4 explicitly names
+  `bundle?since=` as the sync mechanism, and that path is always a normal
+  200 (never 304), so there's no empty-body branch to handle on the
+  client at all. Implemented the simpler, spec-named mechanism instead of
+  force-fitting ETag handling nothing calls for.
+- **Language SELECTION stays local-only; only translation CONTENT is now
+  backend-driven.** `AppLanguage` is still just `{ru, en}`, and
+  `LanguageRepository`/`LocalLanguageRepository` (SharedPreferences) are
+  untouched — the backend pass added no endpoint for storing a user's
+  language preference, and §9.3/§9.4 don't ask for one either. The
+  language PICKER's LIST is backend-driven (`languageCatalogProvider`);
+  which entries are actually *selectable* is still gated by `AppLanguage`
+  having a case for that code, which is unchanged at `{ru, en}` this
+  pass — giving a third language real selectability needs an
+  `AppLanguage` case + a compiled seed for it, which is future work, not
+  something this stage's spec asked for.
+- **`entryKey` instead of `key` as the Drift column name** for the
+  translation-key column, to keep it unambiguous against Drift/Dart's own
+  `key` vocabulary (`MapEntry.key`, Flutter `Key`) in generated code and
+  call sites — a naming choice, not a schema requirement from §9.3 (which
+  only names server-side tables).
+- **No cross-language fallback beyond `en`'s own compiled seed.** The
+  task text's literal fallback chain ("cached DB → compiled seed → raw
+  key") was implemented exactly as given, per-language — e.g. a `ru` user
+  never silently reads cached *English* DB rows for a key `ru`'s own
+  cache/seed is missing. The backend's own doc line ("Отсутствующий
+  перевод → fallback на en") describes server-side bundle-assembly
+  behavior that `i18n-bundle.service.ts` doesn't actually implement yet
+  (its `getTranslations` only ever queries rows for the requested `lang`,
+  confirmed by reading it) — not a client-side contract this pass needed
+  to independently invent on top of the task's own explicit 3-layer
+  spec.
+
+### Not verified — no dart/flutter binary reachable in this environment
+
+- **`flutter pub get`** for the new `drift`/`drift_flutter`/`drift_dev`
+  dependencies — not run. Their version constraints may not resolve
+  cleanly against this pubspec's existing `flutter_riverpod: ^3.4.3`/
+  `riverpod_annotation: ^4.0.7`/Dart SDK `>=3.5.0` pins; first real step
+  for whoever picks this up.
+- **`dart run build_runner build`** — not run, for two separate codegen
+  needs this pass added: `l10n_database.g.dart` (drift_dev, the
+  `_$L10nDatabase` base class `L10nDatabase` extends) and
+  `l10n_providers.g.dart`/`language_catalog_provider.g.dart`
+  (riverpod_generator, `_$L10nCacheController` and the generated
+  `languageCatalogProvider`). None of these generated files exist yet —
+  expected, `*.g.dart` is gitignored repo-wide
+  (`apps/mobile/.gitignore:21`), same as every other generated file
+  already in this package (e.g. `language_providers.g.dart`, itself not
+  committed either).
+- **No `flutter analyze`/`flutter test`/manual run** — so beyond careful
+  reading, none of this is confirmed to actually compile: not the new
+  Drift table/query API usage (`l10n_database.dart`), not the Riverpod
+  `ref.listen`-inside-`build()` pattern (`l10n_providers.dart`), not the
+  `drift_flutter` `driftDatabase()` connection-opener call, none of it.
+  Every touched/created file WAS mechanically balance-checked
+  (parens/braces/brackets) and every new relative import verified to
+  resolve to a real file on disk — the same mechanical check the backend
+  entry above used, explicitly not a substitute for a real compile.
+- **Backend contract assumed stable since `66579bc`, not re-verified
+  live** — no NestJS instance was booted (same "not verified" the backend
+  entry above already flagged), so this pass's `I18nBundleResult`/
+  `I18nLanguageDto` parsing was checked against the controller/DTO
+  SOURCE CODE only (`i18n.controller.ts`, `bundle-query.dto.ts`,
+  `apps/api/prisma/schema.prisma`'s `model I18nLanguage`), never against
+  an actual HTTP response.

@@ -2,12 +2,21 @@ import 'app_language.dart';
 
 /// One row of the language picker (see `widgets/language_picker_sheet.dart`).
 ///
-/// [appLanguage] is non-null only for languages the stopgap [AppLanguage]
-/// enum actually supports today (`ru`, `en`) — every other entry is a
-/// roadmap placeholder: shown, searchable, but not selectable, so the
-/// owner's "search + list, most popular first, add languages over time"
-/// request (2026-09-22 voice follow-up) has somewhere to grow into without
-/// another screen rebuild once stage 1.6's real l10n layer lands.
+/// [appLanguage] is non-null only for languages [AppLanguage] actually
+/// supports today (`ru`, `en`) — every other entry is a roadmap
+/// placeholder: shown, searchable, but not selectable, so the owner's
+/// "search + list, most popular first, add languages over time" request
+/// (2026-09-22 voice follow-up) has somewhere to grow into.
+///
+/// UPDATE, stage 1.6 (docs/CHANGELOG.md): this constant is now the OFFLINE
+/// FALLBACK for `languageCatalogProvider` (language_catalog_provider.dart),
+/// which merges it with the live `GET /i18n/languages` list — a language
+/// the backend adds now appears here without an app update, per the same
+/// owner direction. [AppLanguage] itself still only has `ru`/`en` (each
+/// with a real, backend-driven translation bundle); giving another
+/// language a real [appLanguage] case + compiled seed is future work this
+/// pass didn't do — see docs/CHANGELOG.md's stage-1.6-flutter entry for
+/// why that was left out of scope.
 class LanguageCatalogEntry {
   const LanguageCatalogEntry({
     required this.code,
@@ -29,8 +38,10 @@ class LanguageCatalogEntry {
 /// relevance to a US legal-services marketplace (file 01 §1's target
 /// market) — roughly the most common languages spoken at home in the US
 /// per Census ACS data, not raw global speaker counts. Deliberately not
-/// exhaustive (file 01 §15 / stage 1.6 grows this list); this is a
-/// starting point the owner can reorder or extend freely.
+/// exhaustive — this curated order is the fallback/tiebreak
+/// `languageCatalogProvider` keeps for these codes even once the backend
+/// list is live; the backend can still ADD codes beyond this list (see
+/// that provider's doc comment).
 const List<LanguageCatalogEntry> kLanguageCatalog = [
   LanguageCatalogEntry(
     code: 'en',
