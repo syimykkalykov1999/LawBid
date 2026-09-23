@@ -26,6 +26,18 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<!-- LOCAL DEV ONLY (2026-09-23, docs/CHANGELOG.md): the backend runs
+	     over plain http:// during local development (no TLS cert for a
+	     LAN IP / localhost / 10.0.2.2), which iOS's App Transport Security
+	     blocks by default, so every request silently fails as a network
+	     error before it leaves the device. This exception must be removed
+	     (or scoped to a specific dev-only domain) once the backend is
+	     reachable over https:// for real builds; do not ship this as-is. -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
 	<!-- Biometric reauth (Phase 4 of the auth networking work,
 	     docs/CHANGELOG.md): local_auth requires this string whenever
 	     Face ID is used on iOS, or the OS silently refuses the
