@@ -2816,3 +2816,11 @@ placeholder README before this; it now has three real workflows.
   to iterate on at least the CockroachDB startup step and the Flutter
   `stable`-channel resolution the first time they run for real.
 
+
+## Gavel-strike tap animation disabled by default — 2026-09-23
+
+User feedback: the judge's-gavel tap animation (file 07 §7, `GavelStrikeButton`/`GavelStrikeIconButton`, used on the welcome screen's email/Apple/Google buttons, phone/OTP/role screens' primary CTA) felt unnecessary on every tap.
+
+Change: flipped both widgets' `strike` parameter default from `true` to `false`. No call site in the app currently passes an explicit `strike:` argument, so this one-line-per-file change silences the animation everywhere it was wired up, without touching any of the 5 screen files that use these buttons. The overlay/painter/haptic machinery (`_GavelStrikeOverlay`, `_GavelStrikePainter`, `AppMotion.gavelStrike*` tokens) was left in place, not deleted — it's still available per-call-site via `strike: true` if a future screen wants the effect back.
+
+Buttons still behave as normal `AppButton`/`AppIconButton` presses (tap, press-scale, haptic-on-tap where `AppButton` already had it) — only the gavel overlay animation is gone.

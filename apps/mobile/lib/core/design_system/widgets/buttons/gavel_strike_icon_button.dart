@@ -17,7 +17,7 @@ class GavelStrikeIconButton extends StatefulWidget {
     required this.icon,
     required this.onPressed,
     required this.semanticLabel,
-    this.strike = true,
+    this.strike = false,
   });
 
   final Widget icon;

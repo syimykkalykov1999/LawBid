@@ -19,10 +19,13 @@ import 'app_icon_button.dart';
 part 'gavel_strike_icon_button.dart';
 
 /// Wraps [AppButton] with the judge's-gavel tap animation (file 07 §7).
-/// Used ONLY on the buttons listed in file 07 §7.4; everywhere else use a
-/// plain [AppButton] (`strike: false` behaves identically to AppButton, kept
-/// as one widget rather than two so call sites don't need to swap types if a
-/// button later needs `strike` toggled).
+/// Disabled by default (`strike = false`) per explicit product direction
+/// (2026-09, see docs/CHANGELOG.md) — the animation felt unnecessary on
+/// every tap. The overlay/painter machinery is kept, not deleted, so it can
+/// be re-enabled per-call-site (`strike: true`) if a future screen wants it
+/// back without redoing this work. `strike: false` behaves identically to
+/// plain [AppButton], kept as one widget rather than two so call sites
+/// don't need to swap types if a button later needs `strike` toggled.
 ///
 /// Composition: wraps [AppButton], never reimplements its chrome or the 0.98
 /// press-scale — [GavelStrikeButton] only adds the Overlay-based strike
@@ -32,7 +35,7 @@ class GavelStrikeButton extends StatefulWidget {
     super.key,
     required this.label,
     required this.onPressed,
-    this.strike = true,
+    this.strike = false,
     this.variant = AppButtonVariant.primary,
     this.icon,
     this.isLoading = false,
