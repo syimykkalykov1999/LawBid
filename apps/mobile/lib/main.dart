@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app.dart';
+import 'core/feature_flags/feature_flags_providers.dart';
 import 'core/l10n/l10n_providers.dart';
 import 'core/persistence/persistence_providers.dart';
 import 'core/session/session_providers.dart';
@@ -40,4 +41,13 @@ Future<void> main() async {
   // first paint. Best-effort — failures are swallowed inside
   // `L10nRepository.refresh`.
   unawaited(container.read(l10nCacheControllerProvider.notifier).refreshInBackground());
+
+  // Feature flags + app_config bootstrap (docs/01_FOUNDATION_AUTH.md §15,
+  // "Этап 1.8"): same non-blocking, fired-after-`runApp`, best-effort
+  // shape as the L10n background refresh above — `build()` already
+  // returned a safe synchronous default (`defaultFeatureFlags`, see
+  // `FeatureFlagsController`'s doc comment), so there is nothing here
+  // that first paint needs to wait on. A failure is swallowed inside
+  // `FeatureFlagsController.refreshInBackground`.
+  unawaited(container.read(featureFlagsControllerProvider.notifier).refreshInBackground());
 }

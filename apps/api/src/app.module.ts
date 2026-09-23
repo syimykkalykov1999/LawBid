@@ -7,6 +7,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { RedisModule } from './redis/redis.module';
 import { ThrottlerModule } from './throttler/throttler.module';
 import { HealthModule } from './modules/health/health.module';
+import { FeatureFlagsModule } from './modules/feature-flags/feature-flags.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { I18nModule } from './modules/i18n/i18n.module';
@@ -58,10 +59,13 @@ const isDev =
     RedisModule,
     ThrottlerModule,
     HealthModule,
-    // Registered after ThrottlerModule so JwtAuthGuard (global APP_GUARD
-    // from AuthModule) runs AFTER the global ThrottlerGuard in Nest's
-    // guard execution order — cheap per-IP rate limiting rejects before
-    // any JWT verification work happens (see auth.module.ts doc comment).
+    // Registered after ThrottlerModule and before AuthModule so global
+    // APP_GUARDs run in this order: ThrottlerGuard (cheap per-IP rate
+    // limit) -> AppVersionGuard (FeatureFlagsModule, stage 1.8 —
+    // rejects a stale client before spending any JWT-verification work
+    // on it) -> JwtAuthGuard (AuthModule). See feature-flags.module.ts
+    // and auth.module.ts's doc comments.
+    FeatureFlagsModule,
     AuthModule,
     UsersModule,
     I18nModule,

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/design_system/design_system.dart';
+import '../../../../core/feature_flags/feature_flags_providers.dart';
 import '../../../../core/l10n/l10n_providers.dart';
 import '../../../../core/l10n/widgets/language_picker_sheet.dart';
 import '../../../../core/navigation/app_routes.dart';
@@ -101,9 +102,65 @@ class WelcomeScreen extends ConsumerWidget {
 
     final flowState = ref.watch(onboardingFlowProvider);
     final themeMode = ref.watch(themeModeControllerProvider).value ?? ThemeMode.system;
+    // Login-method flag gating (docs/01_FOUNDATION_AUTH.md §15 "Этап 1.8":
+    // starter flags include phone_login/email_login/apple_login/
+    // google_login — the exact four methods this screen offers, per
+    // §10.1's own list). A disabled method's button is simply omitted
+    // from layout, not disabled-but-visible — there is no spec text
+    // calling for a "coming soon" state here, unlike the email button's
+    // pre-existing "not built yet" stub (that one stays as-is regardless
+    // of email_login: it has no real handler to gate yet either way).
+    final flags = ref.watch(featureFlagsControllerProvider);
+    final phoneLoginEnabled = flags.isEnabled('phone_login');
     final isDark = themeMode == ThemeMode.dark ||
         (themeMode == ThemeMode.system &&
             MediaQuery.platformBrightnessOf(context) == Brightness.dark);
+
+    // Same flag-gating as the phone button below, applied to the 3 icon
+    // buttons: an Expanded widget for each ENABLED method only, so a
+    // disabled one doesn't leave a dead gap in the row — the remaining
+    // buttons simply share it. A gap SizedBox is inserted only between
+    // two buttons that are both actually present.
+    final iconButtons = <Widget>[
+      if (flags.isEnabled('email_login'))
+        Expanded(
+          child: GavelStrikeIconButton(
+            icon: const EmailGlyph(),
+            semanticLabel: t.t('auth.welcome.email'),
+            onPressed: showNotBuiltYet,
+          ),
+        ),
+      if (flags.isEnabled('apple_login'))
+        Expanded(
+          child: GavelStrikeIconButton(
+            icon: const AppleGlyph(),
+            semanticLabel: t.t('auth.welcome.apple'),
+            isLoading: flowState.isSubmitting,
+            onPressed: () => handleSocialSignIn(
+              () => ref.read(onboardingFlowProvider.notifier).signInWithApple(),
+            ),
+          ),
+        ),
+      if (flags.isEnabled('google_login'))
+        Expanded(
+          child: GavelStrikeIconButton(
+            icon: const GoogleGlyph(),
+            semanticLabel: t.t('auth.welcome.google'),
+            isLoading: flowState.isSubmitting,
+            onPressed: () => handleSocialSignIn(
+              () => ref.read(onboardingFlowProvider.notifier).signInWithGoogle(),
+            ),
+          ),
+        ),
+    ];
+    final spacedIconButtons = <Widget>[];
+    for (var i = 0; i < iconButtons.length; i++) {
+      if (i > 0) spacedIconButtons.add(const SizedBox(width: 8));
+      spacedIconButtons.add(iconButtons[i]);
+    }
+    final socialLoginRow = spacedIconButtons.isEmpty
+        ? const SizedBox.shrink()
+        : Row(mainAxisAlignment: MainAxisAlignment.center, children: spacedIconButtons);
 
     return Scaffold(
       backgroundColor: colors.bg,
@@ -164,62 +221,27 @@ class WelcomeScreen extends ConsumerWidget {
                       // Spacer further down, so this block sits mid-way in
                       // whatever room is left, on both themes.
                       const Spacer(),
-                      GavelStrikeButton(
-                        label: t.t('auth.welcome.phone'),
-                        icon: Icons.call,
-                        height: 48,
-                        // Brighter in dark theme only (owner follow-up,
-                        // 2026-09-22): gold read too dull here. Every
-                        // other primary button keeps the default variant.
-                        variant: isDark ? AppButtonVariant.ctaBright : AppButtonVariant.primary,
-                        onPressed: () {
-                          ref.read(onboardingFlowProvider.notifier).goToPhoneStep();
-                          context.push(AuthRoutes.phone);
-                        },
-                      ),
-                      const SizedBox(height: 8),
+                      if (phoneLoginEnabled) ...[
+                        GavelStrikeButton(
+                          label: t.t('auth.welcome.phone'),
+                          icon: Icons.call,
+                          height: 48,
+                          // Brighter in dark theme only (owner follow-up,
+                          // 2026-09-22): gold read too dull here. Every
+                          // other primary button keeps the default variant.
+                          variant: isDark ? AppButtonVariant.ctaBright : AppButtonVariant.primary,
+                          onPressed: () {
+                            ref.read(onboardingFlowProvider.notifier).goToPhoneStep();
+                            context.push(AuthRoutes.phone);
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                      ],
                       // file 07 §7.4: the gavel-strike animation applies to these
                       // three social-login buttons too, not just "Продолжить с
                       // телефоном" — GavelStrikeIconButton (added in stage 1.7,
                       // docs/CHANGELOG.md, see gavel_strike_icon_button.dart).
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Expanded(
-                            child: GavelStrikeIconButton(
-                              icon: const EmailGlyph(),
-                              semanticLabel: t.t('auth.welcome.email'),
-                              onPressed: showNotBuiltYet,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: GavelStrikeIconButton(
-                              icon: const AppleGlyph(),
-                              semanticLabel: t.t('auth.welcome.apple'),
-                              isLoading: flowState.isSubmitting,
-                              onPressed: () => handleSocialSignIn(
-                                () => ref
-                                    .read(onboardingFlowProvider.notifier)
-                                    .signInWithApple(),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: GavelStrikeIconButton(
-                              icon: const GoogleGlyph(),
-                              semanticLabel: t.t('auth.welcome.google'),
-                              isLoading: flowState.isSubmitting,
-                              onPressed: () => handleSocialSignIn(
-                                () => ref
-                                    .read(onboardingFlowProvider.notifier)
-                                    .signInWithGoogle(),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
+                      socialLoginRow,
                       // Second flexible spacer (see the one above the phone
                       // button): the pair centers the button block between the
                       // logo and the legal text, while still pinning the legal

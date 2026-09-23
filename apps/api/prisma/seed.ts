@@ -5,9 +5,9 @@
 // modeled in this stage's schema.prisma. Ordering follows
 // docs/02_DATABASE.md §7.2 ("states → practice_areas → i18n_languages →
 // blocked_email_domains → feature_flags → app_config → legal_documents →
-// admin"), filtered down to the tables that exist at this stage — states,
-// practice_areas and app_config are seeded in the stages that add those
-// tables (2.1 and 1.8 respectively), not here.
+// admin"), filtered down to the tables that exist at this stage — states
+// and practice_areas are seeded in the stage that adds those tables
+// (2.1), not here.
 //
 // All upserts are idempotent: re-running this script must never create
 // duplicates (docs/02_DATABASE.md §7.2).
@@ -16,6 +16,10 @@
 // seedI18nTranslations() loads translations_seed.xlsx below and upserts
 // i18n_keys/i18n_translations/i18n_bundle_versions through the same
 // parse+validate path as POST /admin/i18n/import.
+//
+// Stage 1.8 addition (docs/01_FOUNDATION_AUTH.md §15 "Этап 1.8"):
+// seedAppConfig() seeds min_app_version_*/soft_update_version_* — the
+// app_config table this stage's schema.prisma adds.
 import { PrismaClient } from '@prisma/client';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -187,7 +191,8 @@ async function seedBlockedEmailDomains(): Promise<void> {
 // docs/01_FOUNDATION_AUTH.md §15, "Этап 1.8": exact starter flag list and
 // values, seeded here (stage 1.3) because stage 1.3's own acceptance
 // criterion requires flags to exist; the flags MODULE (Redis cache,
-// GET /config/bootstrap) is still stage 1.8 work, not built yet.
+// GET /config/bootstrap) is the stage-1.8 work added alongside this
+// function's app_config sibling below.
 async function seedFeatureFlags(): Promise<void> {
   const flags = [
     {
@@ -228,6 +233,31 @@ async function seedFeatureFlags(): Promise<void> {
     });
   }
   console.log(`  feature_flags: ${flags.length} upserted`);
+}
+
+// docs/02_DATABASE.md §4.B: "app_config: key text PK, value jsonb,
+// updated_at. Ключи: min_app_version_ios, min_app_version_android,
+// soft_update_version_ios, soft_update_version_android." Seeded equal to
+// the app's current version (`HeadersInterceptor.appVersion` on the
+// Flutter side, `0.1.0`) so a freshly-seeded dev/CI database never forces
+// an update on the very client that just built against it — an operator
+// raises these from the admin panel (not built yet — file 6) when an
+// actual minimum/soft-update version is decided.
+async function seedAppConfig(): Promise<void> {
+  const keys = [
+    'min_app_version_ios',
+    'min_app_version_android',
+    'soft_update_version_ios',
+    'soft_update_version_android',
+  ];
+  for (const key of keys) {
+    await prisma.appConfig.upsert({
+      where: { key },
+      create: { key, value: '0.1.0' },
+      update: {},
+    });
+  }
+  console.log(`  app_config: ${keys.length} upserted`);
 }
 
 // docs/02_DATABASE.md §3.3: "заглушки текстов ... для en (тексты
@@ -303,6 +333,7 @@ async function main(): Promise<void> {
   await seedI18nTranslations();
   await seedBlockedEmailDomains();
   await seedFeatureFlags();
+  await seedAppConfig();
   await seedLegalDocuments();
   await seedAdmin();
   console.log('Seed complete.');

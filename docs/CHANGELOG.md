@@ -2355,3 +2355,308 @@ real data exists.
   SOURCE CODE only (`i18n.controller.ts`, `bundle-query.dto.ts`,
   `apps/api/prisma/schema.prisma`'s `model I18nLanguage`), never against
   an actual HTTP response.
+
+## Stage 1.8 (feature flags + `/config/bootstrap`) — 2026-09-23
+
+### Research first, against §15's "Этап 1.8" bullet and everything it touches
+
+Read `docs/01_FOUNDATION_AUTH.md` in full again (not just the stage-1.8
+bullet) for every mention of "feature flag"/"флаг"/"bootstrap": §7 ("426
+Upgrade Required с кодом APP_UPDATE_REQUIRED... настраивается в
+админке"), §10.2 "A. Splash" ("загрузка feature flags и переводов"), and
+§15's own bullet ("Модуль флагов (БД + Redis кэш), эндпоинт GET
+/config/bootstrap (флаги, min-версия, активные языки, версия переводов,
+юридические документы)... Стартовые флаги: video_posts=false,
+profile_promotion=false, stripe_identity=false,
+persona_verification=false, auto_bar_check=false, phone_login=true,
+email_login=true, apple_login=true, google_login=true").
+
+Checked `apps/api/prisma/schema.prisma` before assuming anything needed
+creating: `FeatureFlag`/`feature_flags` already existed (stage 1.3),
+already seeded with the exact 9 starter flags above
+(`prisma/seed.ts::seedFeatureFlags`, itself already commented "stage 1.8
+work" for the module). `app_config` did NOT exist — schema.prisma's own
+4.B comment said so explicitly ("app_config is stage 1.8"),
+`docs/02_DATABASE.md` §4.B gave its exact shape (`key text PK, value
+jsonb, updated_at`, 4 named keys), and `seed.ts`'s own header comment
+already listed `app_config` in its `§7.2` seed ordering — this stage
+adds the model, a migration, and the seed function.
+
+Read `apps/api/src/modules/i18n/` (commit `66579bc`, this session) as
+the structural template: controller→service→DTO split, `@Public()` +
+Redis-cache-aside pattern (`I18nBundleService`), `ErrorCode` additions
+(already found `APP_UPDATE_REQUIRED` pre-declared in the enum, commented
+"stage 1.8" — not something this pass added), `app.module.ts`
+registration, and the plain-factory-function Jest test style (no
+`TestingModule`, fake Prisma/Redis objects), reused verbatim rather than
+inventing a new shape.
+
+Read `apps/mobile/lib/features/auth/data/`, `core/network/`, and
+`main.dart`: zero existing bootstrap/config-fetch infra Flutter-side.
+`main.dart`'s established pattern — `SessionController.bootstrap()` and
+`L10nCacheController.bootstrap()`/`refreshInBackground()`, the second one
+non-blocking and fired right after `runApp` — is exactly what
+`FeatureFlagsController` follows.
+
+Grepped the whole Flutter app for candidate flag-gating points:
+`welcome_screen.dart`'s 4 login buttons (phone, email, Apple, Google —
+`§10.1`'s exact list) map 1:1 onto the 4 login-method starter flags. No
+other `showNotBuiltYet`/stub UI in the app plausibly maps to any of the
+5 remaining flags (`video_posts`, `profile_promotion`,
+`stripe_identity`, `persona_verification`, `auto_bar_check` — none of
+those features exist as UI yet, in this file's scope or otherwise), so
+nothing else was wired.
+
+### What was built — backend
+
+New module `apps/api/src/modules/feature-flags/` (named `feature-flags`,
+not `config` — `ConfigModule` already exists as the env-config wrapper
+around `@nestjs/config`; reusing that name would collide):
+
+- `services/feature-flags.service.ts` — `feature_flags` table as a flat
+  `{key: enabled}` map, Redis cache-aside (30s TTL), same shape as
+  `I18nBundleService.getCurrentVersion`. Deliberately does NOT apply
+  `rollout_percent` (schema column exists, read but unused) — §15 only
+  asks for a global on/off for this stage, and `/config/bootstrap` is
+  `@Public()` with no user identity to key a percentage rollout on
+  anyway.
+- `services/app-config.service.ts` — same cache-aside shape for the new
+  `app_config` table, plus `getMinAppVersion(platform)` for the version
+  guard below.
+- `services/bootstrap.service.ts` — aggregates the 5 pieces §15 names:
+  `flags`, `app_config`, `languages` (active `i18n_languages` rows, same
+  query `I18nLanguagesService.listActive` uses), `translations_version`
+  (`{lang: version}` from `i18n_bundle_versions`), `legal_documents`
+  (current-version rows only, trimmed to the fields a client actually
+  needs — no `id`/`is_current`/timestamps beyond `published_at`).
+- `controllers/bootstrap.controller.ts` — `GET /config/bootstrap`,
+  `@Public()` + a new `@SkipVersionCheck()` (see guard below).
+- `guards/app-version.guard.ts` (`AppVersionGuard`) + its
+  `@SkipVersionCheck()` decorator — a second global `APP_GUARD`
+  (registered in `FeatureFlagsModule`, imported in `app.module.ts`
+  between `ThrottlerModule` and `AuthModule` so guard order is
+  Throttler → AppVersion → Jwt) implementing §7's "Минимальная
+  поддерживаемая версия... проверяется сервером (426 Upgrade Required с
+  кодом APP_UPDATE_REQUIRED)". Fail-OPEN, not fail-closed like
+  `JwtAuthGuard`: missing `X-App-Version`/`X-Platform` headers, an
+  unrecognized platform, unparseable versions, or no `app_config` row
+  all let the request through — this check exists for compatibility, not
+  security, and every real sender (`HeadersInterceptor` on the Flutter
+  side) always sends both headers, so "can't tell" only ever happens for
+  non-Flutter callers (Swagger, curl, this repo's own e2e tests) that
+  must keep working unaffected. `@SkipVersionCheck()` applied to
+  `/config/bootstrap` itself (must stay reachable by the very client it
+  would otherwise block — that response IS what tells a stale client
+  it's stale) and both `/health/*` routes (probes never send version
+  headers; the guard's own missing-header fallback already covers this,
+  but the decorator makes the opt-out explicit and consistent with every
+  other route in `health.controller.ts`).
+- `apps/api/src/common/utils/semver.util.ts` — minimal dotted-version
+  `compareVersions`/`isVersionBelow` (no pre-release precedence rules;
+  the client only ever sends a plain `major.minor.patch`). Returns
+  `null`/`false` rather than throwing on unparseable input, matching the
+  guard's fail-open design.
+- `prisma/schema.prisma` — new `AppConfig` model (`app_config` table,
+  generic `key -> Json value` rather than 4 dedicated columns, matching
+  `docs/02_DATABASE.md` §4.B's own shape and letting future keys be
+  added without a migration), plus a hand-written migration
+  (`20260923010000_stage_1_8_app_config/migration.sql` — no live
+  CockroachDB reachable from this bridge to run `prisma migrate dev`,
+  so this was written by hand, `JSONB`/`STRING`/`TIMESTAMPTZ` types
+  copied verbatim from the existing stage-1.3 migration's `meta`/`data`
+  Json columns for consistency; `npx prisma validate` and `npx prisma
+  generate` both ran clean against it — see Verification).
+- `prisma/seed.ts` — new `seedAppConfig()`, seeding all 4
+  `min_app_version_*`/`soft_update_version_*` keys to `"0.1.0"` (the
+  app's current version, `HeadersInterceptor.appVersion` on the Flutter
+  side) so a freshly-seeded dev/CI database never force-updates the
+  client that just built against it; wired into `main()` between
+  `seedFeatureFlags()` and `seedLegalDocuments()`, matching
+  `docs/02_DATABASE.md` §7.2's ordering. `seedFeatureFlags()` itself was
+  NOT changed — all 9 starter flags already existed from stage 1.3.
+
+### What was built — Flutter
+
+New `apps/mobile/lib/core/feature_flags/`:
+
+- `default_feature_flags.dart` — the compiled-in fallback map, copied
+  verbatim from `seed.ts`'s starter values (login-method flags default
+  `true`, unfinished-feature flags default `false` — see its own doc
+  comment for why an all-`false` fallback would be the wrong failure
+  mode here).
+- `feature_flags_api_client.dart` — `/config/bootstrap` Dio client, same
+  `skipAuth`/`ApiException.fromDioException` pattern as
+  `I18nApiClient`/`AuthApiClient`. Parses only `flags` and `app_config`
+  out of the response — `languages`/`translations_version` are redundant
+  with what `L10nCacheController` already fetches from the dedicated
+  `/i18n/*` endpoints, and `legal_documents` has no consumer yet (the
+  welcome screen's Terms/Privacy links are still the pre-existing "not
+  built yet" stub); parsing fields nothing reads yet would be exactly
+  the kind of speculative surface `.cursorrules` warns against.
+- `feature_flags_state.dart` — `FeatureFlagsState` (flags map + app_config
+  map) with `isEnabled(key)`.
+- `semver.dart` — Dart-side mirror of the backend's `semver.util.ts`
+  (same dotted-integer comparison, same suffix-stripping, same
+  can't-parse-means-not-below behavior) — used only for the client-side
+  half of the update-required check.
+- `feature_flags_providers.dart` — `FeatureFlagsController` (Riverpod
+  codegen, `keepAlive: true`, same shape as `L10nCacheController`/
+  `SessionController`): `build()` returns `defaultFeatureFlags`
+  synchronously (no local cache/Drift table — see its doc comment for
+  why that default already IS a safe, always-available "cache" without
+  needing an on-disk layer), and `refreshInBackground()` fetches
+  `/config/bootstrap` and merges the result over the defaults,
+  swallowing any failure. Also `isAppUpdateRequiredProvider` — compares
+  this device's own `HeadersInterceptor.appVersion` against
+  `app_config['min_app_version_{platform}']`.
+- `main.dart` — one more `unawaited(...refreshInBackground())` call
+  after `runApp`, alongside the existing L10n one — non-blocking, same
+  as L10n's background refresh; first paint never waits on it.
+- `app.dart` — `_UpdateRequiredGate`, a `builder`-level wrapper around
+  the routed app that shows a full-screen, non-dismissible (`PopScope
+  (canPop: false)`) screen whenever `isAppUpdateRequiredProvider` is
+  true, using 3 new translation keys (`app.update.title/message/button`,
+  added to both `StaticTranslatorRu`/`StaticTranslatorEn` in
+  `static_translator.dart` — not added to `translations_seed.xlsx`,
+  same as how the pre-existing `auth.welcome.notBuiltYet` key already
+  works without a bundle entry, via the seed-fallback layer
+  `L10nTranslator` already implements).
+- `welcome_screen.dart` — the 4 login buttons (`§10.1`'s phone/email/
+  Apple/Google) now each check their matching starter flag
+  (`phone_login`/`email_login`/`apple_login`/`google_login`) via
+  `ref.watch(featureFlagsControllerProvider)`; a disabled method's
+  button is omitted from layout entirely (not shown-but-disabled — §15
+  doesn't call for a "coming soon" affordance here, and the 3 icon
+  buttons already share one `Row` via `Expanded`, so omitting one just
+  lets the others share the space instead of leaving a gap).
+- `core/network/api_error.dart` — added `ApiErrorCodes.appUpdateRequired`
+  for parity with the backend enum, even though nothing calls it yet
+  (see the explicit scope note below).
+
+### Design calls made because the spec was silent
+
+- **`/config/bootstrap`'s exact field names**: kept every field's own
+  Prisma-model casing (snake_case — `app_config`, `translations_version`,
+  `legal_documents`), matching `I18nController.listLanguages`'s existing
+  precedent (`ResponseInterceptor` doesn't transform casing; Flutter's
+  `I18nLanguageDto.fromJson` already reads `name_native`/`is_active`
+  this way), rather than inventing a camelCase contract for this one
+  endpoint.
+- **Flat `{key: value}` maps for both `flags` and `app_config`**, not
+  arrays of `{key, value}` objects — §15 says "флаги" with no shape
+  specified; a flat map is what `isEnabled(key)` wants directly on both
+  ends, and it's what `FeatureFlag`/`AppConfig`'s own `key`-as-PK schema
+  already implies.
+- **A global server-side `AppVersionGuard`, not just a client-side
+  self-check**: §7 explicitly says the minimum version "проверяется
+  сервером", and the `APP_UPDATE_REQUIRED` `ErrorCode` was already
+  pre-declared (stage 1.2) with a comment naming stage 1.8 — building
+  only the bootstrap-reported version numbers without any server-side
+  enforcement would leave that spec line and that enum comment
+  unfulfilled. Scoped deliberately narrow (fail-open on any ambiguity,
+  two explicit `@SkipVersionCheck()` opt-outs) specifically so it
+  couldn't regress any existing endpoint or test — confirmed it didn't
+  (see Verification: full 69/69 suite still green).
+- **Flutter's force-update gate is Splash/cold-start only, not wired
+  into the live 426 error path**: `AuthInterceptor`
+  (`core/network/auth_interceptor.dart`) was deliberately left
+  untouched — reacting to a live `APP_UPDATE_REQUIRED` on some other
+  in-flight request (as opposed to the dedicated bootstrap comparison)
+  would mean importing `core/feature_flags` from `core/network`, which
+  imports back from `core/network` (`dioProvider`) — a working but messy
+  circular import for a code path §15's acceptance criterion doesn't
+  actually require (it only asks for behavior "при
+  APP_UPDATE_REQUIRED", which the Splash-time self-comparison already
+  satisfies). Noted as a real gap, not silently dropped — see
+  `_UpdateRequiredGate`'s doc comment in `app.dart`.
+- **No Drift/on-disk cache for flags**, unlike L10n's bundle cache: the
+  compiled-in `defaultFeatureFlags` default already equals what a
+  freshly-seeded backend returns, so it degrades gracefully with zero
+  persistence layer — adding one would be complexity `docs/
+  01_FOUNDATION_AUTH.md` §15 never asks for (only §9.4's L10n system
+  explicitly calls for a Drift cache).
+- **`app_config` seeded to the app's current version (`"0.1.0"`)**, not
+  to some higher/lower placeholder — an admin (once file 6's admin panel
+  exists) raises it when an actual minimum is decided; seeding it any
+  other way would either force-update every fresh dev/CI install or
+  silently defeat the guard's own tests' assumptions.
+
+### Explicitly out of scope, and why
+
+- No admin UI for toggling flags/app_config (file 6 — "админка").
+- No per-user/per-cohort rollout (`rollout_percent` column exists,
+  unused — §15's stage-1.8 acceptance criterion is a global on/off).
+- No `url_launcher`/store-listing wiring for the force-update screen's
+  "Update" button — same "not built yet" affordance the welcome screen
+  already uses elsewhere; no new Flutter dependency added for one
+  button that has nowhere real to send the user yet.
+- AuthInterceptor doesn't react to a live 426 — see design-calls note
+  above.
+
+### Verification
+
+- **Real `npx tsc --noEmit` run** against the whole `apps/api` project
+  (node `v22.23.2`/npm `10.9.8`, confirmed reachable): zero errors in
+  every file this stage touched. The only 2 remaining `tsc` errors
+  (`redis-throttler-storage.service.spec.ts`, `'last' is possibly
+  'undefined'`) are the same pre-existing ones the stage-1.6 backend
+  entry above already found and attributed to `HEAD`, not this stage.
+- **Real `npx eslint` run** against every new/changed file (project's
+  own flat config): zero errors after fixing what it caught (prettier
+  formatting, and 3 `@typescript-eslint/unbound-method` false positives
+  in `app-version.guard.spec.ts` — fixed the same way the stage-1.6
+  entry's own fix did: extract the mock function into a local `const`
+  before the `as unknown as AppConfigService` cast, instead of asserting
+  on `appConfig.someMethod` directly). A second pass, `npx eslint
+  "src/**/*.ts" "prisma/**/*.ts"` against the ENTIRE backend, also came
+  back clean.
+- **Real `npx jest` run**: 23 new unit tests (`FeatureFlagsService`/
+  `AppConfigService` cache-aside logic, `BootstrapService` aggregation,
+  `AppVersionGuard`'s fail-open branches + the 426 it throws,
+  `semver.util`'s comparison table) — same fake-Prisma/fake-Redis/
+  fake-Reflector factory-function style as `i18n-bundle.service.spec
+  .ts`, no `TestingModule`, no DB/Redis needed. Full suite: **69/69
+  passing**, no regressions in the pre-existing 46.
+- **Real `nest build`** (`npx nest build`) — compiled the whole app
+  including the new module and its `APP_GUARD` registration with zero
+  errors; the stage-1.6 entry above didn't have this checkpoint
+  available, added here as extra confidence that the DI graph itself
+  (not just individual files' types) is sound.
+- **Not verified — no way to in this environment**: no docker-compose
+  services confirmed running, so nothing needing a real CockroachDB/
+  Redis was run — `prisma migrate deploy` wasn't applied against a live
+  database (the hand-written migration SQL was checked against `prisma
+  validate`/`prisma generate` only, both of which need the schema file
+  but not a DB connection), `npm run --workspace apps/api prisma db
+  seed` was not run for real, and the NestJS app was never actually
+  booted (`nest build` compiles, it doesn't run) — so the real
+  `GET /config/bootstrap` response shape, the `AppVersionGuard`'s actual
+  426 response against a live request, and the full request → guard →
+  controller → service → Prisma/Redis chain are unverified beyond
+  `tsc`/`eslint`/`jest`/`nest build` and manual reading. Next real
+  verification step: boot the API against `docker compose up`'s
+  CockroachDB + Redis, `prisma migrate deploy && npm run --workspace
+  apps/api prisma db seed`, then curl `GET /api/v1/config/bootstrap`
+  and confirm its shape, flip a flag directly in the DB (or via
+  `UPDATE feature_flags`) and confirm a second bootstrap call within
+  30s still serves the OLD value (cache TTL) and the value after that
+  is the NEW one, and send a request with `X-App-Version: 0.0.1` /
+  `X-Platform: ios` against a min version raised above it to confirm the
+  426/`APP_UPDATE_REQUIRED` path.
+- **Flutter side is entirely unverified** — no `dart`/`flutter` binary
+  reachable from this bridge (confirmed with `which dart flutter`,
+  neither present). No `flutter pub get`, no `dart run build_runner
+  build` (so `feature_flags_providers.g.dart` does not exist yet —
+  expected, `*.g.dart` is gitignored repo-wide, same as every other
+  generated file already in this package, e.g.
+  `session_providers.g.dart`), no `flutter analyze`/`flutter test`/
+  manual run. Every touched/created Flutter file WAS mechanically
+  balance-checked (parens/braces/brackets — all matched) and every new
+  relative import mechanically verified to resolve to a real file on
+  disk (all did) — the same mechanical check prior Flutter-only stages
+  in this changelog used, explicitly not a substitute for a real
+  compile.
+- Every touched/created backend AND Flutter file was balance-checked and
+  every new relative import verified to resolve to a real file,
+  mechanically, in addition to the real `tsc`/`eslint`/`jest`/`nest
+  build` runs above for the backend half.

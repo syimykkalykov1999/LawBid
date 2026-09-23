@@ -159,6 +159,10 @@ class StaticTranslatorRu extends _MapTranslator {
         'auth.welcome.legal.terms': 'Условия',
         'auth.welcome.legal.privacy': 'Политику конфиденциальности',
         'auth.welcome.notBuiltYet': 'Этот способ входа пока не реализован (этап 1.4/1.7)',
+        'app.update.title': 'Доступно обновление',
+        'app.update.message':
+            'Пожалуйста, обновите приложение до последней версии, чтобы продолжить пользоваться LawBid.',
+        'app.update.button': 'Обновить',
         // Phase 3 of the auth networking work (docs/CHANGELOG.md) —
         // `POST /auth/social` failure modes surfaced by
         // OnboardingFlow._signInWithSocial. {identifier}/{methods} are
@@ -304,6 +308,10 @@ class StaticTranslatorEn extends _MapTranslator {
         'auth.welcome.legal.terms': 'Terms',
         'auth.welcome.legal.privacy': 'Privacy Policy',
         'auth.welcome.notBuiltYet': "This sign-in method isn't available yet (stage 1.4/1.7)",
+        'app.update.title': 'Update available',
+        'app.update.message':
+            'Please update to the latest version of LawBid to keep using the app.',
+        'app.update.button': 'Update',
         // Phase 3 of the auth networking work (docs/CHANGELOG.md) — see
         // the matching RU comment above.
         'auth.social.error.invalidToken': "Couldn't verify sign-in. Please try again.",

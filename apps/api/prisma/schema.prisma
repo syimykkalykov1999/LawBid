@@ -279,9 +279,10 @@ model BlockedEmailDomain {
 
 // -----------------------------------------------------------------------
 // 4.B — Config and translations (docs/02_DATABASE.md §4.B)
-// Only feature_flags + i18n_* are in scope for stage 1.3; app_config is
-// stage 1.8 (docs/01_FOUNDATION_AUTH.md §15, "Feature flags и обязательное
-// обновление").
+// feature_flags + i18n_* were modeled in stage 1.3; app_config is added
+// here in stage 1.8 (docs/01_FOUNDATION_AUTH.md §15, "Этап 1.8: Feature
+// flags и обязательное обновление") — see migration
+// 20260923010000_stage_1_8_app_config.
 // -----------------------------------------------------------------------
 
 model FeatureFlag {
@@ -296,6 +297,23 @@ model FeatureFlag {
   // No created_at — docs/02_DATABASE.md §4.B lists only key/enabled/
   // rollout_percent/description/updated_by/updated_at for this table.
   @@map("feature_flags")
+}
+
+// docs/02_DATABASE.md §4.B: "app_config: key text PK, value jsonb,
+// updated_at. Ключи: min_app_version_ios, min_app_version_android,
+// soft_update_version_ios, soft_update_version_android." A generic
+// key->jsonb store (like feature_flags) rather than four dedicated
+// columns, matching the doc's own shape and letting a later stage add
+// more app_config keys without a migration.
+model AppConfig {
+  key        String   @id
+  value      Json
+  updated_at DateTime @updatedAt @db.Timestamptz
+
+  // No created_at, no updated_by — docs/02_DATABASE.md §4.B lists only
+  // key/value/updated_at for this table (unlike feature_flags, it has no
+  // updated_by FK either).
+  @@map("app_config")
 }
 
 model I18nLanguage {

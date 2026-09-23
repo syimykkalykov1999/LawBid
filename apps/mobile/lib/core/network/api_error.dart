@@ -31,6 +31,13 @@ abstract final class ApiErrorCodes {
   static const reauthRequired = 'REAUTH_REQUIRED';
   static const reauthInvalid = 'REAUTH_INVALID';
   static const notFound = 'NOT_FOUND';
+
+  // App lifecycle (stage 1.8, docs/CHANGELOG.md) — copied verbatim from
+  // apps/api/src/common/errors/error-code.enum.ts. Not currently switched
+  // on anywhere client-side (see app.dart's `_UpdateRequiredGate` doc
+  // comment on scope) — declared here so a future call site has the
+  // exact string ready rather than inventing its own literal.
+  static const appUpdateRequired = 'APP_UPDATE_REQUIRED';
 }
 
 /// Parsed form of the backend's error envelope (docs/01_FOUNDATION_AUTH.md
