@@ -1,5 +1,8 @@
+import '../domain/account_deletion_result.dart';
 import '../domain/otp_verify_result.dart';
+import '../domain/reauth_result.dart';
 import '../domain/social_login_result.dart';
+import 'auth_dtos.dart' show DeviceSession;
 
 /// Auth operations needed by the onboarding screens (file 01 §10/11) plus
 /// session teardown (file 01 §10.5 `POST /auth/logout`).
@@ -17,9 +20,16 @@ import '../domain/social_login_result.dart';
 /// commit 152e193) added [signInWithApple]/[signInWithGoogle] — native
 /// Apple/Google sign-in against `POST /auth/social`.
 ///
-/// STILL OUT OF SCOPE (deliberately, per this pass's blueprint):
-/// biometric reauth and the active-devices/account-deletion screens —
-/// those remain later phases.
+/// Phase 4 (docs/CHANGELOG.md, continuing directly after Phase 3 social
+/// login, commit 2bbeba5) added [logoutAll], [listSessions]/
+/// [revokeSession] (file 01 §10.4's "Активные устройства"), and
+/// [reauthWithOtp]/[deleteAccount] (file 01 §10.1/§10.7's reauth-gated
+/// account deletion). Biometric reauth itself
+/// (core/session/biometric_auth_service.dart) is a LOCAL capability, not a
+/// repository method — see that file's doc comment for why it never
+/// reaches this interface: the backend's `ReauthDto` only accepts
+/// `method: 'otp'`, so there is nothing for a repository method to POST
+/// for a biometric result on its own.
 abstract interface class AuthRepository {
   /// Requests an SMS OTP for [phoneNumber] (E.164 format, e.g. "+15551234567").
   Future<void> requestOtp(String phoneNumber);
@@ -42,4 +52,40 @@ abstract interface class AuthRepository {
   /// whether this succeeds — a session that's already gone server-side
   /// makes this a no-op there, but the local state still needs clearing.
   Future<void> logout();
+
+  /// Logs out every session/device (`POST /auth/logout-all`, file 01
+  /// §10.4's "«Выйти везде»"). Same local-state-clearing contract as
+  /// [logout] — the caller clears `SessionController` regardless of
+  /// whether the call itself succeeds.
+  Future<void> logoutAll();
+
+  /// Lists every active session/device for the current user (`GET
+  /// /auth/sessions`, file 01 §10.4's "Активные устройства").
+  Future<List<DeviceSession>> listSessions();
+
+  /// Revokes one session/device (`DELETE /auth/sessions/:id`). Works on
+  /// any session id, including the caller's own current one — a caller
+  /// revoking its own current session should also clear local session
+  /// state afterward, same as [logout].
+  Future<void> revokeSession(String sessionId);
+
+  /// `POST /auth/reauth` with the OTP method (see [ReauthResult]'s doc
+  /// comment for why that's the only method this ever sends). [identifier]
+  /// must be a phone/email already verified on the CURRENT account —
+  /// callers ask the person for it (there is no `GET /users/me` endpoint
+  /// yet to look it up automatically, see docs/CHANGELOG.md's Phase 4
+  /// entry) and must already have requested an OTP for it via
+  /// [requestOtp]-equivalent (`POST /auth/otp/request`, which is
+  /// `@Public()` and accepts any channel/identifier — see
+  /// `AuthApiClient.requestOtp`) before calling this with the code the
+  /// person received.
+  Future<ReauthResult> reauthWithOtp({required String identifier, required String code});
+
+  /// `DELETE /users/me` (file 01 §10.7) — starts the 14-day deletion grace
+  /// period. Requires a fresh, unused [reauthToken] from [reauthWithOtp].
+  /// On [AccountDeletionResult.success], the server has already revoked
+  /// every session for this account (including the caller's own) — the
+  /// caller must clear local session state and route to Welcome, it will
+  /// NOT get a chance to make another authenticated call first.
+  Future<AccountDeletionResult> deleteAccount({required String reauthToken});
 }

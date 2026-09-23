@@ -54,6 +54,8 @@ class StaticTranslatorRu extends _MapTranslator {
         'error.default.message': 'Что-то пошло не так',
         'error.retry': 'Повторить',
         'common.back': 'Назад',
+        'common.cancel': 'Отмена',
+        'common.confirm': 'Подтвердить',
         'lang.toggle.label': 'Выбрать язык',
         'theme.toggle.label': 'Тема',
         'lang.picker.title': 'Язык',
@@ -75,6 +77,63 @@ class StaticTranslatorRu extends _MapTranslator {
         'settings.legal': 'Правовая информация',
         'settings.logout': 'Выйти',
         'settings.deleteAccount': 'Удалить аккаунт',
+        // Active devices screen (Phase 4 of the auth networking work,
+        // docs/CHANGELOG.md), reachable from Settings -> Безопасность
+        // (file 01 §10.4: "Активные устройства").
+        'devices.title': 'Активные устройства',
+        'devices.subtitle': 'Устройства, на которых выполнен вход в ваш аккаунт',
+        'devices.current': 'Это устройство',
+        'devices.lastActive': 'Последняя активность: {time}',
+        'devices.lastActive.unknown': 'Нет данных об активности',
+        'devices.unknownDevice': 'Неизвестное устройство',
+        'devices.revoke': 'Завершить сессию',
+        'devices.revoke.confirm.title': 'Завершить сессию?',
+        'devices.revoke.confirm.body':
+            'Устройство будет разлогинено. Потребуется повторный вход.',
+        'devices.revoke.confirm.currentBody':
+            'Это текущее устройство. Вы будете разлогинены и потребуется повторный вход.',
+        'devices.revoke.confirm.action': 'Завершить',
+        'devices.logoutAll': 'Выйти на всех устройствах',
+        'devices.logoutAll.confirm.title': 'Выйти везде?',
+        'devices.logoutAll.confirm.body':
+            'Все устройства будут разлогинены, включая это. Потребуется повторный вход.',
+        'devices.empty': 'Нет активных сессий',
+        'devices.error': 'Не удалось загрузить список устройств',
+        // Delete-account screen (Phase 4 of the auth networking work,
+        // docs/CHANGELOG.md; file 01 §10.7). Reauth step is OTP-only
+        // server-side (see ReauthDto's doc comment in apps/api) — biometric
+        // is offered first as a local speed bump, see
+        // deleteAccount.reauth.biometric.*.
+        'deleteAccount.title': 'Удаление аккаунта',
+        'deleteAccount.warning.title': 'Это необратимо',
+        'deleteAccount.warning.body':
+            'Аккаунт будет удалён через 14 дней после подтверждения. Вы можете '
+                'отменить удаление, просто войдя в аккаунт снова в течение этого срока. '
+                'После истечения 14 дней личные данные будут анонимизированы, активные '
+                'кейсы закрыты, биды отклонены, подписка отменена.',
+        'deleteAccount.warning.continue': 'Продолжить',
+        'deleteAccount.reauth.title': 'Подтвердите личность',
+        'deleteAccount.reauth.biometric.button': 'Использовать Face ID / Touch ID',
+        'deleteAccount.reauth.biometric.prompt': 'Подтвердите личность, чтобы продолжить',
+        'deleteAccount.reauth.useCode': 'Использовать код по SMS',
+        'deleteAccount.reauth.phoneHint': 'Номер телефона, привязанный к аккаунту',
+        'deleteAccount.reauth.sendCode': 'Отправить код',
+        'deleteAccount.reauth.codeSubtitle': 'Мы отправили код на {phone}',
+        'deleteAccount.reauth.submit': 'Подтвердить код',
+        'deleteAccount.reauth.error.invalid':
+            'Неверный код, или номер не привязан к вашему аккаунту',
+        'deleteAccount.reauth.error.network': 'Ошибка сети, попробуйте снова',
+        'deleteAccount.reauth.error.expired': 'Подтверждение истекло, попробуйте снова',
+        'deleteAccount.confirmPhrase.title': 'Финальное подтверждение',
+        'deleteAccount.confirmPhrase.label': 'Введите {phrase}, чтобы подтвердить',
+        'deleteAccount.confirmPhrase.phrase': 'УДАЛИТЬ',
+        'deleteAccount.confirmPhrase.mismatch': 'Введите слово точно, как показано',
+        'deleteAccount.submit': 'Удалить аккаунт навсегда',
+        'deleteAccount.success.title': 'Аккаунт будет удалён',
+        'deleteAccount.success.body':
+            'У вас есть 14 дней, чтобы отменить удаление — просто войдите снова.',
+        'deleteAccount.success.action': 'Понятно',
+        'deleteAccount.error.generic': 'Не удалось удалить аккаунт. Попробуйте снова.',
         'auth.welcome.title': 'Доска объявлений для клиентов и адвокатов',
         'auth.welcome.phone': 'Продолжить с телефоном',
         'auth.welcome.email': 'Продолжить с email',
@@ -149,6 +208,8 @@ class StaticTranslatorEn extends _MapTranslator {
         'error.default.message': 'Something went wrong',
         'error.retry': 'Retry',
         'common.back': 'Back',
+        'common.cancel': 'Cancel',
+        'common.confirm': 'Confirm',
         'lang.toggle.label': 'Choose language',
         'theme.toggle.label': 'Theme',
         'lang.picker.title': 'Language',
@@ -170,6 +231,54 @@ class StaticTranslatorEn extends _MapTranslator {
         'settings.legal': 'Legal',
         'settings.logout': 'Log out',
         'settings.deleteAccount': 'Delete account',
+        'devices.title': 'Active devices',
+        'devices.subtitle': 'Devices currently signed in to your account',
+        'devices.current': 'This device',
+        'devices.lastActive': 'Last active: {time}',
+        'devices.lastActive.unknown': 'No activity recorded',
+        'devices.unknownDevice': 'Unknown device',
+        'devices.revoke': 'End session',
+        'devices.revoke.confirm.title': 'End this session?',
+        'devices.revoke.confirm.body': 'This device will be signed out and will need to sign in again.',
+        'devices.revoke.confirm.currentBody':
+            'This is your current device. You will be signed out and will need to sign in again.',
+        'devices.revoke.confirm.action': 'End session',
+        'devices.logoutAll': 'Sign out of all devices',
+        'devices.logoutAll.confirm.title': 'Sign out everywhere?',
+        'devices.logoutAll.confirm.body':
+            'Every device will be signed out, including this one. You will need to sign in again.',
+        'devices.empty': 'No active sessions',
+        'devices.error': "Couldn't load your devices",
+        'deleteAccount.title': 'Delete account',
+        'deleteAccount.warning.title': "This can't be undone",
+        'deleteAccount.warning.body':
+            'Your account will be deleted 14 days after you confirm. You can cancel by '
+                "simply signing back in during that window. After 14 days, your personal "
+                'data is anonymized, active cases are closed, bids are rejected, and any '
+                'subscription is cancelled.',
+        'deleteAccount.warning.continue': 'Continue',
+        'deleteAccount.reauth.title': 'Confirm it\'s you',
+        'deleteAccount.reauth.biometric.button': 'Use Face ID / Touch ID',
+        'deleteAccount.reauth.biometric.prompt': 'Confirm it\'s you to continue',
+        'deleteAccount.reauth.useCode': 'Use a text message code instead',
+        'deleteAccount.reauth.phoneHint': 'Phone number linked to your account',
+        'deleteAccount.reauth.sendCode': 'Send code',
+        'deleteAccount.reauth.codeSubtitle': 'We sent a code to {phone}',
+        'deleteAccount.reauth.submit': 'Confirm code',
+        'deleteAccount.reauth.error.invalid':
+            "Incorrect code, or that number isn't linked to your account",
+        'deleteAccount.reauth.error.network': 'Network error, please try again',
+        'deleteAccount.reauth.error.expired': 'Confirmation expired, please try again',
+        'deleteAccount.confirmPhrase.title': 'Final confirmation',
+        'deleteAccount.confirmPhrase.label': 'Type {phrase} to confirm',
+        'deleteAccount.confirmPhrase.phrase': 'DELETE',
+        'deleteAccount.confirmPhrase.mismatch': 'Type the word exactly as shown',
+        'deleteAccount.submit': 'Permanently delete account',
+        'deleteAccount.success.title': 'Your account will be deleted',
+        'deleteAccount.success.body':
+            'You have 14 days to cancel — just sign back in.',
+        'deleteAccount.success.action': 'Got it',
+        'deleteAccount.error.generic': "Couldn't delete your account. Please try again.",
         'auth.welcome.title': 'A marketplace for clients and attorneys',
         'auth.welcome.phone': 'Continue with phone',
         'auth.welcome.email': 'Continue with email',

@@ -47,6 +47,14 @@ dependencies:
   google_sign_in: ^7.2.0
   crypto: ^3.0.6
 
+  # Biometric reauth (Phase 4 of the auth networking work, docs/CHANGELOG.md):
+  # local Face ID/Touch ID/fingerprint gate (file 01 §10.1) used as a local
+  # device-owner check ahead of the phone+OTP step that actually mints a
+  # `POST /auth/reauth` token server-side — see
+  # core/session/biometric_auth_service.dart's doc comment for why the
+  # server-side trust boundary is still OTP-only this stage.
+  local_auth: ^2.3.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

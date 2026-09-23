@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/dio_client.dart';
 import '../../../core/network/headers_interceptor.dart';
 import '../../../core/persistence/persistence_providers.dart';
+import '../../../core/session/biometric_auth_service.dart';
 import '../../../core/session/session_providers.dart';
 import '../data/auth_api_client.dart';
 import '../data/auth_dtos.dart';
@@ -55,4 +56,12 @@ final authRepositoryProvider = Provider<AuthRepository>(
 
 final onboardingLocalStoreProvider = Provider<OnboardingLocalStore>(
   (ref) => OnboardingLocalStore(ref.watch(localKvStoreProvider)),
+);
+
+/// Local Face ID/Touch ID/fingerprint gate (Phase 4 of the auth networking
+/// work, docs/CHANGELOG.md) — see biometric_auth_service.dart's doc
+/// comment for what it does and does not prove to the server. `const`,
+/// same reasoning as [socialAuthNativeClientProvider].
+final biometricAuthServiceProvider = Provider<BiometricAuthService>(
+  (ref) => const BiometricAuthService(),
 );

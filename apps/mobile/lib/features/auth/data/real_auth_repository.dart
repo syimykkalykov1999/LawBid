@@ -1,6 +1,8 @@
 import '../../../core/network/api_error.dart';
 import '../../../core/session/session_providers.dart';
+import '../domain/account_deletion_result.dart';
 import '../domain/otp_verify_result.dart';
+import '../domain/reauth_result.dart';
 import '../domain/social_login_result.dart';
 import 'auth_api_client.dart';
 import 'auth_dtos.dart';
@@ -124,4 +126,55 @@ class RealAuthRepository implements AuthRepository {
 
   @override
   Future<void> logout() => _client.logout();
+
+  @override
+  Future<void> logoutAll() => _client.logoutAll();
+
+  @override
+  Future<List<DeviceSession>> listSessions() => _client.listSessions();
+
+  @override
+  Future<void> revokeSession(String sessionId) => _client.endSession(sessionId);
+
+  @override
+  Future<ReauthResult> reauthWithOtp({required String identifier, required String code}) async {
+    try {
+      final result = await _client.reauth(ReauthPayload(identifier: identifier, code: code));
+      return ReauthResult.success(reauthToken: result.reauthToken);
+    } on ApiException catch (e) {
+      switch (e.code) {
+        case ApiErrorCodes.reauthInvalid:
+          return const ReauthResult.invalid();
+        case ApiErrorCodes.authOtpRequestLimit:
+        case ApiErrorCodes.rateLimited:
+          final retryAfter = e.details?['retryAfterSeconds'];
+          return ReauthResult.rateLimited(retryAfter is int ? retryAfter : 60);
+        default:
+          return const ReauthResult.networkError();
+      }
+    }
+  }
+
+  @override
+  Future<AccountDeletionResult> deleteAccount({required String reauthToken}) async {
+    try {
+      await _client.deleteAccount(reauthToken: reauthToken);
+      // docs/01_FOUNDATION_AUTH.md §10.7 + AccountDeletionService
+      // (apps/api): the server revokes every session for this account,
+      // including the caller's own, as part of a successful deletion
+      // request — clear local session state now, there will be no further
+      // authenticated call to piggyback this on.
+      await _session.clear();
+      return const AccountDeletionResult.success();
+    } on ApiException catch (e) {
+      switch (e.code) {
+        case ApiErrorCodes.reauthRequired:
+          return const AccountDeletionResult.reauthRequired();
+        case ApiErrorCodes.reauthInvalid:
+          return const AccountDeletionResult.reauthInvalid();
+        default:
+          return const AccountDeletionResult.networkError();
+      }
+    }
+  }
 }

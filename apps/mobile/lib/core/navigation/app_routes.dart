@@ -16,4 +16,15 @@ abstract final class AppRoutes {
   /// full-screen settings page should cover the bottom nav, not live
   /// inside the profile tab's own shell branch.
   static const profileSettings = '/profile/settings';
+
+  /// Pushed on the ROOT navigator, same reasoning as [profileSettings]
+  /// (Phase 4 of the auth networking work, docs/CHANGELOG.md; file 01
+  /// §10.4's "Активные устройства", reachable from Settings ->
+  /// Безопасность).
+  static const activeDevices = '/profile/settings/devices';
+
+  /// Pushed on the ROOT navigator, same reasoning as [profileSettings]
+  /// (Phase 4 of the auth networking work, docs/CHANGELOG.md; file 01
+  /// §10.7, reachable from Settings -> Удалить аккаунт).
+  static const deleteAccount = '/profile/settings/delete-account';
 }

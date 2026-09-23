@@ -24,6 +24,13 @@ abstract final class ApiErrorCodes {
   static const accountExistsUseOtherMethod = 'ACCOUNT_EXISTS_USE_OTHER_METHOD';
   static const accountSuspended = 'ACCOUNT_SUSPENDED';
   static const accountDeleted = 'ACCOUNT_DELETED';
+
+  // Reauth + sessions + account deletion (Phase 4 of the auth networking
+  // work, docs/CHANGELOG.md) — copied verbatim from
+  // apps/api/src/common/errors/error-code.enum.ts.
+  static const reauthRequired = 'REAUTH_REQUIRED';
+  static const reauthInvalid = 'REAUTH_INVALID';
+  static const notFound = 'NOT_FOUND';
 }
 
 /// Parsed form of the backend's error envelope (docs/01_FOUNDATION_AUTH.md

@@ -26,6 +26,12 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<!-- Biometric reauth (Phase 4 of the auth networking work,
+	     docs/CHANGELOG.md): local_auth requires this string whenever
+	     Face ID is used on iOS, or the OS silently refuses the
+	     authenticate() call. -->
+	<key>NSFaceIDUsageDescription</key>
+	<string>LawBid uses Face ID to confirm it's you before deleting your account or other sensitive actions.</string>
 	<!-- Google Sign-In (Phase 3 of the auth networking work,
 	     docs/CHANGELOG.md): iOS needs the app's REVERSED client ID
 	     registered as a URL scheme so Google's OAuth redirect can get back

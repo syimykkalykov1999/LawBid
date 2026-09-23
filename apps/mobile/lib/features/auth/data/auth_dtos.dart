@@ -111,6 +111,79 @@ class RefreshPayload {
   };
 }
 
+/// `POST /auth/reauth` request body (`ReauthDto` —
+/// apps/api/src/modules/auth/dto/reauth.dto.ts). Phase 4 of the auth
+/// networking work (docs/CHANGELOG.md): `method` is hardcoded to `'otp'`
+/// at the type level (a const field, not a parameter) — the DTO's own doc
+/// comment says biometric is intentionally not a valid value yet (no
+/// platform attestation), so there is no second value this payload could
+/// ever send. `identifier` is whichever verified phone/email the code was
+/// sent to — the server independently checks it belongs to the CURRENT
+/// authenticated user (see `AuthService.reauth`).
+class ReauthPayload {
+  const ReauthPayload({required this.identifier, required this.code});
+
+  final String identifier;
+  final String code;
+  final String method = 'otp';
+
+  Map<String, dynamic> toJson() => {
+    'method': method,
+    'identifier': identifier,
+    'code': code,
+  };
+}
+
+/// `POST /auth/reauth` response body: `{reauthToken}`
+/// (apps/api/src/modules/auth/auth.service.ts `reauth()`).
+class ReauthTokenResult {
+  const ReauthTokenResult({required this.reauthToken});
+
+  factory ReauthTokenResult.fromJson(Map<String, dynamic> json) =>
+      ReauthTokenResult(reauthToken: json['reauthToken'] as String);
+
+  final String reauthToken;
+}
+
+/// One row of `GET /auth/sessions` (`SessionListItem` —
+/// apps/api/src/modules/auth/auth.service.ts). `sessionId` is actually the
+/// session CHAIN id (`session_chain_id` server-side, docs/
+/// 01_FOUNDATION_AUTH.md §10.4's `sessions` table) — kept as `sessionId`
+/// here to match the JSON key the server actually sends, since that's also
+/// the id `DELETE /auth/sessions/:id` expects back.
+class DeviceSession {
+  const DeviceSession({
+    required this.sessionId,
+    required this.deviceId,
+    required this.deviceName,
+    required this.platform,
+    required this.appVersion,
+    required this.lastUsedAt,
+    required this.createdAt,
+    required this.isCurrent,
+  });
+
+  factory DeviceSession.fromJson(Map<String, dynamic> json) => DeviceSession(
+    sessionId: json['sessionId'] as String,
+    deviceId: json['deviceId'] as String?,
+    deviceName: json['deviceName'] as String?,
+    platform: json['platform'] as String?,
+    appVersion: json['appVersion'] as String?,
+    lastUsedAt: json['lastUsedAt'] as String?,
+    createdAt: json['createdAt'] as String,
+    isCurrent: json['isCurrent'] as bool,
+  );
+
+  final String sessionId;
+  final String? deviceId;
+  final String? deviceName;
+  final String? platform;
+  final String? appVersion;
+  final String? lastUsedAt;
+  final String createdAt;
+  final bool isCurrent;
+}
+
 /// Mirrors `AuthTokensResult`
 /// (apps/api/src/modules/auth/social/auth-result.types.ts) — the shared
 /// response shape for otp/verify, social login, and refresh.

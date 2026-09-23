@@ -6,6 +6,8 @@ import '../../features/auth/auth_routes.dart';
 import '../../features/create/presentation/screens/create_screen.dart';
 import '../../features/feed/presentation/screens/feed_screen.dart';
 import '../../features/mine/presentation/screens/mine_screen.dart';
+import '../../features/profile/presentation/screens/active_devices_screen.dart';
+import '../../features/profile/presentation/screens/delete_account_screen.dart';
 import '../../features/profile/presentation/screens/profile_screen.dart';
 import '../../features/profile/presentation/screens/settings_screen.dart';
 import '../../features/search/presentation/screens/search_screen.dart';
@@ -63,6 +65,18 @@ GoRouter appRouter(Ref ref) {
         path: AppRoutes.profileSettings,
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const SettingsScreen(),
+      ),
+      // Phase 4 of the auth networking work (docs/CHANGELOG.md) — pushed
+      // on the ROOT navigator, same reasoning as profileSettings above.
+      GoRoute(
+        path: AppRoutes.activeDevices,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const ActiveDevicesScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.deleteAccount,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const DeleteAccountScreen(),
       ),
       ...authRoutes(),
     ],

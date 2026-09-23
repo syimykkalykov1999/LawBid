@@ -1697,3 +1697,259 @@ so nothing here has been compiled, analyzed, or run.
   (and, for the two `.plist` files, well-formed XML) and for every new
   relative import resolving to a real file — mechanical checks, not a
   substitute for `flutter analyze`.
+
+### Flutter auth networking, Phase 4 (final phase): biometric reauth infra, active-devices screen, account deletion (2026-09-23)
+
+Continues directly after Phase 3 Apple/Google social login (previous
+entry, commit 2bbeba5), itself continuing Phase 1+2 (commit 152e193).
+This closes out the "STILL OUT OF SCOPE" note `auth_repository.dart`
+carried since Phase 3: biometric reauth and the active-devices/
+account-deletion screens.
+
+**Research first, against the actual backend source, not the docs table.**
+Read `apps/api/src/modules/auth/{auth.controller.ts,auth.service.ts,dto/
+reauth.dto.ts,guards/reauth.guard.ts}` and `apps/api/src/modules/users/
+{controllers/users.controller.ts,services/account-deletion.service.ts}`
+before writing any Flutter code. Findings that shaped the implementation:
+
+- `POST /auth/reauth`'s `ReauthDto.method` is typed `IsIn(['otp'])` —
+  **biometric is not a valid value server-side, on purpose.** That DTO's
+  own doc comment says why: the server can't verify an on-device Face
+  ID/Touch ID assertion without platform key attestation (App Attest/Play
+  Integrity), which is a separate, currently-stubbed seam. So a biometric
+  capability in this app can be a genuine local device-owner check, but it
+  can never by itself mint a `reauthToken` — only a correct OTP code can.
+  This directly shaped the design below: biometric is real infrastructure
+  with a real call site, but it augments the OTP reauth step, it doesn't
+  replace it.
+- `GET /auth/sessions`, `DELETE /auth/sessions/:id`, `POST
+  /auth/logout-all`, and `POST /auth/reauth` are all fully implemented
+  (`AuthController`/`AuthService`) — `AuthService.listSessions` returns
+  `{sessionId, deviceId, deviceName, platform, appVersion, lastUsedAt,
+  createdAt, isCurrent}`, `endSession` 404s (not 403) on a session that
+  isn't the caller's own (anti-enumeration, same spirit as OTP), and
+  `reauth` returns `{reauthToken}` after checking `identifier` is a
+  verified contact on the CURRENT user specifically.
+- `DELETE /users/me` is also fully implemented
+  (`UsersController.deleteAccount` -> `AccountDeletionService
+  .requestDeletion`), gated by `@UseGuards(ReauthGuard) @ReauthRequired()`.
+  `ReauthGuard` reads the token from an `X-Reauth-Token` header, checks it
+  matches the caller's own `sub`+`sid`, and marks its `jti` spent in Redis
+  on first use (single-use, `REAUTH_TOKEN_TTL_SECONDS` — 5 minutes per the
+  docs table). On success the server sets `status = 'deletion_pending'`
+  and **revokes every session for the account immediately, including the
+  caller's own** — this is the opposite of most "soft delete" flows and
+  meant the Flutter side had to treat a successful delete call as an
+  implicit local logout, not a call it can chain anything else after.
+  Login-during-grace-period cancellation already exists too
+  (`AuthService.verifyOtp` flips `deletion_pending` back to `active`) — no
+  separate "cancel deletion" endpoint was needed or invented.
+- **No `GET /users/me` (or any other profile-read) endpoint exists yet.**
+  Flutter has never fetched or stored the user's own phone/email anywhere
+  past the moment it's typed into the phone screen during onboarding
+  (`SessionState`, decoded from the JWT, only carries `sub`/`role`/`sid`/
+  `verified`/`subscriptionStatus` — no contact info). This is a real gap:
+  the delete-account reauth step needs an `identifier` to request/verify
+  an OTP for, and there is no way to look up "the current user's own
+  verified phone number" from the client today. Engineering judgment,
+  documented on `AuthRepository.reauthWithOtp`'s doc comment: the
+  delete-account flow's reauth-phone step asks the person to type their
+  phone number themselves, same as the very first login screen. This is a
+  real UX cost this phase did not have the scope to fix (that's a
+  `GET /users/me`/profile-fetch feature, not built anywhere yet) — flagged
+  explicitly rather than silently working around it.
+
+**New — `core/session/biometric_auth_service.dart`**: `BiometricAuthService`
+wraps `local_auth`'s `LocalAuthentication` — `isAvailable()` (hardware +
+enrolled check) and `authenticate({reason})`, both collapsing every
+failure mode to `false`/no-throw. Its doc comment is explicit about the
+"what this does and doesn't prove to the server" point above. Wired into
+one real call site: the delete-account flow's reauth-phone step shows a
+"Use Face ID / Touch ID" button when available; tapping it runs the
+biometric check as a local trust signal (a SnackBar reports the outcome)
+but the phone+OTP form underneath is always still required — there is no
+other reauth-gated action anywhere in the app yet for this to gate on its
+own (§10.1's "История кейсов" reauth gate is explicitly file-4 scope, not
+built).
+
+**New — `features/auth/domain/{reauth_result.dart,
+account_deletion_result.dart}`**: freezed unions mirroring `otp_verify_
+result.dart`'s/`social_login_result.dart`'s style. `ReauthResult`:
+`success(reauthToken)`, `invalid()` (covers both a wrong/expired code AND
+an identifier that isn't a verified contact on this account — same
+anti-enumeration collapsing the backend itself does), `rateLimited
+(retryAfterSeconds)`, `networkError()`. `AccountDeletionResult`:
+`success()`, `reauthRequired()`, `reauthInvalid()`, `networkError()`.
+`.freezed.dart` parts NOT generated (no `dart` binary on this bridge, same
+as every prior phase) — `dart run build_runner build` required.
+
+**New — `features/profile/domain/{delete_account_step.dart,
+delete_account_flow_state.dart}`** and **`features/profile/application/
+{active_devices_controller.dart, delete_account_controller.dart}`**:
+`ActiveDevicesController` is a `@riverpod` `AsyncNotifier<List<
+DeviceSession>>` (`build()` calls `listSessions()`; `revoke(id)`/
+`refresh()` both `invalidateSelf()` + `await future`) — the first
+`AsyncNotifier` in this codebase (no prior list-fetch precedent to copy;
+every earlier `@riverpod` class here, e.g. `SessionController`/
+`OnboardingFlow`, is a plain sync `Notifier`), called out explicitly since
+it's new shape for this codebase, not an established pattern being
+repeated. `DeleteAccountController` is a plain `Notifier` driving
+`DeleteAccountFlowState` (`step`, `biometricAvailable`, `phoneNumber`,
+`reauthToken`, `confirmPhraseInput`, `isSubmitting`, `errorMessage`)
+through `DeleteAccountStep.{warning, reauthPhone, reauthCode,
+confirmPhrase, submitting, done}` — same one-notifier-per-flow shape as
+`OnboardingFlow`, and its `.when(...)` branches over `ReauthResult`/
+`AccountDeletionResult` follow `OnboardingFlow.verifyOtp`'s exact
+branching style rather than Dart 3 pattern-matching (matching the
+established convention in this codebase, not a style choice made fresh
+here). `.g.dart` parts NOT generated, same bridge limitation.
+
+**New — `features/profile/presentation/screens/{active_devices_screen.dart,
+delete_account_screen.dart}`**:
+
+- `ActiveDevicesScreen` (`/profile/settings/devices`): loading (3
+  `AppSkeleton` rows) / error (`AppErrorState` + retry) / empty
+  (`AppEmptyState`) / data states over `ActiveDevicesController`. Each row
+  shows a platform icon, device name (falls back to a translated "Unknown
+  device" when the server sent `null`), last-active timestamp (or "no
+  activity recorded" when `null`), an `AppChip` "This device" badge on
+  `isCurrent`, and a revoke `IconButton` behind an `AlertDialog`
+  confirmation (a stronger warning copy when revoking the current
+  session). A bottom "Sign out of all devices" `AppButton` calls `POST
+  /auth/logout-all`, also behind a confirm dialog. Revoking/logging out
+  the CURRENT session clears local `SessionController` state and routes to
+  `/welcome` — the two places this phase needed that logout-and-redirect
+  behavior, which nothing in the codebase had built yet (Settings'
+  "Выйти" row is still `showNotBuiltYet`, untouched, out of this phase's
+  scope).
+- `DeleteAccountScreen` (`/profile/settings/delete-account`): one screen,
+  an internal step switch over `DeleteAccountFlowState.step` (see that
+  file's doc comment for why one screen rather than 3-4 routes — no step
+  here is independently deep-linkable or meaningfully resumable across an
+  app restart the way onboarding's screens are, so the safe default on any
+  interruption is "start over at the warning", which a single screen gives
+  for free). Warning step states the 14-day grace period and that signing
+  back in cancels it (§10.7, verified against `AccountDeletionService`'s
+  actual behavior above, not just the docs prose). Reauth-phone step
+  offers the biometric speed-bump described above, then a phone number
+  field reusing the same `+1`/10-digit convention as `PhoneScreen` (US-only
+  onboarding, unchanged assumption). Reauth-code step reuses `AppOtpField`
+  with the exact `_currentCode`-as-a-State-field pattern `OtpScreen`
+  already established (a `build()`-local variable would reset on every
+  rebuild — this phase copied that fix rather than reintroducing the bug).
+  Confirm-phrase step requires typing the (localized) word DELETE/УДАЛИТЬ
+  exactly before a red `ElevatedButton` (no danger variant exists on
+  `AppButton` yet, so this uses a directly-styled `ElevatedButton` with
+  `colors.danger`, matching how the destructive Settings rows already use
+  `colors.danger` for text) calls `DELETE /users/me`. Done step shows the
+  grace-period message and a button that routes to `/welcome` (local
+  session state is already cleared by `RealAuthRepository.deleteAccount`
+  by this point, not here). A `reauthRequired`/`reauthInvalid` response at
+  the final submit (the 5-minute reauth token expired between
+  confirm-phrase and submit) sends the person back to the reauth-phone
+  step with an "expired, try again" message rather than dead-ending.
+
+Modified: `pubspec.yaml` (`local_auth: ^2.3.0`). `ios/Runner/Info.plist`
+(`NSFaceIDUsageDescription` — required or `local_auth` silently refuses
+Face ID on iOS). `android/app/src/main/AndroidManifest.xml`
+(`android.permission.USE_BIOMETRIC`).
+`android/app/src/main/kotlin/com/lawbid/lawbid/MainActivity.kt`
+(`FlutterActivity` -> `FlutterFragmentActivity` — `local_auth`'s Android
+`BiometricPrompt` path needs a `FragmentActivity` host or it throws at
+runtime the first time `authenticate()` is called).
+`android/app/build.gradle.kts` (`minSdk = maxOf(flutter.minSdkVersion,
+23)` — `local_auth`'s `BiometricPrompt` needs API 23+; `maxOf` only raises
+the floor, never lowers whatever Flutter's own default already is).
+`auth_dtos.dart` (added `ReauthPayload`, `ReauthTokenResult`,
+`DeviceSession`). `auth_api_client.dart` (added `logoutAll()`,
+`listSessions()`, `endSession(id)`, `reauth()`, `deleteAccount
+({reauthToken})` — the last sends `X-Reauth-Token` via `Options(headers:
+...)`, same `_skipAuth`/`_unwrap`/`DioException`-catch shape as every
+other method here). `auth_repository.dart` (interface gained
+`logoutAll()`, `listSessions()`, `revokeSession(id)`,
+`reauthWithOtp({identifier, code})`, `deleteAccount({reauthToken})`; the
+"STILL OUT OF SCOPE" note is gone — replaced with a note explaining why
+biometric reauth is a local capability, never a repository method).
+`real_auth_repository.dart` (implements all 5 new methods; `deleteAccount`
+calls `_session.clear()` on success per the "server already revoked every
+session" finding above; `reauthWithOtp`/`deleteAccount` both switch
+`ApiException.code` over the new `ApiErrorCodes` constants). `stub_auth_
+repository.dart` (matching stub methods so golden/widget tests overriding
+`authRepositoryProvider` keep compiling; `listSessions()` returns one
+fake "This device" row). `auth_providers.dart` (new
+`biometricAuthServiceProvider`). `api_error.dart` (3 new `ApiErrorCodes`
+constants: `reauthRequired`, `reauthInvalid`, `notFound`, copied verbatim
+from apps/api's `ErrorCode` enum). `app_routes.dart` (`activeDevices` =
+`/profile/settings/devices`, `deleteAccount` =
+`/profile/settings/delete-account`, same root-navigator-push reasoning as
+`profileSettings`). `app_router.dart` (2 new `GoRoute`s, same shape as the
+existing `profileSettings` route). `settings_screen.dart` (Безопасность ->
+`context.push(AppRoutes.activeDevices)`, Удалить аккаунт ->
+`context.push(AppRoutes.deleteAccount)`; Аккаунт/Выйти/Подписка/История
+кейсов/Уведомления/Помощь/Правовая информация rows unchanged, still
+`showNotBuiltYet`). `static_translator.dart` (`common.cancel`/
+`common.confirm`, ~20 `devices.*` keys, ~20 `deleteAccount.*` keys, RU+EN,
+following the `settings.*`/`auth.social.*` key-naming convention).
+
+**What's fully backend-wired end-to-end vs. not, stated plainly:**
+- **Active devices screen: fully wired.** `GET /auth/sessions`, `DELETE
+  /auth/sessions/:id`, `POST /auth/logout-all` are all real backend calls
+  against endpoints confirmed to exist and behave as coded, by reading
+  their actual NestJS source.
+- **Account deletion: fully wired**, including its reauth gate. `POST
+  /auth/otp/request` (reused, not new) -> `POST /auth/reauth` -> `DELETE
+  /users/me` with `X-Reauth-Token` is a real, complete call chain against
+  a real, fully-implemented backend flow (`AccountDeletionService` exists
+  and does exactly what §10.7 describes for this stage — see the research
+  section above for exactly what it does and does not do this early:
+  no anonymization pipeline yet, that needs files 2-5's tables and a
+  scheduled job, explicitly out of `AccountDeletionService`'s own scope
+  per its doc comment, not something this Flutter pass could wire around).
+  The one real UX gap: the reauth step can't prefill the account's phone
+  number (no `GET /users/me` — see above), so the person has to type it.
+- **Biometric reauth: infrastructure only, by design, matching this
+  phase's own instructions.** `BiometricAuthService` is real, has a real
+  call site (the delete-account reauth-phone step's speed-bump button),
+  and is exercised on every run through that screen — but it cannot, and
+  does not, replace the OTP reauth step, because the backend's own
+  `ReauthDto` doesn't accept a biometric method yet (see research section
+  above — this is the backend's own documented, deliberate limitation,
+  not something this pass chose not to build). No other reauth-gated
+  action exists anywhere in this app yet (§10.1's case-history gate is
+  file-4 scope) for biometric to attach to beyond that one call site.
+
+**Endpoints searched for and NOT found in the backend** (stated
+explicitly, not glossed over): no `GET /users/me` or other profile-read
+endpoint anywhere in `apps/api/src/modules/users/` — confirmed by reading
+`users.controller.ts` in full (only `contacts/request`, `contacts/verify`,
+`consents`, and `DELETE` exist). No separate "cancel account deletion"
+endpoint — confirmed not needed, cancellation already happens as a side
+effect of `AuthService.verifyOtp` on next login.
+
+**Not verified — no way to in this environment** (same bridge limitation
+as every prior phase's entry): no `flutter`/`dart`/Xcode/`adb` reachable.
+- `flutter pub get` (new `local_auth` dependency) and `dart run
+  build_runner build` (4 new/changed `.freezed.dart` parts: `reauth_
+  result.dart`, `account_deletion_result.dart`, `delete_account_flow_
+  state.dart`; 2 new `.g.dart` parts: `active_devices_controller.dart`,
+  `delete_account_controller.dart`) are both required before this
+  compiles.
+- `local_auth`'s actual API surface (`LocalAuthentication`,
+  `AuthenticationOptions`, `isDeviceSupported`/`canCheckBiometrics`/
+  `getAvailableBiometrics`) was verified against pub.dev documentation,
+  not a running build or a real device — same caveat Phase 3's Google
+  nonce section carries for `google_sign_in`.
+- `ActiveDevicesController`'s use of `AsyncNotifier`/`ref.invalidateSelf()`
+  + `await future` is the first use of that Riverpod shape in this
+  codebase (flagged above) — verified against Riverpod's own
+  documentation for `riverpod_generator`/`riverpod_annotation` ^4.x, not
+  against a real build.
+- The Android `FlutterFragmentActivity` swap and `minSdk` bump are the
+  documented fix for `local_auth`'s known Android requirement, not
+  independently confirmed against this project's actual Gradle resolution
+  (no Gradle reachable from this bridge either).
+- Every file touched was checked for balanced parens/braces/brackets (and
+  the two native config files — `Info.plist`, `AndroidManifest.xml` — for
+  well-formed XML), and every new relative import was checked to resolve
+  to a real file that exists at that path — mechanical checks, not a
+  substitute for `flutter analyze`.

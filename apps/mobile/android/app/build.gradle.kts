@@ -19,7 +19,11 @@ android {
         applicationId = "com.lawbid.lawbid"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        // Biometric reauth (Phase 4 of the auth networking work,
+        // docs/CHANGELOG.md): local_auth's BiometricPrompt path needs API
+        // 23+. maxOf(...) only raises the floor if Flutter's own default is
+        // lower; never lowers it below flutter.minSdkVersion.
+        minSdk = maxOf(flutter.minSdkVersion, 23)
         targetSdk = flutter.targetSdkVersion
         // Uses the version code from pubspec.yaml. When using split APKs, 1000 * ABI_VERSION
         // is added automatically by Flutter. (https://developer.android.com/studio/build/configure-apk-splits#configure-APK-versions)

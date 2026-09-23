@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/design_system/design_system.dart';
 import '../../../../core/l10n/l10n_providers.dart';
 import '../../../../core/l10n/widgets/language_picker_sheet.dart';
+import '../../../../core/navigation/app_routes.dart';
 
 /// `/profile/settings` (file 01 §3.6: "Настройки (гамбургер): Аккаунт,
 /// Безопасность, Язык, Тема, Подписка (адвокат), История кейсов
@@ -16,12 +18,14 @@ import '../../../../core/l10n/widgets/language_picker_sheet.dart';
 /// not how other apps do it (Instagram/TikTok: profile → gear icon →
 /// settings screen), which also happens to be exactly what §3.6 specifies.
 /// Moved here, plus every other §3.6 row as a stub list — only Тема and
-/// Язык are wired to real controllers today; the rest need file 3
-/// (Подписка), file 4 (История кейсов), file 5 (deeper notification
-/// categories) or Этап 1.7's still-missing auth networking layer (Аккаунт,
-/// Безопасность, Выйти, Удалить аккаунт — see docs/CHANGELOG.md's stage-1
-/// audit), so they show the same "not built yet" affordance already used
-/// elsewhere (welcome screen's social buttons, legal docs).
+/// Язык are wired to real controllers today. Phase 4 of the auth
+/// networking work (docs/CHANGELOG.md, continuing directly after Phase 3
+/// social login, commit 2bbeba5) wires Безопасность -> Active Devices
+/// (`AppRoutes.activeDevices`) and Удалить аккаунт -> the delete-account
+/// flow (`AppRoutes.deleteAccount`). Аккаунт, Выйти, Подписка (file 3),
+/// История кейсов (file 4), and Уведомления's deeper categories (file 5)
+/// still show the "not built yet" affordance already used elsewhere
+/// (welcome screen's social buttons, legal docs).
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
@@ -61,7 +65,7 @@ class SettingsScreen extends ConsumerWidget {
           ),
           _SettingsRow(
             label: t.t('settings.security'),
-            onTap: showNotBuiltYet,
+            onTap: () => context.push(AppRoutes.activeDevices),
           ),
           _SettingsRow(
             label: t.t('settings.language'),
@@ -101,7 +105,7 @@ class SettingsScreen extends ConsumerWidget {
           _SettingsRow(
             label: t.t('settings.deleteAccount'),
             destructive: true,
-            onTap: showNotBuiltYet,
+            onTap: () => context.push(AppRoutes.deleteAccount),
           ),
         ],
       ),

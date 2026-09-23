@@ -97,6 +97,86 @@ class AuthApiClient {
     }
   }
 
+  /// `POST /auth/logout-all` (file 01 §10.5 "все сессии"). Same
+  /// auth-required shape as [logout] — needs the bearer token, no
+  /// `skipAuth`.
+  Future<void> logoutAll() async {
+    try {
+      await _dio.post<Map<String, dynamic>>('/auth/logout-all');
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
+  /// `GET /auth/sessions` (Phase 4 of the auth networking work,
+  /// docs/CHANGELOG.md) — lists every active session/device for the
+  /// current user (file 01 §10.4's "Активные устройства").
+  Future<List<DeviceSession>> listSessions() async {
+    try {
+      final response = await _dio.get<Map<String, dynamic>>('/auth/sessions');
+      final envelope = response.data?['data'];
+      if (envelope is! List) {
+        throw const ApiException(
+          code: ApiException.networkErrorCode,
+          message: 'Unexpected response shape from the server.',
+        );
+      }
+      return envelope
+          .cast<Map<String, dynamic>>()
+          .map(DeviceSession.fromJson)
+          .toList(growable: false);
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
+  /// `DELETE /auth/sessions/:id` — revokes one session/device (file 01
+  /// §10.4's "кнопка «Выйти на этом устройстве»", applied to any row, not
+  /// just the current one).
+  Future<void> endSession(String sessionId) async {
+    try {
+      await _dio.delete<Map<String, dynamic>>('/auth/sessions/$sessionId');
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
+  /// `POST /auth/reauth` (file 01 §10.5) — the OTP-only path (see
+  /// `ReauthPayload`'s doc comment for why `method` is never anything
+  /// else). Returns a short-lived `reauthToken` (5 minutes,
+  /// `REAUTH_TOKEN_TTL_SECONDS` server-side) that gates sensitive actions
+  /// via the `X-Reauth-Token` header — see [deleteAccount].
+  Future<ReauthTokenResult> reauth(ReauthPayload payload) async {
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        '/auth/reauth',
+        data: payload.toJson(),
+      );
+      return ReauthTokenResult.fromJson(_unwrap(response));
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
+  /// `DELETE /users/me` (file 01 §10.7) — starts the 14-day deletion grace
+  /// period; the server revokes every session (including this one)
+  /// immediately on success, so the caller must treat a successful call as
+  /// an implicit local logout. Requires a fresh [reauthToken] from
+  /// [reauth], sent as `X-Reauth-Token` — the header name/casing matches
+  /// `ReauthGuard`'s `REAUTH_HEADER` constant
+  /// (apps/api/src/modules/auth/guards/reauth.guard.ts); dio lower-cases
+  /// header names on the wire regardless, so casing here is cosmetic.
+  Future<void> deleteAccount({required String reauthToken}) async {
+    try {
+      await _dio.delete<Map<String, dynamic>>(
+        '/users/me',
+        options: Options(headers: {'X-Reauth-Token': reauthToken}),
+      );
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
   /// Unwraps the backend's success envelope (docs/01_FOUNDATION_AUTH.md
   /// §7: `{data, meta?}`) — every endpoint's real payload is under
   /// `data`.
