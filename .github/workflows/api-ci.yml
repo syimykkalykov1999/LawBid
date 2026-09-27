@@ -152,8 +152,15 @@ jobs:
         # docs/02_DATABASE.md §7.1: "prisma migrate diff (нет расхождения
         # схемы и миграций)". Exit code 2 = the migrated DB differs from
         # schema.prisma (a schema edit without a migration, or vice versa).
+        # The introspection guard matters: when Prisma's schema engine panics
+        # while reading the DB (it did on USING HASH indexes), `migrate diff`
+        # prints nothing and still exits 0 — a silent false "no drift".
         working-directory: apps/api
-        run: npx prisma migrate diff --from-schema-datasource prisma/schema.prisma --to-schema-datamodel prisma/schema.prisma --exit-code
+        run: |
+          models=$(npx prisma db pull --print | grep -c '^model ')
+          echo "introspected models: $models"
+          test "$models" -gt 0
+          npx prisma migrate diff --from-schema-datasource prisma/schema.prisma --to-schema-datamodel prisma/schema.prisma --exit-code
 
       - name: ERD is up to date
         # docs/02_DATABASE.md §8 stage 2.7: docs/db/ERD.md is generated.

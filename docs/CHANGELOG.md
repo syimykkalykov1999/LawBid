@@ -3326,3 +3326,44 @@ Branch `cursor/stage-1-7-onboarding-mobile`. Implements docs/01_FOUNDATION_AUTH.
   - the verification wizard (file 03);
   - data export (file 06);
   - theme sync to `PATCH /users/me` (theme stays local-only; language is synced on the language step).
+
+## Fix: stage 2.6 broke Prisma introspection — drift checks were false — 2026-09-27
+
+Found while starting stage 3.1: `prisma migrate diff` printed nothing and
+exited 0 even with real schema changes pending. Root cause: Prisma's schema
+engine **panics** when it introspects a CockroachDB `USING HASH` index
+(`sql-schema-describer/src/postgres.rs: unwrap() on None`), and the CLI
+swallows the panic. Every "no drift" claim made after the stage 2.6
+migration (the 2.6/2.7 entries and the file 02 DoD checkbox) was therefore
+unverified. Corrected:
+
+- Migration `…_stage_2_6_fix_explicit_shards`: the three hash-sharded
+  indexes (`posts` global feed, `auth_events`, `audit_log`) are replaced by
+  an explicit STORED column `created_shard = mod(fnv32(id), 16)` and a plain
+  `(created_shard, created_at)` index. Writes still spread across 16 ranges
+  (§1.1). Probing showed that on this CockroachDB even the native
+  hash-sharded index gave a full scan + top-k for the feed query, so nothing
+  was lost; the global feed (stage 5.3) will read 16 limited per-shard scans
+  merged by `created_at`.
+- Migration `…_stage_2_6_fix_partial_trigram`: the three trigram GIN indexes
+  are recreated as *partial* (`WHERE col IS NOT NULL`). Prisma's CockroachDB
+  connector can't declare `gin_trgm_ops`, so it wanted to drop them; it
+  ignores partial indexes. EXPLAIN confirms `LIKE '%term%'` uses them; the
+  `%` similarity operator does not use any trigram index on this version, so
+  search (stage 5.6) filters with LIKE and ranks with `similarity()`.
+- `schema.prisma` now declares the remaining GIN indexes (array and
+  tsvector), the `(created_shard, created_at)` indexes and the computed
+  column expressions, so the diff matches the DB exactly. Also corrected: my
+  earlier note that "Prisma ignores partial *and inverted* indexes" — only
+  partial ones are ignored.
+- Verified for real this time: introspection returns 59 models and
+  `migrate diff` is `-- This is an empty migration.`
+- CI drift step hardened: it first asserts `prisma db pull --print`
+  returns models (> 0), so a silent engine panic now fails CI instead of
+  passing it.
+- e2e rebuilt from scratch with all migrations: 10 suites / 57 tests; unit
+  158/158.
+- Environment note: the running dev container `lawbid-cockroach-1` is
+  CockroachDB **v25.3** (left over from an older compose project), while
+  `docker-compose.yml` pins v24.1.5. Code stays 24.1-compatible (no
+  triggers/RLS relied on).
