@@ -30,3 +30,7 @@ apps/mobile/android/.gradle/
 infra/**/.terraform/
 infra/**/*.tfstate
 infra/**/*.tfstate.backup
+
+# Claude Code agent worktrees and golden-test failure output
+.claude/
+apps/mobile/test/**/failures/
