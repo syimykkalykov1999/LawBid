@@ -15,7 +15,7 @@ import { REDIS_CLIENT } from '../../../redis/redis.constants';
  * `/config/bootstrap` calls (e.g. many clients cold-starting at once)
  * hits Redis, not the DB, for all but one of them. */
 const FLAGS_CACHE_TTL_SECONDS = 30;
-const FLAGS_CACHE_KEY = 'config:feature_flags';
+export const FLAGS_CACHE_KEY = 'config:feature_flags';
 
 /**
  * Reads the full `feature_flags` table as a flat `{key: enabled}` map —
@@ -56,5 +56,20 @@ export class FeatureFlagsService {
       FLAGS_CACHE_TTL_SECONDS,
     );
     return flags;
+  }
+
+  /** One flag, for server-side enforcement (login methods, device
+   * attestation). `defaultValue` applies when the row doesn't exist —
+   * callers choose it per flag so a missing seed row fails in the
+   * intended direction (login methods: open; attestation: off). */
+  async isEnabled(key: string, defaultValue: boolean): Promise<boolean> {
+    const flags = await this.getFlags();
+    return flags[key] ?? defaultValue;
+  }
+
+  /** Drops the cached flag set so the next read goes to the DB — for a
+   * writer that changes `feature_flags` (admin panel, file 6; e2e). */
+  async invalidate(): Promise<void> {
+    await this.redis.del(FLAGS_CACHE_KEY);
   }
 }

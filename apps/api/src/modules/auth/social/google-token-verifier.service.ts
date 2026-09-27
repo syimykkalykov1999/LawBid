@@ -10,6 +10,7 @@ import type {
   SocialTokenVerifier,
   SocialVerifyResult,
 } from './social-verifier.interface';
+import { nonceClaimMatches } from './nonce.util';
 
 /**
  * docs/01_FOUNDATION_AUTH.md §10.2: "сервер валидирует подпись/аудиторию/
@@ -18,6 +19,10 @@ import type {
  * this class is a thin, typed wrapper rather than hand-rolled JWKS
  * handling (unlike Apple, which has no official Node SDK — see
  * apple-token-verifier.service.ts).
+ *
+ * Nonce: google-auth-library does NOT check it — nonceClaimMatches()
+ * (nonce.util.ts) requires the claim and accepts the raw nonce or its
+ * sha256 hex, per Google's client libraries' two conventions.
  */
 @Injectable()
 export class GoogleTokenVerifier implements SocialTokenVerifier {
@@ -57,7 +62,7 @@ export class GoogleTokenVerifier implements SocialTokenVerifier {
         message: 'Google ID token payload missing sub.',
       });
     }
-    if (payload.nonce !== nonce) {
+    if (!nonceClaimMatches('google', payload.nonce, nonce)) {
       throw new UnauthorizedException({
         code: ErrorCode.AUTH_SOCIAL_TOKEN_INVALID,
         message: 'Google ID token nonce mismatch.',

@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PinoLogger } from 'nestjs-pino';
 import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
-import type { EmailProvider } from './email-provider.interface';
+import type { EmailMessage, EmailProvider } from './email-provider.interface';
 
 /**
  * Real provider, selected by config/provider-selection.ts once SES_REGION
@@ -30,22 +30,25 @@ export class SesEmailProvider implements EmailProvider {
     this.fromAddress = this.config.getOrThrow<string>('SES_FROM_ADDRESS');
   }
 
-  async send(toEmail: string, code: string): Promise<void> {
+  async sendEmail(message: EmailMessage): Promise<void> {
     await this.client.send(
       new SendEmailCommand({
         Source: this.fromAddress,
-        Destination: { ToAddresses: [toEmail] },
+        Destination: { ToAddresses: [message.to] },
         Message: {
-          Subject: { Data: 'Your LawBid code' },
+          Subject: { Data: message.subject, Charset: 'UTF-8' },
           Body: {
-            Text: { Data: `Your code: ${code}. Expires in 10 minutes.` },
+            Text: { Data: message.text, Charset: 'UTF-8' },
+            ...(message.html
+              ? { Html: { Data: message.html, Charset: 'UTF-8' } }
+              : {}),
           },
         },
       }),
     );
     this.logger.info(
-      { toEmailDomain: toEmail.split('@')[1] },
-      'SES OTP email sent',
+      { toEmailDomain: message.to.split('@')[1] },
+      'SES email sent',
     );
   }
 }

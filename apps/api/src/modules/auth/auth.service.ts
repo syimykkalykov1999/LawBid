@@ -34,6 +34,8 @@ import type { ReauthDto } from './dto/reauth.dto';
 import type { LinkIdentifierDto } from './dto/link-identifier.dto';
 import type { RequestUser } from './decorators/current-user.decorator';
 import type { AuthTokensResult } from './social/auth-result.types';
+import { LoginMethodPolicy } from './services/login-method-policy.service';
+import { NewDeviceNotifier } from './notifications/new-device-notifier.service';
 
 const ENV = {
   otpPerIdentifierPerHour: 'OTP_RATE_LIMIT_PER_IDENTIFIER_PER_HOUR',
@@ -76,12 +78,17 @@ export class AuthService {
     private readonly google: GoogleTokenVerifier,
     private readonly apple: AppleTokenVerifier,
     private readonly config: ConfigService,
+    private readonly loginMethods: LoginMethodPolicy,
+    private readonly newDevice: NewDeviceNotifier,
   ) {}
 
   // ---------------------------------------------------------------------
   // POST /auth/otp/request
   // ---------------------------------------------------------------------
   async requestOtp(dto: OtpRequestDto, meta: RequestMeta): Promise<void> {
+    // Before any rate-limit budget or provider spend (feature flag
+    // phone_login / email_login).
+    await this.loginMethods.assertEnabled(dto.channel);
     const identifier = this.normalize(dto.channel, dto.identifier);
 
     const perIdentifier = await this.rateLimit.consumeSlidingWindow(
@@ -146,6 +153,9 @@ export class AuthService {
     dto: OtpVerifyDto,
     meta: RequestMeta,
   ): Promise<AuthTokensResult> {
+    // A code requested before the method was switched off must not still
+    // mint a session afterwards.
+    await this.loginMethods.assertEnabled(dto.channel);
     const identifier = this.normalize(dto.channel, dto.identifier);
     const deviceInfo: DeviceInfo = dto.deviceInfo ?? {};
 
@@ -310,6 +320,15 @@ export class AuthService {
       meta: { isNewUser, isNewDevice },
     });
 
+    // docs/01 §10.6 new-device alert: audit row inline, delivery detached.
+    await this.newDevice.onLogin({
+      user,
+      isNewUser,
+      isNewDevice,
+      device: deviceInfo,
+      meta,
+    });
+
     return {
       accessToken,
       refreshToken: refreshTokenRaw,
@@ -368,6 +387,30 @@ export class AuthService {
         message:
           'Refresh token reuse detected; all sessions for this device chain were revoked.',
       });
+    }
+    if (outcome.status === 'blocked') {
+      throw new ForbiddenException(
+        outcome.reason === 'suspended'
+          ? {
+              code: ErrorCode.ACCOUNT_SUSPENDED,
+              message: 'This account has been suspended.',
+            }
+          : {
+              code: ErrorCode.ACCOUNT_DELETED,
+              message: 'This account has been deleted.',
+            },
+      );
+    }
+    if (outcome.status === 'rate_limited') {
+      throw new HttpException(
+        {
+          code: ErrorCode.RATE_LIMITED,
+          message:
+            'Too many refresh attempts for this session. Try again later.',
+          details: { retryAfterSeconds: outcome.retryAfterSeconds },
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
     }
 
     // withDeleted: the session row, not users.deleted_at, decides whether

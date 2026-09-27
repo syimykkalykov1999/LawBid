@@ -35,6 +35,8 @@ describe('AppModule (e2e) — stage 1.2 plumbing', () => {
       .useValue({
         onModuleInit: () => Promise.resolve(),
         onModuleDestroy: () => Promise.resolve(),
+        // GET /health/ready's database indicator runs SELECT 1.
+        $queryRawUnsafe: () => Promise.resolve([{ '?column?': 1 }]),
       })
       .compile();
 

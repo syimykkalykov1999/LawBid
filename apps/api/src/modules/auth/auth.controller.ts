@@ -8,6 +8,7 @@ import {
   Param,
   Post,
   Req,
+  UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import type { Request } from 'express';
@@ -26,6 +27,7 @@ import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { ReauthDto } from './dto/reauth.dto';
 import { LinkIdentifierDto } from './dto/link-identifier.dto';
 import type { RequestMeta } from './services/session.service';
+import { DeviceAttestationGuard } from './attestation/device-attestation.guard';
 
 /**
  * docs/01_FOUNDATION_AUTH.md §10.5. Stays a thin HTTP layer per
@@ -44,6 +46,10 @@ import type { RequestMeta } from './services/session.service';
  * otp/request triggers a billed SMS/email send) — logout/logout-all/
  * reauth/DELETE sessions are naturally idempotent already (revoking an
  * already-revoked session is a no-op) so they don't need it.
+ *
+ * DeviceAttestationGuard (flag `device_attestation`, docs/01 §10.6)
+ * guards the two unauthenticated routes that spend money or mint
+ * accounts: otp/request and social.
  */
 @Controller('auth')
 export class AuthController {
@@ -55,6 +61,7 @@ export class AuthController {
   @Public()
   @Post('otp/request')
   @HttpCode(HttpStatus.OK)
+  @UseGuards(DeviceAttestationGuard)
   @UseInterceptors(IdempotencyInterceptor)
   async requestOtp(@Body() dto: OtpRequestDto, @Req() req: Request) {
     await this.auth.requestOtp(dto, this.meta(req));
@@ -70,6 +77,7 @@ export class AuthController {
 
   @Public()
   @Post('social')
+  @UseGuards(DeviceAttestationGuard)
   @UseInterceptors(IdempotencyInterceptor)
   async social(@Body() dto: SocialLoginDto, @Req() req: Request) {
     return this.socialAuth.login(dto, this.meta(req));

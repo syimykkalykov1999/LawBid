@@ -7,6 +7,7 @@ import { withTxRetry } from '../../../prisma/tx-retry.util';
 import { TokenService } from './token.service';
 import { SessionRevocationService } from './session-revocation.service';
 import { AuthEventService, AUTH_EVENT_TYPES } from './auth-event.service';
+import { RateLimitService } from './rate-limit.service';
 
 export interface DeviceInfo {
   deviceId?: string;
@@ -27,7 +28,9 @@ export type RefreshOutcome =
   | { status: 'ok'; session: Session; refreshTokenRaw: string }
   | { status: 'invalid' }
   | { status: 'expired' }
-  | { status: 'reuse_detected'; sessionChainId: string };
+  | { status: 'reuse_detected'; sessionChainId: string }
+  | { status: 'blocked'; reason: 'suspended' | 'deleted' }
+  | { status: 'rate_limited'; retryAfterSeconds: number };
 
 /**
  * Owns the `Session` row lifecycle: creating a new chain at login, rotating
@@ -46,6 +49,7 @@ export class SessionService {
     private readonly revocation: SessionRevocationService,
     private readonly authEvents: AuthEventService,
     private readonly config: ConfigService,
+    private readonly rateLimit: RateLimitService,
   ) {}
 
   async createSession(
@@ -98,6 +102,7 @@ export class SessionService {
     const hash = this.tokenService.hashRefreshToken(rawRefreshToken);
     const found = await this.prisma.session.findUnique({
       where: { refresh_hash: hash },
+      include: { user: { select: { status: true } } },
     });
 
     if (!found) {
@@ -146,6 +151,65 @@ export class SessionService {
 
     if (found.expires_at.getTime() < Date.now()) {
       return { status: 'expired' };
+    }
+
+    // docs/01 §10.3: a suspended/deleted account gets ACCOUNT_SUSPENDED/
+    // ACCOUNT_DELETED on every way in — refresh included. Blocking or
+    // deleting normally revokes every chain already
+    // (SessionRevocationService), but a status set any other way (support
+    // tooling, a direct DB fix, a half-failed admin action) must not
+    // leave a 60-day refresh token working. The chain is revoked so the
+    // access token dies too (blacklist), not just the refresh.
+    const status = found.user.status;
+    if (status === 'suspended' || status === 'deleted') {
+      await withTxRetry(this.prisma, async (tx) => {
+        await this.revocation.revokeChain(
+          found.session_chain_id,
+          status === 'suspended' ? 'admin_block' : 'account_deletion',
+          tx,
+        );
+        await this.authEvents.record(
+          {
+            userId: found.user_id,
+            eventType:
+              status === 'suspended'
+                ? AUTH_EVENT_TYPES.LOGIN_BLOCKED_SUSPENDED
+                : AUTH_EVENT_TYPES.LOGIN_BLOCKED_DELETED,
+            success: false,
+            deviceId: device.deviceId,
+            ip: meta.ip,
+            userAgent: meta.userAgent,
+            meta: { via: 'refresh' },
+          },
+          tx,
+        );
+      });
+      return { status: 'blocked', reason: status };
+    }
+
+    // Per-chain limit on top of the per-IP one (AuthService.refresh): a
+    // stolen refresh token driven by a script from rotating IPs would
+    // otherwise mint tokens indefinitely. Counted only for live, valid
+    // tokens so reuse detection above is never rate-limited away.
+    const chainLimit = await this.rateLimit.consumeFixedWindow(
+      ['refresh', 'chain', found.session_chain_id],
+      this.config.getOrThrow<number>('AUTH_REFRESH_LIMIT_PER_SESSION_PER_HOUR'),
+      3600,
+    );
+    if (!chainLimit.allowed) {
+      await this.authEvents.record({
+        userId: found.user_id,
+        eventType: AUTH_EVENT_TYPES.REFRESH_RATE_LIMITED,
+        success: false,
+        deviceId: device.deviceId,
+        ip: meta.ip,
+        userAgent: meta.userAgent,
+        meta: { sessionChainId: found.session_chain_id },
+      });
+      return {
+        status: 'rate_limited',
+        retryAfterSeconds: chainLimit.retryAfterSeconds,
+      };
     }
 
     const { raw, hash: newHash } = this.tokenService.generateRefreshToken();
