@@ -13,8 +13,7 @@
 // is out of scope for this stage and intentionally not modeled yet. Do not
 // add those tables here; extend the schema in the stage that owns them.
 //
-// Deferred to docs/02_DATABASE.md §2.6 "Raw SQL: индексы, computed columns,
-// права" (not this stage): the partial sessions(user_id) WHERE
+// Stage 2.6 migration (raw SQL) added: the partial sessions(user_id) WHERE
 // revoked_at IS NULL index, hash-sharded indexes on auth_events(created_at),
 // and the lawbid_app / lawbid_retention DB role grants that make
 // auth_events / user_consents append-only at the DB level (§6.2/6.3).
@@ -506,6 +505,9 @@ model User {
   deletion_requested_at DateTime?  @db.Timestamptz
   deleted_at            DateTime?  @db.Timestamptz
   anonymized_at         DateTime?  @db.Timestamptz
+  // STORED computed column (§5.3): lower(first_name || ' ' || last_name),
+  // trigram GIN-indexed. Read-only — never write it.
+  full_name_lower       String?
   created_at            DateTime   @default(now()) @db.Timestamptz
   updated_at            DateTime   @updatedAt @db.Timestamptz
 
@@ -651,7 +653,7 @@ model Session {
   // until then.
   push_tokens PushToken[]
 
-  @@index([user_id])
+  // (user_id) WHERE revoked_at IS NULL: partial index, raw SQL (2.6).
   @@index([session_chain_id])
   @@map("sessions")
 }
@@ -1015,37 +1017,40 @@ model VerificationCheck {
 // -----------------------------------------------------------------------
 
 model Case {
-  id                    String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  client_id             String       @db.Uuid
-  client                User         @relation("CaseClient", fields: [client_id], references: [id], onDelete: Restrict)
+  id                    String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  client_id             String                   @db.Uuid
+  client                User                     @relation("CaseClient", fields: [client_id], references: [id], onDelete: Restrict)
   // ≤120 / ≤5000 chars (§6.1), CHECK in the migration.
   title                 String
   description           String
   // Leaf specialization only (enforced in the case service, file 04).
-  practice_area_id      String       @db.Uuid
-  practice_area         PracticeArea @relation(fields: [practice_area_id], references: [id], onDelete: Restrict)
+  practice_area_id      String                   @db.Uuid
+  practice_area         PracticeArea             @relation(fields: [practice_area_id], references: [id], onDelete: Restrict)
   // Denormalized primary state for indexes; must match the is_primary
   // case_states row (service invariant, §4.D).
-  primary_state_code    String       @db.Char(2)
-  primary_state         State        @relation("CasePrimaryState", fields: [primary_state_code], references: [code], onDelete: Restrict)
+  primary_state_code    String                   @db.Char(2)
+  primary_state         State                    @relation("CasePrimaryState", fields: [primary_state_code], references: [code], onDelete: Restrict)
   city                  String?
   budget_mode           BudgetMode
   budget_cents          Int?
-  status                CaseStatus   @default(open)
-  accepted_bid_id       String?      @unique @db.Uuid
-  accepted_bid          Bid?         @relation("CaseAcceptedBid", fields: [accepted_bid_id], references: [id], onDelete: Restrict)
-  view_count            Int          @default(0)
-  bids_count            Int          @default(0)
-  last_activity_at      DateTime     @default(now()) @db.Timestamptz
-  stale_prompt_sent_at  DateTime?    @db.Timestamptz
-  archived_at           DateTime?    @db.Timestamptz
-  client_completed_at   DateTime?    @db.Timestamptz
-  attorney_confirmed_at DateTime?    @db.Timestamptz
-  auto_close_at         DateTime?    @db.Timestamptz
-  closed_at             DateTime?    @db.Timestamptz
-  deleted_at            DateTime?    @db.Timestamptz
-  created_at            DateTime     @default(now()) @db.Timestamptz
-  updated_at            DateTime     @updatedAt @db.Timestamptz
+  status                CaseStatus               @default(open)
+  accepted_bid_id       String?                  @unique @db.Uuid
+  accepted_bid          Bid?                     @relation("CaseAcceptedBid", fields: [accepted_bid_id], references: [id], onDelete: Restrict)
+  view_count            Int                      @default(0)
+  bids_count            Int                      @default(0)
+  last_activity_at      DateTime                 @default(now()) @db.Timestamptz
+  stale_prompt_sent_at  DateTime?                @db.Timestamptz
+  archived_at           DateTime?                @db.Timestamptz
+  client_completed_at   DateTime?                @db.Timestamptz
+  attorney_confirmed_at DateTime?                @db.Timestamptz
+  auto_close_at         DateTime?                @db.Timestamptz
+  closed_at             DateTime?                @db.Timestamptz
+  deleted_at            DateTime?                @db.Timestamptz
+  // STORED computed column (§5.3): to_tsvector('english', title || ' ' ||
+  // description). Read-only.
+  search_tsv            Unsupported("tsvector")?
+  created_at            DateTime                 @default(now()) @db.Timestamptz
+  updated_at            DateTime                 @updatedAt @db.Timestamptz
 
   states              CaseState[]
   bids                Bid[]                @relation("CaseBids")
@@ -1057,8 +1062,8 @@ model Case {
 
   conversations Conversation[]
 
-  @@index([client_id, status, created_at(sort: Desc)])
-  @@index([primary_state_code, practice_area_id, created_at(sort: Desc)])
+  // Partial indexes (§5.2) and the search_tsv GIN index are raw SQL in the
+  // stage 2.6 migration.
   @@map("cases")
 }
 
@@ -1240,20 +1245,22 @@ model Review {
 // -----------------------------------------------------------------------
 
 model Post {
-  id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id            String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   // Attorneys only (checked in the service, file 05).
-  author_id     String        @db.Uuid
-  author        User          @relation("PostAuthor", fields: [author_id], references: [id], onDelete: Restrict)
+  author_id     String                   @db.Uuid
+  author        User                     @relation("PostAuthor", fields: [author_id], references: [id], onDelete: Restrict)
   // ≤2200 chars (§6.1), CHECK in the migration.
   body          String
   language      String?
-  status        ContentStatus @default(published)
-  like_count    Int           @default(0)
-  comment_count Int           @default(0)
-  save_count    Int           @default(0)
-  deleted_at    DateTime?     @db.Timestamptz
-  created_at    DateTime      @default(now()) @db.Timestamptz
-  updated_at    DateTime      @updatedAt @db.Timestamptz
+  status        ContentStatus            @default(published)
+  like_count    Int                      @default(0)
+  comment_count Int                      @default(0)
+  save_count    Int                      @default(0)
+  deleted_at    DateTime?                @db.Timestamptz
+  // STORED computed column (§5.3): to_tsvector('english', body). Read-only.
+  search_tsv    Unsupported("tsvector")?
+  created_at    DateTime                 @default(now()) @db.Timestamptz
+  updated_at    DateTime                 @updatedAt @db.Timestamptz
 
   media    PostMedia[]
   tags     PostTag[]

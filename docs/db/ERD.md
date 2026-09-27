@@ -1,0 +1,706 @@
+# LawBid — ERD
+
+Generated from `apps/api/prisma/schema.prisma` by
+`npm run db:erd --workspace apps/api` (docs/02_DATABASE.md §8, stage
+2.7). Do not edit by hand. Computed columns, partial / hash-sharded /
+GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
+drawn here.
+
+59 tables.
+
+```mermaid
+erDiagram
+  users {
+    String id PK
+    enum_UserRole role "nullable"
+    enum_UserStatus status
+    String first_name "nullable"
+    String last_name "nullable"
+    String avatar_file_id FK "nullable"
+    String email UK "nullable"
+    DateTime email_verified_at "nullable"
+    String phone_e164 UK "nullable"
+    DateTime phone_verified_at "nullable"
+    String ui_language
+    enum_ThemePref theme
+    String suspended_reason "nullable"
+    DateTime last_active_at "nullable"
+    DateTime deletion_requested_at "nullable"
+    DateTime deleted_at "nullable"
+    DateTime anonymized_at "nullable"
+    String full_name_lower "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  files {
+    String id PK
+    String owner_user_id FK
+    enum_FilePurpose purpose
+    String s3_bucket
+    String s3_key UK
+    String mime
+    BigInt size_bytes
+    String sha256
+    Int width "nullable"
+    Int height "nullable"
+    enum_ScanStatus scan_status
+    Boolean is_public
+    DateTime deleted_at "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  user_identifiers {
+    String id PK
+    String user_id FK
+    enum_IdentifierType provider
+    String provider_uid
+    DateTime verified_at "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  sessions {
+    String id PK
+    String user_id FK
+    String session_chain_id
+    String device_id "nullable"
+    String device_name "nullable"
+    String platform "nullable"
+    String app_version "nullable"
+    String ip "nullable"
+    String user_agent "nullable"
+    String refresh_hash UK
+    DateTime last_used_at "nullable"
+    DateTime expires_at
+    DateTime revoked_at "nullable"
+    String revoked_reason "nullable"
+    String replaced_by_session_id "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  auth_events {
+    String id PK
+    String user_id FK "nullable"
+    String event_type
+    Boolean success
+    String identifier_hash "nullable"
+    String ip "nullable"
+    String device_id "nullable"
+    String user_agent "nullable"
+    Json meta "nullable"
+    DateTime created_at
+  }
+  legal_documents {
+    String id PK
+    enum_LegalDocType doc_type
+    String version
+    String locale
+    String content_url "nullable"
+    String content_md "nullable"
+    DateTime published_at "nullable"
+    Boolean is_current
+    DateTime created_at
+    DateTime updated_at
+  }
+  user_consents {
+    String id PK
+    String user_id FK
+    enum_ConsentType consent_type
+    String document_id FK "nullable"
+    Boolean granted
+    String ip "nullable"
+    String device_id "nullable"
+    DateTime created_at
+  }
+  onboarding_state {
+    String user_id PK,FK
+    String current_step "nullable"
+    DateTime completed_at "nullable"
+    Json data "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  blocked_email_domains {
+    String domain PK
+    String reason
+  }
+  feature_flags {
+    String key PK
+    Boolean enabled
+    Int rollout_percent
+    String description "nullable"
+    String updated_by FK "nullable"
+    DateTime updated_at
+  }
+  app_config {
+    String key PK
+    Json value
+    DateTime updated_at
+  }
+  i18n_languages {
+    String code PK
+    String name_native
+    Boolean is_active
+    Boolean is_rtl
+    Int sort
+  }
+  i18n_keys {
+    String id PK
+    String key UK
+    String description "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  i18n_translations {
+    String key_id PK,FK
+    String lang PK,FK
+    String value
+    Int version
+    DateTime updated_at
+  }
+  i18n_bundle_versions {
+    String lang PK,FK
+    Int version
+    DateTime updated_at
+  }
+  states {
+    String code PK
+    String name
+    Boolean is_active
+  }
+  practice_areas {
+    String id PK
+    String parent_id FK "nullable"
+    String code UK
+    String name_en
+    String i18n_key
+    Int sort
+    Boolean is_active
+  }
+  client_profiles {
+    String user_id PK,FK
+    String state_code FK
+    enum_ContactMethod preferred_contact_method "nullable"
+    String preferred_contact_note "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  attorney_profiles {
+    String user_id PK,FK
+    String username
+    String username_lower UK
+    String bio "nullable"
+    String firm_name "nullable"
+    enum_VerificationStatus verification_status
+    DateTime verified_at "nullable"
+    Decimal rating_avg
+    Int rating_count
+    Int posts_count
+    Int followers_count
+    Int following_count
+    DateTime created_at
+    DateTime updated_at
+  }
+  attorney_licenses {
+    String id PK
+    String attorney_id FK
+    String state_code FK
+    String bar_number
+    enum_LicenseStatus license_status
+    DateTime expires_at "nullable"
+    DateTime verified_at "nullable"
+    String verified_by FK "nullable"
+    Json auto_check_result "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  attorney_practice_areas {
+    String attorney_id PK,FK
+    String practice_area_id PK,FK
+    DateTime created_at
+  }
+  verification_requests {
+    String id PK
+    String attorney_id FK
+    enum_VerificationRequestStatus status
+    enum_VerificationProvider provider
+    String provider_ref "nullable"
+    DateTime submitted_at "nullable"
+    String reviewed_by FK "nullable"
+    DateTime reviewed_at "nullable"
+    String rejection_reason "nullable"
+    String admin_note "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  verification_documents {
+    String id PK
+    String request_id FK
+    enum_VerificationDocType doc_type
+    String file_id FK
+    String state_code FK "nullable"
+    String notes "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  verification_checks {
+    String id PK
+    String request_id FK
+    enum_VerificationCheckType check_type
+    enum_VerificationProvider provider
+    enum_CheckResult result
+    Json details
+    DateTime checked_at
+    DateTime created_at
+  }
+  cases {
+    String id PK
+    String client_id FK
+    String title
+    String description
+    String practice_area_id FK
+    String primary_state_code FK
+    String city "nullable"
+    enum_BudgetMode budget_mode
+    Int budget_cents "nullable"
+    enum_CaseStatus status
+    String accepted_bid_id FK,UK "nullable"
+    Int view_count
+    Int bids_count
+    DateTime last_activity_at
+    DateTime stale_prompt_sent_at "nullable"
+    DateTime archived_at "nullable"
+    DateTime client_completed_at "nullable"
+    DateTime attorney_confirmed_at "nullable"
+    DateTime auto_close_at "nullable"
+    DateTime closed_at "nullable"
+    DateTime deleted_at "nullable"
+    tsvector search_tsv "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  case_states {
+    String case_id PK,FK
+    String state_code PK,FK
+    Boolean is_primary
+  }
+  bids {
+    String id PK
+    String case_id FK
+    String attorney_id FK
+    enum_BidStatus status
+    enum_FeeType fee_type
+    Int amount_cents
+    String message
+    enum_StartAvailability start_availability
+    DateTime start_date "nullable"
+    Int estimated_duration_days "nullable"
+    Int round_count
+    enum_PartyRole turn
+    DateTime decided_at "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  bid_offers {
+    String id PK
+    String bid_id FK
+    Int round_no
+    enum_PartyRole from_role
+    enum_FeeType fee_type
+    Int amount_cents
+    String message "nullable"
+    enum_OfferStatus status
+    DateTime created_at
+  }
+  case_journal {
+    String id PK
+    String case_id FK
+    String client_id FK
+    String actor_user_id FK "nullable"
+    enum_UserRole actor_role "nullable"
+    enum_CaseJournalEvent event_type
+    Json payload
+    String prev_hash "nullable"
+    String row_hash
+    DateTime retain_until
+    DateTime created_at
+  }
+  contact_disclosures {
+    String id PK
+    String case_id FK
+    String bid_id FK,UK
+    String client_id FK
+    String attorney_id FK
+    String ip "nullable"
+    String device_id "nullable"
+    DateTime disclosed_at
+  }
+  contact_issue_reports {
+    String id PK
+    String case_id FK
+    String bid_id FK
+    String attorney_id FK
+    String client_id FK
+    enum_ContactIssueType issue_type
+    String note "nullable"
+    enum_ContactIssueStatus status
+    String resolved_by FK "nullable"
+    DateTime resolved_at "nullable"
+    String resolution_note "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  case_disputes {
+    String id PK
+    String case_id FK
+    String opened_by FK
+    String reason
+    enum_DisputeStatus status
+    String resolved_by FK "nullable"
+    DateTime resolved_at "nullable"
+    String resolution_note "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  reviews {
+    String id PK
+    String case_id FK,UK
+    String client_id FK
+    String attorney_id FK
+    Int rating
+    String body "nullable"
+    enum_ReviewStatus status
+    DateTime created_at
+    DateTime updated_at
+  }
+  posts {
+    String id PK
+    String author_id FK
+    String body
+    String language "nullable"
+    enum_ContentStatus status
+    Int like_count
+    Int comment_count
+    Int save_count
+    DateTime deleted_at "nullable"
+    tsvector search_tsv "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  post_media {
+    String id PK
+    String post_id FK
+    String file_id FK
+    enum_MediaType media_type
+    Int position
+    Int width "nullable"
+    Int height "nullable"
+    DateTime created_at
+  }
+  tags {
+    String id PK
+    String tag_lower UK
+    DateTime created_at
+  }
+  post_tags {
+    String post_id PK,FK
+    String tag_id PK,FK
+  }
+  comments {
+    String id PK
+    String post_id FK
+    String author_id FK
+    String parent_comment_id FK "nullable"
+    String body
+    enum_ContentStatus status
+    Int like_count
+    Int reply_count
+    DateTime deleted_at "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  post_likes {
+    String post_id PK,FK
+    String user_id PK,FK
+    DateTime created_at
+  }
+  comment_likes {
+    String comment_id PK,FK
+    String user_id PK,FK
+    DateTime created_at
+  }
+  follows {
+    String follower_id PK,FK
+    String followee_id PK,FK
+    DateTime created_at
+  }
+  saved_items {
+    String user_id PK,FK
+    enum_SavedItemType item_type PK
+    String item_id PK
+    DateTime created_at
+  }
+  conversations {
+    String id PK
+    String case_id FK
+    String attorney_id FK
+    String client_id FK
+    String bid_id FK "nullable"
+    enum_ConversationStatus status
+    Boolean contacts_unlocked
+    DateTime last_message_at "nullable"
+    String last_message_id "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  conversation_participants {
+    String conversation_id PK,FK
+    String user_id PK,FK
+    String last_read_message_id "nullable"
+    DateTime muted_until "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  messages {
+    String id PK
+    String conversation_id FK
+    String sender_id FK "nullable"
+    enum_MessageType type
+    String body_original
+    String body_display
+    Boolean contact_masked
+    String client_message_id
+    DateTime deleted_at "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  notifications {
+    String id PK
+    String user_id FK
+    enum_NotificationType type
+    enum_NotificationCategory category
+    Json payload
+    DateTime read_at "nullable"
+    DateTime created_at
+  }
+  notification_settings {
+    String user_id PK,FK
+    enum_NotificationCategory category PK
+    Boolean push_enabled
+    Boolean email_enabled
+    DateTime updated_at
+  }
+  notification_quiet_hours {
+    String user_id PK,FK
+    DateTime start_time
+    DateTime end_time
+    String timezone
+    DateTime updated_at
+  }
+  push_tokens {
+    String id PK
+    String user_id FK
+    String session_id FK
+    String fcm_token UK
+    String platform
+    DateTime last_seen_at
+    DateTime created_at
+  }
+  stripe_customers {
+    String user_id PK,FK
+    String stripe_customer_id UK
+    DateTime created_at
+  }
+  subscriptions {
+    String id PK
+    String user_id FK,UK
+    String stripe_subscription_id UK "nullable"
+    enum_SubscriptionStatus status
+    Int price_cents
+    DateTime trial_started_at "nullable"
+    DateTime trial_ends_at "nullable"
+    DateTime current_period_start "nullable"
+    DateTime current_period_end "nullable"
+    Boolean cancel_at_period_end
+    DateTime canceled_at "nullable"
+    String card_fingerprint "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  payments {
+    String id PK
+    String user_id FK
+    String stripe_invoice_id UK "nullable"
+    String stripe_payment_intent_id "nullable"
+    Int amount_cents
+    String currency
+    enum_PaymentStatus status
+    DateTime paid_at "nullable"
+    String failure_code "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  stripe_webhook_events {
+    String stripe_event_id PK
+    String type
+    Json payload
+    DateTime processed_at "nullable"
+    Int attempts
+    DateTime created_at
+  }
+  reports {
+    String id PK
+    String reporter_id FK
+    enum_ReportTargetType target_type
+    String target_id
+    enum_ReportReason reason
+    String note "nullable"
+    enum_ReportStatus status
+    String handled_by FK "nullable"
+    DateTime handled_at "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  moderation_actions {
+    String id PK
+    String report_id FK "nullable"
+    String admin_id FK
+    enum_ReportTargetType target_type
+    String target_id
+    enum_ModerationActionType action
+    String reason "nullable"
+    DateTime created_at
+  }
+  admin_profiles {
+    String user_id PK,FK
+    enum_AdminRole admin_role
+    DateTime created_at
+    DateTime updated_at
+  }
+  audit_log {
+    String id PK
+    String admin_id FK
+    String action
+    String target_type
+    String target_id "nullable"
+    Json before "nullable"
+    Json after "nullable"
+    String ip "nullable"
+    DateTime created_at
+  }
+  data_access_requests {
+    String id PK
+    enum_DataRequestType request_type
+    String reference_number
+    String agency
+    DateTime received_at
+    String scope
+    String handled_by FK
+    enum_DataRequestStatus status
+    DateTime closed_at "nullable"
+    String notes "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  data_access_log {
+    String id PK
+    String request_id FK
+    String admin_id FK
+    String entity_type
+    String entity_id
+    DateTime accessed_at
+  }
+  users }o--o| files : "avatar_file_id"
+  files }o--|| users : "owner_user_id"
+  user_identifiers }o--|| users : "user_id"
+  sessions }o--|| users : "user_id"
+  auth_events }o--o| users : "user_id"
+  user_consents }o--|| users : "user_id"
+  user_consents }o--o| legal_documents : "document_id"
+  onboarding_state |o--|| users : "user_id"
+  feature_flags }o--o| users : "updated_by"
+  i18n_translations }o--|| i18n_keys : "key_id"
+  i18n_translations }o--|| i18n_languages : "lang"
+  i18n_bundle_versions |o--|| i18n_languages : "lang"
+  practice_areas }o--o| practice_areas : "parent_id"
+  client_profiles |o--|| users : "user_id"
+  client_profiles }o--|| states : "state_code"
+  attorney_profiles |o--|| users : "user_id"
+  attorney_licenses }o--|| attorney_profiles : "attorney_id"
+  attorney_licenses }o--|| states : "state_code"
+  attorney_licenses }o--o| users : "verified_by"
+  attorney_practice_areas }o--|| attorney_profiles : "attorney_id"
+  attorney_practice_areas }o--|| practice_areas : "practice_area_id"
+  verification_requests }o--|| attorney_profiles : "attorney_id"
+  verification_requests }o--o| users : "reviewed_by"
+  verification_documents }o--|| verification_requests : "request_id"
+  verification_documents }o--|| files : "file_id"
+  verification_documents }o--o| states : "state_code"
+  verification_checks }o--|| verification_requests : "request_id"
+  cases }o--|| users : "client_id"
+  cases }o--|| practice_areas : "practice_area_id"
+  cases }o--|| states : "primary_state_code"
+  cases |o--o| bids : "accepted_bid_id"
+  case_states }o--|| cases : "case_id"
+  case_states }o--|| states : "state_code"
+  bids }o--|| cases : "case_id"
+  bids }o--|| users : "attorney_id"
+  bid_offers }o--|| bids : "bid_id"
+  case_journal }o--|| cases : "case_id"
+  case_journal }o--|| users : "client_id"
+  case_journal }o--o| users : "actor_user_id"
+  contact_disclosures }o--|| cases : "case_id"
+  contact_disclosures |o--|| bids : "bid_id"
+  contact_disclosures }o--|| users : "client_id"
+  contact_disclosures }o--|| users : "attorney_id"
+  contact_issue_reports }o--|| cases : "case_id"
+  contact_issue_reports }o--|| bids : "bid_id"
+  contact_issue_reports }o--|| users : "attorney_id"
+  contact_issue_reports }o--|| users : "client_id"
+  contact_issue_reports }o--o| users : "resolved_by"
+  case_disputes }o--|| cases : "case_id"
+  case_disputes }o--|| users : "opened_by"
+  case_disputes }o--o| users : "resolved_by"
+  reviews |o--|| cases : "case_id"
+  reviews }o--|| users : "client_id"
+  reviews }o--|| users : "attorney_id"
+  posts }o--|| users : "author_id"
+  post_media }o--|| posts : "post_id"
+  post_media }o--|| files : "file_id"
+  post_tags }o--|| posts : "post_id"
+  post_tags }o--|| tags : "tag_id"
+  comments }o--|| posts : "post_id"
+  comments }o--|| users : "author_id"
+  comments }o--o| comments : "parent_comment_id"
+  post_likes }o--|| posts : "post_id"
+  post_likes }o--|| users : "user_id"
+  comment_likes }o--|| comments : "comment_id"
+  comment_likes }o--|| users : "user_id"
+  follows }o--|| users : "follower_id"
+  follows }o--|| users : "followee_id"
+  saved_items }o--|| users : "user_id"
+  conversations }o--|| cases : "case_id"
+  conversations }o--|| users : "attorney_id"
+  conversations }o--|| users : "client_id"
+  conversations }o--o| bids : "bid_id"
+  conversation_participants }o--|| conversations : "conversation_id"
+  conversation_participants }o--|| users : "user_id"
+  messages }o--|| conversations : "conversation_id"
+  messages }o--o| users : "sender_id"
+  notifications }o--|| users : "user_id"
+  notification_settings }o--|| users : "user_id"
+  notification_quiet_hours |o--|| users : "user_id"
+  push_tokens }o--|| users : "user_id"
+  push_tokens }o--|| sessions : "session_id"
+  stripe_customers |o--|| users : "user_id"
+  subscriptions |o--|| users : "user_id"
+  payments }o--|| users : "user_id"
+  reports }o--|| users : "reporter_id"
+  reports }o--o| users : "handled_by"
+  moderation_actions }o--o| reports : "report_id"
+  moderation_actions }o--|| users : "admin_id"
+  admin_profiles |o--|| users : "user_id"
+  audit_log }o--|| users : "admin_id"
+  data_access_requests }o--|| users : "handled_by"
+  data_access_log }o--|| data_access_requests : "request_id"
+  data_access_log }o--|| users : "admin_id"
+```

@@ -31,7 +31,8 @@ export async function withTxRetry<T>(
   fn: (tx: Prisma.TransactionClient) => Promise<T>,
   options: TxRetryOptions = {},
 ): Promise<T> {
-  const maxAttempts = options.maxAttempts ?? 3;
+  // docs/02_DATABASE.md §1.1: "до 5 попыток с jitter".
+  const maxAttempts = options.maxAttempts ?? 5;
   const baseDelayMs = options.baseDelayMs ?? 25;
 
   let attempt = 0;

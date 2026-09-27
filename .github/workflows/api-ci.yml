@@ -148,6 +148,17 @@ jobs:
         working-directory: apps/api
         run: npx prisma migrate deploy
 
+      - name: No drift between schema.prisma and migrations
+        # docs/02_DATABASE.md §7.1: "prisma migrate diff (нет расхождения
+        # схемы и миграций)". Exit code 2 = the migrated DB differs from
+        # schema.prisma (a schema edit without a migration, or vice versa).
+        working-directory: apps/api
+        run: npx prisma migrate diff --from-schema-datasource prisma/schema.prisma --to-schema-datamodel prisma/schema.prisma --exit-code
+
+      - name: ERD is up to date
+        # docs/02_DATABASE.md §8 stage 2.7: docs/db/ERD.md is generated.
+        run: npm run db:erd --workspace apps/api && git diff --exit-code -- docs/db/ERD.md
+
       - name: Lint
         run: npm run lint --workspace apps/api
 
