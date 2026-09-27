@@ -48,7 +48,9 @@ jobs:
   api-ci:
     name: Lint, typecheck, unit + e2e tests
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Two full CockroachDB migration runs (clean DB + upgrade from the
+    # previous release) at ~10 min each, plus the e2e database.
+    timeout-minutes: 45
 
     # Every var here matches apps/api/.env.test's known-good test values
     # (docs/CHANGELOG.md stage 1.4) so the app boots exactly as it does
@@ -104,6 +106,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history + tags: scripts/migrate-from-previous.mjs reads the
+          # previous release's migration set from git.
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -161,6 +167,15 @@ jobs:
           echo "introspected models: $models"
           test "$models" -gt 0
           npx prisma migrate diff --from-schema-datasource prisma/schema.prisma --to-schema-datamodel prisma/schema.prisma --exit-code
+
+      - name: Migrations apply on the previous release's database
+        # docs/02_DATABASE.md §8 stage 2.7: "миграции применяются на чистой
+        # БД и на БД из предыдущей версии". Throwaway DB at the previous
+        # migration set (last release tag, else the parent of the last
+        # migrations commit), seeded, upgraded with migrate deploy, then
+        # checked for drift / introspection / surviving rows, then dropped.
+        working-directory: apps/api
+        run: node scripts/migrate-from-previous.mjs
 
       - name: ERD is up to date
         # docs/02_DATABASE.md §8 stage 2.7: docs/db/ERD.md is generated.
