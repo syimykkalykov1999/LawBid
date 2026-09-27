@@ -63,7 +63,9 @@ class OnboardingActions extends Notifier<StepActionState> {
           {Map<ConsentType, String?> documentIds = const {}}) =>
       _run(() async {
         await _repo.saveConsents([
-          for (final type in ConsentType.values)
+          // Only the decisions the screen actually asked for (optional
+          // consents move to Settings, owner decision 2026-09-27).
+          for (final type in decisions.keys)
             ConsentDecision(
               type: type,
               granted: decisions[type] ?? false,

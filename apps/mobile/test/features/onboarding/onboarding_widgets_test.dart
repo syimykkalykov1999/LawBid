@@ -56,23 +56,22 @@ void main() {
       expect(find.text('Please accept the required items above to continue.'), findsOneWidget);
       expect(repo.calls, isEmpty);
 
+      // Owner decision 2026-09-27: required consents are role-style cards;
+      // optional consents are neither shown nor sent (Settings, later).
+      expect(find.text('Help improve LawBid with anonymous usage analytics'), findsNothing);
       await tester.tap(find.text('I am 18 years of age or older'));
       await tester.tap(find.text('I accept the Terms of Service and Privacy Policy'));
-      await tester.tap(find.text('I understand and agree'));
-      await tester.tap(find.text('Help improve LawBid with anonymous usage analytics'));
+      await tester.tap(find.text('LawBid is not a law firm'));
       await _settle(tester);
       await tester.tap(find.text('Continue'));
       await _settle(tester);
 
       expect(repo.calls, ['saveConsents', 'saveStep:role']);
       final decisions = {for (final c in repo.lastConsents!) c.type: c.granted};
-      expect(decisions.length, ConsentType.values.length);
+      expect(decisions.keys.toSet(), ConsentType.requiredTypes.toSet());
       for (final c in ConsentType.requiredTypes) {
         expect(decisions[c], isTrue, reason: c.wireName);
       }
-      expect(decisions[ConsentType.analytics], isTrue);
-      expect(decisions[ConsentType.marketingEmail], isFalse);
-      expect(decisions[ConsentType.marketingPush], isFalse);
       await _tearDownDrift(tester);
     });
   });

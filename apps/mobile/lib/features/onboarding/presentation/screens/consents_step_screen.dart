@@ -12,7 +12,7 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/onboarding/application/onboarding_actions.dart';
 import 'package:lawbid/features/onboarding/domain/consent_type.dart';
 import 'package:lawbid/features/onboarding/domain/onboarding_step_id.dart';
-import 'package:lawbid/features/onboarding/presentation/widgets/consent_check_tile.dart';
+import 'package:lawbid/features/onboarding/presentation/widgets/consent_card.dart';
 import 'package:lawbid/features/onboarding/presentation/widgets/onboarding_scaffold.dart';
 
 /// `/onboarding/consents` — «Возраст и согласия» (docs/01_FOUNDATION_AUTH
@@ -32,7 +32,7 @@ class ConsentsStepScreen extends ConsumerStatefulWidget {
 
 class _ConsentsStepScreenState extends ConsumerState<ConsentsStepScreen> {
   final Map<ConsentType, bool> _values = {
-    for (final c in ConsentType.values) c: false
+    for (final c in ConsentType.requiredTypes) c: false
   };
   bool _attempted = false;
 
@@ -67,8 +67,6 @@ class _ConsentsStepScreenState extends ConsumerState<ConsentsStepScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final t = ref.watch(translatorProvider);
     final action = ref.watch(onboardingActionsProvider);
 
@@ -76,8 +74,6 @@ class _ConsentsStepScreenState extends ConsumerState<ConsentsStepScreen> {
     final termsAccepted =
         _values[ConsentType.terms]! && _values[ConsentType.privacy]!;
 
-    Widget label(String text) =>
-        Text(text, style: typography.body.copyWith(color: colors.text));
 
     return OnboardingScaffold(
       step: OnboardingStepId.consents,
@@ -91,125 +87,104 @@ class _ConsentsStepScreenState extends ConsumerState<ConsentsStepScreen> {
           ? t.t('onboarding.consents.requiredHint')
           : null,
       children: [
-        StepSectionLabel(t.t('onboarding.consents.section.required')),
-        AppCard(
-          padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.md, vertical: AppSpacing.xs),
-          child: Column(
-            children: [
-              ConsentCheckTile(
-                value: _values[ConsentType.age18]!,
-                showError: missing(ConsentType.age18),
-                semanticLabel: t.t('onboarding.consents.age18'),
-                onChanged: (v) => _set(ConsentType.age18, v),
-                content: label(t.t('onboarding.consents.age18')),
-              ),
-              ConsentCheckTile(
-                value: termsAccepted,
-                showError: missing(ConsentType.terms),
-                semanticLabel: t.t('onboarding.consents.terms'),
-                onChanged: _setTermsAndPrivacy,
-                content: label(t.t('onboarding.consents.terms')),
-              ),
-            ],
-          ),
+        // Owner decision 2026-09-27: required consents as role-style
+        // cards; optional consents (marketing, analytics) move to
+        // Settings later and are not shown or sent here.
+        ConsentCard(
+          icon: Icons.verified_user_outlined,
+          title: t.t('onboarding.consents.age18'),
+          description: t.t('onboarding.consents.age18.desc'),
+          value: _values[ConsentType.age18]!,
+          showError: missing(ConsentType.age18),
+          onChanged: (v) => _set(ConsentType.age18, v),
         ),
-        const SizedBox(height: AppSpacing.sm),
-        Wrap(
-          spacing: AppSpacing.sm,
-          runSpacing: AppSpacing.sm,
-          children: [
-            for (final doc in const ['terms', 'privacy', 'disclaimer'])
-              AppChip(
-                label: t.t('legal.doc.$doc'),
-                leading: Icon(Icons.description_outlined,
-                    size: AppSizes.iconSm, color: colors.gold),
-                onTap: () => context.push(AppRoutes.legalDoc(doc)),
-              ),
-          ],
+        const SizedBox(height: AppSpacing.md),
+        ConsentCard(
+          icon: Icons.gavel_rounded,
+          title: t.t('onboarding.consents.terms'),
+          description: t.t('onboarding.consents.terms.desc'),
+          value: termsAccepted,
+          showError: missing(ConsentType.terms),
+          onChanged: _setTermsAndPrivacy,
         ),
-        const SizedBox(height: AppSpacing.lg),
-        _DisclaimerCard(
+        const SizedBox(height: AppSpacing.md),
+        ConsentCard(
+          icon: Icons.balance_rounded,
           title: t.t('onboarding.consents.disclaimer.title'),
-          body: t.t('onboarding.consents.disclaimer.body'),
-          child: ConsentCheckTile(
-            value: _values[ConsentType.disclaimer]!,
-            showError: missing(ConsentType.disclaimer),
-            semanticLabel: t.t('onboarding.consents.disclaimer.accept'),
-            onChanged: (v) => _set(ConsentType.disclaimer, v),
-            content: label(t.t('onboarding.consents.disclaimer.accept')),
-          ),
+          description: t.t('onboarding.consents.disclaimer.body'),
+          value: _values[ConsentType.disclaimer]!,
+          showError: missing(ConsentType.disclaimer),
+          onChanged: (v) => _set(ConsentType.disclaimer, v),
         ),
         const SizedBox(height: AppSpacing.xl),
-        StepSectionLabel(t.t('onboarding.consents.section.optional')),
-        AppCard(
-          padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.md, vertical: AppSpacing.xs),
-          child: Column(
-            children: [
-              for (final c in const [
-                ConsentType.marketingEmail,
-                ConsentType.marketingPush,
-                ConsentType.analytics,
-              ])
-                ConsentCheckTile(
-                  value: _values[c]!,
-                  semanticLabel: t.t('onboarding.consents.${c.name}'),
-                  onChanged: (v) => _set(c, v),
-                  content: label(t.t('onboarding.consents.${c.name}')),
-                ),
-            ],
-          ),
+        StepSectionLabel(t.t('onboarding.consents.docs')),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final itemWidth = (constraints.maxWidth - AppSpacing.sm) / 2;
+            return Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.sm,
+              children: [
+                for (final doc in const ['terms', 'privacy', 'disclaimer'])
+                  SizedBox(
+                    width: itemWidth,
+                    child: _DocLink(
+                      label: t.t('legal.doc.$doc'),
+                      onTap: () => context.push(AppRoutes.legalDoc(doc)),
+                    ),
+                  ),
+              ],
+            );
+          },
         ),
       ],
     );
   }
 }
 
-/// §10.2 H "Отдельный обязательный дисклеймер" — visually distinct so it
-/// isn't skimmed past with the checkboxes above.
-class _DisclaimerCard extends StatelessWidget {
-  const _DisclaimerCard(
-      {required this.title, required this.body, required this.child});
+/// Compact document link for the two-column grid under the cards.
+class _DocLink extends StatelessWidget {
+  const _DocLink({required this.label, required this.onTap});
 
-  final String title;
-  final String body;
-  final Widget child;
+  final String label;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(
-          AppSpacing.lg, AppSpacing.lg, AppSpacing.md, AppSpacing.xs),
-      decoration: BoxDecoration(
-        color: colors.goldTint,
-        borderRadius: BorderRadius.circular(AppRadii.card),
-        border: Border.all(color: colors.gold.withValues(alpha: 0.4)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.balance_rounded,
-                  size: AppSizes.iconSm, color: colors.goldDark),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: Semantics(
-                  header: true,
-                  child: Text(title,
-                      style: typography.roleTitle.copyWith(color: colors.text)),
+    return Semantics(
+      link: true,
+      label: label,
+      child: AppPressable(
+        onTap: onTap,
+        child: ExcludeSemantics(
+          child: Container(
+            constraints: const BoxConstraints(minHeight: AppSizes.hitTarget),
+            padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+            decoration: BoxDecoration(
+              color: colors.surface,
+              borderRadius: BorderRadius.circular(AppRadii.card),
+              border: Border.all(color: colors.border),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.description_outlined,
+                    size: AppSizes.iconSm, color: colors.gold),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Text(
+                    label,
+                    style: typography.bodySmall.copyWith(color: colors.text),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-          const SizedBox(height: AppSpacing.sm),
-          Text(body, style: typography.bodySmall.copyWith(color: colors.text)),
-          const SizedBox(height: AppSpacing.xs),
-          child,
-        ],
+        ),
       ),
     );
   }
