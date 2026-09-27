@@ -2952,3 +2952,15 @@ Flutter flow had no server-side onboarding at all, `POST /cases` and
   language, contacts, attorney profile, verification/subscription,
   tour, "Download my data" screens, AppRouterGuard wired to
   `GET /users/me`, idempotency/retry interceptors.
+
+## OpenAPI export (file 01 §16 DoD: "Swagger покрывает все эндпоинты") — 2026-09-27
+
+- Swagger was effectively empty: no `@nestjs/swagger` CLI plugin and no
+  `@Api*` decorators, so request bodies had no schemas. Enabled the plugin
+  (`classValidatorShim`, `introspectComments`) in `nest-cli.json`.
+- `src/openapi/openapi.config.ts` — one document builder used by `main.ts`
+  (`/docs`) and by `npm run openapi:export`, which writes
+  `packages/api-contract/openapi.json` (25 paths, 14 request schemas; the
+  dev-only `/dev/echo` is excluded).
+- Still open: typed response schemas (need response DTO classes) and
+  generating the Dart client from this file.

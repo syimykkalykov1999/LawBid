@@ -1,8 +1,9 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { SwaggerModule } from '@nestjs/swagger';
 import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module';
+import { buildOpenApiDocument } from './openapi/openapi.config';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, {
@@ -24,15 +25,7 @@ async function bootstrap(): Promise<void> {
     exclude: ['/health/live', '/health/ready', '/docs', '/docs-json'],
   });
 
-  const config = new DocumentBuilder()
-    .setTitle('LawBid API')
-    .setDescription(
-      'LawBid — US legal-services marketplace. See docs/01_FOUNDATION_AUTH.md §7 for response/error format conventions.',
-    )
-    .setVersion('0.1.0-stage-1.2')
-    .addBearerAuth()
-    .build();
-  const document = SwaggerModule.createDocument(app, config);
+  const document = buildOpenApiDocument(app);
   SwaggerModule.setup('docs', app, document);
 
   const port = process.env.PORT ?? 3000;
