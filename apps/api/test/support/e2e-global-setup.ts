@@ -4,7 +4,12 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import Redis from 'ioredis';
 import { PrismaClient } from '@prisma/client';
-import { baseUrls, e2eRedisUrl, withDatabase } from './e2e-env';
+import {
+  baseUrls,
+  e2eIsolationTag,
+  e2eRedisUrl,
+  withDatabase,
+} from './e2e-env';
 
 const MIGRATIONS_DIR = join(__dirname, '../../prisma/migrations');
 
@@ -33,15 +38,20 @@ export default async function globalSetup(): Promise<void> {
   const { databaseUrl } = baseUrls();
   const baseName = new URL(databaseUrl).pathname.slice(1);
   const { hash, count } = migrationsHash();
-  const dbName = `${baseName}_e2e_${hash}`;
+  const tag = e2eIsolationTag();
+  const prefix = tag ? `${baseName}_e2e_${tag}_` : `${baseName}_e2e_`;
+  const dbName = `${prefix}${hash}`;
   const url = withDatabase(databaseUrl, dbName);
 
   const admin = new PrismaClient({ datasourceUrl: databaseUrl });
   const existing = await admin.$queryRaw<{ database_name: string }[]>`
     SELECT database_name FROM [SHOW DATABASES]
-    WHERE database_name LIKE ${`${baseName}_e2e_%`}`;
+    WHERE database_name LIKE ${`${prefix}%`}`;
   for (const { database_name } of existing) {
-    if (database_name !== dbName) {
+    // Only this run's own family (same isolation tag, older hash) is
+    // dropped; an untagged run never touches tagged databases.
+    const rest = database_name.slice(prefix.length);
+    if (database_name !== dbName && /^[0-9a-f]{12}$/.test(rest)) {
       await admin.$executeRawUnsafe(
         `DROP DATABASE IF EXISTS "${database_name}" CASCADE`,
       );

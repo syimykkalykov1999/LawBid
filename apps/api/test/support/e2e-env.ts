@@ -21,8 +21,23 @@ export function withDatabase(url: string, dbName: string): string {
   return u.toString();
 }
 
+// Parallel runs (e.g. several worktrees at once) set E2E_ISOLATION to a
+// short [a-z0-9] tag and E2E_REDIS_DB to a free logical DB so they never
+// share (or drop) each other's database and Redis state.
+export function e2eIsolationTag(): string {
+  const tag = process.env.E2E_ISOLATION ?? '';
+  if (!/^[a-z0-9]{0,16}$/.test(tag)) {
+    throw new Error('E2E_ISOLATION must match [a-z0-9]{0,16}');
+  }
+  return tag;
+}
+
 export function e2eRedisUrl(): string {
   const u = new URL(baseUrls().redisUrl);
-  u.pathname = '/15';
+  const db = process.env.E2E_REDIS_DB ?? '15';
+  if (!/^(1[0-5]|[1-9])$/.test(db)) {
+    throw new Error('E2E_REDIS_DB must be 1..15 (0 is the dev DB)');
+  }
+  u.pathname = `/${db}`;
   return u.toString();
 }
