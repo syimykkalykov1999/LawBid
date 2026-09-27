@@ -93,9 +93,10 @@ void main() {
         theme,
         Column(
           children: [
-            AppOtpField(onCompleted: (_) {}, autofocus: false),
+            AppOtpField(semanticLabel: 'Verification code', onCompleted: (_) {}, autofocus: false),
             const SizedBox(height: AppSpacing.lg),
             AppOtpField(
+              semanticLabel: 'Verification code',
               onCompleted: (_) {},
               autofocus: false,
               errorText: 'Wrong code',

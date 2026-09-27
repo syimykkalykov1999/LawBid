@@ -175,6 +175,7 @@ class _ContactVerificationCardState
             ),
             const SizedBox(height: AppSpacing.md),
             AppOtpField(
+              semanticLabel: t.t('auth.otp.fieldLabel'),
               key: ValueKey('${widget.type.name}-${state.attempt}'),
               errorText: errorMessage,
               onCompleted: (code) => confirming

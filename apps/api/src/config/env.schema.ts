@@ -201,6 +201,13 @@ export const envSchema = z
       /^MG[0-9a-fA-F]{32}$/,
       'TWILIO_MESSAGING_SERVICE_SID must be "MG" + 32 hex chars',
     ),
+    // Android SMS Retriever autofill (docs/01 §10.2 D): the 11-character
+    // app hash of the PROD Android build (release signing key). When set,
+    // the OTP SMS gets the "<#>" prefix and the hash on its last line.
+    SMS_ANDROID_APP_HASH: optionalMatching(
+      /^[A-Za-z0-9+/]{11}$/,
+      'SMS_ANDROID_APP_HASH must be the 11-character Android app hash',
+    ),
 
     // --- Email provider (stage 1.4; auto-selection: provider-selection.ts) ---
     // auto (default): ses once SES_REGION + SES_FROM_ADDRESS are set.

@@ -149,6 +149,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                           ),
                           const SizedBox(height: 26),
                           AppOtpField(
+                            semanticLabel: t.t('auth.otp.fieldLabel'),
                             controller: _codeController,
                             errorText: flowState.errorMessage,
                             onChanged: (value) => _currentCode = value,

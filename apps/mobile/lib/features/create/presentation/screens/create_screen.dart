@@ -20,18 +20,22 @@ class CreateScreen extends ConsumerWidget {
       // UI modernization pass (2026-09-27): design-system top bar with a
       // 44x44 close target instead of the raw Material AppBar.
       appBar: AppTopBar(
-        leading: Semantics(
-          button: true,
-          label: t.t('common.close'),
-          excludeSemantics: true,
-          child: AppPressable(
-            onTap: () => Navigator.of(context).pop(),
-            child: SizedBox.square(
-              dimension: AppSizes.touchTarget,
-              child: Icon(
-                Icons.close_rounded,
-                color: colors.text,
-                size: AppSizes.iconMd,
+        // AppTapTarget grows the touch/semantic area to 48x48 (Android
+        // accessibility) without changing the 44px visual (docs/01 §8.4).
+        leading: AppTapTarget(
+          child: Semantics(
+            button: true,
+            label: t.t('common.close'),
+            excludeSemantics: true,
+            child: AppPressable(
+              onTap: () => Navigator.of(context).pop(),
+              child: SizedBox.square(
+                dimension: AppSizes.touchTarget,
+                child: Icon(
+                  Icons.close_rounded,
+                  color: colors.text,
+                  size: AppSizes.iconMd,
+                ),
               ),
             ),
           ),

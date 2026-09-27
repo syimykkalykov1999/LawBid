@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { PinoLogger } from 'nestjs-pino';
 import Twilio from 'twilio';
 import type { SmsProvider } from './sms-provider.interface';
+import { otpSmsText } from './otp-sms-text';
 
 /**
  * Real provider, selected by config/provider-selection.ts when every
@@ -40,7 +41,10 @@ export class TwilioSmsProvider implements SmsProvider {
     await this.client.messages.create({
       to: toE164,
       ...this.sender,
-      body: `LawBid code: ${code}. Expires in 10 minutes.`,
+      body: otpSmsText(
+        code,
+        this.config.get<string>('SMS_ANDROID_APP_HASH') || undefined,
+      ),
     });
     this.logger.info({ toE164Suffix: toE164.slice(-4) }, 'Twilio SMS OTP sent');
   }

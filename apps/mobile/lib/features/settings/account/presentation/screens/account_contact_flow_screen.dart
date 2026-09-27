@@ -271,6 +271,7 @@ class _AccountContactFlowScreenState
             ),
             const SizedBox(height: AppSpacing.lg),
             AppOtpField(
+              semanticLabel: t.t('auth.otp.fieldLabel'),
               key: ValueKey('${state.stage.name}-${state.attempt}'),
               errorText: error,
               onCompleted: (code) => _submitCode(state, code),

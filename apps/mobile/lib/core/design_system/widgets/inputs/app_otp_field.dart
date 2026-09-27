@@ -38,7 +38,7 @@ class AppOtpField extends StatefulWidget {
     this.errorText,
     this.autofocus = true,
     this.controller,
-    this.semanticLabel,
+    required this.semanticLabel,
   });
 
   final ValueChanged<String> onCompleted;
@@ -52,9 +52,8 @@ class AppOtpField extends StatefulWidget {
   /// caller already knows the code. Owned by the caller when provided.
   final TextEditingController? controller;
   /// Screen-reader label for the whole code field — callers pass
-  /// `t('...')` (docs/01 §9: no hardcoded UI strings). The Russian default
-  /// only keeps pre-existing call sites working unchanged.
-  final String? semanticLabel;
+  /// `t('auth.otp.fieldLabel')` (docs/01 §9: no hardcoded UI strings).
+  final String semanticLabel;
 
   @override
   State<AppOtpField> createState() => _AppOtpFieldState();
@@ -101,7 +100,7 @@ class _AppOtpFieldState extends State<AppOtpField> {
 
         return Semantics(
           textField: true,
-          label: widget.semanticLabel ?? 'Код подтверждения',
+          label: widget.semanticLabel,
           value: text,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

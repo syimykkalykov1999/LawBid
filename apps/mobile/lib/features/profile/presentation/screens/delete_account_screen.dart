@@ -332,6 +332,7 @@ class _ReauthCodeStepState extends ConsumerState<_ReauthCodeStep> {
         ),
         const SizedBox(height: AppSpacing.md),
         AppOtpField(
+          semanticLabel: t.t('auth.otp.fieldLabel'),
           onChanged: (value) => _currentCode = value,
           onCompleted: notifier.submitCode,
           errorText: state.errorMessage == 'invalid'
