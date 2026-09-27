@@ -661,6 +661,10 @@ model Session {
 
   // (user_id) WHERE revoked_at IS NULL: partial index, raw SQL (2.6).
   @@index([session_chain_id])
+  // SessionService.isNewDevice (docs/01 §10.6 new-device signal): point
+  // lookup by (user_id, device_id) over ALL of a user's sessions, revoked
+  // ones included — the partial active-sessions index can't serve it.
+  @@index([user_id, device_id])
   @@map("sessions")
 }
 

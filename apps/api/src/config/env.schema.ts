@@ -298,6 +298,26 @@ export const envSchema = z
     // --- Stage 1.4: fraud/attestation seam (flag-gated, no-op today) ---
     FEATURE_ATTESTATION: envBoolean(false),
 
+    // --- Background jobs (docs/01 §5.2 BullMQ; docs/06 §6 `worker`
+    // service; src/jobs/) ---
+    // true: this API process also runs the `cron` queue scheduler and
+    // worker. Set false on API tasks once the dedicated worker service
+    // (node dist/src/worker.js) runs; worker.ts ignores this flag.
+    JOBS_ENABLED: envBoolean(true),
+    // docs/02 §3.3 monthly disposable-domain refresh: plain text, one
+    // domain per line, '#' comments (the open disposable-email-domains
+    // blocklist by default).
+    DISPOSABLE_DOMAINS_URL: z
+      .string()
+      .trim()
+      .regex(
+        /^https?:\/\/\S+$/,
+        'DISPOSABLE_DOMAINS_URL must be an http(s) URL',
+      )
+      .default(
+        'https://raw.githubusercontent.com/disposable-email-domains/disposable-email-domains/master/disposable_email_blocklist.conf',
+      ),
+
     // --- Cost protection (owner-approved extension 2026-09-27,
     // docs/OPEN_QUESTIONS.md, docs/COST_PROTECTION.md) ---
     // Fallback caps for CostGuardService. The live values come from

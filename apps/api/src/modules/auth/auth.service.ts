@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
+import { withDeleted } from '../../prisma/soft-delete.extension';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { OtpService } from './services/otp.service';
@@ -369,8 +370,11 @@ export class AuthService {
       });
     }
 
+    // withDeleted: the session row, not users.deleted_at, decides whether
+    // a refresh is valid (account deletion revokes sessions); keep seeing
+    // the account here instead of throwing P2025 (docs/02 §1.4 opt-out).
     const user = await this.prisma.user.findUniqueOrThrow({
-      where: { id: outcome.session.user_id },
+      where: withDeleted({ id: outcome.session.user_id }),
     });
     const accessToken = this.tokens.signAccessToken({
       sub: user.id,
@@ -453,7 +457,7 @@ export class AuthService {
     user: RequestUser,
   ): Promise<{ reauthToken: string }> {
     const account = await this.prisma.user.findUniqueOrThrow({
-      where: { id: user.sub },
+      where: withDeleted({ id: user.sub }),
     });
     const channel: 'phone' | 'email' | null =
       account.phone_verified_at && account.phone_e164 === dto.identifier

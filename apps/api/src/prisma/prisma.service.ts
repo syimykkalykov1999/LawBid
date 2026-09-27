@@ -1,18 +1,33 @@
 import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
+import { softDeleteExtension } from './soft-delete.extension';
 
 /**
- * With an empty prisma/schema.prisma (no models yet — stage 1.3 adds the
- * auth models per docs/01_FOUNDATION_AUTH.md §15), the generated
- * PrismaClient's method typings degrade to `any` for $connect/$disconnect.
- * The eslint-disable lines below are scoped to exactly that and should be
- * revisited (likely removable) once real models exist.
+ * The application's database client. Every query made through it (and
+ * through `$transaction` clients it hands out) goes through the
+ * soft-delete extension (docs/02_DATABASE.md §1.4, see
+ * soft-delete.extension.ts): reads of models with `deleted_at` exclude
+ * soft-deleted rows unless the caller opts out with `withDeleted()` /
+ * `onlyDeleted()` or filters on `deleted_at` itself.
+ *
+ * The constructor returns the extended client (a proxy over this very
+ * instance), so `PrismaService` keeps the plain `PrismaClient` type and
+ * every existing injection site, `withTxRetry(prisma, ...)` and
+ * `prisma.$transaction` call keep compiling and behaving as before. A query
+ * extension changes no types, only the args that reach the engine.
  */
 @Injectable()
 export class PrismaService
   extends PrismaClient
   implements OnModuleInit, OnModuleDestroy
 {
+  constructor() {
+    super();
+    // Returning an object from a derived-class constructor makes it the
+    // `new` result; Nest registers that proxy as the provider instance.
+    return this.$extends(softDeleteExtension()) as unknown as PrismaService;
+  }
+
   async onModuleInit(): Promise<void> {
     await this.$connect();
   }

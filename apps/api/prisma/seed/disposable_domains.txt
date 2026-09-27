@@ -2,10 +2,10 @@
 # This is a small, hand-curated STARTER set, not the full open list that
 # docs/02_DATABASE.md §3.3 describes ("загружается из файла
 # disposable_domains.txt (открытый список), обновляется джобой раз в
-# месяц"). Replace/extend this file from a maintained open-source
-# disposable-domains list (and wire the monthly refresh job) before
-# relying on it in production — tracked as a stage 1.4 / ops follow-up,
-# not invented here.
+# месяц"). It only bootstraps a fresh database: the monthly BullMQ job
+# `disposable-domains.refresh` (src/jobs/disposable-domains/) replaces
+# the `disposable` rows with the full open list from
+# DISPOSABLE_DOMAINS_URL (disposable-email-domains blocklist by default).
 mailinator.com
 guerrillamail.com
 10minutemail.com

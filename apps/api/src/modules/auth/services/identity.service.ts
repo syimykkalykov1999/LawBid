@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { Prisma, PrismaClient, User } from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { withDeleted } from '../../../prisma/soft-delete.extension';
 
 export type IdentityProvider = 'phone' | 'email' | 'apple' | 'google';
 
@@ -106,8 +107,14 @@ export class IdentityService {
 
     if (verifiedEmail) {
       const normalizedEmail = verifiedEmail.trim().toLowerCase();
+      // withDeleted: a soft-deleted account that still owns this email
+      // (not yet anonymized, docs/02 §6.4) is still a collision — and
+      // users.email is unique, so creating a second owner would fail.
       const emailOwner = await this.prisma.user.findFirst({
-        where: { email: normalizedEmail, email_verified_at: { not: null } },
+        where: withDeleted({
+          email: normalizedEmail,
+          email_verified_at: { not: null },
+        }),
       });
       if (emailOwner) {
         return {

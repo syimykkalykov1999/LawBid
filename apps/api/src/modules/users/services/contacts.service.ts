@@ -7,6 +7,7 @@ import {
 import { HttpException, HttpStatus } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { withDeleted } from '../../../prisma/soft-delete.extension';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { OtpService } from '../../auth/services/otp.service';
 import { IdentityService } from '../../auth/services/identity.service';
@@ -48,8 +49,10 @@ export class ContactsService {
   /** True when the user already has a verified contact of this type —
    * i.e. a new request would be a change, which needs reauth (§11). */
   async hasVerified(userId: string, type: 'phone' | 'email'): Promise<boolean> {
+    // withDeleted: this gates the reauth requirement — never let a
+    // soft-deleted account look like it has no verified contact.
     const user = await this.prisma.user.findUnique({
-      where: { id: userId },
+      where: withDeleted({ id: userId }),
       select: { phone_verified_at: true, email_verified_at: true },
     });
     return type === 'phone'

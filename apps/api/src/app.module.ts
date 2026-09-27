@@ -18,6 +18,7 @@ import { ProfilesModule } from './modules/profiles/profiles.module';
 import { ReviewsModule } from './modules/reviews/reviews.module';
 import { DevModule } from './modules/dev/dev.module';
 import { CostGuardModule } from './common/cost-guard/cost-guard.module';
+import { JobsModule } from './jobs/jobs.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
@@ -82,6 +83,10 @@ const isDev =
     VerificationModule,
     ProfilesModule,
     ReviewsModule,
+    // BullMQ `cron` queue (session/OTP cleanup, disposable-domain refresh).
+    // Runs in this process while JOBS_ENABLED (default true); src/worker.ts
+    // runs the same module as the dedicated worker service.
+    JobsModule.register({ mode: 'api' }),
     ...(isDev ? [DevModule] : []),
   ],
   providers: [
