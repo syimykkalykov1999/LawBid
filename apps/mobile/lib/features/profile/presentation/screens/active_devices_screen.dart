@@ -2,14 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/design_system/design_system.dart';
-import '../../../../core/l10n/l10n_providers.dart';
-import '../../../../core/l10n/translator.dart';
-import '../../../../core/session/session_providers.dart';
-import '../../../auth/application/auth_providers.dart';
-import '../../../auth/auth_routes.dart';
-import '../../../auth/data/auth_dtos.dart';
-import '../../application/active_devices_controller.dart';
+import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/core/session/session_providers.dart';
+import 'package:lawbid/features/auth/application/auth_providers.dart';
+import 'package:lawbid/features/auth/auth_routes.dart';
+import 'package:lawbid/features/auth/data/auth_dtos.dart';
+import 'package:lawbid/features/profile/application/active_devices_controller.dart';
 
 /// `/profile/settings/devices` (file 01 §10.4's "Активные устройства"):
 /// list of this account's active sessions, with per-row revoke and a
@@ -53,14 +54,20 @@ class ActiveDevicesScreen extends ConsumerWidget {
     );
     if (confirmed != true || !context.mounted) return;
 
-    await ref.read(activeDevicesControllerProvider.notifier).revoke(session.sessionId);
+    await ref
+        .read(activeDevicesControllerProvider.notifier)
+        .revoke(session.sessionId);
     if (session.isCurrent) {
       await ref.read(sessionControllerProvider.notifier).clear();
       if (context.mounted) context.go(AuthRoutes.welcome);
     }
   }
 
-  Future<void> _confirmAndLogoutAll(BuildContext context, WidgetRef ref, Translator t) async {
+  Future<void> _confirmAndLogoutAll(
+    BuildContext context,
+    WidgetRef ref,
+    Translator t,
+  ) async {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final confirmed = await showDialog<bool>(
       context: context,
@@ -75,7 +82,10 @@ class ActiveDevicesScreen extends ConsumerWidget {
           ),
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: Text(t.t('devices.logoutAll'), style: TextStyle(color: colors.danger)),
+            child: Text(
+              t.t('devices.logoutAll'),
+              style: TextStyle(color: colors.danger),
+            ),
           ),
         ],
       ),
@@ -90,50 +100,94 @@ class ActiveDevicesScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final t = ref.watch(translatorProvider);
     final sessionsAsync = ref.watch(activeDevicesControllerProvider);
+    Future<void> retry() =>
+        ref.read(activeDevicesControllerProvider.notifier).refresh();
 
     return Scaffold(
       backgroundColor: colors.bg,
       appBar: AppTopBar(
         title: Text(t.t('devices.title')),
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: colors.text),
+        leading: AppBackButton(
+          semanticLabel: t.t('common.back'),
           onPressed: () => Navigator.of(context).maybePop(),
         ),
       ),
+      // UI modernization pass (2026-09-27): skeleton cards that match the
+      // real rows, offline state for connectivity failures, elevated cards
+      // with a staggered entrance, pull-to-refresh in brand gold.
       body: sessionsAsync.when(
         loading: () => const _DevicesLoading(),
-        error: (error, stackTrace) => AppErrorState(
-          message: t.t('devices.error'),
-          retryLabel: t.t('error.retry'),
-          onRetry: () => ref.read(activeDevicesControllerProvider.notifier).refresh(),
-        ),
+        error: (error, stackTrace) {
+          if (error is ApiException && error.isNetworkError) {
+            return AppOfflineState(
+              title: t.t('offline.title'),
+              message: t.t('offline.message'),
+              action: AppButton(
+                label: t.t('error.retry'),
+                icon: Icons.refresh_rounded,
+                variant: AppButtonVariant.secondary,
+                height: AppSizes.touchTarget,
+                onPressed: retry,
+              ),
+            );
+          }
+          return AppErrorState(
+            message: t.t('devices.error'),
+            retryLabel: t.t('error.retry'),
+            onRetry: retry,
+          );
+        },
         data: (sessions) {
           if (sessions.isEmpty) {
-            return AppEmptyState(message: t.t('devices.empty'));
+            return AppEmptyState(
+              icon: Icons.devices_rounded,
+              message: t.t('devices.empty'),
+            );
           }
           return RefreshIndicator(
-            onRefresh: () => ref.read(activeDevicesControllerProvider.notifier).refresh(),
+            color: colors.gold,
+            onRefresh: retry,
             child: ListView(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.screenSide,
-                vertical: AppSpacing.md,
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.screenSide,
+                AppSpacing.sm,
+                AppSpacing.screenSide,
+                AppSpacing.xxl,
               ),
               children: [
-                for (final session in sessions) ...[
-                  _DeviceRow(
-                    session: session,
-                    t: t,
-                    onRevoke: () => _confirmAndRevoke(context, ref, t, session),
+                AppEntrance(
+                  child: Text(
+                    t.t('devices.subtitle'),
+                    style:
+                        typography.body.copyWith(color: colors.textSecondary),
                   ),
-                  const SizedBox(height: AppSpacing.sm),
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                for (var i = 0; i < sessions.length; i++) ...[
+                  AppEntrance(
+                    index: i + 1,
+                    child: _DeviceRow(
+                      session: sessions[i],
+                      t: t,
+                      onRevoke: () =>
+                          _confirmAndRevoke(context, ref, t, sessions[i]),
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
                 ],
                 const SizedBox(height: AppSpacing.md),
-                AppButton(
-                  label: t.t('devices.logoutAll'),
-                  variant: AppButtonVariant.secondary,
-                  onPressed: () => _confirmAndLogoutAll(context, ref, t),
+                AppEntrance(
+                  index: sessions.length + 1,
+                  child: AppButton(
+                    label: t.t('devices.logoutAll'),
+                    icon: Icons.logout_rounded,
+                    variant: AppButtonVariant.secondary,
+                    onPressed: () => _confirmAndLogoutAll(context, ref, t),
+                  ),
                 ),
               ],
             ),
@@ -155,18 +209,28 @@ class _DevicesLoading extends StatelessWidget {
         vertical: AppSpacing.md,
       ),
       children: const [
-        AppSkeleton(height: 76, borderRadius: AppRadii.roleCard),
-        SizedBox(height: AppSpacing.sm),
-        AppSkeleton(height: 76, borderRadius: AppRadii.roleCard),
-        SizedBox(height: AppSpacing.sm),
-        AppSkeleton(height: 76, borderRadius: AppRadii.roleCard),
+        FractionallySizedBox(
+          alignment: Alignment.centerLeft,
+          widthFactor: 0.6,
+          child: AppSkeleton(),
+        ),
+        SizedBox(height: AppSpacing.lg),
+        AppSkeletonCard(),
+        SizedBox(height: AppSpacing.md),
+        AppSkeletonCard(),
+        SizedBox(height: AppSpacing.md),
+        AppSkeletonCard(),
       ],
     );
   }
 }
 
 class _DeviceRow extends StatelessWidget {
-  const _DeviceRow({required this.session, required this.t, required this.onRevoke});
+  const _DeviceRow({
+    required this.session,
+    required this.t,
+    required this.onRevoke,
+  });
 
   final DeviceSession session;
   final Translator t;
@@ -176,7 +240,7 @@ class _DeviceRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    final name = session.deviceName?.trim().isNotEmpty == true
+    final name = session.deviceName?.trim().isNotEmpty ?? false
         ? session.deviceName!
         : t.t('devices.unknownDevice');
     final lastActive = session.lastUsedAt;
@@ -185,9 +249,16 @@ class _DeviceRow extends StatelessWidget {
         : t.t('devices.lastActive', {'time': _formatTimestamp(lastActive)});
 
     return AppCard(
+      elevated: true,
       child: Row(
         children: [
-          Icon(_platformIcon(session.platform), color: colors.textSecondary, size: 28),
+          AppIconMedallion(
+            icon: _platformIcon(session.platform),
+            tone: session.isCurrent
+                ? AppMedallionTone.gold
+                : AppMedallionTone.neutral,
+            iconSize: AppSizes.iconMd,
+          ),
           const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Column(
@@ -198,26 +269,38 @@ class _DeviceRow extends StatelessWidget {
                     Flexible(
                       child: Text(
                         name,
-                        style: typography.body.copyWith(color: colors.text),
+                        style: typography.body.copyWith(
+                          color: colors.text,
+                          fontWeight: FontWeight.w600,
+                        ),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     if (session.isCurrent) ...[
                       const SizedBox(width: AppSpacing.xs),
-                      AppChip(label: t.t('devices.current'), height: 24, selected: true),
+                      AppChip(
+                        label: t.t('devices.current'),
+                        height: 24,
+                        selected: true,
+                      ),
                     ],
                   ],
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: AppSpacing.xs),
                 Text(
                   lastActiveLabel,
-                  style: typography.bodySmall.copyWith(color: colors.textSecondary),
+                  style: typography.bodySmall
+                      .copyWith(color: colors.textSecondary),
                 ),
               ],
             ),
           ),
           IconButton(
-            icon: Icon(Icons.logout, color: colors.danger, size: 20),
+            icon: Icon(
+              Icons.logout_rounded,
+              color: colors.danger,
+              size: AppSizes.iconSm,
+            ),
             tooltip: t.t('devices.revoke'),
             onPressed: onRevoke,
           ),

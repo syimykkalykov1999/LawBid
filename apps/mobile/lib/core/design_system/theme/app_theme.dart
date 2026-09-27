@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-
-import '../tokens/app_fonts.dart';
-import '../tokens/app_radii.dart';
-import 'app_color_tokens.dart';
-import 'app_typography_tokens.dart';
+import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
+import 'package:lawbid/core/design_system/theme/app_typography_tokens.dart';
+import 'package:lawbid/core/design_system/tokens/app_fonts.dart';
+import 'package:lawbid/core/design_system/tokens/app_radii.dart';
 
 /// Builds the light/dark [ThemeData] for LawBid (file 07 §2-§4).
 ///
@@ -57,6 +56,37 @@ abstract final class AppTheme {
         ),
       ),
       visualDensity: VisualDensity.standard,
+      // UI modernization pass (2026-09-27): dialogs, sheets and snackbars
+      // share the card corner language and brand surfaces instead of
+      // Material defaults. The welcome screen uses none of them (its
+      // "not built yet" SnackBar is left on Material defaults on purpose —
+      // non-welcome screens use `showAppSnackBar` instead).
+      dialogTheme: DialogThemeData(
+        backgroundColor: colors.surface,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadii.sheet),
+          side: BorderSide(color: colors.border),
+        ),
+        titleTextStyle: typography.roleTitle.copyWith(color: colors.text),
+        contentTextStyle: typography.body.copyWith(color: colors.textSecondary),
+      ),
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: colors.surface,
+        surfaceTintColor: Colors.transparent,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(AppRadii.sheet),
+          ),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: colors.text,
+          textStyle: typography.button,
+          minimumSize: const Size(44, 44),
+        ),
+      ),
     );
   }
 }

@@ -42,6 +42,29 @@ abstract final class AppColorsLight {
   /// second, non-color-dependent visual cue. Not needed in dark theme,
   /// where the gold border already measures 7.51:1.
   static const Color focusRingGlow = Color(0x40C9A24A);
+  // --- UI modernization pass (2026-09-27) --------------------------------
+  // Derived from the approved palette above (same hues, alpha only) — no
+  // new brand colors. Used for elevation, tinted icon medallions and the
+  // skeleton shimmer on non-welcome screens.
+
+  /// Soft navy-tinted card/nav shadow.
+  static const Color shadow = Color(0x0F0A1A3F);
+
+  /// Gold at ~12% — medallion / selected-row fill.
+  static const Color goldTint = Color(0x1FC9A24A);
+
+  /// Danger at ~10% — destructive medallion fill.
+  static const Color dangerTint = Color(0x1AD64545);
+
+  /// Success at ~10%.
+  static const Color successTint = Color(0x1A2E9E5B);
+
+  /// Skeleton base + moving highlight.
+  static const Color skeletonBase = Color(0xFFEEF1F7);
+  static const Color skeletonHighlight = Color(0xFFF8F9FC);
+
+  /// Foreground on a filled danger button.
+  static const Color onDanger = Color(0xFFFFFFFF);
 }
 
 /// Dark-theme raw palette (file 07 §2, "Тёмная" column).
@@ -78,6 +101,14 @@ abstract final class AppColorsDark {
 
   /// Not needed in dark theme — see [AppColorsLight.focusRingGlow].
   static const Color focusRingGlow = Color(0x00000000);
+  // --- UI modernization pass (2026-09-27) — see AppColorsLight. ---------
+  static const Color shadow = Color(0x66000000);
+  static const Color goldTint = Color(0x26C9A24A);
+  static const Color dangerTint = Color(0x26D64545);
+  static const Color successTint = Color(0x262E9E5B);
+  static const Color skeletonBase = Color(0xFF1E1E24);
+  static const Color skeletonHighlight = Color(0xFF2A2A31);
+  static const Color onDanger = Color(0xFFFFFFFF);
 }
 
 /// Status colors, shared by both themes (file 01 §8.1, reused unchanged by file 07).

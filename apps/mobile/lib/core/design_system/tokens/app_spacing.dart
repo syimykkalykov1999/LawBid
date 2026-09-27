@@ -16,4 +16,10 @@ abstract final class AppSpacing {
 
   /// Gap between role cards (file 07 §4).
   static const double roleCardGap = 12;
+
+  /// 20 — gap between grouped sections (settings groups).
+  static const double section = unit * 5;
+
+  /// 40 — generous breathing room above empty/error state content.
+  static const double xxxl = unit * 10;
 }

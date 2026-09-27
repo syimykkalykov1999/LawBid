@@ -18,7 +18,8 @@ void main() {
     );
   }
 
-  testWidgets('fires onPressed immediately when disableAnimations is set', (tester) async {
+  testWidgets('fires onPressed immediately when disableAnimations is set',
+      (tester) async {
     var pressed = 0;
     await tester.pumpWidget(
       wrap(
@@ -33,10 +34,19 @@ void main() {
     expect(pressed, 1); // no 700ms delay needed — fired synchronously.
   });
 
-  testWidgets('ignores repeated taps while the strike animation is running', (tester) async {
+  testWidgets('ignores repeated taps while the strike animation is running',
+      (tester) async {
     var pressed = 0;
     await tester.pumpWidget(
-      wrap(GavelStrikeButton(label: 'Подтвердить', onPressed: () => pressed++)),
+      wrap(
+        GavelStrikeButton(
+          label: 'Подтвердить',
+          // strike defaults to false since 2026-09-23 (owner decision,
+          // docs/CHANGELOG.md); these tests cover the animation itself.
+          strike: true,
+          onPressed: () => pressed++,
+        ),
+      ),
     );
 
     await tester.tap(find.byType(GavelStrikeButton));
@@ -51,7 +61,15 @@ void main() {
   testWidgets('fires onPressed once ~700ms after a normal tap', (tester) async {
     var pressed = 0;
     await tester.pumpWidget(
-      wrap(GavelStrikeButton(label: 'Подтвердить', onPressed: () => pressed++)),
+      wrap(
+        GavelStrikeButton(
+          label: 'Подтвердить',
+          // strike defaults to false since 2026-09-23 (owner decision,
+          // docs/CHANGELOG.md); these tests cover the animation itself.
+          strike: true,
+          onPressed: () => pressed++,
+        ),
+      ),
     );
 
     await tester.tap(find.byType(GavelStrikeButton));
@@ -63,7 +81,13 @@ void main() {
 
   testWidgets('disposes cleanly when unmounted mid-animation', (tester) async {
     await tester.pumpWidget(
-      wrap(GavelStrikeButton(label: 'Подтвердить', onPressed: () {})),
+      wrap(
+        GavelStrikeButton(
+          label: 'Подтвердить',
+          strike: true,
+          onPressed: () {},
+        ),
+      ),
     );
     await tester.tap(find.byType(GavelStrikeButton));
     await tester.pump(const Duration(milliseconds: 200));

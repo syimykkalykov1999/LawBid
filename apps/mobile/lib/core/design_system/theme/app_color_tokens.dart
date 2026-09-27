@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../tokens/app_colors.dart';
+import 'package:lawbid/core/design_system/tokens/app_colors.dart';
 
 /// Design-system color tokens (file 07 §2). Access via
 /// `Theme.of(context).extension<AppColorTokens>()!`.
@@ -28,6 +28,13 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
     required this.danger,
     required this.success,
     required this.warning,
+    required this.shadow,
+    required this.goldTint,
+    required this.dangerTint,
+    required this.successTint,
+    required this.skeletonBase,
+    required this.skeletonHighlight,
+    required this.onDanger,
   });
 
   factory AppColorTokens.light() => const AppColorTokens(
@@ -52,6 +59,13 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
         danger: AppColorsStatus.danger,
         success: AppColorsStatus.success,
         warning: AppColorsStatus.warning,
+        shadow: AppColorsLight.shadow,
+        goldTint: AppColorsLight.goldTint,
+        dangerTint: AppColorsLight.dangerTint,
+        successTint: AppColorsLight.successTint,
+        skeletonBase: AppColorsLight.skeletonBase,
+        skeletonHighlight: AppColorsLight.skeletonHighlight,
+        onDanger: AppColorsLight.onDanger,
       );
 
   factory AppColorTokens.dark() => const AppColorTokens(
@@ -76,6 +90,13 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
         danger: AppColorsStatus.danger,
         success: AppColorsStatus.success,
         warning: AppColorsStatus.warning,
+        shadow: AppColorsDark.shadow,
+        goldTint: AppColorsDark.goldTint,
+        dangerTint: AppColorsDark.dangerTint,
+        successTint: AppColorsDark.successTint,
+        skeletonBase: AppColorsDark.skeletonBase,
+        skeletonHighlight: AppColorsDark.skeletonHighlight,
+        onDanger: AppColorsDark.onDanger,
       );
 
   final Color bg;
@@ -100,6 +121,15 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
   final Color success;
   final Color warning;
 
+  // UI modernization pass (2026-09-27) — see AppColorsLight for meaning.
+  final Color shadow;
+  final Color goldTint;
+  final Color dangerTint;
+  final Color successTint;
+  final Color skeletonBase;
+  final Color skeletonHighlight;
+  final Color onDanger;
+
   @override
   AppColorTokens copyWith({
     Color? bg,
@@ -123,6 +153,13 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
     Color? danger,
     Color? success,
     Color? warning,
+    Color? shadow,
+    Color? goldTint,
+    Color? dangerTint,
+    Color? successTint,
+    Color? skeletonBase,
+    Color? skeletonHighlight,
+    Color? onDanger,
   }) {
     return AppColorTokens(
       bg: bg ?? this.bg,
@@ -146,6 +183,13 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
       danger: danger ?? this.danger,
       success: success ?? this.success,
       warning: warning ?? this.warning,
+      shadow: shadow ?? this.shadow,
+      goldTint: goldTint ?? this.goldTint,
+      dangerTint: dangerTint ?? this.dangerTint,
+      successTint: successTint ?? this.successTint,
+      skeletonBase: skeletonBase ?? this.skeletonBase,
+      skeletonHighlight: skeletonHighlight ?? this.skeletonHighlight,
+      onDanger: onDanger ?? this.onDanger,
     );
   }
 
@@ -175,6 +219,14 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
       danger: Color.lerp(danger, other.danger, t)!,
       success: Color.lerp(success, other.success, t)!,
       warning: Color.lerp(warning, other.warning, t)!,
+      shadow: Color.lerp(shadow, other.shadow, t)!,
+      goldTint: Color.lerp(goldTint, other.goldTint, t)!,
+      dangerTint: Color.lerp(dangerTint, other.dangerTint, t)!,
+      successTint: Color.lerp(successTint, other.successTint, t)!,
+      skeletonBase: Color.lerp(skeletonBase, other.skeletonBase, t)!,
+      skeletonHighlight:
+          Color.lerp(skeletonHighlight, other.skeletonHighlight, t)!,
+      onDanger: Color.lerp(onDanger, other.onDanger, t)!,
     );
   }
 }

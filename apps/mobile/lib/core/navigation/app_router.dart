@@ -1,20 +1,20 @@
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lawbid/core/navigation/app_page_transitions.dart';
+import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/navigation/guards/auth_guard.dart';
+import 'package:lawbid/core/navigation/route_observer.dart';
+import 'package:lawbid/core/navigation/shell/main_shell.dart';
+import 'package:lawbid/features/auth/auth_routes.dart';
+import 'package:lawbid/features/create/presentation/screens/create_screen.dart';
+import 'package:lawbid/features/feed/presentation/screens/feed_screen.dart';
+import 'package:lawbid/features/mine/presentation/screens/mine_screen.dart';
+import 'package:lawbid/features/profile/presentation/screens/active_devices_screen.dart';
+import 'package:lawbid/features/profile/presentation/screens/delete_account_screen.dart';
+import 'package:lawbid/features/profile/presentation/screens/profile_screen.dart';
+import 'package:lawbid/features/profile/presentation/screens/settings_screen.dart';
+import 'package:lawbid/features/search/presentation/screens/search_screen.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-
-import '../../features/auth/auth_routes.dart';
-import '../../features/create/presentation/screens/create_screen.dart';
-import '../../features/feed/presentation/screens/feed_screen.dart';
-import '../../features/mine/presentation/screens/mine_screen.dart';
-import '../../features/profile/presentation/screens/active_devices_screen.dart';
-import '../../features/profile/presentation/screens/delete_account_screen.dart';
-import '../../features/profile/presentation/screens/profile_screen.dart';
-import '../../features/profile/presentation/screens/settings_screen.dart';
-import '../../features/search/presentation/screens/search_screen.dart';
-import 'app_routes.dart';
-import 'guards/auth_guard.dart';
-import 'route_observer.dart';
-import 'shell/main_shell.dart';
 
 part 'app_router.g.dart';
 
@@ -36,22 +36,44 @@ GoRouter appRouter(Ref ref) {
     redirect: (context, state) => authGuardRedirect(context, state, ref),
     routes: [
       StatefulShellRoute.indexedStack(
-        builder: (context, state, navigationShell) => MainShell(navigationShell: navigationShell),
+        // UI modernization pass (2026-09-27): the shell fades in when the
+        // user lands on it (e.g. role → feed); see app_page_transitions.dart.
+        pageBuilder: (context, state, navigationShell) =>
+            AppPageTransitions.fade(
+          state,
+          MainShell(navigationShell: navigationShell),
+        ),
         branches: [
           StatefulShellBranch(
-            routes: [GoRoute(path: AppRoutes.feed, builder: (context, state) => const FeedScreen())],
-          ),
-          StatefulShellBranch(
             routes: [
-              GoRoute(path: AppRoutes.search, builder: (context, state) => const SearchScreen()),
+              GoRoute(
+                path: AppRoutes.feed,
+                builder: (context, state) => const FeedScreen(),
+              ),
             ],
           ),
           StatefulShellBranch(
-            routes: [GoRoute(path: AppRoutes.mine, builder: (context, state) => const MineScreen())],
+            routes: [
+              GoRoute(
+                path: AppRoutes.search,
+                builder: (context, state) => const SearchScreen(),
+              ),
+            ],
           ),
           StatefulShellBranch(
             routes: [
-              GoRoute(path: AppRoutes.profile, builder: (context, state) => const ProfileScreen()),
+              GoRoute(
+                path: AppRoutes.mine,
+                builder: (context, state) => const MineScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.profile,
+                builder: (context, state) => const ProfileScreen(),
+              ),
             ],
           ),
         ],
@@ -59,24 +81,28 @@ GoRouter appRouter(Ref ref) {
       GoRoute(
         path: AppRoutes.create,
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => const CreateScreen(),
+        pageBuilder: (context, state) =>
+            AppPageTransitions.modal(state, const CreateScreen()),
       ),
       GoRoute(
         path: AppRoutes.profileSettings,
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => const SettingsScreen(),
+        pageBuilder: (context, state) =>
+            AppPageTransitions.push(state, const SettingsScreen()),
       ),
       // Phase 4 of the auth networking work (docs/CHANGELOG.md) — pushed
       // on the ROOT navigator, same reasoning as profileSettings above.
       GoRoute(
         path: AppRoutes.activeDevices,
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => const ActiveDevicesScreen(),
+        pageBuilder: (context, state) =>
+            AppPageTransitions.push(state, const ActiveDevicesScreen()),
       ),
       GoRoute(
         path: AppRoutes.deleteAccount,
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => const DeleteAccountScreen(),
+        pageBuilder: (context, state) =>
+            AppPageTransitions.push(state, const DeleteAccountScreen()),
       ),
       ...authRoutes(),
     ],

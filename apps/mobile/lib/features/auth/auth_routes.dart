@@ -1,9 +1,11 @@
 import 'package:go_router/go_router.dart';
 
-import 'presentation/screens/otp_screen.dart';
-import 'presentation/screens/phone_screen.dart';
-import 'presentation/screens/role_screen.dart';
-import 'presentation/screens/welcome_screen.dart';
+import 'package:lawbid/core/navigation/app_page_transitions.dart';
+
+import 'package:lawbid/features/auth/presentation/screens/otp_screen.dart';
+import 'package:lawbid/features/auth/presentation/screens/phone_screen.dart';
+import 'package:lawbid/features/auth/presentation/screens/role_screen.dart';
+import 'package:lawbid/features/auth/presentation/screens/welcome_screen.dart';
 
 /// Path constants for the auth/onboarding flow (file 07 §6: `/welcome`,
 /// `/auth/phone`, `/auth/otp`, `/onboarding/role`). Kept in this file next
@@ -31,8 +33,25 @@ abstract final class AuthRoutes {
 /// one-directional and onboarding screens shouldn't stay on the back stack
 /// once the user reaches the main app.
 List<RouteBase> authRoutes() => [
-      GoRoute(path: AuthRoutes.welcome, builder: (context, state) => const WelcomeScreen()),
-      GoRoute(path: AuthRoutes.phone, builder: (context, state) => const PhoneScreen()),
-      GoRoute(path: AuthRoutes.otp, builder: (context, state) => const OtpScreen()),
-      GoRoute(path: AuthRoutes.role, builder: (context, state) => const RoleScreen()),
+      GoRoute(
+        path: AuthRoutes.welcome,
+        builder: (context, state) => const WelcomeScreen(),
+      ),
+      // Welcome keeps the platform default transition (not part of the UI
+      // modernization pass, 2026-09-27); the rest use LawBid page motion.
+      GoRoute(
+        path: AuthRoutes.phone,
+        pageBuilder: (context, state) =>
+            AppPageTransitions.push(state, const PhoneScreen()),
+      ),
+      GoRoute(
+        path: AuthRoutes.otp,
+        pageBuilder: (context, state) =>
+            AppPageTransitions.push(state, const OtpScreen()),
+      ),
+      GoRoute(
+        path: AuthRoutes.role,
+        pageBuilder: (context, state) =>
+            AppPageTransitions.push(state, const RoleScreen()),
+      ),
     ];

@@ -3,12 +3,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/design_system/design_system.dart';
-import '../../../../core/l10n/l10n_providers.dart';
-import '../../../../core/l10n/translator.dart';
-import '../../../auth/auth_routes.dart';
-import '../../application/delete_account_controller.dart';
-import '../../domain/delete_account_step.dart';
+import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/features/auth/auth_routes.dart';
+import 'package:lawbid/features/profile/application/delete_account_controller.dart';
+import 'package:lawbid/features/profile/domain/delete_account_step.dart';
 
 /// `/profile/settings/delete-account` (file 01 §10.7: "Настройки →
 /// Удалить аккаунт → предупреждение → повторная аутентификация →
@@ -28,7 +28,8 @@ class DeleteAccountScreen extends ConsumerStatefulWidget {
   const DeleteAccountScreen({super.key});
 
   @override
-  ConsumerState<DeleteAccountScreen> createState() => _DeleteAccountScreenState();
+  ConsumerState<DeleteAccountScreen> createState() =>
+      _DeleteAccountScreenState();
 }
 
 class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
@@ -42,7 +43,8 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
     super.dispose();
   }
 
-  String get _phoneDigits => _phoneController.text.replaceAll(RegExp(r'\D'), '');
+  String get _phoneDigits =>
+      _phoneController.text.replaceAll(RegExp(r'\D'), '');
 
   @override
   Widget build(BuildContext context) {
@@ -54,27 +56,86 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
       backgroundColor: colors.bg,
       appBar: AppTopBar(
         title: Text(t.t('deleteAccount.title')),
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: colors.text),
+        leading: AppBackButton(
+          semanticLabel: t.t('common.back'),
           onPressed: () => Navigator.of(context).maybePop(),
         ),
       ),
+      // UI modernization pass (2026-09-27): a danger-toned step indicator
+      // (warning → re-auth → confirm) and a fade/rise cross-fade between
+      // steps; instant under reduce-motion. Step logic is unchanged.
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.screenSide),
-          child: switch (state.step) {
-            DeleteAccountStep.warning => _WarningStep(t: t),
-            DeleteAccountStep.reauthPhone => _ReauthPhoneStep(t: t, controller: _phoneController, digits: _phoneDigits),
-            DeleteAccountStep.reauthCode => _ReauthCodeStep(t: t),
-            DeleteAccountStep.confirmPhrase => _ConfirmPhraseStep(t: t, phraseController: _phraseController),
-            DeleteAccountStep.submitting => const _SubmittingStep(),
-            DeleteAccountStep.done => _DoneStep(t: t),
-          },
+          child: Column(
+            children: [
+              if (_progressFor(state.step) case final progress?) ...[
+                AppStepProgress(
+                  total: _totalSteps,
+                  current: progress,
+                  activeColor: colors.danger,
+                  semanticLabel: t.t('common.stepOf', {
+                    'current': '$progress',
+                    'total': '$_totalSteps',
+                  }),
+                ),
+                const SizedBox(height: AppSpacing.xl),
+              ],
+              Expanded(
+                child: AnimatedSwitcher(
+                  duration: context.reduceMotion
+                      ? Duration.zero
+                      : AppMotion.stepSwitch,
+                  switchInCurve: AppMotion.enterCurve,
+                  switchOutCurve: AppMotion.exitCurve,
+                  transitionBuilder: (child, animation) => FadeTransition(
+                    opacity: animation,
+                    child: SlideTransition(
+                      position: Tween<Offset>(
+                        begin: const Offset(AppMotion.pageSlideFraction, 0),
+                        end: Offset.zero,
+                      ).animate(animation),
+                      child: child,
+                    ),
+                  ),
+                  child: KeyedSubtree(
+                    key: ValueKey<DeleteAccountStep>(state.step),
+                    child: switch (state.step) {
+                      DeleteAccountStep.warning => _WarningStep(t: t),
+                      DeleteAccountStep.reauthPhone => _ReauthPhoneStep(
+                          t: t,
+                          controller: _phoneController,
+                          digits: _phoneDigits,
+                        ),
+                      DeleteAccountStep.reauthCode => _ReauthCodeStep(t: t),
+                      DeleteAccountStep.confirmPhrase => _ConfirmPhraseStep(
+                          t: t,
+                          phraseController: _phraseController,
+                        ),
+                      DeleteAccountStep.submitting => const _SubmittingStep(),
+                      DeleteAccountStep.done => _DoneStep(t: t),
+                    },
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
+
+const _totalSteps = 3;
+
+/// 1-based position in the warning → re-auth → confirm sequence, or null
+/// once the flow is finished (no indicator on the success screen).
+int? _progressFor(DeleteAccountStep step) => switch (step) {
+      DeleteAccountStep.warning => 1,
+      DeleteAccountStep.reauthPhone || DeleteAccountStep.reauthCode => 2,
+      DeleteAccountStep.confirmPhrase || DeleteAccountStep.submitting => 3,
+      DeleteAccountStep.done => null,
+    };
 
 /// Shared step layout: scrollable [content] on top (never overflows, even
 /// at 200% text scale — file 07 §9, same a11y concern the onboarding
@@ -91,7 +152,10 @@ class _StepLayout extends StatelessWidget {
       children: [
         Expanded(
           child: SingleChildScrollView(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: content),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: staggeredEntrance(content),
+            ),
           ),
         ),
         const SizedBox(height: AppSpacing.md),
@@ -112,22 +176,40 @@ class _WarningStep extends ConsumerWidget {
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     return _StepLayout(
       content: [
-        Icon(Icons.warning_amber_rounded, size: 40, color: colors.danger),
-        const SizedBox(height: AppSpacing.md),
-        Text(t.t('deleteAccount.warning.title'), style: typography.titleLarge.copyWith(color: colors.text)),
+        const AppIconMedallion(
+          icon: Icons.warning_amber_rounded,
+          tone: AppMedallionTone.danger,
+          size: AppSizes.stateMedallion,
+          iconSize: AppSizes.stateIcon,
+        ),
+        const SizedBox(height: AppSpacing.xl),
+        Text(
+          t.t('deleteAccount.warning.title'),
+          style: typography.titleLarge.copyWith(color: colors.text),
+        ),
         const SizedBox(height: AppSpacing.sm),
-        Text(t.t('deleteAccount.warning.body'), style: typography.body.copyWith(color: colors.textSecondary)),
+        Text(
+          t.t('deleteAccount.warning.body'),
+          style: typography.body.copyWith(color: colors.textSecondary),
+        ),
       ],
       action: AppButton(
         label: t.t('deleteAccount.warning.continue'),
-        onPressed: () => ref.read(deleteAccountControllerProvider.notifier).acknowledgeWarning(),
+        variant: AppButtonVariant.secondary,
+        onPressed: () => ref
+            .read(deleteAccountControllerProvider.notifier)
+            .acknowledgeWarning(),
       ),
     );
   }
 }
 
 class _ReauthPhoneStep extends ConsumerWidget {
-  const _ReauthPhoneStep({required this.t, required this.controller, required this.digits});
+  const _ReauthPhoneStep({
+    required this.t,
+    required this.controller,
+    required this.digits,
+  });
 
   final Translator t;
   final TextEditingController controller;
@@ -141,12 +223,16 @@ class _ReauthPhoneStep extends ConsumerWidget {
     final notifier = ref.read(deleteAccountControllerProvider.notifier);
 
     Future<void> useBiometric() async {
-      final ok = await notifier.tryBiometric(reason: t.t('deleteAccount.reauth.biometric.prompt'));
+      final ok = await notifier.tryBiometric(
+        reason: t.t('deleteAccount.reauth.biometric.prompt'),
+      );
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            ok ? t.t('deleteAccount.reauth.biometric.prompt') : t.t('deleteAccount.reauth.useCode'),
+            ok
+                ? t.t('deleteAccount.reauth.biometric.prompt')
+                : t.t('deleteAccount.reauth.useCode'),
           ),
         ),
       );
@@ -160,7 +246,10 @@ class _ReauthPhoneStep extends ConsumerWidget {
 
     return _StepLayout(
       content: [
-        Text(t.t('deleteAccount.reauth.title'), style: typography.titleLarge.copyWith(color: colors.text)),
+        Text(
+          t.t('deleteAccount.reauth.title'),
+          style: typography.titleLarge.copyWith(color: colors.text),
+        ),
         const SizedBox(height: AppSpacing.md),
         if (state.biometricAvailable) ...[
           AppButton(
@@ -193,7 +282,10 @@ class _ReauthPhoneStep extends ConsumerWidget {
         label: t.t('deleteAccount.reauth.sendCode'),
         isLoading: state.isSubmitting,
         isEnabled: digits.length == 10,
-        onPressed: digits.length == 10 ? () => notifier.submitPhone('+1$digits') : null,
+        dimWhenDisabled: true,
+        onPressed: digits.length == 10
+            ? () => notifier.submitPhone('+1$digits')
+            : null,
       ),
     );
   }
@@ -226,17 +318,25 @@ class _ReauthCodeStepState extends ConsumerState<_ReauthCodeStep> {
 
     return _StepLayout(
       content: [
-        Text(t.t('deleteAccount.reauth.title'), style: typography.titleLarge.copyWith(color: colors.text)),
+        Text(
+          t.t('deleteAccount.reauth.title'),
+          style: typography.titleLarge.copyWith(color: colors.text),
+        ),
         const SizedBox(height: AppSpacing.sm),
         Text(
-          t.t('deleteAccount.reauth.codeSubtitle', {'phone': state.phoneNumber ?? ''}),
+          t.t(
+            'deleteAccount.reauth.codeSubtitle',
+            {'phone': state.phoneNumber ?? ''},
+          ),
           style: typography.body.copyWith(color: colors.textSecondary),
         ),
         const SizedBox(height: AppSpacing.md),
         AppOtpField(
           onChanged: (value) => _currentCode = value,
           onCompleted: notifier.submitCode,
-          errorText: state.errorMessage == 'invalid' ? t.t('deleteAccount.reauth.error.invalid') : null,
+          errorText: state.errorMessage == 'invalid'
+              ? t.t('deleteAccount.reauth.error.invalid')
+              : null,
         ),
       ],
       action: AppButton(
@@ -281,28 +381,20 @@ class _ConfirmPhraseStep extends ConsumerWidget {
           controller: phraseController,
           hintText: expectedPhrase,
           onChanged: notifier.confirmPhraseChanged,
-          errorText: state.errorMessage == 'network' ? t.t('deleteAccount.error.generic') : null,
+          errorText: state.errorMessage == 'network'
+              ? t.t('deleteAccount.error.generic')
+              : null,
         ),
       ],
-      action: SizedBox(
-        width: double.infinity,
-        height: 50,
-        child: ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: colors.danger,
-            foregroundColor: Colors.white,
-            disabledBackgroundColor: colors.danger.withValues(alpha: 0.4),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadii.button)),
-          ),
-          onPressed: matches && !state.isSubmitting ? () => notifier.submitDeletion() : null,
-          child: state.isSubmitting
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                )
-              : Text(t.t('deleteAccount.submit')),
-        ),
+      action: AppButton(
+        label: t.t('deleteAccount.submit'),
+        icon: Icons.delete_forever_rounded,
+        variant: AppButtonVariant.danger,
+        isLoading: state.isSubmitting,
+        isEnabled: matches && !state.isSubmitting,
+        dimWhenDisabled: true,
+        onPressed:
+            matches && !state.isSubmitting ? notifier.submitDeletion : null,
       ),
     );
   }
@@ -329,8 +421,13 @@ class _DoneStep extends StatelessWidget {
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     return _StepLayout(
       content: [
-        Icon(Icons.check_circle_outline, size: 40, color: colors.success),
-        const SizedBox(height: AppSpacing.md),
+        const AppIconMedallion(
+          icon: Icons.check_rounded,
+          tone: AppMedallionTone.success,
+          size: AppSizes.stateMedallion,
+          iconSize: AppSizes.stateIcon,
+        ),
+        const SizedBox(height: AppSpacing.xl),
         Text(
           t.t('deleteAccount.success.title'),
           style: typography.titleLarge.copyWith(color: colors.text),

@@ -23,4 +23,46 @@ abstract final class AppMotion {
   /// Strike-ring overlay: starts 300ms into the sequence, scales over 500ms (file 07 §7.2).
   static const Duration gavelRingStart = Duration(milliseconds: 300);
   static const Duration gavelRingDuration = Duration(milliseconds: 500);
+
+  // --- UI modernization pass (2026-09-27, docs/CHANGELOG.md) -------------
+  // Direction: "Trust & Authority" (ui-ux-pro-max): calm, confident motion.
+  // Enter 280-360ms with a decelerating curve, exit faster than enter,
+  // small travel distances (no bouncy overshoot on a legal product). Every
+  // consumer must skip motion when `MediaQuery.disableAnimations` is set —
+  // see `AppMotionContext.reduceMotion` in widgets/motion/app_entrance.dart.
+
+  /// Standard decelerate curve for things arriving on screen.
+  static const Curve enterCurve = Curves.easeOutCubic;
+
+  /// Standard accelerate curve for things leaving the screen.
+  static const Curve exitCurve = Curves.easeInCubic;
+
+  /// Push/pop page transition (go_router `CustomTransitionPage`).
+  static const Duration pageEnter = Duration(milliseconds: 320);
+  static const Duration pageExit = Duration(milliseconds: 240);
+
+  /// Horizontal travel of a pushed page, as a fraction of its width.
+  static const double pageSlideFraction = 0.08;
+
+  /// Vertical travel of a full-screen modal (the "+" create flow).
+  static const double modalSlideFraction = 0.12;
+
+  /// Staggered entrance of screen content (fade + short rise).
+  static const Duration entrance = Duration(milliseconds: 360);
+  static const Duration entranceStagger = Duration(milliseconds: 55);
+
+  /// Rise distance of an entering element, as a fraction of its own height.
+  static const double entranceRise = 0.18;
+
+  /// Starting scale of an entering medallion (empty/error states).
+  static const double entranceScaleFrom = 0.88;
+
+  /// Small state changes: selection pills, tab indicator, row highlight.
+  static const Duration stateChange = Duration(milliseconds: 220);
+
+  /// Cross-fade between steps of a multi-step flow (delete account).
+  static const Duration stepSwitch = Duration(milliseconds: 300);
+
+  /// One full sweep of the skeleton shimmer highlight.
+  static const Duration shimmer = Duration(milliseconds: 1400);
 }

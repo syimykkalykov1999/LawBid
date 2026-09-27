@@ -1,44 +1,62 @@
 import 'package:flutter/material.dart';
 
-import '../../theme/app_color_tokens.dart';
-import '../../theme/app_typography_tokens.dart';
-import '../../tokens/app_spacing.dart';
+import 'package:lawbid/core/design_system/widgets/display/app_icon_medallion.dart';
+import 'package:lawbid/core/design_system/widgets/feedback/app_state_layout.dart';
 
 /// Empty-state placeholder (file 01 §15; `.cursorrules` requires this on
-/// every screen alongside loading/error/offline/pagination).
+/// every screen alongside loading/error/offline/pagination). Gold-seal
+/// medallion + optional title + message, staggered in (UI modernization
+/// pass, 2026-09-27).
 class AppEmptyState extends StatelessWidget {
   const AppEmptyState({
-    super.key,
     required this.message,
+    super.key,
+    this.title,
     this.icon = Icons.inbox_outlined,
     this.action,
   });
 
   final String message;
+  final String? title;
   final IconData icon;
   final Widget? action;
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.xl),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 40, color: colors.textSecondary),
-            const SizedBox(height: AppSpacing.md),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: typography.body.copyWith(color: colors.textSecondary),
-            ),
-            if (action != null) ...[const SizedBox(height: AppSpacing.lg), action!],
-          ],
-        ),
-      ),
+    return AppStateLayout(
+      icon: icon,
+      title: title,
+      message: message,
+      action: action,
+    );
+  }
+}
+
+/// Offline state (`.cursorrules`: offline is one of the mandatory screen
+/// states). All strings come from the caller's `t('key')` — see
+/// `offline.title` / `offline.message` in static_translator.dart.
+class AppOfflineState extends StatelessWidget {
+  const AppOfflineState({
+    required this.title,
+    required this.message,
+    super.key,
+    this.action,
+  });
+
+  final String title;
+  final String message;
+
+  /// Typically an `AppButton` wired to the screen's retry.
+  final Widget? action;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppStateLayout(
+      icon: Icons.wifi_off_rounded,
+      tone: AppMedallionTone.neutral,
+      title: title,
+      message: message,
+      action: action,
     );
   }
 }

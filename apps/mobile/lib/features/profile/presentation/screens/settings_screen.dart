@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/design_system/design_system.dart';
-import '../../../../core/l10n/l10n_providers.dart';
-import '../../../../core/l10n/widgets/language_picker_sheet.dart';
-import '../../../../core/navigation/app_routes.dart';
+import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/l10n/widgets/language_picker_sheet.dart';
+import 'package:lawbid/core/navigation/app_routes.dart';
 
 /// `/profile/settings` (file 01 §3.6: "Настройки (гамбургер): Аккаунт,
 /// Безопасность, Язык, Тема, Подписка (адвокат), История кейсов
@@ -33,13 +33,11 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final t = ref.watch(translatorProvider);
-    final themeMode = ref.watch(themeModeControllerProvider).value ?? ThemeMode.system;
+    final themeMode =
+        ref.watch(themeModeControllerProvider).value ?? ThemeMode.system;
 
-    void showNotBuiltYet() {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(t.t('auth.welcome.notBuiltYet'))),
-      );
-    }
+    void showNotBuiltYet() =>
+        showAppSnackBar(context, t.t('auth.welcome.notBuiltYet'));
 
     String themeLabel(ThemeMode mode) => switch (mode) {
           ThemeMode.system => t.t('settings.theme.system'),
@@ -47,114 +45,114 @@ class SettingsScreen extends ConsumerWidget {
           ThemeMode.dark => t.t('settings.theme.dark'),
         };
 
-    return Scaffold(
-      backgroundColor: colors.bg,
-      appBar: AppTopBar(
-        title: Text(t.t('settings.title')),
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: colors.text),
-          onPressed: () => Navigator.of(context).maybePop(),
-        ),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+    // UI modernization pass (2026-09-27): the flat §3.6 list is grouped
+    // into captioned, elevated sections (same rows, same order, same
+    // handlers) with icon medallions, and each section staggers in.
+    final sections = <Widget>[
+      AppListSection(
+        title: t.t('settings.section.account'),
         children: [
-          _SettingsRow(
+          AppListRow(
+            icon: Icons.person_outline_rounded,
             label: t.t('settings.account'),
             onTap: showNotBuiltYet,
           ),
-          _SettingsRow(
+          AppListRow(
+            icon: Icons.shield_outlined,
             label: t.t('settings.security'),
             onTap: () => context.push(AppRoutes.activeDevices),
           ),
-          _SettingsRow(
+          AppListRow(
+            icon: Icons.workspace_premium_outlined,
+            label: t.t('settings.subscription'),
+            onTap: showNotBuiltYet,
+          ),
+          AppListRow(
+            icon: Icons.history_rounded,
+            label: t.t('settings.caseHistory'),
+            onTap: showNotBuiltYet,
+          ),
+        ],
+      ),
+      AppListSection(
+        title: t.t('settings.section.preferences'),
+        children: [
+          AppListRow(
+            icon: Icons.language_rounded,
             label: t.t('settings.language'),
             onTap: () => LanguagePickerSheet.show(context),
           ),
-          _SettingsRow(
+          AppListRow(
+            icon: Icons.contrast_rounded,
             label: t.t('settings.theme'),
             trailingText: themeLabel(themeMode),
             onTap: () => _ThemePickerSheet.show(context),
           ),
-          _SettingsRow(
-            label: t.t('settings.subscription'),
-            onTap: showNotBuiltYet,
-          ),
-          _SettingsRow(
-            label: t.t('settings.caseHistory'),
-            onTap: showNotBuiltYet,
-          ),
-          _SettingsRow(
+          AppListRow(
+            icon: Icons.notifications_none_rounded,
             label: t.t('settings.notifications'),
             onTap: showNotBuiltYet,
           ),
-          _SettingsRow(
+        ],
+      ),
+      AppListSection(
+        title: t.t('settings.section.support'),
+        children: [
+          AppListRow(
+            icon: Icons.help_outline_rounded,
             label: t.t('settings.help'),
             onTap: showNotBuiltYet,
           ),
-          _SettingsRow(
+          AppListRow(
+            icon: Icons.balance_rounded,
             label: t.t('settings.legal'),
             onTap: showNotBuiltYet,
           ),
-          const SizedBox(height: AppSpacing.md),
-          _SettingsRow(
+        ],
+      ),
+      AppListSection(
+        title: t.t('settings.section.session'),
+        children: [
+          AppListRow(
+            icon: Icons.logout_rounded,
             label: t.t('settings.logout'),
             destructive: true,
             onTap: showNotBuiltYet,
           ),
-          _SettingsRow(
+          AppListRow(
+            icon: Icons.delete_outline_rounded,
             label: t.t('settings.deleteAccount'),
             destructive: true,
             onTap: () => context.push(AppRoutes.deleteAccount),
           ),
         ],
       ),
-    );
-  }
-}
+    ];
 
-class _SettingsRow extends StatelessWidget {
-  const _SettingsRow({
-    required this.label,
-    required this.onTap,
-    this.trailingText,
-    this.destructive = false,
-  });
-
-  final String label;
-  final VoidCallback onTap;
-  final String? trailingText;
-  final bool destructive;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    final labelColor = destructive ? colors.danger : colors.text;
-
-    return Semantics(
-      button: true,
-      label: label,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.screenSide,
-            vertical: AppSpacing.md,
+    return Scaffold(
+      backgroundColor: colors.bg,
+      appBar: AppTopBar(
+        title: Text(t.t('settings.title')),
+        leading: AppBackButton(
+          semanticLabel: t.t('common.back'),
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
+      ),
+      body: SafeArea(
+        top: false,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.screenSide,
+            AppSpacing.sm,
+            AppSpacing.screenSide,
+            AppSpacing.xxl,
           ),
-          child: Row(
-            children: [
-              Expanded(child: Text(label, style: typography.body.copyWith(color: labelColor))),
-              if (trailingText != null) ...[
-                Text(
-                  trailingText!,
-                  style: typography.bodySmall.copyWith(color: colors.textSecondary),
-                ),
-                const SizedBox(width: AppSpacing.xs),
-              ],
-              if (!destructive) Icon(Icons.chevron_right, size: 20, color: colors.textSecondary),
+          children: [
+            for (var i = 0; i < sections.length; i++) ...[
+              if (i > 0) const SizedBox(height: AppSpacing.section),
+              AppEntrance(index: i, child: sections[i]),
             ],
-          ),
+          ],
         ),
       ),
     );
@@ -169,13 +167,8 @@ class _ThemePickerSheet extends ConsumerWidget {
   const _ThemePickerSheet();
 
   static Future<void> show(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    return showModalBottomSheet<void>(
+    return showAppBottomSheet<void>(
       context: context,
-      backgroundColor: colors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadii.roleCard)),
-      ),
       builder: (_) => const _ThemePickerSheet(),
     );
   }
@@ -185,36 +178,18 @@ class _ThemePickerSheet extends ConsumerWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final t = ref.watch(translatorProvider);
-    final current = ref.watch(themeModeControllerProvider).value ?? ThemeMode.system;
+    final current =
+        ref.watch(themeModeControllerProvider).value ?? ThemeMode.system;
 
-    Widget option(ThemeMode mode, String label, IconData icon) {
-      final selected = mode == current;
-      return Semantics(
-        button: true,
-        selected: selected,
-        label: label,
-        child: InkWell(
-          onTap: () {
-            ref.read(themeModeControllerProvider.notifier).setThemeMode(mode);
-            Navigator.of(context).pop();
-          },
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.sm,
-              vertical: AppSpacing.sm,
-            ),
-            child: Row(
-              children: [
-                Icon(icon, size: 20, color: colors.text),
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(child: Text(label, style: typography.body.copyWith(color: colors.text))),
-                if (selected) Icon(Icons.check, size: 20, color: colors.gold),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
+    final options = <(ThemeMode, String, IconData)>[
+      (
+        ThemeMode.system,
+        t.t('settings.theme.system'),
+        Icons.smartphone_rounded
+      ),
+      (ThemeMode.light, t.t('settings.theme.light'), Icons.light_mode_outlined),
+      (ThemeMode.dark, t.t('settings.theme.dark'), Icons.dark_mode_outlined),
+    ];
 
     return SafeArea(
       top: false,
@@ -223,19 +198,39 @@ class _ThemePickerSheet extends ConsumerWidget {
           AppSpacing.screenSide,
           AppSpacing.md,
           AppSpacing.screenSide,
-          AppSpacing.md,
+          AppSpacing.lg,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              t.t('settings.theme'),
-              style: typography.titleMedium.copyWith(color: colors.text),
+            const AppSheetHandle(),
+            Semantics(
+              header: true,
+              child: Text(
+                t.t('settings.theme'),
+                style: typography.titleMedium.copyWith(color: colors.text),
+              ),
             ),
-            const SizedBox(height: AppSpacing.md),
-            option(ThemeMode.system, t.t('settings.theme.system'), Icons.smartphone),
-            option(ThemeMode.light, t.t('settings.theme.light'), Icons.light_mode_outlined),
-            option(ThemeMode.dark, t.t('settings.theme.dark'), Icons.dark_mode_outlined),
+            const SizedBox(height: AppSpacing.lg),
+            for (var i = 0; i < options.length; i++) ...[
+              if (i > 0) const SizedBox(height: AppSpacing.xs),
+              AppEntrance(
+                index: i,
+                child: AppListRow(
+                  icon: options[i].$3,
+                  label: options[i].$2,
+                  selected: options[i].$1 == current,
+                  showChevron: false,
+                  onTap: () {
+                    ref
+                        .read(themeModeControllerProvider.notifier)
+                        .setThemeMode(options[i].$1);
+                    Navigator.of(context).pop();
+                  },
+                ),
+              ),
+            ],
           ],
         ),
       ),

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../../theme/app_color_tokens.dart';
-import '../../theme/app_typography_tokens.dart';
-import '../../tokens/app_spacing.dart';
+import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
+import 'package:lawbid/core/design_system/theme/app_typography_tokens.dart';
+import 'package:lawbid/core/design_system/tokens/app_spacing.dart';
 
 /// Generic top bar (file 01 §15 component list). The Feed screen's specific
 /// header — LawBid scales logo left, Chats icon with unread badge right
@@ -29,11 +29,19 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
       height: preferredSize.height,
       child: Row(
         children: [
-          if (leading != null) leading!,
+          if (leading != null) ...[
+            leading!,
+            const SizedBox(width: AppSpacing.xs),
+          ],
           Expanded(
             child: DefaultTextStyle(
               style: typography.titleMedium.copyWith(color: colors.text),
-              child: title ?? const SizedBox.shrink(),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              child: Semantics(
+                header: true,
+                child: title ?? const SizedBox.shrink(),
+              ),
             ),
           ),
           if (actions != null) ...actions!,

@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
-import '../../../../core/design_system/design_system.dart';
-import '../../../../core/l10n/l10n_providers.dart';
-import '../../../../core/navigation/app_routes.dart';
-import '../../../../shared/domain/user_role.dart';
-import '../../application/onboarding_flow.dart';
+import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/features/auth/application/onboarding_flow.dart';
+import 'package:lawbid/shared/domain/user_role.dart';
 
 /// `/onboarding/role` (file 07 §6.4 — **"Этот экран не менять"**: layout
 /// below follows the spec/reference preview exactly, unchanged). Default
@@ -42,7 +41,11 @@ class RoleScreen extends ConsumerWidget {
                 child: IntrinsicHeight(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+                    // Staggered entrance (UI pass
+                    // 2026-09-27); same final
+                    // layout, none on reduce-
+                    // motion.
+                    children: staggeredEntrance([
                       const SizedBox(height: 8),
                       Text(
                         t.t('onboarding.role.title'),
@@ -88,7 +91,7 @@ class RoleScreen extends ConsumerWidget {
                           ],
                         ),
                       ),
-                    ],
+                    ]),
                   ),
                 ),
               ),

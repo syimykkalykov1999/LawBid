@@ -5,8 +5,9 @@ analyzer:
     strict-casts: true
     strict-inference: true
     strict-raw-types: true
-  plugins:
-    - custom_lint
+  # `plugins: - custom_lint` removed 2026-09-27: custom_lint is not a
+  # dependency any more (see pubspec.yaml note) and the legacy analyzer-
+  # plugin config itself is deprecated (analysis_options_deprecated_plugins).
   errors:
     invalid_annotation_target: ignore # standard freezed/json_serializable false positive
   exclude:

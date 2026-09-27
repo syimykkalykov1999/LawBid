@@ -3,12 +3,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/design_system/design_system.dart';
-import '../../../../core/l10n/l10n_providers.dart';
-import '../../../../core/l10n/translator.dart';
-import '../../application/onboarding_flow.dart';
-import '../../auth_routes.dart';
-import '../../domain/onboarding_step.dart';
+import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/features/auth/application/onboarding_flow.dart';
+import 'package:lawbid/features/auth/auth_routes.dart';
+import 'package:lawbid/features/auth/domain/onboarding_step.dart';
 
 /// `/auth/phone` (file 07 §6.2).
 class PhoneScreen extends ConsumerStatefulWidget {
@@ -54,7 +54,7 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
       body: SafeArea(
         child: Stack(
           children: [
-            Positioned(right: -40, bottom: 70, child: const WatermarkScales()),
+            const Positioned(right: -40, bottom: 70, child: WatermarkScales()),
             // `ConstrainedBox(minHeight: viewport)` + `IntrinsicHeight` +
             // `Spacer` inside a `SingleChildScrollView`: at normal text
             // scale the Spacer pushes the button to the bottom with its
@@ -72,7 +72,11 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
                     child: IntrinsicHeight(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
+                        // Staggered entrance (UI pass
+                        // 2026-09-27); same final
+                        // layout, none on reduce-
+                        // motion.
+                        children: staggeredEntrance([
                           const SizedBox(height: 30),
                           AppBackButton(
                             semanticLabel: t.t('common.back'),
@@ -128,7 +132,7 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
                               ],
                             ),
                           ),
-                        ],
+                        ]),
                       ),
                     ),
                   ),

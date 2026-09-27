@@ -1,7 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
-import '../../theme/app_color_tokens.dart';
-import '../../theme/app_typography_tokens.dart';
+import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
+import 'package:lawbid/core/design_system/theme/app_typography_tokens.dart';
+import 'package:lawbid/core/design_system/tokens/app_motion.dart';
+import 'package:lawbid/core/design_system/tokens/app_radii.dart';
+import 'package:lawbid/core/design_system/tokens/app_sizes.dart';
+import 'package:lawbid/core/design_system/widgets/motion/app_entrance.dart';
+import 'package:lawbid/core/design_system/widgets/motion/app_pressable.dart';
 
 enum AppTabKey { feed, search, mine, profile }
 
@@ -33,13 +39,16 @@ class AppTabConfig {
 /// tab — see the same architecture review for why.
 class AppBottomNav extends StatelessWidget {
   const AppBottomNav({
-    super.key,
     required this.tabs,
     required this.currentIndex,
     required this.onTabSelected,
     required this.onCreatePressed,
+    super.key,
     this.createSemanticLabel = 'Создать',
-  }) : assert(tabs.length == 4, 'AppBottomNav expects exactly 4 tabs plus the fixed center "+"');
+  }) : assert(
+          tabs.length == 4,
+          'AppBottomNav expects exactly 4 tabs plus the fixed center "+"',
+        );
 
   final List<AppTabConfig> tabs;
   final int currentIndex;
@@ -57,6 +66,12 @@ class AppBottomNav extends StatelessWidget {
     final left = tabs.sublist(0, 2);
     final right = tabs.sublist(2, 4);
 
+    final stateDuration =
+        context.reduceMotion ? Duration.zero : AppMotion.stateChange;
+
+    // UI modernization pass (2026-09-27): the selected tab gets a gold-
+    // tinted pill behind its icon that animates in, plus a light selection
+    // haptic on tap. Hit area is the whole Expanded column (>= 48 tall).
     Widget buildTab(AppTabConfig tab, int index) {
       final selected = index == currentIndex;
       final color = selected ? colors.accent : colors.textSecondary;
@@ -65,17 +80,59 @@ class AppBottomNav extends StatelessWidget {
           button: true,
           selected: selected,
           label: tab.label,
-          child: InkWell(
-            onTap: () => onTabSelected(index),
+          excludeSemantics: true,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () {
+              if (!selected) HapticFeedback.selectionClick();
+              onTabSelected(index);
+            },
             child: ConstrainedBox(
               constraints: const BoxConstraints(minHeight: 48),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(selected ? tab.activeIcon : tab.icon, size: 24, color: color),
+                  AnimatedContainer(
+                    duration: stateDuration,
+                    curve: AppMotion.enterCurve,
+                    width: AppSizes.navIndicatorWidth,
+                    height: AppSizes.navIndicatorHeight,
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? colors.goldTint
+                          : colors.goldTint.withValues(alpha: 0),
+                      borderRadius: BorderRadius.circular(AppRadii.pill),
+                    ),
+                    alignment: Alignment.center,
+                    child: AnimatedSwitcher(
+                      duration: stateDuration,
+                      transitionBuilder: (child, animation) => ScaleTransition(
+                        scale: Tween<double>(begin: 0.85, end: 1)
+                            .animate(animation),
+                        child: FadeTransition(opacity: animation, child: child),
+                      ),
+                      child: Icon(
+                        selected ? tab.activeIcon : tab.icon,
+                        key: ValueKey<bool>(selected),
+                        size: AppSizes.iconMd,
+                        color: color,
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: 2),
-                  Text(tab.label, style: typography.caption.copyWith(color: color)),
+                  AnimatedDefaultTextStyle(
+                    duration: stateDuration,
+                    style: typography.caption.copyWith(
+                      color: color,
+                      fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                    ),
+                    child: Text(
+                      tab.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -88,6 +145,9 @@ class AppBottomNav extends StatelessWidget {
       decoration: BoxDecoration(
         color: colors.bg,
         border: Border(top: BorderSide(color: colors.border)),
+        boxShadow: [
+          BoxShadow(color: colors.shadow, blurRadius: AppSizes.cardShadowBlur),
+        ],
       ),
       child: SafeArea(
         top: false,
@@ -100,18 +160,26 @@ class AppBottomNav extends StatelessWidget {
               Semantics(
                 button: true,
                 label: createSemanticLabel,
-                child: InkWell(
+                excludeSemantics: true,
+                child: AppPressable(
                   onTap: onCreatePressed,
-                  customBorder: const CircleBorder(),
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
-                    child: Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(color: colors.accent, shape: BoxShape.circle),
-                      alignment: Alignment.center,
-                      child: Icon(Icons.add, color: colors.onAccent, size: 26),
+                  child: Container(
+                    width: AppSizes.touchTarget,
+                    height: AppSizes.touchTarget,
+                    decoration: BoxDecoration(
+                      color: colors.accent,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: colors.gold, width: 1.5),
+                      boxShadow: [
+                        BoxShadow(
+                          color: colors.shadow,
+                          blurRadius: AppSizes.cardShadowOffsetY,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
                     ),
+                    alignment: Alignment.center,
+                    child: Icon(Icons.add, color: colors.onAccent, size: 26),
                   ),
                 ),
               ),
