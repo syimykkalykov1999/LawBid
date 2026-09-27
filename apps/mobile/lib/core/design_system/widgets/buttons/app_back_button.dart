@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../../theme/app_color_tokens.dart';
-import '../../tokens/app_motion.dart';
-import '../display/brand_glyphs.dart';
+import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
+import 'package:lawbid/core/design_system/tokens/app_motion.dart';
+import 'package:lawbid/core/design_system/widgets/display/brand_glyphs.dart';
+import 'package:lawbid/core/design_system/widgets/motion/app_entrance.dart';
 
 /// Back-navigation chevron used on the phone/otp auth screens (file 07 §6.2:
 /// "Стрелка назад (22)"; file 07 §9 a11y: "стрелка назад 44×44 зона"). Not a
@@ -11,7 +12,11 @@ import '../display/brand_glyphs.dart';
 /// re-building the same `GestureDetector`+`SizedBox` on every screen that
 /// needs a back button.
 class AppBackButton extends StatefulWidget {
-  const AppBackButton({super.key, required this.onPressed, this.semanticLabel = 'Назад'});
+  const AppBackButton({
+    required this.onPressed,
+    super.key,
+    this.semanticLabel = 'Назад',
+  });
 
   final VoidCallback onPressed;
   final String semanticLabel;
@@ -36,13 +41,19 @@ class _AppBackButtonState extends State<AppBackButton> {
         onTapCancel: () => setState(() => _pressed = false),
         onTap: widget.onPressed,
         child: AnimatedScale(
-          scale: _pressed ? AppMotion.pressScaleFactor : 1.0,
+          scale: _pressed && !context.reduceMotion
+              ? AppMotion.pressScaleFactor
+              : 1.0,
           duration: AppMotion.pressScale,
           child: SizedBox(
             width: 44,
             height: 44,
             child: Center(
-              child: ChevronGlyph(direction: ChevronDirection.left, size: 22, color: colors.text),
+              child: ChevronGlyph(
+                direction: ChevronDirection.left,
+                size: 22,
+                color: colors.text,
+              ),
             ),
           ),
         ),

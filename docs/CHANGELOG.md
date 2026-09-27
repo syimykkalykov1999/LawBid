@@ -3051,3 +3051,43 @@ Per docs/02_DATABASE.md §8 "Этап 2.4" / §4.D, §4.E, §6.1. Migrations
   commits and rolls back with the case, budget and rating CHECKs — 5/5.
   The "UPDATE/DELETE journal under lawbid_app" item needs the DB roles
   and is tested with stage 2.6.
+## UI modernization pass — 2026-09-27
+
+Owner request: make every existing screen except the welcome screen look modern, polished and animated, fitting the legal theme. Direction picked with the `ui-ux-pro-max` skill ("Trust & Authority" pattern, "Accessible & Ethical" style, subtle/standard motion): brand palette and fonts from file 07 stay as they are. The pass refines elevation, spacing rhythm, surfaces and micro-interactions only.
+
+**Welcome screen untouched.** `welcome_screen.dart` and `auth_welcome_screen_{light,dark}.png` are byte-identical to the base commit. Every shared component the welcome screen uses (`AppButton` primary/ctaBright, `AppIconButton`, `GavelStrike*`, `ScalesLogo`, `LegalText`) renders the same at rest. We checked this by comparing the welcome golden test's rendered image before and after the change: they are byte-identical. The welcome route keeps its default page transition, and the global theme has no `snackBarTheme` (the welcome screen's snackbar keeps Material defaults).
+
+### Design-system additions
+- Tokens: `AppMotion` (enter/exit curves, page 320/240ms, entrance 360ms + 55ms stagger, state change 220ms, step switch 300ms, shimmer 1400ms), new `AppSizes` (touch target, icons, medallions, nav indicator, shadows), `AppRadii.card/sheet/pill`, `AppSpacing.section/xxxl`. New color tokens are alpha variants of the approved palette only: `shadow`, `goldTint`, `dangerTint`, `successTint`, `skeletonBase`, `skeletonHighlight`, `onDanger`.
+- Motion: `AppEntrance` / `staggeredEntrance()` (flutter_animate fade + short rise, effect-level delays so `pumpAndSettle` settles), `AppPressable` (0.98 press-scale), and `context.reduceMotion`. Every animation is skipped under `MediaQuery.disableAnimations`.
+- Components: `AppIconMedallion` (gold/danger/success/neutral "seal"), `AppListRow` + `AppListSection` (grouped settings rows), `AppStateLayout` shared by `AppEmptyState` / `AppErrorState` / new `AppOfflineState`, `AppStepProgress`, `AppSheetHandle` + `showAppBottomSheet`, `showAppSnackBar`. `AppSkeleton` now has a sweeping shimmer instead of an opacity pulse, and the new `AppSkeletonCard` matches the shape of list rows. `AppButton` gets a `danger` variant and an opt-in `dimWhenDisabled`, and the secondary variant has a hairline border (welcome doesn't use it). `AppCard` gets an opt-in `elevated` shadow and press feedback. `RoleCard` gets the file 07 §4 press-scale and an animated selection border. The theme gets `dialogTheme`, `bottomSheetTheme` and `textButtonTheme`.
+- Navigation: `AppPageTransitions` (go_router `CustomTransitionPage`s): shared-axis fade+slide for pushes (phone/otp/role/settings/devices/delete), a rise+fade modal for "+" create, and a fade into the shell. Tab switches fade the body in without remounting the `indexedStack`. The bottom nav has an animated gold pill behind the selected icon, a selection haptic, and a gold-ringed "+" with press feedback.
+
+### Screens
+- Settings: the same rows, order and handlers, grouped into 4 captioned elevated sections (Account / Preferences / Support / Session) with icon medallions and a staggered entrance. The theme picker sheet is restyled.
+- Active devices: skeleton cards while loading, an offline state for `ApiException.isNetworkError`, a subtitle, elevated cards with a platform medallion, a staggered entrance and a gold pull-to-refresh.
+- Delete account: a danger-toned 3-step progress bar, animated step cross-fade, medallions for warning and success, and a real `AppButton.danger` in place of the raw `ElevatedButton`.
+- Phone / OTP / role: staggered entrance only. The resting layout is unchanged (role screen per file 07 §6.4).
+- Profile / feed / search / mine / create: branded empty states. The profile gear and the create close button are now labelled 44x44 targets. Language picker: rounded sheet, handle, bordered rows with an animated selected state, and a staggered list.
+- All back arrows in settings, devices and delete account now use `AppBackButton`.
+
+### i18n
+New keys (en+ru) in `static_translator.dart` and `apps/api/prisma/seed/translations_seed.xlsx` (116 → 124 rows): `offline.title`, `offline.message`, `common.stepOf`, `common.close`, `settings.section.{account,preferences,support,session}`. Pre-existing gap, not fixed here: 3 older keys in `static_translator.dart` are still missing from the xlsx.
+
+### Pre-existing test/analyzer failures fixed (not caused by this pass)
+- Auth golden tests threw `MissingPluginException(path_provider)` because they opened the real drift DB. The fix overrides `l10nDatabaseProvider` with `L10nDatabase(NativeDatabase.memory())`.
+- 2 `GavelStrikeButton` tests assumed `strike: true` by default. The owner changed that default on 2026-09-23 and it stays; the tests now pass `strike: true` explicitly.
+- `scales_logo_static_{light,dark}.png` were regenerated. `scales_logo.dart` is unchanged from base; the 0.76% difference comes from toolchain rendering drift.
+- Removed the deprecated `plugins: - custom_lint` from `analysis_options.yaml`. `custom_lint` is no longer a dependency.
+- Fixed `unawaited_return_in_try_block` in `l10n_repository.dart` (`return await`).
+- `dart fix` + `dart format` were applied to the files this pass touched. Infos went from 756 to 526; the rest are in untouched files, including `welcome_screen.dart`, which has to stay unmodified.
+
+### Goldens
+Regenerated (intentional changes): `app_bottom_nav_*`, `auth_{phone,otp,role}_screen_*`. These were also stale at base; their resting render matches base. New: `app_states_*`, `settings_screen_*`, plus a reduce-motion widget test.
+
+### Known remaining failure
+`auth_welcome_screen_{light,dark}.png` still fails, as it did at base (19%/28% diff). The committed baseline predates later owner-approved welcome changes: English default, top theme/language buttons, layout. It fails whether or not the drift fix is in, and this pass is not allowed to regenerate it. The owner should re-baseline it in a separate commit.
+
+### Verification
+- `flutter analyze --no-fatal-infos`: 0 errors, 0 warnings.
+- `flutter test`: 34 pass, 2 fail (only the stale welcome goldens described above).

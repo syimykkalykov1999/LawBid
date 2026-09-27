@@ -5,13 +5,13 @@ import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/design_system/design_system.dart';
-import '../../../../core/l10n/l10n_providers.dart';
-import '../../../../core/l10n/translator.dart';
-import '../../../../core/navigation/app_routes.dart';
-import '../../application/onboarding_flow.dart';
-import '../../auth_routes.dart';
-import '../../domain/onboarding_step.dart';
+import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/features/auth/application/onboarding_flow.dart';
+import 'package:lawbid/features/auth/auth_routes.dart';
+import 'package:lawbid/features/auth/domain/onboarding_step.dart';
 
 /// `/auth/otp` (file 07 §6.3).
 class OtpScreen extends ConsumerStatefulWidget {
@@ -76,7 +76,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
       body: SafeArea(
         child: Stack(
           children: [
-            Positioned(right: -40, bottom: 70, child: const WatermarkScales()),
+            const Positioned(right: -40, bottom: 70, child: WatermarkScales()),
             // See PhoneScreen's doc comment on this same pattern (file 07
             // §9: scrollable so the button stays reachable up to 200% text
             // scale, but visually pinned to the bottom at normal scale).
@@ -89,7 +89,11 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                     child: IntrinsicHeight(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
+                        // Staggered entrance (UI pass
+                        // 2026-09-27); same final
+                        // layout, none on reduce-
+                        // motion.
+                        children: staggeredEntrance([
                           const SizedBox(height: 30),
                           AppBackButton(
                             semanticLabel: t.t('common.back'),
@@ -141,7 +145,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                               },
                             ),
                           ),
-                        ],
+                        ]),
                       ),
                     ),
                   ),

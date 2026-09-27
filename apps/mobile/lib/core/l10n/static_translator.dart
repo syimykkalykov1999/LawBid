@@ -1,5 +1,5 @@
-import 'app_language.dart';
-import 'translator.dart';
+import 'package:lawbid/core/l10n/app_language.dart';
+import 'package:lawbid/core/l10n/translator.dart';
 
 /// Stage-1.5-originated stopgap [Translator], now bilingual (owner request,
 /// 2026-09-22): a working RU/EN toggle on the welcome screen, ahead of the
@@ -66,6 +66,14 @@ class StaticTranslatorRu extends _MapTranslator {
         'empty.default.message': 'Здесь пока пусто',
         'error.default.message': 'Что-то пошло не так',
         'error.retry': 'Повторить',
+        'offline.title': 'Нет подключения',
+        'offline.message': 'Проверьте подключение к интернету и попробуйте снова.',
+        'common.stepOf': 'Шаг {current} из {total}',
+        'common.close': 'Закрыть',
+        'settings.section.account': 'Аккаунт',
+        'settings.section.preferences': 'Предпочтения',
+        'settings.section.support': 'Поддержка',
+        'settings.section.session': 'Сеанс',
         'common.back': 'Назад',
         'common.cancel': 'Отмена',
         'common.confirm': 'Подтвердить',
@@ -224,6 +232,14 @@ class StaticTranslatorEn extends _MapTranslator {
         'empty.default.message': 'Nothing here yet',
         'error.default.message': 'Something went wrong',
         'error.retry': 'Retry',
+        'offline.title': "You're offline",
+        'offline.message': 'Check your internet connection and try again.',
+        'common.stepOf': 'Step {current} of {total}',
+        'common.close': 'Close',
+        'settings.section.account': 'Account',
+        'settings.section.preferences': 'Preferences',
+        'settings.section.support': 'Support',
+        'settings.section.session': 'Session',
         'common.back': 'Back',
         'common.cancel': 'Cancel',
         'common.confirm': 'Confirm',
@@ -270,13 +286,13 @@ class StaticTranslatorEn extends _MapTranslator {
         'deleteAccount.warning.title': "This can't be undone",
         'deleteAccount.warning.body':
             'Your account will be deleted 14 days after you confirm. You can cancel by '
-                "simply signing back in during that window. After 14 days, your personal "
+                'simply signing back in during that window. After 14 days, your personal '
                 'data is anonymized, active cases are closed, bids are rejected, and any '
                 'subscription is cancelled.',
         'deleteAccount.warning.continue': 'Continue',
-        'deleteAccount.reauth.title': 'Confirm it\'s you',
+        'deleteAccount.reauth.title': "Confirm it's you",
         'deleteAccount.reauth.biometric.button': 'Use Face ID / Touch ID',
-        'deleteAccount.reauth.biometric.prompt': 'Confirm it\'s you to continue',
+        'deleteAccount.reauth.biometric.prompt': "Confirm it's you to continue",
         'deleteAccount.reauth.useCode': 'Use a text message code instead',
         'deleteAccount.reauth.phoneHint': 'Phone number linked to your account',
         'deleteAccount.reauth.sendCode': 'Send code',
@@ -302,9 +318,9 @@ class StaticTranslatorEn extends _MapTranslator {
         'auth.welcome.apple': 'Continue with Apple',
         'auth.welcome.google': 'Continue with Google',
         'auth.welcome.legal':
-            "LawBid is a listings marketplace. We are not a law firm and do not "
-                "provide legal services. By continuing, you agree to the Terms and "
-                "Privacy Policy.",
+            'LawBid is a listings marketplace. We are not a law firm and do not '
+                'provide legal services. By continuing, you agree to the Terms and '
+                'Privacy Policy.',
         'auth.welcome.legal.terms': 'Terms',
         'auth.welcome.legal.privacy': 'Privacy Policy',
         'auth.welcome.notBuiltYet': "This sign-in method isn't available yet (stage 1.4/1.7)",

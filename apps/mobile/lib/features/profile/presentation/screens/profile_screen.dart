@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/design_system/design_system.dart';
-import '../../../../core/l10n/l10n_providers.dart';
-import '../../../../core/navigation/app_routes.dart';
+import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/navigation/app_routes.dart';
 
 /// Stage 1.5 stub (file 01 §15). Real content (public/closed profile) is
 /// file 3. Used to also carry a bare theme-switcher `SegmentedButton`
@@ -25,14 +25,29 @@ class ProfileScreen extends ConsumerWidget {
       appBar: AppTopBar(
         title: Text(t.t('profile.stub.title')),
         actions: [
-          IconButton(
-            icon: Icon(Icons.settings_outlined, color: colors.text),
-            onPressed: () => context.push(AppRoutes.profileSettings),
+          // UI modernization pass (2026-09-27): labelled 44x44 gear with
+          // press feedback (was an unlabelled Material IconButton).
+          Semantics(
+            button: true,
+            label: t.t('settings.title'),
+            excludeSemantics: true,
+            child: AppPressable(
+              onTap: () => context.push(AppRoutes.profileSettings),
+              child: SizedBox.square(
+                dimension: AppSizes.touchTarget,
+                child: Icon(
+                  Icons.settings_outlined,
+                  color: colors.text,
+                  size: AppSizes.iconMd,
+                ),
+              ),
+            ),
           ),
         ],
       ),
-      body: Center(
-        child: Text(t.t('empty.default.message')),
+      body: AppEmptyState(
+        icon: Icons.person_outline_rounded,
+        message: t.t('empty.default.message'),
       ),
     );
   }

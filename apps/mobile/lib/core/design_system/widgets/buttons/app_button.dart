@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
-
-import '../../theme/app_color_tokens.dart';
-import '../../theme/app_typography_tokens.dart';
-import '../../tokens/app_motion.dart';
-import '../../tokens/app_radii.dart';
-import '../../tokens/app_spacing.dart';
+import 'package:lawbid/core/design_system/design_system.dart'
+    show GavelStrikeButton;
+import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
+import 'package:lawbid/core/design_system/theme/app_typography_tokens.dart';
+import 'package:lawbid/core/design_system/tokens/app_motion.dart';
+import 'package:lawbid/core/design_system/tokens/app_radii.dart';
+import 'package:lawbid/core/design_system/tokens/app_spacing.dart';
+import 'package:lawbid/core/design_system/widgets/buttons/gavel_strike_button.dart'
+    show GavelStrikeButton;
+import 'package:lawbid/core/design_system/widgets/motion/app_entrance.dart';
 
 enum AppButtonVariant {
   primary,
@@ -16,6 +20,10 @@ enum AppButtonVariant {
   /// default gold too dull there); every other primary-button call site
   /// is unaffected since they keep passing [primary].
   ctaBright,
+
+  /// Filled `danger` / `onDanger` — irreversible actions (delete account).
+  /// Added in the UI modernization pass (2026-09-27).
+  danger,
 }
 
 /// Primary/secondary action button (file 07 §4 "AppButton").
@@ -34,15 +42,16 @@ enum AppButtonVariant {
 /// architecture review in docs/CHANGELOG.md.
 class AppButton extends StatefulWidget {
   const AppButton({
-    super.key,
     required this.label,
     required this.onPressed,
+    super.key,
     this.variant = AppButtonVariant.primary,
     this.icon,
     this.isLoading = false,
     this.isEnabled = true,
     this.height = 50,
     this.onTapDown,
+    this.dimWhenDisabled = false,
   });
 
   final String label;
@@ -54,6 +63,11 @@ class AppButton extends StatefulWidget {
   final double height;
   final ValueChanged<TapDownDetails>? onTapDown;
 
+  /// Opt-in (UI modernization pass, 2026-09-27): render at reduced opacity
+  /// while not interactive. Off by default so the spec'd "stays visually
+  /// active" behavior above (and every existing golden) is unchanged.
+  final bool dimWhenDisabled;
+
   @override
   State<AppButton> createState() => _AppButtonState();
 }
@@ -61,7 +75,8 @@ class AppButton extends StatefulWidget {
 class _AppButtonState extends State<AppButton> {
   bool _pressed = false;
 
-  bool get _interactive => widget.isEnabled && !widget.isLoading && widget.onPressed != null;
+  bool get _interactive =>
+      widget.isEnabled && !widget.isLoading && widget.onPressed != null;
 
   void _setPressed(bool value) {
     if (!_interactive) return;
@@ -75,6 +90,7 @@ class _AppButtonState extends State<AppButton> {
 
     final Color background;
     final Color foreground;
+    Color? borderColor;
     switch (widget.variant) {
       case AppButtonVariant.primary:
         background = colors.accent;
@@ -85,13 +101,21 @@ class _AppButtonState extends State<AppButton> {
       case AppButtonVariant.secondary:
         background = colors.surface;
         foreground = colors.text;
+        // Hairline outline (UI modernization pass, 2026-09-27): in light
+        // theme `surface` == `bg`, so without it the button had no visible
+        // edge. The welcome screen never uses this variant.
+        borderColor = colors.border;
+      case AppButtonVariant.danger:
+        background = colors.danger;
+        foreground = colors.onDanger;
     }
 
     final content = widget.isLoading
         ? SizedBox(
             width: 20,
             height: 20,
-            child: CircularProgressIndicator(strokeWidth: 2.2, color: foreground),
+            child:
+                CircularProgressIndicator(strokeWidth: 2.2, color: foreground),
           )
         : Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -125,24 +149,40 @@ class _AppButtonState extends State<AppButton> {
         onTapUp: (_) => _setPressed(false),
         onTapCancel: () => _setPressed(false),
         onTap: _interactive ? widget.onPressed : null,
-        child: AnimatedScale(
-          scale: _pressed ? AppMotion.pressScaleFactor : 1.0,
-          duration: AppMotion.pressScale,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: widget.height),
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
-              decoration: BoxDecoration(
-                color: background,
-                borderRadius: BorderRadius.circular(AppRadii.button),
+        child: _maybeDim(
+          AnimatedScale(
+            scale: _pressed && !context.reduceMotion
+                ? AppMotion.pressScaleFactor
+                : 1.0,
+            duration: AppMotion.pressScale,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: widget.height),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+                decoration: BoxDecoration(
+                  color: background,
+                  borderRadius: BorderRadius.circular(AppRadii.button),
+                  border: borderColor == null
+                      ? null
+                      : Border.all(color: borderColor),
+                ),
+                alignment: Alignment.center,
+                child: content,
               ),
-              alignment: Alignment.center,
-              child: content,
             ),
           ),
         ),
       ),
+    );
+  }
+
+  Widget _maybeDim(Widget child) {
+    if (!widget.dimWhenDisabled) return child;
+    return AnimatedOpacity(
+      opacity: _interactive || widget.isLoading ? 1 : 0.45,
+      duration: AppMotion.stateChange,
+      child: child,
     );
   }
 }

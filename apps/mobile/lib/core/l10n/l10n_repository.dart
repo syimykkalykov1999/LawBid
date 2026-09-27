@@ -1,5 +1,5 @@
-import 'i18n_api_client.dart';
-import 'l10n_database.dart';
+import 'package:lawbid/core/l10n/i18n_api_client.dart';
+import 'package:lawbid/core/l10n/l10n_database.dart';
 
 /// Orchestrates [L10nDatabase] (local cache) and [I18nApiClient] (backend)
 /// for the real L10n layer (docs/01_FOUNDATION_AUTH.md §9.4: "читает кэш из
@@ -48,7 +48,7 @@ class L10nRepository {
         version: result.version,
         translations: result.translations,
       );
-      return _db.loadLanguage(lang);
+      return await _db.loadLanguage(lang);
     } catch (_) {
       return null;
     }

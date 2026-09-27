@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/design_system/design_system.dart';
-import '../../../../core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/l10n/l10n_providers.dart';
 
 /// Stage 1.5 stub for the "+" full-screen creation flow (file 07 §3.4:
 /// "Экран открывается как full-screen с крестиком"). Real content (Создать
@@ -17,16 +17,31 @@ class CreateScreen extends ConsumerWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     return Scaffold(
       backgroundColor: colors.bg,
-      appBar: AppBar(
-        backgroundColor: colors.bg,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.close, color: colors.text),
-          onPressed: () => Navigator.of(context).pop(),
+      // UI modernization pass (2026-09-27): design-system top bar with a
+      // 44x44 close target instead of the raw Material AppBar.
+      appBar: AppTopBar(
+        leading: Semantics(
+          button: true,
+          label: t.t('common.close'),
+          excludeSemantics: true,
+          child: AppPressable(
+            onTap: () => Navigator.of(context).pop(),
+            child: SizedBox.square(
+              dimension: AppSizes.touchTarget,
+              child: Icon(
+                Icons.close_rounded,
+                color: colors.text,
+                size: AppSizes.iconMd,
+              ),
+            ),
+          ),
         ),
         title: Text(t.t('create.stub.title')),
       ),
-      body: AppEmptyState(message: t.t('empty.default.message')),
+      body: AppEmptyState(
+        icon: Icons.edit_note_rounded,
+        message: t.t('empty.default.message'),
+      ),
     );
   }
 }

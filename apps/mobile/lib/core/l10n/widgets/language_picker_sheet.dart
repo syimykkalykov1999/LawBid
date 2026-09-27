@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../design_system/design_system.dart';
-import '../app_language.dart';
-import '../l10n_providers.dart';
-import '../language_catalog.dart';
-import '../language_catalog_provider.dart';
-import '../language_providers.dart';
+import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/l10n/app_language.dart';
+import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/l10n/language_catalog.dart';
+import 'package:lawbid/core/l10n/language_catalog_provider.dart';
+import 'package:lawbid/core/l10n/language_providers.dart';
 
 /// Search + list language picker (2026-09-22 owner voice follow-up):
 /// tapping the welcome screen's globe icon used to toggle ru<->en directly;
@@ -28,20 +28,16 @@ class LanguagePickerSheet extends ConsumerStatefulWidget {
   /// Opens the sheet. Selecting an enabled language sets it and pops;
   /// tapping outside / dragging down dismisses without changing anything.
   static Future<void> show(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    return showModalBottomSheet<void>(
+    return showAppBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: colors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadii.roleCard)),
-      ),
       builder: (_) => const LanguagePickerSheet(),
     );
   }
 
   @override
-  ConsumerState<LanguagePickerSheet> createState() => _LanguagePickerSheetState();
+  ConsumerState<LanguagePickerSheet> createState() =>
+      _LanguagePickerSheetState();
 }
 
 class _LanguagePickerSheetState extends ConsumerState<LanguagePickerSheet> {
@@ -74,13 +70,15 @@ class _LanguagePickerSheetState extends ConsumerState<LanguagePickerSheet> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final t = ref.watch(translatorProvider);
-    final currentLanguage = ref.watch(languageControllerProvider).value ?? AppLanguage.en;
+    final currentLanguage =
+        ref.watch(languageControllerProvider).value ?? AppLanguage.en;
     // Backend-driven catalog (GET /i18n/languages, see
     // language_catalog_provider.dart), falling back to the compiled-in
     // kLanguageCatalog while the fetch is in flight or if it fails — same
     // "never block/blank the UI on network" principle as the translator
     // layer itself.
-    final catalog = ref.watch(languageCatalogProvider).value ?? kLanguageCatalog;
+    final catalog =
+        ref.watch(languageCatalogProvider).value ?? kLanguageCatalog;
     final results = _filtered(catalog);
 
     return SafeArea(
@@ -96,25 +94,19 @@ class _LanguagePickerSheetState extends ConsumerState<LanguagePickerSheet> {
           ),
           child: Column(
             children: [
-              Center(
-                child: Container(
-                  width: 36,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: AppSpacing.md),
-                  decoration: BoxDecoration(
-                    color: colors.border,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
+              const AppSheetHandle(),
+              Semantics(
+                header: true,
+                child: Text(
+                  t.t('lang.picker.title'),
+                  style: typography.titleMedium.copyWith(color: colors.text),
                 ),
-              ),
-              Text(
-                t.t('lang.picker.title'),
-                style: typography.titleMedium.copyWith(color: colors.text),
               ),
               const SizedBox(height: AppSpacing.md),
               AppTextField(
                 controller: _searchController,
-                leading: Icon(Icons.search, size: 20, color: colors.textSecondary),
+                leading:
+                    Icon(Icons.search, size: 20, color: colors.textSecondary),
                 hintText: t.t('lang.picker.search.hint'),
                 autofocus: true,
                 onChanged: (value) => setState(() => _query = value),
@@ -123,32 +115,38 @@ class _LanguagePickerSheetState extends ConsumerState<LanguagePickerSheet> {
               const SizedBox(height: AppSpacing.sm),
               Expanded(
                 child: results.isEmpty
-                    ? Center(
-                        child: Text(
-                          t.t('lang.picker.empty'),
-                          style: typography.body.copyWith(color: colors.textSecondary),
-                        ),
+                    ? AppEmptyState(
+                        icon: Icons.search_off_rounded,
+                        message: t.t('lang.picker.empty'),
                       )
                     : ListView.separated(
                         itemCount: results.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.xs),
+                        separatorBuilder: (_, __) =>
+                            const SizedBox(height: AppSpacing.sm),
                         itemBuilder: (context, index) {
                           final entry = results[index];
-                          final isCurrent =
-                              entry.isEnabled && entry.appLanguage == currentLanguage;
-                          return _LanguageRow(
+                          final isCurrent = entry.isEnabled &&
+                              entry.appLanguage == currentLanguage;
+                          final row = _LanguageRow(
                             entry: entry,
                             isCurrent: isCurrent,
                             comingSoonLabel: t.t('lang.picker.comingSoon'),
                             onTap: entry.isEnabled
                                 ? () {
                                     ref
-                                        .read(languageControllerProvider.notifier)
+                                        .read(
+                                          languageControllerProvider.notifier,
+                                        )
                                         .setLanguage(entry.appLanguage!);
                                     Navigator.of(context).pop();
                                   }
                                 : null,
                           );
+                          // Stagger only the first screenful; rows scrolled
+                          // into view later appear without delay.
+                          return index < 8
+                              ? AppEntrance(index: index, child: row)
+                              : row;
                         },
                       ),
               ),
@@ -184,15 +182,27 @@ class _LanguageRow extends StatelessWidget {
       enabled: enabled,
       selected: isCurrent,
       label: '${entry.nativeName}, ${entry.englishName}',
+      excludeSemantics: true,
       child: Opacity(
         opacity: enabled ? 1.0 : 0.45,
-        child: InkWell(
+        child: AppPressable(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(AppRadii.field),
-          child: Padding(
+          child: AnimatedContainer(
+            duration:
+                context.reduceMotion ? Duration.zero : AppMotion.stateChange,
+            curve: AppMotion.enterCurve,
+            constraints: const BoxConstraints(
+              minHeight: AppSizes.touchTarget + AppSpacing.md,
+            ),
             padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.sm,
+              horizontal: AppSpacing.md,
               vertical: AppSpacing.sm,
+            ),
+            decoration: BoxDecoration(
+              color: isCurrent ? colors.goldTint : colors.surface,
+              borderRadius: BorderRadius.circular(AppRadii.field),
+              border:
+                  Border.all(color: isCurrent ? colors.gold : colors.border),
             ),
             child: Row(
               children: [
@@ -200,25 +210,38 @@ class _LanguageRow extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(entry.nativeName, style: typography.body.copyWith(color: colors.text)),
+                      Text(
+                        entry.nativeName,
+                        style: typography.body.copyWith(
+                          color: colors.text,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
                       Text(
                         entry.englishName,
-                        style: typography.caption.copyWith(color: colors.textSecondary),
+                        style: typography.caption
+                            .copyWith(color: colors.textSecondary),
                       ),
                     ],
                   ),
                 ),
                 if (isCurrent)
-                  Icon(Icons.check, size: 20, color: colors.gold)
+                  Icon(
+                    Icons.check_circle_rounded,
+                    size: AppSizes.iconSm,
+                    color: colors.goldStroke,
+                  )
                 else if (!enabled)
                   Text(
                     comingSoonLabel,
-                    style: typography.caption.copyWith(color: colors.textSecondary),
+                    style: typography.caption
+                        .copyWith(color: colors.textSecondary),
                   )
                 else
                   Text(
                     entry.code.toUpperCase(),
-                    style: typography.caption.copyWith(color: colors.textSecondary),
+                    style: typography.caption
+                        .copyWith(color: colors.textSecondary),
                   ),
               ],
             ),
