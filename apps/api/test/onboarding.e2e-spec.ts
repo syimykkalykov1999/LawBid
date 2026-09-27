@@ -256,6 +256,30 @@ describe('Onboarding (e2e) — stage 1.7 server side', () => {
     expect(docs[0].id).toEqual(expect.any(String));
   });
 
+  it('a retried consents POST with the same Idempotency-Key is applied once', async () => {
+    const token = await login('+12025557004');
+    const auth = { Authorization: `Bearer ${token}` };
+    const me = await api().get('/api/v1/users/me').set(auth).expect(200);
+    const userId = (me.body as { data: { id: string } }).data.id;
+    const send = () =>
+      api()
+        .post('/api/v1/users/me/consents')
+        .set(auth)
+        .set('Idempotency-Key', 'onboarding-e2e-consents-1')
+        .send({ consents: [{ type: 'marketing_email', granted: true }] })
+        .expect(201);
+
+    const first = await send();
+    const replay = await send();
+    expect(replay.body).toEqual(first.body);
+    expect(first.body).toEqual({ data: { saved: true } });
+    expect(
+      await prisma.userConsent.count({
+        where: { user_id: userId, consent_type: 'marketing_email' },
+      }),
+    ).toBe(1);
+  });
+
   it('rejects an unknown step, a non-selectable role and an inactive language', async () => {
     const token = await login('+12025557003');
     const auth = { Authorization: `Bearer ${token}` };
@@ -269,10 +293,13 @@ describe('Onboarding (e2e) — stage 1.7 server side', () => {
       .set(auth)
       .send({ role: 'admin' })
       .expect(400);
-    await api()
+    const unknownLanguage = await api()
       .patch('/api/v1/users/me')
       .set(auth)
       .send({ uiLanguage: 'zz' })
       .expect(400);
+    // The feature's own ErrorCode survives the exception filter (it used
+    // to be flattened into VALIDATION_ERROR like a ValidationPipe 400).
+    expect(unknownLanguage.body.error.code).toBe('I18N_LANGUAGE_NOT_FOUND');
   });
 });

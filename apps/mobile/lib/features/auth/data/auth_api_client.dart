@@ -1,34 +1,40 @@
 import 'package:dio/dio.dart';
+import 'package:lawbid_api/lawbid_api.dart' as api;
 
 import '../../../core/network/api_error.dart';
+import '../../../core/network/request_flags.dart';
 import 'auth_dtos.dart';
 
-/// One method per `/auth/*` endpoint wired in this pass
-/// (docs/01_FOUNDATION_AUTH.md §10.5). Every method converts any failure
-/// into an [ApiException] via [ApiException.fromDioException] — callers
-/// never see a raw [DioException].
+/// One method per `/auth/*` endpoint the app uses (docs/01_FOUNDATION_AUTH.md
+/// §10.5), on top of the generated client (`package:lawbid_api`, docs/01
+/// §6.3) driven by the app's own [Dio] — so every call still goes through
+/// its interceptors (headers, auth + silent refresh, idempotency, retry).
+/// Every method converts any failure into an [ApiException] via
+/// [guardApiCall] — callers never see a raw [DioException] or a parse error.
 class AuthApiClient {
-  AuthApiClient(this._dio);
+  AuthApiClient(Dio dio)
+      : _auth = api.AuthClient(dio),
+        _users = api.UsersClient(dio);
 
-  final Dio _dio;
+  final api.AuthClient _auth;
+  final api.UsersClient _users;
 
   /// otp/request, otp/verify, social, and refresh issue or exchange
   /// tokens, so [AuthInterceptor] (core/network/auth_interceptor.dart) must
   /// not attach an Authorization header to them, and a 401 from one of
   /// these must never trigger the silent-refresh retry loop.
-  Options get _skipAuth => Options(extra: const {'skipAuth': true});
+  static const Map<String, dynamic> _skipAuth = {RequestFlags.skipAuth: true};
 
-  Future<void> requestOtp({required String channel, required String identifier}) async {
-    try {
-      await _dio.post<Map<String, dynamic>>(
-        '/auth/otp/request',
-        data: OtpRequestPayload(channel: channel, identifier: identifier).toJson(),
-        options: _skipAuth,
+  Future<void> requestOtp({required String channel, required String identifier}) =>
+      guardApiCall(
+        () => _auth.requestOtp(
+          body: api.OtpRequestDto(
+            channel: api.OtpRequestDtoChannel.fromJson(channel),
+            identifier: identifier,
+          ),
+          extras: _skipAuth,
+        ),
       );
-    } on DioException catch (e) {
-      throw ApiException.fromDioException(e);
-    }
-  }
 
   Future<AuthTokensResult> verifyOtp({
     required String channel,
@@ -36,156 +42,89 @@ class AuthApiClient {
     required String code,
     DeviceInfo? deviceInfo,
   }) async {
-    try {
-      final response = await _dio.post<Map<String, dynamic>>(
-        '/auth/otp/verify',
-        data: OtpVerifyPayload(
-          channel: channel,
+    final envelope = await guardApiCall(
+      () => _auth.verifyOtp(
+        body: api.OtpVerifyDto(
+          channel: api.OtpVerifyDtoChannel.fromJson(channel),
           identifier: identifier,
           code: code,
           deviceInfo: deviceInfo,
-        ).toJson(),
-        options: _skipAuth,
-      );
-      return AuthTokensResult.fromJson(_unwrap(response));
-    } on DioException catch (e) {
-      throw ApiException.fromDioException(e);
-    }
+        ),
+        extras: _skipAuth,
+      ),
+    );
+    return envelope.data;
   }
 
-  /// `POST /auth/social` (Phase 3 of the auth networking work,
-  /// docs/CHANGELOG.md) — same envelope/`_skipAuth`/`_unwrap` pattern as
-  /// [verifyOtp] above; this is the other endpoint that issues tokens
-  /// rather than requiring them.
-  Future<AuthTokensResult> socialLogin(SocialLoginPayload payload) async {
-    try {
-      final response = await _dio.post<Map<String, dynamic>>(
-        '/auth/social',
-        data: payload.toJson(),
-        options: _skipAuth,
-      );
-      return AuthTokensResult.fromJson(_unwrap(response));
-    } on DioException catch (e) {
-      throw ApiException.fromDioException(e);
-    }
+  /// `POST /auth/social` — the other endpoint that issues tokens rather
+  /// than requiring them (same `_skipAuth` as [verifyOtp]).
+  Future<AuthTokensResult> socialLogin(api.SocialLoginDto body) async {
+    final envelope = await guardApiCall(
+      () => _auth.social(body: body, extras: _skipAuth),
+    );
+    return envelope.data;
   }
 
   Future<AuthTokensResult> refresh({
     required String refreshToken,
     DeviceInfo? deviceInfo,
   }) async {
-    try {
-      final response = await _dio.post<Map<String, dynamic>>(
-        '/auth/refresh',
-        data: RefreshPayload(refreshToken: refreshToken, deviceInfo: deviceInfo).toJson(),
-        options: _skipAuth,
-      );
-      return AuthTokensResult.fromJson(_unwrap(response));
-    } on DioException catch (e) {
-      throw ApiException.fromDioException(e);
-    }
+    final envelope = await guardApiCall(
+      () => _auth.refresh(
+        body: api.RefreshTokenDto(refreshToken: refreshToken, deviceInfo: deviceInfo),
+        extras: _skipAuth,
+      ),
+    );
+    return envelope.data;
   }
 
   /// No `skipAuth` here — `POST /auth/logout` isn't `@Public()` on the
   /// backend, it needs the bearer token, so [AuthInterceptor] must attach
   /// it normally.
-  Future<void> logout() async {
-    try {
-      await _dio.post<Map<String, dynamic>>('/auth/logout');
-    } on DioException catch (e) {
-      throw ApiException.fromDioException(e);
-    }
-  }
+  Future<void> logout() => guardApiCall(_auth.logout);
 
   /// `POST /auth/logout-all` (file 01 §10.5 "все сессии"). Same
-  /// auth-required shape as [logout] — needs the bearer token, no
-  /// `skipAuth`.
-  Future<void> logoutAll() async {
-    try {
-      await _dio.post<Map<String, dynamic>>('/auth/logout-all');
-    } on DioException catch (e) {
-      throw ApiException.fromDioException(e);
-    }
-  }
+  /// auth-required shape as [logout].
+  Future<void> logoutAll() => guardApiCall(_auth.logoutAll);
 
-  /// `GET /auth/sessions` (Phase 4 of the auth networking work,
-  /// docs/CHANGELOG.md) — lists every active session/device for the
-  /// current user (file 01 §10.4's "Активные устройства").
+  /// `GET /auth/sessions` — every active session/device of the current
+  /// user (file 01 §10.4 "Активные устройства").
   Future<List<DeviceSession>> listSessions() async {
-    try {
-      final response = await _dio.get<Map<String, dynamic>>('/auth/sessions');
-      final envelope = response.data?['data'];
-      if (envelope is! List) {
-        throw const ApiException(
-          code: ApiException.networkErrorCode,
-          message: 'Unexpected response shape from the server.',
-        );
-      }
-      return envelope
-          .cast<Map<String, dynamic>>()
-          .map(DeviceSession.fromJson)
-          .toList(growable: false);
-    } on DioException catch (e) {
-      throw ApiException.fromDioException(e);
-    }
+    final envelope = await guardApiCall(_auth.listSessions);
+    return envelope.data.map(DeviceSession.fromDto).toList(growable: false);
   }
 
-  /// `DELETE /auth/sessions/:id` — revokes one session/device (file 01
-  /// §10.4's "кнопка «Выйти на этом устройстве»", applied to any row, not
-  /// just the current one).
-  Future<void> endSession(String sessionId) async {
-    try {
-      await _dio.delete<Map<String, dynamic>>('/auth/sessions/$sessionId');
-    } on DioException catch (e) {
-      throw ApiException.fromDioException(e);
-    }
-  }
+  /// `DELETE /auth/sessions/{id}` — revokes one session/device (file 01
+  /// §10.4 "кнопка «Выйти на этом устройстве»", applied to any row).
+  Future<void> endSession(String sessionId) =>
+      guardApiCall(() => _auth.endSession(id: sessionId));
 
-  /// `POST /auth/reauth` (file 01 §10.5) — the OTP-only path (see
-  /// `ReauthPayload`'s doc comment for why `method` is never anything
-  /// else). Returns a short-lived `reauthToken` (5 minutes,
-  /// `REAUTH_TOKEN_TTL_SECONDS` server-side) that gates sensitive actions
-  /// via the `X-Reauth-Token` header — see [deleteAccount].
-  Future<ReauthTokenResult> reauth(ReauthPayload payload) async {
-    try {
-      final response = await _dio.post<Map<String, dynamic>>(
-        '/auth/reauth',
-        data: payload.toJson(),
-      );
-      return ReauthTokenResult.fromJson(_unwrap(response));
-    } on DioException catch (e) {
-      throw ApiException.fromDioException(e);
-    }
+  /// `POST /auth/reauth` (file 01 §10.5), the OTP path — `method` is always
+  /// `otp` (`ReauthDto`: biometric is not a valid value without platform
+  /// attestation). [identifier] is whichever verified phone/email the code
+  /// was sent to; the server checks it belongs to the CURRENT user. Returns
+  /// the single-use `reauthToken` (5 minutes, `REAUTH_TOKEN_TTL_SECONDS`)
+  /// for the `X-Reauth-Token` header of a sensitive action — see
+  /// [deleteAccount].
+  Future<String> reauth({required String identifier, required String code}) async {
+    final envelope = await guardApiCall(
+      () => _auth.reauth(
+        body: api.ReauthDto(
+          method: api.ReauthDtoMethod.otp,
+          identifier: identifier,
+          code: code,
+        ),
+      ),
+    );
+    return envelope.data.reauthToken;
   }
 
   /// `DELETE /users/me` (file 01 §10.7) — starts the 14-day deletion grace
   /// period; the server revokes every session (including this one)
   /// immediately on success, so the caller must treat a successful call as
   /// an implicit local logout. Requires a fresh [reauthToken] from
-  /// [reauth], sent as `X-Reauth-Token` — the header name/casing matches
-  /// `ReauthGuard`'s `REAUTH_HEADER` constant
-  /// (apps/api/src/modules/auth/guards/reauth.guard.ts); dio lower-cases
-  /// header names on the wire regardless, so casing here is cosmetic.
-  Future<void> deleteAccount({required String reauthToken}) async {
-    try {
-      await _dio.delete<Map<String, dynamic>>(
-        '/users/me',
-        options: Options(headers: {'X-Reauth-Token': reauthToken}),
-      );
-    } on DioException catch (e) {
-      throw ApiException.fromDioException(e);
-    }
-  }
-
-  /// Unwraps the backend's success envelope (docs/01_FOUNDATION_AUTH.md
-  /// §7: `{data, meta?}`) — every endpoint's real payload is under
-  /// `data`.
-  Map<String, dynamic> _unwrap(Response<Map<String, dynamic>> response) {
-    final envelope = response.data?['data'];
-    if (envelope is Map<String, dynamic>) return envelope;
-    throw const ApiException(
-      code: ApiException.networkErrorCode,
-      message: 'Unexpected response shape from the server.',
-    );
-  }
+  /// [reauth], sent as `X-Reauth-Token` (the generated client's header
+  /// parameter, from the OpenAPI contract).
+  Future<void> deleteAccount({required String reauthToken}) =>
+      guardApiCall(() => _users.deleteAccount(xReauthToken: reauthToken));
 }

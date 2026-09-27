@@ -1,0 +1,80 @@
+// coverage:ignore-file
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: type=lint, unused_import, invalid_annotation_target, unnecessary_import
+
+import 'package:dio/dio.dart';
+import 'package:retrofit/retrofit.dart';
+
+import '../models/auth_tokens_envelope.dart';
+import '../models/identifier_linked_envelope.dart';
+import '../models/link_identifier_dto.dart';
+import '../models/logged_out_envelope.dart';
+import '../models/otp_request_dto.dart';
+import '../models/otp_sent_envelope.dart';
+import '../models/otp_verify_dto.dart';
+import '../models/reauth_dto.dart';
+import '../models/reauth_token_envelope.dart';
+import '../models/refresh_token_dto.dart';
+import '../models/session_ended_envelope.dart';
+import '../models/session_list_envelope.dart';
+import '../models/social_login_dto.dart';
+
+part 'auth_client.g.dart';
+
+@RestApi()
+abstract class AuthClient {
+  factory AuthClient(Dio dio, {String? baseUrl}) = _AuthClient;
+
+  @POST('/auth/otp/request')
+  Future<OtpSentEnvelope> requestOtp({
+    @Body() required OtpRequestDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  @POST('/auth/otp/verify')
+  Future<AuthTokensEnvelope> verifyOtp({
+    @Body() required OtpVerifyDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  @POST('/auth/social')
+  Future<AuthTokensEnvelope> social({
+    @Body() required SocialLoginDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  @POST('/auth/refresh')
+  Future<AuthTokensEnvelope> refresh({
+    @Body() required RefreshTokenDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  @POST('/auth/logout')
+  Future<LoggedOutEnvelope> logout({@Extras() Map<String, dynamic>? extras});
+
+  @POST('/auth/logout-all')
+  Future<LoggedOutEnvelope> logoutAll({@Extras() Map<String, dynamic>? extras});
+
+  @GET('/auth/sessions')
+  Future<SessionListEnvelope> listSessions({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  @DELETE('/auth/sessions/{id}')
+  Future<SessionEndedEnvelope> endSession({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  @POST('/auth/reauth')
+  Future<ReauthTokenEnvelope> reauth({
+    @Body() required ReauthDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  @POST('/auth/identifiers')
+  Future<IdentifierLinkedEnvelope> linkIdentifier({
+    @Body() required LinkIdentifierDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+}

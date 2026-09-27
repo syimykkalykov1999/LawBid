@@ -21,8 +21,8 @@ class SocialAuthCancelledException implements Exception {
 }
 
 /// One native credential, provider-agnostic, ready to hand to
-/// `AuthApiClient.socialLogin` via `SocialLoginPayload`
-/// (data/auth_dtos.dart). [nonce] is always the RAW (unhashed) nonce — see
+/// `AuthApiClient.socialLogin` as the generated `SocialLoginDto`
+/// (package:lawbid_api). [nonce] is always the RAW (unhashed) nonce — see
 /// [PlatformSocialAuthNativeClient]'s doc comment on why Apple's hashing
 /// happens only on the way into the native SDK call, never here.
 class SocialCredential {

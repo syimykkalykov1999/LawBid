@@ -1,3 +1,5 @@
+import 'package:lawbid_api/lawbid_api.dart' as api;
+
 import '../../../core/network/api_error.dart';
 import '../../../core/session/session_providers.dart';
 import '../domain/account_deletion_result.dart';
@@ -75,8 +77,8 @@ class RealAuthRepository implements AuthRepository {
     }
     try {
       final tokens = await _client.socialLogin(
-        SocialLoginPayload(
-          provider: credential.provider,
+        api.SocialLoginDto(
+          provider: api.SocialLoginDtoProvider.fromJson(credential.provider),
           idToken: credential.idToken,
           nonce: credential.nonce,
           firstName: credential.firstName,
@@ -139,8 +141,8 @@ class RealAuthRepository implements AuthRepository {
   @override
   Future<ReauthResult> reauthWithOtp({required String identifier, required String code}) async {
     try {
-      final result = await _client.reauth(ReauthPayload(identifier: identifier, code: code));
-      return ReauthResult.success(reauthToken: result.reauthToken);
+      final reauthToken = await _client.reauth(identifier: identifier, code: code);
+      return ReauthResult.success(reauthToken: reauthToken);
     } on ApiException catch (e) {
       switch (e.code) {
         case ApiErrorCodes.reauthInvalid:

@@ -1,57 +1,107 @@
 import 'package:dio/dio.dart';
 
-/// String constants for the [ErrorCode] values
-/// (apps/api/src/common/errors/error-code.enum.ts) that Flutter code
-/// branches on directly. NOT the full enum — `packages/api-contract` is an
-/// empty stub (README only, no generator wired), so these are hand-copied
-/// rather than shared; add more here as more call sites need to switch on a
-/// specific code, instead of inventing a string literal at the call site.
+/// String constants for EVERY `ErrorCode` value
+/// (apps/api/src/common/errors/error-code.enum.ts — docs/01_FOUNDATION_AUTH.md
+/// §7: "Коды ошибок только из общего enum (ErrorCode), одинаковый на
+/// сервере и клиенте"). The same enum is generated into
+/// `package:lawbid_api` (`ErrorCode`, from packages/api-contract/openapi.json);
+/// test/core/network/api_error_codes_test.dart fails when [all] and the
+/// generated enum drift apart. Call sites branch on these constants, never
+/// on a string literal or on `message`.
 abstract final class ApiErrorCodes {
-  static const tokenExpired = 'TOKEN_EXPIRED';
+  // Generic / infra (stage 1.2)
+  static const validationError = 'VALIDATION_ERROR';
+  static const internalError = 'INTERNAL_ERROR';
+  static const notFound = 'NOT_FOUND';
   static const unauthorized = 'UNAUTHORIZED';
-  static const authSessionRevoked = 'AUTH_SESSION_REVOKED';
+  static const forbidden = 'FORBIDDEN';
+  static const rateLimited = 'RATE_LIMITED';
+  static const idempotencyKeyRequired = 'IDEMPOTENCY_KEY_REQUIRED';
+  static const idempotencyKeyConflict = 'IDEMPOTENCY_KEY_CONFLICT';
+
+  // App lifecycle (stage 1.8) — handled globally by AppUpdateInterceptor
+  // (426 -> forced-update screen).
+  static const appUpdateRequired = 'APP_UPDATE_REQUIRED';
+
+  // Auth (docs/01 §10, stage 1.4). TOKEN_EXPIRED is the one code
+  // AuthInterceptor's silent refresh keys off (§10.4).
+  static const tokenExpired = 'TOKEN_EXPIRED';
   static const authOtpInvalid = 'AUTH_OTP_INVALID';
   static const authOtpExpired = 'AUTH_OTP_EXPIRED';
   static const authOtpLocked = 'AUTH_OTP_LOCKED';
   static const authOtpRequestLimit = 'AUTH_OTP_REQUEST_LIMIT';
-  static const rateLimited = 'RATE_LIMITED';
-
-  // Social login (Phase 3 of the auth networking work, docs/CHANGELOG.md)
-  // — copied verbatim from apps/api/src/common/errors/error-code.enum.ts.
+  static const authRefreshInvalid = 'AUTH_REFRESH_INVALID';
+  static const authRefreshExpired = 'AUTH_REFRESH_EXPIRED';
+  static const authRefreshReuseDetected = 'AUTH_REFRESH_REUSE_DETECTED';
+  static const authSessionRevoked = 'AUTH_SESSION_REVOKED';
   static const authSocialTokenInvalid = 'AUTH_SOCIAL_TOKEN_INVALID';
   static const authSocialProviderUnavailable = 'AUTH_SOCIAL_PROVIDER_UNAVAILABLE';
   static const authProviderDisabled = 'AUTH_PROVIDER_DISABLED';
   static const accountExistsUseOtherMethod = 'ACCOUNT_EXISTS_USE_OTHER_METHOD';
+  static const identifierAlreadyLinked = 'IDENTIFIER_ALREADY_LINKED';
+  static const contactDomainBlocked = 'CONTACT_DOMAIN_BLOCKED';
+  static const contactAlreadyExists = 'CONTACT_ALREADY_EXISTS';
+  static const reauthRequired = 'REAUTH_REQUIRED';
+  static const reauthInvalid = 'REAUTH_INVALID';
+  static const deviceAttestationRequired = 'DEVICE_ATTESTATION_REQUIRED';
   static const accountSuspended = 'ACCOUNT_SUSPENDED';
   static const accountDeleted = 'ACCOUNT_DELETED';
 
-  // Reauth + sessions + account deletion (Phase 4 of the auth networking
-  // work, docs/CHANGELOG.md) — copied verbatim from
-  // apps/api/src/common/errors/error-code.enum.ts.
-  static const reauthRequired = 'REAUTH_REQUIRED';
-  static const reauthInvalid = 'REAUTH_INVALID';
-  static const notFound = 'NOT_FOUND';
-
-  // App lifecycle (stage 1.8, docs/CHANGELOG.md) — copied verbatim from
-  // apps/api/src/common/errors/error-code.enum.ts. Not currently switched
-  // on anywhere client-side (see app.dart's `_UpdateRequiredGate` doc
-  // comment on scope) — declared here so a future call site has the
-  // exact string ready rather than inventing its own literal.
-  static const appUpdateRequired = 'APP_UPDATE_REQUIRED';
-
-  // Onboarding + contacts (stage 1.7 mobile, docs/CHANGELOG.md) — copied
-  // verbatim from apps/api/src/common/errors/error-code.enum.ts.
-  static const validationError = 'VALIDATION_ERROR';
-  static const contactDomainBlocked = 'CONTACT_DOMAIN_BLOCKED';
-  static const contactAlreadyExists = 'CONTACT_ALREADY_EXISTS';
-  static const identifierAlreadyLinked = 'IDENTIFIER_ALREADY_LINKED';
-  static const phoneCountryNotSupported = 'PHONE_COUNTRY_NOT_SUPPORTED';
-  static const providerBudgetExceeded = 'PROVIDER_BUDGET_EXCEEDED';
+  // Onboarding (docs/01 §11, stage 1.7)
   static const clientContactsIncomplete = 'CLIENT_CONTACTS_INCOMPLETE';
   static const onboardingIncomplete = 'ONBOARDING_INCOMPLETE';
   static const roleAlreadySet = 'ROLE_ALREADY_SET';
+  static const notImplemented = 'NOT_IMPLEMENTED';
+
+  // i18n (docs/01 §9, stage 1.6)
   static const i18nLanguageNotFound = 'I18N_LANGUAGE_NOT_FOUND';
-  static const idempotencyKeyConflict = 'IDEMPOTENCY_KEY_CONFLICT';
+  static const i18nImportInvalid = 'I18N_IMPORT_INVALID';
+
+  // Cost protection (docs/COST_PROTECTION.md)
+  static const providerBudgetExceeded = 'PROVIDER_BUDGET_EXCEEDED';
+  static const phoneCountryNotSupported = 'PHONE_COUNTRY_NOT_SUPPORTED';
+
+  /// Every server code, in enum order.
+  static const all = <String>[
+    validationError,
+    internalError,
+    notFound,
+    unauthorized,
+    forbidden,
+    rateLimited,
+    idempotencyKeyRequired,
+    idempotencyKeyConflict,
+    appUpdateRequired,
+    tokenExpired,
+    authOtpInvalid,
+    authOtpExpired,
+    authOtpLocked,
+    authOtpRequestLimit,
+    authRefreshInvalid,
+    authRefreshExpired,
+    authRefreshReuseDetected,
+    authSessionRevoked,
+    authSocialTokenInvalid,
+    authSocialProviderUnavailable,
+    authProviderDisabled,
+    accountExistsUseOtherMethod,
+    identifierAlreadyLinked,
+    contactDomainBlocked,
+    contactAlreadyExists,
+    reauthRequired,
+    reauthInvalid,
+    deviceAttestationRequired,
+    accountSuspended,
+    accountDeleted,
+    clientContactsIncomplete,
+    onboardingIncomplete,
+    roleAlreadySet,
+    notImplemented,
+    i18nLanguageNotFound,
+    i18nImportInvalid,
+    providerBudgetExceeded,
+    phoneCountryNotSupported,
+  ];
 }
 
 /// Parsed form of the backend's error envelope (docs/01_FOUNDATION_AUTH.md
@@ -116,4 +166,27 @@ class ApiException implements Exception {
 
   @override
   String toString() => 'ApiException($code: $message)';
+}
+
+/// Runs one call of the generated API client (`package:lawbid_api`) and
+/// normalizes every failure into an [ApiException], the one error contract
+/// repositories and interceptors rely on:
+/// - a [DioException] (transport failure or an error envelope) →
+///   [ApiException.fromDioException];
+/// - a 2xx body the generated model can't parse (not the contract's shape)
+///   → [ApiException.networkErrorCode], the same bucket as "the request
+///   never got a real answer".
+Future<T> guardApiCall<T>(Future<T> Function() call) async {
+  try {
+    return await call();
+  } on DioException catch (e) {
+    throw ApiException.fromDioException(e);
+  } on ApiException {
+    rethrow;
+  } on Object {
+    throw const ApiException(
+      code: ApiException.networkErrorCode,
+      message: 'Unexpected response shape from the server.',
+    );
+  }
 }

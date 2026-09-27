@@ -1,4 +1,5 @@
 import { Controller, Get } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { HealthCheck, HealthCheckService } from '@nestjs/terminus';
 import { SkipThrottle } from '@nestjs/throttler';
 import { Public } from '../auth/decorators/public.decorator';
@@ -32,6 +33,7 @@ import { RedisHealthIndicator } from './indicators/redis.health';
  * and its Redis-backed storage would turn a Redis outage into a 500
  * before `ready` could report a proper 503.
  */
+@ApiTags('health')
 @SkipThrottle()
 @Controller('health')
 export class HealthController {
