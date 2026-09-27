@@ -147,6 +147,25 @@ export const envSchema = z
       .int()
       .positive()
       .default(60),
+    // Per session chain (one device's login): an access token lives 15
+    // min (docs/01 §10.4), so a well-behaved client refreshes ~4x/hour;
+    // 30 leaves room for retries while capping a stolen-token refresh loop.
+    AUTH_REFRESH_LIMIT_PER_SESSION_PER_HOUR: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(30),
+    // docs/01 §10.2 E / §12: https base of the universal-link domain
+    // (e.g. https://lawbid.app). Optional: when unset, emails carry only
+    // the lawbid:// deep link. No trailing slash.
+    APP_LINK_BASE_URL: z
+      .string()
+      .regex(
+        /^https:\/\/[a-z0-9.-]+(:\d+)?(\/[\w./-]*[\w-])?$/i,
+        'APP_LINK_BASE_URL must be an https URL without a trailing slash',
+      )
+      .optional()
+      .or(z.literal('').transform(() => undefined)),
     // docs/01_FOUNDATION_AUTH.md §15 stage 1.4: "код 000000 только в
     // NODE_ENV=development" — validated below (.superRefine) so a
     // misconfigured staging/production env fails at boot instead of

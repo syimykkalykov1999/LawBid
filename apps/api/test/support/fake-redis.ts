@@ -25,7 +25,11 @@ export class FakeRedis {
     return Promise.resolve(this.read(key));
   }
 
-  set(key: string, value: string, ...args: unknown[]): Promise<'OK'> {
+  set(key: string, value: string, ...args: unknown[]): Promise<'OK' | null> {
+    // SET ... NX (IdempotencyInterceptor's atomic claim).
+    if (args.includes('NX') && this.read(key) !== null) {
+      return Promise.resolve(null);
+    }
     let expiresAt: number | null = null;
     const exIdx = args.indexOf('EX');
     const pxIdx = args.indexOf('PX');
@@ -56,5 +60,19 @@ export class FakeRedis {
     const entry = this.store.get(key);
     if (!entry || entry.expiresAt === null) return Promise.resolve(-1);
     return Promise.resolve(Math.max(0, entry.expiresAt - Date.now()));
+  }
+
+  del(...keys: string[]): Promise<number> {
+    let removed = 0;
+    for (const key of keys) {
+      if (this.read(key) !== null) removed += 1;
+      this.store.delete(key);
+    }
+    return Promise.resolve(removed);
+  }
+
+  // GET /health/ready's Redis indicator.
+  ping(): Promise<'PONG'> {
+    return Promise.resolve('PONG');
   }
 }

@@ -26,6 +26,21 @@ import type { EmailProvider } from './providers/email/email-provider.interface';
 import { MockEmailProvider } from './providers/email/mock-email.provider';
 import { SesEmailProvider } from './providers/email/ses-email.provider';
 import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
+import { LoginMethodPolicy } from './services/login-method-policy.service';
+import { NewDeviceNotifier } from './notifications/new-device-notifier.service';
+import { EmailLoginNotificationChannel } from './notifications/email-login-notification.channel';
+import { PushLoginNotificationChannel } from './notifications/push-login-notification.channel';
+import {
+  LOGIN_NOTIFICATION_CHANNELS,
+  type LoginNotificationChannel,
+} from './notifications/login-notification-channel';
+import {
+  APP_ATTEST_VERIFIER,
+  PLAY_INTEGRITY_VERIFIER,
+} from './attestation/attestation-verifier.interface';
+import { UnconfiguredAttestationVerifier } from './attestation/unconfigured-attestation.verifier';
+import { DeviceAttestationService } from './attestation/device-attestation.service';
+import { DeviceAttestationGuard } from './attestation/device-attestation.guard';
 import type { AppEnv } from '../../config/env.schema';
 import {
   resolveEmailProvider,
@@ -82,6 +97,32 @@ import {
     AuthEventService,
     ReauthGuard,
     ReauthVerifier,
+    LoginMethodPolicy,
+    // docs/01 §10.6 new-device alert: one entry per delivery channel.
+    EmailLoginNotificationChannel,
+    PushLoginNotificationChannel,
+    {
+      provide: LOGIN_NOTIFICATION_CHANNELS,
+      useFactory: (
+        email: EmailLoginNotificationChannel,
+        push: PushLoginNotificationChannel,
+      ): LoginNotificationChannel[] => [email, push],
+      inject: [EmailLoginNotificationChannel, PushLoginNotificationChannel],
+    },
+    NewDeviceNotifier,
+    // docs/01 §10.6 device integrity, behind flag `device_attestation`.
+    // Both verifiers reject everything until real App Attest / Play
+    // Integrity implementations (owner keys) replace these providers.
+    {
+      provide: APP_ATTEST_VERIFIER,
+      useValue: new UnconfiguredAttestationVerifier('ios'),
+    },
+    {
+      provide: PLAY_INTEGRITY_VERIFIER,
+      useValue: new UnconfiguredAttestationVerifier('android'),
+    },
+    DeviceAttestationService,
+    DeviceAttestationGuard,
     {
       provide: SMS_PROVIDER,
       useFactory: (config: ConfigService, logger: PinoLogger): SmsProvider => {

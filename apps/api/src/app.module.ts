@@ -2,6 +2,7 @@ import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import { LoggerModule } from 'nestjs-pino';
+import type { Options as PinoHttpOptions } from 'pino-http';
 import { ConfigModule } from './config/config.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RedisModule } from './redis/redis.module';
@@ -20,7 +21,54 @@ import { DevModule } from './modules/dev/dev.module';
 import { CostGuardModule } from './common/cost-guard/cost-guard.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
-import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
+import {
+  RequestIdMiddleware,
+  resolveRequestId,
+} from './common/middleware/request-id.middleware';
+
+/**
+ * pino-http options for LoggerModule. Exported so src/app.module.spec.ts
+ * can assert the request-id wiring against the exact production config.
+ *
+ * genReqId: pino-http would otherwise mint its own incrementing id, so
+ * log lines and the X-Request-Id header (RequestIdMiddleware) disagreed —
+ * resolveRequestId() is shared by both, see its doc comment.
+ */
+export const pinoHttpOptions: PinoHttpOptions = {
+  genReqId: (req, res) => resolveRequestId(req, res),
+  level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
+  // docs/06_PRODUCTION.md §12: "персональные данные в логи не писать" —
+  // redact list per §4.3 (extended as later stages add more PII fields).
+  redact: {
+    paths: [
+      'req.headers.authorization',
+      'req.headers.cookie',
+      'req.headers["x-reauth-token"]',
+      'req.body.phone',
+      'req.body.email',
+      // Stage 1.4 (docs/CHANGELOG.md): auth/contacts DTOs use a
+      // generic `identifier` field (phone OR email, see
+      // OtpRequestDto/OtpVerifyDto/ReauthDto) and `value` (Contacts
+      // DTOs) instead of separate phone/email fields — both are PII
+      // and must be redacted the same as the literal names above.
+      'req.body.identifier',
+      'req.body.value',
+      'req.body.code',
+      'req.body.refreshToken',
+      'req.body.idToken',
+      'req.body.nonce',
+      'req.body.reauthToken',
+      // Device attestation blobs (DeviceAttestationGuard) — opaque,
+      // large, and replayable within their validity window.
+      'req.headers["x-device-attestation"]',
+    ],
+    censor: '[REDACTED]',
+  },
+  transport:
+    process.env.NODE_ENV === 'development'
+      ? { target: 'pino-pretty' }
+      : undefined,
+};
 
 const isDev =
   process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'staging';
@@ -28,39 +76,7 @@ const isDev =
 @Module({
   imports: [
     ConfigModule,
-    LoggerModule.forRoot({
-      pinoHttp: {
-        level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
-        // docs/06_PRODUCTION.md §12: "персональные данные в логи не писать" —
-        // redact list per §4.3 (extended as later stages add more PII fields).
-        redact: {
-          paths: [
-            'req.headers.authorization',
-            'req.headers.cookie',
-            'req.headers["x-reauth-token"]',
-            'req.body.phone',
-            'req.body.email',
-            // Stage 1.4 (docs/CHANGELOG.md): auth/contacts DTOs use a
-            // generic `identifier` field (phone OR email, see
-            // OtpRequestDto/OtpVerifyDto/ReauthDto) and `value` (Contacts
-            // DTOs) instead of separate phone/email fields — both are PII
-            // and must be redacted the same as the literal names above.
-            'req.body.identifier',
-            'req.body.value',
-            'req.body.code',
-            'req.body.refreshToken',
-            'req.body.idToken',
-            'req.body.nonce',
-            'req.body.reauthToken',
-          ],
-          censor: '[REDACTED]',
-        },
-        transport:
-          process.env.NODE_ENV === 'development'
-            ? { target: 'pino-pretty' }
-            : undefined,
-      },
-    }),
+    LoggerModule.forRoot({ pinoHttp: pinoHttpOptions }),
     PrismaModule,
     RedisModule,
     ThrottlerModule,

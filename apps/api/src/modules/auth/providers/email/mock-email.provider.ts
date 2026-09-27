@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PinoLogger } from 'nestjs-pino';
 import nodemailer, { type Transporter } from 'nodemailer';
-import type { EmailProvider } from './email-provider.interface';
+import type { EmailMessage, EmailProvider } from './email-provider.interface';
 
 /**
  * Dev/test provider — sends through Mailhog (docker-compose.yml, stage
@@ -10,8 +10,8 @@ import type { EmailProvider } from './email-provider.interface';
  * Selected via EMAIL_PROVIDER=mock, or EMAIL_PROVIDER=auto while SES
  * settings are incomplete — never in staging/production
  * (config/provider-selection.ts).
- * Never logs the code itself (matches the pino redaction already applied
- * to req.body.code).
+ * Never logs the body (it can carry an OTP code — matches the pino
+ * redaction already applied to req.body.code).
  */
 @Injectable()
 export class MockEmailProvider implements EmailProvider {
@@ -29,16 +29,17 @@ export class MockEmailProvider implements EmailProvider {
     });
   }
 
-  async send(toEmail: string, code: string): Promise<void> {
+  async sendEmail(message: EmailMessage): Promise<void> {
     await this.transporter.sendMail({
       from: 'no-reply@lawbid.local',
-      to: toEmail,
-      subject: 'Your LawBid code',
-      text: `Your code: ${code}. Expires in 10 minutes.`,
+      to: message.to,
+      subject: message.subject,
+      text: message.text,
+      html: message.html,
     });
     this.logger.info(
-      { toEmailDomain: toEmail.split('@')[1] },
-      'Mock email OTP sent via Mailhog',
+      { toEmailDomain: message.to.split('@')[1] },
+      'Mock email sent via Mailhog',
     );
   }
 }

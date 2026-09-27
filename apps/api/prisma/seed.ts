@@ -279,6 +279,15 @@ async function seedFeatureFlags(): Promise<void> {
     { key: 'email_login', enabled: true, description: 'Email OTP login' },
     { key: 'apple_login', enabled: true, description: 'Sign in with Apple' },
     { key: 'google_login', enabled: true, description: 'Sign in with Google' },
+    {
+      // docs/01 §10.6: App Attest / Play Integrity on otp/request and
+      // social login. Keep OFF until real verifiers are configured —
+      // the placeholder verifiers reject every token.
+      key: 'device_attestation',
+      enabled: false,
+      description:
+        'Require App Attest / Play Integrity on OTP request and social login',
+    },
   ];
   for (const flag of flags) {
     await prisma.featureFlag.upsert({

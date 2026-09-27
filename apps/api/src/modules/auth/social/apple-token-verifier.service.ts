@@ -4,13 +4,13 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { createHash } from 'node:crypto';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import type {
   SocialTokenVerifier,
   SocialVerifyResult,
 } from './social-verifier.interface';
+import { nonceClaimMatches } from './nonce.util';
 
 /**
  * Apple has no official Node SDK. `jose`'s createRemoteJWKSet +
@@ -69,8 +69,7 @@ export class AppleTokenVerifier implements SocialTokenVerifier {
         message: 'Apple ID token payload missing sub.',
       });
     }
-    const hashedNonce = createHash('sha256').update(rawNonce).digest('hex');
-    if (payload.nonce !== hashedNonce) {
+    if (!nonceClaimMatches('apple', payload.nonce, rawNonce)) {
       throw new UnauthorizedException({
         code: ErrorCode.AUTH_SOCIAL_TOKEN_INVALID,
         message: 'Apple ID token nonce mismatch.',

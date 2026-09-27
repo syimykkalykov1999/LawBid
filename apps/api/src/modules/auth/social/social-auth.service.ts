@@ -1,8 +1,11 @@
 import {
   ConflictException,
   ForbiddenException,
+  HttpException,
+  HttpStatus,
   Injectable,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { GoogleTokenVerifier } from './google-token-verifier.service';
@@ -20,6 +23,9 @@ import {
 } from '../services/auth-event.service';
 import type { SocialLoginDto } from '../dto/social-login.dto';
 import type { AuthTokensResult } from './auth-result.types';
+import { RateLimitService } from '../services/rate-limit.service';
+import { LoginMethodPolicy } from '../services/login-method-policy.service';
+import { NewDeviceNotifier } from '../notifications/new-device-notifier.service';
 
 /**
  * Dispatches to the right SocialTokenVerifier, resolves-or-creates the
@@ -41,12 +47,22 @@ export class SocialAuthService {
     private readonly tokens: TokenService,
     private readonly authEvents: AuthEventService,
     private readonly prisma: PrismaService,
+    private readonly rateLimit: RateLimitService,
+    private readonly loginMethods: LoginMethodPolicy,
+    private readonly newDevice: NewDeviceNotifier,
+    private readonly config: ConfigService,
   ) {}
 
   async login(
     dto: SocialLoginDto,
     meta: RequestMeta,
   ): Promise<AuthTokensResult> {
+    // Feature flag apple_login / google_login, then a per-IP budget
+    // (AUTH_SOCIAL_LIMIT_PER_IP_PER_HOUR) — both before the verifier's
+    // JWKS work and any DB write.
+    await this.loginMethods.assertEnabled(dto.provider);
+    await this.assertIpLimit(meta);
+
     const verifier = dto.provider === 'apple' ? this.apple : this.google;
     const deviceInfo: DeviceInfo = dto.deviceInfo ?? {};
 
@@ -183,11 +199,38 @@ export class SocialAuthService {
       meta: { provider: dto.provider, isNewDevice },
     });
 
+    // docs/01 §10.6 new-device alert: audit row inline, delivery detached.
+    await this.newDevice.onLogin({
+      user,
+      isNewUser: resolved.isNewUser,
+      isNewDevice,
+      device: deviceInfo,
+      meta,
+    });
+
     return {
       accessToken,
       refreshToken: refreshTokenRaw,
       accessTokenExpiresIn: this.tokens.accessTtlSecondsValue(),
       isNewUser: resolved.isNewUser,
     };
+  }
+
+  private async assertIpLimit(meta: RequestMeta): Promise<void> {
+    if (!meta.ip) return;
+    const result = await this.rateLimit.consumeFixedWindow(
+      ['social', 'ip', meta.ip],
+      this.config.getOrThrow<number>('AUTH_SOCIAL_LIMIT_PER_IP_PER_HOUR'),
+      3600,
+    );
+    if (result.allowed) return;
+    throw new HttpException(
+      {
+        code: ErrorCode.RATE_LIMITED,
+        message: 'Too many sign-in attempts. Try again later.',
+        details: { retryAfterSeconds: result.retryAfterSeconds },
+      },
+      HttpStatus.TOO_MANY_REQUESTS,
+    );
   }
 }

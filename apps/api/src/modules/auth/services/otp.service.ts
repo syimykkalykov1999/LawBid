@@ -10,6 +10,10 @@ import { CostGuardService } from '../../../common/cost-guard/cost-guard.service'
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { AppConfigService } from '../../feature-flags/services/app-config.service';
 import { checkSmsDestination } from '../dto/validators';
+import {
+  buildContactOtpEmail,
+  buildLoginOtpEmail,
+} from '../notifications/email-templates';
 
 const SMS_ALLOWED_COUNTRIES_CONFIG_KEY = 'sms.allowed_country_codes';
 
@@ -80,6 +84,7 @@ export class OtpService {
   private readonly devFixedCode: boolean;
   private readonly codeSecret: string;
   private readonly keyPepper: string;
+  private readonly appLinkBaseUrl: string | undefined;
 
   constructor(
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
@@ -97,6 +102,7 @@ export class OtpService {
     this.devFixedCode = this.config.getOrThrow<boolean>('OTP_DEV_FIXED_CODE');
     this.codeSecret = this.config.getOrThrow<string>('OTP_CODE_SECRET');
     this.keyPepper = this.config.getOrThrow<string>('OTP_KEY_PEPPER');
+    this.appLinkBaseUrl = this.config.get<string>('APP_LINK_BASE_URL');
   }
 
   /** Always succeeds (barring a provider outage, a non-allowed SMS
@@ -137,7 +143,18 @@ export class OtpService {
     if (channel === 'phone') {
       await this.smsProvider.send(identifier, code);
     } else {
-      await this.emailProvider.send(identifier, code);
+      const email = this.normalize('email', identifier);
+      const ttlMinutes = Math.ceil(this.codeTtlSeconds / 60);
+      await this.emailProvider.sendEmail(
+        purpose === 'login'
+          ? buildLoginOtpEmail({
+              email,
+              code,
+              ttlMinutes,
+              appLinkBaseUrl: this.appLinkBaseUrl,
+            })
+          : buildContactOtpEmail({ email, code, ttlMinutes }),
+      );
     }
   }
 

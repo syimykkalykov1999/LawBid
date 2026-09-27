@@ -31,6 +31,11 @@ export const AUTH_EVENT_TYPES = {
   ACCOUNT_DELETION_CANCELLED: 'account_deletion_cancelled',
   LOGIN_BLOCKED_SUSPENDED: 'login_blocked_suspended',
   LOGIN_BLOCKED_DELETED: 'login_blocked_deleted',
+  // docs/01 §10.6: a login created a session on a device_id this existing
+  // user never used before (NewDeviceNotifier).
+  NEW_DEVICE: 'new_device',
+  // Refresh-token rotation hit the per-session-chain limit.
+  REFRESH_RATE_LIMITED: 'refresh_rate_limited',
 } as const;
 export type AuthEventType =
   (typeof AUTH_EVENT_TYPES)[keyof typeof AUTH_EVENT_TYPES];
