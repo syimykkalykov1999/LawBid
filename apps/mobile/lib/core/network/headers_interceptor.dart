@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../app_update/app_version.dart';
 import '../l10n/app_language.dart';
 import '../l10n/language_providers.dart';
 import '../persistence/persistence_providers.dart';
@@ -30,8 +31,9 @@ class HeadersInterceptor extends Interceptor {
 
   final Ref _ref;
 
-  /// Keep in sync with pubspec.yaml's `version:` field.
-  static const appVersion = '0.1.0';
+  /// The installed build's real version (package_info_plus, loaded before
+  /// `runApp` — see core/app_update/app_version.dart).
+  static String get appVersion => AppVersion.current;
 
   static String get platformName => Platform.isIOS ? 'ios' : 'android';
 

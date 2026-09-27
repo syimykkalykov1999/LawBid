@@ -1,0 +1,7 @@
+{
+  "API_BASE_URL": "https://staging-api.lawbid.app/api/v1",
+  "DEEP_LINK_HOST": "lawbid.app",
+  "GOOGLE_IOS_CLIENT_ID": "",
+  "GOOGLE_SERVER_CLIENT_ID": "",
+  "STRIPE_PUBLISHABLE_KEY": ""
+}

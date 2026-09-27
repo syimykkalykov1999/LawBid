@@ -171,6 +171,19 @@ class StaticTranslatorRu extends _MapTranslator {
         'app.update.message':
             'Пожалуйста, обновите приложение до последней версии, чтобы продолжить пользоваться LawBid.',
         'app.update.button': 'Обновить',
+        // p12 leaf-1.4: soft update prompt, store fallback, §12 deep links.
+        'app.update.storeUnavailable':
+            'Страница приложения в магазине пока недоступна. Обновите LawBid через App Store или Google Play.',
+        'app.softUpdate.title': 'Доступна новая версия',
+        'app.softUpdate.message': 'Обновите LawBid, чтобы получить последние улучшения.',
+        'app.softUpdate.update': 'Обновить',
+        'app.softUpdate.later': 'Позже',
+        'deeplink.case.title': 'Кейс',
+        'deeplink.lawyer.title': 'Профиль адвоката',
+        'deeplink.post.title': 'Публикация',
+        'deeplink.comingSoon.heading': 'Скоро',
+        'deeplink.comingSoon.body':
+            'Эта ссылка будет открываться здесь, как только этот раздел LawBid станет доступен.',
         // Phase 3 of the auth networking work (docs/CHANGELOG.md) —
         // `POST /auth/social` failure modes surfaced by
         // OnboardingFlow._signInWithSocial. {identifier}/{methods} are
@@ -197,6 +210,8 @@ class StaticTranslatorRu extends _MapTranslator {
         'auth.otp.resendIn': 'Отправить снова через {time}',
         'auth.otp.resend': 'Отправить код снова',
         'auth.otp.submit': 'Подтвердить',
+        'auth.otp.changeNumber': 'Изменить номер',
+        'auth.otp.changeEmail': 'Изменить email',
         'onboarding.role.title': 'Как вы будете пользоваться LawBid?',
         'onboarding.role.client.title': 'Клиент',
         'onboarding.role.client.desc':
@@ -478,6 +493,19 @@ class StaticTranslatorEn extends _MapTranslator {
         'app.update.message':
             'Please update to the latest version of LawBid to keep using the app.',
         'app.update.button': 'Update',
+        // p12 leaf-1.4 — see the matching RU block above.
+        'app.update.storeUnavailable':
+            "The store page isn't available yet. Please update LawBid from the App Store or Google Play.",
+        'app.softUpdate.title': 'A new version is available',
+        'app.softUpdate.message': 'Update LawBid to get the latest improvements.',
+        'app.softUpdate.update': 'Update',
+        'app.softUpdate.later': 'Later',
+        'deeplink.case.title': 'Case',
+        'deeplink.lawyer.title': 'Attorney profile',
+        'deeplink.post.title': 'Post',
+        'deeplink.comingSoon.heading': 'Coming soon',
+        'deeplink.comingSoon.body':
+            'This link will open here as soon as this part of LawBid is available.',
         // Phase 3 of the auth networking work (docs/CHANGELOG.md) — see
         // the matching RU comment above.
         'auth.social.error.invalidToken': "Couldn't verify sign-in. Please try again.",
@@ -501,6 +529,8 @@ class StaticTranslatorEn extends _MapTranslator {
         'auth.otp.resendIn': 'Resend in {time}',
         'auth.otp.resend': 'Resend code',
         'auth.otp.submit': 'Confirm',
+        'auth.otp.changeNumber': 'Change number',
+        'auth.otp.changeEmail': 'Change email',
         'onboarding.role.title': 'How will you use LawBid?',
         'onboarding.role.client.title': 'Client',
         'onboarding.role.client.desc':

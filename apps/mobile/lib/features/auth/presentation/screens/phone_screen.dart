@@ -90,7 +90,13 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
                               ref
                                   .read(onboardingFlowProvider.notifier)
                                   .goBackTo(OnboardingStep.welcome);
-                              context.pop();
+                              // Reached via go() from a magic-link code screen
+                              // there is nothing underneath — go home instead.
+                              if (context.canPop()) {
+                                context.pop();
+                              } else {
+                                context.go(AuthRoutes.welcome);
+                              }
                             },
                           ),
                           const SizedBox(height: 34),

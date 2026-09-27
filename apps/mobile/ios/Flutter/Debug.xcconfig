@@ -1,7 +1,0 @@
-#include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.debug.xcconfig"
-#include "Generated.xcconfig"
-
-// Per-developer/secret-ish build settings (docs/KEYS_SETUP.md). Default
-// first, then the gitignored Secrets.xcconfig overrides it when present.
-GOOGLE_REVERSED_CLIENT_ID = com.googleusercontent.apps.not-configured
-#include? "Secrets.xcconfig"

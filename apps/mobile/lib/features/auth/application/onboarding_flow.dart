@@ -5,6 +5,7 @@ import '../../../core/l10n/l10n_providers.dart';
 import '../../../shared/domain/user_role.dart';
 import '../../onboarding/application/current_user_controller.dart';
 import '../data/auth_repository.dart';
+import '../data/sms_code_retriever.dart';
 import '../domain/onboarding_flow_state.dart';
 import '../domain/onboarding_step.dart';
 import '../domain/otp_verify_result.dart';
@@ -43,7 +44,9 @@ class OnboardingFlow extends _$OnboardingFlow {
       _requestCode(AuthChannel.email, email.trim().toLowerCase());
 
   Future<bool> _requestCode(AuthChannel channel, String identifier) async {
-    state = state.copyWith(isSubmitting: true, errorMessage: null);
+    state = state.copyWith(isSubmitting: true, errorMessage: null, autofilledCode: null);
+    // SMS Retriever must be listening BEFORE the SMS is sent (§10.2 D).
+    if (channel == AuthChannel.phone) _listenForSmsCode(identifier);
     try {
       await ref.read(authRepositoryProvider).requestOtp(identifier, channel: channel.wireName);
       state = state.copyWith(
@@ -54,6 +57,7 @@ class OnboardingFlow extends _$OnboardingFlow {
       );
       return true;
     } catch (e) {
+      _stopSmsListener();
       state = state.copyWith(
         isSubmitting: false,
         errorMessage: errorText(ref.read(translatorProvider), e),
@@ -66,12 +70,61 @@ class OnboardingFlow extends _$OnboardingFlow {
   Future<String?> resendOtp() async {
     final identifier = state.identifier;
     if (identifier == null) return null;
+    if (state.channel == AuthChannel.phone) _listenForSmsCode(identifier);
     try {
       await ref.read(authRepositoryProvider).requestOtp(identifier, channel: state.channel.wireName);
       return null;
     } catch (e) {
       return errorText(ref.read(translatorProvider), e);
     }
+  }
+
+  /// Bumped for every new SMS Retriever session, so a late result from an
+  /// older session (a previous number, a cancelled screen) is ignored.
+  int _smsSession = 0;
+
+  /// Android SMS Retriever (§10.2 D): when the SMS for [phone] arrives,
+  /// the code is shown prefilled and verified without the user typing it.
+  /// A no-op on iOS (oneTimeCode keyboard autofill covers it) and tests.
+  void _listenForSmsCode(String phone) {
+    final retriever = ref.read(smsCodeRetrieverProvider);
+    if (!retriever.isSupported) return;
+    final session = ++_smsSession;
+    retriever.listenForCode().then((code) {
+      if (code == null || session != _smsSession || !ref.mounted) return;
+      final s = state;
+      final stillWaiting = s.step == OnboardingStep.otp &&
+          s.channel == AuthChannel.phone &&
+          s.identifier == phone &&
+          !s.isSubmitting;
+      if (!stillWaiting) return;
+      state = s.copyWith(autofilledCode: code);
+      verifyOtp(code);
+    }).catchError((Object _) {
+      // Autofill is best-effort; the user can always type the code.
+    });
+  }
+
+  void _stopSmsListener() {
+    _smsSession++;
+    final retriever = ref.read(smsCodeRetrieverProvider);
+    if (retriever.isSupported) retriever.stop().catchError((Object _) {});
+  }
+
+  /// Email magic link (docs/01_FOUNDATION_AUTH.md §10.2 E/F; deep link
+  /// `lawbid://auth/email-code?email=…&code=…` or
+  /// `https://lawbid.app/auth/email-code?…`, see core/deeplinks): puts the
+  /// flow on the email code step with the code prefilled and verifies it
+  /// exactly like a typed code — same errors, same post-sign-in routing.
+  Future<bool> verifyEmailMagicLink({required String email, required String code}) {
+    _stopSmsListener();
+    state = OnboardingFlowState(
+      step: OnboardingStep.otp,
+      channel: AuthChannel.email,
+      identifier: email.trim().toLowerCase(),
+      autofilledCode: code,
+    );
+    return verifyOtp(code);
   }
 
   /// Verifies [code]; on success sets `step` to [OnboardingStep.role] (new
@@ -104,6 +157,7 @@ class OnboardingFlow extends _$OnboardingFlow {
   }
 
   Future<bool> _afterSignIn({required bool isNewUser}) async {
+    _stopSmsListener();
     await ref.read(currentUserControllerProvider.notifier).ensureLoaded();
     state = state.copyWith(
       isSubmitting: false,
@@ -153,7 +207,18 @@ class OnboardingFlow extends _$OnboardingFlow {
   /// Back buttons on phone/email/otp — moves the step backward without
   /// losing what's already been entered.
   void goBackTo(OnboardingStep step) {
-    state = state.copyWith(step: step, errorMessage: null);
+    if (step != OnboardingStep.otp) _stopSmsListener();
+    state = state.copyWith(step: step, errorMessage: null, autofilledCode: null);
+  }
+
+  /// «Изменить номер» / "Change number" on the code screen
+  /// (docs/01_FOUNDATION_AUTH.md §10.2 D): back to the entry step of the
+  /// current channel (phone, or email for an email code). Returns that
+  /// step so the screen knows where to navigate.
+  OnboardingStep changeIdentifier() {
+    final entry = state.channel == AuthChannel.email ? OnboardingStep.email : OnboardingStep.phone;
+    goBackTo(entry);
+    return entry;
   }
 
   /// Clears a stale error (e.g. when the user edits the field).

@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lawbid/core/deeplinks/deep_link_routes.dart';
 import 'package:lawbid/core/navigation/app_page_transitions.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/guards/app_router_guard.dart';
@@ -143,6 +144,9 @@ GoRouter appRouter(Ref ref) {
       ),
       ...authRoutes(),
       ...onboardingRoutes(),
+      // docs/01_FOUNDATION_AUTH.md §12 content links (/case/:id,
+      // /lawyer/:username, /post/:id) — core/deeplinks.
+      ...deepLinkRoutes(),
     ],
   );
 }

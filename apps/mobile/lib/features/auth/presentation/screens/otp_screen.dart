@@ -9,6 +9,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/auth/application/onboarding_flow.dart';
+import 'package:lawbid/features/auth/auth_routes.dart';
 import 'package:lawbid/features/auth/domain/onboarding_flow_state.dart';
 import 'package:lawbid/features/auth/domain/onboarding_step.dart';
 import 'package:lawbid/features/auth/presentation/widgets/us_phone_input.dart';
@@ -33,9 +34,38 @@ class OtpScreen extends ConsumerStatefulWidget {
 class _OtpScreenState extends ConsumerState<OtpScreen> {
   String _currentCode = '';
 
+  /// Shared with AppOtpField so a code that arrives by itself (Android SMS
+  /// Retriever, email magic link — `OnboardingFlowState.autofilledCode`)
+  /// shows up in the 6 cells while the flow verifies it.
+  final _codeController = TextEditingController();
+
+  void _showAutofilledCode(String? code) {
+    if (code == null || code == _codeController.text) return;
+    _codeController.text = code;
+    _currentCode = code;
+  }
+
+  @override
+  void dispose() {
+    _codeController.dispose();
+    super.dispose();
+  }
+
+  /// Back / «Изменить номер»: returns to the phone or email entry step.
+  /// Pops when that screen is underneath (the normal flow); a magic link
+  /// opens this screen on its own, so then it navigates there instead.
+  void _returnToEntry(OnboardingStep entry) {
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go(entry == OnboardingStep.email ? AuthRoutes.email : AuthRoutes.phone);
+    }
+  }
+
   @override
   void initState() {
     super.initState();
+    _showAutofilledCode(ref.read(onboardingFlowProvider).autofilledCode);
     // a11y review (ecc:a11y-architect, docs/CHANGELOG.md stage 1.7):
     // AppOtpField autofocuses its hidden field the instant this screen
     // appears. For a screen-reader user that's disorienting without
@@ -72,6 +102,10 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
     final t = ref.watch(translatorProvider);
     final flowState = ref.watch(onboardingFlowProvider);
     final phone = displayIdentifier(flowState);
+    ref.listen(
+      onboardingFlowProvider.select((s) => s.autofilledCode),
+      (_, code) => _showAutofilledCode(code),
+    );
 
     return Scaffold(
       backgroundColor: colors.bg,
@@ -99,14 +133,9 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                           const SizedBox(height: 30),
                           AppBackButton(
                             semanticLabel: t.t('common.back'),
-                            onPressed: () {
-                              ref.read(onboardingFlowProvider.notifier).goBackTo(
-                                    flowState.channel == AuthChannel.email
-                                        ? OnboardingStep.email
-                                        : OnboardingStep.phone,
-                                  );
-                              context.pop();
-                            },
+                            onPressed: () => _returnToEntry(
+                              ref.read(onboardingFlowProvider.notifier).changeIdentifier(),
+                            ),
                           ),
                           const SizedBox(height: 34),
                           Text(
@@ -120,6 +149,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                           ),
                           const SizedBox(height: 26),
                           AppOtpField(
+                            controller: _codeController,
                             errorText: flowState.errorMessage,
                             onChanged: (value) => _currentCode = value,
                             onCompleted: _handleCompleted,
@@ -128,6 +158,18 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                           _ResendCountdown(
                             t: t,
                             onResend: _resend,
+                          ),
+                          // «Изменить номер» (docs/01_FOUNDATION_AUTH.md
+                          // §10.2 D) — same caption link style as "Resend".
+                          _ChangeIdentifierLink(
+                            label: t.t(
+                              flowState.channel == AuthChannel.email
+                                  ? 'auth.otp.changeEmail'
+                                  : 'auth.otp.changeNumber',
+                            ),
+                            onTap: () => _returnToEntry(
+                              ref.read(onboardingFlowProvider.notifier).changeIdentifier(),
+                            ),
                           ),
                           const Spacer(),
                           Padding(
@@ -157,6 +199,50 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
               },
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Caption-sized gold underlined link (identical style to the "Resend
+/// code" link below) inside a 44pt-tall hit area (.cursorrules 44x44).
+class _ChangeIdentifierLink extends StatelessWidget {
+  const _ChangeIdentifierLink({required this.label, required this.onTap});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
+    return Semantics(
+      button: true,
+      label: label,
+      onTap: onTap,
+      child: ExcludeSemantics(
+        child: GestureDetector(
+          key: const Key('otp.changeIdentifier'),
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(
+              minHeight: AppSizes.touchTarget,
+              minWidth: AppSizes.touchTarget,
+            ),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              widthFactor: 1,
+              child: Text(
+                label,
+                style: typography.caption.copyWith(
+                  color: colors.gold,
+                  decoration: TextDecoration.underline,
+                ),
+              ),
+            ),
+          ),
         ),
       ),
     );

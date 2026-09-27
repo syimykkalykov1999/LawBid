@@ -32,5 +32,10 @@ abstract class OnboardingFlowState with _$OnboardingFlowState {
     UserRole? selectedRole,
     @Default(false) bool isSubmitting,
     String? errorMessage,
+
+    /// A code that arrived by itself — Android SMS Retriever (§10.2 D) or
+    /// the email magic link (§10.2 E/F) — shown prefilled on the code
+    /// screen while the flow verifies it. Null for a typed code.
+    String? autofilledCode,
   }) = _OnboardingFlowState;
 }
