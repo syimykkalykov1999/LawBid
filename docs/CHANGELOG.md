@@ -2893,8 +2893,11 @@ stage 1.3 created. Migration `20260927181416_stage_2_2_files_user_uniques`.
 - `users.email` / `users.phone_e164` unique. §5.1 describes them as
   partial (`WHERE … IS NOT NULL`); a plain unique index in CockroachDB
   already allows any number of NULLs (exactly the 2.2 acceptance), and
-  Prisma 6 can't express partial indexes (a raw-SQL one would be dropped
-  as drift by the next `migrate dev`). Same semantics, Prisma-tracked.
+  Prisma can express it (enables `findUnique` by email/phone). Same
+  semantics. *Correction (stage 2.4):* the original note claimed a raw-SQL
+  partial index would be dropped as drift — tested, Prisma ignores
+  partial indexes in its diff, so that reason was wrong; the choice
+  stands on semantics alone.
 - `prisma migrate diff` (DB vs schema): no drift.
 - New `test/db-auth-schema.e2e-spec.ts` (real CockroachDB): multiple NULL
   email/phone allowed, duplicate email and phone rejected, identifier
@@ -3026,3 +3029,25 @@ requests". Owner-side provider settings: docs/COST_PROTECTION.md (RU).
 - Unit: 15 suites / 117 tests pass (36 new). e2e: 3 suites / 26 tests
   pass (12 new), run twice.
 - Seed run twice on a throwaway database: 10 cost keys, no duplicates.
+
+## Stage 2.4 (cases, bids, negotiation, journal, contacts, disputes, reviews) — 2026-09-27
+
+Per docs/02_DATABASE.md §8 "Этап 2.4" / §4.D, §4.E, §6.1. Migrations
+`…_stage_2_4_cases_bids_journal`, `…_stage_2_4_case_states_primary_uq`.
+
+- Tables: `cases`, `case_states`, `bids` (UQ `case_id, attorney_id`),
+  `bid_offers` (UQ `bid_id, round_no`), `case_journal` (append-only, no
+  `updated_at`, `retain_until` defaults to now() + 5 years),
+  `contact_disclosures` (UQ `bid_id`), `contact_issue_reports`,
+  `case_disputes`, `reviews` (UQ `case_id`). All FKs `ON DELETE RESTRICT`.
+  Plain §5.2 indexes included; partial/hash-sharded ones are stage 2.6.
+- §6.1 CHECKs as raw SQL: round_count 0..5, non-negative amounts,
+  budget_mode ⇔ budget_cents, rating 1..5, length limits.
+- `case_states`: partial UQ "one primary per case" in the DB;
+  `validateCaseStates()` (cases/domain) enforces 1..3 states / exactly one
+  primary / no duplicates (CockroachDB 24.1 has no triggers).
+- `test/db-cases-schema.e2e-spec.ts`: one bid per attorney, round_count 6
+  rejected, >3 states / no primary / second primary rejected, journal row
+  commits and rolls back with the case, budget and rating CHECKs — 5/5.
+  The "UPDATE/DELETE journal under lawbid_app" item needs the DB roles
+  and is tested with stage 2.6.

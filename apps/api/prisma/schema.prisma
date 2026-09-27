@@ -522,6 +522,20 @@ model User {
   licenses_verified      AttorneyLicense[]     @relation("LicenseVerifier")
   verifications_reviewed VerificationRequest[] @relation("VerificationReviewer")
 
+  cases_as_client         Case[]               @relation("CaseClient")
+  bids_as_attorney        Bid[]                @relation("BidAttorney")
+  journal_as_client       CaseJournal[]        @relation("JournalClient")
+  journal_as_actor        CaseJournal[]        @relation("JournalActor")
+  disclosures_as_client   ContactDisclosure[]  @relation("DisclosureClient")
+  disclosures_as_attorney ContactDisclosure[]  @relation("DisclosureAttorney")
+  issues_as_attorney      ContactIssueReport[] @relation("IssueAttorney")
+  issues_as_client        ContactIssueReport[] @relation("IssueClient")
+  issues_resolved         ContactIssueReport[] @relation("IssueResolver")
+  disputes_opened         CaseDispute[]        @relation("DisputeOpener")
+  disputes_resolved       CaseDispute[]        @relation("DisputeResolver")
+  reviews_as_client       Review[]             @relation("ReviewClient")
+  reviews_as_attorney     Review[]             @relation("ReviewAttorney")
+
   @@map("users")
 }
 
@@ -797,6 +811,9 @@ model State {
   attorney_licenses      AttorneyLicense[]
   verification_documents VerificationDocument[]
 
+  primary_for_cases CaseState[]
+  cases_primary     Case[]      @relation("CasePrimaryState")
+
   @@map("states")
 }
 
@@ -818,6 +835,8 @@ model PracticeArea {
 
   // Reference/seed table — no timestamps, per §3.2's column list.
   attorney_practice_areas AttorneyPracticeArea[]
+
+  cases Case[]
 
   @@index([parent_id])
   @@map("practice_areas")
@@ -957,4 +976,223 @@ model VerificationCheck {
 
   @@index([request_id])
   @@map("verification_checks")
+}
+
+// -----------------------------------------------------------------------
+// 4.D — Cases, bids, negotiation, journal (docs/02_DATABASE.md §4.D) and
+// 4.E — Reviews — stage 2.4. CHECKs from §6.1 are raw SQL in the
+// migration. Legally significant tables use ON DELETE RESTRICT (§1.4).
+// -----------------------------------------------------------------------
+
+model Case {
+  id                    String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  client_id             String       @db.Uuid
+  client                User         @relation("CaseClient", fields: [client_id], references: [id], onDelete: Restrict)
+  // ≤120 / ≤5000 chars (§6.1), CHECK in the migration.
+  title                 String
+  description           String
+  // Leaf specialization only (enforced in the case service, file 04).
+  practice_area_id      String       @db.Uuid
+  practice_area         PracticeArea @relation(fields: [practice_area_id], references: [id], onDelete: Restrict)
+  // Denormalized primary state for indexes; must match the is_primary
+  // case_states row (service invariant, §4.D).
+  primary_state_code    String       @db.Char(2)
+  primary_state         State        @relation("CasePrimaryState", fields: [primary_state_code], references: [code], onDelete: Restrict)
+  city                  String?
+  budget_mode           BudgetMode
+  budget_cents          Int?
+  status                CaseStatus   @default(open)
+  accepted_bid_id       String?      @unique @db.Uuid
+  accepted_bid          Bid?         @relation("CaseAcceptedBid", fields: [accepted_bid_id], references: [id], onDelete: Restrict)
+  view_count            Int          @default(0)
+  bids_count            Int          @default(0)
+  last_activity_at      DateTime     @default(now()) @db.Timestamptz
+  stale_prompt_sent_at  DateTime?    @db.Timestamptz
+  archived_at           DateTime?    @db.Timestamptz
+  client_completed_at   DateTime?    @db.Timestamptz
+  attorney_confirmed_at DateTime?    @db.Timestamptz
+  auto_close_at         DateTime?    @db.Timestamptz
+  closed_at             DateTime?    @db.Timestamptz
+  deleted_at            DateTime?    @db.Timestamptz
+  created_at            DateTime     @default(now()) @db.Timestamptz
+  updated_at            DateTime     @updatedAt @db.Timestamptz
+
+  states              CaseState[]
+  bids                Bid[]                @relation("CaseBids")
+  journal             CaseJournal[]
+  contact_disclosures ContactDisclosure[]
+  contact_issues      ContactIssueReport[]
+  disputes            CaseDispute[]
+  review              Review?
+
+  @@index([client_id, status, created_at(sort: Desc)])
+  @@index([primary_state_code, practice_area_id, created_at(sort: Desc)])
+  @@map("cases")
+}
+
+model CaseState {
+  case_id    String  @db.Uuid
+  case       Case    @relation(fields: [case_id], references: [id], onDelete: Restrict)
+  state_code String  @db.Char(2)
+  state      State   @relation(fields: [state_code], references: [code], onDelete: Restrict)
+  is_primary Boolean @default(false)
+
+  @@id([case_id, state_code])
+  @@index([state_code, case_id])
+  @@map("case_states")
+}
+
+model Bid {
+  id                      String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  case_id                 String            @db.Uuid
+  case                    Case              @relation("CaseBids", fields: [case_id], references: [id], onDelete: Restrict)
+  attorney_id             String            @db.Uuid
+  attorney                User              @relation("BidAttorney", fields: [attorney_id], references: [id], onDelete: Restrict)
+  status                  BidStatus         @default(active)
+  fee_type                FeeType
+  amount_cents            Int
+  // ≤2000 chars (§6.1), CHECK in the migration.
+  message                 String
+  start_availability      StartAvailability
+  start_date              DateTime?         @db.Date
+  estimated_duration_days Int?
+  round_count             Int               @default(0) @db.Int2
+  turn                    PartyRole
+  decided_at              DateTime?         @db.Timestamptz
+  created_at              DateTime          @default(now()) @db.Timestamptz
+  updated_at              DateTime          @updatedAt @db.Timestamptz
+
+  accepted_for_case  Case?                @relation("CaseAcceptedBid")
+  offers             BidOffer[]
+  contact_disclosure ContactDisclosure?
+  contact_issues     ContactIssueReport[]
+
+  // One bid per attorney per case (§4.D, §5.1).
+  @@unique([case_id, attorney_id])
+  @@index([case_id, status])
+  @@index([attorney_id, status, updated_at(sort: Desc)])
+  @@map("bids")
+}
+
+// Negotiation history. Append-only except the pending -> accepted/
+// declined/countered/superseded status transition (§4.D).
+model BidOffer {
+  id           String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  bid_id       String      @db.Uuid
+  bid          Bid         @relation(fields: [bid_id], references: [id], onDelete: Restrict)
+  round_no     Int         @db.Int2
+  from_role    PartyRole
+  fee_type     FeeType
+  amount_cents Int
+  message      String?
+  status       OfferStatus
+  created_at   DateTime    @default(now()) @db.Timestamptz
+
+  @@unique([bid_id, round_no])
+  @@map("bid_offers")
+}
+
+// Append-only, kept 5 years, hash-chained per case (§4.D). No
+// updated_at. retain_until defaults to created_at + 5 years.
+model CaseJournal {
+  id            String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  case_id       String           @db.Uuid
+  case          Case             @relation(fields: [case_id], references: [id], onDelete: Restrict)
+  client_id     String           @db.Uuid
+  client        User             @relation("JournalClient", fields: [client_id], references: [id], onDelete: Restrict)
+  actor_user_id String?          @db.Uuid
+  actor         User?            @relation("JournalActor", fields: [actor_user_id], references: [id], onDelete: Restrict)
+  actor_role    UserRole?
+  event_type    CaseJournalEvent
+  payload       Json
+  prev_hash     String?
+  row_hash      String
+  retain_until  DateTime         @default(dbgenerated("now() + '5 years'::INTERVAL")) @db.Timestamptz
+  created_at    DateTime         @default(now()) @db.Timestamptz
+
+  @@index([case_id, created_at])
+  @@index([client_id, created_at])
+  @@index([retain_until])
+  @@map("case_journal")
+}
+
+// Append-only (§4.D, §6.2).
+model ContactDisclosure {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  case_id      String   @db.Uuid
+  case         Case     @relation(fields: [case_id], references: [id], onDelete: Restrict)
+  bid_id       String   @unique @db.Uuid
+  bid          Bid      @relation(fields: [bid_id], references: [id], onDelete: Restrict)
+  client_id    String   @db.Uuid
+  client       User     @relation("DisclosureClient", fields: [client_id], references: [id], onDelete: Restrict)
+  attorney_id  String   @db.Uuid
+  attorney     User     @relation("DisclosureAttorney", fields: [attorney_id], references: [id], onDelete: Restrict)
+  fields       String[]
+  ip           String?
+  device_id    String?
+  disclosed_at DateTime @default(now()) @db.Timestamptz
+
+  @@map("contact_disclosures")
+}
+
+model ContactIssueReport {
+  id              String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  case_id         String             @db.Uuid
+  case            Case               @relation(fields: [case_id], references: [id], onDelete: Restrict)
+  bid_id          String             @db.Uuid
+  bid             Bid                @relation(fields: [bid_id], references: [id], onDelete: Restrict)
+  attorney_id     String             @db.Uuid
+  attorney        User               @relation("IssueAttorney", fields: [attorney_id], references: [id], onDelete: Restrict)
+  client_id       String             @db.Uuid
+  client          User               @relation("IssueClient", fields: [client_id], references: [id], onDelete: Restrict)
+  issue_type      ContactIssueType
+  note            String?
+  status          ContactIssueStatus @default(open)
+  resolved_by     String?            @db.Uuid
+  resolver        User?              @relation("IssueResolver", fields: [resolved_by], references: [id], onDelete: Restrict)
+  resolved_at     DateTime?          @db.Timestamptz
+  resolution_note String?
+  created_at      DateTime           @default(now()) @db.Timestamptz
+  updated_at      DateTime           @updatedAt @db.Timestamptz
+
+  @@index([status, created_at])
+  @@map("contact_issue_reports")
+}
+
+model CaseDispute {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  case_id         String        @db.Uuid
+  case            Case          @relation(fields: [case_id], references: [id], onDelete: Restrict)
+  opened_by       String        @db.Uuid
+  opener          User          @relation("DisputeOpener", fields: [opened_by], references: [id], onDelete: Restrict)
+  reason          String
+  status          DisputeStatus @default(open)
+  resolved_by     String?       @db.Uuid
+  resolver        User?         @relation("DisputeResolver", fields: [resolved_by], references: [id], onDelete: Restrict)
+  resolved_at     DateTime?     @db.Timestamptz
+  resolution_note String?
+  created_at      DateTime      @default(now()) @db.Timestamptz
+  updated_at      DateTime      @updatedAt @db.Timestamptz
+
+  @@index([case_id])
+  @@map("case_disputes")
+}
+
+model Review {
+  id          String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  case_id     String       @unique @db.Uuid
+  case        Case         @relation(fields: [case_id], references: [id], onDelete: Restrict)
+  client_id   String       @db.Uuid
+  client      User         @relation("ReviewClient", fields: [client_id], references: [id], onDelete: Restrict)
+  attorney_id String       @db.Uuid
+  attorney    User         @relation("ReviewAttorney", fields: [attorney_id], references: [id], onDelete: Restrict)
+  // CHECK 1..5; body ≤ 1000 (§6.1), in the migration.
+  rating      Int          @db.Int2
+  body        String?
+  status      ReviewStatus @default(published)
+  created_at  DateTime     @default(now()) @db.Timestamptz
+  updated_at  DateTime     @updatedAt @db.Timestamptz
+
+  @@index([attorney_id, created_at(sort: Desc)])
+  @@map("reviews")
 }
