@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { HttpException, HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type Redis from 'ioredis';
 import { createHmac, randomInt } from 'node:crypto';
@@ -6,6 +6,12 @@ import { REDIS_CLIENT } from '../../../redis/redis.constants';
 import { SMS_PROVIDER, EMAIL_PROVIDER } from '../providers/provider.tokens';
 import type { SmsProvider } from '../providers/sms/sms-provider.interface';
 import type { EmailProvider } from '../providers/email/email-provider.interface';
+import { CostGuardService } from '../../../common/cost-guard/cost-guard.service';
+import { ErrorCode } from '../../../common/errors/error-code.enum';
+import { AppConfigService } from '../../feature-flags/services/app-config.service';
+import { checkSmsDestination } from '../dto/validators';
+
+const SMS_ALLOWED_COUNTRIES_CONFIG_KEY = 'sms.allowed_country_codes';
 
 export type OtpChannel = 'phone' | 'email';
 /** Keeps a login OTP's Redis keys from colliding with a "verify new
@@ -80,6 +86,8 @@ export class OtpService {
     @Inject(SMS_PROVIDER) private readonly smsProvider: SmsProvider,
     @Inject(EMAIL_PROVIDER) private readonly emailProvider: EmailProvider,
     private readonly config: ConfigService,
+    private readonly costGuard: CostGuardService,
+    private readonly appConfig: AppConfigService,
   ) {
     this.codeTtlSeconds = this.config.getOrThrow<number>(
       'OTP_CODE_TTL_SECONDS',
@@ -91,14 +99,29 @@ export class OtpService {
     this.keyPepper = this.config.getOrThrow<string>('OTP_KEY_PEPPER');
   }
 
-  /** Always succeeds (barring a provider outage) regardless of whether an
-   * account exists for this identifier — docs/01_FOUNDATION_AUTH.md
-   * §10.6's anti-enumeration rule applies here, not at verify. */
+  /** Always succeeds (barring a provider outage, a non-allowed SMS
+   * destination, or an exhausted cost budget — none of which depend on
+   * the account) regardless of whether an account exists for this
+   * identifier — docs/01_FOUNDATION_AUTH.md §10.6's anti-enumeration
+   * rule applies here, not at verify. */
   async requestOtp(
     channel: OtpChannel,
     identifier: string,
     purpose: OtpPurpose,
   ): Promise<void> {
+    // Cost protection (owner decision 2026-09-27, docs/OPEN_QUESTIONS.md):
+    // destination allow-list first (free, per-request), then the global
+    // budget (reserves spend atomically, throws 503 when exhausted) —
+    // both BEFORE a code is stored or a provider is called. Applies to
+    // login and contact OTPs alike, whatever the provider (mock included,
+    // so dev/e2e exercise the same path production does).
+    if (channel === 'phone') {
+      await this.assertSmsDestinationAllowed(identifier);
+      await this.costGuard.consume('sms');
+    } else {
+      await this.costGuard.consume('email');
+    }
+
     const code = this.devFixedCode ? '000000' : this.generateCode();
     const codeHash = this.hashCode(channel, identifier, code);
     const idHash = this.hashIdentifier(purpose, channel, identifier);
@@ -139,6 +162,44 @@ export class OtpService {
     )) as [OtpVerifyResult, number];
 
     return result[0];
+  }
+
+  private async assertSmsDestinationAllowed(e164: string): Promise<void> {
+    const allowed = await this.allowedSmsCountries();
+    const verdict = checkSmsDestination(e164, allowed);
+    if (verdict === 'ok') return;
+    throw new HttpException(
+      {
+        code: ErrorCode.PHONE_COUNTRY_NOT_SUPPORTED,
+        message: 'SMS codes can only be sent to supported US mobile numbers.',
+        details: { reason: verdict, allowedCountries: allowed },
+      },
+      HttpStatus.BAD_REQUEST,
+    );
+  }
+
+  /** app_config `sms.allowed_country_codes` (JSON array of ISO-3166
+   * alpha-2 codes) if well-formed and non-empty, else the
+   * SMS_ALLOWED_COUNTRY_CODES env fallback (default 'US'). */
+  private async allowedSmsCountries(): Promise<string[]> {
+    let stored: unknown;
+    try {
+      stored = (await this.appConfig.getConfig())[
+        SMS_ALLOWED_COUNTRIES_CONFIG_KEY
+      ];
+    } catch {
+      stored = undefined; // DB/Redis hiccup -> conservative env default
+    }
+    if (
+      Array.isArray(stored) &&
+      stored.length > 0 &&
+      stored.every((c) => typeof c === 'string' && /^[A-Z]{2}$/.test(c))
+    ) {
+      return stored as string[];
+    }
+    return this.config
+      .getOrThrow<string>('SMS_ALLOWED_COUNTRY_CODES')
+      .split(',');
   }
 
   private generateCode(): string {

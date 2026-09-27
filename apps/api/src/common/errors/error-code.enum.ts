@@ -61,4 +61,15 @@ export enum ErrorCode {
   // i18n (docs/01_FOUNDATION_AUTH.md §9, stage 1.6)
   I18N_LANGUAGE_NOT_FOUND = 'I18N_LANGUAGE_NOT_FOUND',
   I18N_IMPORT_INVALID = 'I18N_IMPORT_INVALID',
+
+  // Cost protection (owner-approved spec extension 2026-09-27, see
+  // docs/OPEN_QUESTIONS.md and docs/COST_PROTECTION.md).
+  // 503: the global budget/velocity cap of a paid provider (SMS, email,
+  // identity checks, ...) is exhausted, or the guard can't verify the
+  // budget (Redis down -> fail closed). Retry later.
+  PROVIDER_BUDGET_EXCEEDED = 'PROVIDER_BUDGET_EXCEEDED',
+  // 400: SMS destination outside sms.allowed_country_codes (US-only
+  // product; docs/01_FOUNDATION_AUTH.md §10.6 "блок подозрительных
+  // префиксов стран") or a premium/toll-free/shared-cost number type.
+  PHONE_COUNTRY_NOT_SUPPORTED = 'PHONE_COUNTRY_NOT_SUPPORTED',
 }

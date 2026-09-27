@@ -12,3 +12,9 @@ process.env.REDIS_URL = e2eRedisUrl();
 // asserts the per-IP limit (RateLimitService has unit coverage), so only
 // that budget is lifted; the per-identifier limit stays at its real value.
 process.env.OTP_RATE_LIMIT_PER_IP_PER_HOUR = '1000';
+
+// Cost guard (owner decision 2026-09-27): the suites send far more than
+// 30 SMS within a minute from one process. Only the per-minute velocity
+// fallback is lifted; daily/monthly caps keep their real defaults and
+// cost-guard.e2e-spec.ts drives caps explicitly through app_config.
+process.env.BUDGET_SMS_PER_MINUTE_MAX = '1000';

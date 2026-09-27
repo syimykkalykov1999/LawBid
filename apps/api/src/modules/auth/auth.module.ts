@@ -24,6 +24,7 @@ import { TwilioSmsProvider } from './providers/sms/twilio-sms.provider';
 import type { EmailProvider } from './providers/email/email-provider.interface';
 import { MockEmailProvider } from './providers/email/mock-email.provider';
 import { SesEmailProvider } from './providers/email/ses-email.provider';
+import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
 
 /**
  * docs/01_FOUNDATION_AUTH.md §15 stage 1.4. Registers JwtAuthGuard as the
@@ -52,7 +53,9 @@ import { SesEmailProvider } from './providers/email/ses-email.provider';
  * docs/01_FOUNDATION_AUTH.md §10.1.
  */
 @Module({
-  imports: [JwtModule.register({})],
+  // FeatureFlagsModule: AppConfigService for OtpService's SMS country
+  // allow-list (app_config `sms.allowed_country_codes`).
+  imports: [JwtModule.register({}), FeatureFlagsModule],
   controllers: [AuthController],
   providers: [
     AuthService,
@@ -92,6 +95,8 @@ import { SesEmailProvider } from './providers/email/ses-email.provider';
     OtpService,
     IdentityService,
     AuthEventService,
+    // ContactsService: per-user/per-identifier limits on contact OTPs.
+    RateLimitService,
   ],
 })
 export class AuthModule {}

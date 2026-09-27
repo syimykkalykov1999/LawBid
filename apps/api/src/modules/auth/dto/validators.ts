@@ -5,6 +5,9 @@ import {
   type ValidationOptions,
 } from 'class-validator';
 import { parsePhoneNumberFromString } from 'libphonenumber-js';
+// Full ('max') metadata of the SAME package — needed for getType()
+// (premium/toll-free detection); the default 'min' bundle has no types.
+import { parsePhoneNumberFromString as parsePhoneNumberMax } from 'libphonenumber-js/max';
 
 /**
  * docs/CHANGELOG.md, stage 1.4 bug fix: earlier drafts of every
@@ -18,10 +21,47 @@ import { parsePhoneNumberFromString } from 'libphonenumber-js';
  * that branches internally, which has no such ambiguity.
  */
 
-function isValidE164(value: unknown): value is string {
+export function isValidE164(value: unknown): value is string {
   if (typeof value !== 'string' || !value.startsWith('+')) return false;
   const parsed = parsePhoneNumberFromString(value);
   return parsed !== undefined && parsed.isValid();
+}
+
+export type SmsDestinationVerdict =
+  'ok' | 'invalid' | 'country_not_allowed' | 'number_type_not_allowed';
+
+/** Number types we'll pay to text. Everything else (PREMIUM_RATE,
+ * TOLL_FREE, SHARED_COST, UAN, PAGER, VOICEMAIL, PERSONAL_NUMBER, plain
+ * FIXED_LINE) is either an SMS-pumping target or can't receive SMS. */
+const SMS_ALLOWED_NUMBER_TYPES = new Set(['MOBILE', 'FIXED_LINE_OR_MOBILE']);
+
+/**
+ * SMS-pumping defense (docs/01_FOUNDATION_AUTH.md §10.6 "блок
+ * подозрительных префиксов стран (настраивается)"; owner decision
+ * 2026-09-27, docs/OPEN_QUESTIONS.md): the destination's country must be
+ * in `allowedCountries` (ISO-3166 alpha-2, from app_config
+ * `sms.allowed_country_codes`). For +1 numbers libphonenumber resolves
+ * the area code to the real country, so 'US' alone rejects Canada and
+ * every Caribbean NANP territory (+1 876 Jamaica, +1 268 Antigua, ...)
+ * — the classic premium-rate pumping ranges — as well as US territories
+ * (PR, GU, VI, ...) unless explicitly added. Pure, synchronous: the
+ * caller supplies the allow-list.
+ */
+export function checkSmsDestination(
+  e164: string,
+  allowedCountries: readonly string[],
+): SmsDestinationVerdict {
+  if (!e164.startsWith('+')) return 'invalid';
+  const parsed = parsePhoneNumberMax(e164);
+  if (!parsed || !parsed.isValid()) return 'invalid';
+  if (!parsed.country || !allowedCountries.includes(parsed.country)) {
+    return 'country_not_allowed';
+  }
+  const type = parsed.getType();
+  if (!type || !SMS_ALLOWED_NUMBER_TYPES.has(type)) {
+    return 'number_type_not_allowed';
+  }
+  return 'ok';
 }
 
 /** Validates `identifier` against E.164-phone-or-email rules based on a
