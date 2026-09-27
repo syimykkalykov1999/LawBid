@@ -21,6 +21,7 @@ import 'package:lawbid/features/profile/presentation/screens/active_devices_scre
 import 'package:lawbid/features/profile/presentation/screens/delete_account_screen.dart';
 import 'package:lawbid/features/profile/presentation/screens/profile_screen.dart';
 import 'package:lawbid/features/profile/presentation/screens/settings_screen.dart';
+import 'package:lawbid/features/settings/account/account_routes.dart';
 import 'package:lawbid/features/search/presentation/screens/search_screen.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -143,6 +144,7 @@ GoRouter appRouter(Ref ref) {
       ),
       ...authRoutes(),
       ...onboardingRoutes(),
+      ...accountRoutes(parentNavigatorKey: _rootNavigatorKey),
     ],
   );
 }

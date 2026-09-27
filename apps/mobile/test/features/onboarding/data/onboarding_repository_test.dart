@@ -11,6 +11,7 @@ import 'package:lawbid/features/onboarding/domain/consent_type.dart';
 import 'package:lawbid/features/onboarding/domain/contact_type.dart';
 import 'package:lawbid/features/onboarding/domain/current_user.dart';
 import 'package:lawbid/features/onboarding/domain/onboarding_step_id.dart';
+import 'package:lawbid/features/onboarding/domain/profile_input.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 
 import '../../../helpers/fake_http_adapter.dart';
@@ -109,6 +110,91 @@ void main() {
       'currentStep': 'push',
       'data': {'pushOptIn': true},
     });
+  });
+
+  test('saveProfileStep sends the structured client profile (not data JSON)', () async {
+    await repo.saveProfileStep(
+      OnboardingStepId.push,
+      const ClientProfileInput(
+        firstName: ' Ann ',
+        lastName: 'Lee ',
+        stateCode: 'NY',
+        languages: ['es', 'en'],
+        contactMethod: 'in_app_chat',
+        contactNote: ' Evenings ',
+      ),
+    );
+    final req = adapter.requests.single;
+    expect(req.method, 'PATCH');
+    expect(req.path, '/users/me/onboarding');
+    expect(bodyOf(req), {
+      'currentStep': 'push',
+      'profile': {
+        'firstName': 'Ann',
+        'lastName': 'Lee',
+        'stateCode': 'NY',
+        'languages': ['en', 'es'],
+        'contactMethod': 'in_app_chat',
+        'contactNote': 'Evenings',
+      },
+    });
+  });
+
+  test('saveProfileStep sends the structured attorney profile', () async {
+    await repo.saveProfileStep(
+      OnboardingStepId.push,
+      const AttorneyProfileInput(
+        firstName: 'Avery',
+        lastName: 'Quill',
+        bio: 'Bio',
+        firmName: '',
+        languages: ['fr'],
+        licensedStates: ['NY', 'CA'],
+      ),
+    );
+    expect(bodyOf(adapter.requests.single)['profile'], {
+      'firstName': 'Avery',
+      'lastName': 'Quill',
+      'bio': 'Bio',
+      'firmName': '',
+      'languages': ['fr'],
+      'licensedStates': ['CA', 'NY'],
+    });
+  });
+
+  test('GET /users/me profile parses per role; state/licensed_states map to profile', () async {
+    final client = CurrentUser.fromJson({
+      ...meJson(role: 'client', missing: const ['state']),
+      'profile': {
+        'stateCode': 'TX',
+        'languages': ['es'],
+        'contactMethod': 'sms',
+        'contactNote': 'Mornings',
+      },
+    });
+    expect(client.clientProfile?.stateCode, 'TX');
+    expect(client.clientProfile?.languages, ['es']);
+    expect(client.clientProfile?.contactMethod, 'sms');
+    expect(client.attorneyProfile, isNull);
+    expect(client.missing, {MissingRequirement.profile});
+
+    final attorney = CurrentUser.fromJson({
+      ...meJson(role: 'attorney', missing: const ['licensed_states']),
+      'profile': {
+        'username': 'avery.quill',
+        'bio': null,
+        'firmName': 'Firm',
+        'languages': ['en'],
+        'licensedStates': ['CA', 'NY'],
+        'verificationStatus': 'unverified',
+      },
+    });
+    expect(attorney.attorneyProfile?.username, 'avery.quill');
+    expect(attorney.attorneyProfile?.licensedStates, ['CA', 'NY']);
+    expect(attorney.clientProfile, isNull);
+    expect(attorney.missing, {MissingRequirement.profile});
+
+    expect(CurrentUser.fromJson({...meJson(role: 'client'), 'profile': null}).clientProfile, isNull);
   });
 
   test('updateProfile trims names and omits absent fields', () async {

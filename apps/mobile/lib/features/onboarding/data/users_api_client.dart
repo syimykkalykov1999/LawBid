@@ -32,14 +32,22 @@ class UsersApiClient {
         ),
       );
 
+  /// [profile] is the structured profile-step payload (apps/api
+  /// `OnboardingProfileDto`) — persisted into client_profiles /
+  /// attorney_profiles together with the step position.
   Future<Map<String, dynamic>> saveOnboardingStep(
     String currentStep, [
     Map<String, dynamic>? data,
+    Map<String, dynamic>? profile,
   ]) =>
       _call(
         () => _dio.patch<Map<String, dynamic>>(
           '/users/me/onboarding',
-          data: {'currentStep': currentStep, if (data != null) 'data': data},
+          data: {
+            'currentStep': currentStep,
+            if (data != null) 'data': data,
+            if (profile != null) 'profile': profile,
+          },
         ),
       );
 

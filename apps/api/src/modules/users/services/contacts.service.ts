@@ -7,6 +7,7 @@ import {
 import { HttpException, HttpStatus } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { withTxRetry } from '../../../prisma/tx-retry.util';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { OtpService } from '../../auth/services/otp.service';
 import { IdentityService } from '../../auth/services/identity.service';
@@ -187,13 +188,42 @@ export class ContactsService {
       });
     }
 
-    const now = new Date();
-    await this.prisma.user.update({
+    // §11 3A "Изменить телефон/email": a verified contact being REPLACED
+    // stops being a sign-in method too — otherwise a lost/recycled number
+    // or abandoned inbox could still log into the account.
+    const before = await this.prisma.user.findUniqueOrThrow({
       where: { id: userId },
-      data:
-        type === 'phone'
-          ? { phone_e164: normalized, phone_verified_at: now }
-          : { email: normalized, email_verified_at: now },
+      select: {
+        phone_e164: true,
+        phone_verified_at: true,
+        email: true,
+        email_verified_at: true,
+      },
+    });
+    const previous =
+      type === 'phone'
+        ? before.phone_verified_at
+          ? before.phone_e164
+          : null
+        : before.email_verified_at
+          ? before.email
+          : null;
+    const replaced = previous !== null && previous !== normalized;
+
+    const now = new Date();
+    await withTxRetry(this.prisma, async (tx) => {
+      await tx.user.update({
+        where: { id: userId },
+        data:
+          type === 'phone'
+            ? { phone_e164: normalized, phone_verified_at: now }
+            : { email: normalized, email_verified_at: now },
+      });
+      if (replaced) {
+        await tx.userIdentifier.deleteMany({
+          where: { user_id: userId, provider: type, provider_uid: previous },
+        });
+      }
     });
 
     await this.authEvents.record({
@@ -201,7 +231,7 @@ export class ContactsService {
       eventType: AUTH_EVENT_TYPES.CONTACT_VERIFIED,
       success: true,
       identifier: normalized,
-      meta: { type },
+      meta: { type, replaced },
     });
   }
 
