@@ -47,17 +47,17 @@
 	<!-- Google Sign-In (Phase 3 of the auth networking work,
 	     docs/CHANGELOG.md): iOS needs the app's REVERSED client ID
 	     registered as a URL scheme so Google's OAuth redirect can get back
-	     into the app. The value below is a placeholder — replace it with
-	     the real "REVERSED_CLIENT_ID" from this iOS app's OAuth client in
-	     Google Cloud Console (Credentials -> OAuth 2.0 Client IDs -> iOS),
-	     or from the GoogleService-Info.plist Firebase would generate for
-	     the same client. Do not ship this placeholder value. -->
+	     into the app. The value is the build setting
+	     GOOGLE_REVERSED_CLIENT_ID: set it in the gitignored
+	     ios/Flutter/Secrets.xcconfig (copy Secrets.example.xcconfig; see
+	     docs/KEYS_SETUP.md). Debug/Release.xcconfig give it a harmless
+	     "not configured" default so the app builds without it. -->
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>TODO-FILL-FROM-GOOGLE-CLOUD-CONSOLE</string>
+				<string>$(GOOGLE_REVERSED_CLIENT_ID)</string>
 			</array>
 		</dict>
 	</array>

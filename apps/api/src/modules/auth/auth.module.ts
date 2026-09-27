@@ -25,6 +25,11 @@ import type { EmailProvider } from './providers/email/email-provider.interface';
 import { MockEmailProvider } from './providers/email/mock-email.provider';
 import { SesEmailProvider } from './providers/email/ses-email.provider';
 import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
+import type { AppEnv } from '../../config/env.schema';
+import {
+  resolveEmailProvider,
+  resolveSmsProvider,
+} from '../../config/provider-selection';
 
 /**
  * docs/01_FOUNDATION_AUTH.md §15 stage 1.4. Registers JwtAuthGuard as the
@@ -33,6 +38,11 @@ import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
  * Nest runs global guards in registration order, and AppModule imports
  * AuthModule AFTER ThrottlerModule (see app.module.ts), so the cheap
  * per-IP rate-limit rejection still happens before any JWT verification.
+ *
+ * Which provider is built is decided by config/provider-selection.ts
+ * (SMS_PROVIDER/EMAIL_PROVIDER=auto → real provider as soon as its
+ * credentials are set; env.schema.ts already refused boot if a deployed
+ * env would end up on mock). The choice is logged once at boot.
  *
  * SMS_PROVIDER/EMAIL_PROVIDER are built via useFactory rather than
  * registering all of Mock, Twilio, and Ses classes as ordinary providers:
@@ -72,18 +82,43 @@ import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
     ReauthGuard,
     {
       provide: SMS_PROVIDER,
-      useFactory: (config: ConfigService, logger: PinoLogger): SmsProvider =>
-        config.get<string>('SMS_PROVIDER') === 'twilio'
+      useFactory: (config: ConfigService, logger: PinoLogger): SmsProvider => {
+        const { provider, missing } = resolveSmsProvider({
+          NODE_ENV: config.getOrThrow<AppEnv['NODE_ENV']>('NODE_ENV'),
+          SMS_PROVIDER:
+            config.getOrThrow<AppEnv['SMS_PROVIDER']>('SMS_PROVIDER'),
+          TWILIO_ACCOUNT_SID: config.get<string>('TWILIO_ACCOUNT_SID'),
+          TWILIO_AUTH_TOKEN: config.get<string>('TWILIO_AUTH_TOKEN'),
+          TWILIO_FROM_NUMBER: config.get<string>('TWILIO_FROM_NUMBER'),
+          TWILIO_MESSAGING_SERVICE_SID: config.get<string>(
+            'TWILIO_MESSAGING_SERVICE_SID',
+          ),
+        });
+        logger.info({ provider, missing }, 'SMS provider selected');
+        return provider === 'twilio'
           ? new TwilioSmsProvider(config, logger)
-          : new MockSmsProvider(logger),
+          : new MockSmsProvider(logger);
+      },
       inject: [ConfigService, PinoLogger],
     },
     {
       provide: EMAIL_PROVIDER,
-      useFactory: (config: ConfigService, logger: PinoLogger): EmailProvider =>
-        config.get<string>('EMAIL_PROVIDER') === 'ses'
+      useFactory: (
+        config: ConfigService,
+        logger: PinoLogger,
+      ): EmailProvider => {
+        const { provider, missing } = resolveEmailProvider({
+          NODE_ENV: config.getOrThrow<AppEnv['NODE_ENV']>('NODE_ENV'),
+          EMAIL_PROVIDER:
+            config.getOrThrow<AppEnv['EMAIL_PROVIDER']>('EMAIL_PROVIDER'),
+          SES_REGION: config.get<string>('SES_REGION'),
+          SES_FROM_ADDRESS: config.get<string>('SES_FROM_ADDRESS'),
+        });
+        logger.info({ provider, missing }, 'Email provider selected');
+        return provider === 'ses'
           ? new SesEmailProvider(config, logger)
-          : new MockEmailProvider(config, logger),
+          : new MockEmailProvider(config, logger);
+      },
       inject: [ConfigService, PinoLogger],
     },
     { provide: APP_GUARD, useClass: JwtAuthGuard },

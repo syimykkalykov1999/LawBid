@@ -6,7 +6,9 @@ import type { SmsProvider } from './sms-provider.interface';
  * Dev/test provider — never contacts a real carrier. Logs that a code
  * "was sent" WITHOUT the code itself (pino already redacts req.body.code
  * on the HTTP side; this keeps the same discipline in application logs).
- * Selected via SMS_PROVIDER=mock (the default outside explicit opt-in).
+ * Selected via SMS_PROVIDER=mock, or SMS_PROVIDER=auto while Twilio
+ * credentials are incomplete — never in staging/production
+ * (config/provider-selection.ts).
  */
 @Injectable()
 export class MockSmsProvider implements SmsProvider {

@@ -2,7 +2,10 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:crypto/crypto.dart' show sha256;
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform;
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:lawbid/core/config/app_config.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 /// Thrown by [SocialAuthNativeClient] methods when the user dismisses the
@@ -140,15 +143,25 @@ class PlatformSocialAuthNativeClient implements SocialAuthNativeClient {
   Future<SocialCredential> signInWithGoogle() async {
     final rawNonce = _generateRawNonce();
     try {
-      // TODO-FILL-FROM-GOOGLE-CLOUD-CONSOLE: no `clientId`/`serverClientId`
-      // is passed here yet. iOS needs one or the other (or a `GIDClientID`
-      // key in Info.plist) for `initialize()` to succeed at all; Android
-      // needs `serverClientId` if the backend's Google verifier checks the
-      // ID token's audience against a *web* OAuth client (typical for a
-      // server-side verifier) rather than the Android client's own id.
-      // Left out entirely, rather than guessed, until those real values
-      // exist.
-      await GoogleSignIn.instance.initialize(nonce: rawNonce);
+      // Client ids come from AppConfig (dart-define, docs/KEYS_SETUP.md).
+      // iOS needs its own OAuth client id (plus the reversed id as a URL
+      // scheme — ios/Flutter/Secrets.xcconfig); without it the native SDK
+      // aborts, so fail with a clear error instead. `serverClientId` (the
+      // Web OAuth client) makes the ID token's `aud` the id the backend
+      // lists in GOOGLE_CLIENT_IDS; Android requires it and ignores
+      // `clientId` (the Android app is identified by package + SHA-1).
+      if (defaultTargetPlatform == TargetPlatform.iOS &&
+          AppConfig.googleIosClientId.isEmpty) {
+        throw StateError(
+          'Google sign-in is not configured: GOOGLE_IOS_CLIENT_ID is empty '
+          '(config/dev.json, docs/KEYS_SETUP.md).',
+        );
+      }
+      await GoogleSignIn.instance.initialize(
+        clientId: AppConfig.orNull(AppConfig.googleIosClientId),
+        serverClientId: AppConfig.orNull(AppConfig.googleServerClientId),
+        nonce: rawNonce,
+      );
       final account = await GoogleSignIn.instance.authenticate();
       final idToken = account.authentication.idToken;
       if (idToken == null) {

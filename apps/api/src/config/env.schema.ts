@@ -1,4 +1,9 @@
 import { z } from 'zod';
+import {
+  isDeployedEnv,
+  resolveEmailProvider,
+  resolveSmsProvider,
+} from './provider-selection';
 
 /**
  * Stage 1.2 (docs/01_FOUNDATION_AUTH.md §15): "приложение отказывается
@@ -14,6 +19,64 @@ import { z } from 'zod';
  */
 
 const jwtKeysPattern = /^[\w-]+:.{32,}(,[\w-]+:.{32,})*$/;
+
+// --- External credentials (docs/KEYS_SETUP.md) ---
+// `.env` files write unset vars as `KEY=` (empty string). Treat blank as
+// "not provided" so an empty placeholder never trips a format check and
+// provider selection (provider-selection.ts) sees it as missing.
+const blankToUndefined = (value: unknown): unknown =>
+  typeof value === 'string' && value.trim() === '' ? undefined : value;
+
+/** Optional credential; when present it must match [pattern]. */
+const optionalMatching = (pattern: RegExp, message: string) =>
+  z.preprocess(
+    blankToUndefined,
+    z.string().trim().regex(pattern, message).optional(),
+  );
+
+/** Optional comma-separated list; every item must match [pattern]. */
+const optionalListOf = (pattern: RegExp, message: string) =>
+  z.preprocess(
+    blankToUndefined,
+    z
+      .string()
+      .trim()
+      .refine(
+        (raw) =>
+          raw
+            .split(',')
+            .map((item) => item.trim())
+            .every((item) => pattern.test(item)),
+        message,
+      )
+      .optional(),
+  );
+
+/**
+ * "true"/"1" → true, "false"/"0"/blank → default. z.coerce.boolean() is
+ * Boolean(value), which turns the string "false" into true — so
+ * OTP_DEV_FIXED_CODE=false would have enabled the fixed code (and blocked
+ * a production boot). Anything else is a validation error.
+ */
+const envBoolean = (fallback: boolean) =>
+  z.preprocess((value: unknown) => {
+    if (typeof value !== 'string') return value;
+    const normalized = value.trim().toLowerCase();
+    if (normalized === '') return undefined;
+    if (normalized === 'true' || normalized === '1') return true;
+    if (normalized === 'false' || normalized === '0') return false;
+    return value;
+  }, z.boolean().default(fallback));
+
+const awsRegionPattern = /^[a-z]{2}(-gov)?-[a-z]+-\d+$/;
+const emailPattern = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/;
+// "no-reply@lawbid.com" or "LawBid <no-reply@lawbid.com>".
+const fromAddressPattern =
+  /^(?:[^<>]*<[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+>|[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+)$/;
+const s3BucketPattern = /^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/;
+// Secrets copied from .env.example / .env.test must never reach a
+// deployed environment.
+const placeholderSecretPattern = /CHANGE_ME|test_secret|_at_least_32_char/i;
 
 export const envSchema = z
   .object({
@@ -93,31 +156,147 @@ export const envSchema = z
     // providers deliberately never expose the real generated code
     // anywhere (not even logs) — 'test' carries the same "never a real
     // deployed environment" guarantee as 'development' for this purpose.
-    OTP_DEV_FIXED_CODE: z.coerce.boolean().default(false),
+    OTP_DEV_FIXED_CODE: envBoolean(false),
 
-    // --- Stage 1.4: SMS provider ---
-    SMS_PROVIDER: z.enum(['mock', 'twilio']).default('mock'),
-    TWILIO_ACCOUNT_SID: z.string().optional(),
-    TWILIO_AUTH_TOKEN: z.string().optional(),
-    TWILIO_FROM_NUMBER: z.string().optional(),
+    // --- SMS provider (stage 1.4; auto-selection: provider-selection.ts) ---
+    // auto (default): twilio once every TWILIO_* credential below is set,
+    // otherwise mock — and mock is refused in staging/production.
+    SMS_PROVIDER: z.preprocess(
+      blankToUndefined,
+      z.enum(['auto', 'mock', 'twilio']).default('auto'),
+    ),
+    TWILIO_ACCOUNT_SID: optionalMatching(
+      /^AC[0-9a-fA-F]{32}$/,
+      'TWILIO_ACCOUNT_SID must be "AC" + 32 hex chars (Twilio Console → Account Info)',
+    ),
+    TWILIO_AUTH_TOKEN: optionalMatching(
+      /^[0-9a-fA-F]{32}$/,
+      'TWILIO_AUTH_TOKEN must be 32 hex chars (Twilio Console → Account Info)',
+    ),
+    // One sender is enough; the Messaging Service wins when both are set.
+    TWILIO_FROM_NUMBER: optionalMatching(
+      /^\+[1-9]\d{7,14}$/,
+      'TWILIO_FROM_NUMBER must be E.164, e.g. +15551234567',
+    ),
+    TWILIO_MESSAGING_SERVICE_SID: optionalMatching(
+      /^MG[0-9a-fA-F]{32}$/,
+      'TWILIO_MESSAGING_SERVICE_SID must be "MG" + 32 hex chars',
+    ),
 
-    // --- Stage 1.4: email provider ---
-    EMAIL_PROVIDER: z.enum(['mock', 'ses']).default('mock'),
-    SES_REGION: z.string().optional(),
-    SES_FROM_ADDRESS: z.string().optional(),
+    // --- Email provider (stage 1.4; auto-selection: provider-selection.ts) ---
+    // auto (default): ses once SES_REGION + SES_FROM_ADDRESS are set.
+    EMAIL_PROVIDER: z.preprocess(
+      blankToUndefined,
+      z.enum(['auto', 'mock', 'ses']).default('auto'),
+    ),
+    SES_REGION: optionalMatching(
+      awsRegionPattern,
+      'SES_REGION must be an AWS region, e.g. us-east-1',
+    ),
+    SES_FROM_ADDRESS: optionalMatching(
+      fromAddressPattern,
+      'SES_FROM_ADDRESS must be "no-reply@domain" or "Name <no-reply@domain>"',
+    ),
+    // AWS credentials: normally the SDK default chain (IAM role on AWS,
+    // ~/.aws profile locally). Explicit keys are optional; the same
+    // default chain reads them straight from process.env. Both or neither.
+    AWS_ACCESS_KEY_ID: optionalMatching(
+      /^(AKIA|ASIA)[A-Z0-9]{16}$/,
+      'AWS_ACCESS_KEY_ID must look like AKIA… (20 chars)',
+    ),
+    AWS_SECRET_ACCESS_KEY: optionalMatching(
+      /^[A-Za-z0-9/+=]{40}$/,
+      'AWS_SECRET_ACCESS_KEY must be 40 chars',
+    ),
     // Mailhog (dev/test), used by the mock provider so codes are visible
     // in a real inbox rather than only in logs (docs/01_FOUNDATION_AUTH.md
     // §15 stage 1.1: Mailhog is already part of docker-compose.yml).
     SMTP_HOST: z.string().default('localhost'),
     SMTP_PORT: z.coerce.number().int().positive().default(1025),
 
-    // --- Stage 1.4: social login ---
-    // Comma-separated allowed audiences/bundle ids.
-    GOOGLE_CLIENT_IDS: z.string().optional(),
-    APPLE_BUNDLE_IDS: z.string().optional(),
+    // --- Social login (stage 1.4) ---
+    // Comma-separated allowed audiences. Empty = that sign-in method
+    // answers AUTH_PROVIDER_DISABLED (feature off, no crash).
+    GOOGLE_CLIENT_IDS: optionalListOf(
+      /^\d+-[a-z0-9]+\.apps\.googleusercontent\.com$/,
+      'GOOGLE_CLIENT_IDS must be comma-separated "<digits>-<id>.apps.googleusercontent.com"',
+    ),
+    APPLE_BUNDLE_IDS: optionalListOf(
+      /^[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$/,
+      'APPLE_BUNDLE_IDS must be comma-separated bundle ids, e.g. com.lawbid.lawbid',
+    ),
+    // Reserved: Sign in with Apple token revocation on account deletion
+    // (docs/01_FOUNDATION_AUTH.md §10; not wired yet).
+    APPLE_TEAM_ID: optionalMatching(
+      /^[A-Z0-9]{10}$/,
+      'APPLE_TEAM_ID must be 10 uppercase letters/digits',
+    ),
+
+    // --- Seed (prisma/seed.ts reads it directly; validated here too) ---
+    SEED_ADMIN_EMAIL: optionalMatching(
+      emailPattern,
+      'SEED_ADMIN_EMAIL must be an email address',
+    ),
+
+    // --- Reserved for later stages: validated now so a pasted key is
+    // checked at boot; no code reads them yet (docs/KEYS_SETUP.md) ---
+    // Stripe — docs/06_PRODUCTION.md §1, stage 6.7.
+    STRIPE_SECRET_KEY: optionalMatching(
+      /^(sk|rk)_(test|live)_[A-Za-z0-9]+$/,
+      'STRIPE_SECRET_KEY must start with sk_test_/sk_live_ (or rk_ restricted key)',
+    ),
+    STRIPE_WEBHOOK_SECRET: optionalMatching(
+      /^whsec_[A-Za-z0-9]+$/,
+      'STRIPE_WEBHOOK_SECRET must start with whsec_',
+    ),
+    STRIPE_PRICE_ID: optionalMatching(
+      /^price_[A-Za-z0-9]+$/,
+      'STRIPE_PRICE_ID must start with price_',
+    ),
+    // S3 — docs/03_VERIFICATION_PROFILES.md §2 (documents); MinIO locally.
+    S3_REGION: optionalMatching(
+      awsRegionPattern,
+      'S3_REGION must be an AWS region, e.g. us-east-1',
+    ),
+    // Local MinIO only (http://localhost:9000); must stay empty when deployed.
+    S3_ENDPOINT: optionalMatching(
+      /^https?:\/\/\S+$/,
+      'S3_ENDPOINT must be an http(s) URL',
+    ),
+    S3_BUCKET_DOCUMENTS: optionalMatching(
+      s3BucketPattern,
+      'S3_BUCKET_DOCUMENTS must be a valid S3 bucket name',
+    ),
+    S3_BUCKET_MEDIA: optionalMatching(
+      s3BucketPattern,
+      'S3_BUCKET_MEDIA must be a valid S3 bucket name',
+    ),
+    // MinIO root user/password locally; on AWS leave empty (IAM role).
+    S3_ACCESS_KEY_ID: optionalMatching(
+      /^\S{3,}$/,
+      'S3_ACCESS_KEY_ID is too short',
+    ),
+    S3_SECRET_ACCESS_KEY: optionalMatching(
+      /^\S{8,}$/,
+      'S3_SECRET_ACCESS_KEY is too short',
+    ),
+    // FCM via Firebase Admin service account — docs/05 §10 (push stage).
+    FCM_PROJECT_ID: optionalMatching(
+      /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/,
+      'FCM_PROJECT_ID must be a Firebase project id, e.g. lawbid-prod',
+    ),
+    FCM_CLIENT_EMAIL: optionalMatching(
+      /^[^\s@]+@[a-z0-9-]+\.iam\.gserviceaccount\.com$/,
+      'FCM_CLIENT_EMAIL must end with .iam.gserviceaccount.com',
+    ),
+    // The "private_key" field of the service-account JSON, "\n" escapes kept.
+    FCM_PRIVATE_KEY: optionalMatching(
+      /-----BEGIN PRIVATE KEY-----/,
+      'FCM_PRIVATE_KEY must be the PEM "private_key" field of the service-account JSON',
+    ),
 
     // --- Stage 1.4: fraud/attestation seam (flag-gated, no-op today) ---
-    FEATURE_ATTESTATION: z.coerce.boolean().default(false),
+    FEATURE_ATTESTATION: envBoolean(false),
 
     // --- Cost protection (owner-approved extension 2026-09-27,
     // docs/OPEN_QUESTIONS.md, docs/COST_PROTECTION.md) ---
@@ -207,28 +386,94 @@ export const envSchema = z
           'OTP_DEV_FIXED_CODE must never be true outside NODE_ENV=development or NODE_ENV=test',
       });
     }
-    if (env.SMS_PROVIDER === 'twilio') {
-      for (const key of [
-        'TWILIO_ACCOUNT_SID',
-        'TWILIO_AUTH_TOKEN',
-        'TWILIO_FROM_NUMBER',
-      ] as const) {
-        if (!env[key]) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: [key],
-            message: `${key} is required when SMS_PROVIDER=twilio`,
-          });
-        }
+    // SMS/email: credential-driven selection; never mock when deployed.
+    const selections = [
+      {
+        modeKey: 'SMS_PROVIDER',
+        realName: 'twilio',
+        selection: resolveSmsProvider(env),
+      },
+      {
+        modeKey: 'EMAIL_PROVIDER',
+        realName: 'ses',
+        selection: resolveEmailProvider(env),
+      },
+    ] as const;
+    for (const { modeKey, realName, selection } of selections) {
+      if (!selection.fatal) continue;
+      if (env[modeKey] === 'mock') {
+        ctx.addIssue({
+          code: 'custom',
+          path: [modeKey],
+          message: `${modeKey}=mock is not allowed in NODE_ENV=${env.NODE_ENV}; use auto or ${realName} (docs/KEYS_SETUP.md)`,
+        });
+        continue;
+      }
+      const why =
+        env[modeKey] === realName
+          ? `${modeKey}=${realName}`
+          : `NODE_ENV=${env.NODE_ENV} never falls back to the mock provider`;
+      for (const key of selection.missing) {
+        ctx.addIssue({
+          code: 'custom',
+          path: [key],
+          message: `${key} is required (${why}); see docs/KEYS_SETUP.md`,
+        });
       }
     }
-    if (env.EMAIL_PROVIDER === 'ses') {
-      for (const key of ['SES_REGION', 'SES_FROM_ADDRESS'] as const) {
-        if (!env[key]) {
+
+    // Credentials that only work as a set: all or none.
+    const groups = [
+      ['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY'],
+      ['S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY'],
+      ['FCM_PROJECT_ID', 'FCM_CLIENT_EMAIL', 'FCM_PRIVATE_KEY'],
+    ] as const;
+    for (const group of groups) {
+      const present = group.filter((key) => env[key] !== undefined);
+      if (present.length === 0 || present.length === group.length) continue;
+      for (const key of group.filter((k) => env[k] === undefined)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: [key],
+          message: `${key} is required together with ${present.join(', ')}`,
+        });
+      }
+    }
+
+    // Stripe: live keys only in production and never test keys there — a
+    // dev machine must not be able to charge real cards.
+    if (env.STRIPE_SECRET_KEY) {
+      const live = /^(sk|rk)_live_/.test(env.STRIPE_SECRET_KEY);
+      if (live !== (env.NODE_ENV === 'production')) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['STRIPE_SECRET_KEY'],
+          message: live
+            ? 'STRIPE_SECRET_KEY: live keys are allowed only in NODE_ENV=production'
+            : 'STRIPE_SECRET_KEY: NODE_ENV=production requires a live key',
+        });
+      }
+    }
+
+    if (isDeployedEnv(env.NODE_ENV)) {
+      if (env.S3_ENDPOINT) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['S3_ENDPOINT'],
+          message: `S3_ENDPOINT is for local MinIO only; leave it empty in NODE_ENV=${env.NODE_ENV}`,
+        });
+      }
+      for (const key of [
+        'JWT_KEYS',
+        'OTP_CODE_SECRET',
+        'OTP_KEY_PEPPER',
+        'AUTH_EVENT_PEPPER',
+      ] as const) {
+        if (placeholderSecretPattern.test(env[key])) {
           ctx.addIssue({
-            code: z.ZodIssueCode.custom,
+            code: 'custom',
             path: [key],
-            message: `${key} is required when EMAIL_PROVIDER=ses`,
+            message: `${key} still holds a placeholder/test value; generate a real secret (docs/KEYS_SETUP.md)`,
           });
         }
       }

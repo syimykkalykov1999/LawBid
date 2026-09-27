@@ -7,7 +7,9 @@ import type { EmailProvider } from './email-provider.interface';
 /**
  * Dev/test provider — sends through Mailhog (docker-compose.yml, stage
  * 1.1) so codes are visible in a real inbox UI instead of only in logs.
- * Selected via EMAIL_PROVIDER=mock (the default outside explicit opt-in).
+ * Selected via EMAIL_PROVIDER=mock, or EMAIL_PROVIDER=auto while SES
+ * settings are incomplete — never in staging/production
+ * (config/provider-selection.ts).
  * Never logs the code itself (matches the pino redaction already applied
  * to req.body.code).
  */

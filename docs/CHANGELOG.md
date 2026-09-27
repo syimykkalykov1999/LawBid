@@ -3191,3 +3191,64 @@ Per docs/02_DATABASE.md §8 "Этап 2.7".
   tables.
 - [x] `docs/db/ERD.md` created.
 - [x] No TODO without a spec reference in the new code.
+
+## Keys wiring — credential-driven provider activation — 2026-09-27
+
+Owner requirement: "real keys will be pasted one by one; each must work
+immediately". No real keys exist yet; everything runs on mocks until they
+are pasted. Owner guide (Russian, ordered table): `docs/KEYS_SETUP.md`.
+Recorded as OQ-002 in `docs/OPEN_QUESTIONS.md`.
+
+### Backend (`apps/api`)
+- `src/config/provider-selection.ts` (new, pure): `SMS_PROVIDER` /
+  `EMAIL_PROVIDER` now accept `auto` (new default) | `mock` | `twilio`/
+  `ses`. `auto` picks the real provider as soon as all its credentials are
+  present, else mock. In `staging`/`production` mock is never allowed
+  (explicit or via auto) — missing credentials fail boot with one zod
+  issue per missing var. Forcing `twilio`/`ses` without creds fails in
+  every env (previous behavior). The choice + missing vars are logged at
+  boot (`SMS provider selected` / `Email provider selected`).
+- `env.schema.ts`: blank values (`KEY=`) count as unset; format checks
+  for every credential (Twilio `AC…`/32-hex token/E.164/`MG…`, AWS region,
+  SES from address, AWS key pair, Google client ids
+  `….apps.googleusercontent.com`, Apple bundle ids / team id,
+  `SEED_ADMIN_EMAIL`). Reserved, format-checked only (no code reads them
+  yet): `STRIPE_SECRET_KEY` (live key only in production, test key never
+  in production), `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID`, `S3_*`
+  (`S3_ENDPOINT` refused when deployed), `FCM_*` (all or none). Deployed
+  envs refuse placeholder secrets (`CHANGE_ME…`, test values) in
+  `JWT_KEYS`/`OTP_*`/`AUTH_EVENT_PEPPER`.
+- Bug fix: `OTP_DEV_FIXED_CODE` / `FEATURE_ATTESTATION` used
+  `z.coerce.boolean()`, which parses the string `"false"` as `true` —
+  `OTP_DEV_FIXED_CODE=false` would have enabled the fixed code in dev and
+  blocked every production boot. Now strict: `true|1` / `false|0|blank`,
+  anything else is a validation error.
+- Twilio: new optional `TWILIO_MESSAGING_SERVICE_SID` (US A2P 10DLC
+  sender pool) as an alternative to `TWILIO_FROM_NUMBER`; wins if both.
+  Still the Messages API, not Verify (stage 1.4 decision, file 01 §10.6).
+- `.env.example`: every variable, empty, with where-to-get comments.
+
+### Mobile (`apps/mobile`, config/wiring only — no UI changes)
+- `lib/core/config/app_config.dart`: single source of build-time client
+  ids (`API_BASE_URL`, `GOOGLE_IOS_CLIENT_ID`, `GOOGLE_SERVER_CLIENT_ID`,
+  `STRIPE_PUBLISHABLE_KEY` reserved) via
+  `flutter run --dart-define-from-file=config/dev.json`; template
+  `config/dev.example.json`, real `config/*.json` gitignored.
+- `social_auth_native_client.dart`: passes `clientId`/`serverClientId`
+  to `GoogleSignIn.initialize`; on iOS without a client id throws a clear
+  `StateError` instead of letting the native SDK abort.
+- iOS: Info.plist URL scheme is now `$(GOOGLE_REVERSED_CLIENT_ID)`;
+  Debug/Release.xcconfig set a harmless default and `#include?` the
+  gitignored `ios/Flutter/Secrets.xcconfig` (template
+  `Secrets.example.xcconfig`, also optional `DEVELOPMENT_TEAM`).
+- `.gitignore`: mobile config json, `Secrets.xcconfig`,
+  `GoogleService-Info.plist`, `google-services.json`, symlinked
+  `node_modules` (worktrees).
+
+### Verification (local CockroachDB + Redis via docker)
+- `npm run lint`, `tsc --noEmit`, `npm run build` clean.
+- Unit: 18 suites / 152 tests pass (32 new: `provider-selection.spec.ts`,
+  `env.schema.spec.ts`). e2e: 6 suites / 39 tests pass; boot log shows
+  mock selected with the missing Twilio/SES vars listed.
+- `flutter analyze` on touched files: no new issues (4 pre-existing infos).
+- Not verified: real Twilio/SES/Google/Apple calls (no keys yet).
