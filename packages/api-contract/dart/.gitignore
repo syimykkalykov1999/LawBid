@@ -1,0 +1,5 @@
+# The generated client is committed IN FULL (docs/01 §6.3), including the
+# build_runner parts — consumers (apps/mobile) never run build_runner on a
+# path dependency. Overrides the repo-wide `*.g.dart` ignore.
+!*.g.dart
+.dart_tool/

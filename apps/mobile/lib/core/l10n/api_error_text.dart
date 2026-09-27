@@ -3,9 +3,11 @@ import 'translator.dart';
 
 /// Localized, user-facing text for an [ApiException] — docs/01_FOUNDATION_
 /// AUTH.md §7: "Клиент показывает локализованный текст по `code`, а не по
-/// `message`". Every code the onboarding/contacts flows can surface has an
-/// `error.api.<CODE>` key (en+ru, static_translator.dart + translations
-/// seed); anything else falls back to the generic message.
+/// `message`". Every code a user can run into has a key (en+ru,
+/// static_translator.dart + translations seed) — mostly `error.api.<CODE>`,
+/// several codes may share one text; codes that never reach a screen
+/// (TOKEN_EXPIRED -> silent refresh, APP_UPDATE_REQUIRED -> forced-update
+/// screen, INTERNAL_ERROR, ...) fall back to the generic message.
 String apiErrorText(Translator t, ApiException error) {
   final key = _keys[error.code];
   if (key == null) return t.t('error.default.message');
@@ -57,6 +59,19 @@ const _keys = <String, String>{
   ApiErrorCodes.accountSuspended: 'error.api.ACCOUNT_SUSPENDED',
   ApiErrorCodes.accountDeleted: 'error.api.ACCOUNT_DELETED',
   ApiErrorCodes.authProviderDisabled: 'error.api.AUTH_PROVIDER_DISABLED',
+  ApiErrorCodes.deviceAttestationRequired: 'error.api.DEVICE_ATTESTATION_REQUIRED',
+  // Refresh-token theft signal (docs/01 §10.4): every session was revoked.
+  ApiErrorCodes.authRefreshReuseDetected: 'error.api.AUTH_REFRESH_REUSE_DETECTED',
+  // The session can't be continued; the user has to sign in again.
+  ApiErrorCodes.authSessionRevoked: 'error.api.AUTH_SESSION_REVOKED',
+  ApiErrorCodes.authRefreshExpired: 'error.api.AUTH_SESSION_REVOKED',
+  ApiErrorCodes.authRefreshInvalid: 'error.api.AUTH_SESSION_REVOKED',
+  ApiErrorCodes.authSocialTokenInvalid: 'auth.social.error.invalidToken',
+  ApiErrorCodes.authSocialProviderUnavailable: 'auth.social.error.providerDisabled',
+  ApiErrorCodes.idempotencyKeyConflict: 'error.api.IDEMPOTENCY_KEY_CONFLICT',
+  ApiErrorCodes.forbidden: 'error.api.FORBIDDEN',
+  ApiErrorCodes.notFound: 'error.api.NOT_FOUND',
+  ApiErrorCodes.notImplemented: 'error.api.NOT_IMPLEMENTED',
   // Client-side synthetic code (contact_verification_controller.dart).
   'NO_REAUTH_CONTACT': 'error.api.NO_REAUTH_CONTACT',
 };

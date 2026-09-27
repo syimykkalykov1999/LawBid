@@ -234,8 +234,11 @@ void main() {
   });
 
   test('contact verification: reauth → request (X-Reauth-Token) → verify', () async {
+    // Each endpoint answers with its OpenAPI 2xx shape: the generated
+    // client parses every response body, not just the ones the app reads.
     adapter.handler = (o) async => switch (o.path) {
           '/auth/reauth' => ok({'reauthToken': 'rt-1'}),
+          '/users/me/contacts/verify' => ok({'verified': true}),
           _ => ok({'sent': true}),
         };
     await repo.requestReauthCode(channel: 'email', identifier: 'a@b.co');
@@ -271,6 +274,55 @@ void main() {
       );
     });
   }
+
+  test('saveProfileStep keeps an explicit contactMethod: null (clears it)', () async {
+    await repo.saveProfileStep(
+      OnboardingStepId.push,
+      const ClientProfileInput(firstName: 'Ann', lastName: 'Lee', stateCode: 'NY'),
+    );
+    final profile = bodyOf(adapter.requests.single)['profile'] as Map<String, dynamic>;
+    expect(profile.containsKey('contactMethod'), isTrue);
+    expect(profile['contactMethod'], isNull);
+  });
+
+  test('fetchMe maps the generated MeDto per role, dropping unknown enum values', () async {
+    adapter.handler = (o) async => ok({
+          ...meJson(role: 'attorney', missing: const ['licensed_states', 'brand_new_rule']),
+          'status': 'some_future_status',
+          'profile': {
+            'username': 'avery.quill',
+            'bio': null,
+            'firmName': 'Firm',
+            'languages': ['en'],
+            'licensedStates': ['CA', 'NY'],
+            'verificationStatus': 'pending',
+          },
+          'onboarding': {
+            'currentStep': 'tour',
+            'completedAt': '2026-09-20T12:00:00.000Z',
+            'data': {'pushOptIn': true},
+          },
+        });
+    final me = await repo.fetchMe();
+    expect(me.role, UserRole.attorney);
+    expect(me.status, 'active', reason: 'unknown status falls back like fromJson');
+    expect(me.attorneyProfile?.username, 'avery.quill');
+    expect(me.attorneyProfile?.licensedStates, ['CA', 'NY']);
+    expect(me.attorneyProfile?.verificationStatus, 'pending');
+    expect(me.clientProfile, isNull);
+    expect(me.missing, {MissingRequirement.profile});
+    expect(me.onboarding.currentStep, OnboardingStepId.tour);
+    expect(me.onboarding.completedAt, DateTime.utc(2026, 9, 20, 12));
+    expect(me.onboarding.data, {'pushOptIn': true});
+  });
+
+  test('a me body outside the contract (no id) → NETWORK_ERROR', () async {
+    adapter.handler = (o) async => ok(<String, dynamic>{...meJson()}..remove('id'));
+    await expectLater(
+      repo.fetchMe(),
+      throwsA(isA<ApiException>().having((e) => e.isNetworkError, 'isNetworkError', isTrue)),
+    );
+  });
 
   test('transport failure → NETWORK_ERROR', () async {
     adapter.handler = (o) async => throwConnectionError(o);

@@ -1,4 +1,11 @@
 import { Controller, Get } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
+import {
+  ApiEnvelopeResponse,
+  ApiErrors,
+} from '../../../common/dto/api-docs.decorators';
+import { ErrorCode } from '../../../common/errors/error-code.enum';
+import { BootstrapDto } from '../dto/bootstrap-response.dto';
 import { Public } from '../../auth/decorators/public.decorator';
 import { SkipVersionCheck } from '../decorators/skip-version-check.decorator';
 import {
@@ -15,6 +22,7 @@ import {
  * able to reach, since it's what tells that client it's below minimum in
  * the first place — see `AppVersionGuard`'s doc comment.
  */
+@ApiTags('config')
 @Controller('config')
 export class BootstrapController {
   constructor(private readonly bootstrap: BootstrapService) {}
@@ -22,6 +30,12 @@ export class BootstrapController {
   @Public()
   @SkipVersionCheck()
   @Get('bootstrap')
+  @ApiEnvelopeResponse(BootstrapDto)
+  // No 426: @SkipVersionCheck() — see the class doc.
+  @ApiErrors({
+    429: [ErrorCode.RATE_LIMITED],
+    500: [ErrorCode.INTERNAL_ERROR],
+  })
   async getBootstrap(): Promise<BootstrapResponse> {
     return this.bootstrap.build();
   }

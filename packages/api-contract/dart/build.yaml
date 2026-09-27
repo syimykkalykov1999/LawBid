@@ -1,0 +1,14 @@
+# Serialization rules for the generated models (build_runner step of
+# ../generate.sh).
+targets:
+  $default:
+    builders:
+      json_serializable:
+        options:
+          # An unset optional request field is OMITTED, never sent as null:
+          # the API treats `null` as "clear this value" and absence as
+          # "leave unchanged" (e.g. PATCH /users/me). swagger_parser's
+          # include_if_null (off) would only annotate nullable fields.
+          include_if_null: false
+          # toJson() yields plain maps/lists all the way down.
+          explicit_to_json: true

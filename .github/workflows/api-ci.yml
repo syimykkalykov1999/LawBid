@@ -2,8 +2,9 @@
 # e2e"), scoped to apps/api. See docs/06_PRODUCTION.md §7.2 for the full
 # eventual PR-check list (file 6 scope) — this workflow implements the
 # subset that's file-1 scope and buildable with what exists in the repo
-# today (no OpenAPI-diff/Dart-client-regen check, no Docker image build:
-# no Dockerfile exists yet, and Dart-client generation isn't wired up yet).
+# today (no Docker image build: no Dockerfile exists yet). The API contract
+# drift check (openapi.json + generated Dart client, docs/01 §6.3) runs as
+# the "API contract is up to date" step below.
 #
 # Service containers mirror docker-compose.yml's dev infra:
 #   - CockroachDB v24.1.5 (single-node, insecure) — started via a manual
@@ -27,6 +28,7 @@ on:
     branches: [main, master]
     paths:
       - "apps/api/**"
+      - "packages/api-contract/**"
       - "package.json"
       - "package-lock.json"
       - "docker-compose.yml"
@@ -35,6 +37,7 @@ on:
     branches: [main, master]
     paths:
       - "apps/api/**"
+      - "packages/api-contract/**"
       - "package.json"
       - "package-lock.json"
       - "docker-compose.yml"
@@ -206,6 +209,30 @@ jobs:
 
       - name: e2e tests (real CockroachDB + Redis)
         run: npm run test:e2e --workspace apps/api
+
+      - uses: dart-lang/setup-dart@v1
+        with:
+          # Pinned: `dart format` output (part of the generated client)
+          # depends on the SDK's formatter version.
+          sdk: "3.13.4"
+
+      - name: API contract is up to date (openapi.json + Dart client)
+        # docs/01 §6.3: packages/api-contract is generated, never
+        # hand-edited, and regenerated after any endpoint change. Re-export
+        # the OpenAPI document from this commit's API, regenerate the Dart
+        # client, and fail on ANY difference (modified or new files) — a
+        # controller/DTO change without a committed regeneration is
+        # contract drift. Then the client must analyze clean.
+        run: |
+          sh packages/api-contract/generate.sh
+          git diff --exit-code -- packages/api-contract
+          untracked=$(git status --porcelain --untracked-files=all -- packages/api-contract)
+          if [ -n "$untracked" ]; then
+            echo "Contract drift — regenerate with packages/api-contract/generate.sh and commit:" >&2
+            echo "$untracked" >&2
+            exit 1
+          fi
+          cd packages/api-contract/dart && dart analyze --fatal-warnings
 
       - name: Dependency audit (advisory)
         # ADVISORY, not blocking: `npm audit --audit-level=high` currently

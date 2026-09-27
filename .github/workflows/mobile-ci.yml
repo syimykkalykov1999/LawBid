@@ -23,11 +23,15 @@ on:
     branches: [main, master]
     paths:
       - "apps/mobile/**"
+      # The generated API client is a path dependency (lawbid_api).
+      - "packages/api-contract/**"
       - ".github/workflows/mobile-ci.yml"
   push:
     branches: [main, master]
     paths:
       - "apps/mobile/**"
+      # The generated API client is a path dependency (lawbid_api).
+      - "packages/api-contract/**"
       - ".github/workflows/mobile-ci.yml"
 
 concurrency:

@@ -53,7 +53,13 @@ export class AllExceptionsFilter implements ExceptionFilter {
     message: string;
     details?: Record<string, unknown>;
   } {
-    if (exception instanceof BadRequestException) {
+    // A BadRequestException thrown by feature code with its own ErrorCode
+    // (I18N_IMPORT_INVALID, I18N_LANGUAGE_NOT_FOUND) keeps that code — only
+    // ValidationPipe's code-less 400s become VALIDATION_ERROR.
+    if (
+      exception instanceof BadRequestException &&
+      !hasErrorCode(exception.getResponse())
+    ) {
       const body = exception.getResponse();
       const details =
         typeof body === 'object' && body !== null && 'message' in body
@@ -106,4 +112,13 @@ export class AllExceptionsFilter implements ExceptionFilter {
     };
     return map[status] ?? ErrorCode.INTERNAL_ERROR;
   }
+}
+
+function hasErrorCode(body: unknown): boolean {
+  return (
+    typeof body === 'object' &&
+    body !== null &&
+    'code' in body &&
+    typeof body.code === 'string'
+  );
 }

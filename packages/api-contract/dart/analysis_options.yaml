@@ -1,0 +1,16 @@
+# Same strictness as apps/mobile (.cursorrules: strict-casts/inference/
+# raw-types). lib/src is generated (../generate.sh) and already carries
+# `ignore_for_file: type=lint`; the one analyzer WARNING it produces is
+# silenced below so `dart analyze --fatal-warnings` still fails on anything
+# else.
+analyzer:
+  language:
+    strict-casts: true
+    strict-inference: true
+    strict-raw-types: true
+  errors:
+    # swagger_parser 1.45.0 (enums_to_json: true) emits
+    # `final value = json; if (value == null) throw ...; return value as String;`
+    # in every enum's toJson(). Harmless; the cast is what the generator
+    # needs for its nullable $unknown member.
+    unnecessary_cast: ignore

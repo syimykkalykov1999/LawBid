@@ -1,3 +1,4 @@
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsIn, IsOptional } from 'class-validator';
 
 export type I18nImportMode = 'dry-run' | 'apply';
@@ -9,6 +10,11 @@ export type I18nImportMode = 'dry-run' | 'apply';
  * caller explicitly asked it to.
  */
 export class I18nImportQueryDto {
+  @ApiPropertyOptional({
+    enum: ['dry-run', 'apply'],
+    enumName: 'I18nImportMode',
+    default: 'dry-run',
+  })
   @IsOptional()
   @IsIn(['dry-run', 'apply'])
   mode?: I18nImportMode;

@@ -1,5 +1,13 @@
 import { Controller, Get, Param, Query, Req, Res } from '@nestjs/common';
 import type { Request, Response } from 'express';
+import { ApiHeader, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiEnvelopeResponse,
+  ApiErrors,
+  COMMON_ERRORS,
+} from '../../../common/dto/api-docs.decorators';
+import { ErrorCode } from '../../../common/errors/error-code.enum';
+import { I18nBundleDto, I18nLanguageDto } from '../dto/i18n-responses.dto';
 import { Public } from '../../auth/decorators/public.decorator';
 import { I18nBundleQueryDto } from '../dto/bundle-query.dto';
 import { I18nBundleService } from '../services/i18n-bundle.service';
@@ -12,6 +20,8 @@ import { I18nLanguagesService } from '../services/i18n-languages.service';
  * JwtAuthGuard, same as the auth token-issuing routes — see
  * auth.controller.ts's class doc).
  */
+@ApiTags('i18n')
+@ApiErrors(COMMON_ERRORS)
 @Controller('i18n')
 export class I18nController {
   constructor(
@@ -21,7 +31,8 @@ export class I18nController {
 
   @Public()
   @Get('languages')
-  async listLanguages() {
+  @ApiEnvelopeResponse(I18nLanguageDto, { isArray: true })
+  async listLanguages(): Promise<I18nLanguageDto[]> {
     return this.languages.listActive();
   }
 
@@ -44,6 +55,25 @@ export class I18nController {
    */
   @Public()
   @Get('bundle/:lang')
+  @ApiEnvelopeResponse(I18nBundleDto, {
+    description:
+      'Success envelope (docs/01 §7) with an `ETag` header ("<lang>-v<version>").',
+  })
+  @ApiResponse({
+    status: 304,
+    description:
+      'Not modified: no `since` and If-None-Match equals the current ETag. Empty body.',
+  })
+  @ApiHeader({
+    name: 'If-None-Match',
+    required: false,
+    description:
+      'ETag of the bundle the client already has (ignored with `since`).',
+  })
+  @ApiErrors({
+    400: [ErrorCode.VALIDATION_ERROR],
+    404: [ErrorCode.I18N_LANGUAGE_NOT_FOUND],
+  })
   async getBundle(
     @Param('lang') lang: string,
     @Query() query: I18nBundleQueryDto,

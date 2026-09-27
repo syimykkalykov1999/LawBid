@@ -16,7 +16,7 @@ async function exportOpenApi(): Promise<void> {
   // DevModule's routes exist only under NODE_ENV=development; they are
   // not part of the client contract.
   for (const path of Object.keys(document.paths)) {
-    if (path.startsWith('/api/v1/dev/')) delete document.paths[path];
+    if (path.startsWith('/dev/')) delete document.paths[path];
   }
   delete document.components?.schemas?.DevEchoDto;
   const out = join(process.cwd(), '../../packages/api-contract/openapi.json');

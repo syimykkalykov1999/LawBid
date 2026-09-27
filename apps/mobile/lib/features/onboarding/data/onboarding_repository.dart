@@ -1,6 +1,6 @@
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/auth/data/auth_api_client.dart';
-import 'package:lawbid/features/auth/data/auth_dtos.dart';
+import 'package:lawbid/features/onboarding/data/current_user_mapper.dart';
 import 'package:lawbid/features/onboarding/data/users_api_client.dart';
 import 'package:lawbid/features/onboarding/domain/consent_type.dart';
 import 'package:lawbid/features/onboarding/domain/contact_type.dart';
@@ -8,6 +8,7 @@ import 'package:lawbid/features/onboarding/domain/current_user.dart';
 import 'package:lawbid/features/onboarding/domain/onboarding_step_id.dart';
 import 'package:lawbid/features/onboarding/domain/profile_input.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
+import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// Account + onboarding operations (docs/01_FOUNDATION_AUTH.md §10.2 H,
 /// §10.5, §11). Every method that the server answers with the fresh
@@ -75,7 +76,7 @@ class ApiOnboardingRepository implements OnboardingRepository {
 
   @override
   Future<CurrentUser> fetchMe() async =>
-      CurrentUser.fromJson(await _users.getMe());
+      CurrentUserMapper.fromDto(await _users.getMe());
 
   @override
   Future<CurrentUser> updateProfile({
@@ -84,19 +85,23 @@ class ApiOnboardingRepository implements OnboardingRepository {
     String? uiLanguage,
     String? theme,
   }) async {
-    final body = <String, dynamic>{
-      if (firstName != null) 'firstName': firstName.trim(),
-      if (lastName != null) 'lastName': lastName.trim(),
-      if (uiLanguage != null) 'uiLanguage': uiLanguage,
-      if (theme != null) 'theme': theme,
-    };
-    return CurrentUser.fromJson(await _users.updateProfile(body));
+    // Unset fields are omitted from the body (generated models skip
+    // nulls), so the server leaves them unchanged.
+    final body = api.UpdateProfileDto(
+      firstName: firstName?.trim(),
+      lastName: lastName?.trim(),
+      uiLanguage: uiLanguage,
+      theme: theme == null ? null : api.UpdateProfileDtoTheme.fromJson(theme),
+    );
+    return CurrentUserMapper.fromDto(await _users.updateProfile(body));
   }
 
   @override
   Future<CurrentUser> setRole(UserRole role) async {
     try {
-      return CurrentUser.fromJson(await _users.setRole(role.name));
+      return CurrentUserMapper.fromDto(
+        await _users.setRole(api.SetRoleDtoRole.fromJson(role.name)),
+      );
     } on ApiException catch (e) {
       if (e.code != ApiErrorCodes.roleAlreadySet) rethrow;
       final me = await fetchMe();
@@ -108,22 +113,36 @@ class ApiOnboardingRepository implements OnboardingRepository {
   @override
   Future<CurrentUser> saveStep(OnboardingStepId step,
           [Map<String, dynamic>? data]) async =>
-      CurrentUser.fromJson(await _users.saveOnboardingStep(step.name, data));
+      CurrentUserMapper.fromDto(
+        await _users.saveOnboardingStep(
+          api.SaveOnboardingStepDto(currentStep: _step(step), data: data),
+        ),
+      );
 
   @override
   Future<CurrentUser> saveProfileStep(
           OnboardingStepId next, ProfileInput profile) async =>
-      CurrentUser.fromJson(
-        await _users.saveOnboardingStep(next.name, null, profile.toJson()),
+      CurrentUserMapper.fromDto(
+        await _users.saveProfileStep(_step(next), profile.toJson()),
       );
 
   @override
   Future<CurrentUser> completeOnboarding() async =>
-      CurrentUser.fromJson(await _users.completeOnboarding());
+      CurrentUserMapper.fromDto(await _users.completeOnboarding());
 
   @override
-  Future<void> saveConsents(List<ConsentDecision> consents) => _users
-      .saveConsents(consents.map((c) => c.toJson()).toList(growable: false));
+  Future<void> saveConsents(List<ConsentDecision> consents) =>
+      _users.saveConsents(
+        consents
+            .map(
+              (c) => api.ConsentItemDto(
+                type: api.ConsentItemDtoType.fromJson(c.type.wireName),
+                granted: c.granted,
+                documentId: c.documentId,
+              ),
+            )
+            .toList(growable: false),
+      );
 
   @override
   Future<void> requestReauthCode(
@@ -131,12 +150,8 @@ class ApiOnboardingRepository implements OnboardingRepository {
       _auth.requestOtp(channel: channel, identifier: identifier);
 
   @override
-  Future<String> reauth(
-      {required String identifier, required String code}) async {
-    final result =
-        await _auth.reauth(ReauthPayload(identifier: identifier, code: code));
-    return result.reauthToken;
-  }
+  Future<String> reauth({required String identifier, required String code}) =>
+      _auth.reauth(identifier: identifier, code: code);
 
   @override
   Future<void> requestContactCode({
@@ -145,7 +160,10 @@ class ApiOnboardingRepository implements OnboardingRepository {
     String? reauthToken,
   }) =>
       _users.requestContact(
-          type: type.wireName, value: value, reauthToken: reauthToken);
+        type: api.ContactRequestDtoType.fromJson(type.wireName),
+        value: value,
+        reauthToken: reauthToken,
+      );
 
   @override
   Future<void> verifyContact({
@@ -153,5 +171,12 @@ class ApiOnboardingRepository implements OnboardingRepository {
     required String value,
     required String code,
   }) =>
-      _users.verifyContact(type: type.wireName, value: value, code: code);
+      _users.verifyContact(
+        type: api.ContactVerifyDtoType.fromJson(type.wireName),
+        value: value,
+        code: code,
+      );
+
+  static api.SaveOnboardingStepDtoCurrentStep _step(OnboardingStepId step) =>
+      api.SaveOnboardingStepDtoCurrentStep.fromJson(step.name);
 }
