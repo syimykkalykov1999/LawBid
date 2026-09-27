@@ -1,0 +1,55 @@
+import { missingRequirements } from './onboarding.service';
+
+describe('missingRequirements (docs/01_FOUNDATION_AUTH.md §11)', () => {
+  const now = new Date();
+  const base = {
+    role: null,
+    first_name: null,
+    last_name: null,
+    phone_verified_at: null,
+    email_verified_at: null,
+  };
+
+  it('fresh account: consents, role, name', () => {
+    expect(missingRequirements(base, false)).toEqual([
+      'consents',
+      'role',
+      'name',
+    ]);
+  });
+
+  it('client needs BOTH phone and email verified', () => {
+    const client = {
+      ...base,
+      role: 'client' as const,
+      first_name: 'A',
+      last_name: 'B',
+    };
+    expect(missingRequirements(client, true)).toEqual([
+      'phone_verified',
+      'email_verified',
+    ]);
+    expect(
+      missingRequirements({ ...client, phone_verified_at: now }, true),
+    ).toEqual(['email_verified']);
+    expect(
+      missingRequirements(
+        { ...client, phone_verified_at: now, email_verified_at: now },
+        true,
+      ),
+    ).toEqual([]);
+  });
+
+  it('attorney needs only a verified phone', () => {
+    const attorney = {
+      ...base,
+      role: 'attorney' as const,
+      first_name: 'A',
+      last_name: 'B',
+    };
+    expect(missingRequirements(attorney, true)).toEqual(['phone_verified']);
+    expect(
+      missingRequirements({ ...attorney, phone_verified_at: now }, true),
+    ).toEqual([]);
+  });
+});

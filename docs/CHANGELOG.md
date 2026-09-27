@@ -2913,3 +2913,42 @@ decision per .cursorrules, not silently "fixed"):
   `feature_flags`, `app_config`, `i18n_translations`) lack
   `created_at`/`updated_at` per §1.3, because their own §4 column lists
   omit them.
+
+## Stage 1.7 backend gap: onboarding API + POST /cases stub — 2026-09-27
+
+An audit of the code (not the changelog) found stage 1.7 incomplete: the
+Flutter flow had no server-side onboarding at all, `POST /cases` and
+`CLIENT_CONTACTS_INCOMPLETE` did not exist. This adds the server half.
+
+- `GET /users/me`: profile, verified flags, required-consent state,
+  onboarding `{currentStep, completedAt, data}` and `missing[]` — the
+  list the Flutter `AppRouterGuard` redirects on (consents → role → name →
+  contacts), so the rules live only on the server.
+- `PATCH /users/me` (first/last name, `uiLanguage` checked against active
+  `i18n_languages`, `theme`) — acceptance item 7.
+- `POST /users/me/role` — client/attorney only, settable once (atomic
+  `WHERE role IS NULL`), `ROLE_ALREADY_SET` (409) afterwards (§11 step 2).
+  Client refreshes tokens to get the new `role` claim.
+- `PATCH /users/me/onboarding` — saves the step and merges step data, so
+  the app resumes where it was closed (item 4). Client state/languages
+  live in `data` until `client_profiles` arrives in stage 2.3.
+- `POST /users/me/onboarding/complete` — server-enforced: required
+  consents (18+, ToS, Privacy, disclaimer), role, name; client needs BOTH
+  verified phone and email (`CLIENT_CONTACTS_INCOMPLETE`), attorney a
+  verified phone (`ONBOARDING_INCOMPLETE` otherwise).
+- `POST /cases` stub (`CasesModule`): non-client → `FORBIDDEN`, client
+  without both contacts → `CLIENT_CONTACTS_INCOMPLETE` (item 9), else
+  `501 NOT_IMPLEMENTED` until file 04.
+- New ErrorCodes: `CLIENT_CONTACTS_INCOMPLETE`, `ONBOARDING_INCOMPLETE`,
+  `ROLE_ALREADY_SET`, `NOT_IMPLEMENTED`.
+- Route paths other than `/cases` aren't named in the spec (§10.5 lists
+  no onboarding routes); chosen as the minimal REST shape under
+  `/users/me` — flagged for the owner.
+- Tests: unit `missingRequirements` (3), e2e `test/onboarding.e2e-spec.ts`
+  (3 scenarios: full client flow incl. resume and contact gate, attorney,
+  validation). Totals: unit 84/84, e2e 4 suites / 23 tests; lint, tsc,
+  build clean.
+- Still open for 1.7 (mobile): Splash, email login, consents/18+,
+  language, contacts, attorney profile, verification/subscription,
+  tour, "Download my data" screens, AppRouterGuard wired to
+  `GET /users/me`, idempotency/retry interceptors.

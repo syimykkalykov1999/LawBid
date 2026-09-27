@@ -2,7 +2,9 @@ import {
   Body,
   Controller,
   Delete,
+  Get,
   HttpCode,
+  Patch,
   HttpStatus,
   Post,
   Req,
@@ -15,6 +17,9 @@ import { AccountDeletionService } from '../services/account-deletion.service';
 import { ContactRequestDto } from '../dto/contact-request.dto';
 import { ContactVerifyDto } from '../dto/contact-verify.dto';
 import { SaveConsentsDto } from '../dto/consents.dto';
+import { SaveOnboardingStepDto } from '../dto/onboarding.dto';
+import { SetRoleDto, UpdateProfileDto } from '../dto/profile.dto';
+import { OnboardingService } from '../services/onboarding.service';
 import {
   CurrentUser,
   type RequestUser,
@@ -40,7 +45,47 @@ export class UsersController {
     private readonly contacts: ContactsService,
     private readonly consents: ConsentsService,
     private readonly accountDeletion: AccountDeletionService,
+    private readonly onboarding: OnboardingService,
   ) {}
+
+  // --- Onboarding (docs/01_FOUNDATION_AUTH.md §11, stage 1.7) ---
+
+  @Get()
+  async me(@CurrentUser() user: RequestUser) {
+    return this.onboarding.getMe(user.sub);
+  }
+
+  @Patch()
+  async updateProfile(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: UpdateProfileDto,
+  ) {
+    await this.onboarding.updateProfile(user.sub, dto);
+    return this.onboarding.getMe(user.sub);
+  }
+
+  @Post('role')
+  @HttpCode(HttpStatus.OK)
+  async setRole(@CurrentUser() user: RequestUser, @Body() dto: SetRoleDto) {
+    await this.onboarding.setRole(user.sub, dto.role);
+    return this.onboarding.getMe(user.sub);
+  }
+
+  @Patch('onboarding')
+  async saveOnboardingStep(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: SaveOnboardingStepDto,
+  ) {
+    await this.onboarding.saveStep(user.sub, dto);
+    return this.onboarding.getMe(user.sub);
+  }
+
+  @Post('onboarding/complete')
+  @HttpCode(HttpStatus.OK)
+  async completeOnboarding(@CurrentUser() user: RequestUser) {
+    await this.onboarding.complete(user.sub);
+    return this.onboarding.getMe(user.sub);
+  }
 
   @Post('contacts/request')
   @UseGuards(ReauthGuard)

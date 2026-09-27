@@ -11,6 +11,7 @@ import { FeatureFlagsModule } from './modules/feature-flags/feature-flags.module
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { I18nModule } from './modules/i18n/i18n.module';
+import { CasesModule } from './modules/cases/cases.module';
 import { DevModule } from './modules/dev/dev.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
@@ -69,6 +70,7 @@ const isDev =
     AuthModule,
     UsersModule,
     I18nModule,
+    CasesModule,
     ...(isDev ? [DevModule] : []),
   ],
   providers: [
