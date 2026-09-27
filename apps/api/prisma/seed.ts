@@ -27,8 +27,58 @@ import {
   buildParsedWorkbook,
   parseTranslationsFile,
 } from '../src/modules/i18n/xlsx/i18n-workbook.util';
+import {
+  flattenPracticeAreaSeed,
+  PracticeAreaSeedCategory,
+} from '../src/common/reference-data/practice-areas.util';
+import { US_STATES } from '../src/common/reference-data/us-states';
 
 const prisma = new PrismaClient();
+
+// docs/02_DATABASE.md §3.1 (stage 2.1): 50 states + DC, upsert by code.
+async function seedStates(): Promise<void> {
+  for (const state of US_STATES) {
+    await prisma.state.upsert({
+      where: { code: state.code },
+      create: state,
+      update: { name: state.name },
+    });
+  }
+  console.log(`  states: ${US_STATES.length} upserted`);
+}
+
+// docs/02_DATABASE.md §3.2 (stage 2.1): categories first, then leaves,
+// upsert by code so re-runs and later list edits never duplicate rows.
+async function seedPracticeAreas(): Promise<void> {
+  const seedPath = join(__dirname, 'seed', 'practice_areas.seed.json');
+  const rows = flattenPracticeAreaSeed(
+    JSON.parse(readFileSync(seedPath, 'utf-8')) as PracticeAreaSeedCategory[],
+  );
+  const idByCode = new Map<string, string>();
+  for (const row of rows) {
+    const parent_id =
+      row.parent_code === null ? null : idByCode.get(row.parent_code);
+    if (parent_id === undefined) {
+      throw new Error(`practice_areas: parent ${row.parent_code} not seeded`);
+    }
+    const data = {
+      parent_id,
+      name_en: row.name_en,
+      i18n_key: row.i18n_key,
+      sort: row.sort,
+    };
+    const saved = await prisma.practiceArea.upsert({
+      where: { code: row.code },
+      create: { code: row.code, ...data },
+      update: data,
+    });
+    idByCode.set(row.code, saved.id);
+  }
+  const leaves = rows.filter((r) => r.parent_code !== null).length;
+  console.log(
+    `  practice_areas: ${rows.length - leaves} categories + ${leaves} specializations upserted`,
+  );
+}
 
 // docs/01_FOUNDATION_AUTH.md §3.3 / §3.3: en is default+active, ru active.
 async function seedI18nLanguages(): Promise<void> {
@@ -327,8 +377,10 @@ async function seedAdmin(): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  console.log('Seeding LawBid (stage 1.3 scope)...');
-  // Order per docs/02_DATABASE.md §7.2, filtered to stage-1.3 tables.
+  console.log('Seeding LawBid...');
+  // Order per docs/02_DATABASE.md §7.2.
+  await seedStates();
+  await seedPracticeAreas();
   await seedI18nLanguages();
   await seedI18nTranslations();
   await seedBlockedEmailDomains();

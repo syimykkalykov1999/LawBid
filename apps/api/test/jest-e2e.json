@@ -12,5 +12,10 @@
   },
   "transformIgnorePatterns": [
     "node_modules/(?!(@nestjs/jwt|jose)/)"
-  ]
+  ],
+  "globalSetup": "<rootDir>/support/e2e-global-setup.ts",
+  "setupFiles": [
+    "<rootDir>/support/e2e-setup-env.ts"
+  ],
+  "globalTeardown": "<rootDir>/support/e2e-global-teardown.ts"
 }

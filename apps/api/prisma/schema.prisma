@@ -36,9 +36,10 @@ datasource db {
 }
 
 // -----------------------------------------------------------------------
-// Enums (docs/02_DATABASE.md §2) — only the values needed by this stage's
-// models. The remaining enums in §2 are added alongside the models that
-// use them in later stages.
+// Enums (docs/02_DATABASE.md §2) — the full list. Stage 1.3 added the six
+// auth enums below; stage 2.1 ("все enum из раздела 2") adds the rest,
+// after LegalDocType. Enums not yet referenced by a model are still
+// created in the DB so later stages only add tables.
 // -----------------------------------------------------------------------
 
 enum UserRole {
@@ -95,6 +96,382 @@ enum LegalDocType {
   client_contact_sharing
 
   @@map("legal_doc_type")
+}
+
+// Stage 2.1 (docs/02_DATABASE.md §8, "Этап 2.1"): remaining §2 enums.
+
+enum FilePurpose {
+  avatar
+  post_image
+  verification_document
+  verification_selfie
+
+  @@map("file_purpose")
+}
+
+enum ScanStatus {
+  pending
+  clean
+  infected
+  failed
+
+  @@map("scan_status")
+}
+
+enum ContactMethod {
+  call
+  sms
+  email
+  in_app_chat
+
+  @@map("contact_method")
+}
+
+enum VerificationStatus {
+  unverified
+  pending
+  verified
+  rejected
+  suspended
+
+  @@map("verification_status")
+}
+
+enum LicenseStatus {
+  pending
+  verified
+  rejected
+  expired
+  suspended
+
+  @@map("license_status")
+}
+
+enum VerificationRequestStatus {
+  draft
+  submitted
+  in_review
+  needs_more_info
+  approved
+  rejected
+
+  @@map("verification_request_status")
+}
+
+enum VerificationDocType {
+  bar_license
+  drivers_license
+  passport
+  state_id
+  selfie
+  other
+
+  @@map("verification_doc_type")
+}
+
+enum VerificationProvider {
+  manual
+  stripe_identity
+  persona
+
+  @@map("verification_provider")
+}
+
+enum VerificationCheckType {
+  bar_lookup
+  id_check
+  face_match
+
+  @@map("verification_check_type")
+}
+
+enum CheckResult {
+  pass
+  fail
+  manual_review
+
+  @@map("check_result")
+}
+
+enum CaseStatus {
+  open
+  in_progress
+  pending_completion
+  disputed
+  closed
+  archived
+
+  @@map("case_status")
+}
+
+enum BudgetMode {
+  amount
+  clarify_later
+
+  @@map("budget_mode")
+}
+
+enum BidStatus {
+  active
+  accepted
+  rejected_by_client
+  rejected_auto
+  withdrawn
+  failed_negotiation
+
+  @@map("bid_status")
+}
+
+enum FeeType {
+  fixed
+  hourly
+  free_consultation
+
+  @@map("fee_type")
+}
+
+enum StartAvailability {
+  immediately
+  within_week
+  custom_date
+
+  @@map("start_availability")
+}
+
+enum PartyRole {
+  client
+  attorney
+
+  @@map("party_role")
+}
+
+enum OfferStatus {
+  pending
+  accepted
+  declined
+  countered
+  superseded
+
+  @@map("offer_status")
+}
+
+enum CaseJournalEvent {
+  created
+  updated
+  bid_placed
+  offer_made
+  bid_accepted
+  bid_rejected
+  bid_withdrawn
+  negotiation_failed
+  contacts_disclosed
+  completion_requested
+  completion_confirmed
+  auto_closed
+  disputed
+  dispute_resolved
+  archived
+  restored
+  deleted
+  closed
+
+  @@map("case_journal_event")
+}
+
+enum ContactIssueType {
+  phone_invalid
+  no_answer
+  email_bounce
+  wrong_person
+  other
+
+  @@map("contact_issue_type")
+}
+
+enum ContactIssueStatus {
+  open
+  confirmed
+  rejected
+
+  @@map("contact_issue_status")
+}
+
+enum DisputeStatus {
+  open
+  resolved
+
+  @@map("dispute_status")
+}
+
+enum ReviewStatus {
+  published
+  hidden
+  removed
+
+  @@map("review_status")
+}
+
+enum ContentStatus {
+  published
+  hidden
+  removed
+
+  @@map("content_status")
+}
+
+enum SavedItemType {
+  post
+  case
+
+  @@map("saved_item_type")
+}
+
+enum MediaType {
+  image
+  video
+
+  @@map("media_type")
+}
+
+enum ConversationStatus {
+  pre_acceptance
+  active
+  closed
+
+  @@map("conversation_status")
+}
+
+enum MessageType {
+  text
+  system
+
+  @@map("message_type")
+}
+
+enum NotificationType {
+  bid_received
+  offer_countered
+  offer_accepted
+  bid_accepted
+  bid_rejected
+  negotiation_failed
+  case_stale_prompt
+  case_archived
+  completion_requested
+  completion_reminder
+  case_closed
+  new_message
+  new_follower
+  post_like
+  post_comment
+  comment_reply
+  comment_like
+  verification_update
+  subscription_trial_ending
+  subscription_payment_failed
+  subscription_status
+  contact_issue_update
+  moderation_notice
+  security_new_device
+
+  @@map("notification_type")
+}
+
+enum NotificationCategory {
+  messages
+  bids
+  cases
+  social
+  system
+  marketing
+
+  @@map("notification_category")
+}
+
+enum SubscriptionStatus {
+  trialing
+  active
+  past_due
+  canceled
+  incomplete
+  expired
+
+  @@map("subscription_status")
+}
+
+enum PaymentStatus {
+  pending
+  succeeded
+  failed
+  refunded
+
+  @@map("payment_status")
+}
+
+enum ReportTargetType {
+  post
+  comment
+  user
+  message
+  case
+  review
+
+  @@map("report_target_type")
+}
+
+enum ReportReason {
+  spam
+  abuse
+  misinformation
+  impersonation
+  inappropriate
+  other
+
+  @@map("report_reason")
+}
+
+enum ReportStatus {
+  open
+  actioned
+  dismissed
+
+  @@map("report_status")
+}
+
+enum ModerationActionType {
+  hide
+  remove
+  warn
+  suspend
+  restore
+
+  @@map("moderation_action_type")
+}
+
+enum AdminRole {
+  super_admin
+  moderator
+  verifier
+  support
+  finance
+
+  @@map("admin_role")
+}
+
+enum DataRequestType {
+  subpoena
+  court_order
+
+  @@map("data_request_type")
+}
+
+enum DataRequestStatus {
+  received
+  in_progress
+  fulfilled
+  rejected
+
+  @@map("data_request_status")
 }
 
 // -----------------------------------------------------------------------
@@ -367,4 +744,40 @@ model I18nBundleVersion {
   // No created_at — docs/02_DATABASE.md §4.B lists only lang/version/
   // updated_at for this table.
   @@map("i18n_bundle_versions")
+}
+
+// -----------------------------------------------------------------------
+// Reference data (docs/02_DATABASE.md §3.1/§3.2) — stage 2.1.
+// -----------------------------------------------------------------------
+
+// docs/02_DATABASE.md §3.1: states(code PK char(2), name, is_active
+// default true). 50 states + DC; UI names come from i18n `state.<code>`.
+model State {
+  code      String  @id @db.Char(2)
+  name      String
+  is_active Boolean @default(true)
+
+  // Reference/seed table — no timestamps, per §3.1's column list.
+  @@map("states")
+}
+
+// docs/02_DATABASE.md §3.2: two-level tree category -> specialization.
+// parent_id is null for a category. code is UQ and follows the §3.2
+// generation rule (see prisma/seed/practice-areas.util.ts). Cases and
+// attorney selections always reference leaves (enforced in services).
+model PracticeArea {
+  id        String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  parent_id String? @db.Uuid
+  code      String  @unique
+  name_en   String
+  i18n_key  String
+  sort      Int
+  is_active Boolean @default(true)
+
+  parent   PracticeArea?  @relation("PracticeAreaTree", fields: [parent_id], references: [id], onDelete: Restrict)
+  children PracticeArea[] @relation("PracticeAreaTree")
+
+  // Reference/seed table — no timestamps, per §3.2's column list.
+  @@index([parent_id])
+  @@map("practice_areas")
 }

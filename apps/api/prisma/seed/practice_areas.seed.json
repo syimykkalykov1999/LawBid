@@ -1,0 +1,1630 @@
+[
+  {
+    "code": "criminal_defense",
+    "name_en": "Criminal Defense",
+    "children": [
+      {
+        "code": "criminal_defense.general_criminal_defense",
+        "name_en": "General Criminal Defense"
+      },
+      {
+        "code": "criminal_defense.felony",
+        "name_en": "Felony"
+      },
+      {
+        "code": "criminal_defense.misdemeanor",
+        "name_en": "Misdemeanor"
+      },
+      {
+        "code": "criminal_defense.drug_offenses",
+        "name_en": "Drug Offenses"
+      },
+      {
+        "code": "criminal_defense.theft_and_burglary",
+        "name_en": "Theft and Burglary"
+      },
+      {
+        "code": "criminal_defense.robbery",
+        "name_en": "Robbery"
+      },
+      {
+        "code": "criminal_defense.assault_and_battery",
+        "name_en": "Assault and Battery"
+      },
+      {
+        "code": "criminal_defense.domestic_violence_charges",
+        "name_en": "Domestic Violence Charges"
+      },
+      {
+        "code": "criminal_defense.sex_crimes",
+        "name_en": "Sex Crimes"
+      },
+      {
+        "code": "criminal_defense.weapons_charges",
+        "name_en": "Weapons Charges"
+      },
+      {
+        "code": "criminal_defense.white_collar_crime",
+        "name_en": "White Collar Crime"
+      },
+      {
+        "code": "criminal_defense.fraud_and_embezzlement",
+        "name_en": "Fraud and Embezzlement"
+      },
+      {
+        "code": "criminal_defense.cyber_crimes",
+        "name_en": "Cyber Crimes"
+      },
+      {
+        "code": "criminal_defense.homicide_and_manslaughter",
+        "name_en": "Homicide and Manslaughter"
+      },
+      {
+        "code": "criminal_defense.federal_crimes",
+        "name_en": "Federal Crimes"
+      },
+      {
+        "code": "criminal_defense.juvenile_crimes",
+        "name_en": "Juvenile Crimes"
+      },
+      {
+        "code": "criminal_defense.probation_and_parole_violation",
+        "name_en": "Probation and Parole Violation"
+      },
+      {
+        "code": "criminal_defense.bail_and_bond_hearings",
+        "name_en": "Bail and Bond Hearings"
+      },
+      {
+        "code": "criminal_defense.expungement_and_record_sealing",
+        "name_en": "Expungement and Record Sealing"
+      },
+      {
+        "code": "criminal_defense.criminal_appeals_and_post_conviction",
+        "name_en": "Criminal Appeals and Post-Conviction"
+      },
+      {
+        "code": "criminal_defense.restraining_order_violations",
+        "name_en": "Restraining Order Violations"
+      },
+      {
+        "code": "criminal_defense.public_intoxication_and_disorderly_conduct",
+        "name_en": "Public Intoxication and Disorderly Conduct"
+      }
+    ]
+  },
+  {
+    "code": "dui_and_dwi",
+    "name_en": "DUI and DWI",
+    "children": [
+      {
+        "code": "dui_and_dwi.first_offense_dui",
+        "name_en": "First Offense DUI"
+      },
+      {
+        "code": "dui_and_dwi.repeat_dui",
+        "name_en": "Repeat DUI"
+      },
+      {
+        "code": "dui_and_dwi.felony_dui",
+        "name_en": "Felony DUI"
+      },
+      {
+        "code": "dui_and_dwi.underage_dui",
+        "name_en": "Underage DUI"
+      },
+      {
+        "code": "dui_and_dwi.commercial_driver_dui",
+        "name_en": "Commercial Driver DUI"
+      },
+      {
+        "code": "dui_and_dwi.drugged_driving",
+        "name_en": "Drugged Driving"
+      },
+      {
+        "code": "dui_and_dwi.dmv_license_suspension_hearing",
+        "name_en": "DMV License Suspension Hearing"
+      },
+      {
+        "code": "dui_and_dwi.ignition_interlock",
+        "name_en": "Ignition Interlock"
+      },
+      {
+        "code": "dui_and_dwi.refusal_of_chemical_test",
+        "name_en": "Refusal of Chemical Test"
+      }
+    ]
+  },
+  {
+    "code": "traffic_tickets",
+    "name_en": "Traffic Tickets",
+    "children": [
+      {
+        "code": "traffic_tickets.speeding",
+        "name_en": "Speeding"
+      },
+      {
+        "code": "traffic_tickets.reckless_driving",
+        "name_en": "Reckless Driving"
+      },
+      {
+        "code": "traffic_tickets.red_light_and_stop_sign",
+        "name_en": "Red Light and Stop Sign"
+      },
+      {
+        "code": "traffic_tickets.driving_without_license_or_insurance",
+        "name_en": "Driving Without License or Insurance"
+      },
+      {
+        "code": "traffic_tickets.license_suspension_and_revocation",
+        "name_en": "License Suspension and Revocation"
+      },
+      {
+        "code": "traffic_tickets.hit_and_run",
+        "name_en": "Hit and Run"
+      },
+      {
+        "code": "traffic_tickets.cdl_violations",
+        "name_en": "CDL Violations"
+      },
+      {
+        "code": "traffic_tickets.moving_violations",
+        "name_en": "Moving Violations"
+      },
+      {
+        "code": "traffic_tickets.parking_tickets",
+        "name_en": "Parking Tickets"
+      },
+      {
+        "code": "traffic_tickets.point_reduction",
+        "name_en": "Point Reduction"
+      },
+      {
+        "code": "traffic_tickets.traffic_court_representation",
+        "name_en": "Traffic Court Representation"
+      },
+      {
+        "code": "traffic_tickets.seat_belt_and_cell_phone_violations",
+        "name_en": "Seat Belt and Cell Phone Violations"
+      }
+    ]
+  },
+  {
+    "code": "personal_injury",
+    "name_en": "Personal Injury",
+    "children": [
+      {
+        "code": "personal_injury.car_accident",
+        "name_en": "Car Accident"
+      },
+      {
+        "code": "personal_injury.truck_accident",
+        "name_en": "Truck Accident"
+      },
+      {
+        "code": "personal_injury.motorcycle_accident",
+        "name_en": "Motorcycle Accident"
+      },
+      {
+        "code": "personal_injury.pedestrian_and_bicycle_accident",
+        "name_en": "Pedestrian and Bicycle Accident"
+      },
+      {
+        "code": "personal_injury.rideshare_accident",
+        "name_en": "Rideshare Accident"
+      },
+      {
+        "code": "personal_injury.bus_and_train_accident",
+        "name_en": "Bus and Train Accident"
+      },
+      {
+        "code": "personal_injury.slip_and_fall",
+        "name_en": "Slip and Fall"
+      },
+      {
+        "code": "personal_injury.premises_liability",
+        "name_en": "Premises Liability"
+      },
+      {
+        "code": "personal_injury.dog_bite",
+        "name_en": "Dog Bite"
+      },
+      {
+        "code": "personal_injury.product_liability",
+        "name_en": "Product Liability"
+      },
+      {
+        "code": "personal_injury.wrongful_death",
+        "name_en": "Wrongful Death"
+      },
+      {
+        "code": "personal_injury.catastrophic_injury",
+        "name_en": "Catastrophic Injury"
+      },
+      {
+        "code": "personal_injury.traumatic_brain_injury",
+        "name_en": "Traumatic Brain Injury"
+      },
+      {
+        "code": "personal_injury.spinal_cord_injury",
+        "name_en": "Spinal Cord Injury"
+      },
+      {
+        "code": "personal_injury.burn_injury",
+        "name_en": "Burn Injury"
+      },
+      {
+        "code": "personal_injury.nursing_home_abuse_and_neglect",
+        "name_en": "Nursing Home Abuse and Neglect"
+      },
+      {
+        "code": "personal_injury.assault_injury",
+        "name_en": "Assault Injury"
+      },
+      {
+        "code": "personal_injury.toxic_exposure",
+        "name_en": "Toxic Exposure"
+      },
+      {
+        "code": "personal_injury.boating_accident",
+        "name_en": "Boating Accident"
+      },
+      {
+        "code": "personal_injury.construction_accident",
+        "name_en": "Construction Accident"
+      },
+      {
+        "code": "personal_injury.sexual_abuse_claims",
+        "name_en": "Sexual Abuse Claims"
+      },
+      {
+        "code": "personal_injury.other_personal_injury",
+        "name_en": "Other Personal Injury"
+      }
+    ]
+  },
+  {
+    "code": "medical_malpractice",
+    "name_en": "Medical Malpractice",
+    "children": [
+      {
+        "code": "medical_malpractice.surgical_error",
+        "name_en": "Surgical Error"
+      },
+      {
+        "code": "medical_malpractice.misdiagnosis_and_delayed_diagnosis",
+        "name_en": "Misdiagnosis and Delayed Diagnosis"
+      },
+      {
+        "code": "medical_malpractice.birth_injury",
+        "name_en": "Birth Injury"
+      },
+      {
+        "code": "medical_malpractice.medication_error",
+        "name_en": "Medication Error"
+      },
+      {
+        "code": "medical_malpractice.anesthesia_error",
+        "name_en": "Anesthesia Error"
+      },
+      {
+        "code": "medical_malpractice.hospital_negligence",
+        "name_en": "Hospital Negligence"
+      },
+      {
+        "code": "medical_malpractice.dental_malpractice",
+        "name_en": "Dental Malpractice"
+      },
+      {
+        "code": "medical_malpractice.nursing_negligence",
+        "name_en": "Nursing Negligence"
+      },
+      {
+        "code": "medical_malpractice.wrongful_death_medical",
+        "name_en": "Wrongful Death Medical"
+      }
+    ]
+  },
+  {
+    "code": "workers_compensation",
+    "name_en": "Workers Compensation",
+    "children": [
+      {
+        "code": "workers_compensation.workplace_injury",
+        "name_en": "Workplace Injury"
+      },
+      {
+        "code": "workers_compensation.occupational_disease",
+        "name_en": "Occupational Disease"
+      },
+      {
+        "code": "workers_compensation.denied_workers_comp_claim",
+        "name_en": "Denied Workers Comp Claim"
+      },
+      {
+        "code": "workers_compensation.return_to_work_disputes",
+        "name_en": "Return to Work Disputes"
+      },
+      {
+        "code": "workers_compensation.third_party_claims",
+        "name_en": "Third-Party Claims"
+      },
+      {
+        "code": "workers_compensation.workers_comp_appeals",
+        "name_en": "Workers Comp Appeals"
+      },
+      {
+        "code": "workers_compensation.permanent_disability",
+        "name_en": "Permanent Disability"
+      },
+      {
+        "code": "workers_compensation.retaliation_for_filing_a_claim",
+        "name_en": "Retaliation for Filing a Claim"
+      }
+    ]
+  },
+  {
+    "code": "family_law",
+    "name_en": "Family Law",
+    "children": [
+      {
+        "code": "family_law.divorce",
+        "name_en": "Divorce"
+      },
+      {
+        "code": "family_law.legal_separation",
+        "name_en": "Legal Separation"
+      },
+      {
+        "code": "family_law.child_custody",
+        "name_en": "Child Custody"
+      },
+      {
+        "code": "family_law.child_support",
+        "name_en": "Child Support"
+      },
+      {
+        "code": "family_law.alimony_and_spousal_support",
+        "name_en": "Alimony and Spousal Support"
+      },
+      {
+        "code": "family_law.property_division",
+        "name_en": "Property Division"
+      },
+      {
+        "code": "family_law.prenuptial_and_postnuptial_agreements",
+        "name_en": "Prenuptial and Postnuptial Agreements"
+      },
+      {
+        "code": "family_law.paternity",
+        "name_en": "Paternity"
+      },
+      {
+        "code": "family_law.adoption",
+        "name_en": "Adoption"
+      },
+      {
+        "code": "family_law.guardianship_of_minors",
+        "name_en": "Guardianship of Minors"
+      },
+      {
+        "code": "family_law.domestic_violence_protective_orders",
+        "name_en": "Domestic Violence Protective Orders"
+      },
+      {
+        "code": "family_law.modification_and_enforcement_of_orders",
+        "name_en": "Modification and Enforcement of Orders"
+      },
+      {
+        "code": "family_law.grandparents_rights",
+        "name_en": "Grandparents Rights"
+      },
+      {
+        "code": "family_law.name_change",
+        "name_en": "Name Change"
+      },
+      {
+        "code": "family_law.annulment",
+        "name_en": "Annulment"
+      },
+      {
+        "code": "family_law.surrogacy_and_assisted_reproduction",
+        "name_en": "Surrogacy and Assisted Reproduction"
+      },
+      {
+        "code": "family_law.relocation_with_children",
+        "name_en": "Relocation with Children"
+      },
+      {
+        "code": "family_law.military_divorce",
+        "name_en": "Military Divorce"
+      }
+    ]
+  },
+  {
+    "code": "immigration",
+    "name_en": "Immigration",
+    "children": [
+      {
+        "code": "immigration.family_based_immigration",
+        "name_en": "Family-Based Immigration"
+      },
+      {
+        "code": "immigration.employment_visas",
+        "name_en": "Employment Visas"
+      },
+      {
+        "code": "immigration.green_card",
+        "name_en": "Green Card"
+      },
+      {
+        "code": "immigration.citizenship_and_naturalization",
+        "name_en": "Citizenship and Naturalization"
+      },
+      {
+        "code": "immigration.asylum_and_refugee",
+        "name_en": "Asylum and Refugee"
+      },
+      {
+        "code": "immigration.deportation_and_removal_defense",
+        "name_en": "Deportation and Removal Defense"
+      },
+      {
+        "code": "immigration.daca",
+        "name_en": "DACA"
+      },
+      {
+        "code": "immigration.student_visas",
+        "name_en": "Student Visas"
+      },
+      {
+        "code": "immigration.investor_visas",
+        "name_en": "Investor Visas"
+      },
+      {
+        "code": "immigration.waivers",
+        "name_en": "Waivers"
+      },
+      {
+        "code": "immigration.temporary_protected_status",
+        "name_en": "Temporary Protected Status"
+      },
+      {
+        "code": "immigration.u_and_t_visas",
+        "name_en": "U and T Visas"
+      },
+      {
+        "code": "immigration.vawa",
+        "name_en": "VAWA"
+      },
+      {
+        "code": "immigration.immigration_appeals",
+        "name_en": "Immigration Appeals"
+      },
+      {
+        "code": "immigration.detention_and_bond_hearings",
+        "name_en": "Detention and Bond Hearings"
+      },
+      {
+        "code": "immigration.consular_processing",
+        "name_en": "Consular Processing"
+      },
+      {
+        "code": "immigration.visa_overstay",
+        "name_en": "Visa Overstay"
+      }
+    ]
+  },
+  {
+    "code": "estate_planning_and_probate",
+    "name_en": "Estate Planning and Probate",
+    "children": [
+      {
+        "code": "estate_planning_and_probate.wills",
+        "name_en": "Wills"
+      },
+      {
+        "code": "estate_planning_and_probate.trusts",
+        "name_en": "Trusts"
+      },
+      {
+        "code": "estate_planning_and_probate.probate_administration",
+        "name_en": "Probate Administration"
+      },
+      {
+        "code": "estate_planning_and_probate.estate_litigation",
+        "name_en": "Estate Litigation"
+      },
+      {
+        "code": "estate_planning_and_probate.trust_administration",
+        "name_en": "Trust Administration"
+      },
+      {
+        "code": "estate_planning_and_probate.power_of_attorney",
+        "name_en": "Power of Attorney"
+      },
+      {
+        "code": "estate_planning_and_probate.healthcare_directives",
+        "name_en": "Healthcare Directives"
+      },
+      {
+        "code": "estate_planning_and_probate.guardianship_and_conservatorship",
+        "name_en": "Guardianship and Conservatorship"
+      },
+      {
+        "code": "estate_planning_and_probate.estate_tax_planning",
+        "name_en": "Estate Tax Planning"
+      },
+      {
+        "code": "estate_planning_and_probate.beneficiary_disputes",
+        "name_en": "Beneficiary Disputes"
+      }
+    ]
+  },
+  {
+    "code": "elder_law",
+    "name_en": "Elder Law",
+    "children": [
+      {
+        "code": "elder_law.medicaid_planning",
+        "name_en": "Medicaid Planning"
+      },
+      {
+        "code": "elder_law.long_term_care_planning",
+        "name_en": "Long-Term Care Planning"
+      },
+      {
+        "code": "elder_law.elder_abuse",
+        "name_en": "Elder Abuse"
+      },
+      {
+        "code": "elder_law.adult_guardianship",
+        "name_en": "Adult Guardianship"
+      },
+      {
+        "code": "elder_law.nursing_home_issues",
+        "name_en": "Nursing Home Issues"
+      },
+      {
+        "code": "elder_law.special_needs_planning",
+        "name_en": "Special Needs Planning"
+      }
+    ]
+  },
+  {
+    "code": "real_estate",
+    "name_en": "Real Estate",
+    "children": [
+      {
+        "code": "real_estate.residential_purchase_and_sale",
+        "name_en": "Residential Purchase and Sale"
+      },
+      {
+        "code": "real_estate.commercial_real_estate",
+        "name_en": "Commercial Real Estate"
+      },
+      {
+        "code": "real_estate.closing_and_title",
+        "name_en": "Closing and Title"
+      },
+      {
+        "code": "real_estate.title_disputes_and_quiet_title",
+        "name_en": "Title Disputes and Quiet Title"
+      },
+      {
+        "code": "real_estate.foreclosure_defense",
+        "name_en": "Foreclosure Defense"
+      },
+      {
+        "code": "real_estate.mortgage_disputes",
+        "name_en": "Mortgage Disputes"
+      },
+      {
+        "code": "real_estate.boundary_and_easement_disputes",
+        "name_en": "Boundary and Easement Disputes"
+      },
+      {
+        "code": "real_estate.hoa_disputes",
+        "name_en": "HOA Disputes"
+      },
+      {
+        "code": "real_estate.zoning_and_land_use",
+        "name_en": "Zoning and Land Use"
+      },
+      {
+        "code": "real_estate.eminent_domain",
+        "name_en": "Eminent Domain"
+      },
+      {
+        "code": "real_estate.real_estate_litigation",
+        "name_en": "Real Estate Litigation"
+      }
+    ]
+  },
+  {
+    "code": "landlord_and_tenant",
+    "name_en": "Landlord and Tenant",
+    "children": [
+      {
+        "code": "landlord_and_tenant.eviction_defense",
+        "name_en": "Eviction Defense"
+      },
+      {
+        "code": "landlord_and_tenant.eviction_for_landlords",
+        "name_en": "Eviction for Landlords"
+      },
+      {
+        "code": "landlord_and_tenant.lease_review_and_disputes",
+        "name_en": "Lease Review and Disputes"
+      },
+      {
+        "code": "landlord_and_tenant.security_deposit_disputes",
+        "name_en": "Security Deposit Disputes"
+      },
+      {
+        "code": "landlord_and_tenant.habitability_and_repairs",
+        "name_en": "Habitability and Repairs"
+      },
+      {
+        "code": "landlord_and_tenant.rent_disputes",
+        "name_en": "Rent Disputes"
+      },
+      {
+        "code": "landlord_and_tenant.commercial_lease_disputes",
+        "name_en": "Commercial Lease Disputes"
+      },
+      {
+        "code": "landlord_and_tenant.housing_discrimination",
+        "name_en": "Housing Discrimination"
+      }
+    ]
+  },
+  {
+    "code": "employment_and_labor",
+    "name_en": "Employment and Labor",
+    "children": [
+      {
+        "code": "employment_and_labor.wrongful_termination",
+        "name_en": "Wrongful Termination"
+      },
+      {
+        "code": "employment_and_labor.workplace_discrimination",
+        "name_en": "Workplace Discrimination"
+      },
+      {
+        "code": "employment_and_labor.sexual_harassment",
+        "name_en": "Sexual Harassment"
+      },
+      {
+        "code": "employment_and_labor.wage_and_hour",
+        "name_en": "Wage and Hour"
+      },
+      {
+        "code": "employment_and_labor.retaliation_and_whistleblower",
+        "name_en": "Retaliation and Whistleblower"
+      },
+      {
+        "code": "employment_and_labor.employment_contracts_and_severance",
+        "name_en": "Employment Contracts and Severance"
+      },
+      {
+        "code": "employment_and_labor.non_compete_agreements",
+        "name_en": "Non-Compete Agreements"
+      },
+      {
+        "code": "employment_and_labor.fmla_and_leave",
+        "name_en": "FMLA and Leave"
+      },
+      {
+        "code": "employment_and_labor.unemployment_benefits",
+        "name_en": "Unemployment Benefits"
+      },
+      {
+        "code": "employment_and_labor.union_and_labor_relations",
+        "name_en": "Union and Labor Relations"
+      },
+      {
+        "code": "employment_and_labor.employer_side_representation",
+        "name_en": "Employer-Side Representation"
+      },
+      {
+        "code": "employment_and_labor.workplace_investigations",
+        "name_en": "Workplace Investigations"
+      }
+    ]
+  },
+  {
+    "code": "bankruptcy_and_debt",
+    "name_en": "Bankruptcy and Debt",
+    "children": [
+      {
+        "code": "bankruptcy_and_debt.chapter_7_bankruptcy",
+        "name_en": "Chapter 7 Bankruptcy"
+      },
+      {
+        "code": "bankruptcy_and_debt.chapter_11_bankruptcy",
+        "name_en": "Chapter 11 Bankruptcy"
+      },
+      {
+        "code": "bankruptcy_and_debt.chapter_13_bankruptcy",
+        "name_en": "Chapter 13 Bankruptcy"
+      },
+      {
+        "code": "bankruptcy_and_debt.debt_settlement",
+        "name_en": "Debt Settlement"
+      },
+      {
+        "code": "bankruptcy_and_debt.creditor_harassment",
+        "name_en": "Creditor Harassment"
+      },
+      {
+        "code": "bankruptcy_and_debt.wage_garnishment",
+        "name_en": "Wage Garnishment"
+      },
+      {
+        "code": "bankruptcy_and_debt.repossession",
+        "name_en": "Repossession"
+      },
+      {
+        "code": "bankruptcy_and_debt.student_loan_debt",
+        "name_en": "Student Loan Debt"
+      },
+      {
+        "code": "bankruptcy_and_debt.credit_report_disputes",
+        "name_en": "Credit Report Disputes"
+      },
+      {
+        "code": "bankruptcy_and_debt.judgment_defense",
+        "name_en": "Judgment Defense"
+      }
+    ]
+  },
+  {
+    "code": "business_and_corporate",
+    "name_en": "Business and Corporate",
+    "children": [
+      {
+        "code": "business_and_corporate.business_formation",
+        "name_en": "Business Formation"
+      },
+      {
+        "code": "business_and_corporate.contracts",
+        "name_en": "Contracts"
+      },
+      {
+        "code": "business_and_corporate.mergers_and_acquisitions",
+        "name_en": "Mergers and Acquisitions"
+      },
+      {
+        "code": "business_and_corporate.partnership_and_shareholder_disputes",
+        "name_en": "Partnership and Shareholder Disputes"
+      },
+      {
+        "code": "business_and_corporate.commercial_litigation",
+        "name_en": "Commercial Litigation"
+      },
+      {
+        "code": "business_and_corporate.franchise_law",
+        "name_en": "Franchise Law"
+      },
+      {
+        "code": "business_and_corporate.corporate_governance",
+        "name_en": "Corporate Governance"
+      },
+      {
+        "code": "business_and_corporate.startups_and_venture_capital",
+        "name_en": "Startups and Venture Capital"
+      },
+      {
+        "code": "business_and_corporate.business_sale_and_purchase",
+        "name_en": "Business Sale and Purchase"
+      },
+      {
+        "code": "business_and_corporate.regulatory_compliance",
+        "name_en": "Regulatory Compliance"
+      },
+      {
+        "code": "business_and_corporate.business_dissolution",
+        "name_en": "Business Dissolution"
+      },
+      {
+        "code": "business_and_corporate.licensing_agreements",
+        "name_en": "Licensing Agreements"
+      }
+    ]
+  },
+  {
+    "code": "intellectual_property",
+    "name_en": "Intellectual Property",
+    "children": [
+      {
+        "code": "intellectual_property.patents",
+        "name_en": "Patents"
+      },
+      {
+        "code": "intellectual_property.trademarks",
+        "name_en": "Trademarks"
+      },
+      {
+        "code": "intellectual_property.copyright",
+        "name_en": "Copyright"
+      },
+      {
+        "code": "intellectual_property.trade_secrets",
+        "name_en": "Trade Secrets"
+      },
+      {
+        "code": "intellectual_property.ip_litigation",
+        "name_en": "IP Litigation"
+      },
+      {
+        "code": "intellectual_property.dmca_and_online_infringement",
+        "name_en": "DMCA and Online Infringement"
+      },
+      {
+        "code": "intellectual_property.licensing",
+        "name_en": "Licensing"
+      }
+    ]
+  },
+  {
+    "code": "tax_law",
+    "name_en": "Tax Law",
+    "children": [
+      {
+        "code": "tax_law.irs_audits",
+        "name_en": "IRS Audits"
+      },
+      {
+        "code": "tax_law.tax_debt_settlement",
+        "name_en": "Tax Debt Settlement"
+      },
+      {
+        "code": "tax_law.tax_planning",
+        "name_en": "Tax Planning"
+      },
+      {
+        "code": "tax_law.criminal_tax_defense",
+        "name_en": "Criminal Tax Defense"
+      },
+      {
+        "code": "tax_law.payroll_tax",
+        "name_en": "Payroll Tax"
+      },
+      {
+        "code": "tax_law.state_and_local_tax",
+        "name_en": "State and Local Tax"
+      },
+      {
+        "code": "tax_law.international_tax",
+        "name_en": "International Tax"
+      },
+      {
+        "code": "tax_law.tax_court_and_appeals",
+        "name_en": "Tax Court and Appeals"
+      },
+      {
+        "code": "tax_law.innocent_spouse_relief",
+        "name_en": "Innocent Spouse Relief"
+      },
+      {
+        "code": "tax_law.back_taxes_and_liens",
+        "name_en": "Back Taxes and Liens"
+      }
+    ]
+  },
+  {
+    "code": "civil_litigation",
+    "name_en": "Civil Litigation",
+    "children": [
+      {
+        "code": "civil_litigation.general_civil_litigation",
+        "name_en": "General Civil Litigation"
+      },
+      {
+        "code": "civil_litigation.contract_disputes",
+        "name_en": "Contract Disputes"
+      },
+      {
+        "code": "civil_litigation.business_torts",
+        "name_en": "Business Torts"
+      },
+      {
+        "code": "civil_litigation.defamation_and_libel",
+        "name_en": "Defamation and Libel"
+      },
+      {
+        "code": "civil_litigation.property_damage",
+        "name_en": "Property Damage"
+      },
+      {
+        "code": "civil_litigation.small_claims",
+        "name_en": "Small Claims"
+      },
+      {
+        "code": "civil_litigation.class_action",
+        "name_en": "Class Action"
+      },
+      {
+        "code": "civil_litigation.mass_torts",
+        "name_en": "Mass Torts"
+      },
+      {
+        "code": "civil_litigation.injunctions_and_restraining_orders",
+        "name_en": "Injunctions and Restraining Orders"
+      },
+      {
+        "code": "civil_litigation.collections_and_judgment_enforcement",
+        "name_en": "Collections and Judgment Enforcement"
+      },
+      {
+        "code": "civil_litigation.civil_fraud",
+        "name_en": "Civil Fraud"
+      },
+      {
+        "code": "civil_litigation.arbitration_and_mediation_representation",
+        "name_en": "Arbitration and Mediation Representation"
+      }
+    ]
+  },
+  {
+    "code": "consumer_protection",
+    "name_en": "Consumer Protection",
+    "children": [
+      {
+        "code": "consumer_protection.consumer_fraud",
+        "name_en": "Consumer Fraud"
+      },
+      {
+        "code": "consumer_protection.lemon_law",
+        "name_en": "Lemon Law"
+      },
+      {
+        "code": "consumer_protection.false_advertising",
+        "name_en": "False Advertising"
+      },
+      {
+        "code": "consumer_protection.identity_theft",
+        "name_en": "Identity Theft"
+      },
+      {
+        "code": "consumer_protection.unfair_debt_collection",
+        "name_en": "Unfair Debt Collection"
+      },
+      {
+        "code": "consumer_protection.warranty_claims",
+        "name_en": "Warranty Claims"
+      },
+      {
+        "code": "consumer_protection.auto_dealer_fraud",
+        "name_en": "Auto Dealer Fraud"
+      },
+      {
+        "code": "consumer_protection.data_breach",
+        "name_en": "Data Breach"
+      },
+      {
+        "code": "consumer_protection.telemarketing_and_robocalls",
+        "name_en": "Telemarketing and Robocalls"
+      },
+      {
+        "code": "consumer_protection.scams_and_fraud_recovery",
+        "name_en": "Scams and Fraud Recovery"
+      }
+    ]
+  },
+  {
+    "code": "insurance_law",
+    "name_en": "Insurance Law",
+    "children": [
+      {
+        "code": "insurance_law.insurance_claim_denial",
+        "name_en": "Insurance Claim Denial"
+      },
+      {
+        "code": "insurance_law.bad_faith_insurance",
+        "name_en": "Bad Faith Insurance"
+      },
+      {
+        "code": "insurance_law.homeowners_insurance_claims",
+        "name_en": "Homeowners Insurance Claims"
+      },
+      {
+        "code": "insurance_law.auto_insurance_disputes",
+        "name_en": "Auto Insurance Disputes"
+      },
+      {
+        "code": "insurance_law.life_insurance_claims",
+        "name_en": "Life Insurance Claims"
+      },
+      {
+        "code": "insurance_law.disability_insurance_claims",
+        "name_en": "Disability Insurance Claims"
+      },
+      {
+        "code": "insurance_law.health_insurance_denial",
+        "name_en": "Health Insurance Denial"
+      },
+      {
+        "code": "insurance_law.business_insurance_claims",
+        "name_en": "Business Insurance Claims"
+      },
+      {
+        "code": "insurance_law.flood_and_storm_damage_claims",
+        "name_en": "Flood and Storm Damage Claims"
+      }
+    ]
+  },
+  {
+    "code": "social_security_disability",
+    "name_en": "Social Security Disability",
+    "children": [
+      {
+        "code": "social_security_disability.ssdi",
+        "name_en": "SSDI"
+      },
+      {
+        "code": "social_security_disability.ssi",
+        "name_en": "SSI"
+      },
+      {
+        "code": "social_security_disability.denied_disability_appeals",
+        "name_en": "Denied Disability Appeals"
+      },
+      {
+        "code": "social_security_disability.continuing_disability_review",
+        "name_en": "Continuing Disability Review"
+      },
+      {
+        "code": "social_security_disability.disability_hearings",
+        "name_en": "Disability Hearings"
+      }
+    ]
+  },
+  {
+    "code": "veterans_and_military",
+    "name_en": "Veterans and Military",
+    "children": [
+      {
+        "code": "veterans_and_military.va_disability_benefits",
+        "name_en": "VA Disability Benefits"
+      },
+      {
+        "code": "veterans_and_military.va_appeals",
+        "name_en": "VA Appeals"
+      },
+      {
+        "code": "veterans_and_military.military_justice_and_court_martial",
+        "name_en": "Military Justice and Court-Martial"
+      },
+      {
+        "code": "veterans_and_military.discharge_upgrades",
+        "name_en": "Discharge Upgrades"
+      },
+      {
+        "code": "veterans_and_military.servicemembers_civil_relief_act",
+        "name_en": "Servicemembers Civil Relief Act"
+      },
+      {
+        "code": "veterans_and_military.userra_employment_rights",
+        "name_en": "USERRA Employment Rights"
+      },
+      {
+        "code": "veterans_and_military.military_family_law",
+        "name_en": "Military Family Law"
+      }
+    ]
+  },
+  {
+    "code": "civil_rights",
+    "name_en": "Civil Rights",
+    "children": [
+      {
+        "code": "civil_rights.police_misconduct",
+        "name_en": "Police Misconduct"
+      },
+      {
+        "code": "civil_rights.section_1983_claims",
+        "name_en": "Section 1983 Claims"
+      },
+      {
+        "code": "civil_rights.wrongful_conviction",
+        "name_en": "Wrongful Conviction"
+      },
+      {
+        "code": "civil_rights.prisoner_rights",
+        "name_en": "Prisoner Rights"
+      },
+      {
+        "code": "civil_rights.disability_rights_and_ada",
+        "name_en": "Disability Rights and ADA"
+      },
+      {
+        "code": "civil_rights.voting_rights",
+        "name_en": "Voting Rights"
+      },
+      {
+        "code": "civil_rights.first_amendment",
+        "name_en": "First Amendment"
+      },
+      {
+        "code": "civil_rights.religious_freedom",
+        "name_en": "Religious Freedom"
+      },
+      {
+        "code": "civil_rights.discrimination_in_public_services",
+        "name_en": "Discrimination in Public Services"
+      }
+    ]
+  },
+  {
+    "code": "education_law",
+    "name_en": "Education Law",
+    "children": [
+      {
+        "code": "education_law.student_discipline",
+        "name_en": "Student Discipline"
+      },
+      {
+        "code": "education_law.special_education_and_iep",
+        "name_en": "Special Education and IEP"
+      },
+      {
+        "code": "education_law.title_ix",
+        "name_en": "Title IX"
+      },
+      {
+        "code": "education_law.university_disputes",
+        "name_en": "University Disputes"
+      },
+      {
+        "code": "education_law.school_negligence",
+        "name_en": "School Negligence"
+      },
+      {
+        "code": "education_law.student_rights",
+        "name_en": "Student Rights"
+      }
+    ]
+  },
+  {
+    "code": "health_care_law",
+    "name_en": "Health Care Law",
+    "children": [
+      {
+        "code": "health_care_law.medical_license_defense",
+        "name_en": "Medical License Defense"
+      },
+      {
+        "code": "health_care_law.hipaa_and_compliance",
+        "name_en": "HIPAA and Compliance"
+      },
+      {
+        "code": "health_care_law.medicare_and_medicaid_billing",
+        "name_en": "Medicare and Medicaid Billing"
+      },
+      {
+        "code": "health_care_law.provider_disputes",
+        "name_en": "Provider Disputes"
+      },
+      {
+        "code": "health_care_law.patient_rights",
+        "name_en": "Patient Rights"
+      },
+      {
+        "code": "health_care_law.medical_billing_disputes",
+        "name_en": "Medical Billing Disputes"
+      }
+    ]
+  },
+  {
+    "code": "government_and_administrative_law",
+    "name_en": "Government and Administrative Law",
+    "children": [
+      {
+        "code": "government_and_administrative_law.administrative_hearings",
+        "name_en": "Administrative Hearings"
+      },
+      {
+        "code": "government_and_administrative_law.professional_license_defense",
+        "name_en": "Professional License Defense"
+      },
+      {
+        "code": "government_and_administrative_law.government_contracts",
+        "name_en": "Government Contracts"
+      },
+      {
+        "code": "government_and_administrative_law.foia_and_public_records",
+        "name_en": "FOIA and Public Records"
+      },
+      {
+        "code": "government_and_administrative_law.permits_and_licensing",
+        "name_en": "Permits and Licensing"
+      },
+      {
+        "code": "government_and_administrative_law.public_benefits",
+        "name_en": "Public Benefits"
+      },
+      {
+        "code": "government_and_administrative_law.municipal_law",
+        "name_en": "Municipal Law"
+      },
+      {
+        "code": "government_and_administrative_law.agency_appeals",
+        "name_en": "Agency Appeals"
+      }
+    ]
+  },
+  {
+    "code": "appeals",
+    "name_en": "Appeals",
+    "children": [
+      {
+        "code": "appeals.civil_appeals",
+        "name_en": "Civil Appeals"
+      },
+      {
+        "code": "appeals.criminal_appeals",
+        "name_en": "Criminal Appeals"
+      },
+      {
+        "code": "appeals.federal_appeals",
+        "name_en": "Federal Appeals"
+      },
+      {
+        "code": "appeals.writs_and_extraordinary_relief",
+        "name_en": "Writs and Extraordinary Relief"
+      },
+      {
+        "code": "appeals.appellate_briefs",
+        "name_en": "Appellate Briefs"
+      }
+    ]
+  },
+  {
+    "code": "construction_law",
+    "name_en": "Construction Law",
+    "children": [
+      {
+        "code": "construction_law.contractor_disputes",
+        "name_en": "Contractor Disputes"
+      },
+      {
+        "code": "construction_law.mechanics_liens",
+        "name_en": "Mechanics Liens"
+      },
+      {
+        "code": "construction_law.construction_defects",
+        "name_en": "Construction Defects"
+      },
+      {
+        "code": "construction_law.construction_contracts",
+        "name_en": "Construction Contracts"
+      },
+      {
+        "code": "construction_law.surety_bonds",
+        "name_en": "Surety Bonds"
+      }
+    ]
+  },
+  {
+    "code": "securities_and_financial_law",
+    "name_en": "Securities and Financial Law",
+    "children": [
+      {
+        "code": "securities_and_financial_law.securities_fraud",
+        "name_en": "Securities Fraud"
+      },
+      {
+        "code": "securities_and_financial_law.investment_fraud_and_finra",
+        "name_en": "Investment Fraud and FINRA"
+      },
+      {
+        "code": "securities_and_financial_law.banking_and_finance",
+        "name_en": "Banking and Finance"
+      },
+      {
+        "code": "securities_and_financial_law.financial_regulation",
+        "name_en": "Financial Regulation"
+      },
+      {
+        "code": "securities_and_financial_law.cryptocurrency_and_blockchain",
+        "name_en": "Cryptocurrency and Blockchain"
+      },
+      {
+        "code": "securities_and_financial_law.ponzi_schemes",
+        "name_en": "Ponzi Schemes"
+      }
+    ]
+  },
+  {
+    "code": "environmental_and_energy_law",
+    "name_en": "Environmental and Energy Law",
+    "children": [
+      {
+        "code": "environmental_and_energy_law.environmental_compliance",
+        "name_en": "Environmental Compliance"
+      },
+      {
+        "code": "environmental_and_energy_law.toxic_torts",
+        "name_en": "Toxic Torts"
+      },
+      {
+        "code": "environmental_and_energy_law.oil_and_gas",
+        "name_en": "Oil and Gas"
+      },
+      {
+        "code": "environmental_and_energy_law.renewable_energy",
+        "name_en": "Renewable Energy"
+      },
+      {
+        "code": "environmental_and_energy_law.land_contamination",
+        "name_en": "Land Contamination"
+      },
+      {
+        "code": "environmental_and_energy_law.water_rights",
+        "name_en": "Water Rights"
+      }
+    ]
+  },
+  {
+    "code": "technology_privacy_and_cyber_law",
+    "name_en": "Technology, Privacy and Cyber Law",
+    "children": [
+      {
+        "code": "technology_privacy_and_cyber_law.data_privacy_compliance",
+        "name_en": "Data Privacy Compliance"
+      },
+      {
+        "code": "technology_privacy_and_cyber_law.cybersecurity_incidents",
+        "name_en": "Cybersecurity Incidents"
+      },
+      {
+        "code": "technology_privacy_and_cyber_law.software_and_technology_contracts",
+        "name_en": "Software and Technology Contracts"
+      },
+      {
+        "code": "technology_privacy_and_cyber_law.internet_and_e_commerce_law",
+        "name_en": "Internet and E-Commerce Law"
+      },
+      {
+        "code": "technology_privacy_and_cyber_law.online_defamation",
+        "name_en": "Online Defamation"
+      },
+      {
+        "code": "technology_privacy_and_cyber_law.social_media_disputes",
+        "name_en": "Social Media Disputes"
+      }
+    ]
+  },
+  {
+    "code": "entertainment_media_and_sports_law",
+    "name_en": "Entertainment, Media and Sports Law",
+    "children": [
+      {
+        "code": "entertainment_media_and_sports_law.entertainment_contracts",
+        "name_en": "Entertainment Contracts"
+      },
+      {
+        "code": "entertainment_media_and_sports_law.film_and_music",
+        "name_en": "Film and Music"
+      },
+      {
+        "code": "entertainment_media_and_sports_law.media_and_publishing",
+        "name_en": "Media and Publishing"
+      },
+      {
+        "code": "entertainment_media_and_sports_law.athlete_contracts",
+        "name_en": "Athlete Contracts"
+      },
+      {
+        "code": "entertainment_media_and_sports_law.publicity_and_image_rights",
+        "name_en": "Publicity and Image Rights"
+      }
+    ]
+  },
+  {
+    "code": "aviation_and_maritime_law",
+    "name_en": "Aviation and Maritime Law",
+    "children": [
+      {
+        "code": "aviation_and_maritime_law.aviation_accidents",
+        "name_en": "Aviation Accidents"
+      },
+      {
+        "code": "aviation_and_maritime_law.airline_passenger_rights",
+        "name_en": "Airline Passenger Rights"
+      },
+      {
+        "code": "aviation_and_maritime_law.maritime_injury_and_jones_act",
+        "name_en": "Maritime Injury and Jones Act"
+      },
+      {
+        "code": "aviation_and_maritime_law.admiralty",
+        "name_en": "Admiralty"
+      },
+      {
+        "code": "aviation_and_maritime_law.cargo_disputes",
+        "name_en": "Cargo Disputes"
+      }
+    ]
+  },
+  {
+    "code": "international_and_cross_border_law",
+    "name_en": "International and Cross-Border Law",
+    "children": [
+      {
+        "code": "international_and_cross_border_law.international_business",
+        "name_en": "International Business"
+      },
+      {
+        "code": "international_and_cross_border_law.international_family_law_and_hague_convention",
+        "name_en": "International Family Law and Hague Convention"
+      },
+      {
+        "code": "international_and_cross_border_law.extradition",
+        "name_en": "Extradition"
+      },
+      {
+        "code": "international_and_cross_border_law.foreign_judgments",
+        "name_en": "Foreign Judgments"
+      },
+      {
+        "code": "international_and_cross_border_law.customs_and_trade",
+        "name_en": "Customs and Trade"
+      }
+    ]
+  },
+  {
+    "code": "antitrust_and_trade_regulation",
+    "name_en": "Antitrust and Trade Regulation",
+    "children": [
+      {
+        "code": "antitrust_and_trade_regulation.antitrust",
+        "name_en": "Antitrust"
+      },
+      {
+        "code": "antitrust_and_trade_regulation.unfair_competition",
+        "name_en": "Unfair Competition"
+      },
+      {
+        "code": "antitrust_and_trade_regulation.price_fixing",
+        "name_en": "Price Fixing"
+      },
+      {
+        "code": "antitrust_and_trade_regulation.trade_regulation",
+        "name_en": "Trade Regulation"
+      }
+    ]
+  },
+  {
+    "code": "nonprofit_and_religious_organizations",
+    "name_en": "Nonprofit and Religious Organizations",
+    "children": [
+      {
+        "code": "nonprofit_and_religious_organizations.nonprofit_formation",
+        "name_en": "Nonprofit Formation"
+      },
+      {
+        "code": "nonprofit_and_religious_organizations.tax_exempt_status",
+        "name_en": "Tax-Exempt Status"
+      },
+      {
+        "code": "nonprofit_and_religious_organizations.nonprofit_governance",
+        "name_en": "Nonprofit Governance"
+      },
+      {
+        "code": "nonprofit_and_religious_organizations.religious_organizations",
+        "name_en": "Religious Organizations"
+      }
+    ]
+  },
+  {
+    "code": "native_american_and_tribal_law",
+    "name_en": "Native American and Tribal Law",
+    "children": [
+      {
+        "code": "native_american_and_tribal_law.tribal_jurisdiction",
+        "name_en": "Tribal Jurisdiction"
+      },
+      {
+        "code": "native_american_and_tribal_law.indian_child_welfare",
+        "name_en": "Indian Child Welfare"
+      },
+      {
+        "code": "native_american_and_tribal_law.tribal_land_and_property",
+        "name_en": "Tribal Land and Property"
+      }
+    ]
+  },
+  {
+    "code": "animal_law",
+    "name_en": "Animal Law",
+    "children": [
+      {
+        "code": "animal_law.animal_cruelty",
+        "name_en": "Animal Cruelty"
+      },
+      {
+        "code": "animal_law.pet_custody",
+        "name_en": "Pet Custody"
+      },
+      {
+        "code": "animal_law.dangerous_dog_cases",
+        "name_en": "Dangerous Dog Cases"
+      },
+      {
+        "code": "animal_law.veterinary_malpractice",
+        "name_en": "Veterinary Malpractice"
+      }
+    ]
+  },
+  {
+    "code": "cannabis_alcohol_and_firearms_law",
+    "name_en": "Cannabis, Alcohol and Firearms Law",
+    "children": [
+      {
+        "code": "cannabis_alcohol_and_firearms_law.cannabis_licensing",
+        "name_en": "Cannabis Licensing"
+      },
+      {
+        "code": "cannabis_alcohol_and_firearms_law.alcohol_licensing",
+        "name_en": "Alcohol Licensing"
+      },
+      {
+        "code": "cannabis_alcohol_and_firearms_law.firearms_licensing",
+        "name_en": "Firearms Licensing"
+      },
+      {
+        "code": "cannabis_alcohol_and_firearms_law.firearms_rights_restoration",
+        "name_en": "Firearms Rights Restoration"
+      }
+    ]
+  },
+  {
+    "code": "agriculture_and_gaming_law",
+    "name_en": "Agriculture and Gaming Law",
+    "children": [
+      {
+        "code": "agriculture_and_gaming_law.agricultural_law",
+        "name_en": "Agricultural Law"
+      },
+      {
+        "code": "agriculture_and_gaming_law.gaming_and_gambling_law",
+        "name_en": "Gaming and Gambling Law"
+      }
+    ]
+  },
+  {
+    "code": "legal_malpractice",
+    "name_en": "Legal Malpractice",
+    "children": [
+      {
+        "code": "legal_malpractice.attorney_negligence",
+        "name_en": "Attorney Negligence"
+      },
+      {
+        "code": "legal_malpractice.attorney_fee_disputes",
+        "name_en": "Attorney Fee Disputes"
+      },
+      {
+        "code": "legal_malpractice.attorney_ethics_complaints",
+        "name_en": "Attorney Ethics Complaints"
+      }
+    ]
+  },
+  {
+    "code": "general_practice",
+    "name_en": "General Practice",
+    "children": [
+      {
+        "code": "general_practice.general_practice",
+        "name_en": "General Practice"
+      },
+      {
+        "code": "general_practice.not_sure_or_other",
+        "name_en": "Not Sure or Other"
+      }
+    ]
+  }
+]

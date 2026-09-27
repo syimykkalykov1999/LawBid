@@ -2832,3 +2832,51 @@ User report from real-device testing: app looks and navigates correctly, but tap
 Two stacked causes, both about talking to a `localhost`-only dev backend from a device that isn't `localhost`:
 1. `apps/mobile/lib/core/network/dio_client.dart`'s `API_BASE_URL` default is `http://10.0.2.2:3000/api/v1` — `10.0.2.2` is the Android emulator's own special alias for "the host machine"; it means nothing on iOS (simulator or real device) or on Android/iOS hardware sitting on the same Wi-Fi as the Mac. Fix is NOT a code change (there's no single default that's correct for Android emulator, iOS simulator, and a real device at once) — it's a `--dart-define=API_BASE_URL=...` override at `flutter run` time, documented back to the user.
 2. `apps/mobile/ios/Runner/Info.plist` had no App Transport Security exception. iOS blocks plain `http://` requests by default; since the local dev backend has no TLS certificate, every request from the iOS app would have been silently rejected at the OS level regardless of the base URL being correct. Added `NSAppTransportSecurity` / `NSAllowsArbitraryLoads` for local dev, clearly commented as dev-only and to be removed once the backend is served over `https://`.
+
+## Stage 2.1 (enums + states + practice_areas) — 2026-09-27
+
+Per docs/02_DATABASE.md §8 "Этап 2.1" (phase A order in docs/06 §14:
+1.3 → 2.1 → 2.2 → 1.4; 2.1 had been skipped while stages 1.4–1.8 went
+ahead, so it is done now).
+
+- `schema.prisma`: all remaining §2 enums (38 new, 44 total in the DB),
+  `State` (`states`, code `char(2)` PK) and `PracticeArea`
+  (`practice_areas`, self-referencing `parent_id`, UQ `code`, `ON DELETE
+  RESTRICT`). Migration `20260927175913_stage_2_1_enums_states_practice_areas`.
+- `prisma/seed/practice_areas.seed.json` generated from the §3.2 list:
+  **42 categories + 344 specializations**. §3.2 says "около 400"; the
+  enumerated list itself (ground truth) contains 344 — nothing invented.
+- `src/common/reference-data/`: `US_STATES` (50 + DC) and
+  `practice-areas.util.ts` (§3.2 code rule `practiceAreaSnake()`, plus
+  `flattenPracticeAreaSeed()` that rejects rule-breaking or duplicate
+  codes so a hand-edited JSON can't seed bad data).
+- `seed.ts`: `seedStates()` → `seedPracticeAreas()` run first, per §7.2
+  order; upsert by code, `is_active` not overwritten on re-seed (so an
+  admin deactivation survives).
+
+### Verification (real, local CockroachDB v24.1 via docker compose)
+- `prisma validate`, `prisma migrate dev` — clean.
+- Seed run twice → `states=51`, categories `42`, leaves `344`, duplicate
+  codes `0`, leaves not prefixed by parent code `0`, enum types `44`.
+- `tsc --noEmit`, `npm run lint`, `npm run build` clean; unit tests
+  13 suites / 81 tests pass (12 new).
+
+### Environment fix (not code)
+- `node_modules` had been installed in a Linux arm64 sandbox, so Jest 30's
+  native resolver (`unrs-resolver`) had no macOS binding and every Jest run
+  failed with "Module ts-jest … was not found". Installed
+  `@unrs/resolver-binding-darwin-arm64@1.12.2` with `--no-save` (lockfile
+  untouched). A clean `npm ci` on the Mac would also fix it.
+
+### e2e isolation fix (pre-existing bug, surfaced on first re-run on a Mac)
+- `auth.e2e-spec.ts` assumed a fresh DB + empty Redis but used the dev
+  ones, so any second run failed (429s from leftover rate-limit keys,
+  `isNewUser=false`). `test/jest-e2e.json` now has a `globalSetup` that
+  creates a throwaway `<db>_e2e_<ts>` database + `prisma migrate deploy`,
+  flushes Redis logical DB 15, and a `globalTeardown` that drops only that
+  database. The dev database is never touched. `prisma migrate reset` was
+  deliberately not used.
+- For e2e only, `OTP_RATE_LIMIT_PER_IP_PER_HOUR=1000`: the whole suite
+  runs from 127.0.0.1 and makes >10 OTP requests; no scenario asserts the
+  per-IP limit. The per-identifier limit keeps its real value.
+- Result: 2 suites / 14 tests pass, twice in a row.
