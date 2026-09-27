@@ -2,21 +2,17 @@ import 'app_language.dart';
 
 /// One row of the language picker (see `widgets/language_picker_sheet.dart`).
 ///
-/// [appLanguage] is non-null only for languages [AppLanguage] actually
-/// supports today (`ru`, `en`) — every other entry is a roadmap
-/// placeholder: shown, searchable, but not selectable, so the owner's
-/// "search + list, most popular first, add languages over time" request
-/// (2026-09-22 voice follow-up) has somewhere to grow into.
+/// [appLanguage] is non-null for a selectable language; `null` rows are
+/// roadmap placeholders — shown, searchable, "coming soon" — so the
+/// owner's "search + list, most popular first, add languages over time"
+/// request (2026-09-22 voice follow-up) has somewhere to grow into.
 ///
-/// UPDATE, stage 1.6 (docs/CHANGELOG.md): this constant is now the OFFLINE
-/// FALLBACK for `languageCatalogProvider` (language_catalog_provider.dart),
-/// which merges it with the live `GET /i18n/languages` list — a language
-/// the backend adds now appears here without an app update, per the same
-/// owner direction. [AppLanguage] itself still only has `ru`/`en` (each
-/// with a real, backend-driven translation bundle); giving another
-/// language a real [appLanguage] case + compiled seed is future work this
-/// pass didn't do — see docs/CHANGELOG.md's stage-1.6-flutter entry for
-/// why that was left out of scope.
+/// Which rows are selectable is decided by `mergeLanguageCatalog`
+/// (language_catalog_provider.dart) from the live/cached
+/// `GET /i18n/languages` list: any language active on the server becomes
+/// selectable without an app update (stage 1.6 acceptance). The
+/// [appLanguage] values in [kLanguageCatalog] below are only the offline
+/// first-launch default (compiled-in `en`/`ru`).
 class LanguageCatalogEntry {
   const LanguageCatalogEntry({
     required this.code,

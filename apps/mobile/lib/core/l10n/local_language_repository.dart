@@ -4,31 +4,23 @@ import 'language_repository.dart';
 
 const _kLanguageKey = 'l10n.language';
 
-/// Local-only [LanguageRepository] backed by [LocalKvStore] (SharedPreferences)
-/// — same shape as [LocalThemeModeRepository]. Owner request, 2026-09-22: a
-/// working RU/EN toggle on the welcome screen now, ahead of stage 1.6's real
-/// backend-driven i18n system (file 01 §15).
+/// Local [LanguageRepository] backed by [LocalKvStore] (SharedPreferences)
+/// — same shape as `LocalThemeModeRepository`. Server sync of the choice
+/// (`PATCH /users/me {uiLanguage}`) is layered on top by
+/// `PreferencesSyncController` (core/theme/preferences_sync.dart), not
+/// here, so this stays usable before sign-in.
 class LocalLanguageRepository implements LanguageRepository {
   const LocalLanguageRepository(this._kv);
 
   final LocalKvStore _kv;
 
   @override
-  Future<AppLanguage> read() async {
+  Future<String?> readStoredCode() async {
     final raw = _kv.getString(_kLanguageKey);
-    return switch (raw) {
-      'ru' => AppLanguage.ru,
-      // file 01 §1: English is the default interface language.
-      _ => AppLanguage.en,
-    };
+    if (raw == null || !AppLanguage.isValidCode(raw)) return null;
+    return AppLanguage.normalizeCode(raw);
   }
 
   @override
-  Future<void> write(AppLanguage language) {
-    final raw = switch (language) {
-      AppLanguage.ru => 'ru',
-      AppLanguage.en => 'en',
-    };
-    return _kv.setString(_kLanguageKey, raw);
-  }
+  Future<void> write(AppLanguage language) => _kv.setString(_kLanguageKey, language.code);
 }

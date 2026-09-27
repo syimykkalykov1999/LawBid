@@ -1,4 +1,5 @@
 import 'package:lawbid/core/l10n/app_language.dart';
+import 'package:lawbid/core/l10n/plural_rules.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 
 /// Stage-1.5-originated stopgap [Translator], now bilingual (owner request,
@@ -34,22 +35,41 @@ abstract class _MapTranslator implements Translator {
   /// for that reuse, not a change to this class's own behavior.
   Map<String, String> get seedEntries => _strings;
 
+  /// ISO 639-1 code of this map's language — drives [plural]'s CLDR rules.
+  String get languageCode;
+
   @override
   String t(String key, [Map<String, String>? params]) {
-    var value = _strings[key];
+    final value = _strings[key];
     assert(value != null, 'Missing translation key: $key');
-    value ??= key;
-    if (params == null) return value;
-    for (final entry in params.entries) {
-      value = value!.replaceAll('{${entry.key}}', entry.value);
-    }
-    return value!;
+    return interpolate(value ?? key, params);
   }
+
+  @override
+  String plural(String key, num count, [Map<String, String>? params]) => pluralize(
+        languageCode: languageCode,
+        key: key,
+        count: count,
+        lookup: (k) => _strings[k],
+        params: params,
+      );
 }
+
+/// The compiled-in strings for [code], or `null` for a language that only
+/// exists on the server (docs/01_FOUNDATION_AUTH.md §9.1: the compiled-in
+/// set is the offline fallback; English is the mandatory one).
+Map<String, String>? compiledSeedFor(String code) => switch (code) {
+      'en' => const StaticTranslatorEn().seedEntries,
+      'ru' => const StaticTranslatorRu().seedEntries,
+      _ => null,
+    };
 
 /// Russian strings — the original stage-1.5/1.7 table, unchanged in content.
 class StaticTranslatorRu extends _MapTranslator {
   const StaticTranslatorRu();
+
+  @override
+  String get languageCode => 'ru';
 
   @override
   Map<String, String> get _strings => const {
@@ -368,6 +388,9 @@ class StaticTranslatorEn extends _MapTranslator {
   const StaticTranslatorEn();
 
   @override
+  String get languageCode => 'en';
+
+  @override
   Map<String, String> get _strings => const {
         'nav.tab.feed': 'Feed',
         'nav.tab.search': 'Search',
@@ -462,15 +485,13 @@ class StaticTranslatorEn extends _MapTranslator {
             'You have 14 days to cancel — just sign back in.',
         'deleteAccount.success.action': 'Got it',
         'deleteAccount.error.generic': "Couldn't delete your account. Please try again.",
-        'auth.welcome.title': 'A marketplace for clients and attorneys',
+        'auth.welcome.title': 'Bulletin board for clients and attorneys',
         'auth.welcome.phone': 'Continue with phone',
         'auth.welcome.email': 'Continue with email',
         'auth.welcome.apple': 'Continue with Apple',
         'auth.welcome.google': 'Continue with Google',
         'auth.welcome.legal':
-            'LawBid is a listings marketplace. We are not a law firm and do not '
-                'provide legal services. By continuing, you agree to the Terms and '
-                'Privacy Policy.',
+            'LawBid is a bulletin board. We are not a law firm and do not provide legal services. By continuing, you accept the Terms and Privacy Policy.',
         'auth.welcome.legal.terms': 'Terms',
         'auth.welcome.legal.privacy': 'Privacy Policy',
         'auth.welcome.notBuiltYet': "This sign-in method isn't available yet (stage 1.4/1.7)",
@@ -488,10 +509,10 @@ class StaticTranslatorEn extends _MapTranslator {
         'auth.social.error.deleted': 'This account has been deleted.',
         'auth.social.error.network': 'Network error, please try again',
         'auth.phone.title': 'Your phone number',
-        'auth.phone.subtitle': "We'll text you a verification code. No password needed.",
+        'auth.phone.subtitle': "We'll send a verification code. No password needed.",
         'auth.phone.submit': 'Get code',
         'auth.phone.terms':
-            'By continuing, you agree to the Terms of Use and Privacy Policy',
+            'By continuing, you accept the Terms of Use and Privacy Policy',
         'auth.phone.terms.usage': 'Terms of Use',
         'auth.phone.terms.privacy': 'Privacy Policy',
         'auth.phone.fieldLabel': 'Phone number',
@@ -500,7 +521,7 @@ class StaticTranslatorEn extends _MapTranslator {
         'auth.otp.subtitle': 'We sent it to {phone}',
         'auth.otp.resendIn': 'Resend in {time}',
         'auth.otp.resend': 'Resend code',
-        'auth.otp.submit': 'Confirm',
+        'auth.otp.submit': 'Verify',
         'onboarding.role.title': 'How will you use LawBid?',
         'onboarding.role.client.title': 'Client',
         'onboarding.role.client.desc':
@@ -508,7 +529,7 @@ class StaticTranslatorEn extends _MapTranslator {
         'onboarding.role.attorney.title': 'Attorney',
         'onboarding.role.attorney.badge': 'PRO',
         'onboarding.role.attorney.desc':
-            'Licensed attorney: find clients by your practice area and state.',
+            'Licensed attorney: find clients in your practice areas and states.',
         'onboarding.role.continue': 'Continue',
         'onboarding.role.warning': "You can't change your role later",
         'brand.name': 'LawBid',

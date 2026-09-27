@@ -1,16 +1,20 @@
-/// Minimal string-lookup abstraction so stage 1.5 widgets never hardcode
-/// user-facing text (file 07 §D.1 acceptance: "нет hardcode-цветов и строк"),
-/// even though the real localization layer (file 01 §15, stage 1.6: xlsx
-/// import/export, drift cache, live language switch) doesn't exist yet.
+/// Minimal string-lookup abstraction so widgets never hardcode user-facing
+/// text (file 07 §D.1 acceptance: "нет hardcode-цветов и строк";
+/// docs/01_FOUNDATION_AUTH.md §9.4: "Свой лёгкий слой `L10n` (не generated
+/// ARB), `t('key', args)`").
 ///
-/// UPDATE, stage 1.6 (docs/CHANGELOG.md): `l10n_providers.dart`'s
-/// `translatorProvider` now returns `L10nTranslator` (l10n_translator.dart),
-/// a real backend-driven implementation of THIS SAME interface — the
-/// static maps in static_translator.dart (`StaticTranslatorRu`/`En`) are
-/// kept on as its compiled-in seed/fallback layer, not deleted. Every call
-/// site (`ref.watch(translatorProvider).t('key')`) is unchanged; only that
-/// provider's implementation is. Documented as an explicit stage-ordering
-/// judgment call in docs/CHANGELOG.md stage 1.5.
+/// Implementations: `L10nTranslator` (l10n_translator.dart — the real,
+/// backend-driven one `translatorProvider` returns) and the compiled-in
+/// `StaticTranslatorRu`/`En` maps (static_translator.dart), which are its
+/// seed/fallback layer.
 abstract interface class Translator {
+  /// Looks up [key] and substitutes `{name}` placeholders from [params].
   String t(String key, [Map<String, String>? params]);
+
+  /// Plural-aware lookup (§9.2: "Плюрализация: ключи с суффиксами `.one`,
+  /// `.few`, `.many`, `.other` (правила CLDR)"). Picks `key.<category>` for
+  /// [count] by the CLDR rules of this translator's language, falling back
+  /// to `key.other`. `{count}` is filled with [count] formatted for the
+  /// language (e.g. `1,000` / `1 000`) unless [params] sets it explicitly.
+  String plural(String key, num count, [Map<String, String>? params]);
 }

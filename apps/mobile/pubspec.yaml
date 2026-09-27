@@ -63,6 +63,11 @@ dependencies:
   # dependency needed, drift_flutter pulls those in itself.
   drift: ^2.23.0
   drift_flutter: ^0.3.1
+
+  # CLDR plural rules + date/number/currency formatting per interface
+  # language (file 01 §9.2/§9.4 — core/l10n/plural_rules.dart,
+  # core/l10n/l10n_formats.dart). Already in the lockfile transitively.
+  intl: ^0.20.2
   flutter_animate: ^4.5.2
 
 dev_dependencies:
