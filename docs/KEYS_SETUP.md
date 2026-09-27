@@ -32,7 +32,7 @@
    `auto`.
 3. `cp apps/mobile/config/dev.example.json apps/mobile/config/dev.json`
 4. `cp apps/mobile/ios/Flutter/Secrets.example.xcconfig apps/mobile/ios/Flutter/Secrets.xcconfig`
-5. Запуск приложения теперь: `cd apps/mobile && flutter run --dart-define-from-file=config/dev.json`
+5. Запуск приложения теперь: `cd apps/mobile && flutter run --flavor dev -t lib/main_dev.dart --dart-define-from-file=config/dev.json` (staging/prod: `--flavor staging -t lib/main_staging.dart --dart-define-from-file=config/staging.json` и т.д.; см. apps/mobile/README.md → «Flavors»)
 
 После любого изменения `.env` перезапустите API (`npm run start:dev` в
 `apps/api`). В логе старта видно, что выбрано:

@@ -69,6 +69,14 @@ dependencies:
   # core/l10n/l10n_formats.dart). Already in the lockfile transitively.
   intl: ^0.20.2
   flutter_animate: ^4.5.2
+  # p12 leaf-1.4 (mobile platform): real installed version for
+  # X-App-Version; deep links (custom scheme + universal/App Links, file 01
+  # §12); opening the store from the update prompts; Android SMS Retriever
+  # OTP autofill (file 01 §10.2 D).
+  package_info_plus: ^9.0.1
+  app_links: ^7.2.1
+  url_launcher: ^6.3.2
+  smart_auth: ^3.2.0
 
 dev_dependencies:
   flutter_test:
@@ -95,6 +103,9 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  # Plain `flutter run` / `flutter build` without --flavor builds the dev
+  # variant ("LawBid Dev", lib/main.dart = dev) — p12 leaf-1.4 flavors.
+  default-flavor: dev
 
   assets:
     - assets/fonts/OFL-SourceSerif4.txt

@@ -1,0 +1,26 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.lawbid.lawbid",
+      "sha256_cert_fingerprints": ["SHA256_PROD_PLAY_APP_SIGNING_CERT"]
+    }
+  },
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.lawbid.lawbid.staging",
+      "sha256_cert_fingerprints": ["SHA256_STAGING_SIGNING_CERT"]
+    }
+  },
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.lawbid.lawbid.dev",
+      "sha256_cert_fingerprints": ["SHA256_DEV_SIGNING_CERT"]
+    }
+  }
+]

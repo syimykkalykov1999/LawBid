@@ -1,12 +1,12 @@
 /// Build-time client configuration — the ONE place the app reads
 /// environment-specific ids from (docs/KEYS_SETUP.md).
 ///
-/// Values come from `--dart-define-from-file=config/dev.json` (copy
-/// `config/dev.example.json`; the real `config/*.json` files are
+/// Values come from `--dart-define-from-file=config/<flavor>.json` (copy
+/// `config/<flavor>.example.json`; the real `config/*.json` files are
 /// gitignored) or individual `--dart-define=KEY=value` flags:
 ///
 /// ```sh
-/// flutter run --dart-define-from-file=config/dev.json
+/// flutter run --flavor dev -t lib/main_dev.dart --dart-define-from-file=config/dev.json
 /// ```
 ///
 /// Only PUBLIC client identifiers belong here (OAuth client ids, Stripe
@@ -17,13 +17,9 @@
 /// one lives in `ios/Flutter/Secrets.xcconfig` (Info.plist can only read
 /// Xcode build settings, not dart-defines).
 abstract final class AppConfig {
-  /// Backend base URL. `10.0.2.2` is the Android emulator's alias for the
-  /// host machine's `localhost`; the iOS simulator can use
-  /// `http://localhost:3000/api/v1`, a physical device needs a LAN IP.
-  static const String apiBaseUrl = String.fromEnvironment(
-    'API_BASE_URL',
-    defaultValue: 'http://10.0.2.2:3000/api/v1',
-  );
+  // The backend base URL (`API_BASE_URL`) moved to AppEnvironment
+  // (app_environment.dart) in p12 leaf-1.4: it now has a per-flavor
+  // default (dev/staging/prod) that the define overrides.
 
   /// Google Cloud Console → Credentials → OAuth client (type iOS).
   /// Ends with `.apps.googleusercontent.com`. Empty = not configured.

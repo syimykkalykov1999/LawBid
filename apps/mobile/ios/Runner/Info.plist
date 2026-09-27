@@ -6,8 +6,11 @@
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<!-- Per flavor (p12 leaf-1.4): "LawBid Dev" / "LawBid Staging" /
+	     "LawBid" — the Runner target's APP_DISPLAY_NAME build setting of
+	     each Debug/Profile/Release-<flavor> configuration. -->
 	<key>CFBundleDisplayName</key>
-	<string>Lawbid</string>
+	<string>$(APP_DISPLAY_NAME)</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -15,7 +18,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>lawbid</string>
+	<string>$(APP_DISPLAY_NAME)</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -60,7 +63,25 @@
 				<string>$(GOOGLE_REVERSED_CLIENT_ID)</string>
 			</array>
 		</dict>
+		<!-- LawBid deep links (p12 leaf-1.4, docs/01_FOUNDATION_AUTH.md
+		     §10.2 E/F, §12): lawbid://auth/email-code?email=…&code=… (magic
+		     sign-in link) and lawbid://case/<id> etc. Universal links on
+		     https://$(DEEP_LINK_HOST) come through the Associated Domains
+		     entitlement (Runner/Runner.entitlements). -->
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>app.lawbid.deeplink</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>lawbid</string>
+			</array>
+		</dict>
 	</array>
+	<!-- Links are handled by app_links + DeepLinkController
+	     (lib/core/deeplinks) so a magic link can verify its code; Flutter's
+	     built-in router deep linking would only push the raw path. -->
+	<key>FlutterDeepLinkingEnabled</key>
+	<false/>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

@@ -9,6 +9,7 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/auth/application/onboarding_flow.dart';
 import 'package:lawbid/features/auth/auth_routes.dart';
+import 'package:lawbid/features/auth/domain/onboarding_flow_state.dart';
 import 'package:lawbid/features/auth/domain/onboarding_step.dart';
 import 'package:lawbid/features/auth/presentation/screens/phone_screen.dart';
 
@@ -31,6 +32,17 @@ class EmailScreen extends ConsumerStatefulWidget {
 class _EmailScreenState extends ConsumerState<EmailScreen> {
   final _controller = TextEditingController();
   String? _localError;
+
+  @override
+  void initState() {
+    super.initState();
+    // Back from an email code screen that a magic link opened ("Change
+    // email"): start from the address the link was for.
+    final flow = ref.read(onboardingFlowProvider);
+    if (flow.channel == AuthChannel.email && flow.identifier != null) {
+      _controller.text = flow.identifier!;
+    }
+  }
 
   @override
   void dispose() {
@@ -77,7 +89,13 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
                             semanticLabel: t.t('common.back'),
                             onPressed: () {
                               ref.read(onboardingFlowProvider.notifier).goBackTo(OnboardingStep.welcome);
-                              context.pop();
+                              // Reached via go() from a magic-link code screen
+                              // there is nothing underneath — go home instead.
+                              if (context.canPop()) {
+                                context.pop();
+                              } else {
+                                context.go(AuthRoutes.welcome);
+                              }
                             },
                           ),
                           const SizedBox(height: 34),

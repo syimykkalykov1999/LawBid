@@ -1,0 +1,8 @@
+{
+  "API_BASE_URL": "https://api.lawbid.app/api/v1",
+  "DEEP_LINK_HOST": "lawbid.app",
+  "APP_STORE_ID": "",
+  "GOOGLE_IOS_CLIENT_ID": "",
+  "GOOGLE_SERVER_CLIENT_ID": "",
+  "STRIPE_PUBLISHABLE_KEY": ""
+}

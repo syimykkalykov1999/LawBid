@@ -1,0 +1,17 @@
+// Build settings shared by every flavor configuration (p12 leaf-1.4).
+// Included by the per-configuration files Debug-dev.xcconfig … Release-prod
+// .xcconfig. Flavor-specific values (PRODUCT_BUNDLE_IDENTIFIER,
+// APP_DISPLAY_NAME) are set on the Runner target in Xcode → Build Settings,
+// one value per configuration.
+#include "Generated.xcconfig"
+
+// Universal-link domain (docs/01_FOUNDATION_AUTH.md §12). Feeds the
+// Associated Domains entitlement (applinks:$(DEEP_LINK_HOST)) in
+// Runner/Runner.entitlements; the domain must serve
+// docs/deeplinks/apple-app-site-association. Override in Secrets.xcconfig.
+DEEP_LINK_HOST = lawbid.app
+
+// Per-developer/secret-ish build settings (docs/KEYS_SETUP.md). Default
+// first, then the gitignored Secrets.xcconfig overrides it when present.
+GOOGLE_REVERSED_CLIENT_ID = com.googleusercontent.apps.not-configured
+#include? "Secrets.xcconfig"

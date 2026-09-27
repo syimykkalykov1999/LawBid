@@ -37,6 +37,7 @@ class AppOtpField extends StatefulWidget {
     this.onChanged,
     this.errorText,
     this.autofocus = true,
+    this.controller,
   });
 
   final ValueChanged<String> onCompleted;
@@ -44,18 +45,27 @@ class AppOtpField extends StatefulWidget {
   final String? errorText;
   final bool autofocus;
 
+  /// Optional external controller (p12 leaf-1.4): lets the OTP screen show
+  /// a code that arrived by itself (Android SMS Retriever, email magic
+  /// link). Setting its text does NOT fire [onChanged]/[onCompleted] — the
+  /// caller already knows the code. Owned by the caller when provided.
+  final TextEditingController? controller;
+
   @override
   State<AppOtpField> createState() => _AppOtpFieldState();
 }
 
 class _AppOtpFieldState extends State<AppOtpField> {
-  final _controller = TextEditingController();
+  TextEditingController? _ownController;
   final _focusNode = FocusNode();
   bool _completedFired = false;
 
+  TextEditingController get _controller =>
+      widget.controller ?? (_ownController ??= TextEditingController());
+
   @override
   void dispose() {
-    _controller.dispose();
+    _ownController?.dispose();
     _focusNode.dispose();
     super.dispose();
   }

@@ -2,6 +2,13 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- Universal links (docs/01_FOUNDATION_AUTH.md §12). DEEP_LINK_HOST is
+	     a build setting (Flutter/Common.xcconfig, default lawbid.app); the
+	     host must serve docs/deeplinks/apple-app-site-association. -->
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:$(DEEP_LINK_HOST)</string>
+	</array>
 	<key>com.apple.developer.applesignin</key>
 	<array>
 		<string>Default</string>

@@ -1,0 +1,19 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": [
+          "TEAM_ID.com.lawbid.lawbid",
+          "TEAM_ID.com.lawbid.lawbid.staging",
+          "TEAM_ID.com.lawbid.lawbid.dev"
+        ],
+        "components": [
+          { "/": "/case/*", "comment": "Case (docs/04)" },
+          { "/": "/lawyer/*", "comment": "Attorney profile by @username (docs/03)" },
+          { "/": "/post/*", "comment": "Post (docs/05)" },
+          { "/": "/auth/email-code", "comment": "Email magic sign-in link (docs/01 §10.2 E/F)" }
+        ]
+      }
+    ]
+  }
+}

@@ -18,3 +18,28 @@ platform folders (not hand-authored, see that entry for why), then
 See `docs/01_FOUNDATION_AUTH.md` §15 and `docs/07_DESIGN_SYSTEM.md` (the
 latter is authoritative for all colors/fonts/components/screens — file 01
 §8 is superseded by it).
+
+## Flavors: three apps side by side
+
+| Flavor | App name | Android applicationId / iOS bundle id | Entry point | Config |
+|---|---|---|---|---|
+| dev | LawBid Dev | `com.lawbid.lawbid.dev` | `lib/main_dev.dart` (also `lib/main.dart`) | `config/dev.json` |
+| staging | LawBid Staging | `com.lawbid.lawbid.staging` | `lib/main_staging.dart` | `config/staging.json` |
+| prod | LawBid | `com.lawbid.lawbid` (published to App Store / Google Play) | `lib/main_prod.dart` | `config/prod.json` |
+
+```sh
+cp config/dev.example.json config/dev.json            # once per flavor you use
+flutter run --flavor dev     -t lib/main_dev.dart     --dart-define-from-file=config/dev.json
+flutter run --flavor staging -t lib/main_staging.dart --dart-define-from-file=config/staging.json
+flutter run --flavor prod    -t lib/main_prod.dart    --dart-define-from-file=config/prod.json
+flutter build appbundle --flavor prod -t lib/main_prod.dart --dart-define-from-file=config/prod.json
+flutter build ipa       --flavor prod -t lib/main_prod.dart --dart-define-from-file=config/prod.json
+```
+
+A plain `flutter run` builds **dev**, because `pubspec.yaml` sets `default-flavor: dev`.
+
+- `API_BASE_URL` defaults to the flavor's own value (`lib/core/config/app_environment.dart`). The dev default is the Android emulator's `10.0.2.2`. The staging and prod defaults (`https://staging-api.lawbid.app/api/v1`, `https://api.lawbid.app/api/v1`) are placeholders until the owner confirms the real hosts. The value in `config/<flavor>.json` always wins.
+- Android: `productFlavors` (dimension `env`) in `android/app/build.gradle.kts`. The app name comes from the `app_name` resValue, used as `@string/app_name` in the manifest.
+- iOS: build configurations `Debug-/Profile-/Release-<flavor>` and schemes `dev`/`staging`/`prod`. `PRODUCT_BUNDLE_IDENTIFIER` and `APP_DISPLAY_NAME` are set per configuration on the Runner target. `ios/Flutter/<config>.xcconfig` includes CocoaPods and `Common.xcconfig`.
+- Verify all three: `node tool/verify_flavors.mjs android` and `node tool/verify_flavors.mjs ios`. Each builds every flavor and checks the package or bundle id and the app label.
+- Deep links (`lawbid://…`, `https://lawbid.app/…`) are covered in `docs/deeplinks/README.md`.
