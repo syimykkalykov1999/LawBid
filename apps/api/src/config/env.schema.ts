@@ -118,6 +118,81 @@ export const envSchema = z
 
     // --- Stage 1.4: fraud/attestation seam (flag-gated, no-op today) ---
     FEATURE_ATTESTATION: z.coerce.boolean().default(false),
+
+    // --- Cost protection (owner-approved extension 2026-09-27,
+    // docs/OPEN_QUESTIONS.md, docs/COST_PROTECTION.md) ---
+    // Fallback caps for CostGuardService. The live values come from
+    // app_config (`budget.<provider>.per_minute_max|daily_max|monthly_max`,
+    // changeable without a deploy); these env values apply only when the
+    // app_config key is missing or malformed. Deliberately conservative.
+    BUDGET_SMS_PER_MINUTE_MAX: z.coerce
+      .number()
+      .int()
+      .nonnegative()
+      .default(30),
+    BUDGET_SMS_DAILY_MAX: z.coerce.number().int().nonnegative().default(300),
+    BUDGET_SMS_MONTHLY_MAX: z.coerce.number().int().nonnegative().default(5000),
+    BUDGET_EMAIL_PER_MINUTE_MAX: z.coerce
+      .number()
+      .int()
+      .nonnegative()
+      .default(100),
+    BUDGET_EMAIL_DAILY_MAX: z.coerce.number().int().nonnegative().default(2000),
+    BUDGET_EMAIL_MONTHLY_MAX: z.coerce
+      .number()
+      .int()
+      .nonnegative()
+      .default(30000),
+    BUDGET_ID_CHECK_PER_MINUTE_MAX: z.coerce
+      .number()
+      .int()
+      .nonnegative()
+      .default(5),
+    BUDGET_ID_CHECK_DAILY_MAX: z.coerce
+      .number()
+      .int()
+      .nonnegative()
+      .default(20),
+    BUDGET_ID_CHECK_MONTHLY_MAX: z.coerce
+      .number()
+      .int()
+      .nonnegative()
+      .default(200),
+    // Comma-separated ISO-3166 alpha-2 codes; fallback for app_config
+    // `sms.allowed_country_codes`. US-only product → 'US' (+1 NANP minus
+    // Canada/Caribbean territories, which libphonenumber maps to their
+    // own country codes).
+    SMS_ALLOWED_COUNTRY_CODES: z
+      .string()
+      .regex(
+        /^[A-Z]{2}(,[A-Z]{2})*$/,
+        'SMS_ALLOWED_COUNTRY_CODES must be "US" or "US,PR,..."',
+      )
+      .default('US'),
+    // docs/01_FOUNDATION_AUTH.md §10.2: "10/час на IP/устройство". Keyed
+    // on the X-Device-Id header the mobile app sends on every request.
+    OTP_RATE_LIMIT_PER_DEVICE_PER_HOUR: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(10),
+    // POST /users/me/contacts/request per authenticated user.
+    CONTACT_OTP_LIMIT_PER_USER_PER_HOUR: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(3),
+    CONTACT_OTP_LIMIT_PER_USER_PER_DAY: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(10),
+    // Express `trust proxy` hop count (main.ts). 0 = use the socket
+    // address (local dev, no proxy). Behind exactly one AWS ALB set 1 so
+    // req.ip is the real client IP from X-Forwarded-For; never set it
+    // higher than the real number of proxies (clients could then spoof
+    // their IP and escape per-IP limits).
+    TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0),
   })
   .superRefine((env, ctx) => {
     if (

@@ -37,6 +37,7 @@ import type { AuthTokensResult } from './social/auth-result.types';
 const ENV = {
   otpPerIdentifierPerHour: 'OTP_RATE_LIMIT_PER_IDENTIFIER_PER_HOUR',
   otpPerIpPerHour: 'OTP_RATE_LIMIT_PER_IP_PER_HOUR',
+  otpPerDevicePerHour: 'OTP_RATE_LIMIT_PER_DEVICE_PER_HOUR',
   otpVerifyPerHour: 'AUTH_OTP_VERIFY_LIMIT_PER_HOUR',
   refreshPerIpPerHour: 'AUTH_REFRESH_LIMIT_PER_IP_PER_HOUR',
 } as const;
@@ -94,16 +95,29 @@ export class AuthService {
           3600,
         )
       : { allowed: true, retryAfterSeconds: 0, remaining: 0 };
+    // docs/01_FOUNDATION_AUTH.md §10.2: "10/час на IP/устройство". The
+    // device id is client-supplied, so this only slows a naive script
+    // down — the per-IP limit and CostGuardService's global budget are
+    // what actually bound spend. Hashed like identifiers (no raw client
+    // strings in Redis keys).
+    const perDevice = meta.deviceId
+      ? await this.rateLimit.consumeFixedWindow(
+          ['otp-req', 'dev', this.rateLimit.hashIdentifier(meta.deviceId)],
+          this.limit(ENV.otpPerDevicePerHour),
+          3600,
+        )
+      : { allowed: true, retryAfterSeconds: 0, remaining: 0 };
 
-    if (!perIdentifier.allowed || !perIp.allowed) {
+    if (!perIdentifier.allowed || !perIp.allowed || !perDevice.allowed) {
       throw new HttpException(
         {
           code: ErrorCode.AUTH_OTP_REQUEST_LIMIT,
           message: 'Too many OTP requests. Try again later.',
           details: {
             retryAfterSeconds: Math.max(
-              perIdentifier.retryAfterSeconds,
-              perIp.retryAfterSeconds,
+              perIdentifier.allowed ? 0 : perIdentifier.retryAfterSeconds,
+              perIp.allowed ? 0 : perIp.retryAfterSeconds,
+              perDevice.allowed ? 0 : perDevice.retryAfterSeconds,
             ),
           },
         },

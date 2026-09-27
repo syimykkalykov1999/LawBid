@@ -20,6 +20,10 @@
 // Stage 1.8 addition (docs/01_FOUNDATION_AUTH.md §15 "Этап 1.8"):
 // seedAppConfig() seeds min_app_version_*/soft_update_version_* — the
 // app_config table this stage's schema.prisma adds.
+//
+// Cost-guard addition (owner decision 2026-09-27, docs/OPEN_QUESTIONS.md):
+// seedAppConfig() also seeds budget.<provider>.* caps and
+// sms.allowed_country_codes.
 import { PrismaClient } from '@prisma/client';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -308,6 +312,34 @@ async function seedAppConfig(): Promise<void> {
     });
   }
   console.log(`  app_config: ${keys.length} upserted`);
+
+  // Cost protection (owner-approved extension 2026-09-27 —
+  // docs/OPEN_QUESTIONS.md, docs/COST_PROTECTION.md): live caps read by
+  // CostGuardService and the SMS country allow-list read by OtpService.
+  // Values mirror the env.schema.ts fallbacks. `update: {}` — re-seeding
+  // never overwrites a cap the owner has since changed.
+  const costKeys: Record<string, number | string[]> = {
+    'budget.sms.per_minute_max': 30,
+    'budget.sms.daily_max': 300,
+    'budget.sms.monthly_max': 5000,
+    'budget.email.per_minute_max': 100,
+    'budget.email.daily_max': 2000,
+    'budget.email.monthly_max': 30000,
+    'budget.id_check.per_minute_max': 5,
+    'budget.id_check.daily_max': 20,
+    'budget.id_check.monthly_max': 200,
+    'sms.allowed_country_codes': ['US'],
+  };
+  for (const [key, value] of Object.entries(costKeys)) {
+    await prisma.appConfig.upsert({
+      where: { key },
+      create: { key, value },
+      update: {},
+    });
+  }
+  console.log(
+    `  app_config (cost guard): ${Object.keys(costKeys).length} upserted`,
+  );
 }
 
 // docs/02_DATABASE.md §3.3: "заглушки текстов ... для en (тексты

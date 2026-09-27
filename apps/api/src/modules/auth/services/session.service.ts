@@ -18,6 +18,9 @@ export interface DeviceInfo {
 export interface RequestMeta {
   ip?: string;
   userAgent?: string;
+  /** X-Device-Id header (client-generated, unauthenticated — only used
+   * as a rate-limit key, never trusted for anything else). */
+  deviceId?: string;
 }
 
 export type RefreshOutcome =

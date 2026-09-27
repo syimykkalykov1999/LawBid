@@ -12,6 +12,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { I18nModule } from './modules/i18n/i18n.module';
 import { DevModule } from './modules/dev/dev.module';
+import { CostGuardModule } from './common/cost-guard/cost-guard.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
@@ -66,6 +67,8 @@ const isDev =
     // on it) -> JwtAuthGuard (AuthModule). See feature-flags.module.ts
     // and auth.module.ts's doc comments.
     FeatureFlagsModule,
+    // Global: CostGuardService for every paid provider call.
+    CostGuardModule,
     AuthModule,
     UsersModule,
     I18nModule,

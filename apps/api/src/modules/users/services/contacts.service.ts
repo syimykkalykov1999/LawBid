@@ -5,10 +5,12 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { HttpException, HttpStatus } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { OtpService } from '../../auth/services/otp.service';
 import { IdentityService } from '../../auth/services/identity.service';
+import { RateLimitService } from '../../auth/services/rate-limit.service';
 import {
   AuthEventService,
   AUTH_EVENT_TYPES,
@@ -39,6 +41,8 @@ export class ContactsService {
     private readonly otp: OtpService,
     private readonly identity: IdentityService,
     private readonly authEvents: AuthEventService,
+    private readonly rateLimit: RateLimitService,
+    private readonly config: ConfigService,
   ) {}
 
   async requestVerification(
@@ -62,6 +66,7 @@ export class ContactsService {
       }
     }
 
+    await this.enforceRequestLimits(userId, normalized);
     await this.otp.requestOtp(type, normalized, 'contact');
     await this.authEvents.record({
       userId,
@@ -70,6 +75,51 @@ export class ContactsService {
       identifier: normalized,
       meta: { purpose: 'contact', type },
     });
+  }
+
+  /**
+   * Cost protection (owner decision 2026-09-27, docs/OPEN_QUESTIONS.md):
+   * each request here sends a paid SMS/email, and before this change the
+   * only limit was the global 100 req/min per-IP throttler. Per user:
+   * CONTACT_OTP_LIMIT_PER_USER_PER_HOUR (3) and _PER_DAY (10). Plus the
+   * SAME per-identifier sliding window /auth/otp/request uses (docs/01
+   * §10.2 "5 запросов/час на номер"), shared across login and contact
+   * purposes, so many accounts can't jointly flood one number.
+   */
+  private async enforceRequestLimits(
+    userId: string,
+    normalized: string,
+  ): Promise<void> {
+    const perHour = await this.rateLimit.consumeFixedWindow(
+      ['contact-otp', 'user', userId, 'h'],
+      this.config.getOrThrow<number>('CONTACT_OTP_LIMIT_PER_USER_PER_HOUR'),
+      3600,
+    );
+    const perDay = await this.rateLimit.consumeFixedWindow(
+      ['contact-otp', 'user', userId, 'd'],
+      this.config.getOrThrow<number>('CONTACT_OTP_LIMIT_PER_USER_PER_DAY'),
+      86_400,
+    );
+    const perIdentifier = await this.rateLimit.consumeSlidingWindow(
+      ['otp-req', 'id', this.rateLimit.hashIdentifier(normalized)],
+      this.config.getOrThrow<number>('OTP_RATE_LIMIT_PER_IDENTIFIER_PER_HOUR'),
+      3600,
+    );
+    const blocked = [perHour, perDay, perIdentifier].filter((r) => !r.allowed);
+    if (blocked.length > 0) {
+      throw new HttpException(
+        {
+          code: ErrorCode.AUTH_OTP_REQUEST_LIMIT,
+          message: 'Too many verification code requests. Try again later.',
+          details: {
+            retryAfterSeconds: Math.max(
+              ...blocked.map((r) => r.retryAfterSeconds),
+            ),
+          },
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
   }
 
   async verify(

@@ -125,6 +125,11 @@ export class AuthController {
   }
 
   private meta(req: Request): RequestMeta {
-    return { ip: req.ip, userAgent: req.header('user-agent') };
+    const deviceId = req.header('x-device-id')?.trim();
+    return {
+      ip: req.ip,
+      userAgent: req.header('user-agent'),
+      deviceId: deviceId && deviceId.length <= 255 ? deviceId : undefined,
+    };
   }
 }

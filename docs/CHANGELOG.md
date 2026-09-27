@@ -2880,3 +2880,49 @@ ahead, so it is done now).
   runs from 127.0.0.1 and makes >10 OTP requests; no scenario asserts the
   per-IP limit. The per-identifier limit keeps its real value.
 - Result: 2 suites / 14 tests pass, twice in a row.
+
+## Cost guard — protection against runaway paid-API spend — 2026-09-27
+
+Owner-approved spec extension (docs/OPEN_QUESTIONS.md OQ-001): "I don't
+want to go bankrupt on day one if a user/bot fires hundreds of paid
+requests". Owner-side provider settings: docs/COST_PROTECTION.md (RU).
+
+- `src/common/cost-guard/` (global module): `CostGuardService.consume(provider, units)`
+  called BEFORE every paid call. One Lua script checks then increments
+  UTC minute/day/month counters `budget:{provider}:min|d|m:<stamp>`
+  (hash-tagged, TTLs), never increments past a cap, SET-NX flags emit the
+  80% `alert: 'cost_budget'` warn and the exhaustion error once per
+  window. Caps from app_config `budget.<provider>.per_minute_max|daily_max|monthly_max`
+  with env fallbacks (`BUDGET_*`): sms 30/min, 300/day, 5000/month; email
+  100/2000/30000; id_check 5/20/200. Exhausted -> `503
+  PROVIDER_BUDGET_EXCEEDED`; Redis error -> fail closed (same 503).
+  Providers: `sms`, `email` (wired in `OtpService`), `id_check` (TODO for
+  the identity-verification stage, file 03).
+- SMS US-only: `checkSmsDestination()` (validators.ts, libphonenumber-js
+  `max` metadata from the existing dependency) rejects non-allowed
+  countries (Canada/Caribbean NANP, US territories unless added) and
+  premium/toll-free/shared-cost types -> `400 PHONE_COUNTRY_NOT_SUPPORTED`.
+  Allow-list: app_config `sms.allowed_country_codes` (default `["US"]`,
+  env `SMS_ALLOWED_COUNTRY_CODES`).
+- `/auth/otp/request`: per-device limit on `X-Device-Id` (10/h, docs/01
+  §10.2). `/users/me/contacts/request`: 3/h + 10/day per user and the
+  shared 5/h per-identifier window (previously only the global throttler).
+- `main.ts`: `app.set('trust proxy', TRUST_PROXY_HOPS)` (default 0; set 1
+  behind the ALB) so per-IP limits see the real client IP.
+- `RedisModule` now quits its client on shutdown (graceful shutdown; also
+  required for the e2e run to exit now that it is serial).
+- `prisma/seed.ts`: seeds the 10 cost keys idempotently (`update: {}` so
+  owner edits survive re-seeding).
+- Tests: unit `cost-guard.service.spec.ts`, `validators.spec.ts`; e2e
+  `test/cost-guard.e2e-spec.ts` (real Redis: cap/no over-increment,
+  25-way concurrency vs cap 7, alert once, fail closed with dead Redis;
+  HTTP: non-US/premium 400, app_config cap 503, velocity breaker,
+  per-device 429, contacts per-user 429, trust proxy). `jest-e2e.json`
+  `maxWorkers: 1` because this suite mutates global budget state;
+  e2e env lifts only `BUDGET_SMS_PER_MINUTE_MAX` (1000).
+
+### Verification (local CockroachDB + Redis via docker)
+- `npm run lint`, `tsc --noEmit`, `npm run build` clean.
+- Unit: 15 suites / 117 tests pass (36 new). e2e: 3 suites / 26 tests
+  pass (12 new), run twice.
+- Seed run twice on a throwaway database: 10 cost keys, no duplicates.

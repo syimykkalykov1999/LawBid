@@ -17,5 +17,6 @@
   "setupFiles": [
     "<rootDir>/support/e2e-setup-env.ts"
   ],
-  "globalTeardown": "<rootDir>/support/e2e-global-teardown.ts"
+  "globalTeardown": "<rootDir>/support/e2e-global-teardown.ts",
+  "maxWorkers": 1
 }
