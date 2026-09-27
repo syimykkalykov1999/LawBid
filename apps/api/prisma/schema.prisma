@@ -14,8 +14,7 @@
 // add those tables here; extend the schema in the stage that owns them.
 //
 // Deferred to docs/02_DATABASE.md §2.6 "Raw SQL: индексы, computed columns,
-// права" (not this stage): partial unique indexes on users(email) /
-// users(phone_e164) (§5.1), the partial sessions(user_id) WHERE
+// права" (not this stage): the partial sessions(user_id) WHERE
 // revoked_at IS NULL index, hash-sharded indexes on auth_events(created_at),
 // and the lawbid_app / lawbid_retention DB role grants that make
 // auth_events / user_consents append-only at the DB level (§6.2/6.3).
@@ -23,9 +22,8 @@
 // app-level service checks noted in docs/02_DATABASE.md §4.A stand in until
 // stage 2.6 lands.
 //
-// users.avatar_file_id is stored as a bare uuid column (no Prisma relation)
-// because the `files` table (§4.A) is out of scope for stage 1.3 — the FK
-// is added in the stage that implements file uploads.
+// users.avatar_file_id -> files FK and the `files` table itself were
+// added in stage 2.2 (docs/02_DATABASE.md §8).
 generator client {
   provider = "prisma-client-js"
 }
@@ -490,11 +488,16 @@ model User {
   status                UserStatus @default(active)
   first_name            String?
   last_name             String?
-  // FK to `files` intentionally omitted — see file header note.
   avatar_file_id        String?    @db.Uuid
-  email                 String?
+  avatar_file           File?      @relation("UserAvatar", fields: [avatar_file_id], references: [id], onDelete: Restrict)
+  // UQ (docs/02 §4.A, §5.1). A plain unique index already admits any
+  // number of NULLs in CockroachDB, which is exactly the §8 stage-2.2
+  // acceptance ("несколько NULL допускаются"); a partial index can't be
+  // expressed in Prisma 6 and would be dropped as drift by the next
+  // `migrate dev`, so @unique is used instead.
+  email                 String?    @unique
   email_verified_at     DateTime?  @db.Timestamptz
-  phone_e164            String?
+  phone_e164            String?    @unique
   phone_verified_at     DateTime?  @db.Timestamptz
   ui_language           String     @default("en")
   theme                 ThemePref  @default(system)
@@ -512,10 +515,35 @@ model User {
   consents             UserConsent[]
   onboarding_state     OnboardingState?
   feature_flag_updates FeatureFlag[]
+  files                File[]           @relation("FileOwner")
 
-  // Partial unique indexes on email/phone_e164 (WHERE ... IS NOT NULL) are
-  // raw SQL, added in stage 2.6 — see file header note.
   @@map("users")
+}
+
+// docs/02_DATABASE.md §4.A (stage 2.2). Binary content lives only in S3
+// (§1.6); this row is the reference. Soft delete via deleted_at.
+model File {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  owner_user_id String      @db.Uuid
+  owner         User        @relation("FileOwner", fields: [owner_user_id], references: [id], onDelete: Restrict)
+  purpose       FilePurpose
+  s3_bucket     String
+  s3_key        String      @unique
+  mime          String
+  size_bytes    BigInt
+  sha256        String
+  width         Int?
+  height        Int?
+  scan_status   ScanStatus  @default(pending)
+  is_public     Boolean     @default(false)
+  deleted_at    DateTime?   @db.Timestamptz
+  created_at    DateTime    @default(now()) @db.Timestamptz
+  updated_at    DateTime    @updatedAt @db.Timestamptz
+
+  avatar_of User[] @relation("UserAvatar")
+
+  @@index([owner_user_id])
+  @@map("files")
 }
 
 model UserIdentifier {

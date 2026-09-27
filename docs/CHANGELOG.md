@@ -2880,3 +2880,36 @@ ahead, so it is done now).
   runs from 127.0.0.1 and makes >10 OTP requests; no scenario asserts the
   per-IP limit. The per-identifier limit keeps its real value.
 - Result: 2 suites / 14 tests pass, twice in a row.
+
+## Stage 2.2 (users/auth/consents/files/config/i18n alignment) — 2026-09-27
+
+Per docs/02_DATABASE.md §8 "Этап 2.2": align §4.A/§4.B with the tables
+stage 1.3 created. Migration `20260927181416_stage_2_2_files_user_uniques`.
+
+- New `files` table (§4.A) with every listed column, `s3_key` UQ,
+  `scan_status` default `pending`, `is_public` default false, soft delete
+  (`deleted_at`), owner FK `ON DELETE RESTRICT`.
+- `users.avatar_file_id` now a real FK → `files` (was a bare uuid).
+- `users.email` / `users.phone_e164` unique. §5.1 describes them as
+  partial (`WHERE … IS NOT NULL`); a plain unique index in CockroachDB
+  already allows any number of NULLs (exactly the 2.2 acceptance), and
+  Prisma 6 can't express partial indexes (a raw-SQL one would be dropped
+  as drift by the next `migrate dev`). Same semantics, Prisma-tracked.
+- `prisma migrate diff` (DB vs schema): no drift.
+- New `test/db-auth-schema.e2e-spec.ts` (real CockroachDB): multiple NULL
+  email/phone allowed, duplicate email and phone rejected, identifier
+  (provider, provider_uid) UQ, session + auth event creation, files
+  s3_key UQ + avatar link. 6/6 pass.
+- Checks: tsc, lint, build clean; unit 81/81; e2e 3 suites / 20 tests.
+
+Known differences from §4.A/§4.B left as-is on purpose (need an owner
+decision per .cursorrules, not silently "fixed"):
+- `users.role` is nullable (stage 1.4: role is chosen after login during
+  onboarding); §4.A says NN.
+- `onboarding_state.current_step`/`data` nullable; §4.A has `current_step`
+  NN.
+- `sessions.session_chain_id` exists (extra, stage 1.4 reuse detection).
+- Reference/config tables (`blocked_email_domains`, `i18n_languages`,
+  `feature_flags`, `app_config`, `i18n_translations`) lack
+  `created_at`/`updated_at` per §1.3, because their own §4 column lists
+  omit them.
