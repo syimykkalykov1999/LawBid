@@ -81,6 +81,14 @@ describe('DB — stage 2.6/2.7 roles, search, indexes', () => {
       ['NY', 'New York'],
       ['NJ', 'New Jersey'],
       ['CA', 'California'],
+      ['TX', 'Texas'],
+      ['FL', 'Florida'],
+      ['IL', 'Illinois'],
+      ['PA', 'Pennsylvania'],
+      ['OH', 'Ohio'],
+      ['GA', 'Georgia'],
+      ['NC', 'North Carolina'],
+      ['MI', 'Michigan'],
     ]) {
       await root.state.upsert({
         where: { code },
@@ -233,17 +241,35 @@ describe('DB — stage 2.6/2.7 roles, search, indexes', () => {
 
   // §5.4: open + a verified license in any of the case's states + the
   // case's practice area among the attorney's.
-  const visibleSql = (attorney: string) => root.$queryRaw<{ id: string }[]>`
-    SELECT c.id FROM cases c
-    WHERE c.status = 'open' AND c.deleted_at IS NULL
-      AND c.practice_area_id IN (
-        SELECT practice_area_id FROM attorney_practice_areas WHERE attorney_id = ${attorney}::UUID)
-      AND EXISTS (
-        SELECT 1 FROM case_states cs
-        JOIN attorney_licenses l ON l.state_code = cs.state_code
-        WHERE cs.case_id = c.id AND l.attorney_id = ${attorney}::UUID
-          AND l.license_status = 'verified')
-    ORDER BY c.created_at DESC LIMIT 50`;
+  // Canonical §5.4 query (file 04 stage 4.3 must use this shape): matches
+  // on the case's primary state go through cases_open_feed_idx
+  // (primary_state_code, practice_area_id, created_at DESC) per
+  // (licensed state × practice) pair; matches on an additional state go
+  // through case_states(state_code, case_id). The naive IN + EXISTS form
+  // makes CockroachDB scan every open case and every case_states row.
+  const visibleQuery = (attorney: string) => `
+    SELECT id FROM (
+      SELECT c.id, c.created_at FROM cases c
+      WHERE c.status = 'open' AND c.deleted_at IS NULL
+        AND (c.primary_state_code, c.practice_area_id) IN (
+          SELECT l.state_code, ap.practice_area_id
+          FROM attorney_licenses l
+          JOIN attorney_practice_areas ap ON ap.attorney_id = l.attorney_id
+          WHERE l.attorney_id = '${attorney}' AND l.license_status = 'verified')
+      UNION
+      SELECT c.id, c.created_at FROM case_states cs
+      JOIN cases c ON c.id = cs.case_id
+      WHERE NOT cs.is_primary
+        AND cs.state_code IN (
+          SELECT state_code FROM attorney_licenses
+          WHERE attorney_id = '${attorney}' AND license_status = 'verified')
+        AND c.status = 'open' AND c.deleted_at IS NULL
+        AND c.practice_area_id IN (
+          SELECT practice_area_id FROM attorney_practice_areas
+          WHERE attorney_id = '${attorney}')
+    ) v ORDER BY created_at DESC LIMIT 50`;
+  const visibleSql = (attorney: string) =>
+    root.$queryRawUnsafe<{ id: string }[]>(visibleQuery(attorney));
 
   describe('§5.4 cases visible to an attorney (stage 2.7)', () => {
     it('returns only open cases in a verified-license state and a chosen practice', async () => {
@@ -281,6 +307,36 @@ describe('DB — stage 2.6/2.7 roles, search, indexes', () => {
     }
 
     it('EXPLAIN: §5.4 and §5.2 case queries never full-scan cases', async () => {
+      // Realistic background volume: with only a handful of rows a full
+      // scan is genuinely the cheapest plan, so the check would measure the
+      // fixture, not the indexes. 3000 other cases (other practices and
+      // states, a third of them closed) make the §5.2/§5.4 predicates
+      // selective, as in production.
+      // Spread over 60 practice leaves and 10 states, like real traffic
+      // over the 344 specializations and 51 states (so the practice and
+      // state predicates are as selective as in production).
+      await root.$executeRaw`
+        INSERT INTO practice_areas (parent_id, code, name_en, i18n_key, sort)
+        SELECT (SELECT id FROM practice_areas WHERE code = 'dui_and_dwi'),
+               'dui_and_dwi.bg_' || g, 'bg ' || g, 'practice.bg_' || g, g
+        FROM generate_series(1, 60) AS g
+        ON CONFLICT (code) DO NOTHING`;
+      await root.$executeRaw`
+        INSERT INTO cases (client_id, title, description, practice_area_id,
+                           primary_state_code, budget_mode, status, updated_at)
+        SELECT ${clientId}::UUID, 'bg ' || g, 'background case ' || g,
+               (SELECT id FROM practice_areas
+                  WHERE code = 'dui_and_dwi.bg_' || (1 + g % 60)),
+               (ARRAY['NY','CA','TX','FL','IL','PA','OH','GA','NC','MI'])[1 + g % 10],
+               'clarify_later',
+               (CASE WHEN g % 3 = 0 THEN 'closed' ELSE 'open' END)::case_status,
+               now()
+        FROM generate_series(1, 3000) AS g`;
+      await root.$executeRaw`
+        INSERT INTO case_states (case_id, state_code, is_primary)
+        SELECT id, primary_state_code, true FROM cases
+        WHERE title LIKE 'bg %'
+        ON CONFLICT DO NOTHING`;
       // Plans depend on table statistics; a freshly built e2e database has
       // none ("missing stats"), which makes the optimizer's choice random.
       for (const t of [
@@ -293,12 +349,8 @@ describe('DB — stage 2.6/2.7 roles, search, indexes', () => {
       }
       const a = attorneyId;
       const queries = [
-        // §5.4
-        `SELECT c.id FROM cases c WHERE c.status = 'open' AND c.deleted_at IS NULL
-           AND c.practice_area_id IN (SELECT practice_area_id FROM attorney_practice_areas WHERE attorney_id = '${a}')
-           AND EXISTS (SELECT 1 FROM case_states cs JOIN attorney_licenses l ON l.state_code = cs.state_code
-             WHERE cs.case_id = c.id AND l.attorney_id = '${a}' AND l.license_status = 'verified')
-           ORDER BY c.created_at DESC LIMIT 50`,
+        // §5.4 (canonical shape, see visibleQuery)
+        visibleQuery(a),
         // §5.2 attorney feed by primary state + practice
         `SELECT id FROM cases WHERE status = 'open' AND deleted_at IS NULL
            AND primary_state_code = 'NJ' AND practice_area_id = '${leafSpeeding}'
@@ -315,7 +367,9 @@ describe('DB — stage 2.6/2.7 roles, search, indexes', () => {
         // node touching `cases` must be either a constrained index scan or
         // a lookup by key — never a FULL SCAN (§5.4, stage 2.7).
         const nodes = (await plan(q)).split('•').slice(1);
-        const casesNodes = nodes.filter((n) => /table: cases@/.test(n));
+        const casesNodes = nodes.filter((n) =>
+          /table: (cases|case_states)@/.test(n),
+        );
         expect(casesNodes.length).toBeGreaterThan(0);
         for (const node of casesNodes) {
           expect(node).not.toMatch(/FULL SCAN/);

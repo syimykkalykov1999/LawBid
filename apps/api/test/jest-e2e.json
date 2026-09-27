@@ -1,21 +1,13 @@
 {
-  "moduleFileExtensions": [
-    "js",
-    "json",
-    "ts"
-  ],
+  "moduleFileExtensions": ["js", "json", "ts"],
   "rootDir": ".",
   "testEnvironment": "node",
   "testRegex": ".e2e-spec.ts$",
   "transform": {
     "^.+\\.(t|j)s$": "ts-jest"
   },
-  "transformIgnorePatterns": [
-    "node_modules/(?!(@nestjs/jwt|jose)/)"
-  ],
+  "transformIgnorePatterns": ["node_modules/(?!(@nestjs/jwt|jose)/)"],
   "globalSetup": "<rootDir>/support/e2e-global-setup.ts",
-  "setupFiles": [
-    "<rootDir>/support/e2e-setup-env.ts"
-  ],
+  "setupFiles": ["<rootDir>/support/e2e-setup-env.ts"],
   "maxWorkers": 1
 }

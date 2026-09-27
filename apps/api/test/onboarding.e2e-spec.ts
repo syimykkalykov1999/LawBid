@@ -35,6 +35,10 @@ describe('Onboarding (e2e) — stage 1.7 server side', () => {
       exclude: ['/health/live', '/health/ready', '/docs', '/docs-json'],
     });
     await app.init();
+    // One real listener for the suite: supertest reuses a listening
+    // server instead of an ephemeral one per request, which avoided
+    // intermittent ECONNRESET under load.
+    await app.listen(0, '127.0.0.1');
     prisma = app.get(PrismaService);
     // The per-run e2e database is migrated but not seeded.
     await prisma.state.upsert({

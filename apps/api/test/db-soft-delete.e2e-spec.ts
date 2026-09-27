@@ -58,6 +58,10 @@ describe('DB soft delete (e2e) — docs/02 §1.4', () => {
       exclude: ['/health/live', '/health/ready', '/docs', '/docs-json'],
     });
     await app.init();
+    // One real listener for the suite: supertest reuses a listening
+    // server instead of an ephemeral one per request, which avoided
+    // intermittent ECONNRESET under load.
+    await app.listen(0, '127.0.0.1');
     prisma = app.get(PrismaService);
 
     await raw.state.upsert({
@@ -305,7 +309,7 @@ describe('DB soft delete (e2e) — docs/02 §1.4', () => {
     });
 
     it('OTP login of a soft-deleted account still answers ACCOUNT_DELETED', async () => {
-      const phone = '+12025558101';
+      const phone = '+12025556101';
       await raw.user.create({
         data: {
           status: 'deleted',
@@ -339,7 +343,7 @@ describe('DB soft delete (e2e) — docs/02 §1.4', () => {
     });
 
     it('refresh keeps working for a live session of a soft-deleted user row (opt-out, no 500)', async () => {
-      const phone = '+12025558102';
+      const phone = '+12025556102';
       await request(app.getHttpServer())
         .post('/api/v1/auth/otp/request')
         .send({ channel: 'phone', identifier: phone })

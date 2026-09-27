@@ -35,6 +35,9 @@ describe('Security hardening (e2e)', () => {
     });
     configureApp(created, nodeEnv ? { nodeEnv } : {});
     await created.init();
+    // One real listener per app: supertest reuses it instead of an
+    // ephemeral server per request (avoids intermittent ECONNRESET).
+    await created.listen(0, '127.0.0.1');
     return created;
   }
 
