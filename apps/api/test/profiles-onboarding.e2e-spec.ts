@@ -1,3 +1,4 @@
+import type { AddressInfo, Server } from 'node:net';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { LoggerErrorInterceptor, Logger } from 'nestjs-pino';
@@ -23,6 +24,7 @@ describe('Profiles onboarding (e2e) — client_profiles / attorney_profiles', ()
   let app: INestApplication;
   let prisma: PrismaService;
   let phoneSeq = 0;
+  let baseUrl = '';
 
   beforeAll(async () => {
     process.env.NODE_ENV = 'test';
@@ -42,7 +44,14 @@ describe('Profiles onboarding (e2e) — client_profiles / attorney_profiles', ()
     app.setGlobalPrefix('api/v1', {
       exclude: ['/health/live', '/health/ready', '/docs', '/docs-json'],
     });
-    await app.init();
+    // One server bound explicitly to 127.0.0.1 for the whole suite (instead
+    // of supertest's per-request ephemeral listen on all interfaces): with
+    // several e2e runs on the machine, a request to a just-freed ephemeral
+    // port could otherwise reach another process.
+    await app.listen(0, '127.0.0.1');
+    const server = app.getHttpServer() as Server;
+    const { port } = server.address() as AddressInfo;
+    baseUrl = `http://127.0.0.1:${port}`;
     prisma = app.get(PrismaService);
     // The per-run e2e database is migrated but not seeded.
     for (const [code, name, active] of [
@@ -64,7 +73,7 @@ describe('Profiles onboarding (e2e) — client_profiles / attorney_profiles', ()
     await app.close();
   });
 
-  const api = () => request(app.getHttpServer());
+  const api = () => request(baseUrl);
 
   function nextPhone(): string {
     phoneSeq += 1;
