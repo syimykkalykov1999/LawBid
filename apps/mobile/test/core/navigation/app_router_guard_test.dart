@@ -120,13 +120,7 @@ void main() {
       ),
     ],
     'row 2: токен есть, нет согласий/18+ → /onboarding/consents': [
-      _Case('fresh account starts at Шаг 1 «Язык»', '/feed', _signedIn(meFixture()), '/onboarding/language'),
-      _Case(
-        'saved step language → language',
-        '/onboarding/consents',
-        _signedIn(meFixture(step: OnboardingStepId.language)),
-        '/onboarding/language',
-      ),
+      _Case('fresh account starts at consents (no language step, OQ-006)', '/feed', _signedIn(meFixture()), '/onboarding/consents'),
       _Case(
         'saved step consents → consents',
         '/feed',
@@ -140,13 +134,7 @@ void main() {
         '/onboarding/consents',
       ),
       _Case(
-        'back to language is allowed',
-        '/onboarding/language',
-        _signedIn(meFixture(step: OnboardingStepId.consents)),
-        null,
-      ),
-      _Case(
-        'completed account whose consents lapsed (new ToS) → consents, not language',
+        'completed account whose consents lapsed (new ToS) → consents',
         '/feed',
         _signedIn(meFixture(step: OnboardingStepId.tour, completed: true)),
         '/onboarding/consents',

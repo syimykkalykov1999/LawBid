@@ -12,7 +12,6 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/onboarding/application/onboarding_actions.dart';
 import 'package:lawbid/features/onboarding/domain/consent_type.dart';
 import 'package:lawbid/features/onboarding/domain/onboarding_step_id.dart';
-import 'package:lawbid/features/onboarding/onboarding_routes.dart';
 import 'package:lawbid/features/onboarding/presentation/widgets/consent_check_tile.dart';
 import 'package:lawbid/features/onboarding/presentation/widgets/onboarding_scaffold.dart';
 
@@ -84,8 +83,6 @@ class _ConsentsStepScreenState extends ConsumerState<ConsentsStepScreen> {
       step: OnboardingStepId.consents,
       title: t.t('onboarding.consents.title'),
       subtitle: t.t('onboarding.consents.subtitle'),
-      onBack: () =>
-          context.go(OnboardingRoutes.forStep(OnboardingStepId.language)),
       error: action.error,
       primaryLabel: t.t('onboarding.continue'),
       primaryLoading: action.busy,

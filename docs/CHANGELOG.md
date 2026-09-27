@@ -3415,3 +3415,20 @@ introspection: 59 models, then empty diff).
   §10 columns exist). Also made the 2.7 EXPLAIN test deterministic
   (`ANALYZE` first — a fresh DB has no stats and the plan choice varied).
 - Totals: unit 163/163; e2e 11 suites / 62 tests; lint, tsc clean.
+
+## Onboarding language step removed; clearer phone errors — 2026-09-27
+
+- Owner decision (OQ-006): the "Language" onboarding step duplicated the
+  welcome screen's globe picker and, on real devices, did not advance on
+  "Continue". Removed: screen, route, guard branch, progress segment,
+  `saveLanguage`, server `ONBOARDING_STEPS` value. A saved `language` step
+  parses as "no step" and lands on consents. Onboarding goldens
+  regenerated (one progress segment fewer; consents has no back button);
+  welcome goldens untouched.
+- Phone sign-in: every refused +1 number showed "numbers from this country
+  aren't supported", even for a mistyped US number. The message now follows
+  the server's `details.reason`: non-existent US number → "check the area
+  code, e.g. (202) 555-1234"; non-mobile/premium line → "use a US mobile
+  number"; non-US +1 country (e.g. 345 Cayman) keeps the country message.
+  Keys added en+ru (static translator + translations_seed.xlsx).
+- Tests: Flutter 149/149 (+3 api_error_text); API unit 163/163.

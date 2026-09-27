@@ -6,7 +6,6 @@ import 'package:lawbid/features/onboarding/domain/onboarding_step_id.dart';
 import 'package:lawbid/features/onboarding/presentation/screens/attorney_verification_step_screen.dart';
 import 'package:lawbid/features/onboarding/presentation/screens/consents_step_screen.dart';
 import 'package:lawbid/features/onboarding/presentation/screens/contacts_step_screen.dart';
-import 'package:lawbid/features/onboarding/presentation/screens/language_step_screen.dart';
 import 'package:lawbid/features/onboarding/presentation/screens/profile_step_screen.dart';
 import 'package:lawbid/features/onboarding/presentation/screens/push_step_screen.dart';
 import 'package:lawbid/features/onboarding/presentation/screens/splash_screen.dart';
@@ -155,7 +154,6 @@ void main() {
     );
     final screens = <String, Widget Function()>{
       'splash': () => const SplashScreen(autoStart: false),
-      'language': () => const LanguageStepScreen(),
       'consents': () => const ConsentsStepScreen(),
       'contacts': () => const ContactsStepScreen(),
       'profile': () => const ProfileStepScreen(),

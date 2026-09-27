@@ -3,8 +3,6 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:lawbid/core/l10n/app_language.dart';
-import 'package:lawbid/core/l10n/language_providers.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
@@ -57,19 +55,6 @@ class OnboardingActions extends Notifier<StepActionState> {
   void clearError() {
     if (state.error != null) state = const StepActionState();
   }
-
-  /// Шаг 1 «Язык»: switches the UI immediately (local), persists
-  /// `uiLanguage` server-side (§15 item 7), then moves to consents.
-  Future<bool> saveLanguage(String code, {AppLanguage? appLanguage}) =>
-      _run(() async {
-        if (appLanguage != null) {
-          await ref
-              .read(languageControllerProvider.notifier)
-              .setLanguage(appLanguage);
-        }
-        await _repo.updateProfile(uiLanguage: code);
-        return _repo.saveStep(OnboardingStepId.consents);
-      });
 
   /// §10.2 H: records every decision (required + optional) as one
   /// append-only batch, then moves to the role step.

@@ -48,10 +48,9 @@ class GuardSnapshot {
 ///
 /// Decisions come from the server's `missing` list + `onboarding.
 /// currentStep` (so closing the app mid-onboarding resumes at the saved
-/// step, §15 item 4). Two documented refinements of the table:
-/// - Шаг 1 «Язык» precedes consents: a brand-new account (no saved step,
-///   or saved step `language`, onboarding never completed) lands on
-///   `/onboarding/language` first; afterwards the consents row applies.
+/// step, §15 item 4). The language is chosen on the welcome screen's globe
+/// icon, not as an onboarding step (owner decision, docs/OPEN_QUESTIONS.md
+/// OQ-006). Refinement of the table:
 /// - Going BACK to an earlier onboarding step (§11: "кнопка «Назад»
 ///   везде") is allowed; skipping FORWARD past the required step never is.
 abstract final class AppRouterGuard {
@@ -115,8 +114,7 @@ abstract final class AppRouterGuard {
     final saved = user.onboarding.currentStep;
 
     if (missing.contains(MissingRequirement.consents)) {
-      final fresh = saved == null || saved == OnboardingStepId.language;
-      return !completed && fresh ? OnboardingStepId.language : OnboardingStepId.consents;
+      return OnboardingStepId.consents;
     }
     if (missing.contains(MissingRequirement.role) || user.role == null) {
       return OnboardingStepId.role;

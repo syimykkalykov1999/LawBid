@@ -5,7 +5,6 @@ import 'package:lawbid/shared/domain/user_role.dart';
 /// onboarding.dto.ts). Each maps 1:1 to an `/onboarding/<name>` route —
 /// see `OnboardingRoutes.forStep`.
 enum OnboardingStepId {
-  language,
   consents,
   role,
   profile,
@@ -15,7 +14,8 @@ enum OnboardingStepId {
   tour;
 
   /// Parses the wire value; `null` for an unknown/absent step (e.g. a
-  /// brand-new account that has never saved a step).
+  /// brand-new account that has never saved a step, or the removed
+  /// `language` step — docs/OPEN_QUESTIONS.md OQ-006).
   static OnboardingStepId? tryParse(String? raw) =>
       raw == null ? null : OnboardingStepId.values.asNameMap()[raw];
 
@@ -27,7 +27,6 @@ enum OnboardingStepId {
   /// client order, which is what the progress bar shows until the role
   /// step resolves it.
   static List<OnboardingStepId> orderFor(UserRole? role) => [
-        language,
         consents,
         OnboardingStepId.role,
         contacts,

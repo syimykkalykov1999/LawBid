@@ -3,7 +3,6 @@ import { IsIn, IsObject, IsOptional } from 'class-validator';
 /** docs/01_FOUNDATION_AUTH.md §11: server-side step names, mirrored by the
  * Flutter AppRouterGuard's /onboarding/<step> routes. */
 export const ONBOARDING_STEPS = [
-  'language',
   'consents',
   'role',
   'profile',

@@ -16,6 +16,16 @@ String apiErrorText(Translator t, ApiException error) {
       return t.t('error.api.retryAfter', {'seconds': '$retry'});
     }
   }
+  // The cost guard's phone check says *why* a +1 number was refused
+  // (apps/api modules/auth/dto/validators.ts checkSmsDestination): a non-existent US number, a
+  // non-mobile/premium line, or a non-US +1 country (Canada, Caribbean).
+  if (error.code == ApiErrorCodes.phoneCountryNotSupported) {
+    final reason = error.details?['reason'];
+    if (reason == 'invalid') return t.t('error.api.PHONE_INVALID_US');
+    if (reason == 'number_type_not_allowed') {
+      return t.t('error.api.PHONE_TYPE_NOT_ALLOWED');
+    }
+  }
   return t.t(key);
 }
 

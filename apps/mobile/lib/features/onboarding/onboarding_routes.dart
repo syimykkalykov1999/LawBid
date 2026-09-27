@@ -6,7 +6,6 @@ import 'package:lawbid/features/onboarding/domain/onboarding_step_id.dart';
 import 'package:lawbid/features/onboarding/presentation/screens/attorney_verification_step_screen.dart';
 import 'package:lawbid/features/onboarding/presentation/screens/consents_step_screen.dart';
 import 'package:lawbid/features/onboarding/presentation/screens/contacts_step_screen.dart';
-import 'package:lawbid/features/onboarding/presentation/screens/language_step_screen.dart';
 import 'package:lawbid/features/onboarding/presentation/screens/profile_step_screen.dart';
 import 'package:lawbid/features/onboarding/presentation/screens/push_step_screen.dart';
 import 'package:lawbid/features/onboarding/presentation/screens/tour_step_screen.dart';
@@ -35,7 +34,6 @@ List<RouteBase> onboardingRoutes() => [
           pageBuilder: (context, state) => AppPageTransitions.push(
             state,
             switch (step) {
-              OnboardingStepId.language => const LanguageStepScreen(),
               OnboardingStepId.consents => const ConsentsStepScreen(),
               OnboardingStepId.role => const RoleScreen(),
               OnboardingStepId.contacts => const ContactsStepScreen(),
