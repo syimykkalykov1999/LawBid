@@ -1,5 +1,6 @@
-/// Steps of the welcome → phone → otp → role flow (file 07 §6, file 01
-/// §10/11). `completed` isn't a screen — it's the value
-/// `OnboardingLocalStore` clears on, and the guard's signal that resume
-/// logic no longer applies (see auth_guard.dart).
-enum OnboardingStep { welcome, phone, otp, role, completed }
+/// Pre-session sign-in steps (welcome → phone|email → otp) plus the two
+/// outcomes the welcome/OTP screens branch on after a successful sign-in:
+/// [role] (new user) and [completed] (returning user). Post-sign-in
+/// onboarding steps are server-driven — see `OnboardingStepId`
+/// (features/onboarding) and AppRouterGuard.
+enum OnboardingStep { welcome, phone, email, otp, role, completed }

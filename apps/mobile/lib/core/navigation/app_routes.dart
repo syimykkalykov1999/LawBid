@@ -27,4 +27,19 @@ abstract final class AppRoutes {
   /// (Phase 4 of the auth networking work, docs/CHANGELOG.md; file 01
   /// §10.7, reachable from Settings -> Удалить аккаунт).
   static const deleteAccount = '/profile/settings/delete-account';
+
+  /// Initial location (stage 1.7 mobile, docs/01_FOUNDATION_AUTH.md §10.2
+  /// A): token check + bootstrap + translations, then AppRouterGuard
+  /// routes onward.
+  static const splash = '/splash';
+
+  /// "Verify now" target (§11 Шаг 4B) — placeholder until file 03's
+  /// verification flow exists. Pushed on the ROOT navigator.
+  static const verification = '/verification';
+
+  /// In-app legal document viewer (`/legal/terms`, `/legal/privacy`,
+  /// `/legal/disclaimer`), fed by `/config/bootstrap` legal_documents.
+  static const legalPrefix = '/legal/';
+  static const legal = '/legal/:docType';
+  static String legalDoc(String docType) => '$legalPrefix$docType';
 }

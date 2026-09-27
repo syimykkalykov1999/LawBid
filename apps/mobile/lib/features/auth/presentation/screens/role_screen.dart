@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
-import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/auth/application/onboarding_flow.dart';
+import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
+import 'package:lawbid/features/onboarding/application/onboarding_actions.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 
 /// `/onboarding/role` (file 07 §6.4 — **"Этот экран не менять"**: layout
@@ -12,6 +13,12 @@ import 'package:lawbid/shared/domain/user_role.dart';
 /// selection is Client, matching file 07 §6.4 ("По умолчанию выбран
 /// «Клиент»") via `OnboardingFlowState.selectedRole`'s initial fallback
 /// below.
+///
+/// Stage 1.7 mobile: "Продолжить" now calls `POST /users/me/role` (then
+/// refreshes the access token for the `role` claim) via
+/// [OnboardingActions.chooseRole]; AppRouterGuard moves on from there. A
+/// role that is already set server-side is pre-selected and can't change
+/// (§11: "роль потом изменить нельзя").
 class RoleScreen extends ConsumerWidget {
   const RoleScreen({super.key});
 
@@ -21,12 +28,21 @@ class RoleScreen extends ConsumerWidget {
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final t = ref.watch(translatorProvider);
     final flowState = ref.watch(onboardingFlowProvider);
-    final selectedRole = flowState.selectedRole ?? UserRole.client;
+    final serverRole = ref.watch(currentUserControllerProvider.select((s) => s.user?.role));
+    final selectedRole = serverRole ?? flowState.selectedRole ?? UserRole.client;
+    final action = ref.watch(onboardingActionsProvider);
+
+    void select(UserRole role) {
+      if (serverRole != null) return;
+      ref.read(onboardingFlowProvider.notifier).selectRole(role);
+    }
 
     Future<void> handleContinue() async {
-      ref.read(onboardingFlowProvider.notifier).selectRole(selectedRole);
-      await ref.read(onboardingFlowProvider.notifier).completeOnboarding();
-      if (context.mounted) context.go(AppRoutes.feed);
+      final ok = await ref.read(onboardingActionsProvider.notifier).chooseRole(selectedRole);
+      if (!ok && context.mounted) {
+        final error = ref.read(onboardingActionsProvider).error;
+        if (error != null) showAppSnackBar(context, errorText(t, error));
+      }
     }
 
     return Scaffold(
@@ -57,9 +73,7 @@ class RoleScreen extends ConsumerWidget {
                         title: t.t('onboarding.role.client.title'),
                         description: t.t('onboarding.role.client.desc'),
                         isSelected: selectedRole == UserRole.client,
-                        onTap: () => ref
-                            .read(onboardingFlowProvider.notifier)
-                            .selectRole(UserRole.client),
+                        onTap: () => select(UserRole.client),
                       ),
                       const SizedBox(height: AppSpacing.roleCardGap),
                       RoleCard(
@@ -69,9 +83,8 @@ class RoleScreen extends ConsumerWidget {
                         isSelected: selectedRole == UserRole.attorney,
                         isAttorneyFixedStyle: true,
                         showProBadge: true,
-                        onTap: () => ref
-                            .read(onboardingFlowProvider.notifier)
-                            .selectRole(UserRole.attorney),
+                        proBadgeLabel: t.t('onboarding.role.attorney.badge'),
+                        onTap: () => select(UserRole.attorney),
                       ),
                       const Spacer(),
                       Padding(
@@ -80,6 +93,7 @@ class RoleScreen extends ConsumerWidget {
                           children: [
                             GavelStrikeButton(
                               label: t.t('onboarding.role.continue'),
+                              isLoading: action.busy,
                               onPressed: handleContinue,
                             ),
                             const SizedBox(height: AppSpacing.sm),

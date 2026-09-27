@@ -1,137 +1,123 @@
-import 'dart:async';
-
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../../core/l10n/api_error_text.dart';
 import '../../../core/l10n/l10n_providers.dart';
 import '../../../shared/domain/user_role.dart';
+import '../../onboarding/application/current_user_controller.dart';
 import '../data/auth_repository.dart';
-import '../domain/otp_verify_result.dart';
 import '../domain/onboarding_flow_state.dart';
 import '../domain/onboarding_step.dart';
+import '../domain/otp_verify_result.dart';
 import '../domain/social_login_result.dart';
 import 'auth_providers.dart';
 
 part 'onboarding_flow.g.dart';
 
-/// Drives the welcome → phone → otp → role flow. See
-/// `OnboardingFlowState`'s doc comment for why this is one notifier for all
-/// 4 screens rather than one per screen.
-@riverpod
+/// Drives the pre-session sign-in screens: welcome → phone|email → otp,
+/// plus Apple/Google. After a successful sign-in it waits for
+/// `GET /users/me` so AppRouterGuard's next decision already sees the
+/// account (stage 1.7 mobile); where the user goes next — onboarding step
+/// or feed — is decided by the guard, not here.
+///
+/// `keepAlive`: the phone/email screen and the code screen are separate
+/// routes; the identifier must survive the push between them.
+@Riverpod(keepAlive: true)
 class OnboardingFlow extends _$OnboardingFlow {
   @override
-  OnboardingFlowState build() {
-    final saved = ref.read(onboardingLocalStoreProvider).read();
-    if (saved == null) return const OnboardingFlowState();
-    return OnboardingFlowState(step: saved.step, phoneNumber: saved.phoneNumber);
-  }
+  OnboardingFlowState build() => const OnboardingFlowState();
 
-  Future<void> _persist() => ref
-      .read(onboardingLocalStoreProvider)
-      .save(step: state.step, phoneNumber: state.phoneNumber);
-
-  /// Welcome screen's "Продолжить с телефоном" — screen 1 → 2. Email is
-  /// also a button on the welcome screen (file 07 §6.1) but its sign-in
-  /// logic has no native SDK to wire up (there's no "email SDK") and stays
-  /// a "not built yet" affordance; Apple/Google are wired for real as of
-  /// Phase 3 (docs/CHANGELOG.md) — see [signInWithApple]/[signInWithGoogle]
-  /// below.
+  /// Welcome screen's "Продолжить с телефоном" — screen 1 → 2.
   void goToPhoneStep() {
-    state = state.copyWith(step: OnboardingStep.phone, errorMessage: null);
-    unawaited(_persist());
+    state = state.copyWith(step: OnboardingStep.phone, channel: AuthChannel.phone, errorMessage: null);
   }
 
-  Future<bool> submitPhoneNumber(String e164Phone) async {
+  /// Email sign-in entry (file 01 §10.2 E).
+  void goToEmailStep() {
+    state = state.copyWith(step: OnboardingStep.email, channel: AuthChannel.email, errorMessage: null);
+  }
+
+  Future<bool> submitPhoneNumber(String e164Phone) =>
+      _requestCode(AuthChannel.phone, e164Phone);
+
+  Future<bool> submitEmail(String email) =>
+      _requestCode(AuthChannel.email, email.trim().toLowerCase());
+
+  Future<bool> _requestCode(AuthChannel channel, String identifier) async {
     state = state.copyWith(isSubmitting: true, errorMessage: null);
     try {
-      await ref.read(authRepositoryProvider).requestOtp(e164Phone);
+      await ref.read(authRepositoryProvider).requestOtp(identifier, channel: channel.wireName);
       state = state.copyWith(
         step: OnboardingStep.otp,
-        phoneNumber: e164Phone,
+        channel: channel,
+        identifier: identifier,
         isSubmitting: false,
       );
-      unawaited(_persist());
       return true;
-    } catch (_) {
+    } catch (e) {
       state = state.copyWith(
         isSubmitting: false,
-        errorMessage: 'Не удалось отправить код. Проверьте соединение.',
+        errorMessage: errorText(ref.read(translatorProvider), e),
       );
       return false;
     }
   }
 
-  Future<void> resendOtp() async {
-    final phone = state.phoneNumber;
-    if (phone == null) return;
-    await ref.read(authRepositoryProvider).requestOtp(phone);
+  /// Resend the code. Returns an error message, or null on success.
+  Future<String?> resendOtp() async {
+    final identifier = state.identifier;
+    if (identifier == null) return null;
+    try {
+      await ref.read(authRepositoryProvider).requestOtp(identifier, channel: state.channel.wireName);
+      return null;
+    } catch (e) {
+      return errorText(ref.read(translatorProvider), e);
+    }
   }
 
-  /// Real-backend wiring pass (docs/CHANGELOG.md, stage-1.7-auth): branches
-  /// on `AuthTokensResult.isNewUser` (surfaced via
-  /// `OtpVerifyResult.success.isNewUser`) — an existing user who re-verifies
-  /// (e.g. signing back in on a new device) skips the role step entirely
-  /// and lands straight in the shell; a brand-new user proceeds to role
-  /// selection exactly as before. `OtpScreen._handleCompleted` reads
-  /// `state.step` after this returns to decide where to navigate.
+  /// Verifies [code]; on success sets `step` to [OnboardingStep.role] (new
+  /// user) or [OnboardingStep.completed] (returning user) — the screens
+  /// read it back, and the guard corrects the destination either way.
   Future<bool> verifyOtp(String code) async {
-    final phone = state.phoneNumber;
-    if (phone == null) return false;
+    final identifier = state.identifier;
+    if (identifier == null) return false;
     state = state.copyWith(isSubmitting: true, errorMessage: null);
-    final result = await ref.read(authRepositoryProvider).verifyOtp(phoneNumber: phone, code: code);
+    final t = ref.read(translatorProvider);
+    final result = await ref.read(authRepositoryProvider).verifyOtp(
+          identifier: identifier,
+          code: code,
+          channel: state.channel.wireName,
+        );
     return result.when(
-      success: (isNewUser) async {
-        state = state.copyWith(otpVerified: true, isSubmitting: false);
-        if (isNewUser) {
-          state = state.copyWith(step: OnboardingStep.role);
-          unawaited(_persist());
-        } else {
-          await completeOnboarding();
-        }
-        return true;
-      },
-      invalid: () async {
-        state = state.copyWith(isSubmitting: false, errorMessage: 'Неверный код');
-        return false;
-      },
-      expired: () async {
-        state = state.copyWith(isSubmitting: false, errorMessage: 'Код истёк, запросите новый');
-        return false;
-      },
-      locked: () async {
-        state = state.copyWith(
-          isSubmitting: false,
-          errorMessage: 'Слишком много попыток. Запросите код позже.',
-        );
-        return false;
-      },
-      rateLimited: (retryAfterSeconds) async {
-        state = state.copyWith(
-          isSubmitting: false,
-          errorMessage: 'Слишком много попыток. Повторите через $retryAfterSeconds с.',
-        );
-        return false;
-      },
-      networkError: () async {
-        state = state.copyWith(isSubmitting: false, errorMessage: 'Ошибка сети, попробуйте снова');
-        return false;
-      },
+      success: (isNewUser) => _afterSignIn(isNewUser: isNewUser),
+      invalid: () => _fail(t.t('error.api.AUTH_OTP_INVALID')),
+      expired: () => _fail(t.t('error.api.AUTH_OTP_EXPIRED')),
+      locked: () => _fail(t.t('error.api.AUTH_OTP_LOCKED')),
+      rateLimited: (retryAfterSeconds) =>
+          _fail(t.t('error.api.retryAfter', {'seconds': '$retryAfterSeconds'})),
+      networkError: () => _fail(t.t('error.api.NETWORK_ERROR')),
     );
   }
 
-  /// Welcome screen's Apple button (file 07 §6.1). Phase 3 of the auth
-  /// networking work (docs/CHANGELOG.md) — native sign-in via
-  /// `AuthRepository.signInWithApple()`, then the same isNewUser →
-  /// role-step / else → `completeOnboarding()` branch as [verifyOtp]
-  /// above. Unlike [verifyOtp], a cancelled native sheet
-  /// (`SocialLoginResult.cancelled()`) is not an error — no
-  /// `errorMessage` is set for it, so the welcome screen shows nothing and
-  /// the user can just try again.
-  Future<bool> signInWithApple() =>
-      _signInWithSocial((repo) => repo.signInWithApple());
+  Future<bool> _fail(String message) async {
+    state = state.copyWith(isSubmitting: false, errorMessage: message);
+    return false;
+  }
+
+  Future<bool> _afterSignIn({required bool isNewUser}) async {
+    await ref.read(currentUserControllerProvider.notifier).ensureLoaded();
+    state = state.copyWith(
+      isSubmitting: false,
+      step: isNewUser ? OnboardingStep.role : OnboardingStep.completed,
+    );
+    return true;
+  }
+
+  /// Welcome screen's Apple button (file 07 §6.1). A cancelled native
+  /// sheet is not an error — no `errorMessage` is set for it.
+  Future<bool> signInWithApple() => _signInWithSocial((repo) => repo.signInWithApple());
 
   /// Same as [signInWithApple], via Google.
-  Future<bool> signInWithGoogle() =>
-      _signInWithSocial((repo) => repo.signInWithGoogle());
+  Future<bool> signInWithGoogle() => _signInWithSocial((repo) => repo.signInWithGoogle());
 
   Future<bool> _signInWithSocial(
     Future<SocialLoginResult> Function(AuthRepository) signIn,
@@ -140,93 +126,38 @@ class OnboardingFlow extends _$OnboardingFlow {
     final result = await signIn(ref.read(authRepositoryProvider));
     final t = ref.read(translatorProvider);
     return result.when(
-      success: (isNewUser) async {
-        state = state.copyWith(isSubmitting: false);
-        if (isNewUser) {
-          state = state.copyWith(step: OnboardingStep.role);
-          unawaited(_persist());
-        } else {
-          await completeOnboarding();
-        }
-        return true;
-      },
+      success: (isNewUser) => _afterSignIn(isNewUser: isNewUser),
       cancelled: () async {
         state = state.copyWith(isSubmitting: false);
         return false;
       },
-      invalidToken: () async {
-        state = state.copyWith(
-          isSubmitting: false,
-          errorMessage: t.t('auth.social.error.invalidToken'),
-        );
-        return false;
-      },
-      providerDisabled: () async {
-        state = state.copyWith(
-          isSubmitting: false,
-          errorMessage: t.t('auth.social.error.providerDisabled'),
-        );
-        return false;
-      },
-      accountExists: (maskedIdentifier, availableMethods) async {
-        state = state.copyWith(
-          isSubmitting: false,
-          errorMessage: t.t('auth.social.error.accountExists', {
-            'identifier': maskedIdentifier,
-            'methods': availableMethods.join(', '),
-          }),
-        );
-        return false;
-      },
-      suspended: () async {
-        state = state.copyWith(
-          isSubmitting: false,
-          errorMessage: t.t('auth.social.error.suspended'),
-        );
-        return false;
-      },
-      deleted: () async {
-        state = state.copyWith(
-          isSubmitting: false,
-          errorMessage: t.t('auth.social.error.deleted'),
-        );
-        return false;
-      },
-      networkError: () async {
-        state = state.copyWith(
-          isSubmitting: false,
-          errorMessage: t.t('auth.social.error.network'),
-        );
-        return false;
-      },
+      invalidToken: () => _fail(t.t('auth.social.error.invalidToken')),
+      providerDisabled: () => _fail(t.t('auth.social.error.providerDisabled')),
+      accountExists: (maskedIdentifier, availableMethods) => _fail(
+        t.t('auth.social.error.accountExists', {
+          'identifier': maskedIdentifier,
+          'methods': availableMethods.join(', '),
+        }),
+      ),
+      suspended: () => _fail(t.t('auth.social.error.suspended')),
+      deleted: () => _fail(t.t('auth.social.error.deleted')),
+      networkError: () => _fail(t.t('auth.social.error.network')),
     );
   }
 
+  /// Role step's local card selection (before "Continue" posts it).
   void selectRole(UserRole role) {
     state = state.copyWith(selectedRole: role);
   }
 
-  /// Role screen's "Продолжить" (and the existing-user fast path in
-  /// [verifyOtp] above). Clears the resume-after-kill checkpoint — once
-  /// onboarding is complete there's nothing left to resume.
-  ///
-  /// KNOWN GAP (docs/CHANGELOG.md, flagged for the owner): this does NOT
-  /// yet write into `currentUserRoleProvider` (shared/domain/
-  /// current_role_provider.dart), which stays hardcoded to `UserRole.client`
-  /// per its stage-1.5 stub doc comment. The backend has no endpoint to
-  /// persist the chosen role yet either (this pass's blueprint says not to
-  /// add one) — an Attorney who finishes onboarding still sees the
-  /// Client-flavored bottom nav until a later pass adds that endpoint.
-  Future<void> completeOnboarding() async {
-    state = state.copyWith(step: OnboardingStep.completed);
-    await ref.read(onboardingLocalStoreProvider).clear();
-  }
-
-  /// Used by the back buttons on phone/otp/role — moves the step backward
-  /// without losing what's already been entered (e.g. going otp → phone
-  /// keeps `phoneNumber` so the field isn't empty again).
+  /// Back buttons on phone/email/otp — moves the step backward without
+  /// losing what's already been entered.
   void goBackTo(OnboardingStep step) {
     state = state.copyWith(step: step, errorMessage: null);
-    unawaited(_persist());
+  }
+
+  /// Clears a stale error (e.g. when the user edits the field).
+  void clearError() {
+    if (state.errorMessage != null) state = state.copyWith(errorMessage: null);
   }
 }

@@ -1,5 +1,15 @@
 import 'package:flutter/material.dart';
 
+import '../../theme/app_color_tokens.dart';
+
+/// Fallback glyph color when no [IconTheme] color is set: the theme's
+/// `text` token (stage 1.7 mobile — replaces a hardcoded black), or the
+/// Material scheme's onSurface outside an AppTheme (e.g. bare tests).
+Color _fallbackColor(BuildContext context) {
+  final theme = Theme.of(context);
+  return theme.extension<AppColorTokens>()?.text ?? theme.colorScheme.onSurface;
+}
+
 /// Hand-drawn vector glyphs for the welcome screen's social-login row and
 /// small chevrons used elsewhere in auth/onboarding (file 07 §6.1: "Ряд из
 /// трёх иконок-кнопок: email, Apple, Google").
@@ -29,7 +39,7 @@ class EmailGlyph extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = IconTheme.of(context).color ?? const Color(0xFF000000);
+    final color = IconTheme.of(context).color ?? _fallbackColor(context);
     return CustomPaint(size: const Size(20, 20), painter: _EmailPainter(color));
   }
 }
@@ -75,7 +85,7 @@ class AppleGlyph extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = IconTheme.of(context).color ?? const Color(0xFF000000);
+    final color = IconTheme.of(context).color ?? _fallbackColor(context);
     return CustomPaint(size: const Size(20, 20), painter: _ApplePainter(color));
   }
 }
@@ -134,7 +144,7 @@ class GoogleGlyph extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = IconTheme.of(context).color ?? const Color(0xFF000000);
+    final color = IconTheme.of(context).color ?? _fallbackColor(context);
     return CustomPaint(size: const Size(20, 20), painter: _GooglePainter(color));
   }
 }
@@ -189,7 +199,7 @@ class ChevronGlyph extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final resolved = color ?? IconTheme.of(context).color ?? const Color(0xFF000000);
+    final resolved = color ?? IconTheme.of(context).color ?? _fallbackColor(context);
     return CustomPaint(
       size: Size(size, size),
       painter: _ChevronPainter(resolved, direction),

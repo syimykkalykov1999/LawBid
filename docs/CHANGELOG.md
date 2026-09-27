@@ -3252,3 +3252,77 @@ Recorded as OQ-002 in `docs/OPEN_QUESTIONS.md`.
   mock selected with the missing Twilio/SES vars listed.
 - `flutter analyze` on touched files: no new issues (4 pre-existing infos).
 - Not verified: real Twilio/SES/Google/Apple calls (no keys yet).
+
+
+## Stage 1.7 (mobile: auth + onboarding wired to the backend) — 2026-09-27
+
+Branch `cursor/stage-1-7-onboarding-mobile`. Implements docs/01_FOUNDATION_AUTH.md §10.2, §11 and the §15 "Этап 1.7" mobile scope on top of the stage-1.7 backend (`/users/me*`).
+
+### Session + routing
+- `CurrentUserController` (features/onboarding/application) — the "SessionState driven by `GET /users/me`": loads when a session appears, resets on sign-out, replaced wholesale by every `/users/me*` mutation (they all return the fresh MeView). `currentUserRoleProvider` now reads the role from it (falls back to the JWT `role` claim); the hardcoded-client stub `shared/domain/current_role_provider.dart` is deleted.
+- `AppRouterGuard` (core/navigation/guards/app_router_guard.dart) replaces `authGuardRedirect` and is the only redirect decision point. It implements every row of the §11 table from the server's `missing` list + `onboarding.currentStep`. go_router re-runs it through `refreshListenable` whenever startup, sign-in/out or me changes. Screens only mutate server state; they never navigate forward. Resume-after-restart is server-driven, so `OnboardingLocalStore` is removed.
+- Two refinements, both documented in the guard and covered by tests:
+  1. Шаг 1 «Язык» runs before consents for a brand-new account.
+  2. Going back to an earlier onboarding step is allowed. Skipping forward is not.
+- New `/splash` initial route (§10.2 A). `AppStartupController` runs the session refresh, `/config/bootstrap` and the translation-bundle refresh (time-boxed, 4 s), then `GET /users/me`. These moved out of `main.dart`. A network failure during the refresh no longer wipes the stored refresh token; the splash shows offline + Retry instead.
+
+### Screens (all use the UI-modernization components/tokens: `OnboardingScaffold` with step progress + back, staggered entrances, sticky CTA, inline error banner)
+- Splash: loading, offline and error states, each with Retry.
+- Email sign-in `/auth/email`. It reuses the OTP screen, which now handles both channels. The entry point is a "Use email instead" link on the phone screen, because welcome_screen.dart is frozen by owner decision.
+- `/onboarding/language`: active languages from `/i18n/languages`, switches the UI live, persists `uiLanguage`.
+- `/onboarding/consents`: 18+, Terms+Privacy, a separate disclaimer card and optional marketing email/push/analytics. The Continue button stays active; tapping it early highlights what's missing (file 07 §4). Documents open in the new in-app `/legal/:docType` viewer, fed by bootstrap `legal_documents` (now parsed).
+- `/onboarding/role`: the existing screen, now calling `POST /users/me/role` and then `/auth/refresh` for the role claim. A 409 for the same role counts as success.
+- `/onboarding/contacts`: phone and email cards verified inline (client: both required; attorney: phone required, email recommended). Status pills plus a footnote show exactly what's missing.
+- `/onboarding/profile`:
+  - client: name, state (50+DC local list), preferred languages, contact method and time;
+  - attorney: name, bio ≤300 with a counter, firm, languages, licensed states (multi).
+  - Everything except the name is stored in `onboarding.data.profile`.
+- `/onboarding/push`: explainer with Allow/Not now. No FCM yet; the choice is saved as `pushOptIn` (TODO file 05).
+- `/onboarding/verification` (attorney, Шаг 4B): checklist with "Verify now" (→ `/verification` placeholder, TODO file 03) and "Later".
+- `/onboarding/tour`: 3 role-specific skippable pages. Finishing calls `POST /users/me/onboarding/complete`; on 403 it re-reads me and the guard routes to what's missing.
+- Mine tab: an attorney with `verified: false` sees the verification CTA (§11 row 7).
+- Settings: "Download my data" stub (TODO file 06). Log out and Legal are now wired.
+
+### Network
+- `IdempotencyInterceptor` puts an `Idempotency-Key` on resource-creating POSTs (opt-in via `RequestFlags.createOptions()`: role, consents, contacts/request, onboarding/complete). The key survives retries.
+- `RetryInterceptor`: exponential backoff with jitter, 3 retries.
+  - Retries only idempotent methods or keyed POSTs, and only on timeouts/connection errors or a bare 502/503/504.
+  - Never retries `PROVIDER_BUDGET_EXCEEDED` or a plain POST such as `/auth/refresh` (a replayed refresh would look like token reuse).
+  - The i18n background calls opt out.
+- The existing single-flight refresh is unchanged.
+- Localized messages by error code (`core/l10n/api_error_text.dart`): `CONTACT_DOMAIN_BLOCKED`, `CONTACT_ALREADY_EXISTS`, `PHONE_COUNTRY_NOT_SUPPORTED`, `PROVIDER_BUDGET_EXCEEDED`, `AUTH_OTP_*`, `REAUTH_*`, `CLIENT_CONTACTS_INCOMPLETE`, `ONBOARDING_INCOMPLETE`, `ROLE_ALREADY_SET`, rate limits with retry-after, and others. `OnboardingFlow` no longer contains hardcoded Russian strings.
+
+### Hardcode cleanup
+- `'US +1'` → `t('auth.phone.countryCode')` (shared `CountryCodeChip`/`UsPhoneFormatter`).
+- The phone hint moved to `t()`.
+- `RoleCard`'s `'PRO'` → `proBadgeLabel` param (`t('onboarding.role.attorney.badge')`).
+- `brand_glyphs` fallback `Color(0xFF000000)` → the `text` token.
+- `delete_account_screen` had already been cleaned by the UI pass.
+
+### L10n
+- 146 new keys, en+ru, in `static_translator.dart`.
+- The same keys plus 3 pre-existing missing `app.update.*` rows were appended to `apps/api/prisma/seed/translations_seed.xlsx`. It now has 273 rows, the same set as the static maps.
+
+### Tests (`flutter test`: 151 pass; `flutter analyze --no-fatal-infos`: 0 errors/warnings)
+- `app_router_guard_test.dart`: 55 table cases covering every §11 row plus splash, loading, back and forward navigation.
+- `interceptors_test.dart`: idempotency + retry/backoff.
+- `onboarding_repository_test.dart`: dio with a fake adapter; request shapes, `X-Reauth-Token`, 409/403 handling, error-code mapping.
+- `onboarding_widgets_test.dart`:
+  - consents validation;
+  - inline contact verification;
+  - profile required fields;
+  - 200% text scale on every onboarding screen.
+- `onboarding_screens_golden_test.dart`: 12 screens in light and dark.
+- Phone and settings goldens were re-baselined for the new link/row. Welcome, OTP and role goldens are unchanged, and `welcome_screen.dart` is byte-identical.
+- Smoke-tested against the dev API (`OTP_DEV_FIXED_CODE`). This used the replayed request sequence, not the app UI. Path: email sign-in → consents → role (plus 409 on repeat) → refresh gives the role claim → complete returns 403 with `missing` → `contacts/request` returns `REAUTH_REQUIRED` without reauth, and relay email returns `CONTACT_DOMAIN_BLOCKED` → reauth → phone request/verify → profile → complete returns 200.
+
+### Flagged for the owner / backend (not changed here)
+- `POST /users/me/contacts/request` sits behind `ReauthGuard` even for a user's FIRST phone/email. Onboarding therefore needs an extra identity code sent to the contact the user signed in with, and every resend needs a new one, because the reauth token is single-use. The app handles this inline, but it costs an extra paid SMS/email per contact. Suggested fix: require reauth only when *changing* an already-verified contact of that type.
+- `/config/bootstrap` `legal_documents` omits `id`, so consents are saved without `documentId` (the version isn't linked). Suggested fix: include `id`.
+- The welcome screen's email icon still shows "not built yet", because the file is frozen. Email sign-in is reachable from the phone screen.
+- Not in this pass:
+  - photo upload (needs the S3 pipeline);
+  - the real push prompt/FCM (file 05);
+  - the verification wizard (file 03);
+  - data export (file 06);
+  - theme sync to `PATCH /users/me` (theme stays local-only; language is synced on the language step).

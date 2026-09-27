@@ -38,6 +38,20 @@ abstract final class ApiErrorCodes {
   // comment on scope) — declared here so a future call site has the
   // exact string ready rather than inventing its own literal.
   static const appUpdateRequired = 'APP_UPDATE_REQUIRED';
+
+  // Onboarding + contacts (stage 1.7 mobile, docs/CHANGELOG.md) — copied
+  // verbatim from apps/api/src/common/errors/error-code.enum.ts.
+  static const validationError = 'VALIDATION_ERROR';
+  static const contactDomainBlocked = 'CONTACT_DOMAIN_BLOCKED';
+  static const contactAlreadyExists = 'CONTACT_ALREADY_EXISTS';
+  static const identifierAlreadyLinked = 'IDENTIFIER_ALREADY_LINKED';
+  static const phoneCountryNotSupported = 'PHONE_COUNTRY_NOT_SUPPORTED';
+  static const providerBudgetExceeded = 'PROVIDER_BUDGET_EXCEEDED';
+  static const clientContactsIncomplete = 'CLIENT_CONTACTS_INCOMPLETE';
+  static const onboardingIncomplete = 'ONBOARDING_INCOMPLETE';
+  static const roleAlreadySet = 'ROLE_ALREADY_SET';
+  static const i18nLanguageNotFound = 'I18N_LANGUAGE_NOT_FOUND';
+  static const idempotencyKeyConflict = 'IDEMPOTENCY_KEY_CONFLICT';
 }
 
 /// Parsed form of the backend's error envelope (docs/01_FOUNDATION_AUTH.md

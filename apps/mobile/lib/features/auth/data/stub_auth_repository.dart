@@ -18,12 +18,16 @@ class StubAuthRepository implements AuthRepository {
   static const _invalidCode = '000000';
 
   @override
-  Future<void> requestOtp(String phoneNumber) async {
+  Future<void> requestOtp(String identifier, {String channel = 'phone'}) async {
     await Future<void>.delayed(const Duration(milliseconds: 500));
   }
 
   @override
-  Future<OtpVerifyResult> verifyOtp({required String phoneNumber, required String code}) async {
+  Future<OtpVerifyResult> verifyOtp({
+    required String identifier,
+    required String code,
+    String channel = 'phone',
+  }) async {
     await Future<void>.delayed(const Duration(milliseconds: 500));
     if (code == _invalidCode) return const OtpVerifyResult.invalid();
     return const OtpVerifyResult.success(isNewUser: true);

@@ -32,6 +32,7 @@ class RoleCard extends StatelessWidget {
     super.key,
     this.isAttorneyFixedStyle = false,
     this.showProBadge = false,
+    this.proBadgeLabel = '',
   });
 
   final IconData icon;
@@ -41,6 +42,10 @@ class RoleCard extends StatelessWidget {
   final VoidCallback onTap;
   final bool isAttorneyFixedStyle;
   final bool showProBadge;
+
+  /// Localized badge text (`t('onboarding.role.attorney.badge')`) — the
+  /// design system never hardcodes copy.
+  final String proBadgeLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -69,7 +74,7 @@ class RoleCard extends StatelessWidget {
       );
     }
 
-    final semanticLabel = showProBadge ? '$title, PRO' : title;
+    final semanticLabel = showProBadge ? '$title, $proBadgeLabel' : title;
 
     return Semantics(
       button: true,
@@ -115,7 +120,11 @@ class RoleCard extends StatelessWidget {
                           ),
                         ),
                         if (showProBadge)
-                          _ProBadge(colors: colors, style: typography.badge),
+                          _ProBadge(
+                            label: proBadgeLabel,
+                            colors: colors,
+                            style: typography.badge,
+                          ),
                       ],
                     ),
                     const SizedBox(height: 6),
@@ -161,8 +170,9 @@ class RoleCard extends StatelessWidget {
 }
 
 class _ProBadge extends StatelessWidget {
-  const _ProBadge({required this.colors, required this.style});
+  const _ProBadge({required this.label, required this.colors, required this.style});
 
+  final String label;
   final AppColorTokens colors;
   final TextStyle style;
 
@@ -174,7 +184,7 @@ class _ProBadge extends StatelessWidget {
         border: Border.all(color: colors.gold),
         borderRadius: BorderRadius.circular(AppRadii.proBadge),
       ),
-      child: Text('PRO', style: style.copyWith(color: colors.gold)),
+      child: Text(label, style: style.copyWith(color: colors.gold)),
     );
   }
 }

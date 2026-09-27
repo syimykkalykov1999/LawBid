@@ -8,12 +8,21 @@ import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
-import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/auth/application/onboarding_flow.dart';
-import 'package:lawbid/features/auth/auth_routes.dart';
+import 'package:lawbid/features/auth/domain/onboarding_flow_state.dart';
 import 'package:lawbid/features/auth/domain/onboarding_step.dart';
+import 'package:lawbid/features/auth/presentation/widgets/us_phone_input.dart';
 
-/// `/auth/otp` (file 07 §6.3).
+/// Human-readable form of the flow's identifier for "We sent it to …".
+String displayIdentifier(OnboardingFlowState state) {
+  final id = state.identifier ?? '';
+  return state.channel == AuthChannel.phone ? UsPhone.format(id) : id;
+}
+
+/// `/auth/otp` (file 07 §6.3) — shared by phone and email sign-in (file 01
+/// §10.2 D/F). Stage 1.7 mobile: after a successful verify this screen no
+/// longer navigates — AppRouterGuard sends the user to the right
+/// onboarding step (or the feed) as soon as `GET /users/me` lands.
 class OtpScreen extends ConsumerStatefulWidget {
   const OtpScreen({super.key});
 
@@ -39,7 +48,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final t = ref.read(translatorProvider);
-      final phone = ref.read(onboardingFlowProvider).phoneNumber ?? '';
+      final phone = displayIdentifier(ref.read(onboardingFlowProvider));
       SemanticsService.announce(
         t.t('auth.otp.subtitle', {'phone': phone}),
         TextDirection.ltr,
@@ -48,19 +57,12 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
   }
 
   Future<void> _handleCompleted(String code) async {
-    final ok = await ref.read(onboardingFlowProvider.notifier).verifyOtp(code);
-    if (!ok || !mounted) return;
-    // Real-backend wiring pass (docs/CHANGELOG.md, stage-1.7-auth):
-    // OnboardingFlow.verifyOtp already branched on isNewUser and moved
-    // `state.step` accordingly — new user -> role, existing user ->
-    // completed (and cleared the resume checkpoint). Read it back here
-    // rather than assuming success always means "go to role".
-    final step = ref.read(onboardingFlowProvider).step;
-    if (step == OnboardingStep.role) {
-      context.push(AuthRoutes.role);
-    } else if (step == OnboardingStep.completed) {
-      context.go(AppRoutes.feed);
-    }
+    await ref.read(onboardingFlowProvider.notifier).verifyOtp(code);
+  }
+
+  Future<void> _resend() async {
+    final message = await ref.read(onboardingFlowProvider.notifier).resendOtp();
+    if (message != null && mounted) showAppSnackBar(context, message);
   }
 
   @override
@@ -69,7 +71,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final t = ref.watch(translatorProvider);
     final flowState = ref.watch(onboardingFlowProvider);
-    final phone = flowState.phoneNumber ?? '';
+    final phone = displayIdentifier(flowState);
 
     return Scaffold(
       backgroundColor: colors.bg,
@@ -98,9 +100,11 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                           AppBackButton(
                             semanticLabel: t.t('common.back'),
                             onPressed: () {
-                              ref
-                                  .read(onboardingFlowProvider.notifier)
-                                  .goBackTo(OnboardingStep.phone);
+                              ref.read(onboardingFlowProvider.notifier).goBackTo(
+                                    flowState.channel == AuthChannel.email
+                                        ? OnboardingStep.email
+                                        : OnboardingStep.phone,
+                                  );
                               context.pop();
                             },
                           ),
@@ -123,7 +127,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                           const SizedBox(height: 14),
                           _ResendCountdown(
                             t: t,
-                            onResend: () => ref.read(onboardingFlowProvider.notifier).resendOtp(),
+                            onResend: _resend,
                           ),
                           const Spacer(),
                           Padding(

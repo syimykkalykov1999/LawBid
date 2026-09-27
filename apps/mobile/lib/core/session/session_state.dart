@@ -11,7 +11,7 @@ part 'session_state.freezed.dart';
 ///
 /// `SessionController`'s state is `SessionState?` — null means signed out,
 /// a non-null instance means signed in. [isAuthenticated] just names that
-/// convention so call sites (like `authGuardRedirect`) read as intent
+/// convention so call sites (like `AppRouterGuard`) read as intent
 /// rather than a bare null check.
 @freezed
 abstract class SessionState with _$SessionState {
