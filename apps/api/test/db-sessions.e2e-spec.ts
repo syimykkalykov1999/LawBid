@@ -2,6 +2,7 @@ import type { ConfigService } from '@nestjs/config';
 import { PrismaClient } from '@prisma/client';
 import { randomBytes, randomUUID } from 'node:crypto';
 import type { PrismaService } from '../src/prisma/prisma.service';
+import type { RateLimitService } from '../src/modules/auth/services/rate-limit.service';
 import { SessionService } from '../src/modules/auth/services/session.service';
 import type { TokenService } from '../src/modules/auth/services/token.service';
 import type { SessionRevocationService } from '../src/modules/auth/services/session-revocation.service';
@@ -28,6 +29,7 @@ describe('DB sessions — (user_id, device_id) lookup (e2e)', () => {
     {} as SessionRevocationService,
     {} as AuthEventService,
     {} as ConfigService,
+    {} as RateLimitService,
   );
   let userIds: string[] = [];
 

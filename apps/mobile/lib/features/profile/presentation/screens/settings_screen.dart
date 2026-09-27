@@ -7,6 +7,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/widgets/language_picker_sheet.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/auth/application/sign_out.dart';
+import 'package:lawbid/features/settings/account/account_routes.dart';
 
 /// `/profile/settings` (file 01 §3.6: "Настройки (гамбургер): Аккаунт,
 /// Безопасность, Язык, Тема, Подписка (адвокат), История кейсов
@@ -56,7 +57,7 @@ class SettingsScreen extends ConsumerWidget {
           AppListRow(
             icon: Icons.person_outline_rounded,
             label: t.t('settings.account'),
-            onTap: showNotBuiltYet,
+            onTap: () => context.push(AccountRoutes.account),
           ),
           AppListRow(
             icon: Icons.shield_outlined,

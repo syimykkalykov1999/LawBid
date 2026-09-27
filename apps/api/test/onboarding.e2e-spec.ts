@@ -37,6 +37,11 @@ describe('Onboarding (e2e) — stage 1.7 server side', () => {
     await app.init();
     prisma = app.get(PrismaService);
     // The per-run e2e database is migrated but not seeded.
+    await prisma.state.upsert({
+      where: { code: 'NY' },
+      create: { code: 'NY', name: 'New York' },
+      update: {},
+    });
     for (const [code, sort] of [
       ['en', 0],
       ['ru', 1],
@@ -132,8 +137,15 @@ describe('Onboarding (e2e) — stage 1.7 server side', () => {
       theme: 'dark',
       role: 'client',
       onboarding: { currentStep: 'contacts', data: { stateCode: 'NY' } },
-      missing: ['email_verified'],
+      missing: ['email_verified', 'state'],
     });
+
+    // The profile step persists into client_profiles (§11 3A).
+    await api()
+      .patch('/api/v1/users/me/onboarding')
+      .set(auth)
+      .send({ currentStep: 'contacts', profile: { stateCode: 'NY' } })
+      .expect(200);
 
     const blocked = await api()
       .post('/api/v1/users/me/onboarding/complete')
@@ -176,6 +188,11 @@ describe('Onboarding (e2e) — stage 1.7 server side', () => {
       .post('/api/v1/users/me/role')
       .set(auth)
       .send({ role: 'attorney' })
+      .expect(200);
+    await api()
+      .patch('/api/v1/users/me/onboarding')
+      .set(auth)
+      .send({ currentStep: 'push', profile: { licensedStates: ['NY'] } })
       .expect(200);
     await api()
       .post('/api/v1/users/me/onboarding/complete')

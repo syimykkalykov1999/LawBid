@@ -1,0 +1,47 @@
+key,en,ru
+account.title,Account,Аккаунт
+account.intro,Your contact details and the ways you can sign in to LawBid.,Ваши контакты и способы входа в LawBid.
+account.loading,Loading account details,Загружаем данные аккаунта
+account.error,Couldn't load your account details.,Не удалось загрузить данные аккаунта.
+account.section.contacts,Contact details,Контакты
+account.section.signIn,Sign-in methods,Способы входа
+account.section.link,Add a sign-in method,Добавить способ входа
+account.contact.phone,Phone,Телефон
+account.contact.email,Email,Email
+account.contact.notSet,Not added,Не добавлен
+account.contact.change,Change,Изменить
+account.contact.add,Add,Добавить
+account.contact.unverified,Not verified,Не подтверждён
+account.contacts.reauthHint,"To change a verified phone or email, first confirm it's you, then enter the code we send to the new contact.","Чтобы изменить подтверждённый телефон или email, сначала подтвердите, что это вы, затем введите код, отправленный на новый контакт."
+account.identifier.phone,Phone number,Номер телефона
+account.identifier.email,Email,Email
+account.identifier.apple,Apple,Apple
+account.identifier.google,Google,Google
+account.identifier.primary,Primary contact,Основной контакт
+account.identifier.verified,Verified,Подтверждён
+account.identifier.linked,Connected,Подключён
+account.identifiers.empty,No sign-in methods yet.,Способов входа пока нет.
+account.link.phone,Add a sign-in phone number,Добавить телефон для входа
+account.link.email,Add a sign-in email,Добавить email для входа
+account.link.apple,Connect Apple,Подключить Apple
+account.link.google,Connect Google,Подключить Google
+account.link.success,Sign-in method added,Способ входа добавлен
+account.flow.change.phone.title,Change phone number,Изменить номер телефона
+account.flow.change.email.title,Change email,Изменить email
+account.flow.add.phone.title,Add phone number,Добавить номер телефона
+account.flow.add.email.title,Add email,Добавить email
+account.flow.link.phone.title,Sign-in phone number,Телефон для входа
+account.flow.link.email.title,Sign-in email,Email для входа
+account.flow.enter.phone,Enter the phone number. We'll text it a 6-digit code.,Введите номер телефона. Мы отправим на него 6-значный код.
+account.flow.enter.email,Enter the email address. We'll send it a 6-digit code.,Введите адрес email. Мы отправим на него 6-значный код.
+account.flow.sendCode,Send code,Отправить код
+account.flow.identity.title,Confirm it's you,"Подтвердите, что это вы"
+account.flow.identity.body,We sent a code to {target}. Enter it to continue.,"Мы отправили код на {target}. Введите его, чтобы продолжить."
+account.flow.code.title,Enter the code,Введите код
+account.flow.code.body,We sent a code to {target}.,Мы отправили код на {target}.
+account.flow.editValue,Use another,Указать другой
+account.flow.done.title,All set,Готово
+account.flow.done.phone,Your phone number is verified and saved.,Номер телефона подтверждён и сохранён.
+account.flow.done.email,Your email is verified and saved.,Email подтверждён и сохранён.
+account.flow.done.linked,You can now sign in with {value}.,Теперь вы можете входить с {value}.
+account.flow.done.action,Done,Готово

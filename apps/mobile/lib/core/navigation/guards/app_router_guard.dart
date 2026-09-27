@@ -144,9 +144,11 @@ abstract final class AppRouterGuard {
     } else {
       effective = saved;
     }
-    // The name is collected on the profile step — never let the user sit
-    // past it without one (the server would refuse to complete anyway).
-    if (missing.contains(MissingRequirement.name) &&
+    // The name, state / licensed states are collected on the profile step
+    // — never let the user sit past it without them (the server would
+    // refuse to complete anyway).
+    if ((missing.contains(MissingRequirement.name) ||
+            missing.contains(MissingRequirement.profile)) &&
         order.indexOf(effective) > order.indexOf(OnboardingStepId.profile)) {
       effective = OnboardingStepId.profile;
     }

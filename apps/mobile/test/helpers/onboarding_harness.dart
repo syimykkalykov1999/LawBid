@@ -16,6 +16,7 @@ import 'package:lawbid/features/onboarding/domain/consent_type.dart';
 import 'package:lawbid/features/onboarding/domain/contact_type.dart';
 import 'package:lawbid/features/onboarding/domain/current_user.dart';
 import 'package:lawbid/features/onboarding/domain/onboarding_step_id.dart';
+import 'package:lawbid/features/onboarding/domain/profile_input.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -71,6 +72,16 @@ class FakeOnboardingRepository implements OnboardingRepository {
   @override
   Future<CurrentUser> saveStep(OnboardingStepId step, [Map<String, dynamic>? data]) async {
     calls.add('saveStep:${step.name}');
+    return me;
+  }
+
+  /// Last structured profile passed to [saveProfileStep].
+  ProfileInput? lastProfile;
+
+  @override
+  Future<CurrentUser> saveProfileStep(OnboardingStepId next, ProfileInput profile) async {
+    calls.add('saveProfileStep:${next.name}');
+    lastProfile = profile;
     return me;
   }
 

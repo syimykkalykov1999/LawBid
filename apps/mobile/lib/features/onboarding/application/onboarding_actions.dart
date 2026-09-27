@@ -11,6 +11,7 @@ import 'package:lawbid/features/onboarding/data/onboarding_repository.dart';
 import 'package:lawbid/features/onboarding/domain/consent_type.dart';
 import 'package:lawbid/features/onboarding/domain/current_user.dart';
 import 'package:lawbid/features/onboarding/domain/onboarding_step_id.dart';
+import 'package:lawbid/features/onboarding/domain/profile_input.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 
 /// Busy/error state of one onboarding screen's primary action.
@@ -89,16 +90,11 @@ class OnboardingActions extends Notifier<StepActionState> {
         return user;
       });
 
-  /// Saves the name (real columns) + step-local profile data and moves on.
-  Future<bool> saveProfile({
-    required String firstName,
-    required String lastName,
-    required Map<String, dynamic> data,
-  }) =>
-      _run(() async {
-        await _repo.updateProfile(firstName: firstName, lastName: lastName);
+  /// Saves the name + structured profile (client_profiles /
+  /// attorney_profiles) and moves on — one server transaction.
+  Future<bool> saveProfile(ProfileInput profile) => _run(() async {
         final next = OnboardingStepId.profile.nextFor(_me?.role)!;
-        return _repo.saveStep(next, {'profile': data});
+        return _repo.saveProfileStep(next, profile);
       });
 
   /// Moves from [from] to its successor, merging [data] into the step

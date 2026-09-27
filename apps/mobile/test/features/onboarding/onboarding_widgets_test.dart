@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/features/onboarding/domain/consent_type.dart';
+import 'package:lawbid/features/onboarding/domain/current_user.dart';
+import 'package:lawbid/features/onboarding/domain/profile_input.dart';
 import 'package:lawbid/features/onboarding/domain/onboarding_step_id.dart';
 import 'package:lawbid/features/onboarding/presentation/screens/attorney_verification_step_screen.dart';
 import 'package:lawbid/features/onboarding/presentation/screens/consents_step_screen.dart';
@@ -138,6 +140,102 @@ void main() {
       await _settle(tester);
       expect(find.text('Required'), findsWidgets);
       expect(repo.calls, isEmpty);
+      await _tearDownDrift(tester);
+    });
+  });
+
+  group('profile step sends structured fields (client_profiles / attorney_profiles)', () {
+    CurrentUser withProfile(CurrentUser base, {ClientProfile? client, AttorneyProfile? attorney}) => CurrentUser(
+          id: base.id,
+          role: base.role,
+          status: base.status,
+          firstName: 'Ann',
+          lastName: 'Lee',
+          email: base.email,
+          emailVerified: base.emailVerified,
+          phone: base.phone,
+          phoneVerified: base.phoneVerified,
+          uiLanguage: base.uiLanguage,
+          theme: base.theme,
+          requiredConsentsGranted: base.requiredConsentsGranted,
+          onboarding: base.onboarding,
+          missing: const {},
+          clientProfile: client,
+          attorneyProfile: attorney,
+        );
+
+    testWidgets('client: saved profile prefills and Continue sends it as ClientProfileInput', (tester) async {
+      tester.view.physicalSize = const Size(390, 1600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final me = withProfile(
+        clientPhoneOnly,
+        client: const ClientProfile(
+          stateCode: 'NY',
+          languages: ['en', 'es'],
+          contactMethod: 'in_app_chat',
+          contactNote: 'Evenings',
+        ),
+      );
+      final repo = FakeOnboardingRepository(me);
+      final wrap = await onboardingWrapper(AppTheme.light(), user: me, repo: repo);
+      await tester.pumpWidget(wrap(const ProfileStepScreen()));
+      await _settle(tester);
+
+      expect(find.text('New York'), findsOneWidget);
+      await tester.tap(find.text('Continue'));
+      await _settle(tester);
+
+      expect(repo.calls, ['saveProfileStep:push']);
+      final sent = repo.lastProfile! as ClientProfileInput;
+      expect(sent.toJson(), {
+        'firstName': 'Ann',
+        'lastName': 'Lee',
+        'stateCode': 'NY',
+        'languages': ['en', 'es'],
+        'contactMethod': 'in_app_chat',
+        'contactNote': 'Evenings',
+      });
+      await _tearDownDrift(tester);
+    });
+
+    testWidgets('attorney: bio/firm/languages/licensed states go as AttorneyProfileInput', (tester) async {
+      tester.view.physicalSize = const Size(390, 1600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final base = meFixture(
+        role: UserRole.attorney,
+        consents: true,
+        phone: '+15551234567',
+        phoneVerified: true,
+        step: OnboardingStepId.profile,
+      );
+      final me = withProfile(
+        base,
+        attorney: const AttorneyProfile(
+          username: 'ann.lee',
+          bio: 'Immigration attorney',
+          firmName: 'Lee LLP',
+          languages: ['en'],
+          licensedStates: ['NY', 'CA'],
+        ),
+      );
+      final repo = FakeOnboardingRepository(me);
+      final wrap = await onboardingWrapper(AppTheme.light(), user: me, repo: repo);
+      await tester.pumpWidget(wrap(const ProfileStepScreen()));
+      await _settle(tester);
+
+      await tester.tap(find.text('Continue'));
+      await _settle(tester);
+      final sent = repo.lastProfile! as AttorneyProfileInput;
+      expect(sent.toJson(), {
+        'firstName': 'Ann',
+        'lastName': 'Lee',
+        'bio': 'Immigration attorney',
+        'firmName': 'Lee LLP',
+        'languages': ['en'],
+        'licensedStates': ['CA', 'NY'],
+      });
       await _tearDownDrift(tester);
     });
   });

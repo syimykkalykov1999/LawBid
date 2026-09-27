@@ -11,6 +11,7 @@ import 'package:lawbid/features/onboarding/application/current_user_controller.d
 import 'package:lawbid/features/onboarding/application/onboarding_actions.dart';
 import 'package:lawbid/features/onboarding/domain/current_user.dart';
 import 'package:lawbid/features/onboarding/domain/onboarding_step_id.dart';
+import 'package:lawbid/features/onboarding/domain/profile_input.dart';
 import 'package:lawbid/features/onboarding/domain/us_states.dart';
 import 'package:lawbid/features/onboarding/onboarding_routes.dart';
 import 'package:lawbid/features/onboarding/presentation/widgets/onboarding_scaffold.dart';
@@ -23,7 +24,16 @@ const kNameMaxLength = 80;
 const kBioMaxLength = 300;
 
 /// Preferred contact methods (§11 Шаг 3A "звонок / SMS / email / чат").
+/// UI ids (translation keys `onboarding.profile.contactMethod.<id>`); the
+/// server enum spells the chat option `in_app_chat`.
 const kContactMethods = ['call', 'sms', 'email', 'chat'];
+
+/// UI id → apps/api `ContactMethod` value.
+String? contactMethodToWire(String? id) => id == 'chat' ? 'in_app_chat' : id;
+
+/// apps/api `ContactMethod` value → UI id.
+String? contactMethodFromWire(String? wire) =>
+    wire == 'in_app_chat' ? 'chat' : wire;
 
 /// `/onboarding/profile`:
 /// - client (§11 Шаг 3A): real first/last name, state of residence (50+DC),
@@ -32,10 +42,10 @@ const kContactMethods = ['call', 'sms', 'email', 'chat'];
 /// - attorney (§11 Шаг 3B): first/last name, short bio (≤300), firm
 ///   (optional), languages, licensed states (multi-select).
 ///
-/// Names go to `PATCH /users/me`; everything else is step data (`PATCH
-/// /users/me/onboarding` `data.profile`) until the profile tables land in
-/// file 03. Photo upload needs the S3 pipeline (file 03/06) — not in this
-/// stage.
+/// Everything (names included) goes as the structured `profile` of `PATCH
+/// /users/me/onboarding` and lands in client_profiles / attorney_profiles
+/// in one server transaction. Photo upload arrives with file uploads
+/// (docs/03 stage 3.2, owner decision).
 class ProfileStepScreen extends ConsumerStatefulWidget {
   const ProfileStepScreen({super.key});
 
@@ -68,6 +78,23 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
     _prefilled = true;
     _first.text = user.firstName ?? '';
     _last.text = user.lastName ?? '';
+    final client = user.clientProfile;
+    final attorney = user.attorneyProfile;
+    if (client != null) {
+      _states = {client.stateCode};
+      _languages = client.languages.toSet();
+      _contactMethod = contactMethodFromWire(client.contactMethod);
+      _contactTime.text = client.contactNote ?? '';
+      return;
+    }
+    if (attorney != null) {
+      _bio.text = attorney.bio ?? '';
+      _firm.text = attorney.firmName ?? '';
+      _languages = attorney.languages.toSet();
+      _states = attorney.licensedStates.toSet();
+      return;
+    }
+    // Fallback: the free-form step data an older build saved.
     final saved = user.onboarding.data['profile'];
     if (saved is Map<String, dynamic>) {
       _bio.text = saved['bio'] as String? ?? '';
@@ -93,25 +120,24 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
     final statesOk = _states.isNotEmpty;
     if (_first.text.trim().isEmpty || _last.text.trim().isEmpty || !statesOk)
       return;
-    final data = user.isAttorney
-        ? <String, dynamic>{
-            'bio': _bio.text.trim(),
-            'firm': _firm.text.trim(),
-            'languages': _languages.toList()..sort(),
-            'licensedStates': _states.toList()..sort(),
-          }
-        : <String, dynamic>{
-            'state': _states.first,
-            'languages': _languages.toList()..sort(),
-            if (_contactMethod != null) 'contactMethod': _contactMethod,
-            if (_contactTime.text.trim().isNotEmpty)
-              'contactTime': _contactTime.text.trim(),
-          };
-    await ref.read(onboardingActionsProvider.notifier).saveProfile(
-          firstName: _first.text,
-          lastName: _last.text,
-          data: data,
-        );
+    final ProfileInput profile = user.isAttorney
+        ? AttorneyProfileInput(
+            firstName: _first.text,
+            lastName: _last.text,
+            bio: _bio.text,
+            firmName: _firm.text,
+            languages: _languages.toList(),
+            licensedStates: _states.toList(),
+          )
+        : ClientProfileInput(
+            firstName: _first.text,
+            lastName: _last.text,
+            stateCode: _states.first,
+            languages: _languages.toList(),
+            contactMethod: contactMethodToWire(_contactMethod),
+            contactNote: _contactTime.text,
+          );
+    await ref.read(onboardingActionsProvider.notifier).saveProfile(profile);
   }
 
   @override

@@ -13,6 +13,12 @@ import type {
   SaveOnboardingStepDto,
 } from '../dto/onboarding.dto';
 import type { UpdateProfileDto } from '../dto/profile.dto';
+import {
+  LICENSED_STATES_KEY,
+  UserProfilesService,
+  type ProfileFacts,
+  type ProfileView,
+} from './user-profiles.service';
 
 /** docs/01_FOUNDATION_AUTH.md §10.2 H: consents that must be granted
  * before anything else in onboarding. */
@@ -24,7 +30,15 @@ export const REQUIRED_CONSENTS: readonly ConsentType[] = [
 ];
 
 export type MissingRequirement =
-  'consents' | 'role' | 'name' | 'phone_verified' | 'email_verified';
+  | 'consents'
+  | 'role'
+  | 'name'
+  | 'phone_verified'
+  | 'email_verified'
+  /** client_profiles row (state of residence, §11 3A) not saved yet. */
+  | 'state'
+  /** attorney picked no licensed state (§11 3B "Юрисдикция"). */
+  | 'licensed_states';
 
 export interface MeView {
   id: string;
@@ -44,6 +58,9 @@ export interface MeView {
     completedAt: string | null;
     data: Prisma.JsonValue;
   };
+  /** client_profiles / attorney_profiles (docs/02 §4.C) for the caller's
+   * role; null before the profile step is saved. */
+  profile: ProfileView | null;
   /** What still blocks POST /users/me/onboarding/complete — the Flutter
    * AppRouterGuard redirects on this instead of re-deriving the rules. */
   missing: MissingRequirement[];
@@ -58,7 +75,10 @@ export interface MeView {
  */
 @Injectable()
 export class OnboardingService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly profiles: UserProfilesService,
+  ) {}
 
   async getMe(userId: string): Promise<MeView> {
     const user = await this.prisma.user.findUnique({
@@ -68,7 +88,10 @@ export class OnboardingService {
     if (!user) {
       throw new NotFoundException({ code: ErrorCode.NOT_FOUND });
     }
-    const consentsOk = await this.requiredConsentsGranted(userId);
+    const [consentsOk, facts] = await Promise.all([
+      this.requiredConsentsGranted(userId),
+      this.profiles.facts(userId, user.role, user.onboarding_state?.data),
+    ]);
     return {
       id: user.id,
       role: user.role,
@@ -87,7 +110,8 @@ export class OnboardingService {
         completedAt: user.onboarding_state?.completed_at?.toISOString() ?? null,
         data: user.onboarding_state?.data ?? null,
       },
-      missing: missingRequirements(user, consentsOk),
+      profile: facts.view,
+      missing: missingRequirements(user, consentsOk, facts),
     };
   }
 
@@ -132,6 +156,17 @@ export class OnboardingService {
   }
 
   async saveStep(userId: string, dto: SaveOnboardingStepDto): Promise<void> {
+    if (dto.profile) {
+      // Profile + step position commit together (withTxRetry inside).
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true },
+      });
+      await this.profiles.save(userId, user?.role ?? null, dto.profile, {
+        currentStep: dto.currentStep,
+      });
+      if (!dto.data) return;
+    }
     const existing = await this.prisma.onboardingState.findUnique({
       where: { user_id: userId },
     });
@@ -141,10 +176,11 @@ export class OnboardingService {
       !Array.isArray(existing.data)
         ? existing.data
         : {};
-    const data = {
-      ...prevData,
-      ...(dto.data ?? {}),
-    } as Prisma.InputJsonObject;
+    // Licensed states are server-owned (validated via `profile`); a raw
+    // `data` payload must not be able to overwrite them.
+    const incoming = { ...(dto.data ?? {}) };
+    delete incoming[LICENSED_STATES_KEY];
+    const data = { ...prevData, ...incoming } as Prisma.InputJsonObject;
     await this.prisma.onboardingState.upsert({
       where: { user_id: userId },
       create: { user_id: userId, current_step: dto.currentStep, data },
@@ -153,6 +189,21 @@ export class OnboardingService {
   }
 
   async complete(userId: string): Promise<void> {
+    const before = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        role: true,
+        onboarding_state: { select: { data: true, completed_at: true } },
+      },
+    });
+    if (before?.onboarding_state?.completed_at) return;
+    // Upsert the profile row at completion too: migrates the free-form
+    // `data.profile` of older app builds and guarantees an attorney row.
+    await this.profiles.ensureForCompletion(
+      userId,
+      before?.role ?? null,
+      before?.onboarding_state?.data,
+    );
     const me = await this.getMe(userId);
     if (me.onboarding.completedAt !== null) return;
     if (me.missing.length > 0) {
@@ -190,8 +241,9 @@ export class OnboardingService {
   }
 }
 
-/** §11 guard rules: client needs BOTH phone and email verified; attorney
- * needs a verified phone (§11 step 3B). */
+/** §11 guard rules: client needs BOTH phone and email verified and a
+ * state of residence (3A); attorney needs a verified phone and at least
+ * one licensed state (3B). `profile` omitted = profile not checked. */
 export function missingRequirements(
   user: Pick<
     User,
@@ -202,6 +254,7 @@ export function missingRequirements(
     | 'email_verified_at'
   >,
   consentsGranted: boolean,
+  profile?: Pick<ProfileFacts, 'clientHasState' | 'attorneyHasLicensedStates'>,
 ): MissingRequirement[] {
   const missing: MissingRequirement[] = [];
   if (!consentsGranted) missing.push('consents');
@@ -212,6 +265,16 @@ export function missingRequirements(
   }
   if (user.role === 'client' && user.email_verified_at === null) {
     missing.push('email_verified');
+  }
+  if (profile && user.role === 'client' && !profile.clientHasState) {
+    missing.push('state');
+  }
+  if (
+    profile &&
+    user.role === 'attorney' &&
+    !profile.attorneyHasLicensedStates
+  ) {
+    missing.push('licensed_states');
   }
   return missing;
 }

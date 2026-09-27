@@ -20,6 +20,7 @@ import { SaveConsentsDto } from '../dto/consents.dto';
 import { SaveOnboardingStepDto } from '../dto/onboarding.dto';
 import { SetRoleDto, UpdateProfileDto } from '../dto/profile.dto';
 import { OnboardingService } from '../services/onboarding.service';
+import { AccountIdentifiersService } from '../services/account-identifiers.service';
 import {
   CurrentUser,
   type RequestUser,
@@ -46,6 +47,7 @@ export class UsersController {
     private readonly accountDeletion: AccountDeletionService,
     private readonly onboarding: OnboardingService,
     private readonly reauth: ReauthVerifier,
+    private readonly identifiers: AccountIdentifiersService,
   ) {}
 
   // --- Onboarding (docs/01_FOUNDATION_AUTH.md §11, stage 1.7) ---
@@ -53,6 +55,14 @@ export class UsersController {
   @Get()
   async me(@CurrentUser() user: RequestUser) {
     return this.onboarding.getMe(user.sub);
+  }
+
+  /** docs/01 §10.3: Settings → Account lists the linked sign-in methods.
+   * Linking more goes through POST /auth/identifiers; changing the phone/
+   * email contact through contacts/request (+ reauth) and contacts/verify. */
+  @Get('identifiers')
+  async listIdentifiers(@CurrentUser() user: RequestUser) {
+    return this.identifiers.list(user.sub);
   }
 
   @Patch()

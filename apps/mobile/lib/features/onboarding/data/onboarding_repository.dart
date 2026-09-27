@@ -6,6 +6,7 @@ import 'package:lawbid/features/onboarding/domain/consent_type.dart';
 import 'package:lawbid/features/onboarding/domain/contact_type.dart';
 import 'package:lawbid/features/onboarding/domain/current_user.dart';
 import 'package:lawbid/features/onboarding/domain/onboarding_step_id.dart';
+import 'package:lawbid/features/onboarding/domain/profile_input.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 
 /// Account + onboarding operations (docs/01_FOUNDATION_AUTH.md §10.2 H,
@@ -29,6 +30,12 @@ abstract interface class OnboardingRepository {
 
   Future<CurrentUser> saveStep(OnboardingStepId step,
       [Map<String, dynamic>? data]);
+
+  /// Profile step (docs/01 §11 3A/3B): names + structured profile +
+  /// moving to [next], in ONE server transaction. Throws
+  /// `VALIDATION_ERROR` (400) for an unknown state / language etc.
+  Future<CurrentUser> saveProfileStep(
+      OnboardingStepId next, ProfileInput profile);
 
   /// Throws `CLIENT_CONTACTS_INCOMPLETE` / `ONBOARDING_INCOMPLETE` (403,
   /// `details.missing`) when the server's hard requirements don't hold.
@@ -102,6 +109,13 @@ class ApiOnboardingRepository implements OnboardingRepository {
   Future<CurrentUser> saveStep(OnboardingStepId step,
           [Map<String, dynamic>? data]) async =>
       CurrentUser.fromJson(await _users.saveOnboardingStep(step.name, data));
+
+  @override
+  Future<CurrentUser> saveProfileStep(
+          OnboardingStepId next, ProfileInput profile) async =>
+      CurrentUser.fromJson(
+        await _users.saveOnboardingStep(next.name, null, profile.toJson()),
+      );
 
   @override
   Future<CurrentUser> completeOnboarding() async =>

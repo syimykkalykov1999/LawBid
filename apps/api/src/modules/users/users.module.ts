@@ -5,6 +5,8 @@ import { ContactsService } from './services/contacts.service';
 import { ConsentsService } from './services/consents.service';
 import { AccountDeletionService } from './services/account-deletion.service';
 import { OnboardingService } from './services/onboarding.service';
+import { UserProfilesService } from './services/user-profiles.service';
+import { AccountIdentifiersService } from './services/account-identifiers.service';
 
 /**
  * docs/01_FOUNDATION_AUTH.md §15 stage 1.4. Imports AuthModule for the
@@ -22,6 +24,8 @@ import { OnboardingService } from './services/onboarding.service';
     ConsentsService,
     AccountDeletionService,
     OnboardingService,
+    UserProfilesService,
+    AccountIdentifiersService,
   ],
   exports: [OnboardingService],
 })
