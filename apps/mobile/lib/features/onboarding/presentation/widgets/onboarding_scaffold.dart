@@ -77,9 +77,12 @@ class OnboardingScaffold extends ConsumerWidget {
               child: Row(
                 children: [
                   if (onBack != null)
-                    AppBackButton(semanticLabel: t.t('common.back'), onPressed: onBack!)
+                    AppBackButton(
+                        semanticLabel: t.t('common.back'), onPressed: onBack!)
                   else
-                    const SizedBox(width: AppSizes.touchTarget, height: AppSizes.touchTarget),
+                    const SizedBox(
+                        width: AppSizes.touchTarget,
+                        height: AppSizes.touchTarget),
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
                     child: AppStepProgress(
@@ -107,13 +110,16 @@ class OnboardingScaffold extends ConsumerWidget {
                   children: staggeredEntrance([
                     Semantics(
                       header: true,
-                      child: Text(title, style: typography.titleLarge.copyWith(color: colors.text)),
+                      child: Text(title,
+                          style: typography.titleLarge
+                              .copyWith(color: colors.text)),
                     ),
                     if (subtitle != null) ...[
                       const SizedBox(height: AppSpacing.sm),
                       Text(
                         subtitle!,
-                        style: typography.body.copyWith(color: colors.textSecondary),
+                        style: typography.body
+                            .copyWith(color: colors.textSecondary),
                       ),
                     ],
                     const SizedBox(height: AppSpacing.xl),
@@ -148,7 +154,8 @@ class OnboardingScaffold extends ConsumerWidget {
                       Text(
                         footnote!,
                         textAlign: TextAlign.center,
-                        style: typography.caption.copyWith(color: colors.textSecondary),
+                        style: typography.caption
+                            .copyWith(color: colors.textSecondary),
                       ),
                     ],
                     if (secondary != null) ...[
@@ -201,7 +208,8 @@ class ActionErrorBanner extends ConsumerWidget {
               ),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
-                child: Text(message, style: typography.bodySmall.copyWith(color: colors.text)),
+                child: Text(message,
+                    style: typography.bodySmall.copyWith(color: colors.text)),
               ),
             ],
           ),
@@ -225,7 +233,8 @@ class StepSectionLabel extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: AppSpacing.sm),
       child: Semantics(
         header: true,
-        child: Text(text, style: typography.caption.copyWith(color: colors.textSecondary)),
+        child: Text(text,
+            style: typography.caption.copyWith(color: colors.textSecondary)),
       ),
     );
   }

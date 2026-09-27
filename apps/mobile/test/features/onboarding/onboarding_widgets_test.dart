@@ -93,7 +93,7 @@ void main() {
       await _tearDownDrift(tester);
     });
 
-    testWidgets('inline verification: identity code → new-contact code → verified', (tester) async {
+    testWidgets('first email: code goes straight to the new contact → verified (no reauth)', (tester) async {
       tester.view.physicalSize = const Size(390, 1200);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
@@ -105,12 +105,9 @@ void main() {
       await tester.enterText(find.byType(TextField).first, 'Real.Person@Example.com');
       await tester.tap(find.text('Send code'));
       await _settle(tester);
-      expect(repo.calls, ['requestReauthCode:+15551234567']);
-      expect(find.textContaining("confirm it's you"), findsOneWidget);
-
-      await _enterOtp(tester, '111111');
-      expect(repo.calls, contains('reauth'));
-      expect(repo.calls, contains('requestContactCode:real.person@example.com'));
+      // docs/01 §11 step 3A: reauth only when *changing* a verified contact.
+      expect(repo.calls, ['requestContactCode:real.person@example.com']);
+      expect(find.textContaining("confirm it's you"), findsNothing);
       expect(find.text('Enter the code we sent to real.person@example.com.'), findsOneWidget);
 
       await _enterOtp(tester, '222222');

@@ -29,14 +29,17 @@ class CurrentUserState {
 
   const CurrentUserState.idle() : this._(CurrentUserStatus.idle);
   const CurrentUserState.loading() : this._(CurrentUserStatus.loading);
-  const CurrentUserState.ready(CurrentUser user) : this._(CurrentUserStatus.ready, user: user);
-  const CurrentUserState.failed(Object error) : this._(CurrentUserStatus.failed, error: error);
+  const CurrentUserState.ready(CurrentUser user)
+      : this._(CurrentUserStatus.ready, user: user);
+  const CurrentUserState.failed(Object error)
+      : this._(CurrentUserStatus.failed, error: error);
 
   final CurrentUserStatus status;
   final CurrentUser? user;
   final Object? error;
 
-  bool get isOffline => error is ApiException && (error! as ApiException).isNetworkError;
+  bool get isOffline =>
+      error is ApiException && (error! as ApiException).isNetworkError;
 }
 
 /// The "SessionState driven by GET /users/me" half of stage 1.7 (docs/
@@ -111,13 +114,16 @@ class CurrentUserController extends Notifier<CurrentUserState> {
 }
 
 final currentUserControllerProvider =
-    NotifierProvider<CurrentUserController, CurrentUserState>(CurrentUserController.new);
+    NotifierProvider<CurrentUserController, CurrentUserState>(
+        CurrentUserController.new);
 
 /// The signed-in user's role (docs/01_FOUNDATION_AUTH.md §11), from
 /// `GET /users/me`, falling back to the access token's `role` claim while
 /// me is loading. Replaces the stage-1.5 hardcoded-client stub.
 final currentUserRoleProvider = Provider<UserRole?>((ref) {
-  final fromMe = ref.watch(currentUserControllerProvider.select((s) => s.user?.role));
+  final fromMe =
+      ref.watch(currentUserControllerProvider.select((s) => s.user?.role));
   if (fromMe != null) return fromMe;
-  return parseUserRole(ref.watch(sessionControllerProvider.select((s) => s?.role)));
+  return parseUserRole(
+      ref.watch(sessionControllerProvider.select((s) => s?.role)));
 });

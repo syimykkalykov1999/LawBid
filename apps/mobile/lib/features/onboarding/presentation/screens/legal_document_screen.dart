@@ -11,7 +11,12 @@ import 'package:lawbid/core/l10n/app_language.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/language_providers.dart';
 
-const _knownDocTypes = {'terms', 'privacy', 'disclaimer', 'client_contact_sharing'};
+const _knownDocTypes = {
+  'terms',
+  'privacy',
+  'disclaimer',
+  'client_contact_sharing'
+};
 
 /// `/legal/:docType` — current Terms / Privacy / Disclaimer from
 /// `/config/bootstrap` `legal_documents` (docs/01_FOUNDATION_AUTH.md
@@ -28,7 +33,8 @@ class LegalDocumentScreen extends ConsumerStatefulWidget {
   final String docType;
 
   @override
-  ConsumerState<LegalDocumentScreen> createState() => _LegalDocumentScreenState();
+  ConsumerState<LegalDocumentScreen> createState() =>
+      _LegalDocumentScreenState();
 }
 
 class _LegalDocumentScreenState extends ConsumerState<LegalDocumentScreen> {
@@ -36,7 +42,9 @@ class _LegalDocumentScreenState extends ConsumerState<LegalDocumentScreen> {
 
   Future<void> _retry() async {
     setState(() => _refreshing = true);
-    await ref.read(featureFlagsControllerProvider.notifier).refreshInBackground();
+    await ref
+        .read(featureFlagsControllerProvider.notifier)
+        .refreshInBackground();
     if (mounted) setState(() => _refreshing = false);
   }
 
@@ -45,7 +53,8 @@ class _LegalDocumentScreenState extends ConsumerState<LegalDocumentScreen> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final t = ref.watch(translatorProvider);
-    final docs = ref.watch(featureFlagsControllerProvider.select((s) => s.legalDocuments));
+    final docs = ref
+        .watch(featureFlagsControllerProvider.select((s) => s.legalDocuments));
     final lang = ref.watch(languageControllerProvider).value ?? AppLanguage.en;
     final doc = pickLegalDocument(docs, widget.docType, lang.name);
 
@@ -77,7 +86,8 @@ class _LegalDocumentScreenState extends ConsumerState<LegalDocumentScreen> {
         ),
       );
     } else if (doc == null) {
-      body = AppEmptyState(icon: Icons.description_outlined, message: t.t('legal.notFound'));
+      body = AppEmptyState(
+          icon: Icons.description_outlined, message: t.t('legal.notFound'));
     } else {
       body = ListView(
         padding: const EdgeInsets.fromLTRB(
@@ -101,10 +111,12 @@ class _LegalDocumentScreenState extends ConsumerState<LegalDocumentScreen> {
                         header: true,
                         child: Text(
                           block.replaceFirst(RegExp(r'^#+\s*'), ''),
-                          style: typography.titleMedium.copyWith(color: colors.text),
+                          style: typography.titleMedium
+                              .copyWith(color: colors.text),
                         ),
                       )
-                    : SelectableText(block, style: typography.body.copyWith(color: colors.text)),
+                    : SelectableText(block,
+                        style: typography.body.copyWith(color: colors.text)),
               ),
           if (doc.contentUrl != null)
             AppListRow(
@@ -114,7 +126,8 @@ class _LegalDocumentScreenState extends ConsumerState<LegalDocumentScreen> {
               showChevron: false,
               onTap: () async {
                 await Clipboard.setData(ClipboardData(text: doc.contentUrl!));
-                if (context.mounted) showAppSnackBar(context, t.t('legal.linkCopied'));
+                if (context.mounted)
+                  showAppSnackBar(context, t.t('legal.linkCopied'));
               },
             ),
         ],
@@ -124,7 +137,9 @@ class _LegalDocumentScreenState extends ConsumerState<LegalDocumentScreen> {
     return Scaffold(
       backgroundColor: colors.bg,
       appBar: AppTopBar(
-        title: Text(t.t(_knownDocTypes.contains(widget.docType) ? 'legal.doc.${widget.docType}' : 'legal.doc.document')),
+        title: Text(t.t(_knownDocTypes.contains(widget.docType)
+            ? 'legal.doc.${widget.docType}'
+            : 'legal.doc.document')),
         leading: AppBackButton(
           semanticLabel: t.t('common.close'),
           onPressed: () => Navigator.of(context).maybePop(),

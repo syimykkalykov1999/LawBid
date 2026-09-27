@@ -27,8 +27,10 @@ class ConsentCheckTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final duration = context.reduceMotion ? Duration.zero : AppMotion.stateChange;
-    final borderColor = showError ? colors.danger : (value ? colors.gold : colors.border);
+    final duration =
+        context.reduceMotion ? Duration.zero : AppMotion.stateChange;
+    final borderColor =
+        showError ? colors.danger : (value ? colors.gold : colors.border);
 
     return MergeSemantics(
       child: Semantics(
@@ -57,7 +59,8 @@ class ConsentCheckTile extends StatelessWidget {
                     child: AnimatedOpacity(
                       duration: duration,
                       opacity: value ? 1 : 0,
-                      child: Icon(Icons.check_rounded, size: AppSizes.iconSm, color: colors.navy),
+                      child: Icon(Icons.check_rounded,
+                          size: AppSizes.iconSm, color: colors.navy),
                     ),
                   ),
                   const SizedBox(width: AppSpacing.md),

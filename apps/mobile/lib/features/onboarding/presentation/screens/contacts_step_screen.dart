@@ -52,7 +52,9 @@ class _ContactsStepScreenState extends ConsumerState<ContactsStepScreen> {
     return OnboardingScaffold(
       step: OnboardingStepId.contacts,
       title: t.t('onboarding.contacts.title'),
-      subtitle: t.t(user.isClient ? 'onboarding.contacts.subtitle.client' : 'onboarding.contacts.subtitle.attorney'),
+      subtitle: t.t(user.isClient
+          ? 'onboarding.contacts.subtitle.client'
+          : 'onboarding.contacts.subtitle.attorney'),
       onBack: () => context.go(OnboardingRoutes.forStep(OnboardingStepId.role)),
       error: action.error,
       primaryLabel: t.t('onboarding.continue'),
@@ -63,7 +65,9 @@ class _ContactsStepScreenState extends ConsumerState<ContactsStepScreen> {
           setState(() => _attempted = true);
           return;
         }
-        ref.read(onboardingActionsProvider.notifier).advance(OnboardingStepId.contacts);
+        ref
+            .read(onboardingActionsProvider.notifier)
+            .advance(OnboardingStepId.contacts);
       },
       children: [
         ContactVerificationCard(
@@ -76,7 +80,9 @@ class _ContactsStepScreenState extends ConsumerState<ContactsStepScreen> {
         const SizedBox(height: AppSpacing.md),
         ContactVerificationCard(
           type: ContactType.email,
-          requirement: emailRequired ? ContactRequirement.required : ContactRequirement.recommended,
+          requirement: emailRequired
+              ? ContactRequirement.required
+              : ContactRequirement.recommended,
           verifiedValue: user.emailVerified ? user.email : null,
           initialValue: user.emailVerified ? null : user.email,
           highlightMissing: _attempted && emailMissing,
@@ -88,7 +94,8 @@ class _ContactsStepScreenState extends ConsumerState<ContactsStepScreen> {
             Icon(
               Icons.lock_outline_rounded,
               size: AppSizes.iconSm,
-              color: Theme.of(context).extension<AppColorTokens>()!.textSecondary,
+              color:
+                  Theme.of(context).extension<AppColorTokens>()!.textSecondary,
             ),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
@@ -97,7 +104,10 @@ class _ContactsStepScreenState extends ConsumerState<ContactsStepScreen> {
                 style: Theme.of(context)
                     .extension<AppTypographyTokens>()!
                     .caption
-                    .copyWith(color: Theme.of(context).extension<AppColorTokens>()!.textSecondary),
+                    .copyWith(
+                        color: Theme.of(context)
+                            .extension<AppColorTokens>()!
+                            .textSecondary),
               ),
             ),
           ],

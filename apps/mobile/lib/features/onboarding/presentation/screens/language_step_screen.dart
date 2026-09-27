@@ -32,8 +32,11 @@ class _LanguageStepScreenState extends ConsumerState<LanguageStepScreen> {
   String _initialCode() {
     final current = ref.read(languageControllerProvider).value;
     if (current != null) return current.name;
-    final device = WidgetsBinding.instance.platformDispatcher.locale.languageCode;
-    return AppLanguage.values.any((l) => l.name == device) ? device : AppLanguage.en.name;
+    final device =
+        WidgetsBinding.instance.platformDispatcher.locale.languageCode;
+    return AppLanguage.values.any((l) => l.name == device)
+        ? device
+        : AppLanguage.en.name;
   }
 
   @override
@@ -81,10 +84,14 @@ class _LanguageStepScreenState extends ConsumerState<LanguageStepScreen> {
                   label: entries[i].nativeName,
                   trailingText: entries[i].appLanguage == null
                       ? t.t('lang.picker.comingSoon')
-                      : (entries[i].nativeName == entries[i].englishName ? null : entries[i].englishName),
+                      : (entries[i].nativeName == entries[i].englishName
+                          ? null
+                          : entries[i].englishName),
                   selected: entries[i].code == selected,
                   showChevron: false,
-                  onTap: entries[i].appLanguage == null ? null : () => unawaited(choose(entries[i])),
+                  onTap: entries[i].appLanguage == null
+                      ? null
+                      : () => unawaited(choose(entries[i])),
                 ),
               ],
             ],

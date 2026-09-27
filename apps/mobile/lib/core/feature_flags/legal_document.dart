@@ -1,9 +1,11 @@
 /// One entry of `/config/bootstrap`'s `legal_documents` (apps/api
-/// bootstrap.service.ts: `doc_type, version, locale, content_url,
-/// content_md, published_at`). Read by the consents step (docs/01_
+/// bootstrap.service.ts: `id, doc_type, version, locale, content_url,
+/// content_md, published_at`). [id] is sent back as `documentId` with the
+/// consents so the accepted version is recorded (§10.2 H). Read by the consents step (docs/01_
 /// FOUNDATION_AUTH.md §10.2 H) to link Terms/Privacy/Disclaimer.
 class LegalDocument {
   const LegalDocument({
+    this.id,
     required this.docType,
     required this.version,
     required this.locale,
@@ -18,6 +20,7 @@ class LegalDocument {
     final locale = raw['locale'];
     if (type is! String || version is! String || locale is! String) return null;
     return LegalDocument(
+      id: raw['id'] as String?,
       docType: type,
       version: version,
       locale: locale,
@@ -25,6 +28,8 @@ class LegalDocument {
       contentMd: raw['content_md'] as String?,
     );
   }
+
+  final String? id;
 
   /// `terms` | `privacy` | `disclaimer` | `client_contact_sharing`.
   final String docType;

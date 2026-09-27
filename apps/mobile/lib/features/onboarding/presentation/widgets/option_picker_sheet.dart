@@ -92,7 +92,8 @@ class _OptionPickerSheetState extends ConsumerState<OptionPickerSheet> {
     return SafeArea(
       top: false,
       child: ConstrainedBox(
-        constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.85),
+        constraints:
+            BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.85),
         child: Padding(
           padding: EdgeInsets.fromLTRB(
             AppSpacing.screenSide,
@@ -107,14 +108,16 @@ class _OptionPickerSheetState extends ConsumerState<OptionPickerSheet> {
               const AppSheetHandle(),
               Semantics(
                 header: true,
-                child: Text(widget.title, style: typography.titleMedium.copyWith(color: colors.text)),
+                child: Text(widget.title,
+                    style: typography.titleMedium.copyWith(color: colors.text)),
               ),
               const SizedBox(height: AppSpacing.md),
               AppTextField(
                 controller: _search,
                 hintText: t.t('common.search'),
                 semanticLabel: t.t('common.search'),
-                leading: Icon(Icons.search_rounded, size: AppSizes.iconSm, color: colors.textSecondary),
+                leading: Icon(Icons.search_rounded,
+                    size: AppSizes.iconSm, color: colors.textSecondary),
                 onChanged: (v) => setState(() => _query = v),
               ),
               const SizedBox(height: AppSpacing.md),
@@ -125,13 +128,15 @@ class _OptionPickerSheetState extends ConsumerState<OptionPickerSheet> {
                         child: Text(
                           t.t('lang.picker.empty'),
                           textAlign: TextAlign.center,
-                          style: typography.body.copyWith(color: colors.textSecondary),
+                          style: typography.body
+                              .copyWith(color: colors.textSecondary),
                         ),
                       )
                     : ListView.separated(
                         shrinkWrap: true,
                         itemCount: filtered.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.xs),
+                        separatorBuilder: (_, __) =>
+                            const SizedBox(height: AppSpacing.xs),
                         itemBuilder: (context, i) {
                           final o = filtered[i];
                           return AppListRow(
@@ -190,18 +195,22 @@ class PickerField extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           ExcludeSemantics(
-            child: Text(label, style: typography.bodySmall.copyWith(color: colors.textSecondary)),
+            child: Text(label,
+                style:
+                    typography.bodySmall.copyWith(color: colors.textSecondary)),
           ),
           const SizedBox(height: AppSpacing.sm),
           AppPressable(
             onTap: onTap,
             child: Container(
               constraints: const BoxConstraints(minHeight: 52),
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.md),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md, vertical: AppSpacing.md),
               decoration: BoxDecoration(
                 color: colors.surface,
                 borderRadius: BorderRadius.circular(AppRadii.field),
-                border: Border.all(color: hasError ? colors.danger : colors.border),
+                border:
+                    Border.all(color: hasError ? colors.danger : colors.border),
               ),
               child: Row(
                 children: [
@@ -210,19 +219,25 @@ class PickerField extends StatelessWidget {
                       child: Text(
                         value ?? placeholder,
                         style: typography.body.copyWith(
-                          color: value == null ? colors.textSecondary : colors.text,
+                          color: value == null
+                              ? colors.textSecondary
+                              : colors.text,
                         ),
                       ),
                     ),
                   ),
-                  ChevronGlyph(direction: ChevronDirection.down, size: 15, color: colors.textSecondary),
+                  ChevronGlyph(
+                      direction: ChevronDirection.down,
+                      size: 15,
+                      color: colors.textSecondary),
                 ],
               ),
             ),
           ),
           if (hasError) ...[
             const SizedBox(height: AppSpacing.xs),
-            Text(errorText!, style: typography.caption.copyWith(color: colors.danger)),
+            Text(errorText!,
+                style: typography.caption.copyWith(color: colors.danger)),
           ],
         ],
       ),

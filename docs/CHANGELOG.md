@@ -3367,3 +3367,22 @@ unverified. Corrected:
   CockroachDB **v25.3** (left over from an older compose project), while
   `docker-compose.yml` pins v24.1.5. Code stays 24.1-compatible (no
   triggers/RLS relied on).
+
+## Fix: reauth only when changing a contact; legal document ids — 2026-09-27
+
+Two backend gaps reported by the stage 1.7 mobile work:
+
+- `POST /users/me/contacts/request` required a reauth token even for a
+  user's FIRST phone/email, so onboarding cost an extra paid identity code
+  per contact (and per resend). docs/01 §11 step 3A only requires reauth to
+  *change* a contact. Reauth validation moved from `ReauthGuard` into a
+  reusable `ReauthVerifier` (guard delegates to it; `DELETE /users/me` is
+  unchanged); `contacts/request` calls it only when the user already has a
+  verified contact of that type. Mobile: the identity step now appears only
+  for replacements; a first contact goes straight to its own code.
+- `GET /config/bootstrap` `legal_documents` now includes `id`; the consents
+  step sends it as `documentId` for terms/privacy/disclaimer, so the
+  accepted document version is recorded (§10.2 H).
+- Tests: e2e `onboarding.e2e-spec.ts` +2 (first contact without reauth →
+  201, changing a verified one → `REAUTH_REQUIRED`; bootstrap docs carry
+  `id`); Flutter contacts-step widget test updated to the new flow.

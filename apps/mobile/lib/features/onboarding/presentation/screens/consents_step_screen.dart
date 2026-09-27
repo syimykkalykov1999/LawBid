@@ -3,6 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
+import 'package:lawbid/core/feature_flags/legal_document.dart';
+import 'package:lawbid/core/l10n/app_language.dart';
+import 'package:lawbid/core/l10n/language_providers.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/onboarding/application/onboarding_actions.dart';
@@ -28,12 +32,15 @@ class ConsentsStepScreen extends ConsumerStatefulWidget {
 }
 
 class _ConsentsStepScreenState extends ConsumerState<ConsentsStepScreen> {
-  final Map<ConsentType, bool> _values = {for (final c in ConsentType.values) c: false};
+  final Map<ConsentType, bool> _values = {
+    for (final c in ConsentType.values) c: false
+  };
   bool _attempted = false;
 
   bool get _requiredOk => ConsentType.requiredTypes.every((c) => _values[c]!);
 
-  void _set(ConsentType type, bool value) => setState(() => _values[type] = value);
+  void _set(ConsentType type, bool value) =>
+      setState(() => _values[type] = value);
 
   void _setTermsAndPrivacy(bool value) => setState(() {
         _values[ConsentType.terms] = value;
@@ -43,7 +50,20 @@ class _ConsentsStepScreenState extends ConsumerState<ConsentsStepScreen> {
   Future<void> _continue() async {
     setState(() => _attempted = true);
     if (!_requiredOk) return;
-    await ref.read(onboardingActionsProvider.notifier).saveConsents(_values);
+    // The accepted document versions (bootstrap legal_documents) are sent
+    // as documentId for the consents that have a document.
+    final docs = ref.read(featureFlagsControllerProvider).legalDocuments;
+    final lang = ref.read(languageControllerProvider).value ?? AppLanguage.en;
+    String? idOf(String docType) =>
+        pickLegalDocument(docs, docType, lang.name)?.id;
+    await ref.read(onboardingActionsProvider.notifier).saveConsents(
+      _values,
+      documentIds: {
+        ConsentType.terms: idOf('terms'),
+        ConsentType.privacy: idOf('privacy'),
+        ConsentType.disclaimer: idOf('disclaimer'),
+      },
+    );
   }
 
   @override
@@ -54,24 +74,30 @@ class _ConsentsStepScreenState extends ConsumerState<ConsentsStepScreen> {
     final action = ref.watch(onboardingActionsProvider);
 
     bool missing(ConsentType c) => _attempted && !_values[c]!;
-    final termsAccepted = _values[ConsentType.terms]! && _values[ConsentType.privacy]!;
+    final termsAccepted =
+        _values[ConsentType.terms]! && _values[ConsentType.privacy]!;
 
-    Widget label(String text) => Text(text, style: typography.body.copyWith(color: colors.text));
+    Widget label(String text) =>
+        Text(text, style: typography.body.copyWith(color: colors.text));
 
     return OnboardingScaffold(
       step: OnboardingStepId.consents,
       title: t.t('onboarding.consents.title'),
       subtitle: t.t('onboarding.consents.subtitle'),
-      onBack: () => context.go(OnboardingRoutes.forStep(OnboardingStepId.language)),
+      onBack: () =>
+          context.go(OnboardingRoutes.forStep(OnboardingStepId.language)),
       error: action.error,
       primaryLabel: t.t('onboarding.continue'),
       primaryLoading: action.busy,
       onPrimary: _continue,
-      footnote: _attempted && !_requiredOk ? t.t('onboarding.consents.requiredHint') : null,
+      footnote: _attempted && !_requiredOk
+          ? t.t('onboarding.consents.requiredHint')
+          : null,
       children: [
         StepSectionLabel(t.t('onboarding.consents.section.required')),
         AppCard(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.xs),
+          padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md, vertical: AppSpacing.xs),
           child: Column(
             children: [
               ConsentCheckTile(
@@ -99,7 +125,8 @@ class _ConsentsStepScreenState extends ConsumerState<ConsentsStepScreen> {
             for (final doc in const ['terms', 'privacy', 'disclaimer'])
               AppChip(
                 label: t.t('legal.doc.$doc'),
-                leading: Icon(Icons.description_outlined, size: AppSizes.iconSm, color: colors.gold),
+                leading: Icon(Icons.description_outlined,
+                    size: AppSizes.iconSm, color: colors.gold),
                 onTap: () => context.push(AppRoutes.legalDoc(doc)),
               ),
           ],
@@ -119,7 +146,8 @@ class _ConsentsStepScreenState extends ConsumerState<ConsentsStepScreen> {
         const SizedBox(height: AppSpacing.xl),
         StepSectionLabel(t.t('onboarding.consents.section.optional')),
         AppCard(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.xs),
+          padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md, vertical: AppSpacing.xs),
           child: Column(
             children: [
               for (final c in const [
@@ -144,7 +172,8 @@ class _ConsentsStepScreenState extends ConsumerState<ConsentsStepScreen> {
 /// §10.2 H "Отдельный обязательный дисклеймер" — visually distinct so it
 /// isn't skimmed past with the checkboxes above.
 class _DisclaimerCard extends StatelessWidget {
-  const _DisclaimerCard({required this.title, required this.body, required this.child});
+  const _DisclaimerCard(
+      {required this.title, required this.body, required this.child});
 
   final String title;
   final String body;
@@ -155,7 +184,8 @@ class _DisclaimerCard extends StatelessWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     return Container(
-      padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.lg, AppSpacing.md, AppSpacing.xs),
+      padding: const EdgeInsets.fromLTRB(
+          AppSpacing.lg, AppSpacing.lg, AppSpacing.md, AppSpacing.xs),
       decoration: BoxDecoration(
         color: colors.goldTint,
         borderRadius: BorderRadius.circular(AppRadii.card),
@@ -166,12 +196,14 @@ class _DisclaimerCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.balance_rounded, size: AppSizes.iconSm, color: colors.goldDark),
+              Icon(Icons.balance_rounded,
+                  size: AppSizes.iconSm, color: colors.goldDark),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: Semantics(
                   header: true,
-                  child: Text(title, style: typography.roleTitle.copyWith(color: colors.text)),
+                  child: Text(title,
+                      style: typography.roleTitle.copyWith(color: colors.text)),
                 ),
               ),
             ],

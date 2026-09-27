@@ -42,10 +42,12 @@ class ContactVerificationCard extends ConsumerStatefulWidget {
   final bool highlightMissing;
 
   @override
-  ConsumerState<ContactVerificationCard> createState() => _ContactVerificationCardState();
+  ConsumerState<ContactVerificationCard> createState() =>
+      _ContactVerificationCardState();
 }
 
-class _ContactVerificationCardState extends ConsumerState<ContactVerificationCard> {
+class _ContactVerificationCardState
+    extends ConsumerState<ContactVerificationCard> {
   late final TextEditingController _controller = TextEditingController(
     text: widget.type == ContactType.phone && widget.initialValue != null
         ? UsPhone.format(widget.initialValue!)
@@ -65,12 +67,15 @@ class _ContactVerificationCardState extends ConsumerState<ContactVerificationCar
     final raw = _controller.text;
     final valid = _isPhone ? UsPhone.isValid(raw) : isPlausibleEmail(raw);
     if (!valid) {
-      setState(() => _localError = t.t(_isPhone ? 'auth.phone.error.invalid' : 'auth.email.error.invalid'));
+      setState(() => _localError = t.t(
+          _isPhone ? 'auth.phone.error.invalid' : 'auth.email.error.invalid'));
       return;
     }
     setState(() => _localError = null);
     final value = _isPhone ? UsPhone.toE164(raw) : raw.trim().toLowerCase();
-    unawaited(ref.read(contactVerificationProvider(widget.type).notifier).sendCode(value));
+    unawaited(ref
+        .read(contactVerificationProvider(widget.type).notifier)
+        .sendCode(value));
   }
 
   String _display(String value) => _isPhone ? UsPhone.format(value) : value;
@@ -81,10 +86,12 @@ class _ContactVerificationCardState extends ConsumerState<ContactVerificationCar
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final t = ref.watch(translatorProvider);
     final state = ref.watch(contactVerificationProvider(widget.type));
-    final notifier = ref.read(contactVerificationProvider(widget.type).notifier);
+    final notifier =
+        ref.read(contactVerificationProvider(widget.type).notifier);
     final verified = widget.verifiedValue != null;
     final kind = _isPhone ? 'phone' : 'email';
-    final errorMessage = state.error == null ? null : errorText(t, state.error!);
+    final errorMessage =
+        state.error == null ? null : errorText(t, state.error!);
 
     final Widget status;
     if (verified) {
@@ -98,7 +105,8 @@ class _ContactVerificationCardState extends ConsumerState<ContactVerificationCar
       status = _StatusPill(
         label: t.t('onboarding.contacts.status.required'),
         color: widget.highlightMissing ? colors.danger : colors.goldDark,
-        background: widget.highlightMissing ? colors.dangerTint : colors.goldTint,
+        background:
+            widget.highlightMissing ? colors.dangerTint : colors.goldTint,
       );
     } else {
       status = _StatusPill(
@@ -126,9 +134,15 @@ class _ContactVerificationCardState extends ConsumerState<ContactVerificationCar
               hintText: t.t(_isPhone ? 'auth.phone.hint' : 'auth.email.hint'),
               semanticLabel: t.t('onboarding.contacts.$kind.title'),
               errorText: _localError ?? errorMessage,
-              keyboardType: _isPhone ? TextInputType.phone : TextInputType.emailAddress,
+              keyboardType:
+                  _isPhone ? TextInputType.phone : TextInputType.emailAddress,
               inputFormatters: _isPhone ? [UsPhoneFormatter()] : null,
-              autofillHints: [if (_isPhone) AutofillHints.telephoneNumberNational else AutofillHints.email],
+              autofillHints: [
+                if (_isPhone)
+                  AutofillHints.telephoneNumberNational
+                else
+                  AutofillHints.email
+              ],
               textInputAction: TextInputAction.send,
               onSubmitted: (_) => _send(t),
               onChanged: (_) {
@@ -146,37 +160,51 @@ class _ContactVerificationCardState extends ConsumerState<ContactVerificationCar
           ];
         case ContactVerificationStage.confirmIdentity:
         case ContactVerificationStage.codeSent:
-          final confirming = state.stage == ContactVerificationStage.confirmIdentity;
-          final target = confirming ? state.reauthTarget ?? '' : state.value ?? '';
+          final confirming =
+              state.stage == ContactVerificationStage.confirmIdentity;
+          final target =
+              confirming ? state.reauthTarget ?? '' : state.value ?? '';
           body = [
             Text(
               confirming
-                  ? t.t('onboarding.contacts.confirmIdentity', {'target': _maybeFormat(target)})
-                  : t.t('onboarding.contacts.codeSent', {'target': _display(target)}),
+                  ? t.t('onboarding.contacts.confirmIdentity',
+                      {'target': _maybeFormat(target)})
+                  : t.t('onboarding.contacts.codeSent',
+                      {'target': _display(target)}),
               style: typography.bodySmall.copyWith(color: colors.textSecondary),
             ),
             const SizedBox(height: AppSpacing.md),
             AppOtpField(
               key: ValueKey('${widget.type.name}-${state.attempt}'),
               errorText: errorMessage,
-              onCompleted: (code) => confirming ? notifier.confirmIdentity(code) : notifier.verify(code),
+              onCompleted: (code) => confirming
+                  ? notifier.confirmIdentity(code)
+                  : notifier.verify(code),
             ),
             if (state.busy) ...[
               const SizedBox(height: AppSpacing.sm),
-              LinearProgressIndicator(minHeight: 2, color: colors.gold, backgroundColor: colors.border),
+              LinearProgressIndicator(
+                  minHeight: 2,
+                  color: colors.gold,
+                  backgroundColor: colors.border),
             ],
             const SizedBox(height: AppSpacing.xs),
             Wrap(
               spacing: AppSpacing.lg,
               children: [
-                _TextLink(label: t.t('auth.otp.resend'), onTap: state.busy ? null : notifier.resend),
-                _TextLink(label: t.t('onboarding.contacts.change'), onTap: state.busy ? null : notifier.edit),
+                _TextLink(
+                    label: t.t('auth.otp.resend'),
+                    onTap: state.busy ? null : notifier.resend),
+                _TextLink(
+                    label: t.t('onboarding.contacts.change'),
+                    onTap: state.busy ? null : notifier.edit),
               ],
             ),
           ];
         case ContactVerificationStage.verified:
           body = [
-            Text(_display(state.value ?? ''), style: typography.body.copyWith(color: colors.text)),
+            Text(_display(state.value ?? ''),
+                style: typography.body.copyWith(color: colors.text)),
           ];
       }
     }
@@ -190,7 +218,9 @@ class _ContactVerificationCardState extends ConsumerState<ContactVerificationCar
         border: Border.all(
           color: widget.highlightMissing && !verified
               ? colors.danger
-              : (verified ? colors.success.withValues(alpha: 0.5) : colors.border),
+              : (verified
+                  ? colors.success.withValues(alpha: 0.5)
+                  : colors.border),
         ),
       ),
       child: Column(
@@ -199,8 +229,11 @@ class _ContactVerificationCardState extends ConsumerState<ContactVerificationCar
           Row(
             children: [
               AppIconMedallion(
-                icon: _isPhone ? Icons.phone_iphone_rounded : Icons.alternate_email_rounded,
-                tone: verified ? AppMedallionTone.success : AppMedallionTone.gold,
+                icon: _isPhone
+                    ? Icons.phone_iphone_rounded
+                    : Icons.alternate_email_rounded,
+                tone:
+                    verified ? AppMedallionTone.success : AppMedallionTone.gold,
               ),
               const SizedBox(width: AppSpacing.md),
               Expanded(
@@ -225,10 +258,12 @@ class _ContactVerificationCardState extends ConsumerState<ContactVerificationCar
           ],
           const SizedBox(height: AppSpacing.md),
           AnimatedSize(
-            duration: context.reduceMotion ? Duration.zero : AppMotion.stateChange,
+            duration:
+                context.reduceMotion ? Duration.zero : AppMotion.stateChange,
             curve: AppMotion.enterCurve,
             alignment: Alignment.topCenter,
-            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: body),
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch, children: body),
           ),
         ],
       ),
@@ -240,7 +275,11 @@ class _ContactVerificationCardState extends ConsumerState<ContactVerificationCar
 }
 
 class _StatusPill extends StatelessWidget {
-  const _StatusPill({required this.label, required this.color, required this.background, this.icon});
+  const _StatusPill(
+      {required this.label,
+      required this.color,
+      required this.background,
+      this.icon});
 
   final String label;
   final Color color;
@@ -251,8 +290,11 @@ class _StatusPill extends StatelessWidget {
   Widget build(BuildContext context) {
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
-      decoration: BoxDecoration(color: background, borderRadius: BorderRadius.circular(AppRadii.pill)),
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
+      decoration: BoxDecoration(
+          color: background,
+          borderRadius: BorderRadius.circular(AppRadii.pill)),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [

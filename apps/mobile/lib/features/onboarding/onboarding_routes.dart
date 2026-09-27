@@ -41,7 +41,8 @@ List<RouteBase> onboardingRoutes() => [
               OnboardingStepId.contacts => const ContactsStepScreen(),
               OnboardingStepId.profile => const ProfileStepScreen(),
               OnboardingStepId.push => const PushStepScreen(),
-              OnboardingStepId.verification => const AttorneyVerificationStepScreen(),
+              OnboardingStepId.verification =>
+                const AttorneyVerificationStepScreen(),
               OnboardingStepId.tour => const TourStepScreen(),
             },
           ),

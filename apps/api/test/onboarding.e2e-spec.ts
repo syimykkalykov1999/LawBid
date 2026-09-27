@@ -185,6 +185,56 @@ describe('Onboarding (e2e) — stage 1.7 server side', () => {
     expect(res.body.error.code).toBe('FORBIDDEN');
   });
 
+  it('first contact of a type needs no reauth; changing a verified one does', async () => {
+    const token = await login('+12025557004');
+    const auth = { Authorization: `Bearer ${token}` };
+    const me = await api().get('/api/v1/users/me').set(auth).expect(200);
+
+    // Phone is verified by the phone login -> changing it needs reauth.
+    const change = await api()
+      .post('/api/v1/users/me/contacts/request')
+      .set(auth)
+      .send({ type: 'phone', value: '+12025557005' })
+      .expect(403);
+    expect(change.body.error.code).toBe('REAUTH_REQUIRED');
+
+    // No verified phone yet -> adding one is allowed without reauth.
+    await prisma.user.update({
+      where: { id: me.body.data.id as string },
+      data: { phone_verified_at: null },
+    });
+    await api()
+      .post('/api/v1/users/me/contacts/request')
+      .set(auth)
+      .send({ type: 'phone', value: '+12025557006' })
+      .expect(201);
+  });
+
+  it('bootstrap legal documents carry an id for consents.documentId', async () => {
+    await prisma.legalDocument.upsert({
+      where: {
+        doc_type_version_locale: {
+          doc_type: 'terms',
+          version: 'e2e',
+          locale: 'en',
+        },
+      },
+      create: {
+        doc_type: 'terms',
+        version: 'e2e',
+        locale: 'en',
+        content_md: 'Terms',
+        is_current: true,
+        published_at: new Date(),
+      },
+      update: {},
+    });
+    const res = await api().get('/api/v1/config/bootstrap').expect(200);
+    const docs = res.body.data.legal_documents as { id: string }[];
+    expect(docs.length).toBeGreaterThan(0);
+    expect(docs[0].id).toEqual(expect.any(String));
+  });
+
   it('rejects an unknown step, a non-selectable role and an inactive language', async () => {
     const token = await login('+12025557003');
     const auth = { Authorization: `Bearer ${token}` };

@@ -24,7 +24,8 @@ enum ConsentType {
 
 /// One `{type, granted, documentId?}` item of the consents request.
 class ConsentDecision {
-  const ConsentDecision({required this.type, required this.granted, this.documentId});
+  const ConsentDecision(
+      {required this.type, required this.granted, this.documentId});
 
   final ConsentType type;
   final bool granted;

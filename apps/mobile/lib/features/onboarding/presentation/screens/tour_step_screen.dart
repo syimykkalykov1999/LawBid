@@ -39,7 +39,9 @@ class _TourStepScreenState extends ConsumerState<TourStepScreen> {
   void _next() {
     if (_index < TourStepScreen.pageCount - 1) {
       _pages.nextPage(
-        duration: context.reduceMotion ? const Duration(milliseconds: 1) : AppMotion.pageEnter,
+        duration: context.reduceMotion
+            ? const Duration(milliseconds: 1)
+            : AppMotion.pageEnter,
         curve: AppMotion.enterCurve,
       );
     } else {
@@ -57,8 +59,16 @@ class _TourStepScreenState extends ConsumerState<TourStepScreen> {
     final variant = role == UserRole.attorney ? 'attorney' : 'client';
     final previous = OnboardingStepId.tour.previousFor(role)!;
     const icons = {
-      'client': [Icons.edit_note_rounded, Icons.local_offer_outlined, Icons.handshake_outlined],
-      'attorney': [Icons.verified_user_outlined, Icons.travel_explore_rounded, Icons.send_rounded],
+      'client': [
+        Icons.edit_note_rounded,
+        Icons.local_offer_outlined,
+        Icons.handshake_outlined
+      ],
+      'attorney': [
+        Icons.verified_user_outlined,
+        Icons.travel_explore_rounded,
+        Icons.send_rounded
+      ],
     };
     final last = _index == TourStepScreen.pageCount - 1;
 
@@ -79,17 +89,24 @@ class _TourStepScreenState extends ConsumerState<TourStepScreen> {
                 children: [
                   AppBackButton(
                     semanticLabel: t.t('common.back'),
-                    onPressed: () => context.go(OnboardingRoutes.forStep(previous)),
+                    onPressed: () =>
+                        context.go(OnboardingRoutes.forStep(previous)),
                   ),
                   const Spacer(),
                   if (!last)
                     TextButton(
                       style: TextButton.styleFrom(
-                        minimumSize: const Size(AppSizes.touchTarget, AppSizes.touchTarget),
+                        minimumSize: const Size(
+                            AppSizes.touchTarget, AppSizes.touchTarget),
                         foregroundColor: colors.textSecondary,
                       ),
-                      onPressed: action.busy ? null : () => ref.read(onboardingActionsProvider.notifier).complete(),
-                      child: Text(t.t('onboarding.tour.skip'), style: typography.button),
+                      onPressed: action.busy
+                          ? null
+                          : () => ref
+                              .read(onboardingActionsProvider.notifier)
+                              .complete(),
+                      child: Text(t.t('onboarding.tour.skip'),
+                          style: typography.button),
                     ),
                 ],
               ),
@@ -104,7 +121,10 @@ class _TourStepScreenState extends ConsumerState<TourStepScreen> {
                   step: i + 1,
                   title: t.t('onboarding.tour.$variant.${i + 1}.title'),
                   body: t.t('onboarding.tour.$variant.${i + 1}.body'),
-                  stepLabel: t.t('common.stepOf', {'current': '${i + 1}', 'total': '${TourStepScreen.pageCount}'}),
+                  stepLabel: t.t('common.stepOf', {
+                    'current': '${i + 1}',
+                    'total': '${TourStepScreen.pageCount}'
+                  }),
                 ),
               ),
             ),
@@ -125,7 +145,9 @@ class _TourStepScreenState extends ConsumerState<TourStepScreen> {
                     const SizedBox(height: AppSpacing.md),
                   ],
                   AppButton(
-                    label: t.t(last ? 'onboarding.tour.start' : 'onboarding.tour.next'),
+                    label: t.t(last
+                        ? 'onboarding.tour.start'
+                        : 'onboarding.tour.next'),
                     isLoading: action.busy,
                     onPressed: _next,
                   ),
@@ -159,19 +181,25 @@ class _TourPage extends StatelessWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenSide, vertical: AppSpacing.xl),
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.screenSide, vertical: AppSpacing.xl),
       child: Column(
         children: staggeredEntrance([
           const SizedBox(height: AppSpacing.xxl),
           Stack(
             alignment: Alignment.center,
             children: [
-              ExcludeSemantics(child: Opacity(opacity: 0.6, child: WatermarkScales())),
-              AppIconMedallion(icon: icon, size: AppSizes.stateMedallion * 1.4, iconSize: AppSizes.stateIcon * 1.4),
+              ExcludeSemantics(
+                  child: Opacity(opacity: 0.6, child: WatermarkScales())),
+              AppIconMedallion(
+                  icon: icon,
+                  size: AppSizes.stateMedallion * 1.4,
+                  iconSize: AppSizes.stateIcon * 1.4),
             ],
           ),
           const SizedBox(height: AppSpacing.xxl),
-          Text(stepLabel, style: typography.caption.copyWith(color: colors.goldDark)),
+          Text(stepLabel,
+              style: typography.caption.copyWith(color: colors.goldDark)),
           const SizedBox(height: AppSpacing.sm),
           Semantics(
             header: true,
@@ -202,7 +230,8 @@ class _Dots extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final duration = context.reduceMotion ? Duration.zero : AppMotion.stateChange;
+    final duration =
+        context.reduceMotion ? Duration.zero : AppMotion.stateChange;
     return ExcludeSemantics(
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,

@@ -98,7 +98,7 @@ class FakeOnboardingRepository implements OnboardingRepository {
   }
 
   @override
-  Future<void> requestContactCode({required ContactType type, required String value, required String reauthToken}) async {
+  Future<void> requestContactCode({required ContactType type, required String value, String? reauthToken}) async {
     calls.add('requestContactCode:$value');
   }
 

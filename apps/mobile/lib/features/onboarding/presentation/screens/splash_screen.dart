@@ -55,7 +55,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     final user = ref.watch(currentUserControllerProvider);
 
     final Widget body;
-    if (startup == StartupStatus.offline || (user.status == CurrentUserStatus.failed && user.isOffline)) {
+    if (startup == StartupStatus.offline ||
+        (user.status == CurrentUserStatus.failed && user.isOffline)) {
       body = AppOfflineState(
         key: const ValueKey('offline'),
         title: t.t('offline.title'),
@@ -71,14 +72,16 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
         onRetry: _retry,
       );
     } else {
-      body = _SplashLoading(key: const ValueKey('loading'), label: t.t('splash.loading'));
+      body = _SplashLoading(
+          key: const ValueKey('loading'), label: t.t('splash.loading'));
     }
 
     return Scaffold(
       backgroundColor: colors.bg,
       body: SafeArea(
         child: AnimatedSwitcher(
-          duration: context.reduceMotion ? Duration.zero : AppMotion.stateChange,
+          duration:
+              context.reduceMotion ? Duration.zero : AppMotion.stateChange,
           child: body,
         ),
       ),
@@ -109,7 +112,8 @@ class _SplashLoading extends StatelessWidget {
             SizedBox(
               width: AppSizes.iconMd,
               height: AppSizes.iconMd,
-              child: CircularProgressIndicator(strokeWidth: 2, color: colors.gold),
+              child:
+                  CircularProgressIndicator(strokeWidth: 2, color: colors.gold),
             ),
           ],
         ),

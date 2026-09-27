@@ -19,6 +19,7 @@ export interface BootstrapResponse {
   translations_version: Record<string, number>;
   legal_documents: Pick<
     LegalDocument,
+    | 'id'
     | 'doc_type'
     | 'version'
     | 'locale'
@@ -34,10 +35,10 @@ export interface BootstrapResponse {
  * (FeatureFlagsService, AppConfigService) or a direct Prisma read for the
  * two i18n-owned pieces (languages, bundle versions) and the
  * legal-documents piece, none of which need their own service class for
- * a single `findMany` each. `legal_documents` intentionally omits
- * `id`/`created_at`/`updated_at`/`is_current` — the client only needs
- * enough to know which document/version/locale to show and where to get
- * its content, not this app's internal bookkeeping columns.
+ * a single `findMany` each. `legal_documents` includes `id` so the
+ * client can send it as `documentId` with POST /users/me/consents (the
+ * accepted version is recorded, docs/01 §10.2 H); it omits
+ * `created_at`/`updated_at`/`is_current` bookkeeping columns.
  */
 @Injectable()
 export class BootstrapService {
@@ -62,6 +63,7 @@ export class BootstrapService {
         this.prisma.legalDocument.findMany({
           where: { is_current: true },
           select: {
+            id: true,
             doc_type: true,
             version: true,
             locale: true,

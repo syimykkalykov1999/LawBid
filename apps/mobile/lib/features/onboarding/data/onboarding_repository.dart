@@ -27,7 +27,8 @@ abstract interface class OnboardingRepository {
   /// me is returned either way.
   Future<CurrentUser> setRole(UserRole role);
 
-  Future<CurrentUser> saveStep(OnboardingStepId step, [Map<String, dynamic>? data]);
+  Future<CurrentUser> saveStep(OnboardingStepId step,
+      [Map<String, dynamic>? data]);
 
   /// Throws `CLIENT_CONTACTS_INCOMPLETE` / `ONBOARDING_INCOMPLETE` (403,
   /// `details.missing`) when the server's hard requirements don't hold.
@@ -38,16 +39,18 @@ abstract interface class OnboardingRepository {
   /// `POST /auth/otp/request` to one of the account's VERIFIED contacts —
   /// the first half of `POST /auth/reauth` (the server verifies it with the
   /// 'login' OTP purpose, see AuthService.reauth).
-  Future<void> requestReauthCode({required String channel, required String identifier});
+  Future<void> requestReauthCode(
+      {required String channel, required String identifier});
 
   /// `POST /auth/reauth` → single-use `reauthToken` (5 min).
   Future<String> reauth({required String identifier, required String code});
 
-  /// `POST /users/me/contacts/request` — needs a fresh [reauthToken].
+  /// `POST /users/me/contacts/request`. [reauthToken] is required only
+  /// when replacing an already-verified contact of this [type].
   Future<void> requestContactCode({
     required ContactType type,
     required String value,
-    required String reauthToken,
+    String? reauthToken,
   });
 
   Future<void> verifyContact({
@@ -64,7 +67,8 @@ class ApiOnboardingRepository implements OnboardingRepository {
   final AuthApiClient _auth;
 
   @override
-  Future<CurrentUser> fetchMe() async => CurrentUser.fromJson(await _users.getMe());
+  Future<CurrentUser> fetchMe() async =>
+      CurrentUser.fromJson(await _users.getMe());
 
   @override
   Future<CurrentUser> updateProfile({
@@ -95,7 +99,8 @@ class ApiOnboardingRepository implements OnboardingRepository {
   }
 
   @override
-  Future<CurrentUser> saveStep(OnboardingStepId step, [Map<String, dynamic>? data]) async =>
+  Future<CurrentUser> saveStep(OnboardingStepId step,
+          [Map<String, dynamic>? data]) async =>
       CurrentUser.fromJson(await _users.saveOnboardingStep(step.name, data));
 
   @override
@@ -103,16 +108,19 @@ class ApiOnboardingRepository implements OnboardingRepository {
       CurrentUser.fromJson(await _users.completeOnboarding());
 
   @override
-  Future<void> saveConsents(List<ConsentDecision> consents) =>
-      _users.saveConsents(consents.map((c) => c.toJson()).toList(growable: false));
+  Future<void> saveConsents(List<ConsentDecision> consents) => _users
+      .saveConsents(consents.map((c) => c.toJson()).toList(growable: false));
 
   @override
-  Future<void> requestReauthCode({required String channel, required String identifier}) =>
+  Future<void> requestReauthCode(
+          {required String channel, required String identifier}) =>
       _auth.requestOtp(channel: channel, identifier: identifier);
 
   @override
-  Future<String> reauth({required String identifier, required String code}) async {
-    final result = await _auth.reauth(ReauthPayload(identifier: identifier, code: code));
+  Future<String> reauth(
+      {required String identifier, required String code}) async {
+    final result =
+        await _auth.reauth(ReauthPayload(identifier: identifier, code: code));
     return result.reauthToken;
   }
 
@@ -120,9 +128,10 @@ class ApiOnboardingRepository implements OnboardingRepository {
   Future<void> requestContactCode({
     required ContactType type,
     required String value,
-    required String reauthToken,
+    String? reauthToken,
   }) =>
-      _users.requestContact(type: type.wireName, value: value, reauthToken: reauthToken);
+      _users.requestContact(
+          type: type.wireName, value: value, reauthToken: reauthToken);
 
   @override
   Future<void> verifyContact({

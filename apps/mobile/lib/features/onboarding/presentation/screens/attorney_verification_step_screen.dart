@@ -39,12 +39,18 @@ class AttorneyVerificationStepScreen extends ConsumerWidget {
         label: t.t('onboarding.verification.later'),
         variant: AppButtonVariant.secondary,
         isLoading: action.busy,
-        onPressed: () => ref.read(onboardingActionsProvider.notifier).advance(OnboardingStepId.verification),
+        onPressed: () => ref
+            .read(onboardingActionsProvider.notifier)
+            .advance(OnboardingStepId.verification),
       ),
       children: [
         VerificationChecklist(
           items: [
-            (t.t('onboarding.verification.item.profile'), null, ChecklistStatus.done),
+            (
+              t.t('onboarding.verification.item.profile'),
+              null,
+              ChecklistStatus.done
+            ),
             (
               t.t('onboarding.verification.item.license'),
               t.t('onboarding.verification.item.license.desc'),
@@ -59,7 +65,8 @@ class AttorneyVerificationStepScreen extends ConsumerWidget {
           statusLabels: {
             ChecklistStatus.done: t.t('onboarding.verification.status.done'),
             ChecklistStatus.next: t.t('onboarding.verification.status.next'),
-            ChecklistStatus.locked: t.t('onboarding.verification.status.locked'),
+            ChecklistStatus.locked:
+                t.t('onboarding.verification.status.locked'),
           },
         ),
       ],
@@ -70,7 +77,8 @@ class AttorneyVerificationStepScreen extends ConsumerWidget {
 /// Vertical checklist with a connecting rail — also reused by the Mine
 /// tab's verification banner.
 class VerificationChecklist extends StatelessWidget {
-  const VerificationChecklist({required this.items, required this.statusLabels, super.key});
+  const VerificationChecklist(
+      {required this.items, required this.statusLabels, super.key});
 
   final List<(String title, String? description, ChecklistStatus status)> items;
   final Map<ChecklistStatus, String> statusLabels;
@@ -96,8 +104,11 @@ class VerificationChecklist extends StatelessWidget {
                           Expanded(
                             child: Container(
                               width: 2,
-                              margin: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
-                              color: items[i].$3 == ChecklistStatus.done ? colors.gold : colors.border,
+                              margin: const EdgeInsets.symmetric(
+                                  vertical: AppSpacing.xs),
+                              color: items[i].$3 == ChecklistStatus.done
+                                  ? colors.gold
+                                  : colors.border,
                             ),
                           ),
                       ],
@@ -105,14 +116,17 @@ class VerificationChecklist extends StatelessWidget {
                     const SizedBox(width: AppSpacing.md),
                     Expanded(
                       child: Padding(
-                        padding: EdgeInsets.only(bottom: i < items.length - 1 ? AppSpacing.xl : 0),
+                        padding: EdgeInsets.only(
+                            bottom: i < items.length - 1 ? AppSpacing.xl : 0),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
                               items[i].$1,
                               style: typography.roleTitle.copyWith(
-                                color: items[i].$3 == ChecklistStatus.locked ? colors.textSecondary : colors.text,
+                                color: items[i].$3 == ChecklistStatus.locked
+                                    ? colors.textSecondary
+                                    : colors.text,
                               ),
                             ),
                             const SizedBox(height: AppSpacing.xs),
@@ -122,7 +136,8 @@ class VerificationChecklist extends StatelessWidget {
                                 color: switch (items[i].$3) {
                                   ChecklistStatus.done => colors.success,
                                   ChecklistStatus.next => colors.goldDark,
-                                  ChecklistStatus.locked => colors.textSecondary,
+                                  ChecklistStatus.locked =>
+                                    colors.textSecondary,
                                 },
                               ),
                             ),
@@ -130,7 +145,8 @@ class VerificationChecklist extends StatelessWidget {
                               const SizedBox(height: AppSpacing.xs),
                               Text(
                                 items[i].$2!,
-                                style: typography.bodySmall.copyWith(color: colors.textSecondary),
+                                style: typography.bodySmall
+                                    .copyWith(color: colors.textSecondary),
                               ),
                             ],
                           ],
@@ -161,17 +177,21 @@ class _StatusDot extends StatelessWidget {
       ChecklistStatus.done => (
           colors.gold,
           colors.gold,
-          Icon(Icons.check_rounded, size: AppSizes.iconSm, color: colors.navy) as Widget,
+          Icon(Icons.check_rounded, size: AppSizes.iconSm, color: colors.navy)
+              as Widget,
         ),
       ChecklistStatus.next => (
           colors.goldTint,
           colors.gold,
-          Text(index.toString(), style: typography.caption.copyWith(color: colors.goldDark)) as Widget,
+          Text(index.toString(),
+                  style: typography.caption.copyWith(color: colors.goldDark))
+              as Widget,
         ),
       ChecklistStatus.locked => (
           colors.surface,
           colors.border,
-          Icon(Icons.lock_outline_rounded, size: AppSpacing.lg, color: colors.textSecondary) as Widget,
+          Icon(Icons.lock_outline_rounded,
+              size: AppSpacing.lg, color: colors.textSecondary) as Widget,
         ),
     };
     return ExcludeSemantics(

@@ -28,7 +28,8 @@ class PushStepScreen extends ConsumerWidget {
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final t = ref.watch(translatorProvider);
     final action = ref.watch(onboardingActionsProvider);
-    final attorney = ref.watch(currentUserRoleProvider.select((r) => r == UserRole.attorney));
+    final attorney = ref
+        .watch(currentUserRoleProvider.select((r) => r == UserRole.attorney));
     final variant = attorney ? 'attorney' : 'client';
 
     void choose({required bool optIn}) => ref
@@ -45,7 +46,8 @@ class PushStepScreen extends ConsumerWidget {
       step: OnboardingStepId.push,
       title: t.t('onboarding.push.title'),
       subtitle: t.t('onboarding.push.subtitle'),
-      onBack: () => context.go(OnboardingRoutes.forStep(OnboardingStepId.profile)),
+      onBack: () =>
+          context.go(OnboardingRoutes.forStep(OnboardingStepId.profile)),
       error: action.error,
       primaryLabel: t.t('onboarding.push.allow'),
       primaryLoading: action.busy,
@@ -76,7 +78,8 @@ class PushStepScreen extends ConsumerWidget {
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.only(top: AppSpacing.sm),
-                  child: Text(text, style: typography.body.copyWith(color: colors.text)),
+                  child: Text(text,
+                      style: typography.body.copyWith(color: colors.text)),
                 ),
               ),
             ],

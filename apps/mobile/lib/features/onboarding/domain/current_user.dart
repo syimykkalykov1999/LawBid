@@ -37,7 +37,8 @@ class OnboardingProgress {
     final completedAt = json['completedAt'];
     return OnboardingProgress(
       currentStep: OnboardingStepId.tryParse(json['currentStep'] as String?),
-      completedAt: completedAt is String ? DateTime.tryParse(completedAt) : null,
+      completedAt:
+          completedAt is String ? DateTime.tryParse(completedAt) : null,
       data: data is Map<String, dynamic> ? data : const {},
     );
   }
@@ -88,7 +89,8 @@ class CurrentUser {
       phoneVerified: json['phoneVerified'] as bool? ?? false,
       uiLanguage: json['uiLanguage'] as String? ?? 'en',
       theme: json['theme'] as String?,
-      requiredConsentsGranted: json['requiredConsentsGranted'] as bool? ?? false,
+      requiredConsentsGranted:
+          json['requiredConsentsGranted'] as bool? ?? false,
       onboarding: OnboardingProgress.fromJson(
         json['onboarding'] as Map<String, dynamic>?,
       ),
@@ -127,8 +129,10 @@ class CurrentUser {
   /// The verified contact a `POST /auth/reauth` code can be sent to —
   /// phone first, then email (see `AuthService.reauth` in apps/api).
   ({String channel, String identifier})? get reauthIdentifier {
-    if (phoneVerified && phone != null) return (channel: 'phone', identifier: phone!);
-    if (emailVerified && email != null) return (channel: 'email', identifier: email!);
+    if (phoneVerified && phone != null)
+      return (channel: 'phone', identifier: phone!);
+    if (emailVerified && email != null)
+      return (channel: 'email', identifier: email!);
     return null;
   }
 }

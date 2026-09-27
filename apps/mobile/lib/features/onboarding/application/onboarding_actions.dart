@@ -44,7 +44,8 @@ class OnboardingActions extends Notifier<StepActionState> {
     state = const StepActionState(busy: true);
     try {
       final user = await body();
-      if (user != null) ref.read(currentUserControllerProvider.notifier).apply(user);
+      if (user != null)
+        ref.read(currentUserControllerProvider.notifier).apply(user);
       if (ref.mounted) state = const StepActionState();
       return true;
     } catch (e) {
@@ -59,9 +60,12 @@ class OnboardingActions extends Notifier<StepActionState> {
 
   /// Шаг 1 «Язык»: switches the UI immediately (local), persists
   /// `uiLanguage` server-side (§15 item 7), then moves to consents.
-  Future<bool> saveLanguage(String code, {AppLanguage? appLanguage}) => _run(() async {
+  Future<bool> saveLanguage(String code, {AppLanguage? appLanguage}) =>
+      _run(() async {
         if (appLanguage != null) {
-          await ref.read(languageControllerProvider.notifier).setLanguage(appLanguage);
+          await ref
+              .read(languageControllerProvider.notifier)
+              .setLanguage(appLanguage);
         }
         await _repo.updateProfile(uiLanguage: code);
         return _repo.saveStep(OnboardingStepId.consents);
@@ -69,7 +73,8 @@ class OnboardingActions extends Notifier<StepActionState> {
 
   /// §10.2 H: records every decision (required + optional) as one
   /// append-only batch, then moves to the role step.
-  Future<bool> saveConsents(Map<ConsentType, bool> decisions, {Map<ConsentType, String?> documentIds = const {}}) =>
+  Future<bool> saveConsents(Map<ConsentType, bool> decisions,
+          {Map<ConsentType, String?> documentIds = const {}}) =>
       _run(() async {
         await _repo.saveConsents([
           for (final type in ConsentType.values)
@@ -91,7 +96,10 @@ class OnboardingActions extends Notifier<StepActionState> {
         final next = OnboardingStepId.role.nextFor(current?.role ?? role)!;
         final user = await _repo.saveStep(next);
         unawaited(
-          ref.read(sessionControllerProvider.notifier).refreshAccessToken().then((_) {}, onError: (_) {}),
+          ref
+              .read(sessionControllerProvider.notifier)
+              .refreshAccessToken()
+              .then((_) {}, onError: (_) {}),
         );
         return user;
       });
@@ -134,4 +142,5 @@ class OnboardingActions extends Notifier<StepActionState> {
 }
 
 final onboardingActionsProvider =
-    NotifierProvider.autoDispose<OnboardingActions, StepActionState>(OnboardingActions.new);
+    NotifierProvider.autoDispose<OnboardingActions, StepActionState>(
+        OnboardingActions.new);

@@ -16,7 +16,8 @@ class UsersApiClient {
   /// Header name of apps/api ReauthGuard (`REAUTH_HEADER`).
   static const reauthHeader = 'X-Reauth-Token';
 
-  Future<Map<String, dynamic>> getMe() => _call(() => _dio.get<Map<String, dynamic>>('/users/me'));
+  Future<Map<String, dynamic>> getMe() =>
+      _call(() => _dio.get<Map<String, dynamic>>('/users/me'));
 
   Future<Map<String, dynamic>> updateProfile(Map<String, dynamic> body) =>
       _call(() => _dio.patch<Map<String, dynamic>>('/users/me', data: body));
@@ -60,17 +61,20 @@ class UsersApiClient {
       );
 
   /// Sends a paid SMS/email — keyed so a transparent retry can't send a
-  /// second one; the reauth token is single-use server-side.
+  /// second one. [reauthToken] (single-use) is only needed when this
+  /// replaces an already-verified contact (docs/01 §11 step 3A).
   Future<void> requestContact({
     required String type,
     required String value,
-    required String reauthToken,
+    String? reauthToken,
   }) =>
       _call(
         () => _dio.post<Map<String, dynamic>>(
           '/users/me/contacts/request',
           data: {'type': type, 'value': value},
-          options: RequestFlags.createOptions(headers: {reauthHeader: reauthToken}),
+          options: RequestFlags.createOptions(
+            headers: reauthToken == null ? null : {reauthHeader: reauthToken},
+          ),
         ),
       );
 

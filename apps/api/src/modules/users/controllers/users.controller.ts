@@ -26,18 +26,17 @@ import {
 } from '../../auth/decorators/current-user.decorator';
 import { ReauthRequired } from '../../auth/decorators/reauth-required.decorator';
 import { ReauthGuard } from '../../auth/guards/reauth.guard';
+import { ReauthVerifier } from '../../auth/services/reauth-verifier.service';
 import type { RequestMeta } from '../../auth/services/session.service';
 
 /**
  * docs/01_FOUNDATION_AUTH.md §10.5. Protected by the global JwtAuthGuard
  * (no @Public() anywhere in this controller — every route needs a
- * caller). ReauthGuard + @ReauthRequired() additionally gate the two
- * routes §10.1 names as sensitive: changing a contact and deleting the
- * account. Reauth is required on `contacts/request` (gates entry into the
- * contact-change flow) rather than also on `contacts/verify` — see
- * ContactsService's class doc for why duplicating it on both steps would
- * just force the client through two separate /auth/reauth round trips
- * for one logical action.
+ * caller). Account deletion is gated by ReauthGuard + @ReauthRequired();
+ * `contacts/request` requires reauth only when it *changes* an already
+ * verified contact (see requestContact). Reauth is checked on the request
+ * step, not also on `contacts/verify`, so one logical change costs one
+ * /auth/reauth round trip.
  */
 @Controller('users/me')
 export class UsersController {
@@ -46,6 +45,7 @@ export class UsersController {
     private readonly consents: ConsentsService,
     private readonly accountDeletion: AccountDeletionService,
     private readonly onboarding: OnboardingService,
+    private readonly reauth: ReauthVerifier,
   ) {}
 
   // --- Onboarding (docs/01_FOUNDATION_AUTH.md §11, stage 1.7) ---
@@ -87,13 +87,19 @@ export class UsersController {
     return this.onboarding.getMe(user.sub);
   }
 
+  /** docs/01 §11 step 3A: "Изменить телефон/email можно только с повторной
+   * проверкой (reauth + код на новый контакт)". Adding the FIRST contact of
+   * a type during onboarding needs no reauth (it would cost an extra paid
+   * code per contact); replacing an already-verified one does. */
   @Post('contacts/request')
-  @UseGuards(ReauthGuard)
-  @ReauthRequired()
   async requestContact(
     @CurrentUser() user: RequestUser,
     @Body() dto: ContactRequestDto,
+    @Req() req: Request & { user?: RequestUser },
   ) {
+    if (await this.contacts.hasVerified(user.sub, dto.type)) {
+      await this.reauth.assertAndConsume(req);
+    }
     await this.contacts.requestVerification(user.sub, dto.type, dto.value);
     return { sent: true };
   }

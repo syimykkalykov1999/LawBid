@@ -10,9 +10,9 @@ enum ContactVerificationStage {
   /// Entering the phone/email.
   editing,
 
-  /// `POST /users/me/contacts/request` requires a fresh reauth token
-  /// (apps/api ReauthGuard) — a login code was sent to the account's
-  /// already-verified contact and the user types it here first.
+  /// Only when REPLACING an already-verified contact of this type: the
+  /// backend requires a fresh reauth token, so a login code was sent to
+  /// the account's verified contact and the user types it here first.
   confirmIdentity,
 
   /// The code for the NEW contact was sent; waiting for it.
@@ -73,14 +73,14 @@ const kNoReauthContactCode = 'NO_REAUTH_CONTACT';
 /// Inline verification of one contact on the onboarding contacts step
 /// (docs/01_FOUNDATION_AUTH.md §11 Шаг 3A/3B, §10.5):
 ///
-///   editing ──send──▶ confirmIdentity ──code──▶ codeSent ──code──▶ verified
+///   first contact:  editing ──send──▶ codeSent ──code──▶ verified
+///   replacement:    editing ──send──▶ confirmIdentity ──code──▶ codeSent ──▶ …
 ///
-/// The middle hop exists because the backend gates `contacts/request`
-/// behind ReauthGuard even for a FIRST-time contact (see docs/CHANGELOG.md
-/// stage 1.7 mobile — flagged to the backend owner): the identity code goes
-/// to the contact the user signed in with, via `POST /auth/otp/request` +
-/// `POST /auth/reauth`. The reauth token is single-use, so every (re)send
-/// of the new contact's code needs a fresh identity confirmation.
+/// Adding the FIRST contact of a type sends its code directly. Replacing
+/// an already-verified one needs reauth (docs/01 §11 step 3A): the
+/// identity code goes to the contact the user signed in with, via
+/// `POST /auth/otp/request` + `POST /auth/reauth`; the token is single-use,
+/// so each replacement (re)send needs a fresh identity confirmation.
 class ContactVerificationController extends Notifier<ContactVerificationState> {
   ContactVerificationController(this.type);
 
@@ -100,16 +100,37 @@ class ContactVerificationController extends Notifier<ContactVerificationState> {
     }
   }
 
-  /// Step 1: starts identity confirmation for [value].
+  /// Step 1: sends the code to [value] directly for a first contact, or
+  /// starts identity confirmation when replacing a verified one.
   Future<void> sendCode(String value) => _guard(() async {
         final me = ref.read(currentUserControllerProvider).user;
+        final alreadyVerified = type == ContactType.phone
+            ? (me?.phoneVerified ?? false)
+            : (me?.emailVerified ?? false);
+        if (!alreadyVerified) {
+          try {
+            await ref
+                .read(onboardingRepositoryProvider)
+                .requestContactCode(type: type, value: value);
+          } on ApiException {
+            state = state.copyWith(
+                stage: ContactVerificationStage.editing, value: value);
+            rethrow;
+          }
+          state = state.copyWith(
+            stage: ContactVerificationStage.codeSent,
+            value: value,
+            attempt: state.attempt + 1,
+          );
+          return;
+        }
         final target = me?.reauthIdentifier;
         if (target == null) {
-          throw const ApiException(code: kNoReauthContactCode, message: 'No verified contact');
+          throw const ApiException(
+              code: kNoReauthContactCode, message: 'No verified contact');
         }
-        await ref
-            .read(onboardingRepositoryProvider)
-            .requestReauthCode(channel: target.channel, identifier: target.identifier);
+        await ref.read(onboardingRepositoryProvider).requestReauthCode(
+            channel: target.channel, identifier: target.identifier);
         state = state.copyWith(
           stage: ContactVerificationStage.confirmIdentity,
           value: value,
@@ -128,19 +149,24 @@ class ContactVerificationController extends Notifier<ContactVerificationState> {
         final repo = ref.read(onboardingRepositoryProvider);
         final token = await repo.reauth(identifier: target, code: code);
         try {
-          await repo.requestContactCode(type: type, value: value, reauthToken: token);
+          await repo.requestContactCode(
+              type: type, value: value, reauthToken: token);
         } on ApiException {
           state = state.copyWith(stage: ContactVerificationStage.editing);
           rethrow;
         }
-        state = state.copyWith(stage: ContactVerificationStage.codeSent, attempt: state.attempt + 1);
+        state = state.copyWith(
+            stage: ContactVerificationStage.codeSent,
+            attempt: state.attempt + 1);
       });
 
   /// Step 3: verifies the new contact, then refreshes `GET /users/me`.
   Future<void> verify(String code) => _guard(() async {
         final value = state.value;
         if (value == null) return;
-        await ref.read(onboardingRepositoryProvider).verifyContact(type: type, value: value, code: code);
+        await ref
+            .read(onboardingRepositoryProvider)
+            .verifyContact(type: type, value: value, code: code);
         state = state.copyWith(stage: ContactVerificationStage.verified);
         await ref.read(currentUserControllerProvider.notifier).load();
       });
@@ -153,11 +179,12 @@ class ContactVerificationController extends Notifier<ContactVerificationState> {
 
   /// Back to editing (change the number/address).
   void edit() {
-    state = state.copyWith(stage: ContactVerificationStage.editing, clearError: true);
+    state = state.copyWith(
+        stage: ContactVerificationStage.editing, clearError: true);
   }
 }
 
-final contactVerificationProvider = NotifierProvider.autoDispose
-    .family<ContactVerificationController, ContactVerificationState, ContactType>(
+final contactVerificationProvider = NotifierProvider.autoDispose.family<
+    ContactVerificationController, ContactVerificationState, ContactType>(
   ContactVerificationController.new,
 );

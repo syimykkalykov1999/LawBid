@@ -45,6 +45,18 @@ export class ContactsService {
     private readonly config: ConfigService,
   ) {}
 
+  /** True when the user already has a verified contact of this type —
+   * i.e. a new request would be a change, which needs reauth (§11). */
+  async hasVerified(userId: string, type: 'phone' | 'email'): Promise<boolean> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { phone_verified_at: true, email_verified_at: true },
+    });
+    return type === 'phone'
+      ? user?.phone_verified_at != null
+      : user?.email_verified_at != null;
+  }
+
   async requestVerification(
     userId: string,
     type: 'phone' | 'email',

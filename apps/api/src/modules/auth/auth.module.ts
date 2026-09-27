@@ -17,6 +17,7 @@ import { SessionRevocationService } from './services/session-revocation.service'
 import { AuthEventService } from './services/auth-event.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { ReauthGuard } from './guards/reauth.guard';
+import { ReauthVerifier } from './services/reauth-verifier.service';
 import { SMS_PROVIDER, EMAIL_PROVIDER } from './providers/provider.tokens';
 import type { SmsProvider } from './providers/sms/sms-provider.interface';
 import { MockSmsProvider } from './providers/sms/mock-sms.provider';
@@ -80,6 +81,7 @@ import {
     SessionRevocationService,
     AuthEventService,
     ReauthGuard,
+    ReauthVerifier,
     {
       provide: SMS_PROVIDER,
       useFactory: (config: ConfigService, logger: PinoLogger): SmsProvider => {
@@ -127,6 +129,7 @@ import {
     TokenService,
     SessionRevocationService,
     ReauthGuard,
+    ReauthVerifier,
     OtpService,
     IdentityService,
     AuthEventService,
