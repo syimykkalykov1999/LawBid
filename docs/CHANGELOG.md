@@ -3780,3 +3780,25 @@ feed screen golden, active devices data/controller/screen tests, token tests.
   skeleton, empty, error + Retry, offline states; 200% text scale.
 - New translation keys: `account.*` (see
   `apps/api/prisma/seed/pending_keys/leaf-1.7.csv`).
+
+## Security: device-bound email magic link; consents redesign — 2026-09-27
+
+- **Magic link (security review High).** The login email's link used to
+  carry the email address and the OTP code, and the app auto-submitted
+  them — link scanners, proxy logs or browser history could sign someone
+  in. Now the app binds a device verifier (`linkChallenge` = SHA-256) when
+  it requests an email code; the link carries only a random one-time token
+  (`?token=`), redeemable via `POST /auth/otp/verify-link` together with
+  the verifier kept in secure storage on that phone. Single use (even on
+  failure), burns the typed code too. Opened on another device → the app
+  asks for the code instead. API e2e `magic-link.e2e-spec.ts` (4), mobile
+  deeplink/repository tests.
+- **Consents step (owner request, OQ-013):** required consents as
+  role-style cards, documents in a compact two-column grid (odd last item
+  full width), optional consents removed from this screen.
+- **Other fixes:** reviewer findings (bootstrap cache parse fallback,
+  bounded username allocation, tagged health query, https-only store URL),
+  SMS Retriever app hash (`SMS_ANDROID_APP_HASH`), translated OTP field
+  labels, 48dp tap target on Create, stable e2e (single listener per
+  suite, EXPLAIN without stats forecasts).
+- Totals at this point: API unit 293, e2e 128; mobile 429.

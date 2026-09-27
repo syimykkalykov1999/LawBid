@@ -1,8 +1,0 @@
-key,en,ru
-error.api.DEVICE_ATTESTATION_REQUIRED,We couldn't verify this device. Update the app from the App Store or Google Play and try again.,Не удалось проверить устройство. Обновите приложение из App Store или Google Play и попробуйте снова.
-error.api.AUTH_REFRESH_REUSE_DETECTED,"For your security, you've been signed out on all devices. Please sign in again.",В целях безопасности выполнен выход на всех устройствах. Войдите снова.
-error.api.AUTH_SESSION_REVOKED,Your session has ended. Please sign in again.,Сеанс завершён. Войдите снова.
-error.api.IDEMPOTENCY_KEY_CONFLICT,This request is already being processed. Please wait a moment.,Запрос уже обрабатывается. Подождите немного.
-error.api.FORBIDDEN,You don't have access to this action.,У вас нет доступа к этому действию.
-error.api.NOT_FOUND,Not found. It may have been removed.,"Не найдено. Возможно, это было удалено."
-error.api.NOT_IMPLEMENTED,This feature isn't available yet.,Эта функция пока недоступна.
