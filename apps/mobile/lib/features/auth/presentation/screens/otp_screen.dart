@@ -35,7 +35,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
   String _currentCode = '';
 
   /// Shared with AppOtpField so a code that arrives by itself (Android SMS
-  /// Retriever, email magic link — `OnboardingFlowState.autofilledCode`)
+  /// Retriever — `OnboardingFlowState.autofilledCode`)
   /// shows up in the 6 cells while the flow verifies it.
   final _codeController = TextEditingController();
 

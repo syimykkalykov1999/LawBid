@@ -33,8 +33,15 @@ import 'auth_dtos.dart' show DeviceSession;
 abstract interface class AuthRepository {
   /// Requests a login OTP for [identifier] — an E.164 phone (SMS, default
   /// [channel] `'phone'`) or, since stage 1.7 mobile, an email address
-  /// (`channel: 'email'`, file 01 §10.2 E).
+  /// (`channel: 'email'`, file 01 §10.2 E). An email request also binds
+  /// the magic link to this device (`MagicLinkVerifierStore`: a fresh
+  /// verifier is stored, its challenge sent as `linkChallenge`).
   Future<void> requestOtp(String identifier, {String channel = 'phone'});
+
+  /// Email magic link (`POST /auth/otp/verify-link`): the link's one-time
+  /// [token] + the [verifier] stored by the email [requestOtp]. Same
+  /// results and session handling as [verifyOtp].
+  Future<OtpVerifyResult> verifyEmailLink({required String token, required String verifier});
 
   /// Verifies [code] for [identifier] on [channel]; applies the session on
   /// success.

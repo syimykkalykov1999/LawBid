@@ -12,6 +12,7 @@ import '../models/logged_out_envelope.dart';
 import '../models/otp_request_dto.dart';
 import '../models/otp_sent_envelope.dart';
 import '../models/otp_verify_dto.dart';
+import '../models/otp_verify_link_dto.dart';
 import '../models/reauth_dto.dart';
 import '../models/reauth_token_envelope.dart';
 import '../models/refresh_token_dto.dart';
@@ -34,6 +35,14 @@ abstract class AuthClient {
   @POST('/auth/otp/verify')
   Future<AuthTokensEnvelope> verifyOtp({
     @Body() required OtpVerifyDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Email magic link (docs/01 §10.2 E): one-time token from the email +.
+  /// the verifier held by the device that requested the code.
+  @POST('/auth/otp/verify-link')
+  Future<AuthTokensEnvelope> verifyOtpLink({
+    @Body() required OtpVerifyLinkDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

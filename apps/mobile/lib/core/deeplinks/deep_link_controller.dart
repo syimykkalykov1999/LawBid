@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../features/auth/application/onboarding_flow.dart';
 import '../../features/auth/auth_routes.dart';
+import '../../features/auth/domain/onboarding_step.dart';
 import '../../features/onboarding/application/current_user_controller.dart';
 import '../config/app_environment.dart';
 import '../navigation/app_router.dart';
@@ -50,10 +51,11 @@ final deepLinkNavigatorProvider = Provider<void Function(String location)>(
 /// - Nothing happens before the splash sequence finishes (startup
 ///   `ready`) — the guard owns the screen until then. A cold-start link is
 ///   held and handled right after.
-/// - [EmailCodeDeepLink] (magic sign-in link): signed out → open the email
-///   code screen with the code prefilled and verify it
-///   (`OnboardingFlow.verifyEmailMagicLink`); already signed in → dropped
-///   (the link is for signing in, the user already is).
+/// - [EmailCodeDeepLink] (magic sign-in link): signed out → redeem it via
+///   `OnboardingFlow.verifyEmailMagicLink` (email code screen while it
+///   verifies; the email screen when this device holds no verifier);
+///   already signed in → dropped (the link is for signing in, the user
+///   already is).
 /// - [ContentDeepLink]: opened once the user is signed in AND fully
 ///   onboarded; until then it waits (sign-in and onboarding run first, the
 ///   guard would bounce the route anyway), then opens by itself.
@@ -98,12 +100,16 @@ class DeepLinkController extends Notifier<DeepLink?> {
     final hasSession = ref.read(sessionControllerProvider) != null;
 
     switch (link) {
-      case EmailCodeDeepLink(:final email, :final code):
+      case EmailCodeDeepLink(:final token):
         state = null;
         if (hasSession) return;
-        ref.read(deepLinkNavigatorProvider)(AuthRoutes.otp);
+        final navigate = ref.read(deepLinkNavigatorProvider);
         unawaited(
-          ref.read(onboardingFlowProvider.notifier).verifyEmailMagicLink(email: email, code: code),
+          ref.read(onboardingFlowProvider.notifier).verifyEmailMagicLink(
+            token,
+            show: (step) =>
+                navigate(step == OnboardingStep.email ? AuthRoutes.email : AuthRoutes.otp),
+          ),
         );
       case ContentDeepLink(:final location):
         if (!hasSession) return; // wait for sign-in

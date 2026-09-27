@@ -33,6 +33,12 @@ class StubAuthRepository implements AuthRepository {
     return const OtpVerifyResult.success(isNewUser: true);
   }
 
+  @override
+  Future<OtpVerifyResult> verifyEmailLink({required String token, required String verifier}) async {
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    return const OtpVerifyResult.success(isNewUser: true);
+  }
+
   /// Phase 3 (docs/CHANGELOG.md): always succeeds as a new user, same
   /// simulated-latency convention as [verifyOtp]/[requestOtp] above — kept
   /// in sync with [AuthRepository]'s interface purely so widget/golden

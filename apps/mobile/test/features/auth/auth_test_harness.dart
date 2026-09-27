@@ -5,6 +5,7 @@ import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -27,6 +28,7 @@ class RecordingAuthRepository extends StubAuthRepository {
   OtpVerifyResult verifyResult;
   final List<String> requested = [];
   final List<({String identifier, String code, String channel})> verified = [];
+  final List<({String token, String verifier})> verifiedLinks = [];
 
   @override
   Future<void> requestOtp(String identifier, {String channel = 'phone'}) async {
@@ -42,7 +44,16 @@ class RecordingAuthRepository extends StubAuthRepository {
     verified.add((identifier: identifier, code: code, channel: channel));
     return verifyResult;
   }
+
+  @override
+  Future<OtpVerifyResult> verifyEmailLink({required String token, required String verifier}) async {
+    verifiedLinks.add((token: token, verifier: verifier));
+    return verifyResult;
+  }
 }
+
+/// Secure-storage key of `MagicLinkVerifierStore`.
+const magicLinkVerifierKey = 'magic_link_verifier';
 
 /// Android-like SMS Retriever: [deliver] plays the incoming SMS.
 class FakeSmsCodeRetriever implements SmsCodeRetriever {
@@ -74,9 +85,13 @@ Future<List<Override>> authOverrides({
   required RecordingAuthRepository repo,
   SmsCodeRetriever? retriever,
   bool fixedSignedOutUser = true,
+  String? magicLinkVerifier,
 }) async {
   driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
   SharedPreferences.setMockInitialValues({});
+  FlutterSecureStorage.setMockInitialValues({
+    if (magicLinkVerifier != null) magicLinkVerifierKey: magicLinkVerifier,
+  });
   final prefs = await SharedPreferences.getInstance();
   final l10nDb = L10nDatabase(NativeDatabase.memory());
   addTearDown(l10nDb.close);

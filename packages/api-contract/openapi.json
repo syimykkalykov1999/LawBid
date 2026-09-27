@@ -629,6 +629,98 @@
         ]
       }
     },
+    "/auth/otp/verify-link": {
+      "post": {
+        "operationId": "verifyOtpLink",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OtpVerifyLinkDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthTokensEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: AUTH_OTP_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: AUTH_PROVIDER_DISABLED, ACCOUNT_SUSPENDED, ACCOUNT_DELETED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Email magic link (docs/01 §10.2 E): one-time token from the email +\nthe verifier held by the device that requested the code.",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/auth/social": {
       "post": {
         "operationId": "social",
@@ -3109,6 +3201,11 @@
           },
           "identifier": {
             "type": "string"
+          },
+          "linkChallenge": {
+            "type": "string",
+            "description": "Magic-link binding (email login only): base64url SHA-256 of a random\nverifier that stays on the requesting device. The emailed link then\ncarries a one-time token redeemable only together with that verifier\n(POST /auth/otp/verify-link), so a leaked link is useless. Omit it and\nthe email contains the code only.",
+            "pattern": "^[A-Za-z0-9_-]{43}$"
           }
         },
         "required": [
@@ -3217,6 +3314,26 @@
         },
         "required": [
           "data"
+        ]
+      },
+      "OtpVerifyLinkDto": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{43}$"
+          },
+          "verifier": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{43,128}$"
+          },
+          "deviceInfo": {
+            "$ref": "#/components/schemas/DeviceInfoDto"
+          }
+        },
+        "required": [
+          "token",
+          "verifier"
         ]
       },
       "SocialLoginDto": {

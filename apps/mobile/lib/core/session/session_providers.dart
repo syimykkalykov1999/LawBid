@@ -123,6 +123,12 @@ class SessionController extends _$SessionController {
   Future<void> clear() async {
     state = null;
     await ref.read(tokenSecureStoreProvider).clear();
+    // A pending email magic-link verifier must not outlive the session.
+    try {
+      await ref.read(magicLinkVerifierStoreProvider).clear();
+    } catch (_) {
+      // Best effort — it is single-use server-side anyway.
+    }
   }
 
   SessionState _decode(AuthTokensResult tokens) {

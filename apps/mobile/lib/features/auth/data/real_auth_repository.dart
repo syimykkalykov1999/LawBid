@@ -9,6 +9,7 @@ import '../domain/social_login_result.dart';
 import 'auth_api_client.dart';
 import 'auth_dtos.dart';
 import 'auth_repository.dart';
+import 'magic_link_verifier_store.dart';
 import 'social_auth_native_client.dart';
 
 /// Real dio-backed [AuthRepository] (docs/CHANGELOG.md, stage-1.7-auth —
@@ -17,16 +18,30 @@ import 'social_auth_native_client.dart';
 /// Stage 1.7 mobile: OTP sign-in takes a `channel` (`'phone'` | `'email'`,
 /// file 01 §10.2 C-F) instead of the former hardcoded phone channel.
 class RealAuthRepository implements AuthRepository {
-  RealAuthRepository(this._client, this._session, this._deviceInfo, this._nativeClient);
+  RealAuthRepository(
+    this._client,
+    this._session,
+    this._deviceInfo,
+    this._nativeClient,
+    this._magicLink,
+  );
 
   final AuthApiClient _client;
   final SessionController _session;
   final DeviceInfo _deviceInfo;
   final SocialAuthNativeClient _nativeClient;
+  final MagicLinkVerifierStore _magicLink;
 
   @override
-  Future<void> requestOtp(String identifier, {String channel = 'phone'}) {
-    return _client.requestOtp(channel: channel, identifier: identifier);
+  Future<void> requestOtp(String identifier, {String channel = 'phone'}) async {
+    // Email login codes also arrive as a magic link, bound to this device
+    // by a fresh verifier (only its SHA-256 leaves the device).
+    final linkChallenge = channel == 'email' ? await _magicLink.createChallenge() : null;
+    await _client.requestOtp(
+      channel: channel,
+      identifier: identifier,
+      linkChallenge: linkChallenge,
+    );
   }
 
   @override
@@ -45,20 +60,39 @@ class RealAuthRepository implements AuthRepository {
       await _session.applyTokens(tokens);
       return OtpVerifyResult.success(isNewUser: tokens.isNewUser);
     } on ApiException catch (e) {
-      switch (e.code) {
-        case ApiErrorCodes.authOtpInvalid:
-          return const OtpVerifyResult.invalid();
-        case ApiErrorCodes.authOtpExpired:
-          return const OtpVerifyResult.expired();
-        case ApiErrorCodes.authOtpLocked:
-          return const OtpVerifyResult.locked();
-        case ApiErrorCodes.authOtpRequestLimit:
-        case ApiErrorCodes.rateLimited:
-          final retryAfter = e.details?['retryAfterSeconds'];
-          return OtpVerifyResult.rateLimited(retryAfter is int ? retryAfter : 60);
-        default:
-          return const OtpVerifyResult.networkError();
-      }
+      return _otpFailure(e);
+    }
+  }
+
+  @override
+  Future<OtpVerifyResult> verifyEmailLink({required String token, required String verifier}) async {
+    try {
+      final tokens = await _client.verifyOtpLink(
+        token: token,
+        verifier: verifier,
+        deviceInfo: _deviceInfo,
+      );
+      await _session.applyTokens(tokens);
+      return OtpVerifyResult.success(isNewUser: tokens.isNewUser);
+    } on ApiException catch (e) {
+      return _otpFailure(e);
+    }
+  }
+
+  static OtpVerifyResult _otpFailure(ApiException e) {
+    switch (e.code) {
+      case ApiErrorCodes.authOtpInvalid:
+        return const OtpVerifyResult.invalid();
+      case ApiErrorCodes.authOtpExpired:
+        return const OtpVerifyResult.expired();
+      case ApiErrorCodes.authOtpLocked:
+        return const OtpVerifyResult.locked();
+      case ApiErrorCodes.authOtpRequestLimit:
+      case ApiErrorCodes.rateLimited:
+        final retryAfter = e.details?['retryAfterSeconds'];
+        return OtpVerifyResult.rateLimited(retryAfter is int ? retryAfter : 60);
+      default:
+        return const OtpVerifyResult.networkError();
     }
   }
 

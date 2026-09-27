@@ -120,17 +120,22 @@ class _ConsentsStepScreenState extends ConsumerState<ConsentsStepScreen> {
         StepSectionLabel(t.t('onboarding.consents.docs')),
         LayoutBuilder(
           builder: (context, constraints) {
+            const docs = ['terms', 'privacy', 'disclaimer'];
             final itemWidth = (constraints.maxWidth - AppSpacing.sm) / 2;
             return Wrap(
               spacing: AppSpacing.sm,
               runSpacing: AppSpacing.sm,
               children: [
-                for (final doc in const ['terms', 'privacy', 'disclaimer'])
+                for (var i = 0; i < docs.length; i++)
                   SizedBox(
-                    width: itemWidth,
+                    // An odd last item spans the full row, edge to edge
+                    // with the two columns above it.
+                    width: docs.length.isOdd && i == docs.length - 1
+                        ? constraints.maxWidth
+                        : itemWidth,
                     child: _DocLink(
-                      label: t.t('legal.doc.$doc'),
-                      onTap: () => context.push(AppRoutes.legalDoc(doc)),
+                      label: t.t('legal.doc.${docs[i]}'),
+                      onTap: () => context.push(AppRoutes.legalDoc(docs[i])),
                     ),
                   ),
               ],

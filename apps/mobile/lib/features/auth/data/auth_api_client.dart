@@ -25,12 +25,18 @@ class AuthApiClient {
   /// these must never trigger the silent-refresh retry loop.
   static const Map<String, dynamic> _skipAuth = {RequestFlags.skipAuth: true};
 
-  Future<void> requestOtp({required String channel, required String identifier}) =>
+  /// [linkChallenge]: email login only — see `MagicLinkVerifierStore`.
+  Future<void> requestOtp({
+    required String channel,
+    required String identifier,
+    String? linkChallenge,
+  }) =>
       guardApiCall(
         () => _auth.requestOtp(
           body: api.OtpRequestDto(
             channel: api.OtpRequestDtoChannel.fromJson(channel),
             identifier: identifier,
+            linkChallenge: linkChallenge,
           ),
           extras: _skipAuth,
         ),
@@ -50,6 +56,23 @@ class AuthApiClient {
           code: code,
           deviceInfo: deviceInfo,
         ),
+        extras: _skipAuth,
+      ),
+    );
+    return envelope.data;
+  }
+
+  /// `POST /auth/otp/verify-link` — email magic link: the link's one-time
+  /// [token] plus the [verifier] this device stored when it requested the
+  /// code. Issues tokens like [verifyOtp] (same `_skipAuth`).
+  Future<AuthTokensResult> verifyOtpLink({
+    required String token,
+    required String verifier,
+    DeviceInfo? deviceInfo,
+  }) async {
+    final envelope = await guardApiCall(
+      () => _auth.verifyOtpLink(
+        body: api.OtpVerifyLinkDto(token: token, verifier: verifier, deviceInfo: deviceInfo),
         extras: _skipAuth,
       ),
     );

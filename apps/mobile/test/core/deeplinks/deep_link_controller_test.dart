@@ -15,6 +15,7 @@ import 'package:lawbid/features/auth/application/onboarding_flow.dart';
 import 'package:lawbid/features/auth/auth_routes.dart';
 import 'package:lawbid/features/auth/domain/onboarding_flow_state.dart';
 import 'package:lawbid/features/auth/domain/onboarding_step.dart';
+import 'package:lawbid/features/auth/presentation/screens/email_screen.dart';
 import 'package:lawbid/features/auth/presentation/screens/otp_screen.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/onboarding/domain/current_user.dart';
@@ -77,6 +78,9 @@ class FakeLinkSource implements DeepLinkSource {
   Stream<Uri> get links => controller.stream;
 }
 
+const _token = 'Tk_-0123456789abcdefghijABCDEFGHIJ012345678';
+const _verifier = 'Vf_-0123456789abcdefghijABCDEFGHIJ012345678';
+
 void main() {
   late RecordingAuthRepository repo;
   late List<String> navigations;
@@ -92,10 +96,15 @@ void main() {
     StartupStatus startup = StartupStatus.ready,
     bool signedIn = false,
     void Function(String)? navigate,
+    String? magicLinkVerifier = _verifier,
   }) async {
     final c = ProviderContainer(
       overrides: [
-        ...await authOverrides(repo: repo, fixedSignedOutUser: false),
+        ...await authOverrides(
+          repo: repo,
+          fixedSignedOutUser: false,
+          magicLinkVerifier: magicLinkVerifier,
+        ),
         appStartupProvider.overrideWith(() => MutableStartup(startup)),
         sessionControllerProvider.overrideWith(() => FakeSession(signedIn: signedIn)),
         currentUserControllerProvider.overrideWith(MutableUser.new),
@@ -110,39 +119,59 @@ void main() {
     return c;
   }
 
-  const magic = 'lawbid://auth/email-code?email=ann%40example.com&code=123456';
+  const magic = 'lawbid://auth/email-code?token=$_token';
 
-  testWidgets('magic link → email code screen, prefilled, verified', (tester) async {
+  testWidgets('magic link + stored verifier → email code screen, verify-link with both', (tester) async {
     final c = await container();
     await c.read(deepLinkControllerProvider.notifier).start();
     source.controller.add(Uri.parse(magic));
     await tester.pump();
+    await tester.pump();
 
     expect(navigations, [AuthRoutes.otp]);
-    expect(repo.verified.single, (identifier: 'ann@example.com', code: '123456', channel: 'email'));
+    expect(repo.verifiedLinks.single, (token: _token, verifier: _verifier));
+    expect(repo.verified, isEmpty);
     final flow = c.read(onboardingFlowProvider);
     expect(flow.channel, AuthChannel.email);
-    expect(flow.identifier, 'ann@example.com');
-    expect(flow.autofilledCode, '123456');
+    expect(flow.step, OnboardingStep.role); // signed in as a new user
     expect(c.read(deepLinkControllerProvider), isNull);
     await tester.pump(const Duration(milliseconds: 10));
   });
 
+  testWidgets('magic link without a verifier (other device) → email screen, no request', (tester) async {
+    final c = await container(magicLinkVerifier: null);
+    c.read(deepLinkControllerProvider.notifier).handleUri(Uri.parse(magic));
+    await tester.pump();
+    await tester.pump();
+
+    expect(navigations, [AuthRoutes.email]);
+    expect(repo.verifiedLinks, isEmpty);
+    expect(repo.verified, isEmpty);
+    final flow = c.read(onboardingFlowProvider);
+    expect(flow.step, OnboardingStep.email);
+    expect(
+      flow.errorMessage,
+      'Open the link on the phone where you requested the code, or enter the code from the email.',
+    );
+    await tester.pump(const Duration(milliseconds: 10));
+  });
+
   testWidgets('cold-start link waits for the splash sequence, then runs', (tester) async {
-    source = FakeLinkSource(initial: Uri.parse('https://lawbid.app/auth/email-code?email=ann@example.com&code=654321'));
+    source = FakeLinkSource(initial: Uri.parse('https://lawbid.app/auth/email-code?token=$_token'));
     final c = await container(startup: StartupStatus.running);
     await c.read(deepLinkControllerProvider.notifier).start();
     await tester.pump();
 
     expect(navigations, isEmpty);
-    expect(repo.verified, isEmpty);
+    expect(repo.verifiedLinks, isEmpty);
     expect(c.read(deepLinkControllerProvider), isA<EmailCodeDeepLink>());
 
     (c.read(appStartupProvider.notifier) as MutableStartup).set(StartupStatus.ready);
     await tester.pump();
+    await tester.pump();
 
     expect(navigations, [AuthRoutes.otp]);
-    expect(repo.verified.single.code, '654321');
+    expect(repo.verifiedLinks.single.token, _token);
     await tester.pump(const Duration(milliseconds: 10));
   });
 
@@ -151,7 +180,7 @@ void main() {
     c.read(deepLinkControllerProvider.notifier).handleUri(Uri.parse(magic));
     await tester.pump();
     expect(navigations, isEmpty);
-    expect(repo.verified, isEmpty);
+    expect(repo.verifiedLinks, isEmpty);
     expect(c.read(deepLinkControllerProvider), isNull);
   });
 
@@ -159,7 +188,8 @@ void main() {
     final c = await container();
     final ctl = c.read(deepLinkControllerProvider.notifier)
       ..handleUri(Uri.parse('https://evil.example/case/1'))
-      ..handleUri(Uri.parse('lawbid://auth/email-code?email=a@b.co&code=1'));
+      ..handleUri(Uri.parse('lawbid://auth/email-code?email=a@b.co&code=123456'))
+      ..handleUri(Uri.parse('lawbid://auth/email-code?token=short'));
     await tester.pump();
     expect(ctl.state, isNull);
     expect(navigations, isEmpty);
@@ -200,7 +230,7 @@ void main() {
     expect(c.read(deepLinkControllerProvider), isNull);
   });
 
-  testWidgets('end to end: magic link lands on the code screen with the code filled in', (
+  testWidgets('end to end: magic link lands on the email code screen and signs in', (
     tester,
   ) async {
     late GoRouter router;
@@ -219,12 +249,33 @@ void main() {
 
     expect(find.byType(OtpScreen), findsOneWidget);
     expect(find.text('Change email'), findsOneWidget);
-    final field = tester.widget<TextField>(
-      find.descendant(of: find.byType(OtpScreen), matching: find.byType(TextField)),
-    );
-    expect(field.controller!.text, '123456');
-    expect(repo.verified.single.identifier, 'ann@example.com');
+    expect(repo.verifiedLinks.single, (token: _token, verifier: _verifier));
     expect(c.read(onboardingFlowProvider).step, OnboardingStep.role); // new user signed in
+  });
+
+  testWidgets('end to end: link on another device opens the email screen with the hint', (
+    tester,
+  ) async {
+    late GoRouter router;
+    final c = await container(navigate: (loc) => router.go(loc), magicLinkVerifier: null);
+    router = GoRouter(
+      initialLocation: AuthRoutes.welcome,
+      routes: [...authRoutes(), ...deepLinkRoutes()],
+    );
+    addTearDown(router.dispose);
+    await tester.pumpWidget(routedApp(c, router));
+    await c.read(deepLinkControllerProvider.notifier).start();
+
+    source.controller.add(Uri.parse(magic));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+
+    expect(find.byType(EmailScreen), findsOneWidget);
+    expect(
+      find.text('Open the link on the phone where you requested the code, or enter the code from the email.'),
+      findsOneWidget,
+    );
+    expect(repo.verifiedLinks, isEmpty);
   });
 
   testWidgets('content routes show the "coming soon" placeholder and can leave', (tester) async {

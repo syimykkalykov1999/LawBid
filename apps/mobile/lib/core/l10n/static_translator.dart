@@ -265,6 +265,8 @@ class StaticTranslatorRu extends _MapTranslator {
         'auth.phone.countryCode': "US +1",
         'auth.phone.hint': "(555) 123-4567",
         'auth.phone.useEmail': "Войти по email",
+        'auth.magicLink.otherDevice':
+            'Откройте ссылку на телефоне, где вы запрашивали код, или введите код из письма.',
         'auth.email.title': "Ваш email",
         'auth.email.subtitle': "Мы отправим 6-значный код на почту. Пароль не нужен.",
         'auth.email.hint': "name@example.com",
@@ -653,6 +655,8 @@ class StaticTranslatorEn extends _MapTranslator {
         'auth.phone.countryCode': "US +1",
         'auth.phone.hint': "(555) 123-4567",
         'auth.phone.useEmail': "Use email instead",
+        'auth.magicLink.otherDevice':
+            'Open the link on the phone where you requested the code, or enter the code from the email.',
         'auth.email.title': "Your email",
         'auth.email.subtitle': "We'll email you a 6-digit code. No password needed.",
         'auth.email.hint': "name@example.com",

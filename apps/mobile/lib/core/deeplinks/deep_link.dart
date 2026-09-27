@@ -14,25 +14,25 @@ sealed class DeepLink {
   const DeepLink();
 }
 
-/// `…/auth/email-code?email=<address>&code=<6 digits>` — the magic link
-/// in the sign-in email (§10.2 E/F). Opens the email code step prefilled
-/// and verifies it.
+/// `…/auth/email-code?token=<43 base64url chars>` — the magic link in the
+/// sign-in email (§10.2 E/F, security review 2026-09-27). The token is
+/// one-time and only redeemable together with the verifier stored on the
+/// device that requested the code; the link never carries the email or the
+/// code itself.
 final class EmailCodeDeepLink extends DeepLink {
-  const EmailCodeDeepLink({required this.email, required this.code});
+  const EmailCodeDeepLink({required this.token});
 
-  final String email;
-  final String code;
-
-  @override
-  bool operator ==(Object other) =>
-      other is EmailCodeDeepLink && other.email == email && other.code == code;
+  final String token;
 
   @override
-  int get hashCode => Object.hash(email, code);
+  bool operator ==(Object other) => other is EmailCodeDeepLink && other.token == token;
 
-  // Never print the code (it is a credential for 10 minutes).
   @override
-  String toString() => 'EmailCodeDeepLink(email: <redacted>, code: <redacted>)';
+  int get hashCode => token.hashCode;
+
+  // Never print the token (it is half of a sign-in credential).
+  @override
+  String toString() => 'EmailCodeDeepLink(token: <redacted>)';
 }
 
 enum ContentKind { caseItem, lawyer, post }
@@ -63,8 +63,8 @@ final class ContentDeepLink extends DeepLink {
   String toString() => 'ContentDeepLink($kind, $id)';
 }
 
-final _codePattern = RegExp(r'^\d{6}$');
-final _emailPattern = RegExp(r'^[^\s@]{1,64}@[^\s@]+\.[^\s@]{2,}$');
+/// Magic-link token: 32 random bytes, base64url without padding.
+final _tokenPattern = RegExp(r'^[A-Za-z0-9_-]{43}$');
 
 /// Case / post ids are UUIDs server-side (.cursorrules: UUID only); a
 /// slightly wider safe charset keeps the parser independent of that.
@@ -76,7 +76,7 @@ final _usernamePattern = RegExp(r'^[A-Za-z0-9_.]{3,30}$');
 /// Parses [uri] into a [DeepLink], or null when it isn't one of ours.
 ///
 /// Accepted forms (both route identically):
-/// - `lawbid://auth/email-code?email=…&code=…`, `lawbid://case/<id>` …
+/// - `lawbid://auth/email-code?token=…`, `lawbid://case/<id>` …
 ///   (for the custom scheme the "host" is the first path segment);
 /// - `https://<host>/auth/email-code?…`, `https://<host>/case/<id>` … where
 ///   `<host>` is [host] or `www.<host>` (universal / App Links).
@@ -97,10 +97,14 @@ DeepLink? parseDeepLink(Uri uri, {required String host}) {
   if (parts.isEmpty) return null;
 
   if (parts.length == 2 && parts[0] == 'auth' && parts[1] == 'email-code') {
-    final email = (uri.queryParameters['email'] ?? '').trim().toLowerCase();
-    final code = (uri.queryParameters['code'] ?? '').trim();
-    if (!_emailPattern.hasMatch(email) || !_codePattern.hasMatch(code)) return null;
-    return EmailCodeDeepLink(email: email, code: code);
+    final String token;
+    try {
+      token = uri.queryParameters['token'] ?? '';
+    } catch (_) {
+      return null; // malformed query encoding
+    }
+    if (!_tokenPattern.hasMatch(token)) return null;
+    return EmailCodeDeepLink(token: token);
   }
 
   if (parts.length != 2) return null;

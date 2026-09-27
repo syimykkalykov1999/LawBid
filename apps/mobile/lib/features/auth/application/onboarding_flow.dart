@@ -111,20 +111,76 @@ class OnboardingFlow extends _$OnboardingFlow {
     if (retriever.isSupported) retriever.stop().catchError((Object _) {});
   }
 
-  /// Email magic link (docs/01_FOUNDATION_AUTH.md §10.2 E/F; deep link
-  /// `lawbid://auth/email-code?email=…&code=…` or
-  /// `https://lawbid.app/auth/email-code?…`, see core/deeplinks): puts the
-  /// flow on the email code step with the code prefilled and verifies it
-  /// exactly like a typed code — same errors, same post-sign-in routing.
-  Future<bool> verifyEmailMagicLink({required String email, required String code}) {
+  /// Email magic link (docs/01_FOUNDATION_AUTH.md §10.2 E/F, security
+  /// review 2026-09-27; deep link `lawbid://auth/email-code?token=…` or
+  /// `https://lawbid.app/auth/email-code?token=…`, see core/deeplinks).
+  ///
+  /// The link only works together with the verifier this device stored
+  /// when it requested the code (`MagicLinkVerifierStore`):
+  /// - no verifier here (link opened on another device, or after a
+  ///   reinstall) → no request at all; the email step is shown asking to
+  ///   use the requesting phone or type the code from the email;
+  /// - otherwise `POST /auth/otp/verify-link` on the email code step, with
+  ///   the same session/post-sign-in handling and errors as a typed code.
+  ///   If the flow no longer knows the address (cold start), a failure
+  ///   lands on the email step so the user can request a new code.
+  ///
+  /// [show] is told which step to display (the caller owns navigation).
+  Future<bool> verifyEmailMagicLink(
+    String token, {
+    required void Function(OnboardingStep step) show,
+  }) async {
     _stopSmsListener();
+    final t = ref.read(translatorProvider);
+    final String? verifier;
+    try {
+      verifier = await ref.read(magicLinkVerifierStoreProvider).read();
+    } catch (_) {
+      return _magicLinkToEmailStep(t.t('auth.magicLink.otherDevice'), show);
+    }
+    if (!ref.mounted) return false;
+    if (verifier == null) {
+      return _magicLinkToEmailStep(t.t('auth.magicLink.otherDevice'), show);
+    }
+    // Same device: the address is still known if the flow survived.
+    final identifier = state.channel == AuthChannel.email ? state.identifier : null;
     state = OnboardingFlowState(
       step: OnboardingStep.otp,
       channel: AuthChannel.email,
-      identifier: email.trim().toLowerCase(),
-      autofilledCode: code,
+      identifier: identifier,
+      isSubmitting: true,
     );
-    return verifyOtp(code);
+    show(OnboardingStep.otp);
+    final result = await ref
+        .read(authRepositoryProvider)
+        .verifyEmailLink(token: token, verifier: verifier);
+    Future<bool> fail(String message) => identifier == null
+        ? _magicLinkToEmailStep(message, show)
+        : _fail(message);
+    return result.when(
+      success: (isNewUser) => _afterSignIn(isNewUser: isNewUser),
+      invalid: () => fail(t.t('error.api.AUTH_OTP_INVALID')),
+      expired: () => fail(t.t('error.api.AUTH_OTP_EXPIRED')),
+      locked: () => fail(t.t('error.api.AUTH_OTP_LOCKED')),
+      rateLimited: (retryAfterSeconds) =>
+          fail(t.t('error.api.retryAfter', {'seconds': '$retryAfterSeconds'})),
+      networkError: () => fail(t.t('error.api.NETWORK_ERROR')),
+    );
+  }
+
+  Future<bool> _magicLinkToEmailStep(
+    String message,
+    void Function(OnboardingStep step) show,
+  ) async {
+    final identifier = state.channel == AuthChannel.email ? state.identifier : null;
+    state = OnboardingFlowState(
+      step: OnboardingStep.email,
+      channel: AuthChannel.email,
+      identifier: identifier,
+      errorMessage: message,
+    );
+    show(OnboardingStep.email);
+    return false;
   }
 
   /// Verifies [code]; on success sets `step` to [OnboardingStep.role] (new
@@ -158,6 +214,12 @@ class OnboardingFlow extends _$OnboardingFlow {
 
   Future<bool> _afterSignIn({required bool isNewUser}) async {
     _stopSmsListener();
+    // The magic-link verifier is single-use; drop it once signed in.
+    try {
+      await ref.read(magicLinkVerifierStoreProvider).clear();
+    } catch (_) {
+      // Best effort — the server consumes the link token anyway.
+    }
     await ref.read(currentUserControllerProvider.notifier).ensureLoaded();
     state = state.copyWith(
       isSubmitting: false,

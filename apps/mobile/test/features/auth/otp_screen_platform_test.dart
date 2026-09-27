@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/features/auth/application/auth_providers.dart';
 import 'package:lawbid/features/auth/application/onboarding_flow.dart';
 import 'package:lawbid/features/auth/auth_routes.dart';
 import 'package:lawbid/features/auth/data/sms_code_retriever.dart';
@@ -15,14 +17,22 @@ import 'package:lawbid/features/auth/presentation/screens/phone_screen.dart';
 import 'auth_test_harness.dart';
 
 const _phone = '+12025550123';
+const _token = 'Tk_-0123456789abcdefghijABCDEFGHIJ012345678';
+const _verifier = 'Vf_-0123456789abcdefghijABCDEFGHIJ012345678';
 
 void main() {
   late RecordingAuthRepository repo;
 
   setUp(() => repo = RecordingAuthRepository());
 
-  Future<ProviderContainer> container({SmsCodeRetriever? retriever}) async {
-    final c = ProviderContainer(overrides: await authOverrides(repo: repo, retriever: retriever));
+  Future<ProviderContainer> container({SmsCodeRetriever? retriever, String? magicLinkVerifier}) async {
+    final c = ProviderContainer(
+      overrides: await authOverrides(
+        repo: repo,
+        retriever: retriever,
+        magicLinkVerifier: magicLinkVerifier,
+      ),
+    );
     addTearDown(c.dispose);
     return c;
   }
@@ -72,13 +82,13 @@ void main() {
       tester,
     ) async {
       repo.verifyResult = const OtpVerifyResult.invalid();
-      final c = await container();
+      final c = await container(magicLinkVerifier: _verifier);
       final router = GoRouter(initialLocation: AuthRoutes.welcome, routes: authRoutes());
       addTearDown(router.dispose);
       await tester.pumpWidget(routedApp(c, router));
-      await c
-          .read(onboardingFlowProvider.notifier)
-          .verifyEmailMagicLink(email: 'Ann@Example.com', code: '123456');
+      final flow = c.read(onboardingFlowProvider.notifier);
+      expect(await flow.submitEmail('Ann@Example.com'), isTrue);
+      await flow.verifyEmailMagicLink(_token, show: (_) {});
       router.go(AuthRoutes.otp); // nothing underneath to pop to
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 600));
@@ -90,7 +100,7 @@ void main() {
 
       expect(find.byType(EmailScreen), findsOneWidget);
       expect(c.read(onboardingFlowProvider).step, OnboardingStep.email);
-      // Prefilled with the address from the link.
+      // Prefilled with the address the code was requested for.
       expect(find.text('ann@example.com'), findsOneWidget);
     });
   });
@@ -154,20 +164,83 @@ void main() {
     });
   });
 
-  testWidgets('email magic link puts the flow on the email code step and verifies it', (
-    tester,
-  ) async {
-    final c = await container();
-    final ok = await c
-        .read(onboardingFlowProvider.notifier)
-        .verifyEmailMagicLink(email: ' Ann@Example.COM ', code: '654321');
-    expect(ok, isTrue);
-    expect(repo.verified.single, (identifier: 'ann@example.com', code: '654321', channel: 'email'));
-    final s = c.read(onboardingFlowProvider);
-    expect(s.channel, AuthChannel.email);
-    expect(s.autofilledCode, '654321');
-    // Flush drift's zero-duration stream timers before teardown.
-    await tester.pump(const Duration(milliseconds: 10));
-    await tester.pump(const Duration(milliseconds: 10));
+  group('email magic link (docs/01 §10.2 E, security review 2026-09-27)', () {
+    testWidgets('stored verifier → verify-link with token + verifier, signed in, verifier cleared', (
+      tester,
+    ) async {
+      final c = await container(magicLinkVerifier: _verifier);
+      final shown = <OnboardingStep>[];
+      final ok = await c.read(onboardingFlowProvider.notifier).verifyEmailMagicLink(_token, show: shown.add);
+
+      expect(ok, isTrue);
+      expect(shown, [OnboardingStep.otp]);
+      expect(repo.verifiedLinks.single, (token: _token, verifier: _verifier));
+      expect(repo.verified, isEmpty); // never the code endpoint
+      final s = c.read(onboardingFlowProvider);
+      expect(s.channel, AuthChannel.email);
+      expect(s.step, OnboardingStep.role); // new user signed in
+      expect(await c.read(magicLinkVerifierStoreProvider).read(), isNull);
+      // Flush drift's zero-duration stream timers before teardown.
+      await tester.pump(const Duration(milliseconds: 10));
+      await tester.pump(const Duration(milliseconds: 10));
+    });
+
+    testWidgets('no verifier on this device → no request, email step with the "other device" hint', (
+      tester,
+    ) async {
+      final c = await container();
+      final shown = <OnboardingStep>[];
+      final ok = await c.read(onboardingFlowProvider.notifier).verifyEmailMagicLink(_token, show: shown.add);
+
+      expect(ok, isFalse);
+      expect(shown, [OnboardingStep.email]);
+      expect(repo.verifiedLinks, isEmpty);
+      expect(repo.verified, isEmpty);
+      final s = c.read(onboardingFlowProvider);
+      expect(s.step, OnboardingStep.email);
+      expect(s.channel, AuthChannel.email);
+      expect(
+        s.errorMessage,
+        'Open the link on the phone where you requested the code, or enter the code from the email.',
+      );
+      await tester.pump(const Duration(milliseconds: 10));
+      await tester.pump(const Duration(milliseconds: 10));
+    });
+
+    testWidgets('401 AUTH_OTP_INVALID → the invalid-code message (email step when the address is unknown)', (
+      tester,
+    ) async {
+      repo.verifyResult = const OtpVerifyResult.invalid();
+      final c = await container(magicLinkVerifier: _verifier);
+      final shown = <OnboardingStep>[];
+      final ok = await c.read(onboardingFlowProvider.notifier).verifyEmailMagicLink(_token, show: shown.add);
+
+      expect(ok, isFalse);
+      expect(shown, [OnboardingStep.otp, OnboardingStep.email]);
+      final s = c.read(onboardingFlowProvider);
+      expect(s.errorMessage, c.read(translatorProvider).t('error.api.AUTH_OTP_INVALID'));
+      expect(s.isSubmitting, isFalse);
+      await tester.pump(const Duration(milliseconds: 10));
+      await tester.pump(const Duration(milliseconds: 10));
+    });
+
+    testWidgets('401 AUTH_OTP_INVALID with the address known → stays on the code step with the error', (
+      tester,
+    ) async {
+      repo.verifyResult = const OtpVerifyResult.invalid();
+      final c = await container(magicLinkVerifier: _verifier);
+      final flow = c.read(onboardingFlowProvider.notifier);
+      expect(await flow.submitEmail('ann@example.com'), isTrue);
+      final shown = <OnboardingStep>[];
+      expect(await flow.verifyEmailMagicLink(_token, show: shown.add), isFalse);
+
+      expect(shown, [OnboardingStep.otp]);
+      final s = c.read(onboardingFlowProvider);
+      expect(s.step, OnboardingStep.otp);
+      expect(s.identifier, 'ann@example.com');
+      expect(s.errorMessage, c.read(translatorProvider).t('error.api.AUTH_OTP_INVALID'));
+      await tester.pump(const Duration(milliseconds: 10));
+      await tester.pump(const Duration(milliseconds: 10));
+    });
   });
 }

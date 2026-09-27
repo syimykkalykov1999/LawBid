@@ -7,6 +7,7 @@ import '../../../core/session/session_providers.dart';
 import '../data/auth_api_client.dart';
 import '../data/auth_dtos.dart';
 import '../data/auth_repository.dart';
+import '../data/magic_link_verifier_store.dart';
 import '../data/real_auth_repository.dart';
 import '../data/social_auth_native_client.dart';
 
@@ -49,7 +50,14 @@ final authRepositoryProvider = Provider<AuthRepository>(
     ref.watch(sessionControllerProvider.notifier),
     ref.watch(deviceInfoProvider),
     ref.watch(socialAuthNativeClientProvider),
+    ref.watch(magicLinkVerifierStoreProvider),
   ),
+);
+
+/// Email magic-link verifier (security review 2026-09-27) — see
+/// [MagicLinkVerifierStore].
+final magicLinkVerifierStoreProvider = Provider<MagicLinkVerifierStore>(
+  (ref) => MagicLinkVerifierStore(),
 );
 
 /// Local Face ID/Touch ID/fingerprint gate (Phase 4 of the auth networking

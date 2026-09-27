@@ -4,33 +4,36 @@ import 'package:lawbid/core/deeplinks/deep_link.dart';
 void main() {
   DeepLink? parse(String s) => parseDeepLink(Uri.parse(s), host: 'lawbid.app');
 
-  group('magic sign-in link (docs/01 §10.2 E/F)', () {
-    test('custom scheme lawbid://auth/email-code?email&code', () {
-      expect(
-        parse('lawbid://auth/email-code?email=Ann%40Example.com&code=123456'),
-        const EmailCodeDeepLink(email: 'ann@example.com', code: '123456'),
-      );
+  group('magic sign-in link (docs/01 §10.2 E/F, security review 2026-09-27)', () {
+    const token = 'Tk_-0123456789abcdefghijABCDEFGHIJ012345678'; // 43 base64url chars
+
+    test('custom scheme lawbid://auth/email-code?token', () {
+      expect(parse('lawbid://auth/email-code?token=$token'), const EmailCodeDeepLink(token: token));
     });
 
-    test('universal / App Link on lawbid.app (and www.)', () {
-      const expected = EmailCodeDeepLink(email: 'ann@example.com', code: '004211');
-      expect(parse('https://lawbid.app/auth/email-code?email=ann@example.com&code=004211'), expected);
-      expect(parse('https://www.lawbid.app/auth/email-code/?email=ann@example.com&code=004211'), expected);
+    test('universal / App Link on lawbid.app (and www., trailing slash)', () {
+      const expected = EmailCodeDeepLink(token: token);
+      expect(parse('https://lawbid.app/auth/email-code?token=$token'), expected);
+      expect(parse('https://www.lawbid.app/auth/email-code/?token=$token'), expected);
     });
 
-    test('rejects malformed codes / emails and foreign hosts', () {
-      expect(parse('lawbid://auth/email-code?email=ann@example.com&code=12345'), isNull);
-      expect(parse('lawbid://auth/email-code?email=ann@example.com&code=12345a'), isNull);
-      expect(parse('lawbid://auth/email-code?email=not-an-email&code=123456'), isNull);
-      expect(parse('lawbid://auth/email-code?code=123456'), isNull);
-      expect(parse('https://evil.example/auth/email-code?email=a@b.co&code=123456'), isNull);
-      expect(parse('https://lawbid.app.evil.example/auth/email-code?email=a@b.co&code=123456'), isNull);
-      expect(parse('http://lawbid.app/auth/email-code?email=a@b.co&code=123456'), isNull);
-      expect(parse('lawbid://auth/other?email=a@b.co&code=123456'), isNull);
+    test('rejects malformed tokens, legacy email+code links and foreign hosts', () {
+      expect(parse('lawbid://auth/email-code?token=${token.substring(1)}'), isNull); // 42
+      expect(parse('lawbid://auth/email-code?token=${token}A'), isNull); // 44
+      expect(parse('lawbid://auth/email-code?token=${token.substring(1)}='), isNull); // padding
+      expect(parse('lawbid://auth/email-code?token=${token.substring(1)}%2B'), isNull); // '+'
+      expect(parse('lawbid://auth/email-code?token=${token.substring(1)}%20'), isNull);
+      expect(parse('lawbid://auth/email-code?token='), isNull);
+      expect(parse('lawbid://auth/email-code'), isNull);
+      expect(parse('lawbid://auth/email-code?email=ann@example.com&code=123456'), isNull);
+      expect(parse('https://evil.example/auth/email-code?token=$token'), isNull);
+      expect(parse('https://lawbid.app.evil.example/auth/email-code?token=$token'), isNull);
+      expect(parse('http://lawbid.app/auth/email-code?token=$token'), isNull);
+      expect(parse('lawbid://auth/other?token=$token'), isNull);
     });
 
-    test('never prints the code', () {
-      expect(const EmailCodeDeepLink(email: 'a@b.co', code: '123456').toString(), isNot(contains('123456')));
+    test('never prints the token', () {
+      expect(const EmailCodeDeepLink(token: token).toString(), isNot(contains(token)));
     });
   });
 
