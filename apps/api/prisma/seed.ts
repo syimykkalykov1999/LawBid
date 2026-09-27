@@ -36,6 +36,7 @@ import {
   PracticeAreaSeedCategory,
 } from '../src/common/reference-data/practice-areas.util';
 import { US_STATES } from '../src/common/reference-data/us-states';
+import { FILE_03_SETTINGS } from '../src/common/app-settings/app-settings.defaults';
 
 const prisma = new PrismaClient();
 
@@ -312,6 +313,19 @@ async function seedAppConfig(): Promise<void> {
     });
   }
   console.log(`  app_config: ${keys.length} upserted`);
+
+  // docs/03_VERIFICATION_PROFILES.md §9 (stage 3.1). `update: {}` — a
+  // value the owner changed in the admin panel is never overwritten.
+  for (const [key, value] of Object.entries(FILE_03_SETTINGS)) {
+    await prisma.appConfig.upsert({
+      where: { key },
+      create: { key, value },
+      update: {},
+    });
+  }
+  console.log(
+    `  app_config (file 03 §9): ${Object.keys(FILE_03_SETTINGS).length} upserted`,
+  );
 
   // Cost protection (owner-approved extension 2026-09-27 —
   // docs/OPEN_QUESTIONS.md, docs/COST_PROTECTION.md): live caps read by

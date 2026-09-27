@@ -281,6 +281,16 @@ describe('DB — stage 2.6/2.7 roles, search, indexes', () => {
     }
 
     it('EXPLAIN: §5.4 and §5.2 case queries never full-scan cases', async () => {
+      // Plans depend on table statistics; a freshly built e2e database has
+      // none ("missing stats"), which makes the optimizer's choice random.
+      for (const t of [
+        'cases',
+        'case_states',
+        'attorney_licenses',
+        'attorney_practice_areas',
+      ]) {
+        await root.$executeRawUnsafe(`ANALYZE ${t}`);
+      }
       const a = attorneyId;
       const queries = [
         // §5.4

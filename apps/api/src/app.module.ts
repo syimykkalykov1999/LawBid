@@ -12,6 +12,10 @@ import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { I18nModule } from './modules/i18n/i18n.module';
 import { CasesModule } from './modules/cases/cases.module';
+import { AppSettingsModule } from './common/app-settings/app-settings.module';
+import { VerificationModule } from './modules/verification/verification.module';
+import { ProfilesModule } from './modules/profiles/profiles.module';
+import { ReviewsModule } from './modules/reviews/reviews.module';
 import { DevModule } from './modules/dev/dev.module';
 import { CostGuardModule } from './common/cost-guard/cost-guard.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
@@ -74,6 +78,10 @@ const isDev =
     UsersModule,
     I18nModule,
     CasesModule,
+    AppSettingsModule,
+    VerificationModule,
+    ProfilesModule,
+    ReviewsModule,
     ...(isDev ? [DevModule] : []),
   ],
   providers: [

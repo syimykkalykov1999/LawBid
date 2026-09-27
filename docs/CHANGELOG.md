@@ -3386,3 +3386,32 @@ Two backend gaps reported by the stage 1.7 mobile work:
 - Tests: e2e `onboarding.e2e-spec.ts` +2 (first contact without reauth →
   201, changing a verified one → `REAUTH_REQUIRED`; bootstrap docs carry
   `id`); Flutter contacts-step widget test updated to the new flow.
+
+## Stage 3.1 (migration and module skeletons) — 2026-09-27
+
+Per docs/03_VERIFICATION_PROFILES.md §11 "Этап 3.1", §9, §10. Migration
+`…_stage_3_1_verification_profiles` (generated from a verified-working
+introspection: 59 models, then empty diff).
+
+- §10 columns: `attorney_profiles.username_changed_at`, `reviews.edited_at`,
+  `verification_documents.side` (CHECK front|back),
+  `verification_requests.info_request_message / applicant_comment (CHECK
+  ≤ 500) / rejection_code`, `attorney_licenses.rejection_code /
+  rejection_note`; enum `notification_type` + `review_requested`,
+  `review_received`. `verification_documents(request_id)` index already
+  existed (stage 2.3).
+- Modules `verification`, `profiles`, `reviews` registered; interfaces
+  `BarLookupProvider` / `IdVerificationProvider` with `manual`
+  implementations returning `manual_review` (paid adapters come behind
+  flags in 3.4 and must consume CostGuard `id_check`).
+- `AppSettingsService` (global): typed reads of §9 keys through the
+  Redis-cached `AppConfigService`, falling back to the spec defaults on a
+  missing/wrong-typed value. Defaults live in one place
+  (`app-settings.defaults.ts`) and are seeded with `update: {}` so an
+  admin-edited value is never overwritten. `profile.reserved_usernames`:
+  §9 gives no contents, so a starter list of platform/route names.
+- Tests: unit +5 (settings typing/fallbacks, manual providers); e2e
+  `stage-3-1.e2e-spec.ts` (modules boot, values read and cached in Redis,
+  §10 columns exist). Also made the 2.7 EXPLAIN test deterministic
+  (`ANALYZE` first — a fresh DB has no stats and the plan choice varied).
+- Totals: unit 163/163; e2e 11 suites / 62 tests; lint, tsc clean.

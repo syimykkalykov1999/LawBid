@@ -370,6 +370,9 @@ enum NotificationType {
   contact_issue_update
   moderation_notice
   security_new_device
+  // docs/03_VERIFICATION_PROFILES.md §10 (stage 3.1)
+  review_requested
+  review_received
 
   @@map("notification_type")
 }
@@ -915,6 +918,8 @@ model AttorneyProfile {
   languages           String[]
   verification_status VerificationStatus @default(unverified)
   verified_at         DateTime?          @db.Timestamptz
+  // docs/03_VERIFICATION_PROFILES.md §10 (stage 3.1)
+  username_changed_at DateTime?          @db.Timestamptz
   rating_avg          Decimal            @default(0) @db.Decimal(3, 2)
   rating_count        Int                @default(0)
   posts_count         Int                @default(0)
@@ -946,6 +951,9 @@ model AttorneyLicense {
   verified_by       String?         @db.Uuid
   verifier          User?           @relation("LicenseVerifier", fields: [verified_by], references: [id], onDelete: Restrict)
   auto_check_result Json?
+  // docs/03_VERIFICATION_PROFILES.md §10 (stage 3.1)
+  rejection_code    String?
+  rejection_note    String?
   created_at        DateTime        @default(now()) @db.Timestamptz
   updated_at        DateTime        @updatedAt @db.Timestamptz
 
@@ -969,20 +977,25 @@ model AttorneyPracticeArea {
 }
 
 model VerificationRequest {
-  id               String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  attorney_id      String                    @db.Uuid
-  attorney         AttorneyProfile           @relation(fields: [attorney_id], references: [user_id], onDelete: Restrict)
-  status           VerificationRequestStatus
-  provider         VerificationProvider      @default(manual)
-  provider_ref     String?
-  submitted_at     DateTime?                 @db.Timestamptz
-  reviewed_by      String?                   @db.Uuid
-  reviewer         User?                     @relation("VerificationReviewer", fields: [reviewed_by], references: [id], onDelete: Restrict)
-  reviewed_at      DateTime?                 @db.Timestamptz
-  rejection_reason String?
-  admin_note       String?
-  created_at       DateTime                  @default(now()) @db.Timestamptz
-  updated_at       DateTime                  @updatedAt @db.Timestamptz
+  id                   String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  attorney_id          String                    @db.Uuid
+  attorney             AttorneyProfile           @relation(fields: [attorney_id], references: [user_id], onDelete: Restrict)
+  status               VerificationRequestStatus
+  provider             VerificationProvider      @default(manual)
+  provider_ref         String?
+  submitted_at         DateTime?                 @db.Timestamptz
+  reviewed_by          String?                   @db.Uuid
+  reviewer             User?                     @relation("VerificationReviewer", fields: [reviewed_by], references: [id], onDelete: Restrict)
+  reviewed_at          DateTime?                 @db.Timestamptz
+  rejection_reason     String?
+  admin_note           String?
+  // docs/03_VERIFICATION_PROFILES.md §10 (stage 3.1)
+  info_request_message String?
+  // ≤500 chars, CHECK in the migration
+  applicant_comment    String?
+  rejection_code       String?
+  created_at           DateTime                  @default(now()) @db.Timestamptz
+  updated_at           DateTime                  @updatedAt @db.Timestamptz
 
   documents VerificationDocument[]
   checks    VerificationCheck[]
@@ -1002,6 +1015,9 @@ model VerificationDocument {
   state_code String?             @db.Char(2)
   state      State?              @relation(fields: [state_code], references: [code], onDelete: Restrict)
   notes      String?
+  // docs/03_VERIFICATION_PROFILES.md §10 (stage 3.1)
+  // front | back, for identity documents
+  side       String?
   created_at DateTime            @default(now()) @db.Timestamptz
   updated_at DateTime            @updatedAt @db.Timestamptz
 
@@ -1246,6 +1262,8 @@ model Review {
   rating      Int          @db.Int2
   body        String?
   status      ReviewStatus @default(published)
+  // docs/03_VERIFICATION_PROFILES.md §10 (stage 3.1)
+  edited_at   DateTime?    @db.Timestamptz
   created_at  DateTime     @default(now()) @db.Timestamptz
   updated_at  DateTime     @updatedAt @db.Timestamptz
 
