@@ -1,7 +1,0 @@
-key,en,ru,op
-auth.welcome.title,Bulletin board for clients and attorneys,Доска объявлений для клиентов и адвокатов,update
-auth.welcome.legal,"LawBid is a bulletin board. We are not a law firm and do not provide legal services. By continuing, you accept the Terms and Privacy Policy.","LawBid — доска объявлений. Мы не юридическая фирма и не оказываем юридических услуг. Продолжая, вы принимаете Условия и Политику конфиденциальности.",update
-auth.phone.subtitle,We'll send a verification code. No password needed.,Мы отправим код подтверждения. Пароль не нужен.,update
-auth.phone.terms,"By continuing, you accept the Terms of Use and Privacy Policy","Продолжая, вы принимаете Условия использования и Политику конфиденциальности",update
-auth.otp.submit,Verify,Подтвердить,update
-onboarding.role.attorney.desc,Licensed attorney: find clients in your practice areas and states.,Лицензированный юрист: находите клиентов по своей практике и штату.,update

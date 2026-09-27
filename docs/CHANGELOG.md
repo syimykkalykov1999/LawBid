@@ -3432,3 +3432,351 @@ introspection: 59 models, then empty diff).
   number"; non-US +1 country (e.g. 345 Cayman) keeps the country message.
   Keys added en+ru (static translator + translations_seed.xlsx).
 - Tests: Flutter 149/149 (+3 api_error_text); API unit 163/163.
+
+## p12 — closing files 01/02/07 (2026-09-27)
+
+Work split into verified leaves (unlazy scope p12); each leaf gate was re-run on the merged branch by the driver.
+
+## p12 leaf 1.1 — api-db (docs/02 §1.4, §3.3, §6.4, §8 stage 2.7) — 2026-09-27
+
+- **Soft delete by default (§1.4).** `PrismaService` is now the client
+  extended with `src/prisma/soft-delete.extension.ts`: reads
+  (findMany / findFirst(OrThrow) / findUnique(OrThrow) / count / aggregate /
+  groupBy) of every model with a `deleted_at` column — list derived from the
+  Prisma DMMF (today User, File, Case, Post, Comment, Message) — add
+  `deleted_at: null`. Nested to-many `include`/`select` and `_count` are
+  filtered too. Opt-out: `withDeleted(where)` / `onlyDeleted(where)` or any
+  explicit `deleted_at` condition (also inside AND/OR/NOT). Writes are not
+  rewritten; deletes are not turned into soft deletes; to-one includes and
+  raw SQL are not filtered (documented in the extension).
+  Auth paths that must still see deleted accounts opt out explicitly:
+  social-login email collision check, refresh and reauth user lookup,
+  contacts `hasVerified` (reauth gate). OTP/social login already read the
+  user through the identifier include, so `ACCOUNT_DELETED` still works.
+- **Sessions (§6.4 / docs/01 §10.6).** Migration
+  `20260927220000_p12_sessions_user_device_idx`: index
+  `sessions(user_id, device_id)` for `SessionService.isNewDevice` (was a
+  full scan). Applied to the dev DB.
+- **Jobs (docs/01 §5.2, docs/06 §6).** `src/jobs`: BullMQ `cron` queue with
+  job schedulers under fixed ids (one schedule regardless of instance
+  count; stale schedulers removed on boot), worker with concurrency 1,
+  3 attempts with exponential backoff, bounded job history.
+  - `sessions.cleanup` daily 03:15 UTC: deletes expired sessions and
+    terminally revoked ones older than 30 days (rotated rows kept until
+    expiry for reuse detection); PK-ordered 1000-row batches, no hot-spot
+    index on `expires_at`.
+  - `otp.cleanup` daily 03:45 UTC: removes `otp:*` / `rl:*` Redis keys that
+    have no TTL (atomic check-and-UNLINK in Lua); TTL-bound keys untouched.
+  - `disposable-domains.refresh` monthly (1st, 04:30 UTC): fetches
+    `DISPOSABLE_DOMAINS_URL` via an injectable fetcher (timeout, 5 MB cap),
+    validates (domain syntax, ≤1% bad lines, 1k–200k domains, refuses to
+    shrink by >50%), inserts new / deletes stale `disposable` rows in
+    1000-row chunks, never touches `apple_relay` (or any non-disposable)
+    rows; on any failure logs a warning and keeps the table.
+  - Runs inside the API while `JOBS_ENABLED=true` (default);
+    `src/worker.ts` (`node dist/src/worker.js`) is the dedicated worker
+    entrypoint (always runs jobs).
+  - New env: `JOBS_ENABLED`, `DISPOSABLE_DOMAINS_URL` (env.schema.ts,
+    .env.example). New dependency: `bullmq`.
+- **Upgrade migration check (§8 stage 2.7).**
+  `scripts/migrate-from-previous.mjs`: throwaway DB at the previous
+  migration set (MIGRATE_PREV_REF, else newest release tag, else the parent
+  of the last commit touching prisma/migrations / HEAD for uncommitted
+  ones), files read from git and compared byte-for-byte with the working
+  tree, seeded, upgraded with `migrate deploy`, then asserts full status,
+  no drift, > 50 introspected models and surviving rows; drops only its own
+  DB. Added to `api-ci.yml` (checkout `fetch-depth: 0`, timeout 45 min).
+- Tests: `src/prisma/soft-delete.extension.spec.ts`, `src/jobs/**.spec.ts`,
+  `test/db-soft-delete.e2e-spec.ts`, `test/db-sessions.e2e-spec.ts`
+  (EXPLAIN of the exact captured isNewDevice SQL after ANALYZE),
+  `test/jobs.e2e-spec.ts` (real queue + two worker instances).
+
+## leaf-1.2 — API production hardening and remaining docs/01 §10.6 security items
+
+### Infrastructure (docs/01 §7, §13)
+- `GET /health/ready` now checks CockroachDB (`SELECT 1`) and Redis (`PING`),
+  each with a 1.5 s timeout; 503 when either is down. `/health/live` stays
+  dependency-free. Health routes skip the per-IP throttler (LB probes).
+- `main.ts` delegates to `src/app.setup.ts#configureApp`: `enableShutdownHooks()`
+  (Prisma/Redis close cleanly on SIGTERM), `helmet` (CSP + HSTS in
+  production/staging; CSP relaxed only where Swagger is served), trust proxy,
+  ValidationPipe, global prefix. Swagger `/docs` and `/docs-json` are **not
+  mounted when `NODE_ENV=production`**.
+- pino `genReqId` and `RequestIdMiddleware` share `resolveRequestId()`: the
+  request log `req.id` always equals the `X-Request-Id` response header.
+  Unsafe incoming ids (control chars, >128 chars) are replaced by a UUID.
+- `GET /config/bootstrap`: languages, bundle versions and current legal
+  documents are Redis cache-aside (`config:bootstrap:content`, 30 s TTL, like
+  feature flags). Bundle versions are overlaid with the per-language key that
+  the i18n import already writes on commit, so an import is visible at once.
+- `IdempotencyInterceptor`: atomic claim (`SET NX`, 60 s pending TTL) instead of
+  GET-then-SET. Only one concurrent duplicate runs the handler; others get
+  **409 `IDEMPOTENCY_KEY_CONFLICT`** (`details.reason='in_progress'`,
+  `Retry-After: 1`), no waiting. The result is stored before the response is
+  sent and replayed for 24 h. Handler errors release the key (not cached).
+  The same key with a different body gets 409 (`reason='payload_mismatch'`).
+
+### Auth (docs/01 §10.2–§10.6)
+- Refresh rejects suspended/deleted users (403 `ACCOUNT_SUSPENDED` /
+  `ACCOUNT_DELETED`), revokes that chain and records `login_blocked_*` with
+  `meta.via='refresh'`. New per-session-chain refresh limit
+  (`AUTH_REFRESH_LIMIT_PER_SESSION_PER_HOUR`, default 30) → 429 `RATE_LIMITED`.
+- Login flags `phone_login`, `email_login`, `apple_login`, `google_login` are
+  enforced server-side on `otp/request`, `otp/verify` and `social`
+  (403 `AUTH_PROVIDER_DISABLED`). A missing flag row counts as enabled.
+  `AUTH_SOCIAL_LIMIT_PER_IP_PER_HOUR` (already in env, previously unused) is
+  now applied to `/auth/social`.
+- New-device alert: when a login creates a session on a `device_id` an
+  existing user never used, an `auth_events` row `new_device` is written and
+  a notice goes to every `LoginNotificationChannel`, detached from the
+  request (the login never waits or fails because of it). Email channel:
+  only to a verified email, through `CostGuardService`, with a
+  `lawbid://profile/settings/devices` link (plus https variant). Push channel
+  is a no-op seam until docs/05 `NotificationsService.emit()` exists.
+- Email OTP (login purpose): body keeps the code and adds the magic link
+  `lawbid://auth/email-code?email=<urlenc>&code=<code>` plus
+  `<APP_LINK_BASE_URL>/auth/email-code?...` when `APP_LINK_BASE_URL` is set.
+  Contact-verification codes get no sign-in link. `EmailProvider` now takes a
+  rendered message (`sendEmail({to, subject, text, html})`).
+- Social nonce: Apple claim must equal `sha256hex(rawNonce)`; Google claim
+  must be present and equal the raw nonce or `sha256hex(rawNonce)`; else 401
+  `AUTH_SOCIAL_TOKEN_INVALID` (constant-time compare).
+- Device attestation: `DeviceAttestationGuard` on `otp/request` and `social`,
+  behind the new flag `device_attestation` (seeded **false**). When on,
+  missing/unverifiable `X-Device-Attestation` (+ `X-Platform: ios|android`)
+  → 403 `DEVICE_ATTESTATION_REQUIRED`. The App Attest / Play Integrity
+  verifiers are interfaces. The registered placeholder rejects every token,
+  so **do not turn the flag on until real verifiers exist**.
+
+### New env
+- `AUTH_REFRESH_LIMIT_PER_SESSION_PER_HOUR` (default 30).
+- `APP_LINK_BASE_URL` (optional, https, no trailing slash, e.g. `https://lawbid.app`).
+
+### For docs/KEYS_SETUP.md (owner action; not edited by this leaf)
+**Device attestation keys (needed before enabling `device_attestation`):**
+1. iOS App Attest: in the Apple Developer account, enable the App Attest
+   capability for the app ID and note the **Team ID** and **bundle id**. The
+   server needs `APP_ATTEST_TEAM_ID`, `APP_ATTEST_BUNDLE_ID` and
+   `APP_ATTEST_ENV` (`development` or `production`). It also needs Apple's App
+   Attestation Root CA (public; ship it with the verifier).
+2. Android Play Integrity: in Google Play Console, link a Google Cloud project
+   (App integrity → Play Integrity API) and enable the API. Create a service
+   account with the *Play Integrity API* role. Give the server its JSON key as
+   `PLAY_INTEGRITY_SERVICE_ACCOUNT_JSON` (Secrets Manager) and the package name
+   as `PLAY_INTEGRITY_PACKAGE_NAME`.
+3. After real `AttestationVerifier` implementations are registered in
+   `AuthModule` (replacing `UnconfiguredAttestationVerifier`), turn on
+   `feature_flags.device_attestation`. The mobile app must also send the
+   `X-Device-Attestation` header (not built yet).
+
+**Universal links:** set `APP_LINK_BASE_URL` to the domain that serves
+`apple-app-site-association` / `assetlinks.json` (docs/01 §12). Until then,
+emails carry only the `lawbid://` link.
+
+### Files outside the leaf's OWNS (minimal, additive)
+`apps/api/prisma/seed.ts` (flag `device_attestation`), `apps/api/src/config/env.schema.ts` +
+`.env.example` (2 env vars), `apps/api/package.json` + `package-lock.json` (`helmet`),
+`src/common/middleware/request-id.middleware.ts` (+spec), `test/support/fake-redis.ts`
+(`NX`, `del`, `ping`), `test/app.e2e-spec.ts` (Prisma stub `$queryRawUnsafe` for the ready probe).
+
+## p12 leaf-1.4: mobile platform (flavors, app version, updates, SMS autofill, deep links)
+
+Spec: docs/01 §5.1, §7, §10.2 D/E/F, §12, §15 "Этап 1.8".
+
+### Three installable variants (owner requirement)
+- **dev**: "LawBid Dev", `com.lawbid.lawbid.dev`
+- **staging**: "LawBid Staging", `com.lawbid.lawbid.staging`
+- **prod**: "LawBid", `com.lawbid.lawbid` (the build for the App Store and Google Play)
+
+Details:
+- **Android.** `productFlavors` (dimension `env`) with `applicationIdSuffix` and `resValue app_name`. The manifest uses `android:label="@string/app_name"`. AGP 9 needs `buildFeatures.resValues = true`.
+- **iOS.**
+  - Build configurations `Debug/Profile/Release-{dev,staging,prod}` and schemes `dev`, `staging`, `prod` (Flutter flavor convention).
+  - `PRODUCT_BUNDLE_IDENTIFIER` and `APP_DISPLAY_NAME` are set per configuration on the Runner target. `Info.plist` reads `CFBundleDisplayName = $(APP_DISPLAY_NAME)`.
+  - `ios/Flutter/<config>.xcconfig` includes the Pods xcconfig and `Common.xcconfig`, which holds the Google URL-scheme default, `DEEP_LINK_HOST` and `Secrets.xcconfig`. The old flavorless `Debug/Release.xcconfig`, the Debug/Release/Profile configurations and the `Runner` scheme are removed.
+  - The Podfile maps all 9 configurations. `pod install` is verified.
+- **Entry points.** `lib/main_{dev,staging,prod}.dart` call `runLawBid(AppFlavor.x)` (`lib/core/config/run_app.dart`). `lib/main.dart` is dev, and `pubspec.yaml` sets `default-flavor: dev`, so a plain `flutter run` still works.
+- **API base URL.** `AppEnvironment` (`lib/core/config/app_environment.dart`) picks a per-flavor default, and the `API_BASE_URL` dart-define overrides it.
+  - **Owner to confirm:** the staging and prod defaults are placeholders: `https://staging-api.lawbid.app/api/v1` and `https://api.lawbid.app/api/v1`.
+  - `config/{dev,staging,prod}.example.json` exist.
+- **Run.** `flutter run --flavor dev -t lib/main_dev.dart --dart-define-from-file=config/dev.json`. See apps/mobile/README.md → Flavors.
+- **Verification.** `node tool/verify_flavors.mjs android|ios` builds each flavor and checks the id and label with aapt or plutil.
+- **Entitlements.** `Runner.entitlements` is now wired via `CODE_SIGN_ENTITLEMENTS` for every configuration. It was pending since the Sign in with Apple pass. It now also carries Associated Domains.
+  - Associated Domains and Sign in with Apple need a paid Apple Developer team to sign for a device. Simulator builds and no-codesign builds are unaffected.
+
+### App version, soft update and forced update
+- **X-App-Version.** The header now sends the real installed version (`package_info_plus`, loaded before `runApp`). It was hardcoded to `'0.1.0'` before. `AppVersion.fallback` stays `0.1.0` so that a failed lookup can never trigger 426 on every request.
+- **Forced update on 426.** `AppUpdateInterceptor`, registered in `dioProvider` right after the headers interceptor, handles any `426` or `APP_UPDATE_REQUIRED` response by opening the non-dismissible forced-update screen over whatever route is showing. This closes the stage 1.8 gap noted in CHANGELOG. The bootstrap `min_app_version_*` self-check still applies.
+- **Soft update.**
+  - `soft_update_version_{platform}` from `/config/bootstrap` shows a dismissible prompt. "Later" is remembered per soft version, and a newer soft version prompts again.
+  - The prompt is shown only after the splash and only to a signed-in user, so the pre-app flow does not change.
+- **Update button.** It opens `app_config.store_url_{platform}` when set, which lets the admin configure it. Otherwise it opens the Play listing of the running applicationId on Android, or `apps.apple.com/app/id$APP_STORE_ID` (a dart-define) on iOS. If no URL is available it shows a snackbar. The old `_UpdateRequiredGate` in app.dart moved to `lib/core/app_update/app_update_gate.dart`.
+
+### Android
+- **minSdk 26.** `minSdk = 26` (docs/01 §5.1).
+- **SMS Retriever OTP autofill** (docs/01 §10.2 D) via `smart_auth`.
+  - Listening starts before the code is requested, and again on resend. The code appears in the cells and is verified automatically.
+  - Late SMS for a previous number are ignored.
+  - iOS keeps the `oneTimeCode` keyboard autofill.
+
+### OTP screen
+- **«Изменить номер» / "Change number"** ("Change email" for the email code) sits under the resend timer. It uses the same caption link style and a 44pt hit area, and returns to the phone or email entry with the value kept.
+- **Golden updates.** Only `auth_otp_screen_light.png` and `auth_otp_screen_dark.png` were regenerated. The diff is exactly the new link.
+- **Unchanged.** The welcome screen and its goldens are byte-identical.
+
+### Deep links (docs/01 §12, §10.2 E/F)
+- **Magic link.** `lawbid://auth/email-code?email&code` and `https://lawbid.app/auth/email-code?email&code` open the email code screen with the code prefilled and verify it. The link is ignored if the user is already signed in.
+- **Content links.** `https://lawbid.app/case/:id`, `/lawyer/:username` and `/post/:id` (also over `lawbid://`) open "coming soon" placeholder routes. TODO(docs/03, docs/04, docs/05): real screens. The link waits until the user is signed in and onboarded.
+- **Cold start.** A link that launches the app is held until the splash finishes.
+- **Handling.** `app_links` feeds `DeepLinkController` (`lib/core/deeplinks`). Flutter's built-in deep linking is disabled (`flutter_deeplinking_enabled` / `FlutterDeepLinkingEnabled` = false) so the magic link can run verification. The parser only accepts strict shapes: a 6-digit code, and usernames per §12.
+- **Native config.**
+  - Android: custom-scheme and `autoVerify` App Links intent filters on `${deepLinkHost}` (Gradle property `lawbid.deepLinkHost`, default `lawbid.app`).
+  - iOS: the `lawbid` URL scheme, plus `applinks:$(DEEP_LINK_HOST)`.
+- **Owner hosts two files:**
+  - `docs/deeplinks/apple-app-site-association`, with `TEAM_ID` placeholders.
+  - `docs/deeplinks/assetlinks.json`, with SHA-256 placeholders.
+  - Instructions are in `docs/deeplinks/README.md`.
+
+### Note for leaf-1.2 / server (not edited here)
+- **SMS text.** To make Android SMS Retriever autofill work, the OTP SMS must end with the app's 11-character hash, for example `<#> Your LawBid code: 123456` followed by the hash on a new line. The hash depends on the applicationId and signing key, so it differs per flavor and between debug and release. `SmsCodeRetriever.appSignature()` returns it on the device, or compute it with the usual keytool method. Suggested server change: an env or app_config value such as `sms.android_app_hash` appended to the Twilio or Verify message. With Twilio Verify, use its Android app-hash parameter.
+- **Magic link format.** The sign-in email's magic link must be `https://lawbid.app/auth/email-code?email=<urlencoded>&code=<code>`.
+
+### New translation keys
+`auth.otp.changeNumber`, `auth.otp.changeEmail`, `app.update.storeUnavailable`, `app.softUpdate.{title,message,update,later}`, `deeplink.{case,lawyer,post}.title`, `deeplink.comingSoon.{heading,body}`. They are in apps/api/prisma/seed/pending_keys/leaf-1.4.csv.
+
+### Shared files touched outside this leaf's OWNS (minimal)
+- `pubspec.yaml`: additive. Adds `package_info_plus`, `app_links`, `url_launcher`, `smart_auth` and `default-flavor`.
+- `lib/app.dart`: uses the gate from core/app_update and the flavor title.
+- `lib/core/network/{dio_client,headers_interceptor}.dart`
+- `lib/core/navigation/app_router.dart`: deep-link routes.
+- `lib/core/design_system/widgets/inputs/app_otp_field.dart`: optional `controller`.
+- `lib/core/l10n/static_translator.dart`
+- `docs/KEYS_SETUP.md` and `apps/mobile/README.md`: run commands.
+
+### p12 leaf-1.5 — mobile i18n (docs/01 §8.1, §9; docs/07 §8)
+
+- **Server-driven languages** (§9.3/§9.4, stage 1.6 acceptance "новый язык,
+  импортированный через xlsx, появляется в приложении без пересборки"):
+  `AppLanguage` is now a value class keyed by ISO 639-1 code (same
+  `en`/`ru`/`values`/`name` API as the old enum). `GET /i18n/languages` is
+  fetched on the splash and cached locally; every active server language
+  is selectable in the existing language picker (UI unchanged; rows the
+  server doesn't serve keep the "coming soon" badge). A server-only
+  language renders from its `GET /i18n/bundle/:lang` bundle (Drift cache,
+  `since=` delta) with English fallback per key (§9.3).
+- **System locale** (§9.4): with no explicit choice the app uses the first
+  system locale whose language is active (compiled-in en/ru offline, the
+  cached server list afterwards), otherwise English. Auto-detection is not
+  persisted; picking a language is.
+- **Plurals** (§9.2): `Translator.plural(key, count)` resolves
+  `key.one/.few/.many/.other` via intl's CLDR rules; `{count}` is
+  locale-formatted.
+- **Dates/numbers/currency** (§9.4): `l10nFormatsProvider` (`intl`, per
+  selected language; unknown locales format as English).
+- **Theme + language on the server** (docs/07 §8.1, docs/01 §15 stage 1.7
+  item 7): `PreferencesSyncController` (core/theme) PATCHes
+  `/users/me {theme|uiLanguage}` through `OnboardingRepository` when signed
+  in; after login a returning account's values are applied locally, a new
+  account's welcome-screen choices are pushed; offline changes stay
+  pending and are retried.
+- **EN texts = docs/07 §8** (owner decision): `auth.welcome.title`,
+  `auth.welcome.legal`, `auth.phone.subtitle`, `auth.phone.terms`,
+  `auth.otp.submit`, `onboarding.role.attorney.desc` updated; RU unchanged.
+  xlsx updates listed in `apps/api/prisma/seed/pending_keys/leaf-1.5.csv`
+  (`op=update`). Goldens regenerated for the text change only: auth
+  welcome/phone/otp/role and onboarding email (light + dark).
+- Not done: RTL layout for `is_rtl` languages (not required by §9.4; no
+  RTL language is active).
+
+## p12 leaf-1.6 — mobile UX: offline banner, pagination, goldens, a11y, layering
+
+**Connectivity (docs/01 §8.3 "Offline — баннер сверху").** New `core/connectivity/`:
+`ConnectivityService` combines connectivity_plus (interface up/down), a real
+reachability signal from dio traffic (`ReachabilityInterceptor`, last in the
+chain: any HTTP response = reachable; connectionError/connectionTimeout/
+sendTimeout = unreachable; receiveTimeout/cancel/unknown = no signal) and a
+`GET /health/live` probe with exponential backoff (2s → 30s) while unreachable.
+Exposed via Riverpod (`connectivityStatusProvider`, `isOfflineProvider`).
+`OfflineBannerHost` in `MaterialApp.builder` shows an animated banner on in-app
+routes only (pre-app flow untouched): slides from under the status bar, takes
+over the inset so the top bar never jumps, polite live region, Retry with
+busy state, short "Back online" confirmation; instant under reduce-motion.
+
+**Pagination (docs/01 §7 `meta.nextCursor`, §8.3).** `AppPaginatedListView` +
+`AppPaginationFooter` (loading more / error + Retry at the list end / end of
+list), shared `CursorPage`/`PaginatedList` in `shared/domain`. Active Devices
+uses it; `GET /auth/sessions` currently returns no cursor, so the list ends
+after one page — `?cursor=`/`meta.nextCursor` are already honoured.
+
+**Layering (docs/01 §6.4).** Active Devices moved to
+`features/settings/active_devices/{domain,data,application,presentation}`
+with a `DeviceSessionInfo` domain model and DTO mapper; the screen no longer
+imports `auth/data`. Controller: cursor pagination, refresh that keeps rows on
+failure, local removal on revoke, no silent Riverpod auto-retry, auto-reload
+when connectivity returns.
+
+**Design system.** `AppFeedHeader` (docs/07 §10: static ScalesLogo 96, left;
+documented `trailing` slot for file 05's Chats icon + badge), reusable
+`AppContentCard` + `AppContentCardSkeleton` (feed empty-state preview),
+`AppConnectivityBanner`/`AppTopBannerSlot`, `AppTapTarget` (48dp hit/semantic
+area without layout change — welcome goldens byte-identical). `AppTopBar` now
+applies the status-bar inset (it drew under the notch). `AppAvatar` initials
+on a navy seal (old pairing was 4.35:1). Button/chip semantics de-duplicated.
+Bottom-nav label gap 2 → 6 and label text scale capped at 1.35x (overflowed at
+200%). `AppOtpField.semanticLabel` added (call sites still use the RU default).
+
+**Tokens.** Status colors aligned to docs/01 §8.1: success `#1F9D67`, warning
+`#D98A00`, new `info` `#2F80ED` (+ `infoTint`), danger unchanged. New AA helpers
+`dangerText` (light `#C53A3A`, dark `#E36464`) and `dangerFill` (`#C53A3A`)
+used by the danger button and destructive list rows — spec `#D64545` is
+4.38:1 with white. Onboarding goldens `contacts_client` and
+`verification_attorney` regenerated for the new success color (only change).
+
+**Tests.** `test/core/connectivity/**`, `test/design_system/pagination_test.dart`,
+`test/design_system/a11y_test.dart` (android/iOS tap target, labeled targets,
+text contrast; widgets + feed/search/mine/profile/settings/active devices in
+both themes; 200% text), base-widget goldens (text field normal/focus/error,
+OTP, icon button, chip, card, avatar, top bar, feed header, banner, footer),
+feed screen golden, active devices data/controller/screen tests, token tests.
+
+## leaf-1.7 — accounts & profiles (docs/01 §10.3, §11 3A/3B; docs/02 §4.C)
+
+### Backend (apps/api, users module)
+- `PATCH /users/me/onboarding` accepts a structured `profile` (names, client
+  `stateCode`/`languages`/`contactMethod`/`contactNote` ≤200, attorney
+  `bio` ≤300/`firmName`/`languages`/`licensedStates`). Validated (state
+  exists and is active in `states`, ISO 639-1 language codes, lengths,
+  fields of the other role rejected with `VALIDATION_ERROR` +
+  `details.fields`/`details.states`) and upserted into `client_profiles` /
+  `attorney_profiles` together with the names and step in one
+  `withTxRetry` transaction.
+- Attorney `username`/`username_lower` (NOT NULL) generated once from the
+  name (`first.last`, numeric suffix if taken, skipping
+  `app_config profile.reserved_usernames` via AppSettingsService; fallback
+  `attorney` for non-latin names). Editing stays docs/03 stage 3.6.
+- Licensed states (3B multi-select) are kept server-owned in
+  `onboarding_state.data.licensedStates` — they cannot be
+  `attorney_licenses` rows before verification collects bar numbers
+  (docs/03); a raw `data` payload cannot overwrite them.
+- `POST /users/me/onboarding/complete` upserts at completion too (migrates
+  the old free-form `data.profile` of older app builds; always creates the
+  attorney row) and now requires `state` (client) / `licensed_states`
+  (attorney): `ONBOARDING_INCOMPLETE` with `details.missing`.
+- `GET /users/me` returns `profile`; new `GET /users/me/identifiers`
+  (Settings → Account). Replacing a verified phone/email via
+  `contacts/verify` now also retires the old value as a sign-in method
+  (same transaction; auth_event meta `replaced: true`).
+- Photo (required for attorneys) is deferred to docs/03 stage 3.2 (owner).
+
+### Mobile
+- Onboarding profile step sends the structured `profile` (no visual
+  change; goldens unchanged) and prefills from `GET /users/me.profile`.
+  `MissingRequirement.profile` (`state`/`licensed_states`) keeps the guard
+  on the profile step.
+- Settings → Account (`/profile/settings/account`): contacts with Change /
+  Add (reauth + code on the new contact, reusing
+  ContactVerificationController), linked sign-in methods, link another
+  phone / email (`POST /auth/identifiers`) and Apple / Google. Loading
+  skeleton, empty, error + Retry, offline states; 200% text scale.
+- New translation keys: `account.*` (see
+  `apps/api/prisma/seed/pending_keys/leaf-1.7.csv`).
