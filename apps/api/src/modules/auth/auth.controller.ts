@@ -29,6 +29,7 @@ import {
 } from './decorators/current-user.decorator';
 import { OtpRequestDto } from './dto/otp-request.dto';
 import { OtpVerifyDto } from './dto/otp-verify.dto';
+import { OtpVerifyLinkDto } from './dto/otp-verify-link.dto';
 import { SocialLoginDto } from './dto/social-login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { ReauthDto } from './dto/reauth.dto';
@@ -136,6 +137,24 @@ export class AuthController {
     @Req() req: Request,
   ): Promise<AuthTokensDto> {
     return this.auth.verifyOtp(dto, this.meta(req));
+  }
+
+  /** Email magic link (docs/01 §10.2 E): one-time token from the email +
+   * the verifier held by the device that requested the code. */
+  @ApiEnvelopeResponse(AuthTokensDto, { status: HttpStatus.CREATED })
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    401: [E.AUTH_OTP_INVALID],
+    403: [E.AUTH_PROVIDER_DISABLED, E.ACCOUNT_SUSPENDED, E.ACCOUNT_DELETED],
+    429: [E.RATE_LIMITED],
+  })
+  @Public()
+  @Post('otp/verify-link')
+  async verifyOtpLink(
+    @Body() dto: OtpVerifyLinkDto,
+    @Req() req: Request,
+  ): Promise<AuthTokensDto> {
+    return this.auth.verifyOtpLink(dto, this.meta(req));
   }
 
   @ApiEnvelopeResponse(AuthTokensDto, { status: HttpStatus.CREATED })

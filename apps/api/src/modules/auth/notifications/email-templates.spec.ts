@@ -31,7 +31,9 @@ describe('buildAppLinks', () => {
 });
 
 describe('buildLoginOtpEmail', () => {
-  it('keeps the code in the body and includes the magic deep link', () => {
+  const TOKEN = 'a'.repeat(43);
+
+  it('keeps the code in the body; no link without a device-bound token', () => {
     const msg = buildLoginOtpEmail({
       email: 'user@example.com',
       code: '424242',
@@ -40,30 +42,30 @@ describe('buildLoginOtpEmail', () => {
     expect(msg.to).toBe('user@example.com');
     expect(msg.text).toContain('424242');
     expect(msg.text).toContain('expires in 10 minutes');
-    expect(msg.text).toContain(
-      'lawbid://auth/email-code?email=user%40example.com&code=424242',
-    );
-    expect(msg.text).not.toContain('https://');
-    expect(msg.html).toContain('424242');
-    expect(msg.html).toContain(
-      'href="lawbid://auth/email-code?email=user%40example.com&amp;code=424242"',
-    );
+    expect(msg.text).not.toContain('lawbid://');
+    expect(msg.html).not.toContain('href=');
   });
 
-  it('makes the universal link primary when configured', () => {
+  it('the magic link carries only the one-time token, never the code or email', () => {
     const msg = buildLoginOtpEmail({
       email: 'user@example.com',
       code: '424242',
       ttlMinutes: 10,
+      linkToken: TOKEN,
       appLinkBaseUrl: 'https://lawbid.app',
     });
     expect(msg.text).toContain(
-      'https://lawbid.app/auth/email-code?email=user%40example.com&code=424242',
+      `https://lawbid.app/auth/email-code?token=${TOKEN}`,
     );
-    expect(msg.text).toContain('lawbid://auth/email-code');
+    expect(msg.text).toContain(`lawbid://auth/email-code?token=${TOKEN}`);
+    for (const link of msg.text.split(/\s+/).filter((w) => w.includes('://'))) {
+      expect(link).not.toContain('424242');
+      expect(link).not.toContain('example.com');
+    }
     expect(msg.html).toMatch(
-      /<a href="https:\/\/lawbid\.app\/auth\/email-code/,
+      /<a href="https:\/\/lawbid\.app\/auth\/email-code\?token=/,
     );
+    expect(msg.html).not.toMatch(/href="[^"]*424242/);
   });
 });
 

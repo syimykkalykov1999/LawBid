@@ -29,6 +29,7 @@ import { GoogleTokenVerifier } from './social/google-token-verifier.service';
 import { AppleTokenVerifier } from './social/apple-token-verifier.service';
 import type { OtpRequestDto } from './dto/otp-request.dto';
 import type { OtpVerifyDto } from './dto/otp-verify.dto';
+import type { OtpVerifyLinkDto } from './dto/otp-verify-link.dto';
 import type { RefreshTokenDto } from './dto/refresh-token.dto';
 import type { ReauthDto } from './dto/reauth.dto';
 import type { LinkIdentifierDto } from './dto/link-identifier.dto';
@@ -136,7 +137,12 @@ export class AuthService {
     // docs/01_FOUNDATION_AUTH.md §10.6: identical response whether or not
     // an account exists for this identifier — OtpService.requestOtp
     // already never looks the account up, so this is naturally true.
-    await this.otp.requestOtp(dto.channel, identifier, 'login');
+    await this.otp.requestOtp(
+      dto.channel,
+      identifier,
+      'login',
+      dto.channel === 'email' ? dto.linkChallenge : undefined,
+    );
     await this.authEvents.record({
       eventType: AUTH_EVENT_TYPES.OTP_REQUESTED,
       success: true,
@@ -217,6 +223,61 @@ export class AuthService {
       });
     }
 
+    return this.completeOtpLogin(dto.channel, identifier, deviceInfo, meta);
+  }
+
+  // ---------------------------------------------------------------------
+  // POST /auth/otp/verify-link (email magic link, docs/01 §10.2 E)
+  // ---------------------------------------------------------------------
+  async verifyOtpLink(
+    dto: OtpVerifyLinkDto,
+    meta: RequestMeta,
+  ): Promise<AuthTokensResult> {
+    await this.loginMethods.assertEnabled('email');
+    const deviceInfo: DeviceInfo = dto.deviceInfo ?? {};
+    const perIp = meta.ip
+      ? await this.rateLimit.consumeFixedWindow(
+          ['otp-link', 'ip', meta.ip],
+          this.limit(ENV.otpVerifyPerHour),
+          3600,
+        )
+      : { allowed: true, retryAfterSeconds: 0, remaining: 0 };
+    if (!perIp.allowed) {
+      throw new HttpException(
+        {
+          code: ErrorCode.RATE_LIMITED,
+          message: 'Too many verification attempts. Try again later.',
+          details: { retryAfterSeconds: perIp.retryAfterSeconds },
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+    const redeemed = await this.otp.consumeLinkToken(dto.token, dto.verifier);
+    if (!redeemed) {
+      await this.authEvents.record({
+        eventType: AUTH_EVENT_TYPES.OTP_VERIFY_FAILED,
+        success: false,
+        deviceId: deviceInfo.deviceId,
+        ip: meta.ip,
+        userAgent: meta.userAgent,
+        meta: { reason: 'link_invalid' },
+      });
+      throw new UnauthorizedException({
+        code: ErrorCode.AUTH_OTP_INVALID,
+        message: 'This sign-in link is invalid or has expired.',
+      });
+    }
+    return this.completeOtpLogin('email', redeemed.email, deviceInfo, meta);
+  }
+
+  /** Shared tail of a successful OTP (typed code or magic link): identity,
+   * account-state checks, session, audit and new-device alert. */
+  private async completeOtpLogin(
+    channel: 'phone' | 'email',
+    identifier: string,
+    deviceInfo: DeviceInfo,
+    meta: RequestMeta,
+  ): Promise<AuthTokensResult> {
     // Identity resolution + the suspended/deleted/deletion-pending checks
     // happen in one transaction; session issuance is a separate step (see
     // docs/CHANGELOG.md stage 1.4: the OTP was already single-use-consumed
@@ -227,7 +288,7 @@ export class AuthService {
       this.prisma,
       async (tx) => {
         const found = await this.identity.findOrCreateForOtp(
-          dto.channel,
+          channel,
           identifier,
           tx,
         );

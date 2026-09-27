@@ -91,7 +91,7 @@ describe('Security hardening (e2e)', () => {
 
     it('is 503 while the database is unreachable', async () => {
       const spy = jest
-        .spyOn(prisma, '$queryRawUnsafe')
+        .spyOn(prisma, '$queryRaw')
         .mockRejectedValue(new Error('connection refused'));
       try {
         const down = await api().get('/health/ready');

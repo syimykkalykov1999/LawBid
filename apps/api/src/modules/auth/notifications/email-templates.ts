@@ -57,28 +57,37 @@ function textLinks(links: AppLinks): string {
 
 /**
  * docs/01 §10.2 E/F: "письмо с кодом и магической ссылкой (deep link)".
- * The code stays in the body (typed manually on another device, or when
- * the link can't open the app); the magic link carries email+code so the
- * app can fill and submit the code screen in one tap. Login OTPs only —
- * a contact-verification code must not arrive as a "sign in" link.
+ * The code stays in the body (typed manually on any device). The magic
+ * link — present only when the requesting app bound a device verifier —
+ * carries a random one-time token, NEVER the code or the email: link
+ * scanners, proxies and browser history must not see a credential, and
+ * the token is useless without the verifier kept on the requesting phone
+ * (security review 2026-09-27). Login OTPs only.
  */
 export function buildLoginOtpEmail(input: {
   email: string;
   code: string;
   ttlMinutes: number;
+  linkToken?: string;
   appLinkBaseUrl?: string;
 }): EmailMessage {
-  const links = buildAppLinks(
-    EMAIL_CODE_LINK_PATH,
-    { email: input.email, code: input.code },
-    input.appLinkBaseUrl,
-  );
+  const links = input.linkToken
+    ? buildAppLinks(
+        EMAIL_CODE_LINK_PATH,
+        { token: input.linkToken },
+        input.appLinkBaseUrl,
+      )
+    : undefined;
   const text = [
     `Your LawBid sign-in code: ${input.code}`,
     `It expires in ${input.ttlMinutes} minutes.`,
-    '',
-    'Tap to sign in on your phone:',
-    textLinks(links),
+    ...(links
+      ? [
+          '',
+          'Or tap to sign in on the phone you requested it from:',
+          textLinks(links),
+        ]
+      : []),
     '',
     "If you didn't request this code, you can ignore this email.",
   ].join('\n');
@@ -86,7 +95,7 @@ export function buildLoginOtpEmail(input: {
     `<p>Your LawBid sign-in code:</p>`,
     `<p style="font-size:24px;font-weight:bold;letter-spacing:4px">${escapeHtml(input.code)}</p>`,
     `<p>It expires in ${input.ttlMinutes} minutes.</p>`,
-    htmlLinks(links, 'Sign in to LawBid'),
+    ...(links ? [htmlLinks(links, 'Sign in to LawBid')] : []),
     `<p style="font-size:12px">If you didn't request this code, you can ignore this email.</p>`,
   ].join('');
   return { to: input.email, subject: 'Your LawBid code', text, html };

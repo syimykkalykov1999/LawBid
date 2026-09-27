@@ -12,6 +12,8 @@ import { randomUUID } from 'node:crypto';
  *   and of the §5.2 feed queries never full-scans `cases`.
  */
 describe('DB — stage 2.6/2.7 roles, search, indexes', () => {
+  // The EXPLAIN test seeds 3000 background cases and runs ANALYZE.
+  jest.setTimeout(60_000);
   const root = new PrismaClient();
   const as = (role: string) => {
     const url = new URL(process.env.DATABASE_URL ?? '');
@@ -299,10 +301,14 @@ describe('DB — stage 2.6/2.7 roles, search, indexes', () => {
       }
     });
 
+    // The reused e2e DB is TRUNCATEd between runs, so CockroachDB's
+    // statistics *forecast* (extrapolated from older runs) can claim the
+    // table is nearly empty; plan from the fresh ANALYZE instead.
     async function plan(sql: string): Promise<string> {
-      const rows = await root.$queryRawUnsafe<{ info: string }[]>(
-        `EXPLAIN ${sql}`,
-      );
+      const rows = await root.$transaction(async (tx) => {
+        await tx.$executeRawUnsafe('SET LOCAL optimizer_use_forecasts = off');
+        return tx.$queryRawUnsafe<{ info: string }[]>(`EXPLAIN ${sql}`);
+      });
       return rows.map((r) => r.info).join('\n');
     }
 

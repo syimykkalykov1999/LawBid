@@ -310,22 +310,34 @@ describe('Auth hardening (e2e)', () => {
 
   // -------------------------------------------------------------------
   describe('email OTP magic link (docs/01 §10.2 E)', () => {
-    it('the login email carries the code plus lawbid:// and https magic links', async () => {
+    it('the login email carries the code; its links carry only a one-time token (security review 2026-09-27)', async () => {
       const address = 'Magic.Link+1@Example.com';
+      const challenge = createHash('sha256')
+        .update('v'.repeat(43))
+        .digest('base64url');
       await api()
         .post('/api/v1/auth/otp/request')
-        .send({ channel: 'email', identifier: address })
+        .send({
+          channel: 'email',
+          identifier: address,
+          linkChallenge: challenge,
+        })
         .expect(200);
       const [msg] = email.to('magic.link+1@example.com');
       expect(msg).toBeDefined();
-      const enc = encodeURIComponent('magic.link+1@example.com');
       expect(msg.text).toContain(FIXED_CODE);
-      expect(msg.text).toContain(
-        `lawbid://auth/email-code?email=${enc}&code=${FIXED_CODE}`,
+      expect(msg.text).toMatch(
+        /lawbid:\/\/auth\/email-code\?token=[A-Za-z0-9_-]{43}/,
       );
-      expect(msg.text).toContain(
-        `https://links.lawbid.test/auth/email-code?email=${enc}&code=${FIXED_CODE}`,
+      expect(msg.text).toMatch(
+        /https:\/\/links\.lawbid\.test\/auth\/email-code\?token=[A-Za-z0-9_-]{43}/,
       );
+      for (const link of msg.text
+        .split(/\s+/)
+        .filter((w) => w.includes('://'))) {
+        expect(link).not.toContain(FIXED_CODE);
+        expect(link).not.toContain('example.com');
+      }
       expect(msg.html).toContain(FIXED_CODE);
     });
   });

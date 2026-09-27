@@ -1,7 +1,13 @@
 import { HttpException, HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type Redis from 'ioredis';
-import { createHmac, randomInt } from 'node:crypto';
+import {
+  createHash,
+  createHmac,
+  randomBytes,
+  randomInt,
+  timingSafeEqual,
+} from 'node:crypto';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
 import { SMS_PROVIDER, EMAIL_PROVIDER } from '../providers/provider.tokens';
 import type { SmsProvider } from '../providers/sms/sms-provider.interface';
@@ -114,6 +120,7 @@ export class OtpService {
     channel: OtpChannel,
     identifier: string,
     purpose: OtpPurpose,
+    linkChallenge?: string,
   ): Promise<void> {
     // Cost protection (owner decision 2026-09-27, docs/OPEN_QUESTIONS.md):
     // destination allow-list first (free, per-request), then the global
@@ -145,12 +152,19 @@ export class OtpService {
     } else {
       const email = this.normalize('email', identifier);
       const ttlMinutes = Math.ceil(this.codeTtlSeconds / 60);
+      // Magic link (docs/01 §10.2 E) only for a login that bound a device
+      // verifier: the link carries a random one-time token, never the code.
+      const linkToken =
+        purpose === 'login' && linkChallenge
+          ? await this.issueLinkToken(idHash, email, linkChallenge)
+          : undefined;
       await this.emailProvider.sendEmail(
         purpose === 'login'
           ? buildLoginOtpEmail({
               email,
               code,
               ttlMinutes,
+              linkToken,
               appLinkBaseUrl: this.appLinkBaseUrl,
             })
           : buildContactOtpEmail({ email, code, ttlMinutes }),
@@ -179,6 +193,54 @@ export class OtpService {
     )) as [OtpVerifyResult, number];
 
     return result[0];
+  }
+
+  /**
+   * Redeems an email magic-link token (POST /auth/otp/verify-link). The
+   * token is single-use even on failure (GETDEL), so it can't be probed;
+   * it only counts when sha256(verifier) equals the challenge bound at
+   * request time (the verifier never left the requesting device). Success
+   * also burns the typed code so the same login can't be replayed.
+   */
+  async consumeLinkToken(
+    token: string,
+    verifier: string,
+  ): Promise<{ email: string } | null> {
+    const raw = await this.redis.getdel(this.linkKey(token));
+    if (!raw) return null;
+    let stored: { idHash: string; email: string; challenge: string };
+    try {
+      stored = JSON.parse(raw) as typeof stored;
+    } catch {
+      return null;
+    }
+    const actual = Buffer.from(
+      createHash('sha256').update(verifier).digest('base64url'),
+    );
+    const expected = Buffer.from(stored.challenge);
+    if (
+      actual.length !== expected.length ||
+      !timingSafeEqual(actual, expected)
+    ) {
+      return null;
+    }
+    await this.redis.del(this.codeKey(stored.idHash));
+    return { email: stored.email };
+  }
+
+  private async issueLinkToken(
+    idHash: string,
+    email: string,
+    challenge: string,
+  ): Promise<string> {
+    const token = randomBytes(32).toString('base64url');
+    await this.redis.set(
+      this.linkKey(token),
+      JSON.stringify({ idHash, email, challenge }),
+      'EX',
+      this.codeTtlSeconds,
+    );
+    return token;
   }
 
   private async assertSmsDestinationAllowed(e164: string): Promise<void> {
@@ -264,5 +326,14 @@ export class OtpService {
   }
   private lockKey(idHash: string): string {
     return `otp:lock:${idHash}`;
+  }
+  /** The raw link token never becomes a Redis key (same reason as
+   * identifiers): only its HMAC does. */
+  private linkKey(token: string): string {
+    const h = createHmac('sha256', this.keyPepper)
+      .update(`link:${token}`)
+      .digest('hex')
+      .slice(0, 32);
+    return `otp:link:${h}`;
   }
 }
