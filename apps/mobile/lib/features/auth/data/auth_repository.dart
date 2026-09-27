@@ -31,11 +31,18 @@ import 'auth_dtos.dart' show DeviceSession;
 /// `method: 'otp'`, so there is nothing for a repository method to POST
 /// for a biometric result on its own.
 abstract interface class AuthRepository {
-  /// Requests an SMS OTP for [phoneNumber] (E.164 format, e.g. "+15551234567").
-  Future<void> requestOtp(String phoneNumber);
+  /// Requests a login OTP for [identifier] — an E.164 phone (SMS, default
+  /// [channel] `'phone'`) or, since stage 1.7 mobile, an email address
+  /// (`channel: 'email'`, file 01 §10.2 E).
+  Future<void> requestOtp(String identifier, {String channel = 'phone'});
 
-  /// Verifies [code] for [phoneNumber].
-  Future<OtpVerifyResult> verifyOtp({required String phoneNumber, required String code});
+  /// Verifies [code] for [identifier] on [channel]; applies the session on
+  /// success.
+  Future<OtpVerifyResult> verifyOtp({
+    required String identifier,
+    required String code,
+    String channel = 'phone',
+  });
 
   /// Native Apple sign-in (`sign_in_with_apple`) + `POST /auth/social`
   /// exchange (file 07 §6.1). Returns `.cancelled()` rather than throwing

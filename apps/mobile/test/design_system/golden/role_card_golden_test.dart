@@ -39,6 +39,7 @@ void main() {
             isSelected: false,
             isAttorneyFixedStyle: true,
             showProBadge: true,
+            proBadgeLabel: 'PRO',
             onTap: _noop,
           ),
         ),

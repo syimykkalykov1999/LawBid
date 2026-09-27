@@ -2,9 +2,9 @@ import 'package:go_router/go_router.dart';
 
 import 'package:lawbid/core/navigation/app_page_transitions.dart';
 
+import 'package:lawbid/features/auth/presentation/screens/email_screen.dart';
 import 'package:lawbid/features/auth/presentation/screens/otp_screen.dart';
 import 'package:lawbid/features/auth/presentation/screens/phone_screen.dart';
-import 'package:lawbid/features/auth/presentation/screens/role_screen.dart';
 import 'package:lawbid/features/auth/presentation/screens/welcome_screen.dart';
 
 /// Path constants for the auth/onboarding flow (file 07 §6: `/welcome`,
@@ -16,6 +16,14 @@ abstract final class AuthRoutes {
   static const welcome = '/welcome';
   static const phone = '/auth/phone';
   static const otp = '/auth/otp';
+
+  /// Email sign-in (file 01 §10.2 E/F, stage 1.7 mobile) — same pattern
+  /// as phone; the code screen ([otp]) is shared and reads the channel
+  /// from `OnboardingFlowState`.
+  static const email = '/auth/email';
+
+  /// Same path as `OnboardingRoutes.forStep(OnboardingStepId.role)`; the
+  /// route itself is registered by onboardingRoutes().
   static const role = '/onboarding/role';
 }
 
@@ -50,8 +58,8 @@ List<RouteBase> authRoutes() => [
             AppPageTransitions.push(state, const OtpScreen()),
       ),
       GoRoute(
-        path: AuthRoutes.role,
+        path: AuthRoutes.email,
         pageBuilder: (context, state) =>
-            AppPageTransitions.push(state, const RoleScreen()),
+            AppPageTransitions.push(state, const EmailScreen()),
       ),
     ];

@@ -13,7 +13,7 @@ import '../../l10n/translator.dart';
 /// "Кейсы" sub-tab) — that's each screen's own concern in later stages, not
 /// this function's. Kept role-parameterized now so a real future difference
 /// doesn't require touching the router (docs/CHANGELOG.md stage 1.5).
-List<AppTabConfig> tabsForRole(UserRole role, Translator t) {
+List<AppTabConfig> tabsForRole(UserRole? role, Translator t) {
   return [
     AppTabConfig(
       key: AppTabKey.feed,

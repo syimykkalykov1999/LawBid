@@ -28,6 +28,15 @@ class AppTextField extends StatefulWidget {
     this.onChanged,
     this.autofocus = false,
     this.semanticLabel,
+    this.label,
+    this.helperText,
+    this.maxLines = 1,
+    this.maxLength,
+    this.textCapitalization = TextCapitalization.none,
+    this.textInputAction,
+    this.autofillHints,
+    this.onSubmitted,
+    this.enabled = true,
   });
 
   final TextEditingController? controller;
@@ -39,6 +48,25 @@ class AppTextField extends StatefulWidget {
   final ValueChanged<String>? onChanged;
   final bool autofocus;
   final String? semanticLabel;
+
+  // Stage 1.7 mobile additions (onboarding forms). All optional — existing
+  // call sites render exactly as before.
+
+  /// Visible label ABOVE the field (forms must not rely on the placeholder
+  /// alone). Also the semantics label when [semanticLabel] is null.
+  final String? label;
+
+  /// Hint below the field when there is no error.
+  final String? helperText;
+  final int maxLines;
+
+  /// Shows a live `n/max` counter and enforces the limit.
+  final int? maxLength;
+  final TextCapitalization textCapitalization;
+  final TextInputAction? textInputAction;
+  final Iterable<String>? autofillHints;
+  final ValueChanged<String>? onSubmitted;
+  final bool enabled;
 
   @override
   State<AppTextField> createState() => _AppTextFieldState();
@@ -71,10 +99,19 @@ class _AppTextFieldState extends State<AppTextField> {
 
     return Semantics(
       textField: true,
-      label: widget.semanticLabel,
+      label: widget.semanticLabel ?? widget.label,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (widget.label != null) ...[
+            ExcludeSemantics(
+              child: Text(
+                widget.label!,
+                style: typography.bodySmall.copyWith(color: colors.textSecondary),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+          ],
           Container(
             constraints: const BoxConstraints(minHeight: 52),
             decoration: BoxDecoration(
@@ -105,8 +142,22 @@ class _AppTextFieldState extends State<AppTextField> {
                     focusNode: _focusNode,
                     autofocus: widget.autofocus,
                     keyboardType: widget.keyboardType,
-                    inputFormatters: widget.inputFormatters,
-                    onChanged: widget.onChanged,
+                    inputFormatters: [
+                      ...?widget.inputFormatters,
+                      if (widget.maxLength != null)
+                        LengthLimitingTextInputFormatter(widget.maxLength),
+                    ],
+                    onChanged: (value) {
+                      if (widget.maxLength != null) setState(() {});
+                      widget.onChanged?.call(value);
+                    },
+                    maxLines: widget.maxLines,
+                    minLines: 1,
+                    textCapitalization: widget.textCapitalization,
+                    textInputAction: widget.textInputAction,
+                    autofillHints: widget.autofillHints,
+                    onSubmitted: widget.onSubmitted,
+                    enabled: widget.enabled,
                     cursorColor: colors.gold,
                     cursorWidth: 1.5,
                     style: const TextStyle(fontSize: 16).copyWith(color: colors.text),
@@ -126,6 +177,25 @@ class _AppTextFieldState extends State<AppTextField> {
           if (hasError) ...[
             const SizedBox(height: AppSpacing.xs),
             Text(widget.errorText!, style: typography.caption.copyWith(color: colors.danger)),
+          ] else if (widget.helperText != null || widget.maxLength != null) ...[
+            const SizedBox(height: AppSpacing.xs),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    widget.helperText ?? '',
+                    style: typography.caption.copyWith(color: colors.textSecondary),
+                  ),
+                ),
+                if (widget.maxLength != null)
+                  ExcludeSemantics(
+                    child: Text(
+                      '${widget.controller?.text.characters.length ?? 0}/${widget.maxLength}',
+                      style: typography.caption.copyWith(color: colors.textSecondary),
+                    ),
+                  ),
+              ],
+            ),
           ],
         ],
       ),

@@ -5,19 +5,30 @@ import 'onboarding_step.dart';
 
 part 'onboarding_flow_state.freezed.dart';
 
-/// State shared by all 4 onboarding screens (file 07 §6.5) — one notifier
-/// for the whole flow rather than one per screen, since screens genuinely
-/// share state: the phone number typed on screen 2 is displayed on screen 3
-/// ("Мы отправили его на {phone}"), and "resume after kill" (file 01 §15
-/// stage-1.7 acceptance item 4) needs one persisted place, not four. See
-/// `OnboardingFlow` (application/onboarding_flow.dart) and the stage-1.7
-/// architecture review in docs/CHANGELOG.md.
+/// Sign-in channel of the OTP flow (file 01 §10.2 C-F).
+enum AuthChannel {
+  phone,
+  email;
+
+  String get wireName => name;
+}
+
+/// State shared by the pre-session sign-in screens (welcome → phone|email
+/// → otp) and the role step's local selection. One notifier for the whole
+/// flow: the identifier typed on the phone/email screen is shown on the
+/// code screen ("Мы отправили его на {phone}").
+///
+/// Stage 1.7 mobile: resume-after-restart is SERVER-driven now
+/// (`onboarding.currentStep` via AppRouterGuard), so nothing here is
+/// persisted locally any more.
 @freezed
 abstract class OnboardingFlowState with _$OnboardingFlowState {
   const factory OnboardingFlowState({
     @Default(OnboardingStep.welcome) OnboardingStep step,
-    String? phoneNumber,
-    @Default(false) bool otpVerified,
+    @Default(AuthChannel.phone) AuthChannel channel,
+
+    /// E.164 phone or email the code was sent to.
+    String? identifier,
     UserRole? selectedRole,
     @Default(false) bool isSubmitting,
     String? errorMessage,

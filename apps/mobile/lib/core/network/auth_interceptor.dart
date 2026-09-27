@@ -56,7 +56,7 @@ class AuthInterceptor extends Interceptor {
       // `SessionController.refreshAccessToken()` already cleared state and
       // secure storage on failure; propagate the ORIGINAL error so the
       // caller sees why its own request actually failed, and the router's
-      // next redirect check (`authGuardRedirect`) drops the user to
+      // next redirect check (`AppRouterGuard`) drops the user to
       // `/welcome`.
       handler.next(err);
     }

@@ -5,11 +5,15 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../features/auth/application/auth_providers.dart';
 import '../../features/auth/data/auth_dtos.dart';
+import '../network/api_error.dart';
 import 'refresh_coordinator.dart';
 import 'session_state.dart';
 import 'token_secure_store.dart';
 
 part 'session_providers.g.dart';
+
+/// Outcome of [SessionController.bootstrap].
+enum SessionBootstrapResult { signedIn, signedOut, offline }
 
 final tokenSecureStoreProvider = Provider<TokenSecureStore>(
   (ref) => const TokenSecureStore(),
@@ -19,7 +23,7 @@ final tokenSecureStoreProvider = Provider<TokenSecureStore>(
 /// access-token claims). `keepAlive: true` — the plain `@riverpod`
 /// annotation defaults to autoDispose, which is wrong here: this must
 /// survive screen navigation for the whole app lifetime, since
-/// `authGuardRedirect` reads it on every route change and
+/// `AppRouterGuard` reads it on every route change and
 /// `AuthInterceptor` reads it on every request.
 ///
 /// State is `SessionState?` — null means signed out, non-null means signed
@@ -32,20 +36,29 @@ class SessionController extends _$SessionController {
   @override
   SessionState? build() => null;
 
-  /// Cold-start bootstrap (called once, before the first frame — see
-  /// main.dart): reads a previously-stored refresh token and tries to
-  /// exchange it for a fresh session. Must never throw — a failure here
-  /// just means "start signed out", not a crash, since this runs before
-  /// the router's first redirect decision.
-  Future<void> bootstrap() async {
+  /// Cold-start bootstrap (run by the Splash screen's startup sequence —
+  /// docs/01_FOUNDATION_AUTH.md §10.2 A): reads a previously-stored refresh
+  /// token and tries to exchange it for a fresh session. Never throws.
+  ///
+  /// Stage 1.7 mobile: a NETWORK failure no longer wipes the stored refresh
+  /// token (it used to, which silently logged out anyone who opened the app
+  /// offline) — it reports [SessionBootstrapResult.offline] so the splash
+  /// can show the offline state with Retry. Only a definitive server
+  /// rejection (expired/reused/revoked refresh token) clears it.
+  Future<SessionBootstrapResult> bootstrap() async {
     final store = ref.read(tokenSecureStoreProvider);
     final refreshToken = await store.readRefreshToken();
-    if (refreshToken == null) return;
+    if (refreshToken == null) return SessionBootstrapResult.signedOut;
     try {
       await _refresh(refreshToken);
+      return SessionBootstrapResult.signedIn;
+    } on ApiException catch (e) {
+      if (e.isNetworkError) return SessionBootstrapResult.offline;
+      return SessionBootstrapResult.signedOut;
     } catch (_) {
       state = null;
       await store.clear();
+      return SessionBootstrapResult.signedOut;
     }
   }
 
@@ -85,7 +98,17 @@ class SessionController extends _$SessionController {
       final tokens = await client.refresh(refreshToken: refreshToken, deviceInfo: deviceInfo);
       await applyTokens(tokens);
       return tokens.accessToken;
-    } catch (e) {
+    } on ApiException catch (e) {
+      // A transport failure says nothing about the refresh token's
+      // validity — keep it so the next attempt (Retry on the splash, or the
+      // next request) can still succeed. Everything else is a definitive
+      // rejection by the server.
+      if (!e.isNetworkError) {
+        state = null;
+        await store.clear();
+      }
+      rethrow;
+    } catch (_) {
       state = null;
       await store.clear();
       rethrow;

@@ -12,10 +12,8 @@ import 'social_auth_native_client.dart';
 /// Real dio-backed [AuthRepository] (docs/CHANGELOG.md, stage-1.7-auth —
 /// replaces `StubAuthRepository` as `authRepositoryProvider`'s default).
 ///
-/// Onboarding is phone-only today (file 07 §6), so [_channel] is hardcoded
-/// to `'phone'` here rather than threaded through the interface — a future
-/// email/social pass extends [AuthRepository] rather than this class
-/// guessing at a channel no screen can select yet.
+/// Stage 1.7 mobile: OTP sign-in takes a `channel` (`'phone'` | `'email'`,
+/// file 01 §10.2 C-F) instead of the former hardcoded phone channel.
 class RealAuthRepository implements AuthRepository {
   RealAuthRepository(this._client, this._session, this._deviceInfo, this._nativeClient);
 
@@ -24,19 +22,21 @@ class RealAuthRepository implements AuthRepository {
   final DeviceInfo _deviceInfo;
   final SocialAuthNativeClient _nativeClient;
 
-  static const _channel = 'phone';
-
   @override
-  Future<void> requestOtp(String phoneNumber) {
-    return _client.requestOtp(channel: _channel, identifier: phoneNumber);
+  Future<void> requestOtp(String identifier, {String channel = 'phone'}) {
+    return _client.requestOtp(channel: channel, identifier: identifier);
   }
 
   @override
-  Future<OtpVerifyResult> verifyOtp({required String phoneNumber, required String code}) async {
+  Future<OtpVerifyResult> verifyOtp({
+    required String identifier,
+    required String code,
+    String channel = 'phone',
+  }) async {
     try {
       final tokens = await _client.verifyOtp(
-        channel: _channel,
-        identifier: phoneNumber,
+        channel: channel,
+        identifier: identifier,
         code: code,
         deviceInfo: _deviceInfo,
       );

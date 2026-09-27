@@ -63,6 +63,7 @@ class FeatureFlagsController extends _$FeatureFlagsController {
         // keeps its existing map" behavior.
         flags: result.flags.isEmpty ? state.flags : {...defaultFeatureFlags, ...result.flags},
         appConfig: result.appConfig,
+        legalDocuments: result.legalDocuments,
       );
     } catch (_) {
       // Best-effort — see class doc comment. `state` already holds

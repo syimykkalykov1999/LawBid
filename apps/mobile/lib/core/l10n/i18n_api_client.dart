@@ -68,7 +68,12 @@ class I18nApiClient {
 
   final Dio _dio;
 
-  Options get _skipAuth => Options(extra: const {'skipAuth': true});
+  ///
+  /// `noRetry` (stage 1.7 mobile): both calls are best-effort background
+  /// refreshes with a compiled-in/Drift fallback and are re-attempted on
+  /// the next launch or language switch — RetryInterceptor's backoff would
+  /// only hold sockets/timers open for data the UI never waits on.
+  Options get _skipAuth => Options(extra: const {'skipAuth': true, 'noRetry': true});
 
   /// `GET /i18n/languages` — the active-language catalog
   /// (`I18nLanguagesService.listActive`). Unlike `getBundle` below, this

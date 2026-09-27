@@ -6,6 +6,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/widgets/language_picker_sheet.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/features/auth/application/sign_out.dart';
 
 /// `/profile/settings` (file 01 §3.6: "Настройки (гамбургер): Аккаунт,
 /// Безопасность, Язык, Тема, Подписка (адвокат), История кейсов
@@ -106,7 +107,16 @@ class SettingsScreen extends ConsumerWidget {
           AppListRow(
             icon: Icons.balance_rounded,
             label: t.t('settings.legal'),
-            onTap: showNotBuiltYet,
+            onTap: () => context.push(AppRoutes.legalDoc('terms')),
+          ),
+          // file 01 §10.7 / §15 stage 1.7: "«Скачать мои данные»
+          // (заглушка на этом этапе, полная реализация в файле 6)".
+          // TODO(file 06 §data-export): request the background ZIP/JSON
+          // export and email the link.
+          AppListRow(
+            icon: Icons.download_rounded,
+            label: t.t('settings.downloadData'),
+            onTap: () => showAppSnackBar(context, t.t('settings.downloadData.stub')),
           ),
         ],
       ),
@@ -117,7 +127,8 @@ class SettingsScreen extends ConsumerWidget {
             icon: Icons.logout_rounded,
             label: t.t('settings.logout'),
             destructive: true,
-            onTap: showNotBuiltYet,
+            // AppRouterGuard sends the signed-out user to /welcome.
+            onTap: () => signOut(ref),
           ),
           AppListRow(
             icon: Icons.delete_outline_rounded,

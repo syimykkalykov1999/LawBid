@@ -2,13 +2,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/dio_client.dart';
 import '../../../core/network/headers_interceptor.dart';
-import '../../../core/persistence/persistence_providers.dart';
 import '../../../core/session/biometric_auth_service.dart';
 import '../../../core/session/session_providers.dart';
 import '../data/auth_api_client.dart';
 import '../data/auth_dtos.dart';
 import '../data/auth_repository.dart';
-import '../data/onboarding_local_store.dart';
 import '../data/real_auth_repository.dart';
 import '../data/social_auth_native_client.dart';
 
@@ -52,10 +50,6 @@ final authRepositoryProvider = Provider<AuthRepository>(
     ref.watch(deviceInfoProvider),
     ref.watch(socialAuthNativeClientProvider),
   ),
-);
-
-final onboardingLocalStoreProvider = Provider<OnboardingLocalStore>(
-  (ref) => OnboardingLocalStore(ref.watch(localKvStoreProvider)),
 );
 
 /// Local Face ID/Touch ID/fingerprint gate (Phase 4 of the auth networking

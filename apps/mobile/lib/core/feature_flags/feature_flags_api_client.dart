@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 import '../network/api_error.dart';
+import 'legal_document.dart';
 
 /// `GET /config/bootstrap`'s response body
 /// (apps/api/src/modules/feature-flags/services/bootstrap.service.ts
@@ -16,7 +17,11 @@ import '../network/api_error.dart';
 /// .cursorrules warns against; add them here when something actually
 /// reads them.
 class FeatureFlagsBootstrapResult {
-  const FeatureFlagsBootstrapResult({required this.flags, required this.appConfig});
+  const FeatureFlagsBootstrapResult({
+    required this.flags,
+    required this.appConfig,
+    this.legalDocuments = const [],
+  });
 
   /// `{flagKey: enabled}`, e.g. `{"apple_login": true, "video_posts":
   /// false}` — see `apps/api/prisma/schema.prisma`'s `FeatureFlag` model.
@@ -29,6 +34,10 @@ class FeatureFlagsBootstrapResult {
   /// the parse — `app_config` is meant to grow keys over time without a
   /// client release, per the same reasoning as `defaultFeatureFlags`.
   final Map<String, String> appConfig;
+
+  /// `legal_documents` — consumed by the onboarding consents step
+  /// (stage 1.7 mobile, docs/01_FOUNDATION_AUTH.md §10.2 H).
+  final List<LegalDocument> legalDocuments;
 
   factory FeatureFlagsBootstrapResult.fromJson(Map<String, dynamic> json) {
     final rawFlags = json['flags'];
@@ -47,7 +56,16 @@ class FeatureFlagsBootstrapResult {
       }
     }
 
-    return FeatureFlagsBootstrapResult(flags: flags, appConfig: appConfig);
+    final rawDocs = json['legal_documents'];
+    final legalDocuments = rawDocs is List
+        ? rawDocs.map(LegalDocument.tryParse).whereType<LegalDocument>().toList()
+        : const <LegalDocument>[];
+
+    return FeatureFlagsBootstrapResult(
+      flags: flags,
+      appConfig: appConfig,
+      legalDocuments: legalDocuments,
+    );
   }
 }
 
