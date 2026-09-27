@@ -117,6 +117,20 @@ describe('BootstrapService.build', () => {
     expect(second.legal_documents[0].published_at).toBeInstanceOf(Date);
   });
 
+  it.each([
+    ['not JSON', '{oops'],
+    ['an older cache shape', JSON.stringify({ languages: 'x' })],
+  ])(
+    'ignores a cached entry that is %s and reads the DB (splash never fails)',
+    async (_label, raw) => {
+      const { service, prisma, redis } = build();
+      redis.store.set(BOOTSTRAP_CACHE_KEY, raw);
+      const result = await service.build();
+      expect(prisma.i18nLanguage.findMany).toHaveBeenCalledTimes(1);
+      expect(Array.isArray(result.languages)).toBe(true);
+    },
+  );
+
   it('invalidate() forces the next build to read the DB again', async () => {
     const { service, prisma } = build();
     await service.build();

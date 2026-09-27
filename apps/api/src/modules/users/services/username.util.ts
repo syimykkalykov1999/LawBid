@@ -69,3 +69,34 @@ export function isValidUsername(u: string): boolean {
     !u.includes('..')
   );
 }
+
+/** The first [count] candidates for `base`: base, base2, base3, … */
+export function sequentialCandidates(base: string, count: number): string[] {
+  const out: string[] = [];
+  for (const c of usernameCandidates(base)) {
+    if (out.length >= count) break;
+    out.push(c);
+  }
+  return out;
+}
+
+/** [count] distinct candidates `base` + random 5-digit suffix. */
+export function randomSuffixCandidates(
+  base: string,
+  count: number,
+  random: () => number = Math.random,
+): string[] {
+  const out = new Set<string>();
+  while (out.size < count) {
+    out.add(withSuffix(base, 10000 + Math.floor(random() * 90000)));
+  }
+  return [...out];
+}
+
+/** First candidate (in order) that is not in `taken`, or null. */
+export function pickUsernameFrom(
+  candidates: readonly string[],
+  taken: ReadonlySet<string>,
+): string | null {
+  return candidates.find((c) => !taken.has(c)) ?? null;
+}

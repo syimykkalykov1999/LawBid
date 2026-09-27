@@ -23,6 +23,9 @@ export class PrismaService
 {
   constructor() {
     super();
+    // WARNING: do not add instance fields to this class. The constructor
+    // returns the $extends proxy below, so per-instance state set here is
+    // lost for every consumer; only prototype methods survive.
     // Returning an object from a derived-class constructor makes it the
     // `new` result; Nest registers that proxy as the provider instance.
     return this.$extends(softDeleteExtension()) as unknown as PrismaService;

@@ -76,7 +76,9 @@ describe('Background jobs (e2e) — BullMQ cron queue', () => {
   });
 
   it('registers each repeatable job exactly once across instances', async () => {
-    const queue = runner.cronQueue!;
+    const queue = runner.cronQueue;
+    expect(queue).toBeDefined();
+    if (!queue) return;
     const schedulers = await queue.getJobSchedulers();
     expect(schedulers.map((s) => s.key).sort()).toEqual(
       CRON_SCHEDULES.map((s) => s.name).sort(),

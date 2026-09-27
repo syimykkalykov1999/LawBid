@@ -116,7 +116,21 @@ export class BootstrapService {
       this.redis.get(BOOTSTRAP_CACHE_KEY),
     );
     if (typeof cached === 'string') {
-      return JSON.parse(cached) as CachedBootstrapContent;
+      // A corrupt entry, or one written by a previous deploy with another
+      // shape, must degrade to the DB path, never fail the splash screen.
+      try {
+        const parsed = JSON.parse(cached) as Partial<CachedBootstrapContent>;
+        if (
+          Array.isArray(parsed.languages) &&
+          Array.isArray(parsed.legal_documents) &&
+          typeof parsed.translations_version === 'object' &&
+          parsed.translations_version !== null
+        ) {
+          return parsed as CachedBootstrapContent;
+        }
+      } catch {
+        // fall through to the DB
+      }
     }
 
     const [languages, bundleVersions, legalDocuments] = await Promise.all([

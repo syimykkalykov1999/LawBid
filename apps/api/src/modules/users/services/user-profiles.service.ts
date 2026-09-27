@@ -20,10 +20,14 @@ import {
   type OnboardingProfileDto,
 } from '../dto/onboarding-profile.dto';
 import { ISO_639_1_CODES } from '../iso-639-1';
-import { pickUsername, USERNAME_MAX, usernameBase } from './username.util';
+import {
+  pickUsernameFrom,
+  randomSuffixCandidates,
+  sequentialCandidates,
+  usernameBase,
+} from './username.util';
 
 /** Digits reserved for a numeric suffix when reading taken usernames. */
-const USERNAME_SUFFIX_ROOM = 6;
 
 /** Server-owned key of onboarding_state.data holding the attorney's
  * licensed states (§11 3B multi-select). Bar numbers come with
@@ -393,17 +397,35 @@ export class UserProfilesService {
     reserved: ReadonlySet<string>,
   ): Promise<string> {
     const base = usernameBase(firstName, lastName);
-    // withSuffix() may shorten a long base to fit 30 chars, so read every
-    // username sharing the part a suffix can never cut off.
-    const stem = base.slice(0, USERNAME_MAX - USERNAME_SUFFIX_ROOM);
-    const rows = await tx.attorneyProfile.findMany({
-      where: { username_lower: { startsWith: stem } },
-      select: { username_lower: true },
-    });
-    return pickUsername(
-      base,
-      new Set(rows.map((r) => r.username_lower)),
-      reserved,
+    // Bounded reads at any scale (a hot name like "john.smith" can have
+    // thousands of holders): check a window of sequential candidates
+    // (base, base2 … base50) in one indexed IN query, then windows of
+    // random 5-digit suffixes. Never materializes the whole prefix set.
+    const windows: string[][] = [
+      [...sequentialCandidates(base, 50)],
+      ...[0, 1, 2].map(() => randomSuffixCandidates(base, 20)),
+    ];
+    for (const window of windows) {
+      const free = window.filter((c) => !reserved.has(c));
+      if (free.length === 0) continue;
+      const rows = await tx.attorneyProfile.findMany({
+        where: { username_lower: { in: free } },
+        select: { username_lower: true },
+      });
+      const picked = pickUsernameFrom(
+        free,
+        new Set(rows.map((r) => r.username_lower)),
+      );
+      if (picked) return picked;
+    }
+    // ~110 candidates all taken is practically impossible; answer
+    // "try again" rather than looping without bound.
+    throw new HttpException(
+      {
+        code: ErrorCode.INTERNAL_ERROR,
+        message: 'Could not allocate a username, please retry.',
+      },
+      HttpStatus.SERVICE_UNAVAILABLE,
     );
   }
 

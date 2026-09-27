@@ -95,7 +95,9 @@ final storeUrlProvider = Provider<Uri?>((ref) {
   final platform = HeadersInterceptor.platformName;
   final config = ref.watch(featureFlagsControllerProvider.select((s) => s.appConfig));
   final configured = Uri.tryParse(config['store_url_$platform']?.trim() ?? '');
-  if (configured != null && configured.hasScheme && configured.host.isNotEmpty) {
+  // https only: the value is admin-configured, but the app must never
+  // launch another scheme from server data (defense in depth).
+  if (configured != null && configured.scheme == 'https' && configured.host.isNotEmpty) {
     return configured;
   }
   if (platform == 'android') {

@@ -21,7 +21,7 @@ export class DatabaseHealthIndicator {
     const session = this.indicators.check(key);
     try {
       await withTimeout(
-        this.prisma.$queryRawUnsafe('SELECT 1'),
+        this.prisma.$queryRaw`SELECT 1`,
         HEALTH_CHECK_TIMEOUT_MS,
         'database',
       );
