@@ -38,6 +38,7 @@ class AppOtpField extends StatefulWidget {
     this.errorText,
     this.autofocus = true,
     this.controller,
+    this.semanticLabel,
   });
 
   final ValueChanged<String> onCompleted;
@@ -50,6 +51,10 @@ class AppOtpField extends StatefulWidget {
   /// link). Setting its text does NOT fire [onChanged]/[onCompleted] — the
   /// caller already knows the code. Owned by the caller when provided.
   final TextEditingController? controller;
+  /// Screen-reader label for the whole code field — callers pass
+  /// `t('...')` (docs/01 §9: no hardcoded UI strings). The Russian default
+  /// only keeps pre-existing call sites working unchanged.
+  final String? semanticLabel;
 
   @override
   State<AppOtpField> createState() => _AppOtpFieldState();
@@ -96,7 +101,7 @@ class _AppOtpFieldState extends State<AppOtpField> {
 
         return Semantics(
           textField: true,
-          label: 'Код подтверждения',
+          label: widget.semanticLabel ?? 'Код подтверждения',
           value: text,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

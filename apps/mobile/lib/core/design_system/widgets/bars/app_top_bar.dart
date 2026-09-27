@@ -4,11 +4,9 @@ import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
 import 'package:lawbid/core/design_system/theme/app_typography_tokens.dart';
 import 'package:lawbid/core/design_system/tokens/app_spacing.dart';
 
-/// Generic top bar (file 01 §15 component list). The Feed screen's specific
-/// header — LawBid scales logo left, Chats icon with unread badge right
-/// (file 01 §3.1) — is a stage-1.7+ concern built on top of this once real
-/// unread-count data exists; for now stage 1.5's stub screens use the plain
-/// `title` slot.
+/// Generic top bar (file 01 §15 component list). The Feed screen uses the
+/// dedicated `AppFeedHeader` (docs/07 §10: small static ScalesLogo left;
+/// the Chats icon with unread badge on the right is file 05's slot).
 class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
   const AppTopBar({super.key, this.title, this.leading, this.actions});
 
@@ -23,10 +21,23 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
+    // Status-bar inset (p12 leaf-1.6): as a `Scaffold.appBar` this widget
+    // receives the full top padding (Scaffold only strips it from `body`),
+    // and unlike Material's AppBar it did not apply it — the title sat
+    // under the status bar / notch on devices. Tests and goldens run with
+    // zero padding, so their output is unchanged. The offline banner
+    // (core/connectivity/offline_banner_host.dart) consumes this inset
+    // while it is shown, so the bar never double-pads.
+    final topInset = MediaQuery.paddingOf(context).top;
     return Container(
       color: colors.bg,
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenSide),
-      height: preferredSize.height,
+      padding: EdgeInsets.fromLTRB(
+        AppSpacing.screenSide,
+        topInset,
+        AppSpacing.screenSide,
+        0,
+      ),
+      height: preferredSize.height + topInset,
       child: Row(
         children: [
           if (leading != null) ...[

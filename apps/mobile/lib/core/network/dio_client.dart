@@ -2,6 +2,8 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/app_update/app_update_interceptor.dart';
 import 'package:lawbid/core/config/app_environment.dart';
+import 'package:lawbid/core/connectivity/connectivity_providers.dart';
+import 'package:lawbid/core/connectivity/reachability.dart';
 
 import 'auth_interceptor.dart';
 import 'headers_interceptor.dart';
@@ -34,5 +36,11 @@ final dioProvider = Provider<Dio>((ref) {
   dio.interceptors.add(IdempotencyInterceptor());
   dio.interceptors.add(AuthInterceptor(ref, dio));
   dio.interceptors.add(RetryInterceptor(dio));
+  // Last on purpose: feeds the offline banner's reachability signal from
+  // real traffic, seeing only failures the retries could not fix
+  // (docs/01 §8.3; core/connectivity/reachability.dart).
+  dio.interceptors.add(
+    ReachabilityInterceptor(() => ref.read(reachabilitySignalProvider)),
+  );
   return dio;
 });

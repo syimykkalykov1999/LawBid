@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/app_update/app_update_gate.dart';
 import 'core/config/app_environment.dart';
+import 'core/connectivity/offline_banner_host.dart';
 import 'core/design_system/design_system.dart';
 import 'core/navigation/app_router.dart';
 import 'core/theme/preferences_sync.dart';
@@ -29,9 +30,14 @@ class LawBidApp extends ConsumerWidget {
       // Update gate (docs/01_FOUNDATION_AUTH.md §7/§12/§15 "Этап 1.8"):
       // forced-update screen (below min_app_version_* or ANY 426
       // APP_UPDATE_REQUIRED response) and the dismissible soft-update
-      // prompt. `builder` wraps the routed page, so it covers every route.
-      // See core/app_update/app_update_gate.dart.
-      builder: (context, child) => AppUpdateGate(child: child),
+      // prompt — see core/app_update/app_update_gate.dart. Inside it, the
+      // global offline banner (docs/01 §8.3, p12 leaf-1.6), active only on
+      // in-app routes — see core/connectivity/offline_banner_host.dart.
+      builder: (context, child) => AppUpdateGate(
+        child: child == null
+            ? null
+            : RouterOfflineBannerHost(router: router, child: child),
+      ),
     );
   }
 }

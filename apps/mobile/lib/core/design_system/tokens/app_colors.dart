@@ -26,6 +26,7 @@ abstract final class AppColorsLight {
   static const Color goldDark = Color(0xFF8E6F26);
   static const Color navy = Color(0xFF0A1A3F);
   static const Color panFill = Color(0xFF0A1A3F);
+
   /// White (2026-09-22 owner follow-up): was `#E3C877` (gold), same gold
   /// as [goldLight] -- owner asked for the "Law"/"Bid" pan word to read
   /// white against the navy [panFill], light theme only. Dark theme's
@@ -56,8 +57,11 @@ abstract final class AppColorsLight {
   /// Danger at ~10% — destructive medallion fill.
   static const Color dangerTint = Color(0x1AD64545);
 
-  /// Success at ~10%.
-  static const Color successTint = Color(0x1A2E9E5B);
+  /// Success at ~10% (derived from [AppColorsStatus.success]).
+  static const Color successTint = Color(0x1A1F9D67);
+
+  /// Info at ~10% (derived from [AppColorsStatus.info]).
+  static const Color infoTint = Color(0x1A2F80ED);
 
   /// Skeleton base + moving highlight.
   static const Color skeletonBase = Color(0xFFEEF1F7);
@@ -65,6 +69,12 @@ abstract final class AppColorsLight {
 
   /// Foreground on a filled danger button.
   static const Color onDanger = Color(0xFFFFFFFF);
+
+  /// Readable danger for TEXT on `bg`/`surface` (p12 leaf-1.6, docs/01
+  /// §8.4 WCAG AA): the spec `danger` #D64545 is 4.38:1 on white — just
+  /// under 4.5. Same hue, darker: 5.20:1. Used for destructive labels
+  /// inside the app; `danger` itself stays the spec value.
+  static const Color dangerText = Color(0xFFC53A3A);
 }
 
 /// Dark-theme raw palette (file 07 §2, "Тёмная" column).
@@ -91,6 +101,7 @@ abstract final class AppColorsDark {
   static const Color goldLight = Color(0xFFE3C877);
   static const Color goldDark = Color(0xFF8E6F26);
   static const Color navy = Color(0xFF0A1A3F);
+
   /// White (2026-09-22 owner follow-up, same message as [ctaBright]): was
   /// `#C9A24A` (gold) -- owner found the pan fill too dull alongside the
   /// gold accent button and asked for a brighter color on both, settled
@@ -105,17 +116,34 @@ abstract final class AppColorsDark {
   static const Color shadow = Color(0x66000000);
   static const Color goldTint = Color(0x26C9A24A);
   static const Color dangerTint = Color(0x26D64545);
-  static const Color successTint = Color(0x262E9E5B);
+  static const Color successTint = Color(0x261F9D67);
+  static const Color infoTint = Color(0x262F80ED);
   static const Color skeletonBase = Color(0xFF1E1E24);
   static const Color skeletonHighlight = Color(0xFF2A2A31);
   static const Color onDanger = Color(0xFFFFFFFF);
+
+  /// Lighter danger for text on the dark `bg`/`surface`: 5.87:1 / 5.39:1
+  /// (spec #D64545 is 4.49:1 / 4.12:1). See [AppColorsLight.dangerText].
+  static const Color dangerText = Color(0xFFE36464);
 }
 
-/// Status colors, shared by both themes (file 01 §8.1, reused unchanged by file 07).
+/// Status colors, shared by both themes: file 07 §2 says `danger`,
+/// `success`, `warning` come "из файла 01, раздел 8.1", and 01 §8.1 lists
+/// exactly these hex values (plus `info`). §8.1's dark table gives no
+/// status values ("остальные семантические цвета аналогично
+/// адаптируются"), so the spec hex is used in both themes; each clears
+/// the WCAG 1.4.11 3:1 non-text minimum against the dark `bg`/`surface`
+/// (on #0B0B0D: success 5.7:1, warning 7.1:1, info 5.1:1, danger 4.5:1).
+/// Values pinned by test/design_system/theme/app_color_tokens_test.dart.
 abstract final class AppColorsStatus {
   static const Color danger = Color(0xFFD64545);
-  static const Color success = Color(0xFF2E9E5B);
-  static const Color warning = Color(0xFFC98A1F);
+  static const Color success = Color(0xFF1F9D67);
+  static const Color warning = Color(0xFFD98A00);
+  static const Color info = Color(0xFF2F80ED);
+
+  /// Fill behind white text on a destructive button, both themes: white on
+  /// the spec `danger` is 4.38:1 (< AA 4.5); this same-hue shade is 5.20:1.
+  static const Color dangerFill = Color(0xFFC53A3A);
 }
 
 /// LINT-EXEMPT: approved non-themed brand exception — file 07 §2:
@@ -129,6 +157,7 @@ abstract final class AppColorsFixed {
   static const Color attorneyCardNavy = Color(0xFF0A1A3F);
   static const Color attorneyCardDescriptionText = Color(0xFFC9D2EA);
   static const Color attorneyCardTitleText = Color(0xFFFFFFFF);
+
   /// Attorney card's nested gold border: `rgba(201,162,74,.55)`, file 07 §2.
   static const Color attorneyCardGoldBorder = Color(0x8CC9A24A);
 }

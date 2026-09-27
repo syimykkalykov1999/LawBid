@@ -19,7 +19,13 @@ class AppStateLayout extends StatelessWidget {
     this.tone = AppMedallionTone.gold,
     this.title,
     this.action,
+    this.illustration,
   });
+
+  /// Replaces the medallion with a richer picture (p12 leaf-1.6, docs/01
+  /// §8.3 "Empty (иллюстрация + текст + CTA)") — e.g. the feed's preview
+  /// of content cards. Decorative: excluded from semantics.
+  final Widget? illustration;
 
   final IconData icon;
   final AppMedallionTone tone;
@@ -47,12 +53,14 @@ class AppStateLayout extends StatelessWidget {
                 children: [
                   AppEntrance(
                     scale: true,
-                    child: AppIconMedallion(
-                      icon: icon,
-                      tone: tone,
-                      size: AppSizes.stateMedallion,
-                      iconSize: AppSizes.stateIcon,
-                    ),
+                    child: illustration != null
+                        ? ExcludeSemantics(child: illustration)
+                        : AppIconMedallion(
+                            icon: icon,
+                            tone: tone,
+                            size: AppSizes.stateMedallion,
+                            iconSize: AppSizes.stateIcon,
+                          ),
                   ),
                   const SizedBox(height: AppSpacing.xl),
                   if (title != null) ...[

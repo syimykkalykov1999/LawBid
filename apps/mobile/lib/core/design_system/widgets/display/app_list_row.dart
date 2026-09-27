@@ -51,7 +51,7 @@ class _AppListRowState extends State<AppListRow> {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    final labelColor = widget.destructive ? colors.danger : colors.text;
+    final labelColor = widget.destructive ? colors.dangerText : colors.text;
     final highlight = _pressed || widget.selected;
 
     Widget? trailing;

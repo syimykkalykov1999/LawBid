@@ -18,11 +18,17 @@ class AppSkeleton extends StatefulWidget {
     this.width,
     this.height = AppSpacing.lg,
     this.borderRadius = AppSpacing.sm,
+    this.shimmer = true,
   });
 
   final double? width;
   final double height;
   final double borderRadius;
+
+  /// False renders the static base block (p12 leaf-1.6): used where the
+  /// skeleton is a still illustration (empty-state card previews), not a
+  /// loading indicator — docs/07 §1 "одна запоминающаяся деталь на экран".
+  final bool shimmer;
 
   @override
   State<AppSkeleton> createState() => _AppSkeletonState();
@@ -42,7 +48,7 @@ class _AppSkeletonState extends State<AppSkeleton>
   void didChangeDependencies() {
     super.didChangeDependencies();
     // Only tick when motion is allowed — no idle controller otherwise.
-    if (context.reduceMotion) {
+    if (context.reduceMotion || !widget.shimmer) {
       _controller.stop();
     } else if (!_controller.isAnimating) {
       _controller.repeat();
@@ -60,7 +66,7 @@ class _AppSkeletonState extends State<AppSkeleton>
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final radius = BorderRadius.circular(widget.borderRadius);
 
-    if (context.reduceMotion) {
+    if (context.reduceMotion || !widget.shimmer) {
       return ExcludeSemantics(
         child: Container(
           width: widget.width,

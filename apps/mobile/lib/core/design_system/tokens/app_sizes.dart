@@ -5,6 +5,11 @@ abstract final class AppSizes {
   /// Minimum touch target (file 07 §9 / WCAG 2.5.8): 44x44.
   static const double touchTarget = 44;
 
+  /// Invisible hit/semantics area around controls whose VISUAL size is
+  /// fixed below it by file 07 (44px icon buttons, 36px chips) — see
+  /// `AppTapTarget`. 48 satisfies both iOS (44) and Android (48) minimums.
+  static const double hitTarget = 48;
+
   /// Icon sizes.
   static const double iconSm = 20;
   static const double iconMd = 24;
@@ -28,6 +33,9 @@ abstract final class AppSizes {
   static const double navIndicatorWidth = 56;
   static const double navIndicatorHeight = 28;
 
+  /// Max text scale for bottom-nav labels (see AppBottomNav).
+  static const double navLabelMaxTextScale = 1.35;
+
   /// Height of one segment of a step-progress bar.
   static const double progressSegment = 4;
 
@@ -37,4 +45,23 @@ abstract final class AppSizes {
   /// Soft card shadow blur / offset.
   static const double cardShadowBlur = 16;
   static const double cardShadowOffsetY = 4;
+
+  // --- p12 leaf-1.6 (docs/01 §8.3 offline + pagination, docs/07 §10) ------
+
+  /// Feed header (docs/07 §10: small static ScalesLogo, width ≈ 96, left).
+  static const double feedHeaderLogo = 96;
+  static const double feedHeader = 76;
+
+  /// Offline banner row (icon + one line at 100% text scale).
+  static const double bannerMinHeight = 44;
+
+  /// Pagination footer spinner.
+  static const double footerSpinner = 20;
+  static const double footerSpinnerStroke = 2;
+
+  /// Author/avatar size on content (post/case) cards.
+  static const double cardAvatar = 40;
+
+  /// Status dot on the offline banner / content cards.
+  static const double statusDot = 8;
 }

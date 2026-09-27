@@ -28,13 +28,17 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
     required this.danger,
     required this.success,
     required this.warning,
+    required this.info,
     required this.shadow,
     required this.goldTint,
     required this.dangerTint,
     required this.successTint,
+    required this.infoTint,
     required this.skeletonBase,
     required this.skeletonHighlight,
     required this.onDanger,
+    required this.dangerText,
+    required this.dangerFill,
   });
 
   factory AppColorTokens.light() => const AppColorTokens(
@@ -59,13 +63,17 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
         danger: AppColorsStatus.danger,
         success: AppColorsStatus.success,
         warning: AppColorsStatus.warning,
+        info: AppColorsStatus.info,
         shadow: AppColorsLight.shadow,
         goldTint: AppColorsLight.goldTint,
         dangerTint: AppColorsLight.dangerTint,
         successTint: AppColorsLight.successTint,
+        infoTint: AppColorsLight.infoTint,
         skeletonBase: AppColorsLight.skeletonBase,
         skeletonHighlight: AppColorsLight.skeletonHighlight,
         onDanger: AppColorsLight.onDanger,
+        dangerText: AppColorsLight.dangerText,
+        dangerFill: AppColorsStatus.dangerFill,
       );
 
   factory AppColorTokens.dark() => const AppColorTokens(
@@ -90,13 +98,17 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
         danger: AppColorsStatus.danger,
         success: AppColorsStatus.success,
         warning: AppColorsStatus.warning,
+        info: AppColorsStatus.info,
         shadow: AppColorsDark.shadow,
         goldTint: AppColorsDark.goldTint,
         dangerTint: AppColorsDark.dangerTint,
         successTint: AppColorsDark.successTint,
+        infoTint: AppColorsDark.infoTint,
         skeletonBase: AppColorsDark.skeletonBase,
         skeletonHighlight: AppColorsDark.skeletonHighlight,
         onDanger: AppColorsDark.onDanger,
+        dangerText: AppColorsDark.dangerText,
+        dangerFill: AppColorsStatus.dangerFill,
       );
 
   final Color bg;
@@ -121,14 +133,24 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
   final Color success;
   final Color warning;
 
+  /// Informational status (docs/01 §8.1 `info`).
+  final Color info;
+
   // UI modernization pass (2026-09-27) — see AppColorsLight for meaning.
   final Color shadow;
   final Color goldTint;
   final Color dangerTint;
   final Color successTint;
+  final Color infoTint;
   final Color skeletonBase;
   final Color skeletonHighlight;
   final Color onDanger;
+
+  /// AA-readable danger for text (see AppColorsLight.dangerText).
+  final Color dangerText;
+
+  /// AA fill behind [onDanger] text (see AppColorsStatus.dangerFill).
+  final Color dangerFill;
 
   @override
   AppColorTokens copyWith({
@@ -153,13 +175,17 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
     Color? danger,
     Color? success,
     Color? warning,
+    Color? info,
     Color? shadow,
     Color? goldTint,
     Color? dangerTint,
     Color? successTint,
+    Color? infoTint,
     Color? skeletonBase,
     Color? skeletonHighlight,
     Color? onDanger,
+    Color? dangerText,
+    Color? dangerFill,
   }) {
     return AppColorTokens(
       bg: bg ?? this.bg,
@@ -183,13 +209,17 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
       danger: danger ?? this.danger,
       success: success ?? this.success,
       warning: warning ?? this.warning,
+      info: info ?? this.info,
       shadow: shadow ?? this.shadow,
       goldTint: goldTint ?? this.goldTint,
       dangerTint: dangerTint ?? this.dangerTint,
       successTint: successTint ?? this.successTint,
+      infoTint: infoTint ?? this.infoTint,
       skeletonBase: skeletonBase ?? this.skeletonBase,
       skeletonHighlight: skeletonHighlight ?? this.skeletonHighlight,
       onDanger: onDanger ?? this.onDanger,
+      dangerText: dangerText ?? this.dangerText,
+      dangerFill: dangerFill ?? this.dangerFill,
     );
   }
 
@@ -219,14 +249,18 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
       danger: Color.lerp(danger, other.danger, t)!,
       success: Color.lerp(success, other.success, t)!,
       warning: Color.lerp(warning, other.warning, t)!,
+      info: Color.lerp(info, other.info, t)!,
       shadow: Color.lerp(shadow, other.shadow, t)!,
       goldTint: Color.lerp(goldTint, other.goldTint, t)!,
       dangerTint: Color.lerp(dangerTint, other.dangerTint, t)!,
       successTint: Color.lerp(successTint, other.successTint, t)!,
+      infoTint: Color.lerp(infoTint, other.infoTint, t)!,
       skeletonBase: Color.lerp(skeletonBase, other.skeletonBase, t)!,
       skeletonHighlight:
           Color.lerp(skeletonHighlight, other.skeletonHighlight, t)!,
       onDanger: Color.lerp(onDanger, other.onDanger, t)!,
+      dangerText: Color.lerp(dangerText, other.dangerText, t)!,
+      dangerFill: Color.lerp(dangerFill, other.dangerFill, t)!,
     );
   }
 }

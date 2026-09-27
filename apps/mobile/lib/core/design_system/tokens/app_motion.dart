@@ -65,4 +65,17 @@ abstract final class AppMotion {
 
   /// One full sweep of the skeleton shimmer highlight.
   static const Duration shimmer = Duration(milliseconds: 1400);
+
+  // --- p12 leaf-1.6: offline banner + pagination (docs/01 §8.3) -----------
+
+  /// Offline banner sliding down from under the status bar / collapsing
+  /// back (exit faster than enter).
+  static const Duration bannerEnter = Duration(milliseconds: 320);
+  static const Duration bannerExit = Duration(milliseconds: 220);
+
+  /// How long the "back online" confirmation stays before collapsing.
+  static const Duration restoredHold = Duration(milliseconds: 2000);
+
+  /// Cross-fade between pagination footer states (loading / error / end).
+  static const Duration footerSwitch = Duration(milliseconds: 200);
 }
