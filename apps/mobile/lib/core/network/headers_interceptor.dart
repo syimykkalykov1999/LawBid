@@ -46,7 +46,7 @@ class HeadersInterceptor extends Interceptor {
 
   static String _languageTag(Ref ref) {
     final language = ref.read(languageControllerProvider).value ?? AppLanguage.en;
-    return language == AppLanguage.ru ? 'ru' : 'en';
+    return language.code;
   }
 
   static String resolveDeviceId(Ref ref) {

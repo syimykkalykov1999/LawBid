@@ -5,12 +5,16 @@ import 'core/design_system/design_system.dart';
 import 'core/feature_flags/feature_flags_providers.dart';
 import 'core/l10n/l10n_providers.dart';
 import 'core/navigation/app_router.dart';
+import 'core/theme/preferences_sync.dart';
 
 class LawBidApp extends ConsumerWidget {
   const LawBidApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Mirrors theme/language to PATCH /users/me while signed in and applies
+    // the account's values after login (core/theme/preferences_sync.dart).
+    ref.listen(preferencesSyncProvider, (_, __) {});
     final router = ref.watch(appRouterProvider);
     final themeMode = ref.watch(themeModeControllerProvider).value ?? ThemeMode.system;
 

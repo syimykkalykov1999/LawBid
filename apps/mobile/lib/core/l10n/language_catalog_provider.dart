@@ -1,64 +1,52 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import 'app_language.dart';
-import 'i18n_api_client.dart';
-import 'l10n_providers.dart';
+import 'available_languages.dart';
 import 'language_catalog.dart';
 
 part 'language_catalog_provider.g.dart';
 
-AppLanguage? _appLanguageFor(String code) => switch (code) {
-  'ru' => AppLanguage.ru,
-  'en' => AppLanguage.en,
-  _ => null,
-};
-
-/// Backend-driven language catalog for `LanguagePickerSheet` (owner
-/// direction, 2026-09-22 voice follow-up: the picker should grow as
-/// languages are added on the backend, not stay pinned to the hardcoded
-/// list — see `language_catalog.dart`'s doc comment). Merges
-/// `GET /i18n/languages` into [kLanguageCatalog]:
-///   - a code the hardcoded catalog already has keeps its curated
-///     ordering/[LanguageCatalogEntry.englishName]/[LanguageCatalogEntry.appLanguage],
-///     only refreshing [LanguageCatalogEntry.nativeName] from the backend;
-///   - a code the backend knows about that ISN'T in the hardcoded catalog
-///     yet is appended (in the backend's own `sort` order) as a new,
-///     unselectable-until-a-client-build-adds-real-strings row — this is
-///     the "list grows without an app update" behavior. It's still
-///     selectable if [_appLanguageFor] recognizes the code (i.e. once a
-///     client build actually adds an [AppLanguage] case + compiled seed
-///     for it).
-///
-/// On any failure (offline, backend error) falls back to [kLanguageCatalog]
-/// unchanged — same "compiled-in fallback ahead of any network round-trip"
-/// principle as [L10nTranslator]'s seed layer, applied to the picker's list
-/// instead of individual strings.
+/// The language picker's list (`LanguagePickerSheet`). Kicks a background
+/// `GET /i18n/languages` refresh, then merges the server's active list
+/// ([activeLanguagesControllerProvider] — live, or the cached copy when
+/// offline) into the curated [kLanguageCatalog] via [mergeLanguageCatalog].
 @riverpod
 Future<List<LanguageCatalogEntry>> languageCatalog(Ref ref) async {
-  try {
-    final client = ref.watch(i18nApiClientProvider);
-    final languages = await client.getLanguages();
-    return _merge(languages);
-  } catch (_) {
-    return kLanguageCatalog;
-  }
+  await ref.read(activeLanguagesControllerProvider.notifier).refresh();
+  return mergeLanguageCatalog(ref.watch(activeLanguagesControllerProvider));
 }
 
-List<LanguageCatalogEntry> _merge(List<I18nLanguageDto> backend) {
-  final byCode = {for (final lang in backend) if (lang.isActive) lang.code: lang};
-  final merged = <LanguageCatalogEntry>[];
+/// Merge rules (docs/01_FOUNDATION_AUTH.md §9.3/§9.4 + stage 1.6
+/// acceptance "новый язык, импортированный через xlsx, появляется в
+/// приложении без пересборки"):
+///   - a row is SELECTABLE iff its code is in [selectableLanguageCodes]:
+///     the compiled-in languages while the server list is unknown, then
+///     every active server language (+ `en`). A language that exists only
+///     on the server (e.g. `es` after an xlsx import) therefore becomes
+///     selectable without a client release; its strings come from
+///     `GET /i18n/bundle/:lang`, with English fallback;
+///   - curated rows keep their order/English name; the server's
+///     `name_native` replaces the curated native name;
+///   - curated rows the server doesn't have stay visible as "coming soon"
+///     (the owner's "list grows over time" picker, unchanged UI);
+///   - server languages missing from the curated list are appended in the
+///     server's `sort` order.
+List<LanguageCatalogEntry> mergeLanguageCatalog(List<ServerLanguage>? server) {
+  final selectable = selectableLanguageCodes(server);
+  final byCode = {for (final lang in server ?? const <ServerLanguage>[]) lang.code: lang};
+  AppLanguage? appLanguageFor(String code) =>
+      selectable.contains(code) ? AppLanguage.fromCode(code) : null;
 
+  final merged = <LanguageCatalogEntry>[];
   for (final entry in kLanguageCatalog) {
-    final fromBackend = byCode.remove(entry.code);
+    final fromServer = byCode.remove(entry.code);
     merged.add(
-      fromBackend == null
-          ? entry
-          : LanguageCatalogEntry(
-              code: entry.code,
-              nativeName: fromBackend.nameNative,
-              englishName: entry.englishName,
-              appLanguage: entry.appLanguage,
-            ),
+      LanguageCatalogEntry(
+        code: entry.code,
+        nativeName: fromServer?.nameNative ?? entry.nativeName,
+        englishName: entry.englishName,
+        appLanguage: appLanguageFor(entry.code),
+      ),
     );
   }
 
@@ -69,7 +57,7 @@ List<LanguageCatalogEntry> _merge(List<I18nLanguageDto> backend) {
         code: lang.code,
         nativeName: lang.nameNative,
         englishName: lang.nameNative,
-        appLanguage: _appLanguageFor(lang.code),
+        appLanguage: appLanguageFor(lang.code),
       ),
     );
   }

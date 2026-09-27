@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/app_language.dart';
+import 'package:lawbid/core/l10n/available_languages.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/language_catalog.dart';
 import 'package:lawbid/core/l10n/language_catalog_provider.dart';
@@ -14,14 +15,11 @@ import 'package:lawbid/core/l10n/language_providers.dart';
 /// below, "most popular first" — sized to grow as more languages are added
 /// (see `language_catalog.dart`'s doc comment) without another redesign.
 ///
-/// Only the catalog rows with a non-null [LanguageCatalogEntry.appLanguage]
-/// are actually selectable today (`ru`, `en`); the rest render dimmed with
-/// a "coming soon" trailing badge. The list itself is now backend-driven
-/// (`languageCatalogProvider`, GET /i18n/languages — see
-/// language_catalog_provider.dart) with the compiled-in
-/// `kLanguageCatalog` as its offline/loading fallback, so a language the
-/// backend adds shows up here (as "coming soon" until it also gets an
-/// [AppLanguage] case + real strings) without an app update.
+/// Rows with a non-null [LanguageCatalogEntry.appLanguage] are selectable:
+/// the compiled-in languages, plus every language the server reports as
+/// active (`GET /i18n/languages` — see `mergeLanguageCatalog`), so a
+/// language imported via xlsx becomes pickable without an app update. The
+/// rest render dimmed with a "coming soon" trailing badge.
 class LanguagePickerSheet extends ConsumerStatefulWidget {
   const LanguagePickerSheet({super.key});
 
@@ -51,10 +49,8 @@ class _LanguagePickerSheetState extends ConsumerState<LanguagePickerSheet> {
   }
 
   /// [catalog] is `languageCatalogProvider`'s current value when it has
-  /// one — see [build] below for why a still-loading/errored fetch falls
-  /// back to the compiled-in [kLanguageCatalog] rather than an empty list
-  /// or a spinner (owner request was "search + list", not a loading
-  /// state).
+  /// one — see [build] below for the cached fallback used meanwhile
+  /// (owner request was "search + list", not a loading state).
   List<LanguageCatalogEntry> _filtered(List<LanguageCatalogEntry> catalog) {
     final q = _query.trim().toLowerCase();
     if (q.isEmpty) return catalog;
@@ -73,12 +69,12 @@ class _LanguagePickerSheetState extends ConsumerState<LanguagePickerSheet> {
     final currentLanguage =
         ref.watch(languageControllerProvider).value ?? AppLanguage.en;
     // Backend-driven catalog (GET /i18n/languages, see
-    // language_catalog_provider.dart), falling back to the compiled-in
-    // kLanguageCatalog while the fetch is in flight or if it fails — same
-    // "never block/blank the UI on network" principle as the translator
-    // layer itself.
-    final catalog =
-        ref.watch(languageCatalogProvider).value ?? kLanguageCatalog;
+    // language_catalog_provider.dart). While the refresh is in flight (or
+    // failed) the list is built from the last cached server list — or the
+    // compiled-in catalog on a first offline launch — never a spinner or
+    // an empty list.
+    final catalog = ref.watch(languageCatalogProvider).value ??
+        mergeLanguageCatalog(ref.watch(activeLanguagesControllerProvider));
     final results = _filtered(catalog);
 
     return SafeArea(

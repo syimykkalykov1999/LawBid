@@ -1,56 +1,63 @@
 import 'app_language.dart';
+import 'plural_rules.dart';
 import 'static_translator.dart';
 import 'translator.dart';
 
 /// The real, backend-driven [Translator] (docs/01_FOUNDATION_AUTH.md §9.4).
-/// SAME public shape as the stage-1.5 stopgap it replaces (`t(key,
-/// [params])`, synchronous — see translator.dart's doc comment), so every
-/// existing `ref.watch(translatorProvider).t('key')` call site is
-/// unaffected; only `l10n_providers.dart`'s provider implementation
-/// changed.
+/// Synchronous `t(key, [params])` — every call site invokes it inline
+/// during `build()`, so every layer below is an already-resolved in-memory
+/// map, never queried from Drift per key.
 ///
-/// Layered fallback, cheapest/freshest source first:
+/// Layered lookup, most specific first:
 ///   1. [cache] — the Drift-backed bundle for [language], last synced via
-///      `GET /i18n/bundle/:lang` (full or delta). See
-///      `l10n_providers.dart`'s `L10nCacheController` for how/when this is
-///      loaded.
-///   2. The compiled-in seed map for [language]
-///      (`StaticTranslatorRu`/`StaticTranslatorEn.seedEntries` —
-///      static_translator.dart) — covers a brand-new install before the
-///      first successful network round-trip ever completes, and any key
-///      that's newer on the client than the last synced bundle (e.g. a
-///      key just added to the app that the backend's translation table
-///      hasn't caught up to yet).
-///   3. The raw key string, via `_seed.t(key)`'s own existing
-///      never-null behavior (`_MapTranslator.t`, static_translator.dart) —
-///      so a totally unknown key still renders something instead of
-///      crashing or going blank, per docs/01_FOUNDATION_AUTH.md §9.1's
-///      "встроенный fallback... на случай отсутствия сети", extended here
-///      to "on any cache miss," not just first launch.
-///
-/// [t] must stay synchronous: every call site invokes it inline during
-/// `build()`. [cache] is therefore always a plain, already-resolved
-/// in-memory map — never queried from Drift per key.
+///      `GET /i18n/bundle/:lang` (full or delta). For a language that only
+///      exists on the server (e.g. `es` imported via xlsx) this is the only
+///      language-specific layer.
+///   2. The compiled-in map for [language] (`StaticTranslatorRu`/`En`),
+///      when there is one — covers a brand-new offline install and keys
+///      newer than the last synced bundle.
+///   3. English — §9.3 "Отсутствующий перевод → fallback на `en`": first
+///      `englishCache` (the synced `en` bundle), then the compiled-in
+///      English map.
+///   4. The raw key, so an unknown key still renders something.
 class L10nTranslator implements Translator {
-  const L10nTranslator({required this.language, required this.cache});
+  L10nTranslator({
+    required this.language,
+    required this.cache,
+    Map<String, String> englishCache = const {},
+  })  : _englishCache = language == AppLanguage.en ? cache : englishCache,
+        _compiled = compiledSeedFor(language.code);
 
   final AppLanguage language;
   final Map<String, String> cache;
+  final Map<String, String> _englishCache;
+  final Map<String, String>? _compiled;
+
+  static final Map<String, String> _compiledEnglish = compiledSeedFor('en')!;
+
+  /// Layers 1–3; `null` when the key is unknown everywhere.
+  String? lookup(String key) =>
+      cache[key] ?? _compiled?[key] ?? _englishCache[key] ?? _compiledEnglish[key];
 
   @override
-  String t(String key, [Map<String, String>? params]) {
-    // `_seed.t(key)` is layers 2+3 in one call — see class doc — so
-    // `value` is never null/missing by the time interpolation runs below.
-    var value = cache[key] ?? _seed.t(key);
-    if (params == null) return value;
-    for (final entry in params.entries) {
-      value = value.replaceAll('{${entry.key}}', entry.value);
-    }
-    return value;
-  }
+  String t(String key, [Map<String, String>? params]) =>
+      interpolate(lookup(key) ?? key, params);
 
-  Translator get _seed => switch (language) {
-    AppLanguage.ru => const StaticTranslatorRu(),
-    AppLanguage.en => const StaticTranslatorEn(),
-  };
+  /// Resolved in two stages so categories never mix across languages
+  /// (English has no `few`/`many`): first [language]'s own layers (1–2)
+  /// with [language]'s CLDR rules (`key.<category>` → `key.other`); only
+  /// when the language has neither does it fall back to English layers
+  /// with English CLDR rules. `{count}` is always formatted for
+  /// [language].
+  @override
+  String plural(String key, num count, [Map<String, String>? params]) {
+    final own = resolvePlural(language.code, key, count, (k) => cache[k] ?? _compiled?[k]);
+    final template = own ??
+        resolvePlural('en', key, count, (k) => _englishCache[k] ?? _compiledEnglish[k]) ??
+        '$key.other';
+    return interpolate(template, {
+      'count': formatPluralCount(language.code, count),
+      ...?params,
+    });
+  }
 }
