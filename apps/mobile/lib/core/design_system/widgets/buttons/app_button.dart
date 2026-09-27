@@ -9,6 +9,7 @@ import 'package:lawbid/core/design_system/tokens/app_spacing.dart';
 import 'package:lawbid/core/design_system/widgets/buttons/gavel_strike_button.dart'
     show GavelStrikeButton;
 import 'package:lawbid/core/design_system/widgets/motion/app_entrance.dart';
+import 'package:lawbid/core/design_system/widgets/motion/app_tap_target.dart';
 
 enum AppButtonVariant {
   primary,
@@ -106,7 +107,7 @@ class _AppButtonState extends State<AppButton> {
         // edge. The welcome screen never uses this variant.
         borderColor = colors.border;
       case AppButtonVariant.danger:
-        background = colors.danger;
+        background = colors.dangerFill;
         foreground = colors.onDanger;
     }
 
@@ -136,39 +137,45 @@ class _AppButtonState extends State<AppButton> {
             ],
           );
 
-    return Semantics(
-      button: true,
-      enabled: _interactive,
-      label: widget.label,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTapDown: (details) {
-          _setPressed(true);
-          widget.onTapDown?.call(details);
-        },
-        onTapUp: (_) => _setPressed(false),
-        onTapCancel: () => _setPressed(false),
+    return AppTapTarget(
+      child: Semantics(
+        button: true,
+        enabled: _interactive,
+        label: widget.label,
+        // The visible Text would repeat the label ("Retry\nRetry"); it is
+        // excluded, so the tap action is re-declared here.
+        excludeSemantics: true,
         onTap: _interactive ? widget.onPressed : null,
-        child: _maybeDim(
-          AnimatedScale(
-            scale: _pressed && !context.reduceMotion
-                ? AppMotion.pressScaleFactor
-                : 1.0,
-            duration: AppMotion.pressScale,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: widget.height),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
-                decoration: BoxDecoration(
-                  color: background,
-                  borderRadius: BorderRadius.circular(AppRadii.button),
-                  border: borderColor == null
-                      ? null
-                      : Border.all(color: borderColor),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTapDown: (details) {
+            _setPressed(true);
+            widget.onTapDown?.call(details);
+          },
+          onTapUp: (_) => _setPressed(false),
+          onTapCancel: () => _setPressed(false),
+          onTap: _interactive ? widget.onPressed : null,
+          child: _maybeDim(
+            AnimatedScale(
+              scale: _pressed && !context.reduceMotion
+                  ? AppMotion.pressScaleFactor
+                  : 1.0,
+              duration: AppMotion.pressScale,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: widget.height),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+                  decoration: BoxDecoration(
+                    color: background,
+                    borderRadius: BorderRadius.circular(AppRadii.button),
+                    border: borderColor == null
+                        ? null
+                        : Border.all(color: borderColor),
+                  ),
+                  alignment: Alignment.center,
+                  child: content,
                 ),
-                alignment: Alignment.center,
-                child: content,
               ),
             ),
           ),

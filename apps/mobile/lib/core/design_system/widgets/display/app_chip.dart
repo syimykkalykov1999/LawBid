@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../theme/app_color_tokens.dart';
 import '../../theme/app_typography_tokens.dart';
 import '../../tokens/app_spacing.dart';
+import '../motion/app_tap_target.dart';
 
 /// General-purpose pill chip (file 01 §15 component list). File 07 does not
 /// give this a standalone spec (only the phone screen's 52px-tall country
@@ -32,10 +33,14 @@ class AppChip extends StatelessWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
 
-    return Semantics(
+    final chip = Semantics(
       button: onTap != null,
       selected: selected,
       label: label,
+      // One clean label (not "DUI\nDUI"); tap re-declared because the
+      // GestureDetector's own semantics are excluded with the text.
+      excludeSemantics: true,
+      onTap: onTap,
       child: GestureDetector(
         onTap: onTap,
         behavior: HitTestBehavior.opaque,
@@ -58,5 +63,8 @@ class AppChip extends StatelessWidget {
         ),
       ),
     );
+    // Tappable chips keep their visual height (36 by default) but get a
+    // 48px touch/semantics area (docs/01 §8.4, AppTapTarget).
+    return onTap == null ? chip : AppTapTarget(child: chip);
   }
 }

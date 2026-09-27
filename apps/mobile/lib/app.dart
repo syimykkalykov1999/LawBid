@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'core/connectivity/offline_banner_host.dart';
 import 'core/design_system/design_system.dart';
 import 'core/feature_flags/feature_flags_providers.dart';
 import 'core/l10n/l10n_providers.dart';
@@ -29,7 +30,15 @@ class LawBidApp extends ConsumerWidget {
       // and a later bootstrap refresh picks it up) — see
       // `_UpdateRequiredGate`'s doc comment for what this covers and
       // doesn't.
-      builder: (context, child) => _UpdateRequiredGate(child: child),
+      //
+      // Global offline banner (docs/01 §8.3, p12 leaf-1.6): sits between
+      // the gate and the navigator, active only on in-app routes — see
+      // core/connectivity/offline_banner_host.dart.
+      builder: (context, child) => _UpdateRequiredGate(
+        child: child == null
+            ? null
+            : RouterOfflineBannerHost(router: router, child: child),
+      ),
     );
   }
 }

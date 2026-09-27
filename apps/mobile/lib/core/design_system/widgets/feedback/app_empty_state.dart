@@ -14,12 +14,16 @@ class AppEmptyState extends StatelessWidget {
     this.title,
     this.icon = Icons.inbox_outlined,
     this.action,
+    this.illustration,
   });
 
   final String message;
   final String? title;
   final IconData icon;
   final Widget? action;
+
+  /// Optional picture instead of the icon medallion (see AppStateLayout).
+  final Widget? illustration;
 
   @override
   Widget build(BuildContext context) {
@@ -28,6 +32,7 @@ class AppEmptyState extends StatelessWidget {
       title: title,
       message: message,
       action: action,
+      illustration: illustration,
     );
   }
 }

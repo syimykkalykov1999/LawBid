@@ -64,6 +64,12 @@ dependencies:
   drift: ^2.23.0
   drift_flutter: ^0.3.1
   flutter_animate: ^4.5.2
+  # Connectivity (docs/01 §8.3 "Offline (баннер сверху, показ кэша)",
+  # p12 leaf-1.6): the OS network-interface signal behind
+  # core/connectivity/connectivity_service.dart. It only says whether an
+  # interface is up; real reachability comes from dio network errors
+  # (ReachabilityInterceptor) and a /health/live probe.
+  connectivity_plus: ^7.3.1
 
 dev_dependencies:
   flutter_test:

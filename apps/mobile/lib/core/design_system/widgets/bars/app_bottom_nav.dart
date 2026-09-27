@@ -6,8 +6,10 @@ import 'package:lawbid/core/design_system/theme/app_typography_tokens.dart';
 import 'package:lawbid/core/design_system/tokens/app_motion.dart';
 import 'package:lawbid/core/design_system/tokens/app_radii.dart';
 import 'package:lawbid/core/design_system/tokens/app_sizes.dart';
+import 'package:lawbid/core/design_system/tokens/app_spacing.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_entrance.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_pressable.dart';
+import 'package:lawbid/core/design_system/widgets/motion/app_tap_target.dart';
 
 enum AppTabKey { feed, search, mine, profile }
 
@@ -120,17 +122,27 @@ class AppBottomNav extends StatelessWidget {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 2),
+                  // 6 (was 2): keeps the label's own box clear of the
+                  // selection pill, so the pill tint never sits behind the
+                  // text (p12 leaf-1.6 contrast pass, docs/01 §8.4).
+                  const SizedBox(height: AppSpacing.sm - 2),
                   AnimatedDefaultTextStyle(
                     duration: stateDuration,
                     style: typography.caption.copyWith(
                       color: color,
                       fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
                     ),
-                    child: Text(
-                      tab.label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    // Tab labels grow with the system text size only up
+                    // to 1.35x (the platform convention for tab bars —
+                    // iOS shows the large-content viewer instead): the
+                    // 58px bar must never clip at 200% (docs/01 §8.4).
+                    child: MediaQuery.withClampedTextScaling(
+                      maxScaleFactor: AppSizes.navLabelMaxTextScale,
+                      child: Text(
+                        tab.label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                   ),
                 ],
@@ -157,29 +169,31 @@ class AppBottomNav extends StatelessWidget {
             children: [
               buildTab(left[0], 0),
               buildTab(left[1], 1),
-              Semantics(
-                button: true,
-                label: createSemanticLabel,
-                excludeSemantics: true,
-                child: AppPressable(
-                  onTap: onCreatePressed,
-                  child: Container(
-                    width: AppSizes.touchTarget,
-                    height: AppSizes.touchTarget,
-                    decoration: BoxDecoration(
-                      color: colors.accent,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: colors.gold, width: 1.5),
-                      boxShadow: [
-                        BoxShadow(
-                          color: colors.shadow,
-                          blurRadius: AppSizes.cardShadowOffsetY,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
+              AppTapTarget(
+                child: Semantics(
+                  button: true,
+                  label: createSemanticLabel,
+                  excludeSemantics: true,
+                  child: AppPressable(
+                    onTap: onCreatePressed,
+                    child: Container(
+                      width: AppSizes.touchTarget,
+                      height: AppSizes.touchTarget,
+                      decoration: BoxDecoration(
+                        color: colors.accent,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: colors.gold, width: 1.5),
+                        boxShadow: [
+                          BoxShadow(
+                            color: colors.shadow,
+                            blurRadius: AppSizes.cardShadowOffsetY,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      alignment: Alignment.center,
+                      child: Icon(Icons.add, color: colors.onAccent, size: 26),
                     ),
-                    alignment: Alignment.center,
-                    child: Icon(Icons.add, color: colors.onAccent, size: 26),
                   ),
                 ),
               ),

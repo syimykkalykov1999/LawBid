@@ -1,0 +1,11 @@
+key,en,ru
+connectivity.offline,No internet connection,Нет подключения к интернету
+connectivity.unreachable,Can't reach LawBid right now,Сервер LawBid сейчас недоступен
+connectivity.restored,Back online,Снова в сети
+connectivity.checking,Checking the connection,Проверяем подключение
+pagination.loadingMore,Loading more,Загружаем ещё
+pagination.error,Couldn't load more,Не удалось загрузить ещё
+pagination.end,That's everything,Больше ничего нет
+feed.empty.title,Your feed is empty for now,В ленте пока пусто
+feed.empty.message,Posts from attorneys will appear here,Здесь появятся посты адвокатов
+auth.otp.fieldLabel,Verification code,Код подтверждения

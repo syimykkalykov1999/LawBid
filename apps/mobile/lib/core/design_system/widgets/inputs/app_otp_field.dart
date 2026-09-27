@@ -37,12 +37,18 @@ class AppOtpField extends StatefulWidget {
     this.onChanged,
     this.errorText,
     this.autofocus = true,
+    this.semanticLabel,
   });
 
   final ValueChanged<String> onCompleted;
   final ValueChanged<String>? onChanged;
   final String? errorText;
   final bool autofocus;
+
+  /// Screen-reader label for the whole code field — callers pass
+  /// `t('...')` (docs/01 §9: no hardcoded UI strings). The Russian default
+  /// only keeps pre-existing call sites working unchanged.
+  final String? semanticLabel;
 
   @override
   State<AppOtpField> createState() => _AppOtpFieldState();
@@ -86,7 +92,7 @@ class _AppOtpFieldState extends State<AppOtpField> {
 
         return Semantics(
           textField: true,
-          label: 'Код подтверждения',
+          label: widget.semanticLabel ?? 'Код подтверждения',
           value: text,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
