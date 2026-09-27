@@ -2964,3 +2964,20 @@ Flutter flow had no server-side onboarding at all, `POST /cases` and
   dev-only `/dev/echo` is excluded).
 - Still open: typed response schemas (need response DTO classes) and
   generating the Dart client from this file.
+
+## Stage 2.3 (profiles, licenses, verification) — 2026-09-27
+
+Per docs/02_DATABASE.md §8 "Этап 2.3" / §4.C. Migration
+`20260927183543_stage_2_3_profiles_verification`, no drift.
+
+- Tables: `client_profiles`, `attorney_profiles`, `attorney_licenses`
+  (UQ `state_code, bar_number`), `attorney_practice_areas` (composite PK,
+  reverse index), `verification_requests`, `verification_documents`
+  (FK → `files`), `verification_checks`. §5.2 indexes for these tables
+  included (`attorney_licenses(attorney_id)`, `(state_code,
+  license_status)`, `verification_requests(status, submitted_at)`).
+- Raw SQL CHECKs: `bio ≤ 300`, `preferred_contact_note ≤ 200`,
+  `username_lower = lower(username)` (makes the UQ case-insensitive by
+  construction).
+- `test/db-profiles-schema.e2e-spec.ts`: bar number on two attorneys
+  rejected, username UQ ignores case, CHECKs enforced — 4/4.

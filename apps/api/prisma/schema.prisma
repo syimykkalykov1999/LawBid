@@ -517,6 +517,11 @@ model User {
   feature_flag_updates FeatureFlag[]
   files                File[]           @relation("FileOwner")
 
+  client_profile         ClientProfile?
+  attorney_profile       AttorneyProfile?
+  licenses_verified      AttorneyLicense[]     @relation("LicenseVerifier")
+  verifications_reviewed VerificationRequest[] @relation("VerificationReviewer")
+
   @@map("users")
 }
 
@@ -541,6 +546,8 @@ model File {
   updated_at    DateTime    @updatedAt @db.Timestamptz
 
   avatar_of User[] @relation("UserAvatar")
+
+  verification_documents VerificationDocument[]
 
   @@index([owner_user_id])
   @@map("files")
@@ -786,6 +793,10 @@ model State {
   is_active Boolean @default(true)
 
   // Reference/seed table — no timestamps, per §3.1's column list.
+  client_profiles        ClientProfile[]
+  attorney_licenses      AttorneyLicense[]
+  verification_documents VerificationDocument[]
+
   @@map("states")
 }
 
@@ -806,6 +817,144 @@ model PracticeArea {
   children PracticeArea[] @relation("PracticeAreaTree")
 
   // Reference/seed table — no timestamps, per §3.2's column list.
+  attorney_practice_areas AttorneyPracticeArea[]
+
   @@index([parent_id])
   @@map("practice_areas")
+}
+
+// -----------------------------------------------------------------------
+// 4.C — Profiles and verification (docs/02_DATABASE.md §4.C) — stage 2.3.
+// -----------------------------------------------------------------------
+
+model ClientProfile {
+  user_id                  String         @id @db.Uuid
+  user                     User           @relation(fields: [user_id], references: [id], onDelete: Restrict)
+  state_code               String         @db.Char(2)
+  state                    State          @relation(fields: [state_code], references: [code], onDelete: Restrict)
+  preferred_languages      String[]
+  preferred_contact_method ContactMethod?
+  // ≤200 chars (§4.C), CHECK in the migration.
+  preferred_contact_note   String?
+  created_at               DateTime       @default(now()) @db.Timestamptz
+  updated_at               DateTime       @updatedAt @db.Timestamptz
+
+  @@map("client_profiles")
+}
+
+model AttorneyProfile {
+  user_id             String             @id @db.Uuid
+  user                User               @relation(fields: [user_id], references: [id], onDelete: Restrict)
+  username            String
+  username_lower      String             @unique
+  // ≤300 chars (§4.C / §6.1), CHECK in the migration.
+  bio                 String?
+  firm_name           String?
+  languages           String[]
+  verification_status VerificationStatus @default(unverified)
+  verified_at         DateTime?          @db.Timestamptz
+  rating_avg          Decimal            @default(0) @db.Decimal(3, 2)
+  rating_count        Int                @default(0)
+  posts_count         Int                @default(0)
+  followers_count     Int                @default(0)
+  following_count     Int                @default(0)
+  created_at          DateTime           @default(now()) @db.Timestamptz
+  updated_at          DateTime           @updatedAt @db.Timestamptz
+
+  licenses              AttorneyLicense[]
+  practice_areas        AttorneyPracticeArea[]
+  verification_requests VerificationRequest[]
+
+  @@map("attorney_profiles")
+}
+
+model AttorneyLicense {
+  id                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  attorney_id       String          @db.Uuid
+  attorney          AttorneyProfile @relation(fields: [attorney_id], references: [user_id], onDelete: Restrict)
+  state_code        String          @db.Char(2)
+  state             State           @relation(fields: [state_code], references: [code], onDelete: Restrict)
+  bar_number        String
+  license_status    LicenseStatus   @default(pending)
+  expires_at        DateTime?       @db.Date
+  verified_at       DateTime?       @db.Timestamptz
+  verified_by       String?         @db.Uuid
+  verifier          User?           @relation("LicenseVerifier", fields: [verified_by], references: [id], onDelete: Restrict)
+  auto_check_result Json?
+  created_at        DateTime        @default(now()) @db.Timestamptz
+  updated_at        DateTime        @updatedAt @db.Timestamptz
+
+  // One license can't be attached to two accounts (§4.C, §5.1).
+  @@unique([state_code, bar_number])
+  @@index([attorney_id])
+  @@index([state_code, license_status])
+  @@map("attorney_licenses")
+}
+
+model AttorneyPracticeArea {
+  attorney_id      String          @db.Uuid
+  attorney         AttorneyProfile @relation(fields: [attorney_id], references: [user_id], onDelete: Cascade)
+  practice_area_id String          @db.Uuid
+  practice_area    PracticeArea    @relation(fields: [practice_area_id], references: [id], onDelete: Restrict)
+  created_at       DateTime        @default(now()) @db.Timestamptz
+
+  @@id([attorney_id, practice_area_id])
+  @@index([practice_area_id, attorney_id])
+  @@map("attorney_practice_areas")
+}
+
+model VerificationRequest {
+  id               String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  attorney_id      String                    @db.Uuid
+  attorney         AttorneyProfile           @relation(fields: [attorney_id], references: [user_id], onDelete: Restrict)
+  status           VerificationRequestStatus
+  provider         VerificationProvider      @default(manual)
+  provider_ref     String?
+  submitted_at     DateTime?                 @db.Timestamptz
+  reviewed_by      String?                   @db.Uuid
+  reviewer         User?                     @relation("VerificationReviewer", fields: [reviewed_by], references: [id], onDelete: Restrict)
+  reviewed_at      DateTime?                 @db.Timestamptz
+  rejection_reason String?
+  admin_note       String?
+  created_at       DateTime                  @default(now()) @db.Timestamptz
+  updated_at       DateTime                  @updatedAt @db.Timestamptz
+
+  documents VerificationDocument[]
+  checks    VerificationCheck[]
+
+  @@index([attorney_id])
+  @@index([status, submitted_at])
+  @@map("verification_requests")
+}
+
+model VerificationDocument {
+  id         String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  request_id String              @db.Uuid
+  request    VerificationRequest @relation(fields: [request_id], references: [id], onDelete: Restrict)
+  doc_type   VerificationDocType
+  file_id    String              @db.Uuid
+  file       File                @relation(fields: [file_id], references: [id], onDelete: Restrict)
+  state_code String?             @db.Char(2)
+  state      State?              @relation(fields: [state_code], references: [code], onDelete: Restrict)
+  notes      String?
+  created_at DateTime            @default(now()) @db.Timestamptz
+  updated_at DateTime            @updatedAt @db.Timestamptz
+
+  @@index([request_id])
+  @@map("verification_documents")
+}
+
+model VerificationCheck {
+  id         String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  request_id String                @db.Uuid
+  request    VerificationRequest   @relation(fields: [request_id], references: [id], onDelete: Restrict)
+  check_type VerificationCheckType
+  provider   VerificationProvider
+  result     CheckResult
+  details    Json
+  checked_at DateTime              @db.Timestamptz
+  created_at DateTime              @default(now()) @db.Timestamptz
+
+  @@index([request_id])
+  @@map("verification_checks")
 }
