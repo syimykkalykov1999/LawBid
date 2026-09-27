@@ -60,8 +60,7 @@ final onboardingLocalStoreProvider = Provider<OnboardingLocalStore>(
 
 /// Local Face ID/Touch ID/fingerprint gate (Phase 4 of the auth networking
 /// work, docs/CHANGELOG.md) — see biometric_auth_service.dart's doc
-/// comment for what it does and does not prove to the server. `const`,
-/// same reasoning as [socialAuthNativeClientProvider].
+/// comment for what it does and does not prove to the server.
 final biometricAuthServiceProvider = Provider<BiometricAuthService>(
-  (ref) => const BiometricAuthService(),
+  (ref) => BiometricAuthService(),
 );

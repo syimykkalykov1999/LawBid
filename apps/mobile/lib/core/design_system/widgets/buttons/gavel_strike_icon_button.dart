@@ -18,12 +18,14 @@ class GavelStrikeIconButton extends StatefulWidget {
     required this.onPressed,
     required this.semanticLabel,
     this.strike = false,
+    this.isLoading = false,
   });
 
   final Widget icon;
   final VoidCallback? onPressed;
   final String semanticLabel;
   final bool strike;
+  final bool isLoading;
 
   @override
   State<GavelStrikeIconButton> createState() => _GavelStrikeIconButtonState();
@@ -72,7 +74,7 @@ class _GavelStrikeIconButtonState extends State<GavelStrikeIconButton>
 
   void _handleTap() {
     if (_isAnimating) return;
-    if (widget.onPressed == null) return;
+    if (widget.onPressed == null || widget.isLoading) return;
 
     final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
     if (!widget.strike || reduceMotion) {
@@ -115,6 +117,7 @@ class _GavelStrikeIconButtonState extends State<GavelStrikeIconButton>
     return AppIconButton(
       icon: widget.icon,
       semanticLabel: widget.semanticLabel,
+      isLoading: widget.isLoading,
       onTapDown: _handleTapDown,
       onPressed: _handleTap,
     );

@@ -62,7 +62,8 @@ dependencies:
   # for a Flutter app — no separate sqlite3_flutter_libs/path_provider
   # dependency needed, drift_flutter pulls those in itself.
   drift: ^2.23.0
-  drift_flutter: ^0.2.4
+  drift_flutter: ^0.3.1
+  flutter_animate: ^4.5.2
 
 dev_dependencies:
   flutter_test:

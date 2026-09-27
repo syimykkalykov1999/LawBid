@@ -20,12 +20,14 @@ class AppIconButton extends StatefulWidget {
     required this.onPressed,
     required this.semanticLabel,
     this.onTapDown,
+    this.isLoading = false,
   });
 
   final Widget icon;
   final VoidCallback? onPressed;
   final String semanticLabel;
   final ValueChanged<TapDownDetails>? onTapDown;
+  final bool isLoading;
 
   @override
   State<AppIconButton> createState() => _AppIconButtonState();
@@ -34,24 +36,26 @@ class AppIconButton extends StatefulWidget {
 class _AppIconButtonState extends State<AppIconButton> {
   bool _pressed = false;
 
+  bool get _interactive => widget.onPressed != null && !widget.isLoading;
+
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     return Semantics(
       button: true,
       label: widget.semanticLabel,
-      enabled: widget.onPressed != null,
+      enabled: _interactive,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTapDown: widget.onPressed == null
+        onTapDown: !_interactive
             ? null
             : (details) {
                 setState(() => _pressed = true);
                 widget.onTapDown?.call(details);
               },
-        onTapUp: widget.onPressed == null ? null : (_) => setState(() => _pressed = false),
-        onTapCancel: widget.onPressed == null ? null : () => setState(() => _pressed = false),
-        onTap: widget.onPressed,
+        onTapUp: !_interactive ? null : (_) => setState(() => _pressed = false),
+        onTapCancel: !_interactive ? null : () => setState(() => _pressed = false),
+        onTap: _interactive ? widget.onPressed : null,
         child: AnimatedScale(
           scale: _pressed ? AppMotion.pressScaleFactor : 1.0,
           duration: AppMotion.pressScale,
@@ -63,10 +67,16 @@ class _AppIconButtonState extends State<AppIconButton> {
               border: Border.all(color: colors.border),
             ),
             alignment: Alignment.center,
-            child: IconTheme(
-              data: IconThemeData(size: 20, color: colors.text),
-              child: widget.icon,
-            ),
+            child: widget.isLoading
+                ? SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: colors.text),
+                  )
+                : IconTheme(
+                    data: IconThemeData(size: 20, color: colors.text),
+                    child: widget.icon,
+                  ),
           ),
         ),
       ),

@@ -80,7 +80,7 @@ class _LanguagePickerSheetState extends ConsumerState<LanguagePickerSheet> {
     // kLanguageCatalog while the fetch is in flight or if it fails — same
     // "never block/blank the UI on network" principle as the translator
     // layer itself.
-    final catalog = ref.watch(languageCatalogProvider).valueOrNull ?? kLanguageCatalog;
+    final catalog = ref.watch(languageCatalogProvider).value ?? kLanguageCatalog;
     final results = _filtered(catalog);
 
     return SafeArea(

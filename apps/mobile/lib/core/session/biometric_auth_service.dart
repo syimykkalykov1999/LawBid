@@ -28,8 +28,8 @@ import 'package:local_auth/local_auth.dart';
 /// always have a non-biometric fallback (OTP) ready regardless of why
 /// biometrics didn't succeed.
 class BiometricAuthService {
-  const BiometricAuthService([LocalAuthentication? localAuth])
-      : _localAuth = localAuth ?? const LocalAuthentication();
+  BiometricAuthService([LocalAuthentication? localAuth])
+      : _localAuth = localAuth ?? LocalAuthentication();
 
   final LocalAuthentication _localAuth;
 
