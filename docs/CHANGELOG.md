@@ -3091,3 +3091,28 @@ Regenerated (intentional changes): `app_bottom_nav_*`, `auth_{phone,otp,role}_sc
 ### Verification
 - `flutter analyze --no-fatal-infos`: 0 errors, 0 warnings.
 - `flutter test`: 34 pass, 2 fail (only the stale welcome goldens described above).
+
+## Stage 2.5 (feed, chats, notifications, subscriptions, moderation, audit) — 2026-09-27
+
+Per docs/02_DATABASE.md §8 "Этап 2.5" / §4.F–§4.J. Migration
+`…_stage_2_5_feed_chat_notifications_billing_admin`, no drift; DB now has
+59 application tables.
+
+- 4.F: `posts`, `post_media` (UQ post+position), `tags` (UQ tag_lower),
+  `post_tags`, `comments` (one nesting level), `post_likes`,
+  `comment_likes`, `follows` (CHECK follower ≠ followee), `saved_items`.
+- 4.G: `conversations` (UQ case+attorney), `conversation_participants`,
+  `messages` (UQ conversation+sender+client_message_id).
+  `conversations.last_message_id` is a bare uuid (an FK would make every
+  message insert a cycle).
+- 4.H: `notifications`, `notification_settings`, `notification_quiet_hours`,
+  `push_tokens` (UQ fcm_token, cascades with the session).
+- 4.I: `stripe_customers`, `subscriptions` (UQ user), `payments`,
+  `stripe_webhook_events` (PK = Stripe event id → idempotent webhooks).
+- 4.J: `reports`, `moderation_actions`, `admin_profiles`, `audit_log`,
+  `data_access_requests`, `data_access_log`.
+- Cascades only on auxiliary rows (likes, saves, follows, tags,
+  participants, media, push tokens, notification prefs) per §1.4.
+- `test/db-social-billing-schema.e2e-spec.ts`: duplicate
+  client_message_id rejected, repeated webhook rejected, repeated like
+  idempotent, self-follow rejected — 4/4.

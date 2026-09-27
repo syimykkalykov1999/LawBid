@@ -536,6 +536,32 @@ model User {
   reviews_as_client       Review[]             @relation("ReviewClient")
   reviews_as_attorney     Review[]             @relation("ReviewAttorney")
 
+  posts                    Post[]                    @relation("PostAuthor")
+  comments                 Comment[]                 @relation("CommentAuthor")
+  post_likes               PostLike[]                @relation("PostLiker")
+  comment_likes            CommentLike[]             @relation("CommentLiker")
+  following                Follow[]                  @relation("Follower")
+  followers                Follow[]                  @relation("Followee")
+  saved_items              SavedItem[]
+  conversations_attorney   Conversation[]            @relation("ConversationAttorney")
+  conversations_client     Conversation[]            @relation("ConversationClient")
+  conversation_memberships ConversationParticipant[]
+  messages_sent            Message[]                 @relation("MessageSender")
+  notifications            Notification[]
+  notification_settings    NotificationSetting[]
+  quiet_hours              NotificationQuietHours?
+  push_tokens              PushToken[]
+  stripe_customer          StripeCustomer?
+  subscription             Subscription?
+  payments                 Payment[]
+  reports_filed            Report[]                  @relation("Reporter")
+  reports_handled          Report[]                  @relation("ReportHandler")
+  moderation_actions       ModerationAction[]        @relation("ModerationAdmin")
+  admin_profile            AdminProfile?
+  audit_entries            AuditLog[]                @relation("AuditAdmin")
+  data_requests_handled    DataAccessRequest[]       @relation("DataRequestHandler")
+  data_access_entries      DataAccessLog[]           @relation("DataAccessAdmin")
+
   @@map("users")
 }
 
@@ -562,6 +588,8 @@ model File {
   avatar_of User[] @relation("UserAvatar")
 
   verification_documents VerificationDocument[]
+
+  post_media PostMedia[]
 
   @@index([owner_user_id])
   @@map("files")
@@ -621,6 +649,8 @@ model Session {
   // Partial index sessions(user_id) WHERE revoked_at IS NULL is raw SQL,
   // stage 2.6 (docs/02_DATABASE.md §5.2). This plain index covers lookups
   // until then.
+  push_tokens PushToken[]
+
   @@index([user_id])
   @@index([session_chain_id])
   @@map("sessions")
@@ -1025,6 +1055,8 @@ model Case {
   disputes            CaseDispute[]
   review              Review?
 
+  conversations Conversation[]
+
   @@index([client_id, status, created_at(sort: Desc)])
   @@index([primary_state_code, practice_area_id, created_at(sort: Desc)])
   @@map("cases")
@@ -1068,6 +1100,8 @@ model Bid {
   contact_issues     ContactIssueReport[]
 
   // One bid per attorney per case (§4.D, §5.1).
+  conversations Conversation[]
+
   @@unique([case_id, attorney_id])
   @@index([case_id, status])
   @@index([attorney_id, status, updated_at(sort: Desc)])
@@ -1195,4 +1229,432 @@ model Review {
 
   @@index([attorney_id, created_at(sort: Desc)])
   @@map("reviews")
+}
+
+// -----------------------------------------------------------------------
+// Stage 2.5 (docs/02_DATABASE.md §8): 4.F feed/social, 4.G chats,
+// 4.H notifications/push, 4.I Stripe subscriptions, 4.J moderation/admin/
+// audit. Auxiliary rows (likes, saves, follows, tags, participants,
+// media) cascade (§1.4); everything else is RESTRICT. Counters are
+// denormalized per §1.5.
+// -----------------------------------------------------------------------
+
+model Post {
+  id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  // Attorneys only (checked in the service, file 05).
+  author_id     String        @db.Uuid
+  author        User          @relation("PostAuthor", fields: [author_id], references: [id], onDelete: Restrict)
+  // ≤2200 chars (§6.1), CHECK in the migration.
+  body          String
+  language      String?
+  status        ContentStatus @default(published)
+  like_count    Int           @default(0)
+  comment_count Int           @default(0)
+  save_count    Int           @default(0)
+  deleted_at    DateTime?     @db.Timestamptz
+  created_at    DateTime      @default(now()) @db.Timestamptz
+  updated_at    DateTime      @updatedAt @db.Timestamptz
+
+  media    PostMedia[]
+  tags     PostTag[]
+  comments Comment[]
+  likes    PostLike[]
+
+  @@map("posts")
+}
+
+model PostMedia {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  post_id    String    @db.Uuid
+  post       Post      @relation(fields: [post_id], references: [id], onDelete: Cascade)
+  file_id    String    @db.Uuid
+  file       File      @relation(fields: [file_id], references: [id], onDelete: Restrict)
+  media_type MediaType @default(image)
+  position   Int       @db.Int2
+  width      Int?
+  height     Int?
+  created_at DateTime  @default(now()) @db.Timestamptz
+
+  @@unique([post_id, position])
+  @@map("post_media")
+}
+
+model Tag {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  // Without '#', lowercase.
+  tag_lower  String   @unique
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  posts PostTag[]
+
+  @@map("tags")
+}
+
+model PostTag {
+  post_id String @db.Uuid
+  post    Post   @relation(fields: [post_id], references: [id], onDelete: Cascade)
+  tag_id  String @db.Uuid
+  tag     Tag    @relation(fields: [tag_id], references: [id], onDelete: Cascade)
+
+  @@id([post_id, tag_id])
+  @@index([tag_id, post_id])
+  @@map("post_tags")
+}
+
+model Comment {
+  id                String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  post_id           String        @db.Uuid
+  post              Post          @relation(fields: [post_id], references: [id], onDelete: Restrict)
+  author_id         String        @db.Uuid
+  author            User          @relation("CommentAuthor", fields: [author_id], references: [id], onDelete: Restrict)
+  // One nesting level: replies to replies are attached to the top-level
+  // parent by the service (§4.F).
+  parent_comment_id String?       @db.Uuid
+  parent            Comment?      @relation("CommentReplies", fields: [parent_comment_id], references: [id], onDelete: Restrict)
+  replies           Comment[]     @relation("CommentReplies")
+  // ≤1000 chars (§6.1), CHECK in the migration.
+  body              String
+  status            ContentStatus @default(published)
+  like_count        Int           @default(0)
+  reply_count       Int           @default(0)
+  deleted_at        DateTime?     @db.Timestamptz
+  created_at        DateTime      @default(now()) @db.Timestamptz
+  updated_at        DateTime      @updatedAt @db.Timestamptz
+
+  likes CommentLike[]
+
+  @@index([post_id, created_at])
+  @@index([parent_comment_id, created_at])
+  @@map("comments")
+}
+
+model PostLike {
+  post_id    String   @db.Uuid
+  post       Post     @relation(fields: [post_id], references: [id], onDelete: Cascade)
+  user_id    String   @db.Uuid
+  user       User     @relation("PostLiker", fields: [user_id], references: [id], onDelete: Cascade)
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  @@id([post_id, user_id])
+  @@index([user_id, created_at(sort: Desc)])
+  @@map("post_likes")
+}
+
+model CommentLike {
+  comment_id String   @db.Uuid
+  comment    Comment  @relation(fields: [comment_id], references: [id], onDelete: Cascade)
+  user_id    String   @db.Uuid
+  user       User     @relation("CommentLiker", fields: [user_id], references: [id], onDelete: Cascade)
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  @@id([comment_id, user_id])
+  @@map("comment_likes")
+}
+
+// followee must be an attorney (service check); follower <> followee is a
+// CHECK in the migration.
+model Follow {
+  follower_id String   @db.Uuid
+  follower    User     @relation("Follower", fields: [follower_id], references: [id], onDelete: Cascade)
+  followee_id String   @db.Uuid
+  followee    User     @relation("Followee", fields: [followee_id], references: [id], onDelete: Cascade)
+  created_at  DateTime @default(now()) @db.Timestamptz
+
+  @@id([follower_id, followee_id])
+  @@index([followee_id, follower_id])
+  @@map("follows")
+}
+
+// Polymorphic item_id (post or case) — no FK by design.
+model SavedItem {
+  user_id    String        @db.Uuid
+  user       User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  item_type  SavedItemType
+  item_id    String        @db.Uuid
+  created_at DateTime      @default(now()) @db.Timestamptz
+
+  @@id([user_id, item_type, item_id])
+  @@index([user_id, item_type, created_at(sort: Desc)])
+  @@map("saved_items")
+}
+
+model Conversation {
+  id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  case_id           String             @db.Uuid
+  case              Case               @relation(fields: [case_id], references: [id], onDelete: Restrict)
+  attorney_id       String             @db.Uuid
+  attorney          User               @relation("ConversationAttorney", fields: [attorney_id], references: [id], onDelete: Restrict)
+  client_id         String             @db.Uuid
+  client            User               @relation("ConversationClient", fields: [client_id], references: [id], onDelete: Restrict)
+  bid_id            String?            @db.Uuid
+  bid               Bid?               @relation(fields: [bid_id], references: [id], onDelete: Restrict)
+  status            ConversationStatus @default(pre_acceptance)
+  contacts_unlocked Boolean            @default(false)
+  last_message_at   DateTime?          @db.Timestamptz
+  // Bare uuid: an FK here would make conversations <-> messages a cycle
+  // on every insert; it's a denormalized pointer for the chat list.
+  last_message_id   String?            @db.Uuid
+  created_at        DateTime           @default(now()) @db.Timestamptz
+  updated_at        DateTime           @updatedAt @db.Timestamptz
+
+  participants ConversationParticipant[]
+  messages     Message[]
+
+  @@unique([case_id, attorney_id])
+  @@index([client_id, last_message_at(sort: Desc)])
+  @@index([attorney_id, last_message_at(sort: Desc)])
+  @@map("conversations")
+}
+
+model ConversationParticipant {
+  conversation_id      String       @db.Uuid
+  conversation         Conversation @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+  user_id              String       @db.Uuid
+  user                 User         @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  last_read_message_id String?      @db.Uuid
+  muted_until          DateTime?    @db.Timestamptz
+  created_at           DateTime     @default(now()) @db.Timestamptz
+  updated_at           DateTime     @updatedAt @db.Timestamptz
+
+  @@id([conversation_id, user_id])
+  @@index([user_id])
+  @@map("conversation_participants")
+}
+
+model Message {
+  id                String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversation_id   String       @db.Uuid
+  conversation      Conversation @relation(fields: [conversation_id], references: [id], onDelete: Restrict)
+  // NULL for system messages.
+  sender_id         String?      @db.Uuid
+  sender            User?        @relation("MessageSender", fields: [sender_id], references: [id], onDelete: Restrict)
+  type              MessageType
+  // Server/moderation/legal only (§1.6).
+  body_original     String
+  body_display      String
+  contact_masked    Boolean      @default(false)
+  // Client-generated idempotency key.
+  client_message_id String
+  deleted_at        DateTime?    @db.Timestamptz
+  created_at        DateTime     @default(now()) @db.Timestamptz
+  updated_at        DateTime     @updatedAt @db.Timestamptz
+
+  @@unique([conversation_id, sender_id, client_message_id])
+  @@index([conversation_id, created_at(sort: Desc)])
+  @@map("messages")
+}
+
+model Notification {
+  id         String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String               @db.Uuid
+  user       User                 @relation(fields: [user_id], references: [id], onDelete: Restrict)
+  type       NotificationType
+  category   NotificationCategory
+  payload    Json
+  read_at    DateTime?            @db.Timestamptz
+  created_at DateTime             @default(now()) @db.Timestamptz
+
+  @@index([user_id, created_at(sort: Desc)])
+  @@map("notifications")
+}
+
+model NotificationSetting {
+  user_id       String               @db.Uuid
+  user          User                 @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  category      NotificationCategory
+  push_enabled  Boolean              @default(true)
+  email_enabled Boolean              @default(true)
+  updated_at    DateTime             @updatedAt @db.Timestamptz
+
+  @@id([user_id, category])
+  @@map("notification_settings")
+}
+
+model NotificationQuietHours {
+  user_id    String   @id @db.Uuid
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  start_time DateTime @db.Time
+  end_time   DateTime @db.Time
+  timezone   String
+  updated_at DateTime @updatedAt @db.Timestamptz
+
+  @@map("notification_quiet_hours")
+}
+
+model PushToken {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id      String   @db.Uuid
+  user         User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  session_id   String   @db.Uuid
+  session      Session  @relation(fields: [session_id], references: [id], onDelete: Cascade)
+  fcm_token    String   @unique
+  platform     String
+  last_seen_at DateTime @default(now()) @db.Timestamptz
+  created_at   DateTime @default(now()) @db.Timestamptz
+
+  @@index([user_id])
+  @@map("push_tokens")
+}
+
+model StripeCustomer {
+  user_id            String   @id @db.Uuid
+  user               User     @relation(fields: [user_id], references: [id], onDelete: Restrict)
+  stripe_customer_id String   @unique
+  created_at         DateTime @default(now()) @db.Timestamptz
+
+  @@map("stripe_customers")
+}
+
+model Subscription {
+  id                     String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  // One row per attorney.
+  user_id                String             @unique @db.Uuid
+  user                   User               @relation(fields: [user_id], references: [id], onDelete: Restrict)
+  stripe_subscription_id String?            @unique
+  status                 SubscriptionStatus
+  // 39900 at launch.
+  price_cents            Int
+  trial_started_at       DateTime?          @db.Timestamptz
+  trial_ends_at          DateTime?          @db.Timestamptz
+  current_period_start   DateTime?          @db.Timestamptz
+  current_period_end     DateTime?          @db.Timestamptz
+  cancel_at_period_end   Boolean            @default(false)
+  canceled_at            DateTime?          @db.Timestamptz
+  // One card = one trial.
+  card_fingerprint       String?
+  created_at             DateTime           @default(now()) @db.Timestamptz
+  updated_at             DateTime           @updatedAt @db.Timestamptz
+
+  @@index([status, trial_ends_at])
+  @@index([current_period_end])
+  @@map("subscriptions")
+}
+
+model Payment {
+  id                       String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id                  String        @db.Uuid
+  user                     User          @relation(fields: [user_id], references: [id], onDelete: Restrict)
+  stripe_invoice_id        String?       @unique
+  stripe_payment_intent_id String?
+  amount_cents             Int
+  currency                 String        @default("usd")
+  status                   PaymentStatus
+  paid_at                  DateTime?     @db.Timestamptz
+  failure_code             String?
+  created_at               DateTime      @default(now()) @db.Timestamptz
+  updated_at               DateTime      @updatedAt @db.Timestamptz
+
+  @@index([user_id, created_at(sort: Desc)])
+  @@map("payments")
+}
+
+// Existence of the row = event already handled (webhook idempotency).
+model StripeWebhookEvent {
+  stripe_event_id String    @id
+  type            String
+  payload         Json
+  processed_at    DateTime? @db.Timestamptz
+  attempts        Int       @default(0)
+  created_at      DateTime  @default(now()) @db.Timestamptz
+
+  @@map("stripe_webhook_events")
+}
+
+model Report {
+  id          String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reporter_id String           @db.Uuid
+  reporter    User             @relation("Reporter", fields: [reporter_id], references: [id], onDelete: Restrict)
+  target_type ReportTargetType
+  target_id   String           @db.Uuid
+  reason      ReportReason
+  note        String?
+  status      ReportStatus     @default(open)
+  handled_by  String?          @db.Uuid
+  handler     User?            @relation("ReportHandler", fields: [handled_by], references: [id], onDelete: Restrict)
+  handled_at  DateTime?        @db.Timestamptz
+  created_at  DateTime         @default(now()) @db.Timestamptz
+  updated_at  DateTime         @updatedAt @db.Timestamptz
+
+  actions ModerationAction[]
+
+  @@index([status, created_at])
+  @@map("reports")
+}
+
+model ModerationAction {
+  id          String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  report_id   String?              @db.Uuid
+  report      Report?              @relation(fields: [report_id], references: [id], onDelete: Restrict)
+  admin_id    String               @db.Uuid
+  admin       User                 @relation("ModerationAdmin", fields: [admin_id], references: [id], onDelete: Restrict)
+  target_type ReportTargetType
+  target_id   String               @db.Uuid
+  action      ModerationActionType
+  reason      String?
+  created_at  DateTime             @default(now()) @db.Timestamptz
+
+  @@index([target_type, target_id])
+  @@map("moderation_actions")
+}
+
+model AdminProfile {
+  user_id    String    @id @db.Uuid
+  user       User      @relation(fields: [user_id], references: [id], onDelete: Restrict)
+  admin_role AdminRole
+  created_at DateTime  @default(now()) @db.Timestamptz
+  updated_at DateTime  @updatedAt @db.Timestamptz
+
+  @@map("admin_profiles")
+}
+
+// Append-only (§6.2).
+model AuditLog {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  admin_id    String   @db.Uuid
+  admin       User     @relation("AuditAdmin", fields: [admin_id], references: [id], onDelete: Restrict)
+  action      String
+  target_type String
+  target_id   String?  @db.Uuid
+  before      Json?
+  after       Json?
+  ip          String?
+  created_at  DateTime @default(now()) @db.Timestamptz
+
+  @@index([admin_id, created_at(sort: Desc)])
+  @@map("audit_log")
+}
+
+model DataAccessRequest {
+  id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  request_type     DataRequestType
+  reference_number String
+  agency           String
+  received_at      DateTime          @db.Timestamptz
+  scope            String
+  handled_by       String            @db.Uuid
+  handler          User              @relation("DataRequestHandler", fields: [handled_by], references: [id], onDelete: Restrict)
+  status           DataRequestStatus
+  closed_at        DateTime?         @db.Timestamptz
+  notes            String?
+  created_at       DateTime          @default(now()) @db.Timestamptz
+  updated_at       DateTime          @updatedAt @db.Timestamptz
+
+  access_log DataAccessLog[]
+
+  @@map("data_access_requests")
+}
+
+// Append-only (§6.2).
+model DataAccessLog {
+  id          String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  request_id  String            @db.Uuid
+  request     DataAccessRequest @relation(fields: [request_id], references: [id], onDelete: Restrict)
+  admin_id    String            @db.Uuid
+  admin       User              @relation("DataAccessAdmin", fields: [admin_id], references: [id], onDelete: Restrict)
+  entity_type String
+  entity_id   String            @db.Uuid
+  accessed_at DateTime          @default(now()) @db.Timestamptz
+
+  @@index([request_id])
+  @@map("data_access_log")
 }
