@@ -106,6 +106,16 @@ abstract final class AppRouterGuard {
     return target;
   }
 
+  /// Where a successful onboarding action moves the user: the step the
+  /// server state now requires, or the feed when onboarding is done. The
+  /// revisit rule below lets a user go BACK to a saved step, so a step's
+  /// primary button must move forward explicitly (owner bug report
+  /// 2026-09-27: consents/role "Continue" stayed on the same screen).
+  static String forwardRoute(CurrentUser user) {
+    final step = requiredStep(user);
+    return step == null ? AppRoutes.feed : OnboardingRoutes.forStep(step);
+  }
+
   /// Rows 2-6: the onboarding step the user must be on, or null when
   /// onboarding is complete and nothing is missing.
   static OnboardingStepId? requiredStep(CurrentUser user) {

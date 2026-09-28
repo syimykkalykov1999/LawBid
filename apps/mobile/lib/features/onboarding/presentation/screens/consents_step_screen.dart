@@ -173,14 +173,18 @@ class _DocLink extends StatelessWidget {
               borderRadius: BorderRadius.circular(AppRadii.card),
               border: Border.all(color: colors.border),
             ),
+            // Icon + label centred as a group (owner request 2026-09-27),
+            // also on the full-width last item.
             child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(Icons.description_outlined,
                     size: AppSizes.iconSm, color: colors.gold),
                 const SizedBox(width: AppSpacing.sm),
-                Expanded(
+                Flexible(
                   child: Text(
                     label,
+                    textAlign: TextAlign.center,
                     style: typography.bodySmall.copyWith(color: colors.text),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,

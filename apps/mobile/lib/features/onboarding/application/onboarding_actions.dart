@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:lawbid/core/navigation/app_router.dart';
+import 'package:lawbid/core/navigation/guards/app_router_guard.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
@@ -43,8 +45,14 @@ class OnboardingActions extends Notifier<StepActionState> {
     state = const StepActionState(busy: true);
     try {
       final user = await body();
-      if (user != null)
+      if (user != null) {
         ref.read(currentUserControllerProvider.notifier).apply(user);
+        // Move forward explicitly; the guard alone keeps a user on an
+        // already-saved step because going back is allowed.
+        final router = ref.read(appRouterProvider);
+        final dest = AppRouterGuard.forwardRoute(user);
+        if (router.state.matchedLocation != dest) router.go(dest);
+      }
       if (ref.mounted) state = const StepActionState();
       return true;
     } catch (e) {
