@@ -3802,3 +3802,531 @@ feed screen golden, active devices data/controller/screen tests, token tests.
   labels, 48dp tap target on Create, stable e2e (single listener per
   suite, EXPLAIN without stats forecasts).
 - Totals at this point: API unit 293, e2e 128; mobile 429.
+
+## p12 leaf-1.3: API contract — typed OpenAPI, generated Dart client, one ErrorCode — 2026-09-27
+
+docs/01 §6.3 (packages/api-contract: OpenAPI-generated Dart client, never
+hand-edited, regenerated after any endpoint change), §7 (envelope + error
+format, one ErrorCode enum on server and client), §16 DoD ("Swagger покрывает
+все эндпоинты, Dart-клиент сгенерирован из него").
+
+**API (documentation only unless noted)**
+- Response DTOs for every endpoint's `data` (`auth-responses.dto.ts`,
+  `user-responses.dto.ts`, `i18n-responses.dto.ts`,
+  `bootstrap-response.dto.ts`); controllers declare them as return types, so
+  tsc checks the documented shape against what the services return.
+- `ApiEnvelopeResponse(Dto, {status, isArray})` documents the global envelope
+  as named `XxxEnvelope = {data, meta?: {nextCursor}}` schemas;
+  `ApiErrors({status: [codes]})` documents `ErrorResponseDto` with the shared
+  `ErrorCode` enum schema (`common/dto/api-docs.decorators.ts`).
+- OpenAPI document: paths without the `/api/v1` prefix (server URL
+  `/api/v1`; `/health/*` override per operation), operationId = handler
+  method name (duplicates fail the build), one tag per controller, header
+  params `Idempotency-Key` / `X-Reauth-Token` / `x-device-attestation` /
+  `If-None-Match` where the routes read them, multipart body for
+  `POST /admin/i18n/import`, binary xlsx 200 for `GET /admin/i18n/export`,
+  304 for the i18n bundle.
+- Handler renames (no route change): `I18nAdminController.import/export` →
+  `importTranslations/exportTranslations`, `CasesController.create` →
+  `createCase`.
+- Runtime fixes found on the way:
+  - AllExceptionsFilter turned EVERY `BadRequestException` into
+    `VALIDATION_ERROR`, swallowing feature codes thrown that way
+    (`I18N_IMPORT_INVALID` with `details.errors`, `I18N_LANGUAGE_NOT_FOUND`
+    from PATCH /users/me). A 400 that carries its own `code` now keeps it;
+    ValidationPipe's code-less 400s are unchanged.
+  - `POST /users/me/role`, `/onboarding/complete`, `/consents` and
+    `/contacts/request` now apply `IdempotencyInterceptor`: the app already
+    sent an `Idempotency-Key` for them, but the server ignored it, so a
+    retried contacts/request could send a second paid SMS/email.
+
+**packages/api-contract**
+- `generate.sh`: exports `openapi.json`, then generates the Dart package
+  `lawbid_api` (`dart/`) with swagger_parser 1.45.0 (retrofit clients +
+  json_serializable models) + build_runner, then `dart format`. Toolchain
+  pinned (pubspec exact versions + committed pubspec.lock); regeneration is
+  byte-identical. Generated `*.g.dart` are committed (package `.gitignore`
+  overrides the repo-wide ignore). `build.yaml`: unset optional request
+  fields are omitted, never sent as null.
+- CI: api-ci "API contract is up to date" step runs `generate.sh` and fails
+  on any diff/untracked file, then `dart analyze --fatal-warnings`; api-ci
+  and mobile-ci also trigger on `packages/api-contract/**`.
+
+**Mobile**
+- `lawbid_api` path dependency. `AuthApiClient` and `UsersApiClient` now run
+  on the generated `AuthClient`/`UsersClient` with the app's own Dio (all
+  interceptors kept; `skipAuth`/`createsResource` passed as retrofit
+  extras); request bodies are the generated DTOs, responses the generated
+  envelopes. `DeviceInfo`/`AuthTokensResult` are aliases of the generated
+  models; `CurrentUserMapper` maps `MeDto` → `CurrentUser` (unknown enum
+  values dropped, as before). `guardApiCall` maps DioException → ApiException
+  and an off-contract 2xx body → NETWORK_ERROR. The profile step keeps a raw
+  PATCH for its body (explicit `contactMethod: null` clears the method; the
+  generated models omit nulls) and parses the response as `MeEnvelope`.
+- `ApiErrorCodes` lists all 38 server codes (+ `all`); a test compares it
+  with the generated `ErrorCode` enum. New localized texts (en+ru) for
+  DEVICE_ATTESTATION_REQUIRED, AUTH_REFRESH_REUSE_DETECTED,
+  AUTH_SESSION_REVOKED (also used for AUTH_REFRESH_EXPIRED/INVALID),
+  IDEMPOTENCY_KEY_CONFLICT, FORBIDDEN, NOT_FOUND, NOT_IMPLEMENTED; social
+  token/provider codes reuse the existing `auth.social.error.*` texts. Keys:
+  apps/api/prisma/seed/pending_keys/leaf-1.3.csv.
+
+## Stage 3.2: file uploads — presign, confirm, antivirus, HEIC, avatars — 2026-09-27
+
+docs/03 §11 stage 3.2, §2.2, §4.1 (photo), §9 (`files.max_size_mb`,
+`files.avatar_max_size_mb`, `verification.signed_url_ttl_sec`); docs/02 §1.6 +
+§4.A `files`; OQ-012 (attorney photo API now, mobile step in 3.9). No schema
+change.
+
+**API — `apps/api/src/modules/files`**
+- `POST /files/presign` (Idempotency-Key): `{purpose, mime, sizeBytes, sha256}`.
+  Per-purpose allow-list (avatar / post_image / verification_selfie: JPEG, PNG,
+  HEIC; verification_document: + PDF) and size limit from app_config (avatar
+  5 MB, others 10 MB). Per-user limit (env `FILES_PRESIGN_LIMIT_PER_USER_PER_HOUR`,
+  60) + CostGuard provider `storage` (`budget.storage.*`, seeded 120/5000/100000).
+  Returns an S3 POST policy (5 min) that accepts only exactly the declared size
+  and Content-Type at one key `<purpose>/<userId>/<fileId>`; buckets: documents
+  (verification) / media (avatar, posts). The intent waits in Redis (1 h).
+- `POST /files/:id/confirm`: server reads the object back — size, SHA-256 and
+  real type by magic bytes (JPEG/PNG/PDF/HEIC; AVIF and anything else refused);
+  a mismatch deletes the object (`FILE_TYPE_NOT_ALLOWED`, `FILE_TOO_LARGE`,
+  `FILE_CHECKSUM_MISMATCH`); not yet uploaded → `FILE_NOT_UPLOADED`. Success
+  creates the `files` row (`scan_status=pending`) and queues the scan. Retry-safe.
+- `GET /files/:id`: owner only (others 404); `url` = signed link only for clean
+  avatar/post images, never for verification files.
+- Scan worker: BullMQ queue `files` (in the API while JOBS_ENABLED, always in
+  `src/worker.ts`), 3 attempts. `VirusScanner` interface: `ClamdScanner`
+  (clamd `zINSTREAM` over TCP) when `CLAMAV_HOST` is set; otherwise
+  development/test use `DevEicarScanner` (flags only the EICAR test string);
+  **staging/production without `CLAMAV_HOST` have no scanner — files stay
+  `pending` and can never be attached (production must set `CLAMAV_HOST`).**
+  infected → object deleted, row `infected`; scanner/S3 failure on the last
+  attempt or an undecodable image → `failed`.
+- Processing (sharp; HEIC decoded by libheif-WASM `heic-decode`, since prebuilt
+  sharp has no HEVC): HEIC → JPEG for every purpose; avatar → EXIF orientation
+  applied, square centre crop 1024 px JPEG + `<key>_w256` variant, all
+  metadata stripped. Row's mime/size/sha256/width/height describe the stored
+  object; the row turns `clean` only after processing.
+- `FilesService.assertAttachable(user, file, purposes)` — the only way other
+  modules reference a file (owner + purpose + `clean`), `mediaUrl()`,
+  `verificationFileUrl()` (TTL `verification.signed_url_ttl_sec`; for the
+  verifier API of stage 3.4, which must check the role and write audit_log).
+- `PATCH /users/me` accepts `avatarFileId` (uuid | null; clean own avatar only,
+  else `FILE_NOT_ATTACHABLE`/404); `GET /users/me` returns `avatarFileId`,
+  `avatarUrl` (signed, 1 h).
+- Dev/test boot creates missing MinIO buckets (private, no policy);
+  staging/prod never do.
+- New ErrorCodes: FILE_TYPE_NOT_ALLOWED, FILE_TOO_LARGE, FILE_CHECKSUM_MISMATCH,
+  FILE_NOT_UPLOADED, FILE_NOT_ATTACHABLE, FILE_STORAGE_UNAVAILABLE (mobile
+  ApiErrorCodes + en/ru texts; keys in `prisma/seed/pending_keys/stage-3-2.csv`).
+- Env: `CLAMAV_HOST`, `CLAMAV_PORT`, `FILES_PRESIGN_LIMIT_PER_USER_PER_HOUR`,
+  `BUDGET_STORAGE_*`. Deps: @aws-sdk/client-s3, s3-presigned-post,
+  s3-request-presigner, sharp, heic-decode.
+- Contract regenerated (`FilesClient`, `FileDto`, `MeDto.avatarFileId/avatarUrl`).
+
+**Tests**: unit (magic bytes, scanners incl. a fake clamd, image processing,
+FilesService, scan processor); e2e `test/files.e2e-spec.ts` against MinIO —
+PNG declared as PDF rejected + deleted, oversize/declared-type refusals, S3
+refuses wrong size/Content-Type, checksum mismatch, EICAR → infected + deleted +
+not attachable (also as avatar), avatar pipeline, HEIC selfie → JPEG, foreign
+file 404, unsigned GET of a key → 403 on both buckets, signed link (TTL 2 s)
+200 then 403. e2e uses per-tag buckets `lawbid-e2e-<tag>-*`; MinIO credentials
+default to docker-compose.yml (override `S3_SECRET_ACCESS_KEY` if your MinIO
+differs).
+
+**Not in this stage**: post photo variants 320/1080 + CloudFront (docs/05 §3.2);
+cleanup of presigned-but-never-confirmed objects (S3 lifecycle rule, docs/06
+infra); re-queue of `pending` files once a scanner is configured; deleting the
+previous avatar object on replacement.
+
+## Stages 3.3–3.4: Verification requests and verifier admin API — docs/03 §2, §6, §9, §10 — 2026-09-27
+
+**Attorney API (`modules/verification`, own attorney profile only; someone
+else's request id → 404)**
+- `GET /verification/me` — profile status, latest request, whether ID +
+  selfie are required (not for an already verified attorney adding a
+  state, §2.1), submissions used / `verification.max_submissions_30d`.
+- `POST /verification/requests` — draft. 409 `VERIFICATION_ALREADY_PENDING`
+  while a draft/submitted/in_review/needs_more_info request exists; 429
+  `VERIFICATION_SUBMISSION_LIMIT` (details.retryAfterSeconds) when 5
+  requests were submitted in 30 days (system-opened name/license re-checks
+  don't count).
+- `PATCH /verification/requests/:id` — `applicantComment` ≤500.
+- `POST|DELETE /verification/requests/:id/licenses[/:licenseId]` — state +
+  bar number (upper-cased). UQ (state, bar number) across attorneys → 409
+  `LICENSE_ALREADY_REGISTERED`; one license per state per request → 409
+  `LICENSE_ALREADY_ADDED`. The attorney's own earlier row with the same
+  number (rejected/expired, or a renewal of a verified one, §2.6) returns to
+  `pending` with the new expiry. Licenses in `pending` belong to the open
+  request (there is only one). A renewal of a once-verified license can't
+  be withdrawn by the attorney (409 `VERIFICATION_INVALID_STATUS`).
+- `POST|DELETE /verification/requests/:id/documents[/:documentId]` —
+  `bar_license` (needs `stateCode` of a pending license), `drivers_license` /
+  `state_id` (side front/back), `passport` (front), `selfie`
+  (`verification_selfie` file), `other`. Only the owner's `clean` file of the
+  right purpose (`FilesService.assertAttachable` → 409 `FILE_NOT_ATTACHABLE`);
+  up to 3 files per document. Removal only in `draft`; after an info request
+  the attorney can only add.
+- `POST /verification/requests/:id/submit` — draft → submitted after the
+  completeness check (400 `VERIFICATION_INCOMPLETE`, `details.missing`:
+  `license`, `bar_license:<STATE>`, `identity_document`,
+  `identity_document_back`, `selfie`, `file_not_clean:<docId>`);
+  needs_more_info → submitted keeps the original `submitted_at`.
+- A suspended attorney gets 403 `ATTORNEY_SUSPENDED` on every write.
+- §2.3 status sync (`verification.helpers.ts`): draft → unverified,
+  submitted/in_review/needs_more_info → pending, approved → verified,
+  rejected → rejected; never overrides `suspended`, and a `verified` attorney
+  stays verified during/after an add-state request (a rejection leaving no
+  verified license → `unverified`).
+
+**Checks (§2.4)** — `VerificationProviderSelector` reads the flags on every
+call: `auto_bar_check` → `AutoBarLookupProvider` routing by state to
+`StateBarAdapter`s (none registered yet; `StubStateBarAdapter` is the
+template; no adapter / adapter error → `manual_review`); `stripe_identity`
+(wins) / `persona_verification` → structured stub adapters that
+`CostGuard.consume('id_check')` before the (future) provider call. With all
+flags off nothing runs and the request is purely manual. Results go to
+`verification_checks` and `attorney_licenses.auto_check_result`; an
+exhausted budget or provider error is recorded as `manual_review` and never
+blocks the attorney.
+
+**Verifier API `/admin/verification/*`** — `AdminRolesGuard`
+(`modules/admin-access`, interim until docs/06 stage 6.2): `users.role =
+admin`, active, and `admin_profiles.admin_role` ∈ {verifier, super_admin};
+everything else 403 `FORBIDDEN` (deny by default, read from the DB).
+- `GET requests` (queue: submitted + needs_more_info by default, `status`,
+  `stateCode`, oldest first, keyset cursor on `submitted_at`), `GET
+  requests/:id` (card: attorney, all licenses with bar numbers and
+  auto-check result, document metadata, checks, history).
+- `POST documents/:documentId/url` — 5-min signed link
+  (`verification.signed_url_ttl_sec`), audit `verification.document_view`.
+- `POST requests/:id/take` (submitted → in_review, locked to the verifier;
+  others get 409 `VERIFICATION_REQUEST_LOCKED`), `…/licenses/:licenseId/
+  decision` (verified | rejected + `rejection_code`/`rejection_note`),
+  `…/approve` (409 `VERIFICATION_DECISION_INCOMPLETE` while a license is
+  pending or none is verified; partial approval allowed), `…/request-info`
+  (`info_request_message`), `…/reject` (`rejection_code` from §2.5.4 +
+  comment → `rejection_reason`; pending licenses rejected with the code).
+- `POST licenses/:licenseId/recheck` — bar lookup with the current
+  provider; not `pass` → license `pending` in the open request or a new
+  `submitted` request (`admin_note: license_recheck: …`).
+- `POST attorneys/:attorneyId/suspend` (reason) → `suspended` (public
+  profile 404, out of search) and active bids → `withdrawn` in one
+  transaction (direct update — file 04's BidStateMachine doesn't exist yet);
+  `…/restore` → the pre-suspension status from the audit row (`verified`
+  → `unverified` if no verified license is left).
+- Every action writes `audit_log` (before/after, IP) in its transaction and
+  attorney-facing events emit `verification_update` with `payload.kind` ∈
+  `in_review`, `needs_more_info` (+`message`), `approved` (+`partial`),
+  `rejected` (+`rejectionCode`), `suspended`, `restored`.
+
+**Error codes**: `VERIFICATION_ALREADY_PENDING`, `VERIFICATION_SUBMISSION_LIMIT`,
+`VERIFICATION_INVALID_STATUS`, `VERIFICATION_INCOMPLETE`,
+`VERIFICATION_REQUEST_LOCKED`, `VERIFICATION_DECISION_INCOMPLETE`,
+`LICENSE_ALREADY_REGISTERED`, `LICENSE_ALREADY_ADDED`, `ATTORNEY_SUSPENDED`
+(API enum, mobile `ApiErrorCodes`, en/ru texts).
+
+**Translation keys** (`prisma/seed/pending_keys/stage-3-3-3-4.csv`):
+`error.api.*` above, `notif.verification.{in_review,needs_more_info,approved,
+approved_partial,rejected,suspended,restored}`, `verification.reject.<code>`.
+
+**Not in scope / follow-ups**: docs/06 "reason for viewing" (`audit_log.
+justification`) needs a file-06 schema change; real state bar adapters and
+Stripe Identity/Persona sessions (keys); bid withdrawal via BidStateMachine
++ case journal once file 04 exists.
+
+Tests: `test/verification.e2e-spec.ts` (13), unit specs for the guard,
+providers/selector, checks service, document rules and status sync.
+
+## File 03 stages 3.5–3.6: practices, license expiry, profiles API — 2026-09-27
+
+docs/03_VERIFICATION_PROFILES.md §3 (practices/states), §2.6 (license
+expiry), §4 (attorney profile), §5 (client profile), §6 (status display),
+§9 (`profile.*`, `verification.license_expiry_notify_days`).
+
+**API — stage 3.5**
+- `GET /practice-areas` (public): active categories → active leaves with
+  i18n keys, sorted; Redis-cached 5 min, `ETag` + 304 on `If-None-Match`.
+- `GET/PUT /attorneys/me/practice-areas`: PUT replaces the whole set in
+  one `withTxRetry` transaction; only `verification_status = verified`
+  (403 `ATTORNEY_NOT_VERIFIED`, re-checked inside the transaction); only
+  active leaves under an active category (400 `VALIDATION_ERROR`,
+  `details.invalidIds`). Each change writes `audit_log`
+  (`attorney.practice_areas.replace`, actor = the attorney, §3.2).
+- Nightly BullMQ job `licenses.expiry` (05:05 UTC): verified licenses
+  with `expires_at` ≤ today → `expired`; when no verified license is left
+  a `verified` profile → `unverified`; reminders at
+  `verification.license_expiry_notify_days` (30/7; the smallest due
+  threshold, once per license+expiry date+threshold). All events are
+  `verification_update` notifications (`kind`: `license_expiring`,
+  `license_expired`, `profile_unverified`) in the same transaction as the
+  change. The worker process now imports AppSettingsModule and
+  NotificationsModule.
+- New `NotificationsService.emit()` seam (`modules/notifications`,
+  global): persists the `notifications` row with the type's category;
+  delivery is docs/05.
+
+**API — stage 3.6**
+- `GET/PATCH /attorneys/me/profile`: own profile incl. own licenses with
+  bar numbers, badge, rating, counters, `usernameNextChangeAt`. PATCH:
+  names (1–50), bio (≤300), firm (≤80), languages (ISO 639-1),
+  `username` (docs/03 §4.1 rules; cooldown
+  `profile.username_change_cooldown_days` → 409
+  `USERNAME_CHANGE_TOO_SOON` with `details.nextChangeAt`; reserved
+  `profile.reserved_usernames` → 400 `USERNAME_RESERVED`; taken,
+  case-insensitive → 409 `USERNAME_TAKEN`). The onboarding-generated
+  username counts as never changed.
+- `GET /attorneys/username-available?u=` (30/min per IP):
+  `{available, reason: invalid|reserved|taken|null}`.
+- `GET /attorneys/:username`: public profile — verified-license states
+  only, practices, rating, counters, `verifiedBadge` (§6.3); never bar
+  numbers, documents or contacts. 404 for unknown, suspended profile,
+  blocked/deleted account.
+- `GET/PATCH /users/me/profile`, `PATCH /users/me/contact-preferences`
+  (client, own only; reuses UserProfilesService). Non-clients get 404; no
+  route reads another user's client profile.
+- Name re-check (§4.1): a `verified` attorney whose first/last name
+  changes (via `/attorneys/me/profile`, `PATCH /users/me` or the
+  onboarding profile step) goes to `pending`, and a `submitted`
+  verification request (admin_note `name_change_recheck: "old" -> "new"`)
+  enters the verifier queue unless one is already open.
+
+**Error codes** (server enum, `ApiErrorCodes`, en+ru texts):
+`ATTORNEY_NOT_VERIFIED`, `USERNAME_TAKEN`, `USERNAME_RESERVED`,
+`USERNAME_CHANGE_TOO_SOON`. Also `notif.verification.license_expiring |
+license_expired | profile_unverified` keys
+(`prisma/seed/pending_keys/stage-3-5-3-6.csv`).
+
+**Contract:** openapi.json + Dart client regenerated (AttorneysClient,
+PracticeAreasClient, ProfilesClient).
+
+**Tests:** unit (tree builder, practice replace policy, username
+cooldown/reserved/taken/availability, public-profile 404 rules, name
+re-check, license expiry thresholds/dedup) and
+`test/profiles-practices.e2e-spec.ts` (all acceptance items against real
+CockroachDB/Redis, incl. the §5.4 canonical query).
+
+## Stage 3.7: Reviews (API) — docs/03 §7, §9 — 2026-09-27
+
+**API (`modules/reviews`)**
+- `POST /cases/:caseId/review` (client): the case must belong to the caller,
+  be `closed` and have an `accepted` bid; the review is tied to that bid's
+  attorney. One review per case (409 `REVIEW_ALREADY_EXISTS`, also for a
+  concurrent UQ violation). `Idempotency-Key` is **required** here
+  (`RequireIdempotencyKeyGuard` → 400 `IDEMPOTENCY_KEY_REQUIRED`) and
+  replayed by `IdempotencyInterceptor`.
+- `PATCH /reviews/:id` (author): within `review.edit_window_days` (default 14)
+  of creation, only while `published`; sets `edited_at`. No delete endpoint.
+- `GET /attorneys/:id/reviews` — published only, newest first, keyset cursor
+  (`meta.nextCursor`, `limit` 1..50, default 20). Public shape: no case id,
+  no client id/avatar; reviewer shown as "Anna K." (`authorDisplayName`).
+  404 for a missing, deleted or suspended attorney.
+- `GET /attorneys/:id/reviews/summary` — `ratingAvg` (1 decimal, null when no
+  reviews), `ratingCount`, `distribution` 5→1.
+- `POST /reviews/:id/report` (reviewed attorney only) — `reports` row
+  (`target_type = review`, status `open`); repeating while open returns the
+  same report.
+- Rating: `attorney_profiles.rating_avg/rating_count` recalculated by one SQL
+  statement inside the same `withTxRetry` transaction on create, edit and
+  moderation (`review-rating.ts`).
+- `ReviewModerationService.setStatus` (for file 06): hide / remove / restore,
+  recalculation and an `audit_log` row in one transaction. No HTTP route yet.
+- `ReviewsService.requestReview` (for file 04's case closing): emits
+  `review_requested` to the client.
+
+**Notifications seam** — `modules/notifications`: `NotificationsService.emit
+({type, recipientId, payload}, tx?)` persists a `notifications` row with the
+docs/05 §9.2 category (`new_message` is never stored). `review_received` goes
+to the attorney in the create transaction. File 05 adds settings, dedupe,
+realtime, push and email behind the same method.
+
+**Jobs (`cron` queue)**
+- `reviews.reminder` (daily 16:00 UTC): one `review_requested` reminder
+  (`payload.reminder = true`) for cases closed `review.reminder_after_days`
+  (default 7) to +3 days ago, with no review and no earlier reminder.
+- `reviews.rating-reconcile` (nightly 04:15 UTC): recomputes rating counters
+  with the same SQL expression and fixes drift (§7.5).
+- The worker process now imports `AppSettingsModule`.
+
+**Error codes (API + app, en/ru)**: `REVIEW_CASE_NOT_CLOSED`,
+`REVIEW_NO_ACCEPTED_BID`, `REVIEW_ALREADY_EXISTS`,
+`REVIEW_EDIT_WINDOW_EXPIRED`, `REVIEW_NOT_EDITABLE` (all 409). Keys in
+`apps/api/prisma/seed/pending_keys/stage-3-7.csv`.
+
+**Contract**: `openapi.json` and the Dart client regenerated
+(`ReviewsClient`, review DTOs, `ReportReason`, `ReviewStatus`).
+
+**Notes**: no schema change. There is no `cases(status, closed_at)` index, so
+the reminder sweep scans closed cases; file 04 owns that table's indexes.
+
+## Stage 3.8: Flutter — verification wizard and status screen — docs/03 §2, §6, §8, §11 — 2026-09-27
+
+**Mobile (`apps/mobile/lib/features/verification`)**
+- `/verification` (was a placeholder) → `VerificationStatusScreen` on
+  `GET /verification/me`: start (what is needed + "Start verification"),
+  saved draft ("N of M parts complete", Continue), pending (submitted → in
+  review → decision timeline), `needs_more_info` (verifier message + "Add
+  information"), rejected (localized `verification.reject.<code>` + verifier
+  comment + per-license reasons + "Submit a new request", disabled with a
+  message when the 30-day limit is used), verified (blue check, license
+  statuses, "Add a state"), suspended; skeleton / error + Retry / offline
+  (auto-reload on reconnect) / pull-to-refresh.
+- `/verification/wizard` → `VerificationWizardScreen`: intro → licenses
+  (several states; add sheet with state picker, bar number with the API's
+  pattern, optional expiry; remove with confirm) → identity document (driver
+  license / passport / state ID, front + back where needed) → selfie (camera
+  only) → review (summary with Edit links, missing-items list, comment for
+  the reviewer ≤500, autosaved via PATCH) → submit. Animated stepper (gold
+  rail, tappable done steps, "Step N of M"), step slide/fade transitions,
+  all motion off under reduce-motion. Identity/selfie steps are skipped for
+  an already verified attorney adding a state (`identityRequired`).
+- Draft lives on the server: reopening resumes at the first incomplete step
+  (`resumeStep`), so closing the app at step 3 returns to step 3 with the
+  uploaded files. An answer to `needs_more_info` opens at review with the
+  verifier's message; files can only be added (up to 3 per document).
+- Uploads: `POST /files/presign` (sha256, purpose) → direct multipart POST
+  to storage through a bare Dio (`storageUploadDioProvider`, no bearer
+  token) with progress bar and cancel → `POST /files/:id/confirm` → poll
+  `GET /files/:id` until the scan leaves `pending` (timeout → retry that
+  re-polls without re-uploading) → attach. Infected/failed files are marked
+  on the card and can only be removed; any unfinished or failed upload blocks
+  submit with a clear message; `VERIFICATION_INCOMPLETE.details.missing` is
+  shown as a list.
+- In-app camera (`camera` package) with a guide overlay (ID-1 card frame,
+  page frame, face oval; breathing gold outline, static under
+  reduce-motion), shot review (Retake / Use photo), denied/unavailable
+  states. Files from the photo library / Files via `file_picker` (PDF allowed
+  only for licenses).
+- Guard: `/verification/wizard` is reachable from the onboarding
+  verification step like `/verification`. The Mine (Cases) tab CTA already
+  pushes `/verification`; stage 3.9 owns the tab gates.
+- Removed `VerificationPlaceholderScreen`, its keys and goldens.
+
+**Platform**
+- iOS: `NSCameraUsageDescription`, `NSPhotoLibraryUsageDescription`, localized
+  in new `en.lproj` / `ru.lproj` `InfoPlist.strings` (registered in the Xcode
+  project, `ru` added to known regions; texts = keys `permission.*.ios`).
+- Android: `CAMERA` permission, camera feature optional.
+- New dependencies: `camera`, `file_picker`.
+
+**Contract issue (not changed, reported)** — the generated
+`AddLicenseDto.expiresAt` is a `DateTime` serialized as a full ISO timestamp,
+but the API accepts only `YYYY-MM-DD`; the app sends that endpoint as a plain
+map (response still parsed with the generated envelope). Fix in the API
+schema (`format: date` → string) and regenerate.
+
+**Keys**: 154 new en+ru keys (`verification.*`, `permission.*.ios`) in
+static_translator.dart and `apps/api/prisma/seed/pending_keys/stage-3-8.csv`.
+
+**Tests**: acceptance widget tests (two-state wizard; close at step 3 and
+resume; needs_more_info re-upload + resubmit; rejected reason + new request,
+limit reached; unfinished and infected upload block submit), controller
+unit tests (resume, polling, timeout/retry, cancel, infected, too large,
+missing items), repository tests (date format, Idempotency-Key, sha256,
+storage POST without auth), goldens light+dark for 6 wizard views and 9
+status views + infected card, 200% text scale, reduce-motion.
+
+## Stage 3.9: Flutter — practices, profiles, reviews — docs/03 §3–§8, §11 — 2026-09-27
+
+**Mobile (`apps/mobile`, feature `profile`)** — all network calls through the
+generated `lawbid_api` clients on the app's `dio` (`guardApiCall`), domain
+models in `features/profile/domain`, repositories swappable in tests.
+
+- **Public attorney profile** `/lawyer/:username` (§4.2), also the landing of
+  the `lawbid.app/lawyer/:username` deep link (placeholder replaced): header
+  card (photo, @username + blue check from `verifiedBadge` §6.3, Posts /
+  Followers / Following), gold rating card (name, half-stars, count, number;
+  "New — no reviews" with empty stars and a dash), "Attorney" chip + bio,
+  chip rows (firm, practices grouped by category with a full-list sheet,
+  verified license states, languages), Edit+Share (own) / Follow+Share
+  (others; Follow is a file-05 stub, no "Message"), Posts / Reviews tabs.
+  Reviews tab: summary with animated 5→1 distribution, cursor-paginated
+  "Anna K." cards (`Edited` label), report action on one's own profile
+  (`POST /reviews/:id/report`). 404 (unknown / suspended / a client) →
+  "Profile unavailable". Share copies the link to the clipboard.
+- **Profile tab**: attorney → own public profile (+ "Complete verification"
+  banner before verification); client → private profile (§5: photo, name,
+  state, "My cases" with lock + "Visible only to you" + empty state).
+- **Edit**: attorney (§4.1: photo, name 1–50 with re-check hint once
+  verified, @username with debounced availability check and 30-day cooldown
+  message, bio ≤ 300, firm ≤ 80, languages, practices link, licenses with
+  status); client (name, photo, state, languages, contact method + note).
+- **Photo upload** (`AvatarUploadController`): image_picker (1024 px) → magic
+  bytes / 5 MB check → `POST /files/presign` → multipart POST to storage via
+  a bare `storageDioProvider` (no auth headers) with progress ring →
+  `POST /files/:id/confirm` → scan polling → `PATCH /users/me {avatarFileId}`;
+  Retry reruns with the same bytes. Also added as the one new field of the
+  attorney onboarding profile step (OQ-012), in its existing style.
+- **My practices** `/profile/practices` (§3.2): search, expandable categories,
+  "Select all"/"Clear all", checkboxes, animated selected chips, Save =
+  `PUT /attorneys/me/practice-areas`. Locked with an explanation before
+  verification.
+- **My contacts** (Settings → My contacts, §5): confirmed phone/email with
+  status, change via the existing Account flows; clients also edit contact
+  preferences (`PATCH /users/me/contact-preferences`).
+- **Review form** `/profile/review/:caseId` (§7): star picker, text ≤ 1000,
+  mandatory notice, create (Idempotency-Key) → published preview "Anna K." →
+  edit within `editableUntil` (14 days), read-only afterwards. Reachable from
+  a non-production placeholder entry on the client profile until file 04
+  lists closed cases.
+- **Gates**: `attorneyNeedsVerification` (unverified / pending / rejected /
+  suspended). Cases tab shows "Complete verification"; `AppRouterGuard`
+  redirects "+" (`/create`, Post to feed) to `/create/verification-required`;
+  both lead to `/verification` (stage 3.8).
+- Design: navy/gold, serif headings, staggered entrances, star fill and
+  distribution animations, chip pop-in, tab indicator slide, Hero-tagged
+  avatars, skeletons, pull-to-refresh — all instant under reduce-motion.
+- `CurrentUser.avatarUrl` added (from `MeDto`). iOS photo/camera usage
+  strings added. New dependency: `image_picker`.
+- Tests: `test/features/profile/profile_screens_test.dart` (29 widget/unit
+  tests) and goldens (light+dark) for the public profile with reviews and
+  "New — no reviews", practices, review card, review form. Updated goldens:
+  onboarding attorney profile step (photo field), Cases gate, settings.
+- Translation keys: `apps/api/prisma/seed/pending_keys/stage-3-9.csv`.
+
+**API gaps found (not changed):** the public attorney profile has no avatar
+URL (own photo is taken from `GET /users/me`); there is no endpoint to read
+the client's own review of a case (the form can edit only a review it just
+created or is handed); the server does not require the attorney photo that
+§4.1 calls mandatory.
+
+## Stage 3.9 follow-up: gaps found by the mobile work — docs/03 §4.1, §4.2, §7.2 — 2026-09-27
+
+**API**
+- `GET /attorneys/:username` now returns `avatarUrl` and `avatarUrl256`
+  (signed media links, 1 h). Built by `FilesService.avatarUrls()`: only a
+  clean, live `avatar` file is signed — verification documents/selfies can
+  never come out of this path even if `avatar_file_id` pointed at one.
+- `GET /cases/:caseId/review` — the client's own review of a case (404
+  `NOT_FOUND` for anyone else or when there is none). `ReviewDto` gains
+  `editable` (published and before `editableUntil`).
+- Attorney photo is mandatory (OQ-012 update): `missing` gains `photo`
+  (attorney without a clean own avatar, `FilesService.isCleanAvatar()`);
+  onboarding completion answers 403 `ONBOARDING_INCOMPLETE` until it is set.
+- Contract regenerated (`packages/api-contract`).
+
+**Mobile**
+- Public attorney profile header shows the photo (256 px variant, else the
+  main one) for every viewer; the own-profile `/users/me` workaround is gone.
+- Review form opened without a review loads `GET /cases/:caseId/review`
+  (skeleton / offline / error + Retry) and opens it for editing; the
+  server's `editable` flag locks moderated reviews.
+- `MissingRequirement.photo`: the router guard keeps an attorney on the
+  profile step; the photo row shows "Add a photo — it is required for
+  attorneys." after Continue (pre-app design otherwise unchanged).
+- New key: `onboarding.profile.error.photoRequired` (en + ru).
+
+**Tests**: unit (files, profiles, reviews, onboarding), e2e (files: public
+photo + 256 px + no selfie leak; reviews: GET own review; onboarding /
+profiles-onboarding: `photo` blocks completion), Flutter widget + guard tests.
+
+**Owner device test follow-ups**
+- An onboarding action refused with `ONBOARDING_INCOMPLETE` /
+  `CLIENT_CONTACTS_INCOMPLETE` (e.g. the tour's "Get started" for an
+  attorney without a photo) re-reads `GET /users/me` and moves the user to
+  the step that owns the missing item (`AppRouterGuard.forwardRoute`); that
+  step shows the localized reason (photo: "Add a photo — it is required for
+  attorneys.") and flags its required fields (`onboardingBlockerProvider`).
+- Role screen with a role already set: the other card is disabled
+  (`AppSizes.disabledOpacity`), a note says the role can't be changed
+  (`onboarding.role.locked`, en + ru), Continue moves on without an API call.
