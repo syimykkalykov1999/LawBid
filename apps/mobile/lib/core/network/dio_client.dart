@@ -44,3 +44,17 @@ final dioProvider = Provider<Dio>((ref) {
   );
   return dio;
 });
+
+/// Bare [Dio] for direct uploads to object storage (presigned S3 POST,
+/// docs/03 §2.2): NO app interceptors — the bearer token, app headers and
+/// the API retry policy must never reach the storage host. Only upload
+/// repositories use it; overridable in tests.
+final storageDioProvider = Provider<Dio>(
+  (ref) => Dio(
+    BaseOptions(
+      connectTimeout: const Duration(seconds: 15),
+      sendTimeout: const Duration(seconds: 60),
+      receiveTimeout: const Duration(seconds: 30),
+    ),
+  ),
+);

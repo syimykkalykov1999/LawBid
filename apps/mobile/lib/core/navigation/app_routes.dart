@@ -37,6 +37,33 @@ abstract final class AppRoutes {
   /// verification flow exists. Pushed on the ROOT navigator.
   static const verification = '/verification';
 
+  // --- docs/03 stage 3.9 (practices, profiles, reviews) — all pushed on
+  // the ROOT navigator like [profileSettings].
+
+  /// Edit own profile (attorney: docs/03 §4.1; client: §5).
+  static const profileEdit = '/profile/edit';
+
+  /// "My practices" (docs/03 §3.2) — attorneys only; locked before
+  /// verification.
+  static const practices = '/profile/practices';
+
+  /// Settings → "My contacts" (docs/03 §5).
+  static const myContacts = '/profile/settings/contacts';
+
+  /// Review form for a closed case (docs/03 §7). File 04 links closed
+  /// cases here; `extra` may carry an existing `Review` to edit.
+  static const reviewForm = '/profile/review/:caseId';
+  static String reviewFormFor(String caseId) =>
+      '/profile/review/${Uri.encodeComponent(caseId)}';
+
+  /// "Complete verification" gate for "+" → Post to feed (docs/03 §6.4),
+  /// the redirect target of AppRouterGuard for unverified attorneys.
+  static const verificationRequired = '/create/verification-required';
+
+  /// Public attorney profile — same path as the `lawbid.app/lawyer/:username`
+  /// deep link (docs/01 §12, DeepLinkRoutes.lawyerPath).
+  static String lawyer(String username) => '/lawyer/${Uri.encodeComponent(username)}';
+
   /// In-app legal document viewer (`/legal/terms`, `/legal/privacy`,
   /// `/legal/disclaimer`), fed by `/config/bootstrap` legal_documents.
   static const legalPrefix = '/legal/';

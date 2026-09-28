@@ -30,6 +30,7 @@ abstract final class CurrentUserMapper {
       phoneVerified: dto.phoneVerified,
       uiLanguage: dto.uiLanguage,
       theme: dto.theme.json,
+      avatarUrl: dto.avatarUrl,
       requiredConsentsGranted: dto.requiredConsentsGranted,
       onboarding: OnboardingProgress(
         currentStep: OnboardingStepId.tryParse(dto.onboarding.currentStep),

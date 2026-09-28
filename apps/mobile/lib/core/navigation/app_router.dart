@@ -19,7 +19,13 @@ import 'package:lawbid/features/onboarding/presentation/screens/legal_document_s
 import 'package:lawbid/features/onboarding/presentation/screens/splash_screen.dart';
 import 'package:lawbid/features/onboarding/presentation/screens/verification_placeholder_screen.dart';
 import 'package:lawbid/features/settings/active_devices/presentation/active_devices_screen.dart';
+import 'package:lawbid/features/profile/domain/profile_models.dart';
+import 'package:lawbid/features/profile/presentation/screens/client_profile_edit_screen.dart';
 import 'package:lawbid/features/profile/presentation/screens/delete_account_screen.dart';
+import 'package:lawbid/features/profile/presentation/screens/my_contacts_screen.dart';
+import 'package:lawbid/features/profile/presentation/screens/practices_screen.dart';
+import 'package:lawbid/features/profile/presentation/screens/review_form_screen.dart';
+import 'package:lawbid/features/profile/presentation/screens/verification_required_screen.dart';
 import 'package:lawbid/features/profile/presentation/screens/profile_screen.dart';
 import 'package:lawbid/features/profile/presentation/screens/settings_screen.dart';
 import 'package:lawbid/features/settings/account/account_routes.dart';
@@ -128,6 +134,43 @@ GoRouter appRouter(Ref ref) {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) =>
             AppPageTransitions.push(state, const DeleteAccountScreen()),
+      ),
+      // docs/03 stage 3.9 — practices, profile editing, contacts, reviews,
+      // and the "+" → Post to feed verification gate.
+      GoRoute(
+        path: AppRoutes.profileEdit,
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            AppPageTransitions.push(state, const ProfileEditScreen()),
+      ),
+      GoRoute(
+        path: AppRoutes.practices,
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            AppPageTransitions.push(state, const PracticesScreen()),
+      ),
+      GoRoute(
+        path: AppRoutes.myContacts,
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            AppPageTransitions.push(state, const MyContactsScreen()),
+      ),
+      GoRoute(
+        path: AppRoutes.reviewForm,
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => AppPageTransitions.push(
+          state,
+          ReviewFormScreen(
+            caseId: state.pathParameters['caseId'] ?? '',
+            existing: state.extra is Review ? state.extra! as Review : null,
+          ),
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.verificationRequired,
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            AppPageTransitions.modal(state, const VerificationRequiredScreen()),
       ),
       GoRoute(
         path: AppRoutes.verification,

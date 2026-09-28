@@ -143,6 +143,7 @@ class CurrentUser {
     required this.missing,
     this.clientProfile,
     this.attorneyProfile,
+    this.avatarUrl,
   });
 
   factory CurrentUser.fromJson(Map<String, dynamic> json) {
@@ -172,6 +173,7 @@ class CurrentUser {
       phoneVerified: json['phoneVerified'] as bool? ?? false,
       uiLanguage: json['uiLanguage'] as String? ?? 'en',
       theme: json['theme'] as String?,
+      avatarUrl: json['avatarUrl'] as String?,
       requiredConsentsGranted:
           json['requiredConsentsGranted'] as bool? ?? false,
       onboarding: OnboardingProgress.fromJson(
@@ -211,6 +213,10 @@ class CurrentUser {
 
   /// Saved attorney_profiles row; null before the profile step.
   final AttorneyProfile? attorneyProfile;
+
+  /// Short-lived signed link to the profile photo (docs/03 §4.1, 1024 px
+  /// JPEG); null when no photo is set.
+  final String? avatarUrl;
 
   bool get isClient => role == UserRole.client;
   bool get isAttorney => role == UserRole.attorney;

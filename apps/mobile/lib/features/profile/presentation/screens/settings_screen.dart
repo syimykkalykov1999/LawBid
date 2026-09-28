@@ -59,6 +59,12 @@ class SettingsScreen extends ConsumerWidget {
             label: t.t('settings.account'),
             onTap: () => context.push(AccountRoutes.account),
           ),
+          // docs/03 §5 (stage 3.9): confirmed contacts + contact preferences.
+          AppListRow(
+            icon: Icons.contact_phone_outlined,
+            label: t.t('contacts.title'),
+            onTap: () => context.push(AppRoutes.myContacts),
+          ),
           AppListRow(
             icon: Icons.shield_outlined,
             label: t.t('settings.security'),

@@ -88,6 +88,9 @@ dependencies:
   # packages/api-contract/generate.sh, never hand-edit.
   lawbid_api:
     path: ../../packages/api-contract/dart
+  # docs/03 §4.1 profile photo (stage 3.9, OQ-012): gallery/camera pick,
+  # downscaled to 1024 px before the presign → S3 POST → confirm upload.
+  image_picker: ^1.2.3
 
 dev_dependencies:
   flutter_test:
