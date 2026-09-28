@@ -144,7 +144,13 @@ void main() {
   });
 
   group('profile step sends structured fields (client_profiles / attorney_profiles)', () {
-    CurrentUser withProfile(CurrentUser base, {ClientProfile? client, AttorneyProfile? attorney}) => CurrentUser(
+    CurrentUser withProfile(
+      CurrentUser base, {
+      ClientProfile? client,
+      AttorneyProfile? attorney,
+      Set<MissingRequirement> missing = const {},
+    }) =>
+        CurrentUser(
           id: base.id,
           role: base.role,
           status: base.status,
@@ -158,7 +164,7 @@ void main() {
           theme: base.theme,
           requiredConsentsGranted: base.requiredConsentsGranted,
           onboarding: base.onboarding,
-          missing: const {},
+          missing: missing,
           clientProfile: client,
           attorneyProfile: attorney,
         );
@@ -235,6 +241,56 @@ void main() {
         'languages': ['en'],
         'licensedStates': ['CA', 'NY'],
       });
+      await _tearDownDrift(tester);
+    });
+  });
+
+  group('attorney photo is mandatory (docs/03 §4.1, OQ-012)', () {
+    testWidgets('no photo: Continue flags the photo row, nothing is sent', (tester) async {
+      tester.view.physicalSize = const Size(390, 1600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final base = meFixture(
+        role: UserRole.attorney,
+        consents: true,
+        phone: '+15551234567',
+        phoneVerified: true,
+        firstName: 'Ann',
+        lastName: 'Lee',
+        step: OnboardingStepId.profile,
+      );
+      final me = CurrentUser(
+        id: base.id,
+        role: base.role,
+        status: base.status,
+        firstName: 'Ann',
+        lastName: 'Lee',
+        email: base.email,
+        emailVerified: base.emailVerified,
+        phone: base.phone,
+        phoneVerified: base.phoneVerified,
+        uiLanguage: base.uiLanguage,
+        theme: base.theme,
+        requiredConsentsGranted: true,
+        onboarding: base.onboarding,
+        missing: const {MissingRequirement.photo},
+        attorneyProfile: const AttorneyProfile(
+          username: 'ann.lee',
+          languages: ['en'],
+          licensedStates: ['NY'],
+        ),
+      );
+      final repo = FakeOnboardingRepository(me);
+      final wrap = await onboardingWrapper(AppTheme.light(), user: me, repo: repo);
+      await tester.pumpWidget(wrap(const ProfileStepScreen()));
+      await _settle(tester);
+      // Before an attempt: the neutral hint, no error.
+      expect(find.text('Add a photo — it is required for attorneys.'), findsNothing);
+
+      await tester.tap(find.text('Continue'));
+      await _settle(tester);
+      expect(find.text('Add a photo — it is required for attorneys.'), findsOneWidget);
+      expect(repo.calls, isEmpty);
       await _tearDownDrift(tester);
     });
   });

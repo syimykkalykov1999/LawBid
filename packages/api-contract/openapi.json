@@ -6706,6 +6706,101 @@
         "tags": [
           "reviews"
         ]
+      },
+      "get": {
+        "operationId": "getForCase",
+        "parameters": [
+          {
+            "name": "caseId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The client's own review of a case (to edit it)",
+        "tags": [
+          "reviews"
+        ]
       }
     },
     "/reviews/{id}": {
@@ -8032,7 +8127,8 @@
           "phone_verified",
           "email_verified",
           "state",
-          "licensed_states"
+          "licensed_states",
+          "photo"
         ],
         "description": "What still blocks POST /users/me/onboarding/complete."
       },
@@ -10731,6 +10827,16 @@
             "type": "string",
             "nullable": true
           },
+          "avatarUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "Short-lived signed link to the attorney photo (1024 px JPEG); null when none."
+          },
+          "avatarUrl256": {
+            "type": "string",
+            "nullable": true,
+            "description": "Signed link to the 256 px square variant; null when none."
+          },
           "languages": {
             "type": "array",
             "items": {
@@ -10772,6 +10878,8 @@
           "lastName",
           "bio",
           "firmName",
+          "avatarUrl",
+          "avatarUrl256",
           "languages",
           "verifiedBadge",
           "licensedStates",
@@ -11162,6 +11270,10 @@
             "type": "string",
             "format": "date-time",
             "description": "Last moment the client may edit (created + review.edit_window_days)."
+          },
+          "editable": {
+            "type": "boolean",
+            "description": "True while PATCH /reviews/:id is allowed: still published and before editableUntil."
           }
         },
         "required": [
@@ -11174,7 +11286,8 @@
           "caseId",
           "attorneyId",
           "status",
-          "editableUntil"
+          "editableUntil",
+          "editable"
         ]
       },
       "CreateReviewDto": {

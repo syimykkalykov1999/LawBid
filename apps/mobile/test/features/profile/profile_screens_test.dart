@@ -16,6 +16,7 @@ import 'package:lawbid/features/onboarding/application/current_user_controller.d
 import 'package:lawbid/features/onboarding/domain/current_user.dart';
 import 'package:lawbid/features/profile/application/avatar_upload_controller.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
+import 'package:lawbid/features/profile/data/profile_mappers.dart';
 import 'package:lawbid/features/profile/data/avatar_upload_repository.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/screens/attorney_profile_edit_screen.dart';
@@ -27,6 +28,8 @@ import 'package:lawbid/features/profile/presentation/screens/verification_requir
 import 'package:lawbid/features/profile/presentation/widgets/attorney_profile_view.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_avatar.dart';
 import 'package:lawbid/features/profile/presentation/widgets/review_widgets.dart';
+
+import 'package:lawbid_api/lawbid_api.dart' as api;
 
 import 'profile_fakes.dart';
 
@@ -85,6 +88,49 @@ void main() {
       expect(find.text('Edit'), findsNothing);
       expect(find.text('Message'), findsNothing); // chat opens from a case only
       await _teardown(tester);
+    });
+
+    testWidgets('header shows the attorney photo from GET /attorneys/:username, not initials', (tester) async {
+      await _pumpScreen(
+        tester,
+        const AttorneyProfileScreen(username: 'jane.doe'),
+        user: clientMe(),
+        overrides: profileOverrides(
+          attorneys: FakeAttorneyRepo(profile: attorneyProfile(avatarUrl: 'https://media.test/jane_w256')),
+        ),
+      );
+      final header = tester.widget<ProfileAvatar>(find.byType(ProfileAvatar).first);
+      expect(header.url, 'https://media.test/jane_w256');
+      // The test binding answers every HTTP request with 400; the failed
+      // image load is expected here.
+      tester.takeException();
+      await _teardown(tester);
+      tester.takeException();
+    });
+
+    test('public profile mapper prefers the 256 px variant, falls back to the main photo', () {
+      Map<String, Object?> json(String? main, String? small) => {
+            'id': 'att-1',
+            'username': 'jane.doe',
+            'firstName': 'Jane',
+            'lastName': 'Doe',
+            'bio': null,
+            'firmName': null,
+            'avatarUrl': main,
+            'avatarUrl256': small,
+            'languages': ['en'],
+            'verifiedBadge': true,
+            'licensedStates': <Object?>[],
+            'practiceAreas': <Object?>[],
+            'rating': {'avg': 0, 'count': 0},
+            'counters': {'posts': 0, 'followers': 0, 'following': 0},
+            'isSelf': false,
+          };
+      PublicAttorneyProfile map(String? main, String? small) =>
+          ProfileMappers.publicProfile(api.PublicAttorneyProfileDto.fromJson(json(main, small)));
+      expect(map('https://m/a', 'https://m/a_w256').avatarUrl, 'https://m/a_w256');
+      expect(map('https://m/a', null).avatarUrl, 'https://m/a');
+      expect(map(null, null).avatarUrl, isNull);
     });
 
     testWidgets('own profile shows Edit + Share instead of Follow', (tester) async {
@@ -322,6 +368,79 @@ void main() {
       expect(reviews.updated.single.$1, 'new');
       expect(reviews.updated.single.$2, 5);
       expect(find.text('Edited'), findsOneWidget);
+      await _teardown(tester);
+    });
+
+    testWidgets('opened without the review, it loads GET /cases/:caseId/review and edits it', (tester) async {
+      final reviews = FakeReviewsRepo()
+        ..own = Review(
+          id: 'r-own',
+          rating: 3,
+          body: 'Good start',
+          authorDisplayName: 'Anna K.',
+          createdAt: kNow.subtract(const Duration(days: 2)),
+          editableUntil: kNow.add(const Duration(days: 12)),
+          editable: true,
+        );
+      await _pumpScreen(
+        tester,
+        const ReviewFormScreen(caseId: 'case-1'),
+        user: clientMe(),
+        overrides: profileOverrides(reviews: reviews),
+      );
+      expect(reviews.ownRequests, ['case-1']);
+      expect(find.text('Good start'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('review-edit')));
+      await tester.pumpAndSettle();
+      // The form is prefilled with the stored review.
+      final field = tester.widget<EditableText>(
+        find.descendant(of: find.byKey(const ValueKey('review-body')).first, matching: find.byType(EditableText)),
+      );
+      expect(field.controller.text, 'Good start');
+      await tester.tap(find.byKey(const ValueKey('star-input-5')));
+      await tester.tap(find.byKey(const ValueKey('review-submit')));
+      await tester.pumpAndSettle();
+      expect(reviews.created, isEmpty);
+      expect(reviews.updated.single, ('r-own', 5, 'Good start'));
+      await _teardown(tester);
+    });
+
+    testWidgets('a review the server marks not editable is read-only', (tester) async {
+      final reviews = FakeReviewsRepo()
+        ..own = Review(
+          id: 'r-hidden',
+          rating: 2,
+          body: 'meh',
+          authorDisplayName: 'Anna K.',
+          createdAt: kNow.subtract(const Duration(days: 1)),
+          editableUntil: kNow.add(const Duration(days: 13)),
+          editable: false,
+        );
+      await _pumpScreen(
+        tester,
+        const ReviewFormScreen(caseId: 'case-1'),
+        user: clientMe(),
+        overrides: profileOverrides(reviews: reviews),
+      );
+      expect(find.byKey(const ValueKey('review-locked')), findsOneWidget);
+      expect(find.byKey(const ValueKey('review-edit')), findsNothing);
+      await _teardown(tester);
+    });
+
+    testWidgets('loading the own review failed → error + Retry reloads it', (tester) async {
+      final reviews = FakeReviewsRepo()..ownError = offline;
+      await _pumpScreen(
+        tester,
+        const ReviewFormScreen(caseId: 'case-1'),
+        user: clientMe(),
+        overrides: profileOverrides(reviews: reviews),
+      );
+      expect(find.byType(AppOfflineState), findsOneWidget);
+      reviews.ownError = null;
+      await tester.tap(find.text('Retry'));
+      await tester.pumpAndSettle();
+      expect(reviews.ownRequests, ['case-1', 'case-1']);
+      expect(find.byKey(const ValueKey('review-submit')), findsOneWidget);
       await _teardown(tester);
     });
 

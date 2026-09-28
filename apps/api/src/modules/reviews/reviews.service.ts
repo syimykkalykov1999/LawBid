@@ -144,6 +144,27 @@ export class ReviewsService {
     }
   }
 
+  /**
+   * GET /cases/:caseId/review — the client's own review of that case, so
+   * the edit form can load it (§7.2). Deny by default: anyone but the
+   * case's client (and a case without a review) gets 404 NOT_FOUND.
+   */
+  async getForCase(user: RequestUser, caseId: string): Promise<ReviewDto> {
+    const review = await this.prisma.review.findUnique({
+      where: { case_id: caseId },
+      include: { client: CLIENT_NAME, case: { select: { client_id: true } } },
+    });
+    if (
+      !review ||
+      review.client_id !== user.sub ||
+      review.case.client_id !== user.sub
+    ) {
+      throw notFound('Review');
+    }
+    const windowDays = await this.settings.number('review.edit_window_days');
+    return toOwnDto(review, windowDays);
+  }
+
   /** PATCH /reviews/:id — the author, within the edit window (§7.2). */
   async update(
     user: RequestUser,
@@ -373,13 +394,19 @@ function toPublicDto(review: ReviewWithClient): PublicReviewDto {
   };
 }
 
-function toOwnDto(review: ReviewWithClient, windowDays: number): ReviewDto {
+function toOwnDto(
+  review: ReviewWithClient,
+  windowDays: number,
+  now = new Date(),
+): ReviewDto {
+  const until = editableUntil(review.created_at, windowDays);
   return {
     ...toPublicDto(review),
     caseId: review.case_id,
     attorneyId: review.attorney_id,
     status: review.status,
-    editableUntil: editableUntil(review.created_at, windowDays).toISOString(),
+    editableUntil: until.toISOString(),
+    editable: review.status === 'published' && now <= until,
   };
 }
 

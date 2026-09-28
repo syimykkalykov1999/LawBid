@@ -191,6 +191,50 @@ describe('ReviewsService.create (docs/03 §7.1)', () => {
   });
 });
 
+describe('ReviewsService.getForCase (own review for editing, §7.2)', () => {
+  const withCase = (o: Record<string, unknown> = {}) => ({
+    ...review(o),
+    case: { client_id: 'client-1' },
+  });
+
+  it('returns the client own review with the edit deadline', async () => {
+    const { prisma, service } = setup();
+    prisma.review.findUnique.mockResolvedValue(withCase());
+    const dto = await service.getForCase(CLIENT, 'case-1');
+    expect(dto).toMatchObject({
+      id: 'r1',
+      caseId: 'case-1',
+      rating: 5,
+      editable: true,
+    });
+    expect(
+      new Date(dto.editableUntil).getTime() - new Date(dto.createdAt).getTime(),
+    ).toBe(14 * DAY);
+  });
+
+  it('is not editable after the window or once moderated', async () => {
+    const { prisma, service } = setup();
+    prisma.review.findUnique.mockResolvedValue(
+      withCase({ created_at: new Date(Date.now() - 15 * DAY) }),
+    );
+    expect((await service.getForCase(CLIENT, 'case-1')).editable).toBe(false);
+    prisma.review.findUnique.mockResolvedValue(withCase({ status: 'hidden' }));
+    expect((await service.getForCase(CLIENT, 'case-1')).editable).toBe(false);
+  });
+
+  it('404 for anyone but the client of the case, and when there is no review', async () => {
+    const { prisma, service } = setup();
+    prisma.review.findUnique.mockResolvedValue(withCase());
+    expect(
+      await codeOf(service.getForCase({ ...CLIENT, sub: 'other' }, 'case-1')),
+    ).toBe('NOT_FOUND');
+    prisma.review.findUnique.mockResolvedValue(null);
+    expect(await codeOf(service.getForCase(CLIENT, 'case-1'))).toBe(
+      'NOT_FOUND',
+    );
+  });
+});
+
 describe('ReviewsService.update (edit window, §7.2)', () => {
   it('edits within the window, sets edited_at and recalculates', async () => {
     const { tx, service } = setup();

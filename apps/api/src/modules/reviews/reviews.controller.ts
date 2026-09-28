@@ -91,6 +91,19 @@ export class ReviewsController {
     return this.reviews.create(user, params.caseId, dto);
   }
 
+  @Get('cases/:caseId/review')
+  @ApiOperation({
+    summary: "The client's own review of a case (to edit it)",
+  })
+  @ApiEnvelopeResponse(ReviewDto)
+  @ApiErrors({ 400: [E.VALIDATION_ERROR], 404: [E.NOT_FOUND] })
+  getForCase(
+    @CurrentUser() user: RequestUser,
+    @Param() params: CaseIdParamDto,
+  ): Promise<ReviewDto> {
+    return this.reviews.getForCase(user, params.caseId);
+  }
+
   @Patch('reviews/:id')
   @ApiOperation({
     summary: 'Edit own review within review.edit_window_days (client)',

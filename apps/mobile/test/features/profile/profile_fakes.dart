@@ -67,6 +67,7 @@ PublicAttorneyProfile attorneyProfile({
   bool withReviews = true,
   bool verified = true,
   String username = 'jane.doe',
+  String? avatarUrl,
 }) =>
     PublicAttorneyProfile(
       id: 'att-1',
@@ -86,6 +87,7 @@ PublicAttorneyProfile attorneyProfile({
       rating: withReviews ? const RatingInfo(average: 4.5, count: 12) : const RatingInfo(average: null, count: 0),
       counters: const ProfileCounters(posts: 24, followers: 1280, following: 36),
       isSelf: isSelf,
+      avatarUrl: avatarUrl,
     );
 
 const practiceTree = [
@@ -195,6 +197,18 @@ class FakeReviewsRepo implements ReviewsRepository {
   final updated = <(String, int, String?)>[];
   final reported = <(String, ReviewReportReason)>[];
   Object? createError;
+
+  /// `GET /cases/:caseId/review` answer (null = none yet) / failure.
+  Review? own;
+  Object? ownError;
+  final ownRequests = <String>[];
+
+  @override
+  Future<Review?> ownForCase(String caseId) async {
+    ownRequests.add(caseId);
+    if (ownError != null) throw ownError!;
+    return own;
+  }
 
   @override
   Future<ReviewPage> list(String attorneyId, {String? cursor}) async {

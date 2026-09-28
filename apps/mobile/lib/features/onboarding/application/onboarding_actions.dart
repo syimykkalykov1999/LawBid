@@ -25,6 +25,35 @@ class StepActionState {
   final Object? error;
 }
 
+/// Why the server refused an onboarding action with `ONBOARDING_INCOMPLETE`
+/// / `CLIENT_CONTACTS_INCOMPLETE`, and the step the user was moved to so
+/// they can fix it. That step shows [error] (localized, e.g. "Add a photo")
+/// and flags its required fields; cleared by the next successful action.
+@immutable
+class OnboardingBlocker {
+  const OnboardingBlocker({required this.error, required this.step});
+
+  final ApiException error;
+  final OnboardingStepId step;
+}
+
+class OnboardingBlockerController extends Notifier<OnboardingBlocker?> {
+  @override
+  OnboardingBlocker? build() => null;
+
+  void set(OnboardingBlocker? value) => state = value;
+}
+
+/// Kept alive across screens: set on one step, shown on another.
+final onboardingBlockerProvider =
+    NotifierProvider<OnboardingBlockerController, OnboardingBlocker?>(
+        OnboardingBlockerController.new);
+
+bool isOnboardingIncomplete(Object? error) =>
+    error is ApiException &&
+    (error.code == ApiErrorCodes.onboardingIncomplete ||
+        error.code == ApiErrorCodes.clientContactsIncomplete);
+
 /// Server mutations behind every onboarding step (docs/01_FOUNDATION_AUTH
 /// .md §11). Each one ends by handing the fresh MeView to
 /// [CurrentUserController]; AppRouterGuard then moves the user to
@@ -45,20 +74,43 @@ class OnboardingActions extends Notifier<StepActionState> {
     state = const StepActionState(busy: true);
     try {
       final user = await body();
+      ref.read(onboardingBlockerProvider.notifier).set(null);
       if (user != null) {
         ref.read(currentUserControllerProvider.notifier).apply(user);
         // Move forward explicitly; the guard alone keeps a user on an
         // already-saved step because going back is allowed.
-        final router = ref.read(appRouterProvider);
-        final dest = AppRouterGuard.forwardRoute(user);
-        if (router.state.matchedLocation != dest) router.go(dest);
+        _go(AppRouterGuard.forwardRoute(user));
       }
       if (ref.mounted) state = const StepActionState();
       return true;
     } catch (e) {
       if (ref.mounted) state = StepActionState(error: e);
+      if (e is ApiException && isOnboardingIncomplete(e)) {
+        await _sendToMissing(e);
+      }
       return false;
     }
+  }
+
+  void _go(String dest) {
+    final router = ref.read(appRouterProvider);
+    if (router.state.matchedLocation != dest) router.go(dest);
+  }
+
+  /// The server says something required is missing (e.g. the attorney
+  /// photo, docs/03 §4.1): re-read me and move the user to the step that
+  /// owns it, carrying the reason there (owner device test 2026-09-27:
+  /// the tour's "Get started" used to just stay put).
+  Future<void> _sendToMissing(ApiException error) async {
+    final user = await ref.read(currentUserControllerProvider.notifier).load();
+    if (user == null) return;
+    final step = AppRouterGuard.requiredStep(user);
+    if (step != null) {
+      ref
+          .read(onboardingBlockerProvider.notifier)
+          .set(OnboardingBlocker(error: error, step: step));
+    }
+    _go(AppRouterGuard.forwardRoute(user));
   }
 
   void clearError() {
@@ -116,20 +168,9 @@ class OnboardingActions extends Notifier<StepActionState> {
   }
 
   /// `POST /users/me/onboarding/complete`. On a 403 (`CLIENT_CONTACTS_
-  /// INCOMPLETE` / `ONBOARDING_INCOMPLETE`) re-reads me so the guard sends
-  /// the user to whatever is still missing; the error stays visible.
-  Future<bool> complete() async {
-    final ok = await _run(_repo.completeOnboarding);
-    if (ok || !ref.mounted) return ok;
-    final error = state.error;
-    if (!ok &&
-        error is ApiException &&
-        (error.code == ApiErrorCodes.clientContactsIncomplete ||
-            error.code == ApiErrorCodes.onboardingIncomplete)) {
-      await ref.read(currentUserControllerProvider.notifier).load();
-    }
-    return ok;
-  }
+  /// INCOMPLETE` / `ONBOARDING_INCOMPLETE`) [_run] re-reads me and moves
+  /// the user to whatever is still missing, with the reason shown there.
+  Future<bool> complete() => _run(_repo.completeOnboarding);
 }
 
 final onboardingActionsProvider =

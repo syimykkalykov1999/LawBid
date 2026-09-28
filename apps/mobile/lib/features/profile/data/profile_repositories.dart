@@ -40,6 +40,10 @@ abstract interface class ReviewsRepository {
 
   Future<ReviewSummary> summary(String attorneyId);
 
+  /// `GET /cases/:caseId/review` — the caller's own review of that case,
+  /// or null when there is none (404 NOT_FOUND).
+  Future<Review?> ownForCase(String caseId);
+
   Future<Review> create(String caseId, {required int rating, String? body});
 
   Future<Review> update(String reviewId, {required int rating, String? body});
@@ -154,6 +158,18 @@ class ApiReviewsRepository implements ReviewsRepository {
   @override
   Future<ReviewSummary> summary(String attorneyId) async =>
       ProfileMappers.summary((await guardApiCall(() => _client.summary(id: attorneyId))).data);
+
+  @override
+  Future<Review?> ownForCase(String caseId) async {
+    try {
+      return ProfileMappers.ownReview(
+        (await guardApiCall(() => _client.getForCase(caseId: caseId))).data,
+      );
+    } on ApiException catch (e) {
+      if (e.code == ApiErrorCodes.notFound) return null;
+      rethrow;
+    }
+  }
 
   @override
   Future<Review> create(String caseId, {required int rating, String? body}) async =>

@@ -20,6 +20,8 @@ class PublicAttorneyProfileDto {
     required this.lastName,
     required this.bio,
     required this.firmName,
+    required this.avatarUrl,
+    required this.avatarUrl256,
     required this.languages,
     required this.verifiedBadge,
     required this.licensedStates,
@@ -38,6 +40,12 @@ class PublicAttorneyProfileDto {
   final String? lastName;
   final String? bio;
   final String? firmName;
+
+  /// Short-lived signed link to the attorney photo (1024 px JPEG); null when none.
+  final String? avatarUrl;
+
+  /// Signed link to the 256 px square variant; null when none.
+  final String? avatarUrl256;
   final List<String> languages;
 
   /// Blue check (docs/03 §6.3).

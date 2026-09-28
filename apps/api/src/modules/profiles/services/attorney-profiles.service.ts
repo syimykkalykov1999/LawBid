@@ -12,6 +12,7 @@ import type {
   UpdateAttorneyProfileDto,
   UsernameAvailabilityDto,
 } from '../dto/attorney-profile.dto';
+import { FilesService } from '../../files/files.service';
 import { PracticeAreasService } from './practice-areas.service';
 import { notFound, requireOwnAttorney } from './profile-access';
 
@@ -62,6 +63,7 @@ export class AttorneyProfilesService {
     private readonly prisma: PrismaService,
     private readonly settings: AppSettingsService,
     private readonly practices: PracticeAreasService,
+    private readonly files: FilesService,
   ) {}
 
   async getOwn(
@@ -252,6 +254,7 @@ export class AttorneyProfilesService {
             deleted_at: true,
             first_name: true,
             last_name: true,
+            avatar_file_id: true,
           },
         },
         licenses: {
@@ -272,6 +275,11 @@ export class AttorneyProfilesService {
     }
     const states = new Map<string, string>();
     for (const l of row.licenses) states.set(l.state.code, l.state.name);
+    // Public photo only (a clean `avatar` file); documents never.
+    const [avatar, practiceAreas] = await Promise.all([
+      this.files.avatarUrls(row.user.avatar_file_id),
+      this.practices.selectedOf(row.user_id),
+    ]);
     return {
       id: row.user_id,
       username: row.username,
@@ -279,11 +287,13 @@ export class AttorneyProfilesService {
       lastName: row.user.last_name,
       bio: row.bio,
       firmName: row.firm_name,
+      avatarUrl: avatar.url,
+      avatarUrl256: avatar.url256,
       languages: row.languages,
       verifiedBadge:
         row.verification_status === 'verified' && row.licenses.length > 0,
       licensedStates: [...states].map(([code, name]) => ({ code, name })),
-      practiceAreas: await this.practices.selectedOf(row.user_id),
+      practiceAreas,
       rating: { avg: Number(row.rating_avg), count: row.rating_count },
       counters: {
         posts: row.posts_count,

@@ -25,6 +25,7 @@ export const MISSING_REQUIREMENTS = [
   'email_verified',
   'state',
   'licensed_states',
+  'photo',
 ] as const;
 
 export class OnboardingStateDto {

@@ -85,9 +85,14 @@ class FakeOnboardingRepository implements OnboardingRepository {
     return me;
   }
 
+  /// Thrown by [completeOnboarding] when set (e.g. a 403
+  /// ONBOARDING_INCOMPLETE).
+  Object? completeError;
+
   @override
   Future<CurrentUser> completeOnboarding() async {
     calls.add('complete');
+    if (completeError != null) throw completeError!;
     return me;
   }
 

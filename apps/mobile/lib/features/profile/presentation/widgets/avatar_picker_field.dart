@@ -35,10 +35,14 @@ final avatarImagePickerProvider = Provider<Future<Uint8List?> Function(AvatarSou
 /// progress ring, a status line, and Retry on failure. Visually a plain
 /// form row so it fits the onboarding step's existing style.
 class AvatarPickerField extends ConsumerWidget {
-  const AvatarPickerField({super.key, this.initials, this.heroTag, this.label});
+  const AvatarPickerField({super.key, this.initials, this.heroTag, this.label, this.requiredError});
 
   final String? initials;
   final String? heroTag;
+
+  /// Validation message for a required photo (attorney onboarding,
+  /// docs/03 §4.1); shown in place of the hint while nothing is uploading.
+  final String? requiredError;
 
   /// Field caption; defaults to "Profile photo".
   final String? label;
@@ -102,7 +106,9 @@ class AvatarPickerField extends ConsumerWidget {
       AvatarUploadStage.checking => (t.t('profile.photo.checking'), colors.textSecondary),
       AvatarUploadStage.done => (t.t('profile.photo.done'), colors.success),
       AvatarUploadStage.failed => (errorText(t, upload.error ?? Object()), colors.dangerText),
-      AvatarUploadStage.idle => (t.t('profile.photo.hint'), colors.textSecondary),
+      AvatarUploadStage.idle => requiredError != null
+          ? (requiredError!, colors.dangerText)
+          : (t.t('profile.photo.hint'), colors.textSecondary),
     };
 
     return Row(

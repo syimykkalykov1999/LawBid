@@ -6,6 +6,7 @@ import {
   nextUsernameChangeAt,
 } from './attorney-profiles.service';
 import type { PracticeAreasService } from './practice-areas.service';
+import type { FilesService } from '../../files/files.service';
 
 const DAY = 24 * 60 * 60 * 1000;
 const now = new Date('2026-09-27T12:00:00Z');
@@ -80,6 +81,7 @@ describe('AttorneyProfilesService', () => {
       prisma as unknown as PrismaService,
       settings as unknown as AppSettingsService,
       {} as PracticeAreasService,
+      {} as FilesService,
     );
     // getOwn is covered by e2e; here only the write path matters.
     jest.spyOn(svc, 'getOwn').mockResolvedValue({} as never);
@@ -182,6 +184,15 @@ describe('AttorneyProfilesService', () => {
         {
           selectedOf: jest.fn(() => Promise.resolve([])),
         } as unknown as PracticeAreasService,
+        {
+          avatarUrls: jest.fn((id: string | null) =>
+            Promise.resolve(
+              id
+                ? { url: 'http://signed/a', url256: 'http://signed/a_w256' }
+                : { url: null, url256: null },
+            ),
+          ),
+        } as unknown as FilesService,
       );
     }
     const base = {
@@ -202,6 +213,7 @@ describe('AttorneyProfilesService', () => {
         deleted_at: null,
         first_name: 'Saul',
         last_name: 'Goodman',
+        avatar_file_id: 'f1',
       },
       licenses: [{ state: { code: 'NJ', name: 'New Jersey' } }],
     };
@@ -213,6 +225,8 @@ describe('AttorneyProfilesService', () => {
         licensedStates: [{ code: 'NJ', name: 'New Jersey' }],
         rating: { avg: 4.5, count: 2 },
         isSelf: false,
+        avatarUrl: 'http://signed/a',
+        avatarUrl256: 'http://signed/a_w256',
       });
       expect(JSON.stringify(view)).not.toMatch(/bar|document|phone|email/i);
     });

@@ -41,7 +41,10 @@ export type MissingRequirement =
   /** client_profiles row (state of residence, §11 3A) not saved yet. */
   | 'state'
   /** attorney picked no licensed state (§11 3B "Юрисдикция"). */
-  | 'licensed_states';
+  | 'licensed_states'
+  /** attorney has no clean avatar: the photo is mandatory (docs/03 §4.1,
+   * OQ-012). */
+  | 'photo';
 
 export interface MeView {
   id: string;
@@ -95,10 +98,11 @@ export class OnboardingService {
     if (!user) {
       throw new NotFoundException({ code: ErrorCode.NOT_FOUND });
     }
-    const [consentsOk, facts, avatarUrl] = await Promise.all([
+    const [consentsOk, facts, avatarUrl, avatarClean] = await Promise.all([
       this.requiredConsentsGranted(userId),
       this.profiles.facts(userId, user.role, user.onboarding_state?.data),
       this.files.mediaUrl(user.avatar_file_id),
+      this.files.isCleanAvatar(user.avatar_file_id, userId),
     ]);
     return {
       id: user.id,
@@ -121,7 +125,7 @@ export class OnboardingService {
         data: user.onboarding_state?.data ?? null,
       },
       profile: facts.view,
-      missing: missingRequirements(user, consentsOk, facts),
+      missing: missingRequirements(user, consentsOk, facts, avatarClean),
     };
   }
 
@@ -271,8 +275,9 @@ export class OnboardingService {
 }
 
 /** §11 guard rules: client needs BOTH phone and email verified and a
- * state of residence (3A); attorney needs a verified phone and at least
- * one licensed state (3B). `profile` omitted = profile not checked. */
+ * state of residence (3A); attorney needs a verified phone, at least one
+ * licensed state (3B) and a clean photo (docs/03 §4.1, OQ-012).
+ * `profile` / `avatarClean` omitted = not checked. */
 export function missingRequirements(
   user: Pick<
     User,
@@ -284,6 +289,7 @@ export function missingRequirements(
   >,
   consentsGranted: boolean,
   profile?: Pick<ProfileFacts, 'clientHasState' | 'attorneyHasLicensedStates'>,
+  avatarClean?: boolean,
 ): MissingRequirement[] {
   const missing: MissingRequirement[] = [];
   if (!consentsGranted) missing.push('consents');
@@ -304,6 +310,9 @@ export function missingRequirements(
     !profile.attorneyHasLicensedStates
   ) {
     missing.push('licensed_states');
+  }
+  if (avatarClean === false && user.role === 'attorney') {
+    missing.push('photo');
   }
   return missing;
 }

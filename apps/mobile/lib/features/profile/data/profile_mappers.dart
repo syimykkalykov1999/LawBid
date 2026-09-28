@@ -51,6 +51,8 @@ abstract final class ProfileMappers {
         rating: rating(d.rating),
         counters: counters(d.counters),
         isSelf: d.isSelf,
+        // The header avatar is small: prefer the 256 px square variant.
+        avatarUrl: d.avatarUrl256 ?? d.avatarUrl,
       );
 
   static LicenseState license(api.LicenseStatus s) => switch (s) {
@@ -121,6 +123,7 @@ abstract final class ProfileMappers {
         createdAt: d.createdAt,
         editedAt: d.editedAt,
         editableUntil: d.editableUntil,
+        editable: d.editable,
       );
 
   static ClientProfileDetails client(api.ClientProfileDto d) => ClientProfileDetails(

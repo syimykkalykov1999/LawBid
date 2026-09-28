@@ -64,18 +64,19 @@ final practiceTreeProvider = FutureProvider<List<PracticeCategory>>(
   retry: (_, __) => null,
 );
 
-/// `GET /attorneys/:username`. The caller's own profile also gets the
-/// photo from `GET /users/me` (the public DTO has no avatar yet).
+/// `GET /attorneys/:username` (photo included, docs/03 §4.1).
 final publicAttorneyProfileProvider =
     FutureProvider.autoDispose.family<PublicAttorneyProfile, String>(
-  (ref, username) async {
-    final profile =
-        await ref.watch(attorneyProfileRepositoryProvider).fetchPublic(username);
-    if (!profile.isSelf) return profile;
-    final avatar =
-        ref.read(currentUserControllerProvider.select((s) => s.user?.avatarUrl));
-    return profile.withAvatar(avatar);
-  },
+  (ref, username) =>
+      ref.watch(attorneyProfileRepositoryProvider).fetchPublic(username),
+  retry: (_, __) => null,
+);
+
+/// `GET /cases/:caseId/review` — the client's own review (null = none
+/// yet), so the review form opens on it for editing (docs/03 §7.2).
+final ownCaseReviewProvider =
+    FutureProvider.autoDispose.family<Review?, String>(
+  (ref, caseId) => ref.watch(reviewsRepositoryProvider).ownForCase(caseId),
   retry: (_, __) => null,
 );
 

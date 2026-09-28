@@ -15,7 +15,11 @@ enum MissingRequirement {
   /// A profile-step field the server requires before completion: the
   /// client's state of residence (`state`) or the attorney's licensed
   /// states (`licensed_states`) — docs/01 §11 3A/3B.
-  profile;
+  profile,
+
+  /// The attorney has no clean photo yet — mandatory (docs/03 §4.1,
+  /// OQ-012); collected on the profile step.
+  photo;
 
   static MissingRequirement? tryParse(String raw) => switch (raw) {
         'consents' => consents,
@@ -24,6 +28,7 @@ enum MissingRequirement {
         'phone_verified' => phoneVerified,
         'email_verified' => emailVerified,
         'state' || 'licensed_states' => profile,
+        'photo' => photo,
         _ => null,
       };
 }

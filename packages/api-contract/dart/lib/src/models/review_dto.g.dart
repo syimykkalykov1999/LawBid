@@ -19,6 +19,7 @@ ReviewDto _$ReviewDtoFromJson(Map<String, dynamic> json) => ReviewDto(
   attorneyId: json['attorneyId'] as String,
   status: ReviewStatus.fromJson(json['status'] as String),
   editableUntil: DateTime.parse(json['editableUntil'] as String),
+  editable: json['editable'] as bool,
 );
 
 Map<String, dynamic> _$ReviewDtoToJson(ReviewDto instance) => <String, dynamic>{
@@ -32,4 +33,5 @@ Map<String, dynamic> _$ReviewDtoToJson(ReviewDto instance) => <String, dynamic>{
   'attorneyId': instance.attorneyId,
   'status': instance.status.toJson(),
   'editableUntil': instance.editableUntil.toIso8601String(),
+  'editable': instance.editable,
 };

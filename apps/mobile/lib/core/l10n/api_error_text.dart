@@ -18,6 +18,14 @@ String apiErrorText(Translator t, ApiException error) {
       return t.t('error.api.retryAfter', {'seconds': '$retry'});
     }
   }
+  // docs/03 §4.1 / OQ-012: say which requirement blocks completion when
+  // it is the attorney photo.
+  if (error.code == ApiErrorCodes.onboardingIncomplete) {
+    final missing = error.details?['missing'];
+    if (missing is List && missing.contains('photo')) {
+      return t.t('onboarding.profile.error.photoRequired');
+    }
+  }
   // The cost guard's phone check says *why* a +1 number was refused
   // (apps/api modules/auth/dto/validators.ts checkSmsDestination): a non-existent US number, a
   // non-mobile/premium line, or a non-US +1 country (Canada, Caribbean).

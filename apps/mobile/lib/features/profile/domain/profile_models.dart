@@ -148,29 +148,12 @@ class PublicAttorneyProfile {
   final ProfileCounters counters;
   final bool isSelf;
 
-  /// The public profile API has no avatar field yet (reported gap); the
-  /// app fills this only for the caller's own profile from `GET /users/me`.
+  /// Signed link to the attorney photo (`avatarUrl256`, else the 1024 px
+  /// `avatarUrl` of `GET /attorneys/:username`); null → initials.
   final String? avatarUrl;
 
   String get fullName =>
       [firstName, lastName].whereType<String>().where((s) => s.isNotEmpty).join(' ');
-
-  PublicAttorneyProfile withAvatar(String? url) => PublicAttorneyProfile(
-        id: id,
-        username: username,
-        firstName: firstName,
-        lastName: lastName,
-        bio: bio,
-        firmName: firmName,
-        languages: languages,
-        verifiedBadge: verifiedBadge,
-        licensedStates: licensedStates,
-        practices: practices,
-        rating: rating,
-        counters: counters,
-        isSelf: isSelf,
-        avatarUrl: url,
-      );
 }
 
 /// `GET /attorneys/me/profile` — the editor's source (docs/03 §4.1).
@@ -280,6 +263,7 @@ class Review {
     this.authorDisplayName,
     this.editedAt,
     this.editableUntil,
+    this.editable,
   });
 
   final String id;
@@ -292,10 +276,14 @@ class Review {
   /// Only on the author's own review (`ReviewDto`): created + 14 days.
   final DateTime? editableUntil;
 
+  /// The server's verdict on the author's own review (`ReviewDto.editable`):
+  /// false once moderated or past the window; null = not reported.
+  final bool? editable;
+
   bool get isEdited => editedAt != null;
 
   bool canEdit(DateTime now) =>
-      editableUntil != null && now.isBefore(editableUntil!);
+      editable != false && editableUntil != null && now.isBefore(editableUntil!);
 }
 
 /// A page of a cursor-paginated list (`meta.nextCursor`).

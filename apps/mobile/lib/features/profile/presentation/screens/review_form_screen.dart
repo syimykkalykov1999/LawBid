@@ -20,7 +20,11 @@ const kReviewBodyMax = 1000;
 /// days" (§8). Creating = `POST /cases/:caseId/review` (Idempotency-Key);
 /// once published the screen shows the review as others see it ("Anna
 /// K.") with Edit while the 14-day window is open (`PATCH /reviews/:id`).
-class ReviewFormScreen extends ConsumerStatefulWidget {
+///
+/// Opened without [existing] (a deep link, a notification) the screen first
+/// loads the client's review of the case (`GET /cases/:caseId/review`), so
+/// an already published review opens for editing instead of a blank form.
+class ReviewFormScreen extends ConsumerWidget {
   const ReviewFormScreen({required this.caseId, super.key, this.existing});
 
   final String caseId;
@@ -29,10 +33,70 @@ class ReviewFormScreen extends ConsumerStatefulWidget {
   final Review? existing;
 
   @override
-  ConsumerState<ReviewFormScreen> createState() => _ReviewFormScreenState();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final known = existing;
+    if (known != null) return _ReviewForm(caseId: caseId, existing: known);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final t = ref.watch(translatorProvider);
+    final own = ref.watch(ownCaseReviewProvider(caseId));
+    void retry() => ref.invalidate(ownCaseReviewProvider(caseId));
+    Widget frame(Widget body) => Scaffold(
+          backgroundColor: colors.bg,
+          appBar: AppTopBar(
+            title: Text(t.t('reviews.form.title')),
+            leading: AppBackButton(semanticLabel: t.t('common.back'), onPressed: () => Navigator.of(context).maybePop()),
+          ),
+          body: SafeArea(top: false, child: body),
+        );
+    return own.when(
+      skipLoadingOnReload: false,
+      loading: () => frame(
+        ListView(
+          key: const ValueKey('review-loading'),
+          physics: const NeverScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide, AppSpacing.lg, AppSpacing.screenSide, AppSpacing.xxl),
+          children: const [
+            AppSkeletonCard(),
+            SizedBox(height: AppSpacing.lg),
+            AppSkeleton(height: 120, borderRadius: AppRadii.field),
+          ],
+        ),
+      ),
+      error: (error, _) => frame(
+        isOfflineError(error)
+            ? AppOfflineState(
+                title: t.t('offline.title'),
+                message: t.t('offline.message'),
+                action: AppButton(
+                  label: t.t('error.retry'),
+                  icon: Icons.refresh_rounded,
+                  variant: AppButtonVariant.secondary,
+                  height: AppSizes.touchTarget,
+                  onPressed: retry,
+                ),
+              )
+            : AppErrorState(message: errorText(t, error), retryLabel: t.t('error.retry'), onRetry: retry),
+      ),
+      data: (review) => _ReviewForm(
+        key: ValueKey('review-form-${review?.id}'),
+        caseId: caseId,
+        existing: review,
+      ),
+    );
+  }
 }
 
-class _ReviewFormScreenState extends ConsumerState<ReviewFormScreen> {
+class _ReviewForm extends ConsumerStatefulWidget {
+  const _ReviewForm({required this.caseId, super.key, this.existing});
+
+  final String caseId;
+  final Review? existing;
+
+  @override
+  ConsumerState<_ReviewForm> createState() => _ReviewFormState();
+}
+
+class _ReviewFormState extends ConsumerState<_ReviewForm> {
   late Review? _review = widget.existing;
   late bool _editing = widget.existing == null;
   late int _rating = widget.existing?.rating ?? 0;

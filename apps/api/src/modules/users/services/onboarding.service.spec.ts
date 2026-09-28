@@ -86,4 +86,29 @@ describe('missingRequirements (docs/01_FOUNDATION_AUTH.md §11)', () => {
     // No role yet -> no profile requirement.
     expect(missingRequirements(verified, true, noProfile)).toEqual(['role']);
   });
+
+  it('attorney needs a clean photo (docs/03 §4.1, OQ-012); client does not', () => {
+    const verified = {
+      ...base,
+      first_name: 'A',
+      last_name: 'B',
+      phone_verified_at: now,
+      email_verified_at: now,
+    };
+    const facts = { clientHasState: true, attorneyHasLicensedStates: true };
+    expect(
+      missingRequirements(
+        { ...verified, role: 'attorney' },
+        true,
+        facts,
+        false,
+      ),
+    ).toEqual(['photo']);
+    expect(
+      missingRequirements({ ...verified, role: 'attorney' }, true, facts, true),
+    ).toEqual([]);
+    expect(
+      missingRequirements({ ...verified, role: 'client' }, true, facts, false),
+    ).toEqual([]);
+  });
 });

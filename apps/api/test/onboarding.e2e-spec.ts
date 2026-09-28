@@ -4,6 +4,7 @@ import { LoggerErrorInterceptor, Logger } from 'nestjs-pino';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { attachCleanAvatar } from './support/clean-avatar';
 
 /**
  * docs/01_FOUNDATION_AUTH.md §15 stage 1.7, server side of the acceptance
@@ -198,6 +199,16 @@ describe('Onboarding (e2e) — stage 1.7 server side', () => {
       .set(auth)
       .send({ currentStep: 'push', profile: { licensedStates: ['NY'] } })
       .expect(200);
+    // docs/03 §4.1 / OQ-012: the attorney photo is mandatory.
+    const noPhoto = await api()
+      .post('/api/v1/users/me/onboarding/complete')
+      .set(auth)
+      .expect(403);
+    expect(noPhoto.body.error.code).toBe('ONBOARDING_INCOMPLETE');
+    expect(noPhoto.body.error.details.missing).toEqual(['photo']);
+    const me = await api().get('/api/v1/users/me').set(auth).expect(200);
+    expect(me.body.data.missing).toEqual(['photo']);
+    await attachCleanAvatar(prisma, me.body.data.id as string);
     await api()
       .post('/api/v1/users/me/onboarding/complete')
       .set(auth)

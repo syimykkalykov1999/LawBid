@@ -27,6 +27,13 @@ abstract class ReviewsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
+  /// The client's own review of a case (to edit it)
+  @GET('/cases/{caseId}/review')
+  Future<ReviewEnvelope> getForCase({
+    @Path('caseId') required String caseId,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
   /// Edit own review within review.edit_window_days (client)
   @PATCH('/reviews/{id}')
   Future<ReviewEnvelope> update({

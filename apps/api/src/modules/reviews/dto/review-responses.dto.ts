@@ -35,7 +35,7 @@ export class PublicReviewDto {
   editedAt!: string | null;
 }
 
-/** The client's own review (create/edit responses). */
+/** The client's own review (GET /cases/:caseId/review, create/edit). */
 export class ReviewDto extends PublicReviewDto {
   @ApiProperty({ format: 'uuid' })
   caseId!: string;
@@ -52,6 +52,12 @@ export class ReviewDto extends PublicReviewDto {
       'Last moment the client may edit (created + review.edit_window_days).',
   })
   editableUntil!: string;
+
+  @ApiProperty({
+    description:
+      'True while PATCH /reviews/:id is allowed: still published and before editableUntil.',
+  })
+  editable!: boolean;
 }
 
 export class RatingBucketDto {

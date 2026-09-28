@@ -449,6 +449,109 @@ describe('Files (e2e) — presign, confirm, scan, signed links', () => {
       });
     });
 
+    it('GET /attorneys/:username serves the photo (main + 256 px), never a verification file', async () => {
+      await prisma.state.upsert({
+        where: { code: 'NY' },
+        create: { code: 'NY', name: 'New York', is_active: true },
+        update: {},
+      });
+      const auth = await login();
+      await api()
+        .post('/api/v1/users/me/consents')
+        .set(auth)
+        .send({
+          consents: ['age_18', 'terms', 'privacy', 'disclaimer'].map(
+            (type) => ({ type, granted: true }),
+          ),
+        })
+        .expect(201);
+      // Phones repeat across runs of this suite: on a re-run the user
+      // already is an attorney (ROLE_ALREADY_SET), which is fine here.
+      const roleRes = await api()
+        .post('/api/v1/users/me/role')
+        .set(auth)
+        .send({ role: 'attorney' });
+      expect([200, 409]).toContain(roleRes.status);
+      const meRes = await api().get('/api/v1/users/me').set(auth).expect(200);
+      const me = (meRes.body as { data: { id: string; role: string } }).data;
+      expect(me.role).toBe('attorney');
+      const userId = me.id;
+      const saved = await api()
+        .patch('/api/v1/users/me/onboarding')
+        .set(auth)
+        .send({
+          currentStep: 'push',
+          profile: {
+            firstName: 'Photo',
+            lastName: 'Public',
+            licensedStates: ['NY'],
+          },
+        })
+        .expect(200);
+      const username = (
+        saved.body as { data: { profile: { username: string } } }
+      ).data.profile.username;
+      const publicProfile = async () =>
+        (
+          (
+            await api()
+              .get(`/api/v1/attorneys/${username}`)
+              .set(auth)
+              .expect(200)
+          ).body as {
+            data: { avatarUrl: string | null; avatarUrl256: string | null };
+          }
+        ).data;
+
+      expect(await publicProfile()).toMatchObject({
+        avatarUrl: null,
+        avatarUrl256: null,
+      });
+
+      const f = await uploaded(
+        auth,
+        'avatar',
+        'image/jpeg',
+        await jpeg(900, 700),
+      );
+      await confirm(auth, f.fileId);
+      expect((await settled(auth, f.fileId)).scanStatus).toBe('clean');
+      await api()
+        .patch('/api/v1/users/me')
+        .set(auth)
+        .send({ avatarFileId: f.fileId })
+        .expect(200);
+      const view = await publicProfile();
+      const main = await fetch(view.avatarUrl!);
+      expect(main.status).toBe(200);
+      expect(main.headers.get('content-type')).toBe('image/jpeg');
+      const small = await fetch(view.avatarUrl256!);
+      expect(small.status).toBe(200);
+      const meta = await sharp(
+        Buffer.from(await small.arrayBuffer()),
+      ).metadata();
+      expect([meta.width, meta.height]).toEqual([256, 256]);
+
+      // Even if avatar_file_id pointed at a verification selfie, the public
+      // profile would not sign it.
+      const selfie = await uploaded(
+        auth,
+        'verification_selfie',
+        'image/jpeg',
+        await jpeg(64, 64),
+      );
+      await confirm(auth, selfie.fileId);
+      await settled(auth, selfie.fileId);
+      await prisma.user.update({
+        where: { id: userId },
+        data: { avatar_file_id: selfie.fileId },
+      });
+      expect(await publicProfile()).toMatchObject({
+        avatarUrl: null,
+        avatarUrl256: null,
+      });
+    });
+
     it('HEIC is converted to JPEG; a selfie is not usable as an avatar', async () => {
       const auth = await login();
       const heic = readFileSync(join(__dirname, 'fixtures/sample.heic'));

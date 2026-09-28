@@ -16,6 +16,7 @@ import 'package:lawbid/features/onboarding/domain/us_states.dart';
 import 'package:lawbid/features/onboarding/onboarding_routes.dart';
 import 'package:lawbid/features/onboarding/presentation/widgets/onboarding_scaffold.dart';
 import 'package:lawbid/features/onboarding/presentation/widgets/option_picker_sheet.dart';
+import 'package:lawbid/features/profile/application/avatar_upload_controller.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/widgets/avatar_picker_field.dart';
 
@@ -115,16 +116,34 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
     }
   }
 
+  /// Flag required fields after Continue, or when the server sent the
+  /// user back here because something is missing (OnboardingBlocker).
+  bool get _flagRequired =>
+      _attempted ||
+      ref.read(onboardingBlockerProvider)?.step == OnboardingStepId.profile;
+
   String? _required(TextEditingController c, Translator t) =>
-      _attempted && c.text.trim().isEmpty
+      _flagRequired && c.text.trim().isEmpty
           ? t.t('onboarding.profile.error.required')
           : null;
+
+  /// docs/03 §4.1 / OQ-012: an attorney cannot finish without a clean
+  /// photo — the server reports it as `missing: photo` until the upload
+  /// is confirmed and scanned.
+  bool _photoMissing(CurrentUser user) =>
+      user.isAttorney &&
+      user.missing.contains(MissingRequirement.photo) &&
+      ref.read(avatarUploadControllerProvider).stage != AvatarUploadStage.done;
 
   Future<void> _submit(CurrentUser user) async {
     setState(() => _attempted = true);
     final statesOk = _states.isNotEmpty;
-    if (_first.text.trim().isEmpty || _last.text.trim().isEmpty || !statesOk)
+    if (_first.text.trim().isEmpty ||
+        _last.text.trim().isEmpty ||
+        !statesOk ||
+        _photoMissing(user)) {
       return;
+    }
     final ProfileInput profile = user.isAttorney
         ? AttorneyProfileInput(
             firstName: _first.text,
@@ -150,6 +169,7 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
     final t = ref.watch(translatorProvider);
     final user = ref.watch(currentUserControllerProvider).user;
     final action = ref.watch(onboardingActionsProvider);
+    ref.watch(onboardingBlockerProvider);
     if (user == null) return const SizedBox.shrink();
     _prefill(user);
     final attorney = user.isAttorney;
@@ -203,7 +223,7 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
         : attorney
             ? (_states.toList()..sort()).join(', ')
             : usStateByCode(_states.first)?.name;
-    final statesError = _attempted && _states.isEmpty
+    final statesError = _flagRequired && _states.isEmpty
         ? t.t('onboarding.profile.error.required')
         : null;
 
@@ -225,6 +245,9 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
         if (attorney) ...[
           AvatarPickerField(
             initials: initialsOf(_first.text, _last.text),
+            requiredError: _flagRequired && _photoMissing(user)
+                ? t.t('onboarding.profile.error.photoRequired')
+                : null,
           ),
           const SizedBox(height: AppSpacing.lg),
         ],

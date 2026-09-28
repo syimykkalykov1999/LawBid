@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/navigation/guards/app_router_guard.dart';
 import 'package:lawbid/features/auth/application/onboarding_flow.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/onboarding/application/onboarding_actions.dart';
@@ -18,7 +20,9 @@ import 'package:lawbid/shared/domain/user_role.dart';
 /// refreshes the access token for the `role` claim) via
 /// [OnboardingActions.chooseRole]; AppRouterGuard moves on from there. A
 /// role that is already set server-side is pre-selected and can't change
-/// (§11: "роль потом изменить нельзя").
+/// (§11: "роль потом изменить нельзя"): the other card is shown disabled
+/// with a short note under the cards, and Continue just moves forward
+/// without an API call (owner device test 2026-09-27).
 class RoleScreen extends ConsumerWidget {
   const RoleScreen({super.key});
 
@@ -38,11 +42,28 @@ class RoleScreen extends ConsumerWidget {
     }
 
     Future<void> handleContinue() async {
+      final user = ref.read(currentUserControllerProvider).user;
+      if (serverRole != null && user != null) {
+        context.go(AppRouterGuard.forwardRoute(user));
+        return;
+      }
       final ok = await ref.read(onboardingActionsProvider.notifier).chooseRole(selectedRole);
       if (!ok && context.mounted) {
         final error = ref.read(onboardingActionsProvider).error;
         if (error != null) showAppSnackBar(context, errorText(t, error));
       }
+    }
+
+    /// The card of the role that can no longer be picked: dimmed, inert.
+    Widget lockable(UserRole role, Widget card) {
+      if (serverRole == null || serverRole == role) return card;
+      return Semantics(
+        enabled: false,
+        child: IgnorePointer(
+          key: ValueKey('role-card-disabled-${role.name}'),
+          child: Opacity(opacity: AppSizes.disabledOpacity, child: card),
+        ),
+      );
     }
 
     return Scaffold(
@@ -68,24 +89,38 @@ class RoleScreen extends ConsumerWidget {
                         style: typography.titleMedium.copyWith(color: colors.text),
                       ),
                       const SizedBox(height: AppSpacing.lg),
-                      RoleCard(
-                        icon: Icons.person_outline,
-                        title: t.t('onboarding.role.client.title'),
-                        description: t.t('onboarding.role.client.desc'),
-                        isSelected: selectedRole == UserRole.client,
-                        onTap: () => select(UserRole.client),
+                      lockable(
+                        UserRole.client,
+                        RoleCard(
+                          icon: Icons.person_outline,
+                          title: t.t('onboarding.role.client.title'),
+                          description: t.t('onboarding.role.client.desc'),
+                          isSelected: selectedRole == UserRole.client,
+                          onTap: () => select(UserRole.client),
+                        ),
                       ),
                       const SizedBox(height: AppSpacing.roleCardGap),
-                      RoleCard(
-                        icon: Icons.gavel,
-                        title: t.t('onboarding.role.attorney.title'),
-                        description: t.t('onboarding.role.attorney.desc'),
-                        isSelected: selectedRole == UserRole.attorney,
-                        isAttorneyFixedStyle: true,
-                        showProBadge: true,
-                        proBadgeLabel: t.t('onboarding.role.attorney.badge'),
-                        onTap: () => select(UserRole.attorney),
+                      lockable(
+                        UserRole.attorney,
+                        RoleCard(
+                          icon: Icons.gavel,
+                          title: t.t('onboarding.role.attorney.title'),
+                          description: t.t('onboarding.role.attorney.desc'),
+                          isSelected: selectedRole == UserRole.attorney,
+                          isAttorneyFixedStyle: true,
+                          showProBadge: true,
+                          proBadgeLabel: t.t('onboarding.role.attorney.badge'),
+                          onTap: () => select(UserRole.attorney),
+                        ),
                       ),
+                      if (serverRole != null) ...[
+                        const SizedBox(height: AppSpacing.md),
+                        Text(
+                          t.t('onboarding.role.locked'),
+                          key: const ValueKey('role-locked-note'),
+                          style: typography.caption.copyWith(color: colors.textSecondary),
+                        ),
+                      ],
                       const Spacer(),
                       Padding(
                         padding: const EdgeInsets.only(bottom: 22),

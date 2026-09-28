@@ -5,6 +5,7 @@ import { LoggerErrorInterceptor, Logger } from 'nestjs-pino';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { attachCleanAvatar } from './support/clean-avatar';
 
 /**
  * docs/01_FOUNDATION_AUTH.md §11 steps 3A/3B + docs/02 §4.C: the
@@ -301,7 +302,8 @@ describe('Profiles onboarding (e2e) — client_profiles / attorney_profiles', ()
       licensedStates: ['CA', 'NY'],
       verificationStatus: 'unverified',
     });
-    expect(saved.body.data.missing).toEqual([]);
+    // docs/03 §4.1 / OQ-012: only the mandatory photo is still missing.
+    expect(saved.body.data.missing).toEqual(['photo']);
 
     const row = await prisma.attorneyProfile.findUniqueOrThrow({
       where: { user_id: first.userId },
@@ -336,6 +338,7 @@ describe('Profiles onboarding (e2e) — client_profiles / attorney_profiles', ()
     }).expect(200);
     expect(dup.body.data.profile.username).toBe('avery.quill2');
 
+    await attachCleanAvatar(prisma, first.userId);
     const done = await api()
       .post('/api/v1/users/me/onboarding/complete')
       .set(first.auth)
@@ -400,13 +403,17 @@ describe('Profiles onboarding (e2e) — client_profiles / attorney_profiles', ()
       .set(auth)
       .expect(403);
     expect(res.body.error.code).toBe('ONBOARDING_INCOMPLETE');
-    expect(res.body.error.details.missing).toEqual(['licensed_states']);
+    expect(res.body.error.details.missing).toEqual([
+      'licensed_states',
+      'photo',
+    ]);
     const row = await prisma.attorneyProfile.findUniqueOrThrow({
       where: { user_id: userId },
     });
     expect(row.username).toBe('nolic.ense');
 
     await saveProfile(auth, { licensedStates: ['TX'] }, 'tour').expect(200);
+    await attachCleanAvatar(prisma, userId);
     await api()
       .post('/api/v1/users/me/onboarding/complete')
       .set(auth)

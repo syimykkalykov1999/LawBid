@@ -5,6 +5,10 @@ abstract final class AppSizes {
   /// Minimum touch target (file 07 §9 / WCAG 2.5.8): 44x44.
   static const double touchTarget = 44;
 
+  /// Opacity of a control shown but not available (e.g. the role card
+  /// that can no longer be picked, docs/01 §11 Шаг 2).
+  static const double disabledOpacity = 0.4;
+
   /// Invisible hit/semantics area around controls whose VISUAL size is
   /// fixed below it by file 07 (44px icon buttons, 36px chips) — see
   /// `AppTapTarget`. 48 satisfies both iOS (44) and Android (48) minimums.

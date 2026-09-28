@@ -27,6 +27,7 @@ import {
   PRESIGN_TTL_SEC,
   PURPOSE_RULES,
   UPLOAD_INTENT_TTL_SEC,
+  variantKey,
   type FileMime,
 } from './files.policy';
 import type {
@@ -257,6 +258,51 @@ export class FilesService {
     if (!fileId) return null;
     const file = await this.prisma.file.findUnique({ where: { id: fileId } });
     return file ? this.mediaUrlOf(file) : null;
+  }
+
+  /** docs/03 §4.1 / OQ-012: true when [fileId] is [ownerId]'s own live
+   * avatar that passed the antivirus scan (what onboarding requires of an
+   * attorney). No storage call — the DB row is the source of truth. */
+  async isCleanAvatar(
+    fileId: string | null,
+    ownerId: string,
+  ): Promise<boolean> {
+    if (!fileId) return false;
+    const file = await this.prisma.file.findUnique({ where: { id: fileId } });
+    return (
+      file !== null &&
+      file.owner_user_id === ownerId &&
+      file.purpose === 'avatar' &&
+      file.scan_status === 'clean' &&
+      file.deleted_at === null
+    );
+  }
+
+  /**
+   * Public avatar links (docs/03 §4.1 photo, §6: the attorney photo is
+   * public profile content). Only a clean `avatar` file in the media
+   * bucket is ever signed here — verification documents/selfies can never
+   * come out of this path. `url256` is the square 256 px variant the scan
+   * job stores next to every processed avatar.
+   */
+  async avatarUrls(
+    fileId: string | null,
+  ): Promise<{ url: string | null; url256: string | null }> {
+    const none = { url: null, url256: null };
+    if (!fileId) return none;
+    const file = await this.prisma.file.findUnique({ where: { id: fileId } });
+    if (!file || file.purpose !== 'avatar') return none;
+    const url = await this.mediaUrlOf(file);
+    if (!url) return none;
+    const url256 =
+      file.width !== null
+        ? await this.storage.signedGetUrl(
+            file.s3_bucket,
+            variantKey(file.s3_key, 256),
+            MEDIA_SIGNED_URL_TTL_SEC,
+          )
+        : null;
+    return { url, url256 };
   }
 
   /**

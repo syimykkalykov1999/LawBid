@@ -81,4 +81,29 @@ void main() {
       isNull,
     );
   });
+
+  // docs/03 §4.1 / OQ-012: the attorney photo is mandatory.
+  test("server 'photo' parses to MissingRequirement.photo", () {
+    expect(MissingRequirement.tryParse('photo'), MissingRequirement.photo);
+  });
+
+  test('attorney without a photo is sent back to the profile step', () {
+    final user = _user(
+      role: UserRole.attorney,
+      step: OnboardingStepId.verification,
+      missing: {MissingRequirement.photo},
+    );
+    expect(AppRouterGuard.requiredStep(user), OnboardingStepId.profile);
+    expect(
+      AppRouterGuard.requiredStep(
+        _user(
+          role: UserRole.attorney,
+          step: OnboardingStepId.verification,
+          missing: {MissingRequirement.photo},
+          completed: true,
+        ),
+      ),
+      isNull,
+    );
+  });
 }

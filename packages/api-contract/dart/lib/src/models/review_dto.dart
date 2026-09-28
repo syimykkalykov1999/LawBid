@@ -21,6 +21,7 @@ class ReviewDto {
     required this.attorneyId,
     required this.status,
     required this.editableUntil,
+    required this.editable,
   });
 
   factory ReviewDto.fromJson(Map<String, Object?> json) =>
@@ -42,6 +43,9 @@ class ReviewDto {
 
   /// Last moment the client may edit (created + review.edit_window_days).
   final DateTime editableUntil;
+
+  /// True while PATCH /reviews/:id is allowed: still published and before editableUntil.
+  final bool editable;
 
   Map<String, Object?> toJson() => _$ReviewDtoToJson(this);
 }

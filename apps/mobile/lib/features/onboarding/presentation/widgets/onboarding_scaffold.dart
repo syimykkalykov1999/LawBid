@@ -5,6 +5,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
+import 'package:lawbid/features/onboarding/application/onboarding_actions.dart';
 import 'package:lawbid/features/onboarding/domain/onboarding_step_id.dart';
 
 /// Shared frame for every `/onboarding/<step>` screen (docs/01_FOUNDATION_
@@ -57,6 +58,9 @@ class OnboardingScaffold extends ConsumerWidget {
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final t = ref.watch(translatorProvider);
     final role = ref.watch(currentUserRoleProvider);
+    final blocker = ref.watch(onboardingBlockerProvider);
+    final shownError =
+        error ?? (blocker?.step == step ? blocker!.error : null);
     final order = OnboardingStepId.orderFor(role);
     final index = order.indexOf(step);
     final current = index < 0 ? order.length : index + 1;
@@ -128,7 +132,7 @@ class OnboardingScaffold extends ConsumerWidget {
                 ),
               ),
             ),
-            if (primaryLabel != null || secondary != null || error != null)
+            if (primaryLabel != null || secondary != null || shownError != null)
               Padding(
                 padding: const EdgeInsets.fromLTRB(
                   AppSpacing.screenSide,
@@ -139,8 +143,8 @@ class OnboardingScaffold extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    if (error != null) ...[
-                      ActionErrorBanner(error: error!),
+                    if (shownError != null) ...[
+                      ActionErrorBanner(error: shownError),
                       const SizedBox(height: AppSpacing.md),
                     ],
                     if (primaryLabel != null)

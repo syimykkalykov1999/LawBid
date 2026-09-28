@@ -240,6 +240,21 @@ export class PublicAttorneyProfileDto {
   @ApiProperty({ type: String, nullable: true })
   firmName!: string | null;
 
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description:
+      'Short-lived signed link to the attorney photo (1024 px JPEG); null when none.',
+  })
+  avatarUrl!: string | null;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'Signed link to the 256 px square variant; null when none.',
+  })
+  avatarUrl256!: string | null;
+
   @ApiProperty({ type: [String] })
   languages!: string[];
 

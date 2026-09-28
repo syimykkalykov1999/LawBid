@@ -363,6 +363,63 @@ describe('Reviews (e2e, docs/03 §7)', () => {
     expect(await rating(attorney.id)).toEqual({ avg: '2.50', count: 2 });
   });
 
+  it("GET /cases/:caseId/review: the case's client reads own review with editable/deadline; others 404", async () => {
+    const client = await user('client');
+    const other = await user('client');
+    const attorney = await user('attorney');
+    const caseId = await kase(client.id, { attorneyId: attorney.id });
+
+    const none = await api()
+      .get(`/api/v1/cases/${caseId}/review`)
+      .set(client.auth);
+    expect(none.status).toBe(404);
+    expect(none.body.error.code).toBe('NOT_FOUND');
+
+    const created = await postReview(client.auth, caseId, {
+      rating: 4,
+      body: 'Solid work.',
+    });
+    expect(created.status).toBe(201);
+
+    const own = await api()
+      .get(`/api/v1/cases/${caseId}/review`)
+      .set(client.auth);
+    expect(own.status).toBe(200);
+    expect(own.body.data).toMatchObject({
+      id: created.body.data.id,
+      caseId,
+      attorneyId: attorney.id,
+      rating: 4,
+      body: 'Solid work.',
+      status: 'published',
+      editable: true,
+      editableUntil: created.body.data.editableUntil,
+    });
+
+    for (const stranger of [other, attorney]) {
+      const res = await api()
+        .get(`/api/v1/cases/${caseId}/review`)
+        .set(stranger.auth);
+      expect(res.status).toBe(404);
+      expect(res.body.error.code).toBe('NOT_FOUND');
+    }
+    const bad = await api()
+      .get('/api/v1/cases/not-a-uuid/review')
+      .set(client.auth);
+    expect(bad.status).toBe(400);
+
+    // Past the window: still readable, no longer editable.
+    await prisma.review.update({
+      where: { id: created.body.data.id },
+      data: { created_at: new Date(Date.now() - 15 * DAY) },
+    });
+    const late = await api()
+      .get(`/api/v1/cases/${caseId}/review`)
+      .set(client.auth);
+    expect(late.status).toBe(200);
+    expect(late.body.data.editable).toBe(false);
+  });
+
   it('lists published reviews newest first with cursor pagination, public shape only, and a summary', async () => {
     const attorney = await user('attorney');
     const viewer = await user('client');

@@ -218,6 +218,58 @@ describe('FilesService', () => {
       expect(await make().service.mediaUrl(null)).toBeNull();
     });
 
+    it('isCleanAvatar: own, clean, live avatar only', async () => {
+      expect(await make().service.isCleanAvatar('f1', 'u1')).toBe(true);
+      expect(await make().service.isCleanAvatar('f1', 'u2')).toBe(false);
+      expect(await make().service.isCleanAvatar(null, 'u1')).toBe(false);
+      expect(
+        await make({ file: { scan_status: 'pending' } }).service.isCleanAvatar(
+          'f1',
+          'u1',
+        ),
+      ).toBe(false);
+      expect(
+        await make({ file: { purpose: 'post_image' } }).service.isCleanAvatar(
+          'f1',
+          'u1',
+        ),
+      ).toBe(false);
+      expect(
+        await make({ file: { deleted_at: new Date() } }).service.isCleanAvatar(
+          'f1',
+          'u1',
+        ),
+      ).toBe(false);
+    });
+
+    it('signs public avatar links (main + 256 px) only for clean avatars', async () => {
+      const { service, deps } = make({ file: { width: 1024 } });
+      expect(await service.avatarUrls('f1')).toEqual({
+        url: 'http://signed',
+        url256: 'http://signed',
+      });
+      expect(deps.storage.signedGetUrl).toHaveBeenCalledWith(
+        'media',
+        'avatar/u1/f1_w256',
+        3600,
+      );
+      const none = { url: null, url256: null };
+      expect(
+        await make({
+          file: { purpose: 'verification_selfie', s3_bucket: 'media' },
+        }).service.avatarUrls('f1'),
+      ).toEqual(none);
+      expect(
+        await make({ file: { scan_status: 'pending' } }).service.avatarUrls(
+          'f1',
+        ),
+      ).toEqual(none);
+      expect(await make().service.avatarUrls(null)).toEqual(none);
+      expect(
+        await make({ file: { width: null } }).service.avatarUrls('f1'),
+      ).toEqual({ url: 'http://signed', url256: null });
+    });
+
     it('signs verification files with verification.signed_url_ttl_sec, never media', async () => {
       const { service, deps } = make({
         file: { purpose: 'verification_selfie', s3_bucket: 'docs' },
