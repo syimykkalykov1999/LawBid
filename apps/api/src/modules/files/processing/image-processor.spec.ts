@@ -1,8 +1,25 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { crc32 } from 'node:zlib';
 import sharp from 'sharp';
 import { ImageProcessor } from './image-processor';
 import { detectMime } from '../magic-bytes';
+import { MAX_INPUT_PIXELS } from '../files.policy';
+
+/** A tiny PNG whose IHDR claims `w`×`h` — a decompression-bomb header
+ * without the bomb (CRC recomputed so decoders accept the chunk). */
+async function pngClaiming(w: number, h: number): Promise<Buffer> {
+  const png = await sharp({
+    create: { width: 1, height: 1, channels: 3, background: '#000000' },
+  })
+    .png()
+    .toBuffer();
+  // signature(8) + length(4) + "IHDR"(4) → width @16, height @20, crc @29.
+  png.writeUInt32BE(w, 16);
+  png.writeUInt32BE(h, 20);
+  png.writeUInt32BE(crc32(png.subarray(12, 29)), 29);
+  return png;
+}
 
 describe('ImageProcessor', () => {
   const processor = new ImageProcessor();
@@ -101,5 +118,16 @@ describe('ImageProcessor', () => {
         avatar: true,
       }),
     ).rejects.toThrow();
+  });
+
+  it('rejects an image above MAX_INPUT_PIXELS before decoding (avatar and document)', async () => {
+    const bomb = await pngClaiming(10_000, 10_000);
+    expect(10_000 * 10_000).toBeGreaterThan(MAX_INPUT_PIXELS);
+    expect((await sharp(bomb).metadata()).width).toBe(10_000);
+    for (const avatar of [true, false]) {
+      await expect(
+        processor.process({ data: bomb, mime: 'image/png', avatar }),
+      ).rejects.toThrow(/pixel/i);
+    }
   });
 });

@@ -241,7 +241,8 @@ class VerificationWizardController extends AsyncNotifier<WizardState> {
     required String barNumber,
     DateTime? expiresAt,
   }) async {
-    final s = _s!;
+    final s = _s;
+    if (s == null) return;
     final r = await _repo.addLicense(
       s.request.id,
       stateCode: stateCode,
@@ -252,7 +253,8 @@ class VerificationWizardController extends AsyncNotifier<WizardState> {
   }
 
   Future<void> removeLicense(VerificationLicense license) async {
-    final s = _s!;
+    final s = _s;
+    if (s == null) return;
     final slot = DocSlot.barLicense(license.stateCode);
     for (final t in s.tasksFor(slot)) {
       cancel(t.localId);
@@ -261,7 +263,8 @@ class VerificationWizardController extends AsyncNotifier<WizardState> {
   }
 
   Future<void> removeDocument(String documentId) async {
-    final s = _s!;
+    final s = _s;
+    if (s == null) return;
     _setRequest(await _repo.removeDocument(s.request.id, documentId));
   }
 
@@ -319,8 +322,10 @@ class VerificationWizardController extends AsyncNotifier<WizardState> {
     _drop(localId);
   }
 
-  Future<VerificationRequest> submit(String comment) async {
-    final s = _s!;
+  /// Null when the wizard has no loaded request (nothing was sent).
+  Future<VerificationRequest?> submit(String comment) async {
+    final s = _s;
+    if (s == null) return null;
     try {
       final r = await _repo.submit(s.request.id, comment: comment);
       _setRequest(r);

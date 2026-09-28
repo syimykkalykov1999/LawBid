@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -291,6 +292,11 @@ class FakeAvatarRepo implements AvatarUploadRepository {
   int uploadFailures = 0;
   final steps = <String>[];
 
+  /// When true, the storage upload hangs until it is cancelled (then
+  /// throws like the real Dio-backed one).
+  bool holdUpload = false;
+  UploadCancellation? lastCancellation;
+
   @override
   Future<PresignedUpload> presign({required String mime, required int sizeBytes, required String sha256}) async {
     steps.add('presign:$mime:$sizeBytes');
@@ -298,9 +304,22 @@ class FakeAvatarRepo implements AvatarUploadRepository {
   }
 
   @override
-  Future<void> upload(PresignedUpload target, Uint8List bytes, String mime, {void Function(double progress)? onProgress}) async {
+  Future<void> upload(
+    PresignedUpload target,
+    Uint8List bytes,
+    String mime, {
+    void Function(double progress)? onProgress,
+    UploadCancellation? cancellation,
+  }) async {
     steps.add('upload');
+    lastCancellation = cancellation;
     onProgress?.call(0.5);
+    if (holdUpload) {
+      final cancelled = Completer<void>();
+      cancellation?.onCancel(cancelled.complete);
+      await cancelled.future;
+      throw const UploadCancelledException();
+    }
     if (uploadFailures > 0) {
       uploadFailures--;
       throw const ApiException(code: ApiException.networkErrorCode, message: 'offline');

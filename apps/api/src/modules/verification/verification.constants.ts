@@ -85,6 +85,11 @@ export const VERIFICATION_NOTIFICATION_KIND = {
 export const LICENSE_RECHECK_NOTE_PREFIX = 'license_recheck';
 
 /** audit_log actions written by the verifier API (docs/03 §2.2, §2.5). */
+/** Per-verifier cap on signed document links (POST
+ * /admin/verification/documents/:id/url): each link is a paid S3 presign
+ * and a PII exposure, so a leaked admin token cannot bulk-download. */
+export const DOCUMENT_URL_LIMIT_PER_ADMIN_PER_HOUR = 120;
+
 export const AUDIT_ACTION = {
   documentView: 'verification.document_view',
   take: 'verification.take',

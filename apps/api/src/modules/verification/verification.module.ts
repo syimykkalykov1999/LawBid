@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AdminAccessModule } from '../admin-access/admin-access.module';
+import { AuthModule } from '../auth/auth.module';
 import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
 import { FilesModule } from '../files/files.module';
 import { NotificationsModule } from '../notifications/notifications.module';
@@ -43,6 +44,8 @@ const STATE_BAR_ADAPTER_LIST: StateBarAdapter[] = [];
     FilesModule,
     NotificationsModule,
     AdminAccessModule,
+    // RateLimitService: per-verifier document link limit.
+    AuthModule,
   ],
   controllers: [VerificationController, AdminVerificationController],
   providers: [

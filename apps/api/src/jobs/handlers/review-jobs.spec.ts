@@ -1,4 +1,5 @@
 import type { Prisma } from '@prisma/client';
+import type Redis from 'ioredis';
 import type { PinoLogger } from 'nestjs-pino';
 import type { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import type { NotificationsService } from '../../modules/notifications/notifications.service';
@@ -24,6 +25,19 @@ function due(n: number) {
   };
 }
 
+/** Redis mock for SET NX: a key is claimed once; [held] start claimed. */
+function redisClaims(held: string[] = []) {
+  const keys = new Set(held);
+  return {
+    set: jest.fn((key: string) => {
+      if (keys.has(key)) return Promise.resolve(null);
+      keys.add(key);
+      return Promise.resolve('OK');
+    }),
+    del: jest.fn((key: string) => Promise.resolve(keys.delete(key) ? 1 : 0)),
+  };
+}
+
 describe('ReviewReminderJob (docs/03 §7.3)', () => {
   it('sends one review_requested reminder per due case, walking by case id', async () => {
     const batches = [[due(1), due(2)], [due(3)]];
@@ -38,6 +52,7 @@ describe('ReviewReminderJob (docs/03 §7.3)', () => {
       { number: () => Promise.resolve(7) } as unknown as AppSettingsService,
       { emit } as unknown as NotificationsService,
       logger,
+      redisClaims() as unknown as Redis,
     );
     const now = new Date('2026-09-27T16:00:00Z');
 
@@ -65,6 +80,49 @@ describe('ReviewReminderJob (docs/03 §7.3)', () => {
     expect(calls[0].sql).toContain("n.payload->>'reminder' = 'true'");
     expect(calls[0].sql).toContain('NOT EXISTS (SELECT 1 FROM reviews');
     expect(calls[0].sql).toContain("c.status = 'closed'");
+  });
+
+  function job(emit: jest.Mock, redis: ReturnType<typeof redisClaims>) {
+    return new ReviewReminderJob(
+      {
+        $queryRaw: jest.fn(() => Promise.resolve([due(1), due(2)])),
+      } as unknown as PrismaService,
+      { number: () => Promise.resolve(7) } as unknown as AppSettingsService,
+      { emit } as unknown as NotificationsService,
+      logger,
+      redis as unknown as Redis,
+    );
+  }
+
+  it('skips a case another overlapping run already claimed', async () => {
+    const emit = jest.fn(() => Promise.resolve({ id: 'n' }));
+    const redis = redisClaims([`reminder:review:${due(1).case_id}`]);
+
+    await expect(job(emit, redis).run(new Date(), 10)).resolves.toEqual({
+      sent: 1,
+    });
+
+    expect(emit).toHaveBeenCalledTimes(1);
+    expect(emit).toHaveBeenCalledWith(
+      expect.objectContaining({ recipientId: 'client-2' }),
+    );
+    expect(redis.set).toHaveBeenCalledWith(
+      `reminder:review:${due(2).case_id}`,
+      '1',
+      'EX',
+      (REVIEW_REMINDER_GRACE_DAYS + 1) * 24 * 60 * 60,
+      'NX',
+    );
+  });
+
+  it('releases the claim when the emit fails, so a retry can send it', async () => {
+    const emit = jest.fn(() => Promise.reject(new Error('db down')));
+    const redis = redisClaims();
+
+    await expect(job(emit, redis).run(new Date(), 10)).rejects.toThrow(
+      'db down',
+    );
+    expect(redis.del).toHaveBeenCalledWith(`reminder:review:${due(1).case_id}`);
   });
 });
 

@@ -32,6 +32,11 @@ class _CameraCaptureScreenState extends ConsumerState<CameraCaptureScreen>
   bool _busy = false;
   Uint8List? _shot;
 
+  /// Last lifecycle state seen: an [_init] that finishes after the app
+  /// left the foreground must not keep the camera open.
+  AppLifecycleState _lifecycle =
+      WidgetsBinding.instance.lifecycleState ?? AppLifecycleState.resumed;
+
   bool get _selfie => widget.guide == CaptureGuide.selfie;
 
   @override
@@ -50,12 +55,17 @@ class _CameraCaptureScreenState extends ConsumerState<CameraCaptureScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    final c = _controller;
-    if (c == null || !c.value.isInitialized) return;
+    _lifecycle = state;
     if (state == AppLifecycleState.inactive) {
+      final c = _controller;
+      if (c == null) return;
+      // Drop it from the tree before disposing so no frame builds a
+      // CameraPreview over a disposed controller.
+      setState(() => _controller = null);
       c.dispose();
-      _controller = null;
     } else if (state == AppLifecycleState.resumed) {
+      // A held shot needs no preview; Retake reopens the camera.
+      if (_controller != null || _shot != null || _error != null) return;
       _init();
     }
   }
@@ -79,7 +89,10 @@ class _CameraCaptureScreenState extends ConsumerState<CameraCaptureScreen>
         imageFormatGroup: ImageFormatGroup.jpeg,
       );
       await controller.initialize();
-      if (!mounted) {
+      // The app may have gone inactive (or another _init won) meanwhile.
+      if (!mounted ||
+          _lifecycle != AppLifecycleState.resumed ||
+          _controller != null) {
         await controller.dispose();
         return;
       }
@@ -109,6 +122,13 @@ class _CameraCaptureScreenState extends ConsumerState<CameraCaptureScreen>
       if (mounted) setState(() => _error = _CameraError.unavailable);
     } finally {
       if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  void _retake() {
+    setState(() => _shot = null);
+    if (_controller == null && _lifecycle == AppLifecycleState.resumed) {
+      _init();
     }
   }
 
@@ -236,7 +256,7 @@ class _CameraCaptureScreenState extends ConsumerState<CameraCaptureScreen>
                                 label: t.t('verification.camera.retake'),
                                 variant: AppButtonVariant.secondary,
                                 icon: Icons.refresh_rounded,
-                                onPressed: () => setState(() => _shot = null),
+                                onPressed: _retake,
                               ),
                             ),
                             const SizedBox(width: AppSpacing.md),

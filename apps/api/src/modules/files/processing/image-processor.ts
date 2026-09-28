@@ -5,6 +5,7 @@ import {
   AVATAR_MAIN_PX,
   AVATAR_VARIANT_PX,
   FILE_MIME,
+  MAX_INPUT_PIXELS,
   type FileMime,
 } from '../files.policy';
 
@@ -35,7 +36,26 @@ export interface ProcessedFile {
  *   — sharp writes no metadata unless asked to.
  * Other files (PDF, JPEG/PNG documents and post photos) are left as
  * uploaded; post photo variants are docs/05 §3.2 work.
+ * Every input is capped at MAX_INPUT_PIXELS (sharp `limitInputPixels`,
+ * plus a header check where nothing is decoded); an oversized image is
+ * rejected like an undecodable one (the scan job marks it `failed`).
  */
+/** heic-decode's `all()` result; @types/heic-decode omits the header
+ * dimensions and `dispose()` the library provides. */
+type HeicImages = Array<{
+  width: number;
+  height: number;
+  decode(): Promise<{ width: number; height: number; data: Uint8ClampedArray }>;
+}> & { dispose(): void };
+
+function assertPixels(width: number, height: number): void {
+  if (width * height > MAX_INPUT_PIXELS) {
+    throw new Error(
+      `Image ${width}x${height} exceeds ${MAX_INPUT_PIXELS} input pixels`,
+    );
+  }
+}
+
 @Injectable()
 export class ImageProcessor {
   async process(input: {
@@ -49,7 +69,10 @@ export class ImageProcessor {
     const source =
       input.mime === FILE_MIME.heic
         ? await this.heicToSharp(input.data)
-        : sharp(input.data, { failOn: 'error' });
+        : sharp(input.data, {
+            failOn: 'error',
+            limitInputPixels: MAX_INPUT_PIXELS,
+          });
 
     if (input.avatar) {
       // Decode + orient once, then crop each size from raw pixels.
@@ -85,6 +108,7 @@ export class ImageProcessor {
     }
 
     const meta = await source.metadata();
+    assertPixels(meta.width ?? 0, meta.height ?? 0);
     const swap = (meta.orientation ?? 1) >= 5;
     return {
       main: null,
@@ -95,13 +119,25 @@ export class ImageProcessor {
   }
 
   private async heicToSharp(data: Buffer): Promise<sharp.Sharp> {
-    const img = await decodeHeic({ buffer: new Uint8Array(data) });
-    return sharp(
-      Buffer.from(img.data.buffer, img.data.byteOffset, img.data.byteLength),
-      {
-        raw: { width: img.width, height: img.height, channels: 4 },
-      },
-    );
+    // `all` reads dimensions without decoding, so a HEIC bomb is refused
+    // before libheif allocates its pixels.
+    const images = (await decodeHeic.all({
+      buffer: new Uint8Array(data),
+    })) as HeicImages;
+    try {
+      const first = images[0];
+      assertPixels(first.width, first.height);
+      const img = await first.decode();
+      return sharp(
+        Buffer.from(img.data.buffer, img.data.byteOffset, img.data.byteLength),
+        {
+          raw: { width: img.width, height: img.height, channels: 4 },
+          limitInputPixels: MAX_INPUT_PIXELS,
+        },
+      );
+    } finally {
+      images.dispose();
+    }
   }
 
   private async square(
@@ -110,7 +146,10 @@ export class ImageProcessor {
   ): Promise<ProcessedImage> {
     const { width, height, channels } = raw.info;
     const side = Math.min(px, width, height);
-    const out = await sharp(raw.data, { raw: { width, height, channels } })
+    const out = await sharp(raw.data, {
+      raw: { width, height, channels },
+      limitInputPixels: MAX_INPUT_PIXELS,
+    })
       .resize(side, side, { fit: 'cover', position: 'centre' })
       .flatten({ background: '#ffffff' })
       .jpeg({ quality: 85, mozjpeg: true })

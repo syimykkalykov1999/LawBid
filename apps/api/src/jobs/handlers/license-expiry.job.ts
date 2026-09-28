@@ -1,11 +1,15 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
+import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { NotificationsService } from '../../modules/notifications/notifications.service';
+import { REDIS_CLIENT } from '../../redis/redis.constants';
+import { emitOnce } from './reminder-claim';
 
-const DAY_MS = 24 * 60 * 60 * 1000;
+const DAY_SEC = 24 * 60 * 60;
+const DAY_MS = DAY_SEC * 1000;
 /** Rows per read (docs/02 §1.1: short statements, batched sweeps). */
 export const LICENSE_EXPIRY_BATCH = 500;
 
@@ -59,7 +63,10 @@ export function reminderThreshold(
  * NotificationsService.emit(), in the same transaction as the change.
  *
  * Idempotent: the expiry update is conditional on `verified`, and a
- * reminder is skipped when one with the same license + threshold exists.
+ * reminder is skipped when one with the same license + threshold exists,
+ * and each reminder emit holds an atomic Redis claim
+ * `reminder:license:<licenseId>:<expiresAt>:<threshold>` so overlapping
+ * runs can't both send it.
  */
 @Injectable()
 export class LicenseExpiryJob {
@@ -68,6 +75,7 @@ export class LicenseExpiryJob {
     private readonly settings: AppSettingsService,
     private readonly notifications: NotificationsService,
     private readonly logger: PinoLogger,
+    @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {
     this.logger.setContext(LicenseExpiryJob.name);
   }
@@ -200,19 +208,26 @@ export class LicenseExpiryJob {
         ) {
           continue;
         }
-        await this.notifications.emit({
-          recipientId: license.attorney_id,
-          type: 'verification_update',
-          payload: {
-            kind: LICENSE_NOTIFICATION_KIND.expiring,
-            licenseId: license.id,
-            stateCode: license.state_code,
-            expiresAt,
-            daysLeft,
-            thresholdDays: threshold,
-          },
-        });
-        result.reminders += 1;
+        // A threshold stays current for at most [threshold] days.
+        const emitted = await emitOnce(
+          this.redis,
+          `reminder:license:${license.id}:${expiresAt}:${threshold}`,
+          (threshold + 1) * DAY_SEC,
+          () =>
+            this.notifications.emit({
+              recipientId: license.attorney_id,
+              type: 'verification_update',
+              payload: {
+                kind: LICENSE_NOTIFICATION_KIND.expiring,
+                licenseId: license.id,
+                stateCode: license.state_code,
+                expiresAt,
+                daysLeft,
+                thresholdDays: threshold,
+              },
+            }),
+        );
+        if (emitted) result.reminders += 1;
       }
       if (batch.length < LICENSE_EXPIRY_BATCH) return;
       cursor = batch[batch.length - 1].id;
