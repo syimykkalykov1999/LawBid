@@ -135,4 +135,20 @@ export enum ErrorCode {
   LICENSE_ALREADY_ADDED = 'LICENSE_ALREADY_ADDED',
   // 403: a suspended attorney can't create or change verification requests.
   ATTORNEY_SUSPENDED = 'ATTORNEY_SUSPENDED',
+
+  // Cases and bids (docs/04_CASES_BIDS.md §15, stage 4.1 state machines
+  // and access policy).
+  // 404: no such case, or the caller may not see it (deny by default —
+  // CaseAccessPolicy never reveals that a hidden case exists).
+  CASE_NOT_FOUND = 'CASE_NOT_FOUND',
+  // 409: the case's status does not allow this action (§10.1).
+  CASE_INVALID_STATE = 'CASE_INVALID_STATE',
+  // 409: the bid's status does not allow this action (§6.3).
+  BID_INVALID_STATE = 'BID_INVALID_STATE',
+  // 409: it is the other party's turn in the negotiation (§6.1, §6.3).
+  BID_NOT_YOUR_TURN = 'BID_NOT_YOUR_TURN',
+  // 409: 5 counter-offers were already made on this bid (§6.1, §6.2).
+  BID_MAX_ROUNDS_REACHED = 'BID_MAX_ROUNDS_REACHED',
+  // 409: free-consultation bids can only be accepted or declined (§6.1).
+  BID_COUNTER_NOT_ALLOWED = 'BID_COUNTER_NOT_ALLOWED',
 }

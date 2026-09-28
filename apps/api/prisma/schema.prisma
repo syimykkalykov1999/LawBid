@@ -373,6 +373,8 @@ enum NotificationType {
   // docs/03_VERIFICATION_PROFILES.md §10 (stage 3.1)
   review_requested
   review_received
+  // docs/04_CASES_BIDS.md §3.5, §14 (stage 4.1): a case with bids was edited.
+  case_updated
 
   @@map("notification_type")
 }
@@ -531,6 +533,7 @@ model User {
   bids_as_attorney        Bid[]                @relation("BidAttorney")
   journal_as_client       CaseJournal[]        @relation("JournalClient")
   journal_as_actor        CaseJournal[]        @relation("JournalActor")
+  journal_as_attorney     CaseJournal[]        @relation("JournalAttorney")
   disclosures_as_client   ContactDisclosure[]  @relation("DisclosureClient")
   disclosures_as_attorney ContactDisclosure[]  @relation("DisclosureAttorney")
   issues_as_attorney      ContactIssueReport[] @relation("IssueAttorney")
@@ -965,6 +968,8 @@ model AttorneyLicense {
   @@unique([state_code, bar_number])
   @@index([attorney_id])
   @@index([state_code, license_status])
+  // Nightly license-expiry job (docs/03 §9, stage 4.1 migration).
+  @@index([license_status, expires_at])
   @@map("attorney_licenses")
 }
 
@@ -1101,6 +1106,9 @@ model Case {
   // GIN/inverted (trigram gin_trgm_ops or full-text), created by the stage 2.6
   // migration; declared so Prisma's diff matches the DB.
   @@index([search_tsv], map: "cases_search_tsv_idx", type: Gin)
+  // Review-reminder job: status = 'closed' AND closed_at range (docs/03
+  // §7, stage 4.1 migration, file-03 DB review).
+  @@index([status, closed_at])
   @@map("cases")
 }
 
@@ -1179,6 +1187,10 @@ model CaseJournal {
   actor_user_id String?          @db.Uuid
   actor         User?            @relation("JournalActor", fields: [actor_user_id], references: [id], onDelete: Restrict)
   actor_role    UserRole?
+  // docs/04_CASES_BIDS.md §14 (stage 4.1): set for events tied to a bid or
+  // to the attorney's work, for the attorney's "Case history".
+  attorney_id   String?          @db.Uuid
+  attorney      User?            @relation("JournalAttorney", fields: [attorney_id], references: [id], onDelete: Restrict)
   event_type    CaseJournalEvent
   payload       Json
   prev_hash     String?
@@ -1188,6 +1200,7 @@ model CaseJournal {
 
   @@index([case_id, created_at])
   @@index([client_id, created_at])
+  @@index([attorney_id, created_at])
   @@index([retain_until])
   @@map("case_journal")
 }
@@ -1632,6 +1645,10 @@ model Report {
   actions ModerationAction[]
 
   @@index([status, created_at])
+  // Duplicate-report lookup per target and "my reports" (stage 4.1
+  // migration, file-03 DB review).
+  @@index([target_type, target_id, status])
+  @@index([reporter_id])
   @@map("reports")
 }
 

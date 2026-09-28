@@ -7359,7 +7359,13 @@
           "VERIFICATION_DECISION_INCOMPLETE",
           "LICENSE_ALREADY_REGISTERED",
           "LICENSE_ALREADY_ADDED",
-          "ATTORNEY_SUSPENDED"
+          "ATTORNEY_SUSPENDED",
+          "CASE_NOT_FOUND",
+          "CASE_INVALID_STATE",
+          "BID_INVALID_STATE",
+          "BID_NOT_YOUR_TURN",
+          "BID_MAX_ROUNDS_REACHED",
+          "BID_COUNTER_NOT_ALLOWED"
         ]
       },
       "ErrorBodyDto": {
