@@ -46,6 +46,10 @@ void main() {
       ApiErrorCodes.reviewAlreadyExists,
       ApiErrorCodes.reviewEditWindowExpired,
       ApiErrorCodes.reviewNotEditable,
+      ApiErrorCodes.attorneyNotVerified,
+      ApiErrorCodes.usernameTaken,
+      ApiErrorCodes.usernameReserved,
+      ApiErrorCodes.usernameChangeTooSoon,
     ];
     for (final translator in const [StaticTranslatorEn(), StaticTranslatorRu()]) {
       final fallback = translator.t('error.default.message');

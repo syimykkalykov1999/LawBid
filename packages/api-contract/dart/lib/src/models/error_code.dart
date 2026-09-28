@@ -92,6 +92,14 @@ enum ErrorCode {
   reviewEditWindowExpired('REVIEW_EDIT_WINDOW_EXPIRED'),
   @JsonValue('REVIEW_NOT_EDITABLE')
   reviewNotEditable('REVIEW_NOT_EDITABLE'),
+  @JsonValue('ATTORNEY_NOT_VERIFIED')
+  attorneyNotVerified('ATTORNEY_NOT_VERIFIED'),
+  @JsonValue('USERNAME_TAKEN')
+  usernameTaken('USERNAME_TAKEN'),
+  @JsonValue('USERNAME_RESERVED')
+  usernameReserved('USERNAME_RESERVED'),
+  @JsonValue('USERNAME_CHANGE_TOO_SOON')
+  usernameChangeTooSoon('USERNAME_CHANGE_TOO_SOON'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

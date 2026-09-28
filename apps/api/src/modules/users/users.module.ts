@@ -27,6 +27,6 @@ import { AccountIdentifiersService } from './services/account-identifiers.servic
     UserProfilesService,
     AccountIdentifiersService,
   ],
-  exports: [OnboardingService],
+  exports: [OnboardingService, UserProfilesService],
 })
 export class UsersModule {}

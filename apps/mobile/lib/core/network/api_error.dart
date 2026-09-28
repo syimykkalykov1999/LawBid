@@ -67,6 +67,11 @@ abstract final class ApiErrorCodes {
   static const reviewAlreadyExists = 'REVIEW_ALREADY_EXISTS';
   static const reviewEditWindowExpired = 'REVIEW_EDIT_WINDOW_EXPIRED';
   static const reviewNotEditable = 'REVIEW_NOT_EDITABLE';
+  // Practices and profiles (docs/03 §3–§4, stages 3.5–3.6)
+  static const attorneyNotVerified = 'ATTORNEY_NOT_VERIFIED';
+  static const usernameTaken = 'USERNAME_TAKEN';
+  static const usernameReserved = 'USERNAME_RESERVED';
+  static const usernameChangeTooSoon = 'USERNAME_CHANGE_TOO_SOON';
 
   /// Every server code, in enum order.
   static const all = <String>[
@@ -113,6 +118,10 @@ abstract final class ApiErrorCodes {
     reviewAlreadyExists,
     reviewEditWindowExpired,
     reviewNotEditable,
+    attorneyNotVerified,
+    usernameTaken,
+    usernameReserved,
+    usernameChangeTooSoon,
   ];
 }
 

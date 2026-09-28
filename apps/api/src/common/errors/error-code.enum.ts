@@ -84,4 +84,15 @@ export enum ErrorCode {
   REVIEW_EDIT_WINDOW_EXPIRED = 'REVIEW_EDIT_WINDOW_EXPIRED',
   // A moderator hid or removed the review; it can't be edited.
   REVIEW_NOT_EDITABLE = 'REVIEW_NOT_EDITABLE',
+  // Practices and profiles (docs/03_VERIFICATION_PROFILES.md §3–§4,
+  // stages 3.5–3.6)
+  // 403: the action needs verification_status = verified (practices).
+  ATTORNEY_NOT_VERIFIED = 'ATTORNEY_NOT_VERIFIED',
+  // 409: another attorney holds this @username (case-insensitive).
+  USERNAME_TAKEN = 'USERNAME_TAKEN',
+  // 400: the @username is on profile.reserved_usernames.
+  USERNAME_RESERVED = 'USERNAME_RESERVED',
+  // 409: @username changed less than profile.username_change_cooldown_days
+  // ago; details.nextChangeAt says when it is allowed again.
+  USERNAME_CHANGE_TOO_SOON = 'USERNAME_CHANGE_TOO_SOON',
 }

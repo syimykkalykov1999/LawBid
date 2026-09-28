@@ -77,6 +77,10 @@ const _keys = <String, String>{
   ApiErrorCodes.forbidden: 'error.api.FORBIDDEN',
   ApiErrorCodes.notFound: 'error.api.NOT_FOUND',
   ApiErrorCodes.notImplemented: 'error.api.NOT_IMPLEMENTED',
+  ApiErrorCodes.attorneyNotVerified: 'error.api.ATTORNEY_NOT_VERIFIED',
+  ApiErrorCodes.usernameTaken: 'error.api.USERNAME_TAKEN',
+  ApiErrorCodes.usernameReserved: 'error.api.USERNAME_RESERVED',
+  ApiErrorCodes.usernameChangeTooSoon: 'error.api.USERNAME_CHANGE_TOO_SOON',
   // Client-side synthetic code (contact_verification_controller.dart).
   'NO_REAUTH_CONTACT': 'error.api.NO_REAUTH_CONTACT',
 };

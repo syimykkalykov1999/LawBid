@@ -26,6 +26,7 @@ import {
   sequentialCandidates,
   usernameBase,
 } from './username.util';
+import { startNameRecheckIfVerified } from './attorney-name-recheck';
 
 /** Digits reserved for a numeric suffix when reading taken usernames. */
 
@@ -344,11 +345,18 @@ export class UserProfilesService {
         select: { first_name: true, last_name: true },
       });
     }
-    return tx.user.update({
+    const before = await tx.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { first_name: true, last_name: true },
+    });
+    const after = await tx.user.update({
       where: { id: userId },
       data: { first_name: dto.firstName, last_name: dto.lastName },
       select: { first_name: true, last_name: true },
     });
+    // docs/03 §4.1: a verified attorney's new name goes to re-check.
+    await startNameRecheckIfVerified(tx, userId, before, after);
+    return after;
   }
 
   private async writeOnboarding(

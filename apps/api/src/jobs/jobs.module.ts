@@ -9,13 +9,15 @@ import { HttpDisposableDomainsFetcher } from './disposable-domains/disposable-do
 import { ReviewReminderJob } from './handlers/review-reminder.job';
 import { RatingReconcileJob } from './handlers/rating-reconcile.job';
 import { NotificationsModule } from '../modules/notifications/notifications.module';
+import { LicenseExpiryJob } from './handlers/license-expiry.job';
 
 /**
  * Periodic maintenance on BullMQ (docs/01 §5.2): session + OTP cleanup
  * (docs/02 §6.4), monthly disposable-domain refresh (docs/02 §3.3),
- * review reminder and nightly rating reconciliation (docs/03 §7.3, §7.5).
- * Depends on the global ConfigModule, PrismaModule, RedisModule,
- * AppSettingsModule and nestjs-pino LoggerModule. Imported by AppModule in 'api' mode and by
+ * review reminder, nightly rating reconciliation (docs/03 §7.3, §7.5) and
+ * nightly license expiry (docs/03 §2.6). Depends on the global
+ * ConfigModule, PrismaModule, RedisModule, AppSettingsModule,
+ * NotificationsModule and nestjs-pino LoggerModule. Imported by AppModule in 'api' mode and by
  * WorkerModule (src/worker.ts) in 'worker' mode.
  */
 @Module({})
@@ -35,6 +37,7 @@ export class JobsModule {
         DisposableDomainsRefreshJob,
         ReviewReminderJob,
         RatingReconcileJob,
+        LicenseExpiryJob,
         CronProcessor,
         JobsRunner,
       ],
@@ -45,6 +48,7 @@ export class JobsModule {
         DisposableDomainsRefreshJob,
         ReviewReminderJob,
         RatingReconcileJob,
+        LicenseExpiryJob,
       ],
     };
   }

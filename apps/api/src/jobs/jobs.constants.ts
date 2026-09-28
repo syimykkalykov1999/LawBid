@@ -17,6 +17,8 @@ export const CRON_JOBS = {
   reviewReminder: 'reviews.reminder',
   /** docs/03 §7.5: nightly reconciliation of attorney rating counters. */
   ratingReconcile: 'reviews.rating-reconcile',
+  /** docs/03 §2.6: nightly license expiry + 30/7-day reminders. */
+  licenseExpiry: 'licenses.expiry',
 } as const;
 
 export type CronJobName = (typeof CRON_JOBS)[keyof typeof CRON_JOBS];
@@ -36,6 +38,9 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   // Daytime in the US (12:00 ET) — a reminder, not a 4 a.m. push.
   { name: CRON_JOBS.reviewReminder, pattern: '0 16 * * *' },
   { name: CRON_JOBS.ratingReconcile, pattern: '15 4 * * *' },
+  // 05:05 UTC = just after midnight US Eastern: expires_at is a date, the
+  // license lapses "в день окончания".
+  { name: CRON_JOBS.licenseExpiry, pattern: '5 5 * * *' },
 ];
 
 export const DISPOSABLE_DOMAINS_FETCHER = Symbol('DISPOSABLE_DOMAINS_FETCHER');
