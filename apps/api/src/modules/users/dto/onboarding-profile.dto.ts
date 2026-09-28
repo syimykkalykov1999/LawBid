@@ -21,7 +21,10 @@ export const CONTACT_NOTE_MAX_LENGTH = 200;
 /** Generous caps so a crafted request can't store an unbounded array. */
 export const MAX_LANGUAGES = 20;
 export const MAX_STATES = 51;
-export const FIRM_NAME_MAX_LENGTH = 120;
+// docs/03 §4.1: first/last name ≤ 50, firm ≤ 80 (same limits as the
+// attorney profile PATCH, stage 3.6).
+export const PERSON_NAME_MAX_LENGTH = 50;
+export const FIRM_NAME_MAX_LENGTH = 80;
 
 const trim = ({ value }: { value: unknown }): unknown =>
   typeof value === 'string' ? value.trim() : value;
@@ -59,13 +62,13 @@ export class OnboardingProfileDto {
   @IsOptional()
   @Transform(trim)
   @IsString()
-  @Length(1, 80)
+  @Length(1, PERSON_NAME_MAX_LENGTH)
   firstName?: string;
 
   @IsOptional()
   @Transform(trim)
   @IsString()
-  @Length(1, 80)
+  @Length(1, PERSON_NAME_MAX_LENGTH)
   lastName?: string;
 
   /** Client: state of residence (50 + DC). */

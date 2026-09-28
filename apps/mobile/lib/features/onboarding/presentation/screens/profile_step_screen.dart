@@ -18,7 +18,8 @@ import 'package:lawbid/features/onboarding/presentation/widgets/onboarding_scaff
 import 'package:lawbid/features/onboarding/presentation/widgets/option_picker_sheet.dart';
 
 /// Server limit for first/last name (apps/api UpdateProfileDto @Length(1, 80)).
-const kNameMaxLength = 80;
+// docs/03 §4.1 limits (server enforces the same).
+const kNameMaxLength = 50;
 
 /// Max attorney bio length (docs/01_FOUNDATION_AUTH.md §11 Шаг 3B).
 const kBioMaxLength = 300;
@@ -316,7 +317,7 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
             label: t.t('onboarding.profile.contactTime'),
             hintText: t.t('onboarding.profile.contactTimeHint'),
             helperText: t.t('onboarding.profile.contactHint'),
-            maxLength: 120,
+            maxLength: 80,
           ),
         ],
       ],

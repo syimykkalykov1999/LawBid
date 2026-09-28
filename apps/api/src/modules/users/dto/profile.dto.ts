@@ -1,3 +1,4 @@
+import { PERSON_NAME_MAX_LENGTH } from './onboarding-profile.dto';
 import {
   IsEnum,
   IsIn,
@@ -20,12 +21,12 @@ export class SetRoleDto {
 export class UpdateProfileDto {
   @IsOptional()
   @IsString()
-  @Length(1, 80)
+  @Length(1, PERSON_NAME_MAX_LENGTH)
   firstName?: string;
 
   @IsOptional()
   @IsString()
-  @Length(1, 80)
+  @Length(1, PERSON_NAME_MAX_LENGTH)
   lastName?: string;
 
   @IsOptional()
