@@ -130,6 +130,18 @@ enum ErrorCode {
   licenseAlreadyAdded('LICENSE_ALREADY_ADDED'),
   @JsonValue('ATTORNEY_SUSPENDED')
   attorneySuspended('ATTORNEY_SUSPENDED'),
+  @JsonValue('CASE_NOT_FOUND')
+  caseNotFound('CASE_NOT_FOUND'),
+  @JsonValue('CASE_INVALID_STATE')
+  caseInvalidState('CASE_INVALID_STATE'),
+  @JsonValue('BID_INVALID_STATE')
+  bidInvalidState('BID_INVALID_STATE'),
+  @JsonValue('BID_NOT_YOUR_TURN')
+  bidNotYourTurn('BID_NOT_YOUR_TURN'),
+  @JsonValue('BID_MAX_ROUNDS_REACHED')
+  bidMaxRoundsReached('BID_MAX_ROUNDS_REACHED'),
+  @JsonValue('BID_COUNTER_NOT_ALLOWED')
+  bidCounterNotAllowed('BID_COUNTER_NOT_ALLOWED'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

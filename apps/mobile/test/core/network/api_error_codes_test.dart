@@ -50,6 +50,13 @@ void main() {
       ApiErrorCodes.usernameTaken,
       ApiErrorCodes.usernameReserved,
       ApiErrorCodes.usernameChangeTooSoon,
+      // Cases and bids (docs/04 §15, stage 4.1)
+      ApiErrorCodes.caseNotFound,
+      ApiErrorCodes.caseInvalidState,
+      ApiErrorCodes.bidInvalidState,
+      ApiErrorCodes.bidNotYourTurn,
+      ApiErrorCodes.bidMaxRoundsReached,
+      ApiErrorCodes.bidCounterNotAllowed,
     ];
     for (final translator in const [StaticTranslatorEn(), StaticTranslatorRu()]) {
       final fallback = translator.t('error.default.message');

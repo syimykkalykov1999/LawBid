@@ -1,0 +1,7 @@
+key,en,ru
+error.api.CASE_NOT_FOUND,This case is no longer available.,Этот кейс больше недоступен.
+error.api.CASE_INVALID_STATE,This action isn't available for the case right now. Refresh and try again.,Это действие сейчас недоступно для кейса. Обновите экран и попробуйте снова.
+error.api.BID_INVALID_STATE,This bid can no longer be changed.,Этот бид больше нельзя изменить.
+error.api.BID_NOT_YOUR_TURN,It's the other side's turn. Wait for their reply.,Сейчас ход другой стороны. Дождитесь ответа.
+error.api.BID_MAX_ROUNDS_REACHED,The limit of 5 counter-offers is reached. You can only accept or decline.,Достигнут лимит в 5 встречных предложений. Можно только принять или отклонить.
+error.api.BID_COUNTER_NOT_ALLOWED,A free consultation can only be accepted or declined.,Бесплатную консультацию можно только принять или отклонить.

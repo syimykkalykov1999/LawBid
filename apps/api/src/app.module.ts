@@ -13,6 +13,10 @@ import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { I18nModule } from './modules/i18n/i18n.module';
 import { CasesModule } from './modules/cases/cases.module';
+import { BidsModule } from './modules/bids/bids.module';
+import { NegotiationsModule } from './modules/negotiations/negotiations.module';
+import { JournalModule } from './modules/journal/journal.module';
+import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 import { AppSettingsModule } from './common/app-settings/app-settings.module';
 import { VerificationModule } from './modules/verification/verification.module';
 import { ProfilesModule } from './modules/profiles/profiles.module';
@@ -97,6 +101,10 @@ const isDev =
     UsersModule,
     I18nModule,
     CasesModule,
+    BidsModule,
+    NegotiationsModule,
+    JournalModule,
+    SubscriptionsModule,
     AppSettingsModule,
     // Global NotificationsService.emit() seam (delivery: docs/05).
     NotificationsModule,

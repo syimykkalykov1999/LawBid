@@ -57,4 +57,8 @@ describe('NotificationsService.emit (docs/05 §9.3 seam)', () => {
     expect(NOTIFICATION_CATEGORY.review_received).toBe('cases');
     expect(NOTIFICATION_CATEGORY.verification_update).toBe('system');
   });
+
+  it('maps case_updated (docs/04 §14) to the cases category (docs/05 §9.2)', () => {
+    expect(NOTIFICATION_CATEGORY.case_updated).toBe('cases');
+  });
 });

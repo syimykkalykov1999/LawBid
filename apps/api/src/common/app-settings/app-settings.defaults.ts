@@ -35,3 +35,15 @@ export const FILE_03_SETTINGS = {
 } as const;
 
 export type File03SettingKey = keyof typeof FILE_03_SETTINGS;
+
+// docs/04_CASES_BIDS.md §14 (stage 4.1 migration also inserts it): after
+// this many confirmed "can't reach the client" reports the client account
+// is suspended (§8.4).
+export const FILE_04_SETTINGS = {
+  'contacts.suspend_after_confirmed_reports': 3,
+} as const;
+
+/** Every typed app_config tunable with its spec default. */
+export const APP_SETTINGS = { ...FILE_03_SETTINGS, ...FILE_04_SETTINGS };
+
+export type AppSettingKey = keyof typeof APP_SETTINGS;

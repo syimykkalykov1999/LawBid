@@ -36,7 +36,10 @@ import {
   PracticeAreaSeedCategory,
 } from '../src/common/reference-data/practice-areas.util';
 import { US_STATES } from '../src/common/reference-data/us-states';
-import { FILE_03_SETTINGS } from '../src/common/app-settings/app-settings.defaults';
+import {
+  FILE_03_SETTINGS,
+  FILE_04_SETTINGS,
+} from '../src/common/app-settings/app-settings.defaults';
 
 const prisma = new PrismaClient();
 
@@ -335,6 +338,15 @@ async function seedAppConfig(): Promise<void> {
   console.log(
     `  app_config (file 03 §9): ${Object.keys(FILE_03_SETTINGS).length} upserted`,
   );
+
+  // docs/04_CASES_BIDS.md §14 (stage 4.1). `update: {}` as above.
+  for (const [key, value] of Object.entries(FILE_04_SETTINGS)) {
+    await prisma.appConfig.upsert({
+      where: { key },
+      create: { key, value },
+      update: {},
+    });
+  }
 
   // Cost protection (owner-approved extension 2026-09-27 —
   // docs/OPEN_QUESTIONS.md, docs/COST_PROTECTION.md): live caps read by

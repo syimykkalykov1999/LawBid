@@ -1,12 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { AppConfigService } from '../../modules/feature-flags/services/app-config.service';
-import {
-  FILE_03_SETTINGS,
-  type File03SettingKey,
-} from './app-settings.defaults';
+import { APP_SETTINGS, type AppSettingKey } from './app-settings.defaults';
 
 /**
- * Typed reads of product tunables from app_config (docs/03 §9). Values
+ * Typed reads of product tunables from app_config (docs/03 §9, docs/04 §14). Values
  * come through AppConfigService, which caches the whole table in Redis
  * (30 s), so an admin change applies without a release and without a DB
  * hit per read. A missing or wrongly typed value falls back to the spec
@@ -16,25 +13,25 @@ import {
 export class AppSettingsService {
   constructor(private readonly appConfig: AppConfigService) {}
 
-  async number(key: File03SettingKey): Promise<number> {
-    const fallback = FILE_03_SETTINGS[key];
+  async number(key: AppSettingKey): Promise<number> {
+    const fallback = APP_SETTINGS[key];
     const value = (await this.appConfig.getConfig())[key];
     return typeof value === 'number' && Number.isFinite(value)
       ? value
       : (fallback as number);
   }
 
-  async numberList(key: File03SettingKey): Promise<number[]> {
+  async numberList(key: AppSettingKey): Promise<number[]> {
     const value = (await this.appConfig.getConfig())[key];
     return Array.isArray(value) && value.every((v) => typeof v === 'number')
       ? value
-      : [...(FILE_03_SETTINGS[key] as readonly number[])];
+      : [...(APP_SETTINGS[key] as readonly number[])];
   }
 
-  async stringList(key: File03SettingKey): Promise<string[]> {
+  async stringList(key: AppSettingKey): Promise<string[]> {
     const value = (await this.appConfig.getConfig())[key];
     return Array.isArray(value) && value.every((v) => typeof v === 'string')
       ? value
-      : [...(FILE_03_SETTINGS[key] as readonly string[])];
+      : [...(APP_SETTINGS[key] as readonly string[])];
   }
 }

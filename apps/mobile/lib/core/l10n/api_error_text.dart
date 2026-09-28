@@ -91,6 +91,13 @@ const _keys = <String, String>{
       'error.api.LICENSE_ALREADY_REGISTERED',
   ApiErrorCodes.licenseAlreadyAdded: 'error.api.LICENSE_ALREADY_ADDED',
   ApiErrorCodes.attorneySuspended: 'error.api.ATTORNEY_SUSPENDED',
+  // Cases and bids (docs/04 §15, stage 4.1)
+  ApiErrorCodes.caseNotFound: 'error.api.CASE_NOT_FOUND',
+  ApiErrorCodes.caseInvalidState: 'error.api.CASE_INVALID_STATE',
+  ApiErrorCodes.bidInvalidState: 'error.api.BID_INVALID_STATE',
+  ApiErrorCodes.bidNotYourTurn: 'error.api.BID_NOT_YOUR_TURN',
+  ApiErrorCodes.bidMaxRoundsReached: 'error.api.BID_MAX_ROUNDS_REACHED',
+  ApiErrorCodes.bidCounterNotAllowed: 'error.api.BID_COUNTER_NOT_ALLOWED',
   ApiErrorCodes.reauthRequired: 'error.api.REAUTH_REQUIRED',
   ApiErrorCodes.reauthInvalid: 'error.api.REAUTH_INVALID',
   ApiErrorCodes.clientContactsIncomplete:

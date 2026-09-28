@@ -15,6 +15,7 @@ export const NOTIFICATION_CATEGORY: Record<
   bid_accepted: 'bids',
   bid_rejected: 'bids',
   negotiation_failed: 'bids',
+  case_updated: 'cases',
   case_stale_prompt: 'cases',
   case_archived: 'cases',
   completion_requested: 'cases',

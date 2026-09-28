@@ -91,6 +91,13 @@ abstract final class ApiErrorCodes {
   static const licenseAlreadyRegistered = 'LICENSE_ALREADY_REGISTERED';
   static const licenseAlreadyAdded = 'LICENSE_ALREADY_ADDED';
   static const attorneySuspended = 'ATTORNEY_SUSPENDED';
+  // Cases and bids (docs/04 §15, stage 4.1)
+  static const caseNotFound = 'CASE_NOT_FOUND';
+  static const caseInvalidState = 'CASE_INVALID_STATE';
+  static const bidInvalidState = 'BID_INVALID_STATE';
+  static const bidNotYourTurn = 'BID_NOT_YOUR_TURN';
+  static const bidMaxRoundsReached = 'BID_MAX_ROUNDS_REACHED';
+  static const bidCounterNotAllowed = 'BID_COUNTER_NOT_ALLOWED';
 
   /// Every server code, in enum order.
   static const all = <String>[
@@ -156,6 +163,12 @@ abstract final class ApiErrorCodes {
     licenseAlreadyRegistered,
     licenseAlreadyAdded,
     attorneySuspended,
+    caseNotFound,
+    caseInvalidState,
+    bidInvalidState,
+    bidNotYourTurn,
+    bidMaxRoundsReached,
+    bidCounterNotAllowed,
   ];
 }
 

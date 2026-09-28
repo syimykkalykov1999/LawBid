@@ -1,5 +1,5 @@
 import { AppSettingsService } from './app-settings.service';
-import { FILE_03_SETTINGS } from './app-settings.defaults';
+import { FILE_03_SETTINGS, FILE_04_SETTINGS } from './app-settings.defaults';
 import type { AppConfigService } from '../../modules/feature-flags/services/app-config.service';
 
 describe('AppSettingsService (docs/03 §9)', () => {
@@ -45,5 +45,19 @@ describe('AppSettingsService (docs/03 §9)', () => {
       'files.max_size_mb': 10,
       'files.avatar_max_size_mb': 5,
     });
+  });
+
+  it('file 04 defaults match docs/04 §14 and are readable', async () => {
+    expect(FILE_04_SETTINGS).toEqual({
+      'contacts.suspend_after_confirmed_reports': 3,
+    });
+    const s = withConfig({});
+    expect(await s.number('contacts.suspend_after_confirmed_reports')).toBe(3);
+    const edited = withConfig({
+      'contacts.suspend_after_confirmed_reports': 5,
+    });
+    expect(
+      await edited.number('contacts.suspend_after_confirmed_reports'),
+    ).toBe(5);
   });
 });
