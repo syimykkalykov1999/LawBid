@@ -10,6 +10,9 @@ import 'clients/users_client.dart';
 import 'clients/i18n_client.dart';
 import 'clients/admin_i18n_client.dart';
 import 'clients/cases_client.dart';
+import 'clients/practice_areas_client.dart';
+import 'clients/attorneys_client.dart';
+import 'clients/profiles_client.dart';
 
 /// LawBid API `v0.1.0`.
 ///
@@ -28,6 +31,9 @@ class LawbidApi {
   I18nClient? _i18n;
   AdminI18nClient? _adminI18n;
   CasesClient? _cases;
+  PracticeAreasClient? _practiceAreas;
+  AttorneysClient? _attorneys;
+  ProfilesClient? _profiles;
 
   ConfigClient get config => _config ??= ConfigClient(_dio, baseUrl: _baseUrl);
 
@@ -41,4 +47,13 @@ class LawbidApi {
       _adminI18n ??= AdminI18nClient(_dio, baseUrl: _baseUrl);
 
   CasesClient get cases => _cases ??= CasesClient(_dio, baseUrl: _baseUrl);
+
+  PracticeAreasClient get practiceAreas =>
+      _practiceAreas ??= PracticeAreasClient(_dio, baseUrl: _baseUrl);
+
+  AttorneysClient get attorneys =>
+      _attorneys ??= AttorneysClient(_dio, baseUrl: _baseUrl);
+
+  ProfilesClient get profiles =>
+      _profiles ??= ProfilesClient(_dio, baseUrl: _baseUrl);
 }

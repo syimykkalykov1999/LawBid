@@ -1,6 +1,7 @@
 import {
   isValidUsername,
   pickUsername,
+  USERNAME_PATTERN,
   usernameBase,
   withSuffix,
 } from './username.util';
@@ -40,5 +41,29 @@ describe('attorney username generation (docs/02 §4.C, docs/03 §6)', () => {
     expect(
       pickUsername('support', new Set(['support2']), new Set(['support'])),
     ).toBe('support3');
+  });
+});
+
+describe('USERNAME_PATTERN (DTO validation)', () => {
+  it('agrees with isValidUsername', () => {
+    for (const u of [
+      'abc',
+      'john.smith',
+      'john_smith2',
+      'jo._hn',
+      'JOHN',
+      'a'.repeat(30),
+      'a'.repeat(31),
+      'ab',
+      '.john',
+      'john.',
+      '_john',
+      'john_',
+      'jo..hn',
+      'jöhn',
+      'jo hn',
+    ]) {
+      expect(USERNAME_PATTERN.test(u)).toBe(isValidUsername(u));
+    }
   });
 });

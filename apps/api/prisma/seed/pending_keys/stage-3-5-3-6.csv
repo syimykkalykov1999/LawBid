@@ -1,0 +1,8 @@
+key,en,ru
+error.api.ATTORNEY_NOT_VERIFIED,Available after verification.,Доступно после верификации.
+error.api.USERNAME_TAKEN,This @username is already taken.,Этот @username уже занят.
+error.api.USERNAME_RESERVED,This @username isn't available. Please choose another one.,Этот @username недоступен. Выберите другой.
+error.api.USERNAME_CHANGE_TOO_SOON,You can change your @username once every 30 days.,@username можно менять не чаще одного раза в 30 дней.
+notif.verification.license_expiring,Your {state} license expires on {date}. Please update your details.,Срок действия лицензии в штате {state} истекает {date}. Обновите данные.
+notif.verification.license_expired,Your {state} license has expired. Cases in this state are no longer shown.,Срок действия лицензии в штате {state} истёк. Кейсы этого штата больше не показываются.
+notif.verification.profile_unverified,You have no active licenses left. Please submit a new verification request.,У вас не осталось действующих лицензий. Подайте новую заявку на верификацию.

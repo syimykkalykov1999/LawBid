@@ -60,6 +60,10 @@ export function pickUsername(
   throw new Error('unreachable');
 }
 
+/** isValidUsername as one regex (class-validator @Matches on DTOs). */
+export const USERNAME_PATTERN =
+  /^(?![._])(?!.*\.\.)[A-Za-z0-9._]{3,30}(?<![._])$/;
+
 export function isValidUsername(u: string): boolean {
   return (
     u.length >= USERNAME_MIN &&

@@ -82,6 +82,14 @@ enum ErrorCode {
   providerBudgetExceeded('PROVIDER_BUDGET_EXCEEDED'),
   @JsonValue('PHONE_COUNTRY_NOT_SUPPORTED')
   phoneCountryNotSupported('PHONE_COUNTRY_NOT_SUPPORTED'),
+  @JsonValue('ATTORNEY_NOT_VERIFIED')
+  attorneyNotVerified('ATTORNEY_NOT_VERIFIED'),
+  @JsonValue('USERNAME_TAKEN')
+  usernameTaken('USERNAME_TAKEN'),
+  @JsonValue('USERNAME_RESERVED')
+  usernameReserved('USERNAME_RESERVED'),
+  @JsonValue('USERNAME_CHANGE_TOO_SOON')
+  usernameChangeTooSoon('USERNAME_CHANGE_TOO_SOON'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

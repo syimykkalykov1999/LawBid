@@ -72,4 +72,16 @@ export enum ErrorCode {
   // product; docs/01_FOUNDATION_AUTH.md §10.6 "блок подозрительных
   // префиксов стран") or a premium/toll-free/shared-cost number type.
   PHONE_COUNTRY_NOT_SUPPORTED = 'PHONE_COUNTRY_NOT_SUPPORTED',
+
+  // Practices and profiles (docs/03_VERIFICATION_PROFILES.md §3–§4,
+  // stages 3.5–3.6)
+  // 403: the action needs verification_status = verified (practices).
+  ATTORNEY_NOT_VERIFIED = 'ATTORNEY_NOT_VERIFIED',
+  // 409: another attorney holds this @username (case-insensitive).
+  USERNAME_TAKEN = 'USERNAME_TAKEN',
+  // 400: the @username is on profile.reserved_usernames.
+  USERNAME_RESERVED = 'USERNAME_RESERVED',
+  // 409: @username changed less than profile.username_change_cooldown_days
+  // ago; details.nextChangeAt says when it is allowed again.
+  USERNAME_CHANGE_TOO_SOON = 'USERNAME_CHANGE_TOO_SOON',
 }

@@ -61,6 +61,12 @@ abstract final class ApiErrorCodes {
   static const providerBudgetExceeded = 'PROVIDER_BUDGET_EXCEEDED';
   static const phoneCountryNotSupported = 'PHONE_COUNTRY_NOT_SUPPORTED';
 
+  // Practices and profiles (docs/03 §3–§4, stages 3.5–3.6)
+  static const attorneyNotVerified = 'ATTORNEY_NOT_VERIFIED';
+  static const usernameTaken = 'USERNAME_TAKEN';
+  static const usernameReserved = 'USERNAME_RESERVED';
+  static const usernameChangeTooSoon = 'USERNAME_CHANGE_TOO_SOON';
+
   /// Every server code, in enum order.
   static const all = <String>[
     validationError,
@@ -101,6 +107,10 @@ abstract final class ApiErrorCodes {
     i18nImportInvalid,
     providerBudgetExceeded,
     phoneCountryNotSupported,
+    attorneyNotVerified,
+    usernameTaken,
+    usernameReserved,
+    usernameChangeTooSoon,
   ];
 }
 

@@ -40,6 +40,10 @@ void main() {
       ApiErrorCodes.forbidden,
       ApiErrorCodes.notFound,
       ApiErrorCodes.notImplemented,
+      ApiErrorCodes.attorneyNotVerified,
+      ApiErrorCodes.usernameTaken,
+      ApiErrorCodes.usernameReserved,
+      ApiErrorCodes.usernameChangeTooSoon,
     ];
     for (final translator in const [StaticTranslatorEn(), StaticTranslatorRu()]) {
       final fallback = translator.t('error.default.message');

@@ -4,6 +4,8 @@ import { ConfigModule } from '../config/config.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { RedisModule } from '../redis/redis.module';
 import { JobsModule } from './jobs.module';
+import { AppSettingsModule } from '../common/app-settings/app-settings.module';
+import { NotificationsModule } from '../modules/notifications/notifications.module';
 
 /**
  * Root module of the dedicated `worker` process (docs/06_PRODUCTION.md §6:
@@ -25,6 +27,9 @@ import { JobsModule } from './jobs.module';
     }),
     PrismaModule,
     RedisModule,
+    // LicenseExpiryJob: typed app_config reads + the notifications seam.
+    AppSettingsModule,
+    NotificationsModule,
     JobsModule.register({ mode: 'worker' }),
   ],
 })

@@ -7,6 +7,7 @@ import { CRON_JOBS, CRON_QUEUE, CRON_SCHEDULES } from './jobs.constants';
 import type { SessionsCleanupJob } from './handlers/sessions-cleanup.job';
 import type { OtpCleanupJob } from './handlers/otp-cleanup.job';
 import type { DisposableDomainsRefreshJob } from './disposable-domains/disposable-domains-refresh.job';
+import type { LicenseExpiryJob } from './handlers/license-expiry.job';
 
 jest.mock('bullmq', () => {
   const queue = {
@@ -55,14 +56,17 @@ function processor() {
   const disposable = {
     run: jest.fn(() => Promise.resolve({ status: 'updated' })),
   };
+  const licenses = { run: jest.fn(() => Promise.resolve({ expired: 3 })) };
   return {
     sessions,
     otp,
     disposable,
+    licenses,
     processor: new CronProcessor(
       sessions as unknown as SessionsCleanupJob,
       otp as unknown as OtpCleanupJob,
       disposable as unknown as DisposableDomainsRefreshJob,
+      licenses as unknown as LicenseExpiryJob,
     ),
   };
 }
@@ -85,7 +89,7 @@ describe('JobsRunner', () => {
       connection: { url: 'redis://localhost:6379/3' },
     });
     const upserts = mocked.__queue.upsertJobScheduler.mock.calls;
-    expect(upserts).toHaveLength(3);
+    expect(upserts).toHaveLength(4);
     const byName = Object.fromEntries(
       upserts.map((c: unknown[]) => [c[0], c[1]]),
     );
@@ -100,6 +104,10 @@ describe('JobsRunner', () => {
     });
     expect(byName[CRON_JOBS.disposableDomainsRefresh]).toEqual({
       pattern: expect.stringMatching(/^\d+ \d+ 1 \* \*$/),
+      tz: 'UTC',
+    });
+    expect(byName[CRON_JOBS.licenseExpiry]).toEqual({
+      pattern: expect.stringMatching(/^\d+ \d+ \* \* \*$/),
       tz: 'UTC',
     });
     for (const call of upserts) {
@@ -202,6 +210,10 @@ describe('CronProcessor', () => {
     await expect(
       p.processor.process(CRON_JOBS.disposableDomainsRefresh),
     ).resolves.toEqual({ status: 'updated' });
+    await expect(p.processor.process(CRON_JOBS.licenseExpiry)).resolves.toEqual(
+      { expired: 3 },
+    );
+    expect(p.licenses.run).toHaveBeenCalledTimes(1);
     expect(p.sessions.run).toHaveBeenCalledTimes(1);
     expect(p.otp.run).toHaveBeenCalledTimes(1);
     expect(p.disposable.run).toHaveBeenCalledTimes(1);

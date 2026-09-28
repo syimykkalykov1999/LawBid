@@ -7,6 +7,8 @@ import {
 } from '@nestjs/common';
 import { ConsentType, Prisma, type User } from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { withTxRetry } from '../../../prisma/tx-retry.util';
+import { startNameRecheckIfVerified } from './attorney-name-recheck';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import type {
   OnboardingStep,
@@ -127,14 +129,26 @@ export class OnboardingService {
         });
       }
     }
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: {
-        first_name: dto.firstName?.trim(),
-        last_name: dto.lastName?.trim(),
-        ui_language: dto.uiLanguage,
-        theme: dto.theme,
-      },
+    await withTxRetry(this.prisma, async (tx) => {
+      const before = await tx.user.findUnique({
+        where: { id: userId },
+        select: { first_name: true, last_name: true },
+      });
+      if (!before) {
+        throw new NotFoundException({ code: ErrorCode.NOT_FOUND });
+      }
+      const after = await tx.user.update({
+        where: { id: userId },
+        data: {
+          first_name: dto.firstName?.trim(),
+          last_name: dto.lastName?.trim(),
+          ui_language: dto.uiLanguage,
+          theme: dto.theme,
+        },
+        select: { first_name: true, last_name: true },
+      });
+      // docs/03 §4.1: a verified attorney's new name goes to re-check.
+      await startNameRecheckIfVerified(tx, userId, before, after);
     });
   }
 

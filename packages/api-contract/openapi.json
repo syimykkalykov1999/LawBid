@@ -2919,6 +2919,899 @@
           "cases"
         ]
       }
+    },
+    "/practice-areas": {
+      "get": {
+        "operationId": "listPracticeAreas",
+        "parameters": [
+          {
+            "name": "If-None-Match",
+            "in": "header",
+            "description": "ETag of the tree the client already has.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Active categories with their active specializations, sorted; `ETag` header.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PracticeAreaCategoryListEnvelope"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified: If-None-Match equals the current ETag."
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "practice-areas"
+        ]
+      }
+    },
+    "/attorneys/me/profile": {
+      "get": {
+        "operationId": "getMyAttorneyProfile",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnAttorneyProfileEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "attorneys"
+        ]
+      },
+      "patch": {
+        "operationId": "updateMyAttorneyProfile",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAttorneyProfileDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnAttorneyProfileEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR, USERNAME_RESERVED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: USERNAME_TAKEN, USERNAME_CHANGE_TOO_SOON",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "attorneys"
+        ]
+      }
+    },
+    "/attorneys/me/practice-areas": {
+      "get": {
+        "operationId": "getMyPracticeAreas",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SelectedPracticeAreaListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "attorneys"
+        ]
+      },
+      "put": {
+        "operationId": "replaceMyPracticeAreas",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplacePracticeAreasDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SelectedPracticeAreaListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN, ATTORNEY_NOT_VERIFIED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "attorneys"
+        ]
+      }
+    },
+    "/attorneys/username-available": {
+      "get": {
+        "operationId": "checkUsernameAvailable",
+        "parameters": [
+          {
+            "name": "u",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "minLength": 1,
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsernameAvailabilityEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Rate-limited (§4.3): an enumeration aid otherwise.",
+        "tags": [
+          "attorneys"
+        ]
+      }
+    },
+    "/attorneys/{username}": {
+      "get": {
+        "operationId": "getAttorneyProfile",
+        "parameters": [
+          {
+            "name": "username",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicAttorneyProfileEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "attorneys"
+        ]
+      }
+    },
+    "/users/me/profile": {
+      "get": {
+        "operationId": "getMyClientProfile",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientProfileEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "profiles"
+        ]
+      },
+      "patch": {
+        "operationId": "updateMyClientProfile",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateClientProfileDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientProfileEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "profiles"
+        ]
+      }
+    },
+    "/users/me/contact-preferences": {
+      "patch": {
+        "operationId": "updateMyContactPreferences",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateContactPreferencesDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientProfileEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "profiles"
+        ]
+      }
     }
   },
   "info": {
@@ -2982,7 +3875,11 @@
           "I18N_LANGUAGE_NOT_FOUND",
           "I18N_IMPORT_INVALID",
           "PROVIDER_BUDGET_EXCEEDED",
-          "PHONE_COUNTRY_NOT_SUPPORTED"
+          "PHONE_COUNTRY_NOT_SUPPORTED",
+          "ATTORNEY_NOT_VERIFIED",
+          "USERNAME_TAKEN",
+          "USERNAME_RESERVED",
+          "USERNAME_CHANGE_TOO_SOON"
         ]
       },
       "ErrorBodyDto": {
@@ -4612,6 +5509,1024 @@
         "required": [
           "data"
         ]
+      },
+      "PracticeAreaLeafDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string",
+            "example": "traffic_tickets.speeding"
+          },
+          "i18nKey": {
+            "type": "string",
+            "example": "practice.traffic_tickets.speeding",
+            "description": "Translation key of the display name."
+          },
+          "nameEn": {
+            "type": "string",
+            "description": "English fallback name."
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "i18nKey",
+          "nameEn"
+        ]
+      },
+      "PracticeAreaCategoryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string",
+            "example": "traffic_tickets"
+          },
+          "i18nKey": {
+            "type": "string",
+            "example": "practice.traffic_tickets"
+          },
+          "nameEn": {
+            "type": "string"
+          },
+          "children": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PracticeAreaLeafDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "i18nKey",
+          "nameEn",
+          "children"
+        ]
+      },
+      "PracticeAreaCategoryListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PracticeAreaCategoryDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "StateRefDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "example": "NY"
+          },
+          "name": {
+            "type": "string",
+            "example": "New York"
+          }
+        },
+        "required": [
+          "code",
+          "name"
+        ]
+      },
+      "LicenseStatus": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "verified",
+          "rejected",
+          "expired",
+          "suspended"
+        ]
+      },
+      "OwnLicenseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "$ref": "#/components/schemas/StateRefDto"
+          },
+          "barNumber": {
+            "type": "string"
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LicenseStatus"
+              }
+            ]
+          },
+          "expiresAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date"
+          },
+          "rejectionCode": {
+            "type": "string",
+            "nullable": true,
+            "description": "verification.reject.<code> when status = rejected."
+          }
+        },
+        "required": [
+          "id",
+          "state",
+          "barNumber",
+          "status",
+          "expiresAt",
+          "rejectionCode"
+        ]
+      },
+      "RatingDto": {
+        "type": "object",
+        "properties": {
+          "avg": {
+            "type": "number",
+            "description": "Average of published reviews, 0 if none."
+          },
+          "count": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "avg",
+          "count"
+        ]
+      },
+      "ProfileCountersDto": {
+        "type": "object",
+        "properties": {
+          "posts": {
+            "type": "number"
+          },
+          "followers": {
+            "type": "number"
+          },
+          "following": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "posts",
+          "followers",
+          "following"
+        ]
+      },
+      "OwnAttorneyProfileDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "username": {
+            "type": "string"
+          },
+          "firstName": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastName": {
+            "type": "string",
+            "nullable": true
+          },
+          "bio": {
+            "type": "string",
+            "nullable": true
+          },
+          "firmName": {
+            "type": "string",
+            "nullable": true
+          },
+          "languages": {
+            "description": "ISO 639-1 codes.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "verificationStatus": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/VerificationStatus"
+              }
+            ]
+          },
+          "verifiedBadge": {
+            "type": "boolean",
+            "description": "Blue check (docs/03 §6.3): verified status and at least one verified license."
+          },
+          "usernameChangedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "usernameNextChangeAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time",
+            "description": "When the username may be changed again; null = it can be changed now."
+          },
+          "licenses": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OwnLicenseDto"
+            }
+          },
+          "rating": {
+            "$ref": "#/components/schemas/RatingDto"
+          },
+          "counters": {
+            "$ref": "#/components/schemas/ProfileCountersDto"
+          }
+        },
+        "required": [
+          "id",
+          "username",
+          "firstName",
+          "lastName",
+          "bio",
+          "firmName",
+          "languages",
+          "verificationStatus",
+          "verifiedBadge",
+          "usernameChangedAt",
+          "usernameNextChangeAt",
+          "licenses",
+          "rating",
+          "counters"
+        ]
+      },
+      "OwnAttorneyProfileEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/OwnAttorneyProfileDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "UpdateAttorneyProfileDto": {
+        "type": "object",
+        "properties": {
+          "firstName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 50
+          },
+          "lastName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 50
+          },
+          "bio": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "firmName": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "languages": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "enum": [
+                "aa",
+                "ab",
+                "ae",
+                "af",
+                "ak",
+                "am",
+                "an",
+                "ar",
+                "as",
+                "av",
+                "ay",
+                "az",
+                "ba",
+                "be",
+                "bg",
+                "bi",
+                "bm",
+                "bn",
+                "bo",
+                "br",
+                "bs",
+                "ca",
+                "ce",
+                "ch",
+                "co",
+                "cr",
+                "cs",
+                "cu",
+                "cv",
+                "cy",
+                "da",
+                "de",
+                "dv",
+                "dz",
+                "ee",
+                "el",
+                "en",
+                "eo",
+                "es",
+                "et",
+                "eu",
+                "fa",
+                "ff",
+                "fi",
+                "fj",
+                "fo",
+                "fr",
+                "fy",
+                "ga",
+                "gd",
+                "gl",
+                "gn",
+                "gu",
+                "gv",
+                "ha",
+                "he",
+                "hi",
+                "ho",
+                "hr",
+                "ht",
+                "hu",
+                "hy",
+                "hz",
+                "ia",
+                "id",
+                "ie",
+                "ig",
+                "ii",
+                "ik",
+                "io",
+                "is",
+                "it",
+                "iu",
+                "ja",
+                "jv",
+                "ka",
+                "kg",
+                "ki",
+                "kj",
+                "kk",
+                "kl",
+                "km",
+                "kn",
+                "ko",
+                "kr",
+                "ks",
+                "ku",
+                "kv",
+                "kw",
+                "ky",
+                "la",
+                "lb",
+                "lg",
+                "li",
+                "ln",
+                "lo",
+                "lt",
+                "lu",
+                "lv",
+                "mg",
+                "mh",
+                "mi",
+                "mk",
+                "ml",
+                "mn",
+                "mr",
+                "ms",
+                "mt",
+                "my",
+                "na",
+                "nb",
+                "nd",
+                "ne",
+                "ng",
+                "nl",
+                "nn",
+                "no",
+                "nr",
+                "nv",
+                "ny",
+                "oc",
+                "oj",
+                "om",
+                "or",
+                "os",
+                "pa",
+                "pi",
+                "pl",
+                "ps",
+                "pt",
+                "qu",
+                "rm",
+                "rn",
+                "ro",
+                "ru",
+                "rw",
+                "sa",
+                "sc",
+                "sd",
+                "se",
+                "sg",
+                "si",
+                "sk",
+                "sl",
+                "sm",
+                "sn",
+                "so",
+                "sq",
+                "sr",
+                "ss",
+                "st",
+                "su",
+                "sv",
+                "sw",
+                "ta",
+                "te",
+                "tg",
+                "th",
+                "ti",
+                "tk",
+                "tl",
+                "tn",
+                "to",
+                "tr",
+                "ts",
+                "tt",
+                "tw",
+                "ty",
+                "ug",
+                "uk",
+                "ur",
+                "uz",
+                "ve",
+                "vi",
+                "vo",
+                "wa",
+                "wo",
+                "xh",
+                "yi",
+                "yo",
+                "za",
+                "zh",
+                "zu"
+              ]
+            }
+          },
+          "username": {
+            "type": "string",
+            "description": "3-30 latin letters, digits, `_` and `.`; not starting/ending with\n`.`/`_`; no `..`. Uniqueness is case-insensitive."
+          }
+        }
+      },
+      "SelectedPracticeAreaDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string",
+            "example": "traffic_tickets.speeding"
+          },
+          "i18nKey": {
+            "type": "string",
+            "example": "practice.traffic_tickets.speeding",
+            "description": "Translation key of the display name."
+          },
+          "nameEn": {
+            "type": "string",
+            "description": "English fallback name."
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "categoryCode": {
+            "type": "string"
+          },
+          "categoryI18nKey": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "i18nKey",
+          "nameEn",
+          "categoryId",
+          "categoryCode",
+          "categoryI18nKey"
+        ]
+      },
+      "SelectedPracticeAreaListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SelectedPracticeAreaDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "ReplacePracticeAreasDto": {
+        "type": "object",
+        "properties": {
+          "practiceAreaIds": {
+            "uniqueItems": true,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "required": [
+          "practiceAreaIds"
+        ]
+      },
+      "UsernameUnavailableReason": {
+        "type": "string",
+        "enum": [
+          "invalid",
+          "reserved",
+          "taken"
+        ],
+        "description": "Why it is not available; null when available."
+      },
+      "UsernameAvailabilityDto": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string"
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "reason": {
+            "nullable": true,
+            "description": "Why it is not available; null when available.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UsernameUnavailableReason"
+              }
+            ]
+          }
+        },
+        "required": [
+          "username",
+          "available",
+          "reason"
+        ]
+      },
+      "UsernameAvailabilityEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/UsernameAvailabilityDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "PublicAttorneyProfileDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "username": {
+            "type": "string"
+          },
+          "firstName": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastName": {
+            "type": "string",
+            "nullable": true
+          },
+          "bio": {
+            "type": "string",
+            "nullable": true
+          },
+          "firmName": {
+            "type": "string",
+            "nullable": true
+          },
+          "languages": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "verifiedBadge": {
+            "type": "boolean",
+            "description": "Blue check (docs/03 §6.3)."
+          },
+          "licensedStates": {
+            "description": "States of verified licenses only.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StateRefDto"
+            }
+          },
+          "practiceAreas": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SelectedPracticeAreaDto"
+            }
+          },
+          "rating": {
+            "$ref": "#/components/schemas/RatingDto"
+          },
+          "counters": {
+            "$ref": "#/components/schemas/ProfileCountersDto"
+          },
+          "isSelf": {
+            "type": "boolean",
+            "description": "True when this is the caller's own profile."
+          }
+        },
+        "required": [
+          "id",
+          "username",
+          "firstName",
+          "lastName",
+          "bio",
+          "firmName",
+          "languages",
+          "verifiedBadge",
+          "licensedStates",
+          "practiceAreas",
+          "rating",
+          "counters",
+          "isSelf"
+        ]
+      },
+      "PublicAttorneyProfileEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PublicAttorneyProfileDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "ClientProfileDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "firstName": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastName": {
+            "type": "string",
+            "nullable": true
+          },
+          "state": {
+            "$ref": "#/components/schemas/StateRefDto"
+          },
+          "languages": {
+            "description": "ISO 639-1 codes.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "contactMethod": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ContactMethod"
+              }
+            ]
+          },
+          "contactNote": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "firstName",
+          "lastName",
+          "state",
+          "languages",
+          "contactMethod",
+          "contactNote"
+        ]
+      },
+      "ClientProfileEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ClientProfileDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "UpdateClientProfileDto": {
+        "type": "object",
+        "properties": {
+          "firstName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "lastName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "stateCode": {
+            "type": "string",
+            "description": "Client: state of residence (50 + DC).",
+            "pattern": "^[A-Z]{2}$"
+          },
+          "languages": {
+            "type": "array",
+            "description": "Client preferred_languages / attorney languages — ISO 639-1.",
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "enum": [
+                "aa",
+                "ab",
+                "ae",
+                "af",
+                "ak",
+                "am",
+                "an",
+                "ar",
+                "as",
+                "av",
+                "ay",
+                "az",
+                "ba",
+                "be",
+                "bg",
+                "bi",
+                "bm",
+                "bn",
+                "bo",
+                "br",
+                "bs",
+                "ca",
+                "ce",
+                "ch",
+                "co",
+                "cr",
+                "cs",
+                "cu",
+                "cv",
+                "cy",
+                "da",
+                "de",
+                "dv",
+                "dz",
+                "ee",
+                "el",
+                "en",
+                "eo",
+                "es",
+                "et",
+                "eu",
+                "fa",
+                "ff",
+                "fi",
+                "fj",
+                "fo",
+                "fr",
+                "fy",
+                "ga",
+                "gd",
+                "gl",
+                "gn",
+                "gu",
+                "gv",
+                "ha",
+                "he",
+                "hi",
+                "ho",
+                "hr",
+                "ht",
+                "hu",
+                "hy",
+                "hz",
+                "ia",
+                "id",
+                "ie",
+                "ig",
+                "ii",
+                "ik",
+                "io",
+                "is",
+                "it",
+                "iu",
+                "ja",
+                "jv",
+                "ka",
+                "kg",
+                "ki",
+                "kj",
+                "kk",
+                "kl",
+                "km",
+                "kn",
+                "ko",
+                "kr",
+                "ks",
+                "ku",
+                "kv",
+                "kw",
+                "ky",
+                "la",
+                "lb",
+                "lg",
+                "li",
+                "ln",
+                "lo",
+                "lt",
+                "lu",
+                "lv",
+                "mg",
+                "mh",
+                "mi",
+                "mk",
+                "ml",
+                "mn",
+                "mr",
+                "ms",
+                "mt",
+                "my",
+                "na",
+                "nb",
+                "nd",
+                "ne",
+                "ng",
+                "nl",
+                "nn",
+                "no",
+                "nr",
+                "nv",
+                "ny",
+                "oc",
+                "oj",
+                "om",
+                "or",
+                "os",
+                "pa",
+                "pi",
+                "pl",
+                "ps",
+                "pt",
+                "qu",
+                "rm",
+                "rn",
+                "ro",
+                "ru",
+                "rw",
+                "sa",
+                "sc",
+                "sd",
+                "se",
+                "sg",
+                "si",
+                "sk",
+                "sl",
+                "sm",
+                "sn",
+                "so",
+                "sq",
+                "sr",
+                "ss",
+                "st",
+                "su",
+                "sv",
+                "sw",
+                "ta",
+                "te",
+                "tg",
+                "th",
+                "ti",
+                "tk",
+                "tl",
+                "tn",
+                "to",
+                "tr",
+                "ts",
+                "tt",
+                "tw",
+                "ty",
+                "ug",
+                "uk",
+                "ur",
+                "uz",
+                "ve",
+                "vi",
+                "vo",
+                "wa",
+                "wo",
+                "xh",
+                "yi",
+                "yo",
+                "za",
+                "zh",
+                "zu"
+              ]
+            }
+          },
+          "contactMethod": {
+            "nullable": true,
+            "enum": [
+              "email",
+              "call",
+              "sms",
+              "in_app_chat"
+            ],
+            "type": "string"
+          },
+          "contactNote": {
+            "type": "string",
+            "maxLength": 200
+          }
+        }
+      },
+      "UpdateContactPreferencesDto": {
+        "type": "object",
+        "properties": {
+          "contactMethod": {
+            "nullable": true,
+            "enum": [
+              "email",
+              "call",
+              "sms",
+              "in_app_chat"
+            ],
+            "type": "string"
+          },
+          "contactNote": {
+            "type": "string",
+            "maxLength": 200
+          }
+        }
       }
     }
   }
