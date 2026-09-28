@@ -10,12 +10,16 @@ import { ReviewReminderJob } from './handlers/review-reminder.job';
 import { RatingReconcileJob } from './handlers/rating-reconcile.job';
 import { NotificationsModule } from '../modules/notifications/notifications.module';
 import { LicenseExpiryJob } from './handlers/license-expiry.job';
+import { BidSubscriptionLapseJob } from './handlers/bid-subscription-lapse.job';
+import { BidsModule } from '../modules/bids/bids.module';
+import { SubscriptionsModule } from '../modules/subscriptions/subscriptions.module';
 
 /**
  * Periodic maintenance on BullMQ (docs/01 §5.2): session + OTP cleanup
  * (docs/02 §6.4), monthly disposable-domain refresh (docs/02 §3.3),
- * review reminder, nightly rating reconciliation (docs/03 §7.3, §7.5) and
- * nightly license expiry (docs/03 §2.6). Depends on the global
+ * review reminder, nightly rating reconciliation (docs/03 §7.3, §7.5),
+ * nightly license expiry (docs/03 §2.6) and the hourly bid-subscription-
+ * lapse safety net (docs/04 §2, stage 4.4). Depends on the global
  * ConfigModule, PrismaModule, RedisModule, AppSettingsModule,
  * NotificationsModule and nestjs-pino LoggerModule. Imported by AppModule in 'api' mode and by
  * WorkerModule (src/worker.ts) in 'worker' mode.
@@ -25,7 +29,7 @@ export class JobsModule {
   static register(options: JobsModuleOptions): DynamicModule {
     return {
       module: JobsModule,
-      imports: [NotificationsModule],
+      imports: [NotificationsModule, SubscriptionsModule, BidsModule],
       providers: [
         { provide: JOBS_OPTIONS, useValue: options },
         {
@@ -38,6 +42,7 @@ export class JobsModule {
         ReviewReminderJob,
         RatingReconcileJob,
         LicenseExpiryJob,
+        BidSubscriptionLapseJob,
         CronProcessor,
         JobsRunner,
       ],
@@ -49,6 +54,7 @@ export class JobsModule {
         ReviewReminderJob,
         RatingReconcileJob,
         LicenseExpiryJob,
+        BidSubscriptionLapseJob,
       ],
     };
   }

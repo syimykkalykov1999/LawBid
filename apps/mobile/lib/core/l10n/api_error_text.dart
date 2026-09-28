@@ -98,6 +98,8 @@ const _keys = <String, String>{
   ApiErrorCodes.bidNotYourTurn: 'error.api.BID_NOT_YOUR_TURN',
   ApiErrorCodes.bidMaxRoundsReached: 'error.api.BID_MAX_ROUNDS_REACHED',
   ApiErrorCodes.bidCounterNotAllowed: 'error.api.BID_COUNTER_NOT_ALLOWED',
+  ApiErrorCodes.subscriptionRequired: 'error.api.SUBSCRIPTION_REQUIRED',
+  ApiErrorCodes.bidAlreadyExists: 'error.api.BID_ALREADY_EXISTS',
   ApiErrorCodes.reauthRequired: 'error.api.REAUTH_REQUIRED',
   ApiErrorCodes.reauthInvalid: 'error.api.REAUTH_INVALID',
   ApiErrorCodes.clientContactsIncomplete:

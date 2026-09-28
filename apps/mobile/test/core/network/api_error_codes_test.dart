@@ -57,6 +57,9 @@ void main() {
       ApiErrorCodes.bidNotYourTurn,
       ApiErrorCodes.bidMaxRoundsReached,
       ApiErrorCodes.bidCounterNotAllowed,
+      // Bids and negotiation (docs/04 §5–§6, stage 4.4)
+      ApiErrorCodes.subscriptionRequired,
+      ApiErrorCodes.bidAlreadyExists,
     ];
     for (final translator in const [StaticTranslatorEn(), StaticTranslatorRu()]) {
       final fallback = translator.t('error.default.message');

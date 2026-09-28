@@ -19,6 +19,9 @@ export const CRON_JOBS = {
   ratingReconcile: 'reviews.rating-reconcile',
   /** docs/03 §2.6: nightly license expiry + 30/7-day reminders. */
   licenseExpiry: 'licenses.expiry',
+  /** docs/04 §2 (stage 4.4): safety-net withdrawal of an attorney's active
+   * bids when SubscriptionAccessService.isActive() goes false. */
+  bidSubscriptionLapse: 'bids.subscription-lapse',
 } as const;
 
 export type CronJobName = (typeof CRON_JOBS)[keyof typeof CRON_JOBS];
@@ -41,6 +44,9 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   // 05:05 UTC = just after midnight US Eastern: expires_at is a date, the
   // license lapses "в день окончания".
   { name: CRON_JOBS.licenseExpiry, pattern: '5 5 * * *' },
+  // Hourly safety net (docs/04 §2, stage 4.4): usually a no-op once file
+  // 06's subscription webhook calls withdrawActiveBidsForAttorney directly.
+  { name: CRON_JOBS.bidSubscriptionLapse, pattern: '20 * * * *' },
 ];
 
 export const DISPOSABLE_DOMAINS_FETCHER = Symbol('DISPOSABLE_DOMAINS_FETCHER');

@@ -151,4 +151,12 @@ export enum ErrorCode {
   BID_MAX_ROUNDS_REACHED = 'BID_MAX_ROUNDS_REACHED',
   // 409: free-consultation bids can only be accepted or declined (§6.1).
   BID_COUNTER_NOT_ALLOWED = 'BID_COUNTER_NOT_ALLOWED',
+
+  // Bids and negotiation (docs/04_CASES_BIDS.md §5–§6, stage 4.4).
+  // 403: SubscriptionAccessService.isActive(attorneyId) is false (§2: no
+  // active subscription/trial) when bidding or messaging a client.
+  SUBSCRIPTION_REQUIRED = 'SUBSCRIPTION_REQUIRED',
+  // 409: UQ bids(case_id, attorney_id) — a second bid by the same
+  // attorney on this case, including after the first was withdrawn (§5.1).
+  BID_ALREADY_EXISTS = 'BID_ALREADY_EXISTS',
 }
