@@ -146,6 +146,12 @@ enum ErrorCode {
   subscriptionRequired('SUBSCRIPTION_REQUIRED'),
   @JsonValue('BID_ALREADY_EXISTS')
   bidAlreadyExists('BID_ALREADY_EXISTS'),
+  @JsonValue('CASE_CONTAINS_CONTACT_INFO')
+  caseContainsContactInfo('CASE_CONTAINS_CONTACT_INFO'),
+  @JsonValue('CLIENT_CONTACT_SHARING_CONSENT_REQUIRED')
+  clientContactSharingConsentRequired(
+    'CLIENT_CONTACT_SHARING_CONSENT_REQUIRED',
+  ),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

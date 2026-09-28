@@ -100,6 +100,10 @@ const _keys = <String, String>{
   ApiErrorCodes.bidCounterNotAllowed: 'error.api.BID_COUNTER_NOT_ALLOWED',
   ApiErrorCodes.subscriptionRequired: 'error.api.SUBSCRIPTION_REQUIRED',
   ApiErrorCodes.bidAlreadyExists: 'error.api.BID_ALREADY_EXISTS',
+  ApiErrorCodes.caseContainsContactInfo:
+      'error.api.CASE_CONTAINS_CONTACT_INFO',
+  ApiErrorCodes.clientContactSharingConsentRequired:
+      'error.api.CLIENT_CONTACT_SHARING_CONSENT_REQUIRED',
   ApiErrorCodes.reauthRequired: 'error.api.REAUTH_REQUIRED',
   ApiErrorCodes.reauthInvalid: 'error.api.REAUTH_INVALID',
   ApiErrorCodes.clientContactsIncomplete:

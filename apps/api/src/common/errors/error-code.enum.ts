@@ -159,4 +159,11 @@ export enum ErrorCode {
   // 409: UQ bids(case_id, attorney_id) — a second bid by the same
   // attorney on this case, including after the first was withdrawn (§5.1).
   BID_ALREADY_EXISTS = 'BID_ALREADY_EXISTS',
+  // Case creation and management (docs/04_CASES_BIDS.md §3, stage 4.2)
+  // 400: title/description/city matched the §3.3 phone/email/link
+  // detector; details.field names which one.
+  CASE_CONTAINS_CONTACT_INFO = 'CASE_CONTAINS_CONTACT_INFO',
+  // 403: the client has never granted the client_contact_sharing consent
+  // (§3.1 step 5) and this request doesn't grant it either.
+  CLIENT_CONTACT_SHARING_CONSENT_REQUIRED = 'CLIENT_CONTACT_SHARING_CONSENT_REQUIRED',
 }

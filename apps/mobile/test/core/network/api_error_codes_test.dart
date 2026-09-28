@@ -60,6 +60,9 @@ void main() {
       // Bids and negotiation (docs/04 §5–§6, stage 4.4)
       ApiErrorCodes.subscriptionRequired,
       ApiErrorCodes.bidAlreadyExists,
+      // Case creation and management (docs/04 §3, stage 4.2)
+      ApiErrorCodes.caseContainsContactInfo,
+      ApiErrorCodes.clientContactSharingConsentRequired,
     ];
     for (final translator in const [StaticTranslatorEn(), StaticTranslatorRu()]) {
       final fallback = translator.t('error.default.message');

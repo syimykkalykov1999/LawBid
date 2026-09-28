@@ -101,6 +101,10 @@ abstract final class ApiErrorCodes {
   // Bids and negotiation (docs/04 §5–§6, stage 4.4)
   static const subscriptionRequired = 'SUBSCRIPTION_REQUIRED';
   static const bidAlreadyExists = 'BID_ALREADY_EXISTS';
+  // Case creation and management (docs/04 §3, stage 4.2)
+  static const caseContainsContactInfo = 'CASE_CONTAINS_CONTACT_INFO';
+  static const clientContactSharingConsentRequired =
+      'CLIENT_CONTACT_SHARING_CONSENT_REQUIRED';
 
   /// Every server code, in enum order.
   static const all = <String>[
@@ -174,6 +178,8 @@ abstract final class ApiErrorCodes {
     bidCounterNotAllowed,
     subscriptionRequired,
     bidAlreadyExists,
+    caseContainsContactInfo,
+    clientContactSharingConsentRequired,
   ];
 }
 
