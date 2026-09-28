@@ -10,7 +10,7 @@ const MANUAL: CheckOutcome = {
   details: { provider: 'manual', reason: 'automatic check disabled' },
 };
 
-/** Stage 3.1 stub: no automatic bar lookup — a verifier checks by hand. */
+/** No automatic bar lookup — a verifier checks by hand (flag off). */
 @Injectable()
 export class ManualBarLookupProvider implements BarLookupProvider {
   readonly name = 'manual';
@@ -20,12 +20,16 @@ export class ManualBarLookupProvider implements BarLookupProvider {
   }
 }
 
-/** Stage 3.1 stub: no automatic ID/selfie check — a verifier compares. */
+/** No automatic ID/selfie check — a verifier compares (flags off). */
 @Injectable()
 export class ManualIdVerificationProvider implements IdVerificationProvider {
   readonly name = 'manual';
 
   verify(): Promise<CheckOutcome> {
+    return Promise.resolve(MANUAL);
+  }
+
+  matchFace(): Promise<CheckOutcome> {
     return Promise.resolve(MANUAL);
   }
 }

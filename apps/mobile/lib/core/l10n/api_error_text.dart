@@ -32,10 +32,12 @@ String apiErrorText(Translator t, ApiException error) {
 }
 
 /// Same as [apiErrorText] for an arbitrary thrown object.
-String errorText(Translator t, Object error) =>
-    error is ApiException ? apiErrorText(t, error) : t.t('error.default.message');
+String errorText(Translator t, Object error) => error is ApiException
+    ? apiErrorText(t, error)
+    : t.t('error.default.message');
 
-bool isOfflineError(Object? error) => error is ApiException && error.isNetworkError;
+bool isOfflineError(Object? error) =>
+    error is ApiException && error.isNetworkError;
 
 const _keys = <String, String>{
   ApiException.networkErrorCode: 'error.api.NETWORK_ERROR',
@@ -48,7 +50,8 @@ const _keys = <String, String>{
   ApiErrorCodes.contactDomainBlocked: 'error.api.CONTACT_DOMAIN_BLOCKED',
   ApiErrorCodes.contactAlreadyExists: 'error.api.CONTACT_ALREADY_EXISTS',
   ApiErrorCodes.identifierAlreadyLinked: 'error.api.CONTACT_ALREADY_EXISTS',
-  ApiErrorCodes.phoneCountryNotSupported: 'error.api.PHONE_COUNTRY_NOT_SUPPORTED',
+  ApiErrorCodes.phoneCountryNotSupported:
+      'error.api.PHONE_COUNTRY_NOT_SUPPORTED',
   ApiErrorCodes.providerBudgetExceeded: 'error.api.PROVIDER_BUDGET_EXCEEDED',
   ApiErrorCodes.reviewCaseNotClosed: 'error.api.REVIEW_CASE_NOT_CLOSED',
   ApiErrorCodes.reviewNoAcceptedBid: 'error.api.REVIEW_NO_ACCEPTED_BID',
@@ -63,24 +66,45 @@ const _keys = <String, String>{
   ApiErrorCodes.fileNotUploaded: 'error.api.FILE_UPLOAD_FAILED',
   ApiErrorCodes.fileNotAttachable: 'error.api.FILE_NOT_ATTACHABLE',
   ApiErrorCodes.fileStorageUnavailable: 'error.api.FILE_STORAGE_UNAVAILABLE',
+  // Verification (docs/03 §2.3). Verifier-only codes (lock, decisions)
+  // never reach the app but share the generic status text.
+  ApiErrorCodes.verificationAlreadyPending:
+      'error.api.VERIFICATION_ALREADY_PENDING',
+  ApiErrorCodes.verificationSubmissionLimit:
+      'error.api.VERIFICATION_SUBMISSION_LIMIT',
+  ApiErrorCodes.verificationInvalidStatus:
+      'error.api.VERIFICATION_INVALID_STATUS',
+  ApiErrorCodes.verificationIncomplete: 'error.api.VERIFICATION_INCOMPLETE',
+  ApiErrorCodes.verificationRequestLocked:
+      'error.api.VERIFICATION_INVALID_STATUS',
+  ApiErrorCodes.verificationDecisionIncomplete:
+      'error.api.VERIFICATION_INVALID_STATUS',
+  ApiErrorCodes.licenseAlreadyRegistered:
+      'error.api.LICENSE_ALREADY_REGISTERED',
+  ApiErrorCodes.licenseAlreadyAdded: 'error.api.LICENSE_ALREADY_ADDED',
+  ApiErrorCodes.attorneySuspended: 'error.api.ATTORNEY_SUSPENDED',
   ApiErrorCodes.reauthRequired: 'error.api.REAUTH_REQUIRED',
   ApiErrorCodes.reauthInvalid: 'error.api.REAUTH_INVALID',
-  ApiErrorCodes.clientContactsIncomplete: 'error.api.CLIENT_CONTACTS_INCOMPLETE',
+  ApiErrorCodes.clientContactsIncomplete:
+      'error.api.CLIENT_CONTACTS_INCOMPLETE',
   ApiErrorCodes.onboardingIncomplete: 'error.api.ONBOARDING_INCOMPLETE',
   ApiErrorCodes.roleAlreadySet: 'error.api.ROLE_ALREADY_SET',
   ApiErrorCodes.i18nLanguageNotFound: 'error.api.I18N_LANGUAGE_NOT_FOUND',
   ApiErrorCodes.accountSuspended: 'error.api.ACCOUNT_SUSPENDED',
   ApiErrorCodes.accountDeleted: 'error.api.ACCOUNT_DELETED',
   ApiErrorCodes.authProviderDisabled: 'error.api.AUTH_PROVIDER_DISABLED',
-  ApiErrorCodes.deviceAttestationRequired: 'error.api.DEVICE_ATTESTATION_REQUIRED',
+  ApiErrorCodes.deviceAttestationRequired:
+      'error.api.DEVICE_ATTESTATION_REQUIRED',
   // Refresh-token theft signal (docs/01 §10.4): every session was revoked.
-  ApiErrorCodes.authRefreshReuseDetected: 'error.api.AUTH_REFRESH_REUSE_DETECTED',
+  ApiErrorCodes.authRefreshReuseDetected:
+      'error.api.AUTH_REFRESH_REUSE_DETECTED',
   // The session can't be continued; the user has to sign in again.
   ApiErrorCodes.authSessionRevoked: 'error.api.AUTH_SESSION_REVOKED',
   ApiErrorCodes.authRefreshExpired: 'error.api.AUTH_SESSION_REVOKED',
   ApiErrorCodes.authRefreshInvalid: 'error.api.AUTH_SESSION_REVOKED',
   ApiErrorCodes.authSocialTokenInvalid: 'auth.social.error.invalidToken',
-  ApiErrorCodes.authSocialProviderUnavailable: 'auth.social.error.providerDisabled',
+  ApiErrorCodes.authSocialProviderUnavailable:
+      'auth.social.error.providerDisabled',
   ApiErrorCodes.idempotencyKeyConflict: 'error.api.IDEMPOTENCY_KEY_CONFLICT',
   ApiErrorCodes.forbidden: 'error.api.FORBIDDEN',
   ApiErrorCodes.notFound: 'error.api.NOT_FOUND',
