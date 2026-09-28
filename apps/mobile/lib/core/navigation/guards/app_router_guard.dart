@@ -5,6 +5,7 @@ import '../../../features/onboarding/application/current_user_controller.dart';
 import '../../../features/onboarding/domain/current_user.dart';
 import '../../../features/onboarding/domain/onboarding_step_id.dart';
 import '../../../features/onboarding/onboarding_routes.dart';
+import '../../../features/profile/domain/verification_gate.dart';
 import '../../startup/app_startup.dart';
 import '../app_routes.dart';
 
@@ -43,6 +44,8 @@ class GuardSnapshot {
 /// онбординг не завершён           → /onboarding/{текущий шаг}
 /// attorney + unverified           → главное меню доступно, «Кейсы» (Моё)
 ///                                   показывает экран верификации
+/// attorney не verified + «+»      → /create/verification-required
+///                                   (docs/03 §6.4, «Пост в ленту»)
 /// клиент/адвокат ok               → /feed
 /// ```
 ///
@@ -97,7 +100,13 @@ abstract final class AppRouterGuard {
       final onEntryRoute = location == AppRoutes.splash ||
           publicAuthRoutes.contains(location) ||
           OnboardingRoutes.stepOf(location) != null;
-      return onEntryRoute ? AppRoutes.feed : null;
+      if (onEntryRoute) return AppRoutes.feed;
+      // docs/03 §6.4 (stage 3.9): "+" is "Post to feed" for attorneys;
+      // before verification it opens the "Complete verification" gate.
+      if (location == AppRoutes.create && attorneyNeedsVerification(user)) {
+        return AppRoutes.verificationRequired;
+      }
+      return null;
     }
 
     final target = OnboardingRoutes.forStep(required);

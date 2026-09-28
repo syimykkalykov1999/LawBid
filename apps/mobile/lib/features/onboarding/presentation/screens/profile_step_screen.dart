@@ -16,6 +16,8 @@ import 'package:lawbid/features/onboarding/domain/us_states.dart';
 import 'package:lawbid/features/onboarding/onboarding_routes.dart';
 import 'package:lawbid/features/onboarding/presentation/widgets/onboarding_scaffold.dart';
 import 'package:lawbid/features/onboarding/presentation/widgets/option_picker_sheet.dart';
+import 'package:lawbid/features/profile/domain/profile_models.dart';
+import 'package:lawbid/features/profile/presentation/widgets/avatar_picker_field.dart';
 
 /// Server limit for first/last name (apps/api UpdateProfileDto @Length(1, 80)).
 // docs/03 §4.1 limits (server enforces the same).
@@ -45,8 +47,10 @@ String? contactMethodFromWire(String? wire) =>
 ///
 /// Everything (names included) goes as the structured `profile` of `PATCH
 /// /users/me/onboarding` and lands in client_profiles / attorney_profiles
-/// in one server transaction. Photo upload arrives with file uploads
-/// (docs/03 stage 3.2, owner decision).
+/// in one server transaction. Attorneys also add their business photo here
+/// (docs/01 §11 3B, OQ-012; docs/03 stage 3.9): the one new field, a plain
+/// form row in the step's existing style, uploaded via presign → storage
+/// → confirm → `PATCH /users/me {avatarFileId}`.
 class ProfileStepScreen extends ConsumerStatefulWidget {
   const ProfileStepScreen({super.key});
 
@@ -218,6 +222,12 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
       primaryLoading: action.busy,
       onPrimary: () => _submit(user),
       children: [
+        if (attorney) ...[
+          AvatarPickerField(
+            initials: initialsOf(_first.text, _last.text),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+        ],
         AppTextField(
           controller: _first,
           label: t.t('onboarding.profile.firstName'),

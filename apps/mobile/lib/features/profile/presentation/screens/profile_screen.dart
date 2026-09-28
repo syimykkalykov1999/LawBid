@@ -5,14 +5,16 @@ import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
+import 'package:lawbid/features/profile/application/profile_providers.dart';
+import 'package:lawbid/features/profile/presentation/screens/attorney_profile_screen.dart';
+import 'package:lawbid/features/profile/presentation/widgets/attorney_profile_view.dart';
+import 'package:lawbid/features/profile/presentation/widgets/client_profile_view.dart';
 
-/// Stage 1.5 stub (file 01 §15). Real content (public/closed profile) is
-/// file 3. Used to also carry a bare theme-switcher `SegmentedButton`
-/// directly on this tab, as a stage-1 "переключение тем" demo — moved to
-/// a proper `/profile/settings` screen (2026-09-22 owner follow-up): a
-/// gear icon here, matching file 01 §3.6 ("Настройки (гамбургер)") and
-/// the Instagram/TikTok pattern the owner asked for, rather than a control
-/// dropped straight onto the profile tab.
+/// Profile tab (docs/03 §8 «Профиль»): an attorney sees their own public
+/// profile (§4.2, with Edit/Share and — before verification — a
+/// "Complete verification" banner); a client sees the private client
+/// profile (§5). The gear opens Settings (docs/01 §3.6).
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
@@ -20,13 +22,29 @@ class ProfileScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final t = ref.watch(translatorProvider);
+    final user = ref.watch(currentUserControllerProvider).user;
+    final needsVerification = ref.watch(attorneyNeedsVerificationProvider);
+    final username = user?.attorneyProfile?.username;
+
+    final Widget body;
+    if (user == null) {
+      body = const AttorneyProfileSkeleton();
+    } else if (user.isAttorney && username != null) {
+      body = AttorneyProfileBody(username: username, needsVerification: needsVerification);
+    } else if (user.isClient) {
+      body = const ClientProfileView();
+    } else {
+      body = AppEmptyState(
+        icon: Icons.person_outline_rounded,
+        message: t.t('empty.default.message'),
+      );
+    }
 
     return Scaffold(
+      backgroundColor: colors.bg,
       appBar: AppTopBar(
-        title: Text(t.t('profile.stub.title')),
+        title: Text(t.t('profile.tab.title')),
         actions: [
-          // UI modernization pass (2026-09-27): labelled 44x44 gear with
-          // press feedback (was an unlabelled Material IconButton).
           Semantics(
             button: true,
             label: t.t('settings.title'),
@@ -35,20 +53,13 @@ class ProfileScreen extends ConsumerWidget {
               onTap: () => context.push(AppRoutes.profileSettings),
               child: SizedBox.square(
                 dimension: AppSizes.touchTarget,
-                child: Icon(
-                  Icons.settings_outlined,
-                  color: colors.text,
-                  size: AppSizes.iconMd,
-                ),
+                child: Icon(Icons.settings_outlined, color: colors.text, size: AppSizes.iconMd),
               ),
             ),
           ),
         ],
       ),
-      body: AppEmptyState(
-        icon: Icons.person_outline_rounded,
-        message: t.t('empty.default.message'),
-      ),
+      body: body,
     );
   }
 }

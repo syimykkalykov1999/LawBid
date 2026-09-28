@@ -22,6 +22,8 @@ bool isInAppLocation(String path) {
     AppRoutes.mine,
     AppRoutes.profile,
     AppRoutes.create,
+    // Public attorney profile / its deep link (docs/03 stage 3.9).
+    '/lawyer',
   ];
   return roots.any((root) => path == root || path.startsWith('$root/'));
 }

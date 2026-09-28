@@ -278,6 +278,8 @@ void main() {
     expect(repo.verifiedLinks, isEmpty);
   });
 
+  // `/lawyer/:username` now opens the real attorney profile (docs/03 stage
+  // 3.9) — covered in test/features/profile/profile_screens_test.dart.
   testWidgets('content routes show the "coming soon" placeholder and can leave', (tester) async {
     final c = await container();
     final router = GoRouter(
@@ -289,7 +291,7 @@ void main() {
     );
     addTearDown(router.dispose);
     await tester.pumpWidget(routedApp(c, router));
-    for (final loc in ['/case/abc', '/lawyer/jane.doe', '/post/p1']) {
+    for (final loc in ['/case/abc', '/post/p1']) {
       router.go(loc);
       await tester.pumpAndSettle();
       expect(find.byType(DeepLinkPlaceholderScreen), findsOneWidget);
