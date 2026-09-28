@@ -10,6 +10,7 @@ import 'clients/users_client.dart';
 import 'clients/i18n_client.dart';
 import 'clients/admin_i18n_client.dart';
 import 'clients/cases_client.dart';
+import 'clients/reviews_client.dart';
 
 /// LawBid API `v0.1.0`.
 ///
@@ -28,6 +29,7 @@ class LawbidApi {
   I18nClient? _i18n;
   AdminI18nClient? _adminI18n;
   CasesClient? _cases;
+  ReviewsClient? _reviews;
 
   ConfigClient get config => _config ??= ConfigClient(_dio, baseUrl: _baseUrl);
 
@@ -41,4 +43,7 @@ class LawbidApi {
       _adminI18n ??= AdminI18nClient(_dio, baseUrl: _baseUrl);
 
   CasesClient get cases => _cases ??= CasesClient(_dio, baseUrl: _baseUrl);
+
+  ReviewsClient get reviews =>
+      _reviews ??= ReviewsClient(_dio, baseUrl: _baseUrl);
 }

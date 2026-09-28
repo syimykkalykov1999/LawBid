@@ -40,6 +40,12 @@ void main() {
       ApiErrorCodes.forbidden,
       ApiErrorCodes.notFound,
       ApiErrorCodes.notImplemented,
+      // Reviews (docs/03 §7, stage 3.7)
+      ApiErrorCodes.reviewCaseNotClosed,
+      ApiErrorCodes.reviewNoAcceptedBid,
+      ApiErrorCodes.reviewAlreadyExists,
+      ApiErrorCodes.reviewEditWindowExpired,
+      ApiErrorCodes.reviewNotEditable,
     ];
     for (final translator in const [StaticTranslatorEn(), StaticTranslatorRu()]) {
       final fallback = translator.t('error.default.message');

@@ -1,0 +1,6 @@
+key,en,ru
+error.api.REVIEW_CASE_NOT_CLOSED,You can leave a review only after the case is closed.,Отзыв можно оставить только после закрытия кейса.
+error.api.REVIEW_NO_ACCEPTED_BID,"This case has no accepted bid, so there is no attorney to review.",В этом кейсе нет принятого бида — оценивать некого.
+error.api.REVIEW_ALREADY_EXISTS,You have already reviewed this case.,Вы уже оставили отзыв по этому кейсу.
+error.api.REVIEW_EDIT_WINDOW_EXPIRED,The time to edit this review has passed.,Срок редактирования отзыва истёк.
+error.api.REVIEW_NOT_EDITABLE,This review was hidden by a moderator and can't be edited.,Этот отзыв скрыт модератором и не может быть изменён.

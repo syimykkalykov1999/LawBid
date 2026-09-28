@@ -72,4 +72,16 @@ export enum ErrorCode {
   // product; docs/01_FOUNDATION_AUTH.md §10.6 "блок подозрительных
   // префиксов стран") or a premium/toll-free/shared-cost number type.
   PHONE_COUNTRY_NOT_SUPPORTED = 'PHONE_COUNTRY_NOT_SUPPORTED',
+
+  // Reviews (docs/03_VERIFICATION_PROFILES.md §7, stage 3.7). All 409.
+  // The case is not `closed` yet (§7.1).
+  REVIEW_CASE_NOT_CLOSED = 'REVIEW_CASE_NOT_CLOSED',
+  // The case has no accepted bid, so there is no attorney to review.
+  REVIEW_NO_ACCEPTED_BID = 'REVIEW_NO_ACCEPTED_BID',
+  // One review per case (UQ reviews.case_id).
+  REVIEW_ALREADY_EXISTS = 'REVIEW_ALREADY_EXISTS',
+  // review.edit_window_days after publication have passed (§7.2).
+  REVIEW_EDIT_WINDOW_EXPIRED = 'REVIEW_EDIT_WINDOW_EXPIRED',
+  // A moderator hid or removed the review; it can't be edited.
+  REVIEW_NOT_EDITABLE = 'REVIEW_NOT_EDITABLE',
 }

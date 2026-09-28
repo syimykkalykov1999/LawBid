@@ -7,6 +7,8 @@ import { CRON_JOBS, CRON_QUEUE, CRON_SCHEDULES } from './jobs.constants';
 import type { SessionsCleanupJob } from './handlers/sessions-cleanup.job';
 import type { OtpCleanupJob } from './handlers/otp-cleanup.job';
 import type { DisposableDomainsRefreshJob } from './disposable-domains/disposable-domains-refresh.job';
+import type { ReviewReminderJob } from './handlers/review-reminder.job';
+import type { RatingReconcileJob } from './handlers/rating-reconcile.job';
 
 jest.mock('bullmq', () => {
   const queue = {
@@ -55,14 +57,22 @@ function processor() {
   const disposable = {
     run: jest.fn(() => Promise.resolve({ status: 'updated' })),
   };
+  const reminder = { run: jest.fn(() => Promise.resolve({ sent: 3 })) };
+  const reconcile = {
+    run: jest.fn(() => Promise.resolve({ scanned: 4, fixed: 1 })),
+  };
   return {
     sessions,
     otp,
     disposable,
+    reminder,
+    reconcile,
     processor: new CronProcessor(
       sessions as unknown as SessionsCleanupJob,
       otp as unknown as OtpCleanupJob,
       disposable as unknown as DisposableDomainsRefreshJob,
+      reminder as unknown as ReviewReminderJob,
+      reconcile as unknown as RatingReconcileJob,
     ),
   };
 }
@@ -85,7 +95,7 @@ describe('JobsRunner', () => {
       connection: { url: 'redis://localhost:6379/3' },
     });
     const upserts = mocked.__queue.upsertJobScheduler.mock.calls;
-    expect(upserts).toHaveLength(3);
+    expect(upserts).toHaveLength(CRON_SCHEDULES.length);
     const byName = Object.fromEntries(
       upserts.map((c: unknown[]) => [c[0], c[1]]),
     );
@@ -102,6 +112,13 @@ describe('JobsRunner', () => {
       pattern: expect.stringMatching(/^\d+ \d+ 1 \* \*$/),
       tz: 'UTC',
     });
+    // docs/03 §7.3 / §7.5: daily reminder sweep, nightly reconciliation.
+    for (const name of [CRON_JOBS.reviewReminder, CRON_JOBS.ratingReconcile]) {
+      expect(byName[name]).toEqual({
+        pattern: expect.stringMatching(/^\d+ \d+ \* \* \*$/),
+        tz: 'UTC',
+      });
+    }
     for (const call of upserts) {
       expect(call[2]).toEqual({ name: call[0], opts: CRON_JOB_TEMPLATE_OPTS });
     }
@@ -205,6 +222,14 @@ describe('CronProcessor', () => {
     expect(p.sessions.run).toHaveBeenCalledTimes(1);
     expect(p.otp.run).toHaveBeenCalledTimes(1);
     expect(p.disposable.run).toHaveBeenCalledTimes(1);
+    await expect(
+      p.processor.process(CRON_JOBS.reviewReminder),
+    ).resolves.toEqual({ sent: 3 });
+    await expect(
+      p.processor.process(CRON_JOBS.ratingReconcile),
+    ).resolves.toEqual({ scanned: 4, fixed: 1 });
+    expect(p.reminder.run).toHaveBeenCalledTimes(1);
+    expect(p.reconcile.run).toHaveBeenCalledTimes(1);
   });
 
   it('fails unknown job names instead of silently succeeding', async () => {

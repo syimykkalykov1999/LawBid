@@ -3,6 +3,7 @@ import { LoggerModule } from 'nestjs-pino';
 import { ConfigModule } from '../config/config.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { RedisModule } from '../redis/redis.module';
+import { AppSettingsModule } from '../common/app-settings/app-settings.module';
 import { JobsModule } from './jobs.module';
 
 /**
@@ -25,6 +26,8 @@ import { JobsModule } from './jobs.module';
     }),
     PrismaModule,
     RedisModule,
+    // docs/03 §9 tunables (review.reminder_after_days) read by jobs.
+    AppSettingsModule,
     JobsModule.register({ mode: 'worker' }),
   ],
 })

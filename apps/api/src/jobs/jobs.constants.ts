@@ -12,6 +12,11 @@ export const CRON_JOBS = {
   otpCleanup: 'otp.cleanup',
   /** docs/02 §3.3: disposable domains "обновляется джобой раз в месяц". */
   disposableDomainsRefresh: 'disposable-domains.refresh',
+  /** docs/03 §7.3: one `review_requested` reminder after
+   * review.reminder_after_days without a review. */
+  reviewReminder: 'reviews.reminder',
+  /** docs/03 §7.5: nightly reconciliation of attorney rating counters. */
+  ratingReconcile: 'reviews.rating-reconcile',
 } as const;
 
 export type CronJobName = (typeof CRON_JOBS)[keyof typeof CRON_JOBS];
@@ -28,6 +33,9 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.sessionsCleanup, pattern: '15 3 * * *' },
   { name: CRON_JOBS.otpCleanup, pattern: '45 3 * * *' },
   { name: CRON_JOBS.disposableDomainsRefresh, pattern: '30 4 1 * *' },
+  // Daytime in the US (12:00 ET) — a reminder, not a 4 a.m. push.
+  { name: CRON_JOBS.reviewReminder, pattern: '0 16 * * *' },
+  { name: CRON_JOBS.ratingReconcile, pattern: '15 4 * * *' },
 ];
 
 export const DISPOSABLE_DOMAINS_FETCHER = Symbol('DISPOSABLE_DOMAINS_FETCHER');

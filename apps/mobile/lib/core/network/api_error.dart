@@ -61,6 +61,13 @@ abstract final class ApiErrorCodes {
   static const providerBudgetExceeded = 'PROVIDER_BUDGET_EXCEEDED';
   static const phoneCountryNotSupported = 'PHONE_COUNTRY_NOT_SUPPORTED';
 
+  // Reviews (docs/03 §7, stage 3.7)
+  static const reviewCaseNotClosed = 'REVIEW_CASE_NOT_CLOSED';
+  static const reviewNoAcceptedBid = 'REVIEW_NO_ACCEPTED_BID';
+  static const reviewAlreadyExists = 'REVIEW_ALREADY_EXISTS';
+  static const reviewEditWindowExpired = 'REVIEW_EDIT_WINDOW_EXPIRED';
+  static const reviewNotEditable = 'REVIEW_NOT_EDITABLE';
+
   /// Every server code, in enum order.
   static const all = <String>[
     validationError,
@@ -101,6 +108,11 @@ abstract final class ApiErrorCodes {
     i18nImportInvalid,
     providerBudgetExceeded,
     phoneCountryNotSupported,
+    reviewCaseNotClosed,
+    reviewNoAcceptedBid,
+    reviewAlreadyExists,
+    reviewEditWindowExpired,
+    reviewNotEditable,
   ];
 }
 

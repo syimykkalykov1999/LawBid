@@ -82,6 +82,16 @@ enum ErrorCode {
   providerBudgetExceeded('PROVIDER_BUDGET_EXCEEDED'),
   @JsonValue('PHONE_COUNTRY_NOT_SUPPORTED')
   phoneCountryNotSupported('PHONE_COUNTRY_NOT_SUPPORTED'),
+  @JsonValue('REVIEW_CASE_NOT_CLOSED')
+  reviewCaseNotClosed('REVIEW_CASE_NOT_CLOSED'),
+  @JsonValue('REVIEW_NO_ACCEPTED_BID')
+  reviewNoAcceptedBid('REVIEW_NO_ACCEPTED_BID'),
+  @JsonValue('REVIEW_ALREADY_EXISTS')
+  reviewAlreadyExists('REVIEW_ALREADY_EXISTS'),
+  @JsonValue('REVIEW_EDIT_WINDOW_EXPIRED')
+  reviewEditWindowExpired('REVIEW_EDIT_WINDOW_EXPIRED'),
+  @JsonValue('REVIEW_NOT_EDITABLE')
+  reviewNotEditable('REVIEW_NOT_EDITABLE'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);
