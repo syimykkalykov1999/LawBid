@@ -12,8 +12,11 @@
  * - id_check: Stripe Identity / Persona — TODO(docs/03_VERIFICATION_PROFILES.md,
  *   stage 3.x identity verification): call consume('id_check') before
  *   creating a verification session once that stage is built.
+ * - storage: S3 uploads — one unit per pre-signed upload issued by
+ *   FilesService.presign (docs/03 §11 stage 3.2): storage, PUT requests
+ *   and the antivirus/image work every upload triggers.
  */
-export const COST_PROVIDERS = ['sms', 'email', 'id_check'] as const;
+export const COST_PROVIDERS = ['sms', 'email', 'id_check', 'storage'] as const;
 export type CostProvider = (typeof COST_PROVIDERS)[number];
 
 export type CostWindow = 'minute' | 'daily' | 'monthly';

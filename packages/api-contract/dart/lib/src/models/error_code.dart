@@ -100,6 +100,18 @@ enum ErrorCode {
   usernameReserved('USERNAME_RESERVED'),
   @JsonValue('USERNAME_CHANGE_TOO_SOON')
   usernameChangeTooSoon('USERNAME_CHANGE_TOO_SOON'),
+  @JsonValue('FILE_TYPE_NOT_ALLOWED')
+  fileTypeNotAllowed('FILE_TYPE_NOT_ALLOWED'),
+  @JsonValue('FILE_TOO_LARGE')
+  fileTooLarge('FILE_TOO_LARGE'),
+  @JsonValue('FILE_CHECKSUM_MISMATCH')
+  fileChecksumMismatch('FILE_CHECKSUM_MISMATCH'),
+  @JsonValue('FILE_NOT_UPLOADED')
+  fileNotUploaded('FILE_NOT_UPLOADED'),
+  @JsonValue('FILE_NOT_ATTACHABLE')
+  fileNotAttachable('FILE_NOT_ATTACHABLE'),
+  @JsonValue('FILE_STORAGE_UNAVAILABLE')
+  fileStorageUnavailable('FILE_STORAGE_UNAVAILABLE'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

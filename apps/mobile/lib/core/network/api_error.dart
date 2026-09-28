@@ -72,6 +72,13 @@ abstract final class ApiErrorCodes {
   static const usernameTaken = 'USERNAME_TAKEN';
   static const usernameReserved = 'USERNAME_RESERVED';
   static const usernameChangeTooSoon = 'USERNAME_CHANGE_TOO_SOON';
+  // Files (docs/03 §2.2, stage 3.2)
+  static const fileTypeNotAllowed = 'FILE_TYPE_NOT_ALLOWED';
+  static const fileTooLarge = 'FILE_TOO_LARGE';
+  static const fileChecksumMismatch = 'FILE_CHECKSUM_MISMATCH';
+  static const fileNotUploaded = 'FILE_NOT_UPLOADED';
+  static const fileNotAttachable = 'FILE_NOT_ATTACHABLE';
+  static const fileStorageUnavailable = 'FILE_STORAGE_UNAVAILABLE';
 
   /// Every server code, in enum order.
   static const all = <String>[
@@ -122,6 +129,12 @@ abstract final class ApiErrorCodes {
     usernameTaken,
     usernameReserved,
     usernameChangeTooSoon,
+    fileTypeNotAllowed,
+    fileTooLarge,
+    fileChecksumMismatch,
+    fileNotUploaded,
+    fileNotAttachable,
+    fileStorageUnavailable,
   ];
 }
 

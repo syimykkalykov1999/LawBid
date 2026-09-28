@@ -19,6 +19,7 @@ import { ProfilesModule } from './modules/profiles/profiles.module';
 import { ReviewsModule } from './modules/reviews/reviews.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { DevModule } from './modules/dev/dev.module';
+import { FilesModule } from './modules/files/files.module';
 import { CostGuardModule } from './common/cost-guard/cost-guard.module';
 import { JobsModule } from './jobs/jobs.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
@@ -100,6 +101,7 @@ const isDev =
     // Global NotificationsService.emit() seam (delivery: docs/05).
     NotificationsModule,
     VerificationModule,
+    FilesModule,
     ProfilesModule,
     ReviewsModule,
     // BullMQ `cron` queue (session/OTP cleanup, disposable-domain refresh).

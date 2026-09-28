@@ -27,6 +27,8 @@ class MeDto {
     required this.phoneVerified,
     required this.uiLanguage,
     required this.theme,
+    required this.avatarFileId,
+    required this.avatarUrl,
     required this.requiredConsentsGranted,
     required this.onboarding,
     required this.profile,
@@ -52,6 +54,10 @@ class MeDto {
   /// ISO 639-1 interface language.
   final String uiLanguage;
   final ThemePref theme;
+  final String? avatarFileId;
+
+  /// Short-lived signed link to the avatar (1024 px JPEG).
+  final String? avatarUrl;
   final bool requiredConsentsGranted;
   final OnboardingStateDto onboarding;
 

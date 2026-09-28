@@ -7,6 +7,7 @@ import 'package:dio/dio.dart';
 import 'clients/config_client.dart';
 import 'clients/auth_client.dart';
 import 'clients/users_client.dart';
+import 'clients/files_client.dart';
 import 'clients/i18n_client.dart';
 import 'clients/admin_i18n_client.dart';
 import 'clients/cases_client.dart';
@@ -29,6 +30,7 @@ class LawbidApi {
   ConfigClient? _config;
   AuthClient? _auth;
   UsersClient? _users;
+  FilesClient? _files;
   I18nClient? _i18n;
   AdminI18nClient? _adminI18n;
   CasesClient? _cases;
@@ -42,6 +44,8 @@ class LawbidApi {
   AuthClient get auth => _auth ??= AuthClient(_dio, baseUrl: _baseUrl);
 
   UsersClient get users => _users ??= UsersClient(_dio, baseUrl: _baseUrl);
+
+  FilesClient get files => _files ??= FilesClient(_dio, baseUrl: _baseUrl);
 
   I18nClient get i18n => _i18n ??= I18nClient(_dio, baseUrl: _baseUrl);
 

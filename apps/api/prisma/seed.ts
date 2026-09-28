@@ -351,6 +351,9 @@ async function seedAppConfig(): Promise<void> {
     'budget.id_check.per_minute_max': 5,
     'budget.id_check.daily_max': 20,
     'budget.id_check.monthly_max': 200,
+    'budget.storage.per_minute_max': 120,
+    'budget.storage.daily_max': 5000,
+    'budget.storage.monthly_max': 100000,
     'sms.allowed_country_codes': ['US'],
   };
   for (const [key, value] of Object.entries(costKeys)) {

@@ -6,6 +6,7 @@ import { RedisModule } from '../redis/redis.module';
 import { AppSettingsModule } from '../common/app-settings/app-settings.module';
 import { JobsModule } from './jobs.module';
 import { NotificationsModule } from '../modules/notifications/notifications.module';
+import { FilesWorkerModule } from '../modules/files/files-worker.module';
 
 /**
  * Root module of the dedicated `worker` process (docs/06_PRODUCTION.md §6:
@@ -31,6 +32,8 @@ import { NotificationsModule } from '../modules/notifications/notifications.modu
     AppSettingsModule,
     NotificationsModule,
     JobsModule.register({ mode: 'worker' }),
+    // docs/03 stage 3.2: antivirus scan + image processing (`files` queue).
+    FilesWorkerModule,
   ],
 })
 export class WorkerModule {}

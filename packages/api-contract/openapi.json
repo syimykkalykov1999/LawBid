@@ -1606,6 +1606,16 @@
               }
             }
           },
+          "409": {
+            "description": "Conflict: FILE_NOT_ATTACHABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
           "426": {
             "description": "Upgrade required: APP_UPDATE_REQUIRED",
             "content": {
@@ -2471,6 +2481,334 @@
         ],
         "tags": [
           "users"
+        ]
+      }
+    },
+    "/files/presign": {
+      "post": {
+        "operationId": "presign",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A retry with the same key and body returns the same upload link.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PresignFileDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PresignedFileEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR, FILE_TYPE_NOT_ALLOWED, FILE_TOO_LARGE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: IDEMPOTENCY_KEY_CONFLICT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable: PROVIDER_BUDGET_EXCEEDED, FILE_STORAGE_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "files"
+        ]
+      }
+    },
+    "/files/{id}/confirm": {
+      "post": {
+        "operationId": "confirm",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR, FILE_TYPE_NOT_ALLOWED, FILE_TOO_LARGE, FILE_CHECKSUM_MISMATCH",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: FILE_NOT_UPLOADED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable: FILE_STORAGE_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Safe to retry: confirming an already confirmed file returns it.",
+        "tags": [
+          "files"
+        ]
+      }
+    },
+    "/files/{id}": {
+      "get": {
+        "operationId": "get",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Poll after confirm until scanStatus leaves `pending`.",
+        "tags": [
+          "files"
         ]
       }
     },
@@ -4490,7 +4828,13 @@
           "ATTORNEY_NOT_VERIFIED",
           "USERNAME_TAKEN",
           "USERNAME_RESERVED",
-          "USERNAME_CHANGE_TOO_SOON"
+          "USERNAME_CHANGE_TOO_SOON",
+          "FILE_TYPE_NOT_ALLOWED",
+          "FILE_TOO_LARGE",
+          "FILE_CHECKSUM_MISMATCH",
+          "FILE_NOT_UPLOADED",
+          "FILE_NOT_ATTACHABLE",
+          "FILE_STORAGE_UNAVAILABLE"
         ]
       },
       "ErrorBodyDto": {
@@ -5319,6 +5663,16 @@
               }
             ]
           },
+          "avatarFileId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "avatarUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "Short-lived signed link to the avatar (1024 px JPEG)."
+          },
           "requiredConsentsGranted": {
             "type": "boolean"
           },
@@ -5355,6 +5709,8 @@
           "phoneVerified",
           "uiLanguage",
           "theme",
+          "avatarFileId",
+          "avatarUrl",
           "requiredConsentsGranted",
           "onboarding",
           "profile",
@@ -5444,15 +5800,21 @@
       "UpdateProfileDto": {
         "type": "object",
         "properties": {
+          "avatarFileId": {
+            "type": "string",
+            "nullable": true,
+            "description": "docs/03 §4.1 photo (OQ-012 attorney onboarding photo step): a clean\n`avatar` file from POST /files/presign + confirm; null removes it.",
+            "format": "uuid"
+          },
           "firstName": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 80
+            "maxLength": 50
           },
           "lastName": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 80
+            "maxLength": 50
           },
           "uiLanguage": {
             "type": "string",
@@ -5489,12 +5851,12 @@
           "firstName": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 80
+            "maxLength": 50
           },
           "lastName": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 80
+            "maxLength": 50
           },
           "stateCode": {
             "type": "string",
@@ -5714,7 +6076,7 @@
           },
           "firmName": {
             "type": "string",
-            "maxLength": 120
+            "maxLength": 80
           },
           "licensedStates": {
             "description": "Attorney: states where they hold a license (multi-select). Bar\nnumbers are collected on verification (docs/03), so these are not\nattorney_licenses rows yet.",
@@ -5942,6 +6304,189 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/DeletionPendingDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "PresignedUploadDto": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "POST target (multipart/form-data): send every field, then the file as the last field named \"file\"."
+          },
+          "fields": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Form fields signed by the server (key, policy, signature, Content-Type)."
+          }
+        },
+        "required": [
+          "url",
+          "fields"
+        ]
+      },
+      "PresignedFileDto": {
+        "type": "object",
+        "properties": {
+          "fileId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Id to pass to POST /files/{id}/confirm."
+          },
+          "upload": {
+            "$ref": "#/components/schemas/PresignedUploadDto"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The upload link expires at (5 minutes)."
+          }
+        },
+        "required": [
+          "fileId",
+          "upload",
+          "expiresAt"
+        ]
+      },
+      "FilePurpose": {
+        "type": "string",
+        "enum": [
+          "avatar",
+          "post_image",
+          "verification_document",
+          "verification_selfie"
+        ]
+      },
+      "PresignFileDto": {
+        "type": "object",
+        "properties": {
+          "purpose": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/FilePurpose"
+              }
+            ]
+          },
+          "mime": {
+            "type": "string",
+            "example": "image/jpeg",
+            "description": "One of: image/jpeg, image/png, image/heic, application/pdf (allowed set depends on purpose)."
+          },
+          "sizeBytes": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 1073741824,
+            "description": "Exact size of the file in bytes."
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "Lowercase hex SHA-256 of the file."
+          }
+        },
+        "required": [
+          "purpose",
+          "mime",
+          "sizeBytes",
+          "sha256"
+        ]
+      },
+      "PresignedFileEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PresignedFileDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "ScanStatus": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "clean",
+          "infected",
+          "failed"
+        ],
+        "description": "Only `clean` files can be attached (avatar, verification, posts)."
+      },
+      "FileDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "purpose": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/FilePurpose"
+              }
+            ]
+          },
+          "mime": {
+            "type": "string",
+            "description": "Real type (magic bytes); HEIC becomes image/jpeg once processed."
+          },
+          "sizeBytes": {
+            "type": "number"
+          },
+          "width": {
+            "type": "number",
+            "nullable": true
+          },
+          "height": {
+            "type": "number",
+            "nullable": true
+          },
+          "scanStatus": {
+            "description": "Only `clean` files can be attached (avatar, verification, posts).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ScanStatus"
+              }
+            ]
+          },
+          "url": {
+            "type": "string",
+            "nullable": true,
+            "description": "Short-lived signed link — only for clean avatar/post images. Verification files are never served to the app (docs/03 §2.2)."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "purpose",
+          "mime",
+          "sizeBytes",
+          "width",
+          "height",
+          "scanStatus",
+          "url",
+          "createdAt"
+        ]
+      },
+      "FileEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/FileDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
@@ -6899,12 +7444,12 @@
           "firstName": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 80
+            "maxLength": 50
           },
           "lastName": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 80
+            "maxLength": 50
           },
           "stateCode": {
             "type": "string",

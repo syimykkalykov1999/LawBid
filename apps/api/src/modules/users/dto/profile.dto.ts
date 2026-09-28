@@ -1,6 +1,9 @@
 import { PERSON_NAME_MAX_LENGTH } from './onboarding-profile.dto';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsEnum,
+  IsUUID,
+  ValidateIf,
   IsIn,
   IsOptional,
   IsString,
@@ -36,4 +39,12 @@ export class UpdateProfileDto {
   @IsOptional()
   @IsEnum(ThemePref)
   theme?: ThemePref;
+
+  /** docs/03 §4.1 photo (OQ-012 attorney onboarding photo step): a clean
+   * `avatar` file from POST /files/presign + confirm; null removes it. */
+  @ApiPropertyOptional({ type: String, format: 'uuid', nullable: true })
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsUUID()
+  avatarFileId?: string | null;
 }

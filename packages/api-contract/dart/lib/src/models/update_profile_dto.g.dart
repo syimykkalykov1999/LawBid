@@ -8,6 +8,7 @@ part of 'update_profile_dto.dart';
 
 UpdateProfileDto _$UpdateProfileDtoFromJson(Map<String, dynamic> json) =>
     UpdateProfileDto(
+      avatarFileId: json['avatarFileId'] as String?,
       firstName: json['firstName'] as String?,
       lastName: json['lastName'] as String?,
       uiLanguage: json['uiLanguage'] as String?,
@@ -18,6 +19,7 @@ UpdateProfileDto _$UpdateProfileDtoFromJson(Map<String, dynamic> json) =>
 
 Map<String, dynamic> _$UpdateProfileDtoToJson(UpdateProfileDto instance) =>
     <String, dynamic>{
+      'avatarFileId': ?instance.avatarFileId,
       'firstName': ?instance.firstName,
       'lastName': ?instance.lastName,
       'uiLanguage': ?instance.uiLanguage,

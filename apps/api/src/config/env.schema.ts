@@ -383,6 +383,39 @@ export const envSchema = z
       .int()
       .nonnegative()
       .default(200),
+    // S3 uploads (docs/03 stage 3.2): one unit per pre-signed upload.
+    BUDGET_STORAGE_PER_MINUTE_MAX: z.coerce
+      .number()
+      .int()
+      .nonnegative()
+      .default(120),
+    BUDGET_STORAGE_DAILY_MAX: z.coerce
+      .number()
+      .int()
+      .nonnegative()
+      .default(5000),
+    BUDGET_STORAGE_MONTHLY_MAX: z.coerce
+      .number()
+      .int()
+      .nonnegative()
+      .default(100000),
+    // POST /files/presign per authenticated user (docs/03 stage 3.2): a
+    // verification request needs ~10 files, a post up to 10 photos.
+    FILES_PRESIGN_LIMIT_PER_USER_PER_HOUR: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(60),
+    // Antivirus (docs/01 §5 "антивирус-скан (ClamAV ...)", docs/03 §2.2):
+    // clamd TCP endpoint. Unset: development/test use a built-in scanner
+    // that only flags the EICAR test signature; staging/production have
+    // NO scanner, so uploads stay scan_status=pending and can never be
+    // attached — production must set CLAMAV_HOST.
+    CLAMAV_HOST: optionalMatching(
+      /^[A-Za-z0-9.-]+$/,
+      'CLAMAV_HOST must be a host name or IP address',
+    ),
+    CLAMAV_PORT: z.coerce.number().int().min(1).max(65535).default(3310),
     // Comma-separated ISO-3166 alpha-2 codes; fallback for app_config
     // `sms.allowed_country_codes`. US-only product → 'US' (+1 NANP minus
     // Canada/Caribbean territories, which libphonenumber maps to their
