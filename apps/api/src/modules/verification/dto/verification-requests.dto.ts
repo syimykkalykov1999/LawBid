@@ -75,10 +75,14 @@ export class AddLicenseDto {
   @Matches(BAR_NUMBER_PATTERN, { message: 'barNumber has an invalid format' })
   barNumber!: string;
 
+  // A plain date string, not `format: 'date'`: the Dart generator maps that
+  // format to DateTime and would send a full ISO timestamp, which this
+  // YYYY-MM-DD validator rejects.
   @ApiPropertyOptional({
     type: String,
-    format: 'date',
+    pattern: '^\\d{4}-\\d{2}-\\d{2}$',
     nullable: true,
+    example: '2027-06-30',
     description: 'License expiry (YYYY-MM-DD), if the license has one.',
   })
   @IsOptional()

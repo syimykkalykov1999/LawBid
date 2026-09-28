@@ -22,7 +22,7 @@ class AddLicenseDto {
   final String barNumber;
 
   /// License expiry (YYYY-MM-DD), if the license has one.
-  final DateTime? expiresAt;
+  final String? expiresAt;
 
   Map<String, Object?> toJson() => _$AddLicenseDtoToJson(this);
 }

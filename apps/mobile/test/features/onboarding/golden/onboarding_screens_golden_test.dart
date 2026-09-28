@@ -12,7 +12,6 @@ import 'package:lawbid/features/onboarding/presentation/screens/profile_step_scr
 import 'package:lawbid/features/onboarding/presentation/screens/push_step_screen.dart';
 import 'package:lawbid/features/onboarding/presentation/screens/splash_screen.dart';
 import 'package:lawbid/features/onboarding/presentation/screens/tour_step_screen.dart';
-import 'package:lawbid/features/onboarding/presentation/screens/verification_placeholder_screen.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 
 import '../../../helpers/fixtures.dart';
@@ -49,7 +48,6 @@ void main() {
     'push': (() => const PushStepScreen(), client, false),
     'verification_attorney': (() => const AttorneyVerificationStepScreen(), attorney, false),
     'tour_client': (() => const TourStepScreen(), client, false),
-    'verification_placeholder': (() => const VerificationPlaceholderScreen(), attorney, false),
     'mine_attorney_unverified': (() => const MineScreen(), attorney, false),
   };
 

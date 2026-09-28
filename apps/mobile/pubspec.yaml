@@ -91,6 +91,8 @@ dependencies:
   # docs/03 §4.1 profile photo (stage 3.9, OQ-012): gallery/camera pick,
   # downscaled to 1024 px before the presign → S3 POST → confirm upload.
   image_picker: ^1.2.3
+  camera: ^0.12.1
+  file_picker: ^11.0.3
 
 dev_dependencies:
   flutter_test:

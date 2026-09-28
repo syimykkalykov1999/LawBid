@@ -3,6 +3,13 @@
          docs/CHANGELOG.md): required by local_auth for
          BiometricPrompt/fingerprint on Android. -->
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <!-- docs/03 stage 3.8 verification wizard: in-app camera for license/ID
+         photos and the selfie. Android shows no custom prompt text; the
+         app explains a refusal in-app (verification.camera.denied.* keys).
+         The camera is optional hardware: devices without one can still
+         upload license/ID files from storage. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
     <!-- android:label comes from the flavor's resValue app_name
          (android/app/build.gradle.kts): "LawBid Dev" / "LawBid Staging" /
          "LawBid" (p12 leaf-1.4). -->

@@ -33,8 +33,9 @@ abstract final class AppRoutes {
   /// routes onward.
   static const splash = '/splash';
 
-  /// "Verify now" target (§11 Шаг 4B) — placeholder until file 03's
-  /// verification flow exists. Pushed on the ROOT navigator.
+  /// "Verify now" target (§11 Шаг 4B) and the Mine/Cases tab gate CTA:
+  /// the verification status screen (docs/03 §8 step 6, stage 3.8).
+  /// Pushed on the ROOT navigator.
   static const verification = '/verification';
 
   // --- docs/03 stage 3.9 (practices, profiles, reviews) — all pushed on
@@ -63,6 +64,9 @@ abstract final class AppRoutes {
   /// Public attorney profile — same path as the `lawbid.app/lawyer/:username`
   /// deep link (docs/01 §12, DeepLinkRoutes.lawyerPath).
   static String lawyer(String username) => '/lawyer/${Uri.encodeComponent(username)}';
+  /// The verification wizard (docs/03 §8 steps 1–5), pushed from
+  /// [verification].
+  static const verificationWizard = '/verification/wizard';
 
   /// In-app legal document viewer (`/legal/terms`, `/legal/privacy`,
   /// `/legal/disclaimer`), fed by `/config/bootstrap` legal_documents.
