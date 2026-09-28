@@ -17,12 +17,13 @@ import 'package:lawbid/features/onboarding/application/current_user_controller.d
 import 'package:lawbid/features/onboarding/onboarding_routes.dart';
 import 'package:lawbid/features/onboarding/presentation/screens/legal_document_screen.dart';
 import 'package:lawbid/features/onboarding/presentation/screens/splash_screen.dart';
-import 'package:lawbid/features/onboarding/presentation/screens/verification_placeholder_screen.dart';
 import 'package:lawbid/features/settings/active_devices/presentation/active_devices_screen.dart';
 import 'package:lawbid/features/profile/presentation/screens/delete_account_screen.dart';
 import 'package:lawbid/features/profile/presentation/screens/profile_screen.dart';
 import 'package:lawbid/features/profile/presentation/screens/settings_screen.dart';
 import 'package:lawbid/features/settings/account/account_routes.dart';
+import 'package:lawbid/features/verification/presentation/screens/verification_status_screen.dart';
+import 'package:lawbid/features/verification/presentation/screens/verification_wizard_screen.dart';
 import 'package:lawbid/features/search/presentation/screens/search_screen.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -133,7 +134,13 @@ GoRouter appRouter(Ref ref) {
         path: AppRoutes.verification,
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) =>
-            AppPageTransitions.push(state, const VerificationPlaceholderScreen()),
+            AppPageTransitions.push(state, const VerificationStatusScreen()),
+      ),
+      GoRoute(
+        path: AppRoutes.verificationWizard,
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            AppPageTransitions.push(state, const VerificationWizardScreen()),
       ),
       GoRoute(
         path: AppRoutes.legal,

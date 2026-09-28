@@ -93,7 +93,7 @@ abstract final class AppRouterGuard {
     final required = requiredStep(user);
     if (required == null) {
       // Rows 7-8: fully onboarded. Auth/onboarding/splash → feed; every
-      // app route (incl. the verification placeholder) stays reachable.
+      // app route (incl. the verification screens) stays reachable.
       final onEntryRoute = location == AppRoutes.splash ||
           publicAuthRoutes.contains(location) ||
           OnboardingRoutes.stepOf(location) != null;
@@ -166,7 +166,8 @@ abstract final class AppRouterGuard {
   }
 
   static bool _canRevisit(String location, OnboardingStepId required, CurrentUser user) {
-    if (location == AppRoutes.verification) {
+    if (location == AppRoutes.verification ||
+        location == AppRoutes.verificationWizard) {
       return required == OnboardingStepId.verification;
     }
     final step = OnboardingRoutes.stepOf(location);

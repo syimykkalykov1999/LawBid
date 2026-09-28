@@ -1,0 +1,5 @@
+/* Permission prompts (docs/03 stage 3.8); keep in sync with the
+   translation keys permission.camera.ios / permission.photos.ios. */
+"NSCameraUsageDescription" = "LawBid uses the camera to photograph your license and ID document and to take a selfie for verification.";
+"NSPhotoLibraryUsageDescription" = "LawBid uses your photo library to upload license and ID document photos for verification.";
+"NSFaceIDUsageDescription" = "LawBid uses Face ID to confirm it's you before deleting your account or other sensitive actions.";

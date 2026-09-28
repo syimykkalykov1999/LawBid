@@ -88,6 +88,8 @@ dependencies:
   # packages/api-contract/generate.sh, never hand-edit.
   lawbid_api:
     path: ../../packages/api-contract/dart
+  camera: ^0.12.1
+  file_picker: ^11.0.3
 
 dev_dependencies:
   flutter_test:

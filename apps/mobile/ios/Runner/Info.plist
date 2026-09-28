@@ -45,6 +45,14 @@
 	     docs/CHANGELOG.md): local_auth requires this string whenever
 	     Face ID is used on iOS, or the OS silently refuses the
 	     authenticate() call. -->
+	<!-- docs/03 stage 3.8 verification wizard: camera (license/ID photos,
+	     selfie) and photo library (ID/license images). Localized in
+	     en.lproj / ru.lproj InfoPlist.strings; texts = translation keys
+	     permission.camera.ios / permission.photos.ios. -->
+	<key>NSCameraUsageDescription</key>
+	<string>LawBid uses the camera to photograph your license and ID document and to take a selfie for verification.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>LawBid uses your photo library to upload license and ID document photos for verification.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>LawBid uses Face ID to confirm it's you before deleting your account or other sensitive actions.</string>
 	<!-- Google Sign-In (Phase 3 of the auth networking work,
