@@ -110,4 +110,29 @@ export enum ErrorCode {
   FILE_NOT_ATTACHABLE = 'FILE_NOT_ATTACHABLE',
   // 503: file storage (S3) is not configured or not reachable.
   FILE_STORAGE_UNAVAILABLE = 'FILE_STORAGE_UNAVAILABLE',
+  // Verification (docs/03_VERIFICATION_PROFILES.md §2, stages 3.3–3.4)
+  // 409: the attorney already has a draft/submitted/in_review/
+  // needs_more_info request (§2.3: one at a time).
+  VERIFICATION_ALREADY_PENDING = 'VERIFICATION_ALREADY_PENDING',
+  // 429: verification.max_submissions_30d requests were already submitted
+  // in the last 30 days (§2.3, §9); details.retryAfterSeconds.
+  VERIFICATION_SUBMISSION_LIMIT = 'VERIFICATION_SUBMISSION_LIMIT',
+  // 409: the request's status does not allow this action (e.g. editing a
+  // submitted request, approving a request not in review).
+  VERIFICATION_INVALID_STATUS = 'VERIFICATION_INVALID_STATUS',
+  // 400: submit without the required licenses/documents/selfie;
+  // details.missing lists what is missing.
+  VERIFICATION_INCOMPLETE = 'VERIFICATION_INCOMPLETE',
+  // 409: another verifier has taken this request into work.
+  VERIFICATION_REQUEST_LOCKED = 'VERIFICATION_REQUEST_LOCKED',
+  // 409: approve while a license of the request is still undecided, or no
+  // license is verified; details.pendingLicenseIds.
+  VERIFICATION_DECISION_INCOMPLETE = 'VERIFICATION_DECISION_INCOMPLETE',
+  // 409: this bar number in this state belongs to another attorney
+  // (UQ attorney_licenses(state_code, bar_number)).
+  LICENSE_ALREADY_REGISTERED = 'LICENSE_ALREADY_REGISTERED',
+  // 409: the request already has a license in this state.
+  LICENSE_ALREADY_ADDED = 'LICENSE_ALREADY_ADDED',
+  // 403: a suspended attorney can't create or change verification requests.
+  ATTORNEY_SUSPENDED = 'ATTORNEY_SUSPENDED',
 }

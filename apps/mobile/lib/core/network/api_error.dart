@@ -35,7 +35,8 @@ abstract final class ApiErrorCodes {
   static const authRefreshReuseDetected = 'AUTH_REFRESH_REUSE_DETECTED';
   static const authSessionRevoked = 'AUTH_SESSION_REVOKED';
   static const authSocialTokenInvalid = 'AUTH_SOCIAL_TOKEN_INVALID';
-  static const authSocialProviderUnavailable = 'AUTH_SOCIAL_PROVIDER_UNAVAILABLE';
+  static const authSocialProviderUnavailable =
+      'AUTH_SOCIAL_PROVIDER_UNAVAILABLE';
   static const authProviderDisabled = 'AUTH_PROVIDER_DISABLED';
   static const accountExistsUseOtherMethod = 'ACCOUNT_EXISTS_USE_OTHER_METHOD';
   static const identifierAlreadyLinked = 'IDENTIFIER_ALREADY_LINKED';
@@ -79,6 +80,17 @@ abstract final class ApiErrorCodes {
   static const fileNotUploaded = 'FILE_NOT_UPLOADED';
   static const fileNotAttachable = 'FILE_NOT_ATTACHABLE';
   static const fileStorageUnavailable = 'FILE_STORAGE_UNAVAILABLE';
+  // Verification (docs/03 §2, stages 3.3–3.4)
+  static const verificationAlreadyPending = 'VERIFICATION_ALREADY_PENDING';
+  static const verificationSubmissionLimit = 'VERIFICATION_SUBMISSION_LIMIT';
+  static const verificationInvalidStatus = 'VERIFICATION_INVALID_STATUS';
+  static const verificationIncomplete = 'VERIFICATION_INCOMPLETE';
+  static const verificationRequestLocked = 'VERIFICATION_REQUEST_LOCKED';
+  static const verificationDecisionIncomplete =
+      'VERIFICATION_DECISION_INCOMPLETE';
+  static const licenseAlreadyRegistered = 'LICENSE_ALREADY_REGISTERED';
+  static const licenseAlreadyAdded = 'LICENSE_ALREADY_ADDED';
+  static const attorneySuspended = 'ATTORNEY_SUSPENDED';
 
   /// Every server code, in enum order.
   static const all = <String>[
@@ -135,6 +147,15 @@ abstract final class ApiErrorCodes {
     fileNotUploaded,
     fileNotAttachable,
     fileStorageUnavailable,
+    verificationAlreadyPending,
+    verificationSubmissionLimit,
+    verificationInvalidStatus,
+    verificationIncomplete,
+    verificationRequestLocked,
+    verificationDecisionIncomplete,
+    licenseAlreadyRegistered,
+    licenseAlreadyAdded,
+    attorneySuspended,
   ];
 }
 

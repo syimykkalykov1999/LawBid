@@ -9,9 +9,9 @@
  *
  * - sms: Twilio Messages (OtpService, login + contact OTP)
  * - email: AWS SES (OtpService)
- * - id_check: Stripe Identity / Persona — TODO(docs/03_VERIFICATION_PROFILES.md,
- *   stage 3.x identity verification): call consume('id_check') before
- *   creating a verification session once that stage is built.
+ * - id_check: Stripe Identity / Persona — one unit per verification
+ *   session, consumed by the paid IdVerificationProviders (docs/03 §2.4,
+ *   stage 3.4, modules/verification/providers/id).
  * - storage: S3 uploads — one unit per pre-signed upload issued by
  *   FilesService.presign (docs/03 §11 stage 3.2): storage, PUT requests
  *   and the antivirus/image work every upload triggers.

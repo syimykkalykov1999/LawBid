@@ -112,6 +112,24 @@ enum ErrorCode {
   fileNotAttachable('FILE_NOT_ATTACHABLE'),
   @JsonValue('FILE_STORAGE_UNAVAILABLE')
   fileStorageUnavailable('FILE_STORAGE_UNAVAILABLE'),
+  @JsonValue('VERIFICATION_ALREADY_PENDING')
+  verificationAlreadyPending('VERIFICATION_ALREADY_PENDING'),
+  @JsonValue('VERIFICATION_SUBMISSION_LIMIT')
+  verificationSubmissionLimit('VERIFICATION_SUBMISSION_LIMIT'),
+  @JsonValue('VERIFICATION_INVALID_STATUS')
+  verificationInvalidStatus('VERIFICATION_INVALID_STATUS'),
+  @JsonValue('VERIFICATION_INCOMPLETE')
+  verificationIncomplete('VERIFICATION_INCOMPLETE'),
+  @JsonValue('VERIFICATION_REQUEST_LOCKED')
+  verificationRequestLocked('VERIFICATION_REQUEST_LOCKED'),
+  @JsonValue('VERIFICATION_DECISION_INCOMPLETE')
+  verificationDecisionIncomplete('VERIFICATION_DECISION_INCOMPLETE'),
+  @JsonValue('LICENSE_ALREADY_REGISTERED')
+  licenseAlreadyRegistered('LICENSE_ALREADY_REGISTERED'),
+  @JsonValue('LICENSE_ALREADY_ADDED')
+  licenseAlreadyAdded('LICENSE_ALREADY_ADDED'),
+  @JsonValue('ATTORNEY_SUSPENDED')
+  attorneySuspended('ATTORNEY_SUSPENDED'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

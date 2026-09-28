@@ -11,6 +11,8 @@ import 'clients/files_client.dart';
 import 'clients/i18n_client.dart';
 import 'clients/admin_i18n_client.dart';
 import 'clients/cases_client.dart';
+import 'clients/verification_client.dart';
+import 'clients/admin_verification_client.dart';
 import 'clients/practice_areas_client.dart';
 import 'clients/attorneys_client.dart';
 import 'clients/profiles_client.dart';
@@ -34,6 +36,8 @@ class LawbidApi {
   I18nClient? _i18n;
   AdminI18nClient? _adminI18n;
   CasesClient? _cases;
+  VerificationClient? _verification;
+  AdminVerificationClient? _adminVerification;
   PracticeAreasClient? _practiceAreas;
   AttorneysClient? _attorneys;
   ProfilesClient? _profiles;
@@ -53,6 +57,12 @@ class LawbidApi {
       _adminI18n ??= AdminI18nClient(_dio, baseUrl: _baseUrl);
 
   CasesClient get cases => _cases ??= CasesClient(_dio, baseUrl: _baseUrl);
+
+  VerificationClient get verification =>
+      _verification ??= VerificationClient(_dio, baseUrl: _baseUrl);
+
+  AdminVerificationClient get adminVerification =>
+      _adminVerification ??= AdminVerificationClient(_dio, baseUrl: _baseUrl);
 
   PracticeAreasClient get practiceAreas =>
       _practiceAreas ??= PracticeAreasClient(_dio, baseUrl: _baseUrl);
