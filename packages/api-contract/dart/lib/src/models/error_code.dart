@@ -142,6 +142,12 @@ enum ErrorCode {
   bidMaxRoundsReached('BID_MAX_ROUNDS_REACHED'),
   @JsonValue('BID_COUNTER_NOT_ALLOWED')
   bidCounterNotAllowed('BID_COUNTER_NOT_ALLOWED'),
+  @JsonValue('CASE_CONTAINS_CONTACT_INFO')
+  caseContainsContactInfo('CASE_CONTAINS_CONTACT_INFO'),
+  @JsonValue('CLIENT_CONTACT_SHARING_CONSENT_REQUIRED')
+  clientContactSharingConsentRequired(
+    'CLIENT_CONTACT_SHARING_CONSENT_REQUIRED',
+  ),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

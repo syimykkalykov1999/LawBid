@@ -57,6 +57,9 @@ void main() {
       ApiErrorCodes.bidNotYourTurn,
       ApiErrorCodes.bidMaxRoundsReached,
       ApiErrorCodes.bidCounterNotAllowed,
+      // Case creation and management (docs/04 §3, stage 4.2)
+      ApiErrorCodes.caseContainsContactInfo,
+      ApiErrorCodes.clientContactSharingConsentRequired,
     ];
     for (final translator in const [StaticTranslatorEn(), StaticTranslatorRu()]) {
       final fallback = translator.t('error.default.message');

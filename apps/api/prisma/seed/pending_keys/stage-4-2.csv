@@ -1,0 +1,3 @@
+key,en,ru
+error.api.CASE_CONTAINS_CONTACT_INFO,Don't include contact info in the description: it's shared automatically with the attorney you choose.,Не указывайте контакты в описании: они автоматически передаются выбранному адвокату.
+error.api.CLIENT_CONTACT_SHARING_CONSENT_REQUIRED,Agree that your contacts will be shared with the attorney whose bid you accept.,Подтвердите, что согласны на передачу контактов адвокату, чей бид вы примете.

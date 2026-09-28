@@ -151,4 +151,12 @@ export enum ErrorCode {
   BID_MAX_ROUNDS_REACHED = 'BID_MAX_ROUNDS_REACHED',
   // 409: free-consultation bids can only be accepted or declined (§6.1).
   BID_COUNTER_NOT_ALLOWED = 'BID_COUNTER_NOT_ALLOWED',
+
+  // Case creation and management (docs/04_CASES_BIDS.md §3, stage 4.2)
+  // 400: title/description/city matched the §3.3 phone/email/link
+  // detector; details.field names which one.
+  CASE_CONTAINS_CONTACT_INFO = 'CASE_CONTAINS_CONTACT_INFO',
+  // 403: the client has never granted the client_contact_sharing consent
+  // (§3.1 step 5) and this request doesn't grant it either.
+  CLIENT_CONTACT_SHARING_CONSENT_REQUIRED = 'CLIENT_CONTACT_SHARING_CONSENT_REQUIRED',
 }

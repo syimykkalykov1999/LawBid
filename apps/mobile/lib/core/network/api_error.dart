@@ -98,6 +98,10 @@ abstract final class ApiErrorCodes {
   static const bidNotYourTurn = 'BID_NOT_YOUR_TURN';
   static const bidMaxRoundsReached = 'BID_MAX_ROUNDS_REACHED';
   static const bidCounterNotAllowed = 'BID_COUNTER_NOT_ALLOWED';
+  // Case creation and management (docs/04 §3, stage 4.2)
+  static const caseContainsContactInfo = 'CASE_CONTAINS_CONTACT_INFO';
+  static const clientContactSharingConsentRequired =
+      'CLIENT_CONTACT_SHARING_CONSENT_REQUIRED';
 
   /// Every server code, in enum order.
   static const all = <String>[
@@ -169,6 +173,8 @@ abstract final class ApiErrorCodes {
     bidNotYourTurn,
     bidMaxRoundsReached,
     bidCounterNotAllowed,
+    caseContainsContactInfo,
+    clientContactSharingConsentRequired,
   ];
 }
 

@@ -98,6 +98,10 @@ const _keys = <String, String>{
   ApiErrorCodes.bidNotYourTurn: 'error.api.BID_NOT_YOUR_TURN',
   ApiErrorCodes.bidMaxRoundsReached: 'error.api.BID_MAX_ROUNDS_REACHED',
   ApiErrorCodes.bidCounterNotAllowed: 'error.api.BID_COUNTER_NOT_ALLOWED',
+  ApiErrorCodes.caseContainsContactInfo:
+      'error.api.CASE_CONTAINS_CONTACT_INFO',
+  ApiErrorCodes.clientContactSharingConsentRequired:
+      'error.api.CLIENT_CONTACT_SHARING_CONSENT_REQUIRED',
   ApiErrorCodes.reauthRequired: 'error.api.REAUTH_REQUIRED',
   ApiErrorCodes.reauthInvalid: 'error.api.REAUTH_INVALID',
   ApiErrorCodes.clientContactsIncomplete:
