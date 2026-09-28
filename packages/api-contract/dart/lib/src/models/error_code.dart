@@ -142,6 +142,10 @@ enum ErrorCode {
   bidMaxRoundsReached('BID_MAX_ROUNDS_REACHED'),
   @JsonValue('BID_COUNTER_NOT_ALLOWED')
   bidCounterNotAllowed('BID_COUNTER_NOT_ALLOWED'),
+  @JsonValue('SUBSCRIPTION_REQUIRED')
+  subscriptionRequired('SUBSCRIPTION_REQUIRED'),
+  @JsonValue('BID_ALREADY_EXISTS')
+  bidAlreadyExists('BID_ALREADY_EXISTS'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

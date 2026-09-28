@@ -10,6 +10,7 @@ import type { DisposableDomainsRefreshJob } from './disposable-domains/disposabl
 import type { ReviewReminderJob } from './handlers/review-reminder.job';
 import type { RatingReconcileJob } from './handlers/rating-reconcile.job';
 import type { LicenseExpiryJob } from './handlers/license-expiry.job';
+import type { BidSubscriptionLapseJob } from './handlers/bid-subscription-lapse.job';
 
 jest.mock('bullmq', () => {
   const queue = {
@@ -63,6 +64,11 @@ function processor() {
     run: jest.fn(() => Promise.resolve({ scanned: 4, fixed: 1 })),
   };
   const licenses = { run: jest.fn(() => Promise.resolve({ expired: 3 })) };
+  const bidLapse = {
+    run: jest.fn(() =>
+      Promise.resolve({ attorneysChecked: 5, bidsWithdrawn: 1 }),
+    ),
+  };
   return {
     sessions,
     otp,
@@ -70,6 +76,7 @@ function processor() {
     reminder,
     reconcile,
     licenses,
+    bidLapse,
     processor: new CronProcessor(
       sessions as unknown as SessionsCleanupJob,
       otp as unknown as OtpCleanupJob,
@@ -77,6 +84,7 @@ function processor() {
       reminder as unknown as ReviewReminderJob,
       reconcile as unknown as RatingReconcileJob,
       licenses as unknown as LicenseExpiryJob,
+      bidLapse as unknown as BidSubscriptionLapseJob,
     ),
   };
 }
@@ -100,7 +108,7 @@ describe('JobsRunner', () => {
     });
     const upserts = mocked.__queue.upsertJobScheduler.mock.calls;
     expect(upserts).toHaveLength(CRON_SCHEDULES.length);
-    expect(upserts).toHaveLength(6);
+    expect(upserts).toHaveLength(7);
     const byName = Object.fromEntries(
       upserts.map((c: unknown[]) => [c[0], c[1]]),
     );
@@ -126,6 +134,11 @@ describe('JobsRunner', () => {
     }
     expect(byName[CRON_JOBS.licenseExpiry]).toEqual({
       pattern: expect.stringMatching(/^\d+ \d+ \* \* \*$/),
+      tz: 'UTC',
+    });
+    // docs/04 §2 (stage 4.4): hourly safety net.
+    expect(byName[CRON_JOBS.bidSubscriptionLapse]).toEqual({
+      pattern: expect.stringMatching(/^\d+ \* \* \* \*$/),
       tz: 'UTC',
     });
     for (const call of upserts) {
@@ -243,6 +256,10 @@ describe('CronProcessor', () => {
     ).resolves.toEqual({ scanned: 4, fixed: 1 });
     expect(p.reminder.run).toHaveBeenCalledTimes(1);
     expect(p.reconcile.run).toHaveBeenCalledTimes(1);
+    await expect(
+      p.processor.process(CRON_JOBS.bidSubscriptionLapse),
+    ).resolves.toEqual({ attorneysChecked: 5, bidsWithdrawn: 1 });
+    expect(p.bidLapse.run).toHaveBeenCalledTimes(1);
   });
 
   it('fails unknown job names instead of silently succeeding', async () => {

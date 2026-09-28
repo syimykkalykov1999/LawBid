@@ -1,0 +1,3 @@
+key,en,ru
+error.api.SUBSCRIPTION_REQUIRED,An active subscription or trial is required to place a bid.,"Нужна активная подписка или триал, чтобы сделать бид."
+error.api.BID_ALREADY_EXISTS,You already have a bid on this case.,У вас уже есть бид на этот кейс.

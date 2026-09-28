@@ -98,6 +98,9 @@ abstract final class ApiErrorCodes {
   static const bidNotYourTurn = 'BID_NOT_YOUR_TURN';
   static const bidMaxRoundsReached = 'BID_MAX_ROUNDS_REACHED';
   static const bidCounterNotAllowed = 'BID_COUNTER_NOT_ALLOWED';
+  // Bids and negotiation (docs/04 §5–§6, stage 4.4)
+  static const subscriptionRequired = 'SUBSCRIPTION_REQUIRED';
+  static const bidAlreadyExists = 'BID_ALREADY_EXISTS';
 
   /// Every server code, in enum order.
   static const all = <String>[
@@ -169,6 +172,8 @@ abstract final class ApiErrorCodes {
     bidNotYourTurn,
     bidMaxRoundsReached,
     bidCounterNotAllowed,
+    subscriptionRequired,
+    bidAlreadyExists,
   ];
 }
 
