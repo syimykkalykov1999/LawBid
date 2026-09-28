@@ -72,4 +72,20 @@ export enum ErrorCode {
   // product; docs/01_FOUNDATION_AUTH.md §10.6 "блок подозрительных
   // префиксов стран") or a premium/toll-free/shared-cost number type.
   PHONE_COUNTRY_NOT_SUPPORTED = 'PHONE_COUNTRY_NOT_SUPPORTED',
+
+  // Files (docs/03_VERIFICATION_PROFILES.md §2.2, stage 3.2)
+  // 400: the declared or the real (magic bytes) type is not allowed for
+  // this purpose, or the real type differs from the declared one.
+  FILE_TYPE_NOT_ALLOWED = 'FILE_TYPE_NOT_ALLOWED',
+  // 400: over files.max_size_mb / files.avatar_max_size_mb.
+  FILE_TOO_LARGE = 'FILE_TOO_LARGE',
+  // 400: the uploaded object's size or SHA-256 differs from the declared.
+  FILE_CHECKSUM_MISMATCH = 'FILE_CHECKSUM_MISMATCH',
+  // 409: confirm called before the object was uploaded to S3.
+  FILE_NOT_UPLOADED = 'FILE_NOT_UPLOADED',
+  // 409: the file can't be attached (wrong purpose, or scan_status is not
+  // clean: pending / infected / failed).
+  FILE_NOT_ATTACHABLE = 'FILE_NOT_ATTACHABLE',
+  // 503: file storage (S3) is not configured or not reachable.
+  FILE_STORAGE_UNAVAILABLE = 'FILE_STORAGE_UNAVAILABLE',
 }

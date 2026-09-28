@@ -4,6 +4,7 @@ import { ConfigModule } from '../config/config.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { RedisModule } from '../redis/redis.module';
 import { JobsModule } from './jobs.module';
+import { FilesWorkerModule } from '../modules/files/files-worker.module';
 
 /**
  * Root module of the dedicated `worker` process (docs/06_PRODUCTION.md §6:
@@ -26,6 +27,8 @@ import { JobsModule } from './jobs.module';
     PrismaModule,
     RedisModule,
     JobsModule.register({ mode: 'worker' }),
+    // docs/03 stage 3.2: antivirus scan + image processing (`files` queue).
+    FilesWorkerModule,
   ],
 })
 export class WorkerModule {}

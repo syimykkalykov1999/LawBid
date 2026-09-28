@@ -129,6 +129,8 @@
 | SMS: в месяц | 5000 | `budget.sms.monthly_max` |
 | Email: в минуту / сутки / месяц | 100 / 2000 / 30000 | `budget.email.*` |
 | Проверки личности: минута / сутки / месяц | 5 / 20 / 200 | `budget.id_check.*` |
+| Загрузки файлов в S3 (выдача ссылок): минута / сутки / месяц | 120 / 5000 / 100000 | `budget.storage.*` |
+| Загрузки файлов с одного пользователя | 60 в час | env `FILES_PRESIGN_LIMIT_PER_USER_PER_HOUR` |
 | Страны для SMS | только США (`["US"]`) | `sms.allowed_country_codes` |
 | Premium / toll-free номера | всегда запрещены | — (код) |
 | OTP на один номер/email | 5 в час | env `OTP_RATE_LIMIT_PER_IDENTIFIER_PER_HOUR` |

@@ -18,6 +18,8 @@ MeDto _$MeDtoFromJson(Map<String, dynamic> json) => MeDto(
   phoneVerified: json['phoneVerified'] as bool,
   uiLanguage: json['uiLanguage'] as String,
   theme: ThemePref.fromJson(json['theme'] as String),
+  avatarFileId: json['avatarFileId'] as String?,
+  avatarUrl: json['avatarUrl'] as String?,
   requiredConsentsGranted: json['requiredConsentsGranted'] as bool,
   onboarding: OnboardingStateDto.fromJson(
     json['onboarding'] as Map<String, dynamic>,
@@ -42,6 +44,8 @@ Map<String, dynamic> _$MeDtoToJson(MeDto instance) => <String, dynamic>{
   'phoneVerified': instance.phoneVerified,
   'uiLanguage': instance.uiLanguage,
   'theme': instance.theme.toJson(),
+  'avatarFileId': ?instance.avatarFileId,
+  'avatarUrl': ?instance.avatarUrl,
   'requiredConsentsGranted': instance.requiredConsentsGranted,
   'onboarding': instance.onboarding.toJson(),
   'profile': ?instance.profile?.toJson(),

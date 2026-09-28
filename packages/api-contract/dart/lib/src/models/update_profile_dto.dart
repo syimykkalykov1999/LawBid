@@ -11,6 +11,7 @@ part 'update_profile_dto.g.dart';
 @JsonSerializable()
 class UpdateProfileDto {
   const UpdateProfileDto({
+    this.avatarFileId,
     this.firstName,
     this.lastName,
     this.uiLanguage,
@@ -20,6 +21,9 @@ class UpdateProfileDto {
   factory UpdateProfileDto.fromJson(Map<String, Object?> json) =>
       _$UpdateProfileDtoFromJson(json);
 
+  /// docs/03 §4.1 photo (OQ-012 attorney onboarding photo step): a clean.
+  /// `avatar` file from POST /files/presign + confirm; null removes it.
+  final String? avatarFileId;
   final String? firstName;
   final String? lastName;
   final String? uiLanguage;

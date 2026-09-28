@@ -1,0 +1,6 @@
+key,en,ru
+error.api.FILE_TYPE_NOT_ALLOWED,"This file type isn't supported. Upload a JPEG, PNG or HEIC (a PDF also works for a license).","Этот тип файла не подходит. Загрузите JPEG, PNG или HEIC (для лицензии — также PDF)."
+error.api.FILE_TOO_LARGE,This file is too large. Please choose a smaller one.,Файл слишком большой. Выберите файл меньшего размера.
+error.api.FILE_UPLOAD_FAILED,The file couldn't be uploaded. Please try again.,Не удалось загрузить файл. Попробуйте ещё раз.
+error.api.FILE_NOT_ATTACHABLE,"This file can't be used: it's still being checked or didn't pass the check. Please upload another file.","Этот файл нельзя использовать: он ещё проверяется или не прошёл проверку. Загрузите другой файл."
+error.api.FILE_STORAGE_UNAVAILABLE,File uploads are unavailable right now. Please try again later.,Загрузка файлов сейчас недоступна. Попробуйте позже.

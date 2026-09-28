@@ -18,3 +18,20 @@ process.env.OTP_RATE_LIMIT_PER_IP_PER_HOUR = '1000';
 // fallback is lifted; daily/monthly caps keep their real defaults and
 // cost-guard.e2e-spec.ts drives caps explicitly through app_config.
 process.env.BUDGET_SMS_PER_MINUTE_MAX = '1000';
+
+// docs/03 stage 3.2: uploads go to the local MinIO from docker-compose.yml
+// (dev-only credentials published there). Buckets are per isolation tag
+// so parallel runs never share objects; FilesBootstrapService creates
+// them (private) on boot in NODE_ENV=test.
+const s3Tag = process.env.E2E_ISOLATION || 'default';
+const s3Defaults: Record<string, string> = {
+  S3_ENDPOINT: 'http://localhost:9000',
+  S3_REGION: 'us-east-1',
+  S3_ACCESS_KEY_ID: 'lawbid',
+  S3_SECRET_ACCESS_KEY: 'lawbid_dev_only',
+  S3_BUCKET_DOCUMENTS: `lawbid-e2e-${s3Tag}-documents`,
+  S3_BUCKET_MEDIA: `lawbid-e2e-${s3Tag}-media`,
+};
+for (const [key, value] of Object.entries(s3Defaults)) {
+  if (!process.env[key]) process.env[key] = value;
+}

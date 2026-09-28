@@ -161,6 +161,16 @@ export class MeDto {
   @ApiProperty({ enum: ThemePref, enumName: 'ThemePref' })
   theme!: ThemePref;
 
+  @ApiProperty({ type: String, format: 'uuid', nullable: true })
+  avatarFileId!: string | null;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'Short-lived signed link to the avatar (1024 px JPEG).',
+  })
+  avatarUrl!: string | null;
+
   @ApiProperty()
   requiredConsentsGranted!: boolean;
 

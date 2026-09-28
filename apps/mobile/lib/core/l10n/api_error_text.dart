@@ -50,6 +50,14 @@ const _keys = <String, String>{
   ApiErrorCodes.identifierAlreadyLinked: 'error.api.CONTACT_ALREADY_EXISTS',
   ApiErrorCodes.phoneCountryNotSupported: 'error.api.PHONE_COUNTRY_NOT_SUPPORTED',
   ApiErrorCodes.providerBudgetExceeded: 'error.api.PROVIDER_BUDGET_EXCEEDED',
+  // Uploads (docs/03 §2.2). A checksum mismatch or a missing upload means
+  // the transfer broke: "try uploading again".
+  ApiErrorCodes.fileTypeNotAllowed: 'error.api.FILE_TYPE_NOT_ALLOWED',
+  ApiErrorCodes.fileTooLarge: 'error.api.FILE_TOO_LARGE',
+  ApiErrorCodes.fileChecksumMismatch: 'error.api.FILE_UPLOAD_FAILED',
+  ApiErrorCodes.fileNotUploaded: 'error.api.FILE_UPLOAD_FAILED',
+  ApiErrorCodes.fileNotAttachable: 'error.api.FILE_NOT_ATTACHABLE',
+  ApiErrorCodes.fileStorageUnavailable: 'error.api.FILE_STORAGE_UNAVAILABLE',
   ApiErrorCodes.reauthRequired: 'error.api.REAUTH_REQUIRED',
   ApiErrorCodes.reauthInvalid: 'error.api.REAUTH_INVALID',
   ApiErrorCodes.clientContactsIncomplete: 'error.api.CLIENT_CONTACTS_INCOMPLETE',

@@ -61,6 +61,14 @@ abstract final class ApiErrorCodes {
   static const providerBudgetExceeded = 'PROVIDER_BUDGET_EXCEEDED';
   static const phoneCountryNotSupported = 'PHONE_COUNTRY_NOT_SUPPORTED';
 
+  // Files (docs/03 §2.2, stage 3.2)
+  static const fileTypeNotAllowed = 'FILE_TYPE_NOT_ALLOWED';
+  static const fileTooLarge = 'FILE_TOO_LARGE';
+  static const fileChecksumMismatch = 'FILE_CHECKSUM_MISMATCH';
+  static const fileNotUploaded = 'FILE_NOT_UPLOADED';
+  static const fileNotAttachable = 'FILE_NOT_ATTACHABLE';
+  static const fileStorageUnavailable = 'FILE_STORAGE_UNAVAILABLE';
+
   /// Every server code, in enum order.
   static const all = <String>[
     validationError,
@@ -101,6 +109,12 @@ abstract final class ApiErrorCodes {
     i18nImportInvalid,
     providerBudgetExceeded,
     phoneCountryNotSupported,
+    fileTypeNotAllowed,
+    fileTooLarge,
+    fileChecksumMismatch,
+    fileNotUploaded,
+    fileNotAttachable,
+    fileStorageUnavailable,
   ];
 }
 

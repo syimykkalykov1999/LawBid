@@ -111,6 +111,7 @@ export class UsersController {
   @ApiErrors({
     400: [E.VALIDATION_ERROR, E.I18N_LANGUAGE_NOT_FOUND],
     404: [E.NOT_FOUND],
+    409: [E.FILE_NOT_ATTACHABLE],
   })
   async updateProfile(
     @CurrentUser() user: RequestUser,

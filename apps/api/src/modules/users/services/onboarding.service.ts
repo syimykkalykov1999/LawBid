@@ -19,6 +19,7 @@ import {
   type ProfileFacts,
   type ProfileView,
 } from './user-profiles.service';
+import { FilesService } from '../../files/files.service';
 
 /** docs/01_FOUNDATION_AUTH.md §10.2 H: consents that must be granted
  * before anything else in onboarding. */
@@ -52,6 +53,9 @@ export interface MeView {
   phoneVerified: boolean;
   uiLanguage: string;
   theme: User['theme'];
+  /** users.avatar_file_id (docs/02 §4.A) + a short-lived signed link. */
+  avatarFileId: string | null;
+  avatarUrl: string | null;
   requiredConsentsGranted: boolean;
   onboarding: {
     currentStep: string | null;
@@ -78,6 +82,7 @@ export class OnboardingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly profiles: UserProfilesService,
+    private readonly files: FilesService,
   ) {}
 
   async getMe(userId: string): Promise<MeView> {
@@ -88,9 +93,10 @@ export class OnboardingService {
     if (!user) {
       throw new NotFoundException({ code: ErrorCode.NOT_FOUND });
     }
-    const [consentsOk, facts] = await Promise.all([
+    const [consentsOk, facts, avatarUrl] = await Promise.all([
       this.requiredConsentsGranted(userId),
       this.profiles.facts(userId, user.role, user.onboarding_state?.data),
+      this.files.mediaUrl(user.avatar_file_id),
     ]);
     return {
       id: user.id,
@@ -104,6 +110,8 @@ export class OnboardingService {
       phoneVerified: user.phone_verified_at !== null,
       uiLanguage: user.ui_language,
       theme: user.theme,
+      avatarFileId: user.avatar_file_id,
+      avatarUrl,
       requiredConsentsGranted: consentsOk,
       onboarding: {
         currentStep: user.onboarding_state?.current_step ?? null,
@@ -127,6 +135,12 @@ export class OnboardingService {
         });
       }
     }
+    // docs/03 §4.1 photo / OQ-012: only the caller's own clean avatar
+    // file (scanned, square-cropped, EXIF stripped) can be set; null
+    // removes the photo.
+    if (dto.avatarFileId) {
+      await this.files.assertAttachable(userId, dto.avatarFileId, ['avatar']);
+    }
     await this.prisma.user.update({
       where: { id: userId },
       data: {
@@ -134,6 +148,7 @@ export class OnboardingService {
         last_name: dto.lastName?.trim(),
         ui_language: dto.uiLanguage,
         theme: dto.theme,
+        avatar_file_id: dto.avatarFileId,
       },
     });
   }
