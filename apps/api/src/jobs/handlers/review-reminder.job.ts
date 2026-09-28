@@ -1,9 +1,12 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from '../../modules/notifications/notifications.service';
+import { REDIS_CLIENT } from '../../redis/redis.constants';
+import { emitOnce } from './reminder-claim';
 
 /** A case closed up to this many days before the reminder cutoff still
  * gets its reminder, so a job outage of a few days loses nothing; older
@@ -12,7 +15,8 @@ import { NotificationsService } from '../../modules/notifications/notifications.
 export const REVIEW_REMINDER_GRACE_DAYS = 3;
 export const REVIEW_REMINDER_BATCH = 500;
 
-const DAY_MS = 24 * 60 * 60 * 1000;
+const DAY_SEC = 24 * 60 * 60;
+const DAY_MS = DAY_SEC * 1000;
 const ZERO_UUID = '00000000-0000-0000-0000-000000000000';
 
 interface DueRow {
@@ -36,7 +40,9 @@ export interface ReviewReminderResult {
  * payload.reminder = true), so reruns, retries and concurrent runners
  * never send a second one — no extra state column (docs/03 §10 allows no
  * other schema changes). Walks cases by primary key in batches so a row
- * whose emit fails can't loop the job.
+ * whose emit fails can't loop the job. Overlapping runs: each emit is
+ * guarded by an atomic Redis claim `reminder:review:<caseId>` (TTL past
+ * the grace window), since the NOT EXISTS read alone races.
  *
  * Query cost note: there is no cases(status, closed_at) index (file 04
  * owns that table's indexes); the scan is bounded to closed cases.
@@ -48,6 +54,7 @@ export class ReviewReminderJob {
     private readonly settings: AppSettingsService,
     private readonly notifications: NotificationsService,
     private readonly logger: PinoLogger,
+    @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {
     this.logger.setContext(ReviewReminderJob.name);
   }
@@ -63,6 +70,8 @@ export class ReviewReminderJob {
     );
     let cursor = ZERO_UUID;
     let sent = 0;
+    // A case stays due for at most the grace window; keep the claim longer.
+    const claimTtl = (REVIEW_REMINDER_GRACE_DAYS + 1) * DAY_SEC;
 
     for (;;) {
       const due = await this.prisma.$queryRaw<DueRow[]>(Prisma.sql`
@@ -89,16 +98,22 @@ export class ReviewReminderJob {
         LIMIT ${batchSize}`);
 
       for (const row of due) {
-        await this.notifications.emit({
-          type: 'review_requested',
-          recipientId: row.client_id,
-          payload: {
-            caseId: row.case_id,
-            attorneyId: row.attorney_id,
-            reminder: true,
-          },
-        });
-        sent += 1;
+        const emitted = await emitOnce(
+          this.redis,
+          `reminder:review:${row.case_id}`,
+          claimTtl,
+          () =>
+            this.notifications.emit({
+              type: 'review_requested',
+              recipientId: row.client_id,
+              payload: {
+                caseId: row.case_id,
+                attorneyId: row.attorney_id,
+                reminder: true,
+              },
+            }),
+        );
+        if (emitted) sent += 1;
       }
       const last = due[due.length - 1];
       if (due.length < batchSize || !last) break;

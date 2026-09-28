@@ -8,7 +8,12 @@ import 'package:lawbid/core/network/request_flags.dart';
 import 'package:lawbid/features/onboarding/data/current_user_mapper.dart';
 import 'package:lawbid/features/onboarding/data/users_api_client.dart';
 import 'package:lawbid/features/onboarding/domain/current_user.dart';
+import 'package:lawbid/features/verification/domain/verification_repository.dart'
+    show UploadCancellation, UploadCancelledException;
 import 'package:lawbid_api/lawbid_api.dart' as api;
+
+export 'package:lawbid/features/verification/domain/verification_repository.dart'
+    show UploadCancellation, UploadCancelledException;
 
 /// Max avatar size (docs/03 §9 `files.avatar_max_size_mb` = 5); the server
 /// re-checks it in the S3 policy and on confirm.
@@ -54,12 +59,14 @@ abstract interface class AvatarUploadRepository {
     required String sha256,
   });
 
-  /// Uploads to storage; [onProgress] gets 0..1.
+  /// Uploads to storage; [onProgress] gets 0..1. Throws
+  /// [UploadCancelledException] once [cancellation] is cancelled.
   Future<void> upload(
     PresignedUpload target,
     Uint8List bytes,
     String mime, {
     void Function(double progress)? onProgress,
+    UploadCancellation? cancellation,
   });
 
   Future<ScanOutcome> confirm(String fileId);
@@ -111,7 +118,11 @@ class ApiAvatarUploadRepository implements AvatarUploadRepository {
     Uint8List bytes,
     String mime, {
     void Function(double progress)? onProgress,
+    UploadCancellation? cancellation,
   }) async {
+    if (cancellation?.isCancelled ?? false) throw const UploadCancelledException();
+    final token = CancelToken();
+    cancellation?.onCancel(token.cancel);
     final parts = mime.split('/');
     final form = FormData.fromMap({
       ...target.fields,
@@ -126,11 +137,13 @@ class ApiAvatarUploadRepository implements AvatarUploadRepository {
       await _storage.post<void>(
         target.url,
         data: form,
+        cancelToken: token,
         onSendProgress: (sent, total) {
           if (total > 0) onProgress?.call(sent / total);
         },
       );
     } on DioException catch (e) {
+      if (CancelToken.isCancel(e)) throw const UploadCancelledException();
       // Storage answers in XML, never our error envelope.
       throw ApiException(
         code: e.response == null ? ApiException.networkErrorCode : ApiErrorCodes.fileNotUploaded,

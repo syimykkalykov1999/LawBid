@@ -579,6 +579,23 @@ void main() {
       expect(repo.steps.where((s) => s == 'upload'), hasLength(2));
     });
 
+    test('leaving the screen cancels the in-flight upload and stops the pipeline', () async {
+      final repo = FakeAvatarRepo(me: attorneyMe())..holdUpload = true;
+      final c = ProviderContainer(overrides: [avatarUploadRepositoryProvider.overrideWithValue(repo)]);
+      addTearDown(c.dispose);
+      final sub = c.listen(avatarUploadControllerProvider, (_, __) {});
+      final run = c.read(avatarUploadControllerProvider.notifier).start(jpeg);
+      await pumpEventQueue();
+      expect(c.read(avatarUploadControllerProvider).stage, AvatarUploadStage.uploading);
+      expect(repo.lastCancellation?.isCancelled, isFalse);
+
+      sub.close(); // autoDispose → ref.onDispose cancels
+      await run;
+
+      expect(repo.lastCancellation?.isCancelled, isTrue);
+      expect(repo.steps, ['presign:image/jpeg:8', 'upload']);
+    });
+
     test('rejects non-images before any network call', () async {
       final repo = FakeAvatarRepo(me: attorneyMe());
       final c = ProviderContainer(overrides: [avatarUploadRepositoryProvider.overrideWithValue(repo)]);

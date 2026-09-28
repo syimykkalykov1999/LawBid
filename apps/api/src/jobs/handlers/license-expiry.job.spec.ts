@@ -1,3 +1,4 @@
+import type Redis from 'ioredis';
 import type { PinoLogger } from 'nestjs-pino';
 import type { PrismaService } from '../../prisma/prisma.service';
 import type { AppSettingsService } from '../../common/app-settings/app-settings.service';
@@ -46,6 +47,7 @@ describe('LicenseExpiryJob.run', () => {
     downgraded: number;
     upcoming?: { id: string; attorney_id: string; expires_at: Date }[];
     existingPayloads?: Record<string, unknown>[];
+    claimed?: string[];
   }) {
     const emitted: { recipientId: string; payload: Record<string, unknown> }[] =
       [];
@@ -97,13 +99,23 @@ describe('LicenseExpiryJob.run', () => {
       ),
     };
     const logger = { setContext: jest.fn(), info: jest.fn() };
+    const claims = new Set(opts.claimed ?? []);
+    const redis = {
+      set: jest.fn((key: string) => {
+        if (claims.has(key)) return Promise.resolve(null);
+        claims.add(key);
+        return Promise.resolve('OK');
+      }),
+      del: jest.fn(),
+    };
     const job = new LicenseExpiryJob(
       prisma as unknown as PrismaService,
       settings as unknown as AppSettingsService,
       notifications as unknown as NotificationsService,
       logger as unknown as PinoLogger,
+      redis as unknown as Redis,
     );
-    return { job, tx, emitted };
+    return { job, tx, emitted, redis };
   }
 
   it('expires a due license and unverifies the profile when it was the last one', async () => {
@@ -166,5 +178,28 @@ describe('LicenseExpiryJob.run', () => {
       ['a1', 30],
       ['a2', 7],
     ]);
+  });
+
+  it('skips a reminder another run already claimed in Redis', async () => {
+    const { job, emitted, redis } = setup({
+      due: [],
+      remaining: 0,
+      downgraded: 0,
+      upcoming: [
+        { id: 'l30', attorney_id: 'a1', expires_at: day('2026-10-27') },
+        { id: 'l7', attorney_id: 'a2', expires_at: day('2026-10-04') },
+      ],
+      claimed: ['reminder:license:l7:2026-10-04:7'],
+    });
+    const result = await job.run(now);
+    expect(result.reminders).toBe(1);
+    expect(emitted.map((e) => e.payload.licenseId)).toEqual(['l30']);
+    expect(redis.set).toHaveBeenCalledWith(
+      'reminder:license:l30:2026-10-27:30',
+      '1',
+      'EX',
+      31 * 24 * 60 * 60,
+      'NX',
+    );
   });
 });

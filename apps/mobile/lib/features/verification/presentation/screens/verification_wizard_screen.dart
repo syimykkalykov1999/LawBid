@@ -194,8 +194,8 @@ class _VerificationWizardScreenState
     });
     _commentSave?.cancel();
     try {
-      await _c.submit(_comment.text.trim());
-      if (!mounted) return;
+      final sent = await _c.submit(_comment.text.trim());
+      if (sent == null || !mounted) return;
       ref.invalidate(verificationOverviewProvider);
       showAppSnackBar(context, _t.t('verification.submit.success'));
       if (context.canPop()) {

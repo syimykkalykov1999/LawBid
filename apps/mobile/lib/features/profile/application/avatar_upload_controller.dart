@@ -46,12 +46,20 @@ ApiException _local(String code) => ApiException(code: code, message: code);
 class AvatarUploadController extends Notifier<AvatarUploadState> {
   Uint8List? _bytes;
 
+  /// The in-flight pipeline's cancel handle; cancelled when the provider
+  /// is disposed (screen left), which aborts the storage POST and stops
+  /// the scan poll.
+  UploadCancellation? _cancellation;
+
   /// Poll cadence / limit while the antivirus scan is pending.
   static const pollInterval = Duration(seconds: 1);
   static const maxPolls = 30;
 
   @override
-  AvatarUploadState build() => const AvatarUploadState();
+  AvatarUploadState build() {
+    ref.onDispose(() => _cancellation?.cancel());
+    return const AvatarUploadState();
+  }
 
   Future<void> start(Uint8List bytes) async {
     if (state.busy) return;
@@ -67,6 +75,7 @@ class AvatarUploadController extends Notifier<AvatarUploadState> {
   Future<void> _run() async {
     final bytes = _bytes!;
     final repo = ref.read(avatarUploadRepositoryProvider);
+    final cancellation = _cancellation = UploadCancellation();
     state = AvatarUploadState(stage: AvatarUploadStage.preparing, preview: bytes);
     try {
       final mime = sniffImageMime(bytes);
@@ -78,23 +87,35 @@ class AvatarUploadController extends Notifier<AvatarUploadState> {
         sha256: sha256Hex(bytes),
       );
       _set(AvatarUploadStage.uploading, 0);
-      await repo.upload(target, bytes, mime, onProgress: (p) => _set(AvatarUploadStage.uploading, p));
+      await repo.upload(
+        target,
+        bytes,
+        mime,
+        onProgress: (p) => _set(AvatarUploadStage.uploading, p),
+        cancellation: cancellation,
+      );
+      if (cancellation.isCancelled) return;
       _set(AvatarUploadStage.checking, 1);
       var outcome = await repo.confirm(target.fileId);
       for (var i = 0; outcome == ScanOutcome.pending && i < maxPolls; i++) {
         await Future<void>.delayed(pollInterval);
-        if (!ref.mounted) return;
+        if (cancellation.isCancelled || !ref.mounted) return;
         outcome = await repo.scanStatus(target.fileId);
       }
+      if (cancellation.isCancelled) return;
       if (outcome != ScanOutcome.clean) throw _local(ApiErrorCodes.fileNotAttachable);
       final me = await repo.attach(target.fileId);
       if (!ref.mounted) return;
       ref.read(currentUserControllerProvider.notifier).apply(me);
       state = AvatarUploadState(stage: AvatarUploadStage.done, progress: 1, preview: bytes);
+    } on UploadCancelledException {
+      return;
     } catch (e) {
-      if (ref.mounted) {
+      if (ref.mounted && !cancellation.isCancelled) {
         state = AvatarUploadState(stage: AvatarUploadStage.failed, preview: bytes, error: e);
       }
+    } finally {
+      if (identical(_cancellation, cancellation)) _cancellation = null;
     }
   }
 

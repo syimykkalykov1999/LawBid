@@ -76,6 +76,11 @@ export const MEDIA_SIGNED_URL_TTL_SEC = 60 * 60;
 export const AVATAR_MAIN_PX = 1024;
 export const AVATAR_VARIANT_PX: readonly number[] = [256];
 
+/** Decompression-bomb guard for the scan worker: images above this many
+ * pixels (width × height) are refused before decoding. 40 MP covers any
+ * phone photo or document scan (≈160 MB as raw RGBA). */
+export const MAX_INPUT_PIXELS = 40_000_000;
+
 /** `<key>_w256` — never `<key>/256`: MinIO forbids an object whose name
  * is a "directory" prefix of another object. */
 export function variantKey(key: string, px: number): string {

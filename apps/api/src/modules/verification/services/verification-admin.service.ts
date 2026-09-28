@@ -14,6 +14,7 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { withTxRetry } from '../../../prisma/tx-retry.util';
 import { AuditLogService } from '../../admin-access/audit-log.service';
 import type { AdminActor } from '../../admin-access/current-admin.decorator';
+import { RateLimitService } from '../../auth/services/rate-limit.service';
 import { FilesService } from '../../files/files.service';
 import { NotificationsService } from '../../notifications/notifications.service';
 import { notFound } from '../../profiles/services/profile-access';
@@ -32,6 +33,7 @@ import {
 import { VerificationProviderSelector } from '../providers/verification-provider.selector';
 import {
   AUDIT_ACTION,
+  DOCUMENT_URL_LIMIT_PER_ADMIN_PER_HOUR,
   LICENSE_RECHECK_NOTE_PREFIX,
   OPEN_REQUEST_STATUSES,
   VERIFICATION_NOTIFICATION_KIND as KIND,
@@ -87,6 +89,7 @@ export class VerificationAdminService {
     private readonly notifications: NotificationsService,
     private readonly checks: VerificationChecksService,
     private readonly selector: VerificationProviderSelector,
+    private readonly rateLimit: RateLimitService,
   ) {}
 
   /** §2.5.1: oldest submission first; keyset cursor on (submitted_at, id). */
@@ -218,11 +221,25 @@ export class VerificationAdminService {
   }
 
   /** §2.2: a 5-minute signed link (verification.signed_url_ttl_sec); the
-   * view is written to audit_log before the link is returned. */
+   * view is written to audit_log before the link is returned. Rate-limited
+   * per verifier (DOCUMENT_URL_LIMIT_PER_ADMIN_PER_HOUR). */
   async documentUrl(
     admin: AdminActor,
     documentId: string,
   ): Promise<DocumentUrlDto> {
+    const limit = await this.rateLimit.consumeFixedWindow(
+      ['verification-document-url', 'admin', admin.id],
+      DOCUMENT_URL_LIMIT_PER_ADMIN_PER_HOUR,
+      3600,
+    );
+    if (!limit.allowed) {
+      throw httpError(
+        HttpStatus.TOO_MANY_REQUESTS,
+        ErrorCode.RATE_LIMITED,
+        'Too many document views. Try again later.',
+        { retryAfterSeconds: limit.retryAfterSeconds },
+      );
+    }
     const doc = await this.prisma.verificationDocument.findUnique({
       where: { id: documentId },
       select: { id: true, request_id: true, file_id: true, doc_type: true },

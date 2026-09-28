@@ -89,7 +89,11 @@ export class AdminVerificationController {
     summary: 'Short-lived signed link to a document (audited view)',
   })
   @ApiEnvelopeResponse(DocumentUrlDto)
-  @ApiErrors({ ...REVIEW_ERRORS, 503: [E.FILE_STORAGE_UNAVAILABLE] })
+  @ApiErrors({
+    ...REVIEW_ERRORS,
+    429: [E.RATE_LIMITED],
+    503: [E.FILE_STORAGE_UNAVAILABLE],
+  })
   getVerificationDocumentUrl(
     @CurrentAdmin() admin: AdminActor,
     @Param() params: AdminDocumentIdParamDto,
