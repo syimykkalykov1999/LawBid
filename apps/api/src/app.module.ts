@@ -24,6 +24,7 @@ import { ReportsModule } from './modules/reports/reports.module';
 import { FollowsModule } from './modules/follows/follows.module';
 import { SearchModule } from './modules/search/search.module';
 import { ChatModule } from './modules/chat/chat.module';
+import { NotificationsApiModule } from './modules/notifications/notifications-api.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
 import { RealtimeGatewayModule } from './modules/realtime/realtime-gateway.module';
 import { BidsModule } from './modules/bids/bids.module';
@@ -139,6 +140,8 @@ const isDev =
     RealtimeModule,
     RealtimeGatewayModule,
     ChatModule,
+    // docs/05 §9-§10 notifications REST, badges, push tokens.
+    NotificationsApiModule,
     BidsModule,
     NegotiationsModule,
     JournalModule,

@@ -3,9 +3,9 @@ import { PinoLogger } from 'nestjs-pino';
 import type { PushMessage, PushSender } from './push.constants';
 
 /**
- * Default PushSender until docs/05 wires FCM (push_tokens, UNREGISTERED
- * cleanup). Logs ids only — never the text or personal data.
- * TODO(docs/05 §9.5): replace with the FCM sender.
+ * PushSender when FCM isn't configured (dev/test, docs/KEYS_SETUP.md);
+ * FcmPushSender is selected automatically once FCM_* env is set. Logs ids
+ * only — never the text or personal data.
  */
 @Injectable()
 export class LoggingPushSender implements PushSender {
@@ -13,9 +13,9 @@ export class LoggingPushSender implements PushSender {
     this.logger.setContext(LoggingPushSender.name);
   }
 
-  send(message: PushMessage): Promise<void> {
+  send(message: PushMessage, dedupeKey: string): Promise<void> {
     this.logger.debug(
-      { userId: message.userId, notificationId: message.data.notificationId },
+      { userId: message.userId, dedupeKey },
       'push (no sender configured)',
     );
     return Promise.resolve();

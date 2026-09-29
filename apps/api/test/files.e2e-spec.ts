@@ -80,7 +80,7 @@ describe('Files (e2e) — presign, confirm, scan, signed links', () => {
 
   async function login(): Promise<Record<string, string>> {
     phoneSeq += 1;
-    const phone = `+1202555${String(8300 + phoneSeq).padStart(4, '0')}`;
+    const phone = `+1202555${String(6300 + phoneSeq).padStart(4, '0')}`;
     await api()
       .post('/api/v1/auth/otp/request')
       .send({ channel: 'phone', identifier: phone })

@@ -15,7 +15,11 @@ export interface TemplateText {
 export const NOTIFICATION_TEMPLATES: Partial<
   Record<
     NotificationType,
-    { group: 'bids' | 'cases'; en: TemplateText; ru: TemplateText }
+    {
+      group: 'bids' | 'cases' | 'messages' | 'social' | 'system';
+      en: TemplateText;
+      ru: TemplateText;
+    }
   >
 > = {
   bid_received: {
@@ -149,6 +153,76 @@ export const NOTIFICATION_TEMPLATES: Partial<
     ru: {
       title: 'Уведомление по аккаунту',
       body: 'Пожалуйста, поддерживайте контакты в актуальном состоянии.',
+    },
+  },
+  // docs/05 §9.2 (stage 5.8).
+  new_message: {
+    group: 'messages',
+    en: { title: 'New message', body: 'You have a new message.' },
+    ru: { title: 'Новое сообщение', body: 'У вас новое сообщение.' },
+  },
+  new_follower: {
+    group: 'social',
+    en: { title: 'New follower', body: 'Someone started following you.' },
+    ru: { title: 'Новый подписчик', body: 'На вас подписались.' },
+  },
+  post_comment: {
+    group: 'social',
+    en: { title: 'New comment', body: 'Someone commented on your post.' },
+    ru: { title: 'Новый комментарий', body: 'Ваш пост прокомментировали.' },
+  },
+  comment_reply: {
+    group: 'social',
+    en: { title: 'New reply', body: 'Someone replied to your comment.' },
+    ru: { title: 'Новый ответ', body: 'На ваш комментарий ответили.' },
+  },
+  verification_update: {
+    group: 'system',
+    en: {
+      title: 'Verification update',
+      body: 'Your verification status has changed.',
+    },
+    ru: {
+      title: 'Верификация',
+      body: 'Статус вашей верификации изменился.',
+    },
+  },
+  subscription_trial_ending: {
+    group: 'system',
+    en: { title: 'Trial ending', body: 'Your free trial ends soon.' },
+    ru: {
+      title: 'Пробный период',
+      body: 'Ваш пробный период скоро закончится.',
+    },
+  },
+  subscription_payment_failed: {
+    group: 'system',
+    en: {
+      title: 'Payment failed',
+      body: 'We could not charge your subscription.',
+    },
+    ru: {
+      title: 'Оплата не прошла',
+      body: 'Не удалось оплатить подписку.',
+    },
+  },
+  subscription_status: {
+    group: 'system',
+    en: {
+      title: 'Subscription',
+      body: 'Your subscription status has changed.',
+    },
+    ru: { title: 'Подписка', body: 'Статус вашей подписки изменился.' },
+  },
+  security_new_device: {
+    group: 'system',
+    en: {
+      title: 'New sign-in',
+      body: 'Your account was signed in on a new device.',
+    },
+    ru: {
+      title: 'Новый вход',
+      body: 'В ваш аккаунт вошли с нового устройства.',
     },
   },
 };

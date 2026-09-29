@@ -5,6 +5,7 @@ export const PUSH_QUEUE = 'push';
 export const PUSH_JOB = 'push.send';
 export const PUSH_MODULE_OPTIONS = Symbol('PUSH_MODULE_OPTIONS');
 export const PUSH_SENDER = Symbol('PUSH_SENDER');
+export const NOTIFICATION_EMAIL = Symbol('NOTIFICATION_EMAIL');
 
 /**
  * Types that get a push (docs/04 §13 "Push" column; docs/05 §9.5 for the
@@ -29,9 +30,27 @@ export const PUSH_JOB_OPTS = {
   removeOnFail: { count: 1000 },
 } as const;
 
-export interface PushJobData {
+/** A stored notification: realtime + badge always, push when `push`
+ * (first row of an aggregate, a push type). Jobs queued before file 05
+ * carry only notificationId (push = true). */
+export interface NotificationJobData {
+  kind?: 'notification';
   notificationId: string;
+  push?: boolean;
+  /** Re-queued after quiet hours: don't hold it back again. */
+  deferred?: boolean;
 }
+
+/** docs/05 §8.4 `new_message`: push-only, never a notification row. */
+export interface MessageJobData {
+  kind: 'message';
+  recipientId: string;
+  conversationId: string;
+  messageId: string;
+  deferred?: boolean;
+}
+
+export type PushJobData = NotificationJobData | MessageJobData;
 
 export interface PushMessage {
   userId: string;
@@ -39,10 +58,13 @@ export interface PushMessage {
   body: string;
   /** Identifiers + deep-link data only (docs/05 §9.5). */
   data: Record<string, string>;
+  /** iOS app icon number = badge total (docs/05 §10). */
+  badge?: number;
 }
 
-/** Delivery seam: FCM/APNs arrive with docs/05 (push_tokens, quiet
- * hours, UNREGISTERED cleanup). */
+/** Delivery to the user's devices (FCM when configured, else a log).
+ * [dedupeKey] names the logical push: a retry never re-sends to a device
+ * that already got it. */
 export interface PushSender {
-  send(message: PushMessage): Promise<void>;
+  send(message: PushMessage, dedupeKey: string): Promise<void>;
 }

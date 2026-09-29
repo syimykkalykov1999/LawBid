@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { NotificationsService } from '../../notifications/notifications.service';
 import type {
   ChannelResult,
   LoginNotificationChannel,
@@ -6,25 +7,29 @@ import type {
 } from './login-notification-channel';
 
 /**
- * Push leg of docs/01 §10.6's new-device alert. Deliberately a no-op
- * seam: push tokens, channels and delivery belong to
- * docs/05_FEED_SEARCH_CHAT_NOTIFICATIONS.md, and .cursorrules requires
- * every notification to go through NotificationsService.emit(), which
- * doesn't exist yet.
- * TODO(docs/05_FEED_SEARCH_CHAT_NOTIFICATIONS.md, notifications stage):
- * replace the body with NotificationsService.emit() on the "system"
- * channel for `notice.userId`.
+ * Push leg of docs/01 §10.6's new-device alert: a `security_new_device`
+ * notification (docs/05 §9.2, `system` category — can't be turned off,
+ * ignores quiet hours). The email leg stays EmailLoginNotificationChannel.
  */
 @Injectable()
 export class PushLoginNotificationChannel implements LoginNotificationChannel {
   readonly name = 'push';
 
-  notifyNewDevice(notice: NewDeviceLoginNotice): Promise<ChannelResult> {
-    void notice;
-    return Promise.resolve({
-      channel: this.name,
-      status: 'skipped',
-      reason: 'not_implemented',
-    });
+  constructor(private readonly notifications: NotificationsService) {}
+
+  async notifyNewDevice(notice: NewDeviceLoginNotice): Promise<ChannelResult> {
+    try {
+      await this.notifications.emit({
+        type: 'security_new_device',
+        recipientId: notice.userId,
+        payload: {
+          ...(notice.deviceName ? { deviceName: notice.deviceName } : {}),
+          ...(notice.platform ? { platform: notice.platform } : {}),
+        },
+      });
+      return { channel: this.name, status: 'sent' };
+    } catch {
+      return { channel: this.name, status: 'failed' };
+    }
   }
 }

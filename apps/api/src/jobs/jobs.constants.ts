@@ -33,6 +33,8 @@ export const CRON_JOBS = {
   feedReco: 'feed.reco',
   /** docs/05 §7.2: popular tags every 10 minutes. */
   trendingTags: 'search.trending-tags',
+  /** docs/05 stage 5.8: notifications older than retention_days. */
+  notificationsRetention: 'notifications.retention',
 } as const;
 
 export type CronJobName = (typeof CRON_JOBS)[keyof typeof CRON_JOBS];
@@ -66,6 +68,7 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.countersReconcile, pattern: '50 4 * * *' },
   { name: CRON_JOBS.feedReco, pattern: '*/10 * * * *' },
   { name: CRON_JOBS.trendingTags, pattern: '5-55/10 * * * *' },
+  { name: CRON_JOBS.notificationsRetention, pattern: '40 4 * * *' },
 ];
 
 export const DISPOSABLE_DOMAINS_FETCHER = Symbol('DISPOSABLE_DOMAINS_FETCHER');

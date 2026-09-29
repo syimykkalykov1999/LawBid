@@ -22,10 +22,9 @@ import { SMS_PROVIDER, EMAIL_PROVIDER } from './providers/provider.tokens';
 import type { SmsProvider } from './providers/sms/sms-provider.interface';
 import { MockSmsProvider } from './providers/sms/mock-sms.provider';
 import { TwilioSmsProvider } from './providers/sms/twilio-sms.provider';
-import type { EmailProvider } from './providers/email/email-provider.interface';
-import { MockEmailProvider } from './providers/email/mock-email.provider';
-import { SesEmailProvider } from './providers/email/ses-email.provider';
+import { createEmailProvider } from './providers/email/email-provider.factory';
 import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { LoginMethodPolicy } from './services/login-method-policy.service';
 import { NewDeviceNotifier } from './notifications/new-device-notifier.service';
 import { EmailLoginNotificationChannel } from './notifications/email-login-notification.channel';
@@ -42,10 +41,7 @@ import { UnconfiguredAttestationVerifier } from './attestation/unconfigured-atte
 import { DeviceAttestationService } from './attestation/device-attestation.service';
 import { DeviceAttestationGuard } from './attestation/device-attestation.guard';
 import type { AppEnv } from '../../config/env.schema';
-import {
-  resolveEmailProvider,
-  resolveSmsProvider,
-} from '../../config/provider-selection';
+import { resolveSmsProvider } from '../../config/provider-selection';
 
 /**
  * docs/01_FOUNDATION_AUTH.md §15 stage 1.4. Registers JwtAuthGuard as the
@@ -81,7 +77,7 @@ import {
 @Module({
   // FeatureFlagsModule: AppConfigService for OtpService's SMS country
   // allow-list (app_config `sms.allowed_country_codes`).
-  imports: [JwtModule.register({}), FeatureFlagsModule],
+  imports: [JwtModule.register({}), FeatureFlagsModule, NotificationsModule],
   controllers: [AuthController],
   providers: [
     AuthService,
@@ -146,22 +142,7 @@ import {
     },
     {
       provide: EMAIL_PROVIDER,
-      useFactory: (
-        config: ConfigService,
-        logger: PinoLogger,
-      ): EmailProvider => {
-        const { provider, missing } = resolveEmailProvider({
-          NODE_ENV: config.getOrThrow<AppEnv['NODE_ENV']>('NODE_ENV'),
-          EMAIL_PROVIDER:
-            config.getOrThrow<AppEnv['EMAIL_PROVIDER']>('EMAIL_PROVIDER'),
-          SES_REGION: config.get<string>('SES_REGION'),
-          SES_FROM_ADDRESS: config.get<string>('SES_FROM_ADDRESS'),
-        });
-        logger.info({ provider, missing }, 'Email provider selected');
-        return provider === 'ses'
-          ? new SesEmailProvider(config, logger)
-          : new MockEmailProvider(config, logger);
-      },
+      useFactory: createEmailProvider,
       inject: [ConfigService, PinoLogger],
     },
     { provide: APP_GUARD, useClass: JwtAuthGuard },

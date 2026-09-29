@@ -23,6 +23,7 @@ import 'clients/reports_client.dart';
 import 'clients/follows_client.dart';
 import 'clients/search_client.dart';
 import 'clients/chat_client.dart';
+import 'clients/notifications_client.dart';
 import 'clients/verification_client.dart';
 import 'clients/admin_verification_client.dart';
 import 'clients/practice_areas_client.dart';
@@ -60,6 +61,7 @@ class LawbidApi {
   FollowsClient? _follows;
   SearchClient? _search;
   ChatClient? _chat;
+  NotificationsClient? _notifications;
   VerificationClient? _verification;
   AdminVerificationClient? _adminVerification;
   PracticeAreasClient? _practiceAreas;
@@ -111,6 +113,9 @@ class LawbidApi {
   SearchClient get search => _search ??= SearchClient(_dio, baseUrl: _baseUrl);
 
   ChatClient get chat => _chat ??= ChatClient(_dio, baseUrl: _baseUrl);
+
+  NotificationsClient get notifications =>
+      _notifications ??= NotificationsClient(_dio, baseUrl: _baseUrl);
 
   VerificationClient get verification =>
       _verification ??= VerificationClient(_dio, baseUrl: _baseUrl);

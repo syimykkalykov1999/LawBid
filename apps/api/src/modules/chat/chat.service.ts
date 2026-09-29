@@ -17,6 +17,8 @@ import { withTxRetry } from '../../prisma/tx-retry.util';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { maskContactInfo } from '../cases/domain/contact-detector';
 import { FilesService } from '../files/files.service';
+import { BadgesService } from '../notifications/badges.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { RealtimePublisher } from '../realtime/realtime-publisher.service';
 import { SubscriptionAccessService } from '../subscriptions/subscription-access.service';
 import {
@@ -76,6 +78,8 @@ export class ChatService {
     private readonly subscriptions: SubscriptionAccessService,
     private readonly files: FilesService,
     private readonly realtime: RealtimePublisher,
+    private readonly notifications: NotificationsService,
+    private readonly badges: BadgesService,
   ) {}
 
   async list(
@@ -277,6 +281,14 @@ export class ChatService {
     this.realtime.toUsers([other], 'message:new', {
       message: this.toMessage(message, other),
     });
+    // §8.4: badge + push to the recipient (the dispatcher skips it while
+    // the chat is open on their device or muted).
+    await this.badges.messageArrived(other);
+    await this.notifications.emit({
+      type: 'new_message',
+      recipientId: other,
+      payload: { conversationId: id, messageId: message.id },
+    });
     return this.toMessage(message, user.sub);
   }
 
@@ -329,6 +341,7 @@ export class ChatService {
         userId: user.sub,
         lastReadMessageId: result.lastReadMessageId,
       });
+      await this.badges.chatsChanged(user.sub);
     }
     return { lastReadMessageId: result.lastReadMessageId };
   }

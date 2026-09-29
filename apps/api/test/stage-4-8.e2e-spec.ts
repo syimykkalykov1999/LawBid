@@ -244,8 +244,18 @@ describe('Case & bid notifications (e2e, docs/04 §13, stage 4.8)', () => {
     });
     try {
       const job = await queue.getJob(bidRow!.id);
-      expect(job?.data).toEqual({ notificationId: bidRow!.id });
-      expect(await queue.getJob(listOnly!.id)).toBeUndefined();
+      expect(job?.data).toEqual({
+        kind: 'notification',
+        notificationId: bidRow!.id,
+        push: true,
+      });
+      // docs/05 §9.3: every row is delivered (realtime + badge); a
+      // list-only type never gets a push.
+      expect((await queue.getJob(listOnly!.id))?.data).toEqual({
+        kind: 'notification',
+        notificationId: listOnly!.id,
+        push: false,
+      });
     } finally {
       await queue.close();
     }
@@ -276,17 +286,21 @@ describe('Case & bid notifications (e2e, docs/04 §13, stage 4.8)', () => {
         payload: { caseId: randomUUID() },
       },
     });
-    expect(await dispatcher.dispatch(row.id)).toBe('sent');
+    expect(await dispatcher.dispatch({ notificationId: row.id }, row.id)).toBe(
+      'sent',
+    );
     expect(sent[0]?.title).toBe('Новый бид');
 
     await prisma.notificationSetting.create({
       data: { user_id: client.id, category: 'bids', push_enabled: false },
     });
-    expect(await dispatcher.dispatch(row.id)).toBe('disabled');
-
-    await expect(dispatcher.dispatch(randomUUID())).rejects.toBeInstanceOf(
-      NotificationNotCommittedError,
+    expect(await dispatcher.dispatch({ notificationId: row.id }, row.id)).toBe(
+      'disabled',
     );
+
+    await expect(
+      dispatcher.dispatch({ notificationId: randomUUID() }, 'x'),
+    ).rejects.toBeInstanceOf(NotificationNotCommittedError);
     spy.mockRestore();
   });
 });
