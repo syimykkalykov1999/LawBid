@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { AdminAccessModule } from '../admin-access/admin-access.module';
 import { AuthModule } from '../auth/auth.module';
+import { BidsModule } from '../bids/bids.module';
+import { JournalModule } from '../journal/journal.module';
 import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
 import { FilesModule } from '../files/files.module';
 import { NotificationsModule } from '../notifications/notifications.module';
@@ -46,6 +48,9 @@ const STATE_BAR_ADAPTER_LIST: StateBarAdapter[] = [];
     AdminAccessModule,
     // RateLimitService: per-verifier document link limit.
     AuthModule,
+    // docs/04 §14: bid withdrawals on suspension go through the machine.
+    BidsModule,
+    JournalModule,
   ],
   controllers: [VerificationController, AdminVerificationController],
   providers: [

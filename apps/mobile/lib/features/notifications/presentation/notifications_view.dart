@@ -71,6 +71,8 @@ String? notificationRoute({
       return SubscriptionRoutes.subscription;
     case 'data_export_ready':
       return AppRoutes.dataExport;
+    case 'case_history_export_ready':
+      return AppRoutes.caseHistory;
     case 'security_new_device':
       return AppRoutes.activeDevices;
   }

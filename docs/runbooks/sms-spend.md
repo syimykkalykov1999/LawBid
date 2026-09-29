@@ -1,5 +1,11 @@
 # sms-spend — SMS volume spike
 
+Also fired by `cost-budget` (CostGuard `alert: cost_budget`, OQ-001c): a
+budget window of SMS, email, ID checks or storage is exhausted — the same
+checks apply; raise the `budget.*` keys in the admin config editor only
+when the growth is legitimate.
+
+
 `Twilio SMS OTP sent` > 2000 per hour. CostGuard already enforces the
 BUDGET_SMS_* ceilings (docs/COST_PROTECTION.md); the alarm is the early
 warning before the ceiling.

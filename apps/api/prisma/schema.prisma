@@ -381,6 +381,8 @@ enum NotificationType {
   case_updated
   // docs/06 §5.2 (stage 6.9): the data export ZIP is ready (link by email).
   data_export_ready
+  // docs/04 §12: the case-history PDF is ready (download from the app).
+  case_history_export_ready
 
   @@map("notification_type")
 }

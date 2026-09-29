@@ -43,6 +43,18 @@ class PushService {
       _startedFor = null;
       return;
     }
+    // docs/01 §11 Шаг 3: the onboarding explainer asked first; a user who
+    // said no there is not prompted by the OS at every start (Settings →
+    // Notifications re-asks explicitly).
+    final optIn = _ref
+        .read(currentUserControllerProvider)
+        .user
+        ?.onboarding
+        .data['pushOptIn'];
+    if (optIn == false) {
+      debugPrint('push: declined in onboarding, not prompting');
+      return;
+    }
     final m = FirebaseMessaging.instance;
     try {
       await m.requestPermission();
@@ -53,8 +65,8 @@ class PushService {
         ..add(FirebaseMessaging.onMessageOpenedApp.listen(_open))
         // A push in the foreground: realtime already updated the screen;
         // just refresh the badge.
-        ..add(FirebaseMessaging.onMessage.listen(
-            (_) => _ref.read(badgesProvider.notifier).refresh()));
+        ..add(FirebaseMessaging.onMessage
+            .listen((_) => _ref.read(badgesProvider.notifier).refresh()));
       final initial = await m.getInitialMessage();
       if (initial != null) _open(initial);
     } on Object catch (e) {

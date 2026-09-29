@@ -7,9 +7,11 @@ import { withTxRetry } from '../../prisma/tx-retry.util';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { PAYMENT_PROVIDER } from '../billing/billing.constants';
 import type { PaymentProvider } from '../billing/payment-provider';
+import { BidStateMachine } from '../bids/domain/bid-state-machine';
 import { SubscriptionSyncService } from '../billing/subscription-sync.service';
 import { CaseLifecycleService } from '../cases/lifecycle/case-lifecycle.service';
 import { S3StorageService } from '../files/storage/s3-storage.service';
+import { CaseJournalService } from '../journal/case-journal.service';
 import { SubscriptionAccessService } from '../subscriptions/subscription-access.service';
 import {
   DELETED_FIRST_NAME,
@@ -44,6 +46,8 @@ export class AccountAnonymizationService {
     private readonly lifecycle: CaseLifecycleService,
     private readonly sync: SubscriptionSyncService,
     private readonly access: SubscriptionAccessService,
+    private readonly bidMachine: BidStateMachine,
+    private readonly journal: CaseJournalService,
     @Inject(PAYMENT_PROVIDER) private readonly payments: PaymentProvider,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     private readonly logger: PinoLogger,
@@ -230,10 +234,29 @@ export class AccountAnonymizationService {
             },
           });
         }
-        await tx.bid.updateMany({
-          where: { attorney_id: userId, status: 'active' },
-          data: { status: 'withdrawn' },
+        // docs/04 §14: through the state machine, one journal row per bid.
+        const withdrawn = await this.bidMachine.applyToActive(
+          tx,
+          { attorneyId: userId },
+          'system_withdraw',
+        );
+        const owners = await tx.case.findMany({
+          where: { id: { in: withdrawn.map((r) => r.case_id) } },
+          select: { id: true, client_id: true },
         });
+        const clientOf = new Map(owners.map((c) => [c.id, c.client_id]));
+        for (const r of withdrawn) {
+          const clientId = clientOf.get(r.case_id);
+          if (!clientId) continue;
+          await this.journal.append(tx, {
+            caseId: r.case_id,
+            clientId,
+            actor: { userId: null, role: null },
+            attorneyId: userId,
+            event: r.plan.event,
+            payload: { bidId: r.id, reason: 'account_deleted' },
+          });
+        }
         await tx.post.updateMany({
           where: { author_id: userId, deleted_at: null },
           data: { status: 'removed', deleted_at: now },

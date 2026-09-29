@@ -129,6 +129,7 @@ const file06Ru = <String, String>{
   'dataExport.status.line.failed': 'Не удалось собрать архив. Попробуйте ещё раз.',
   'dataExport.status.line.expired': 'Срок ссылки истёк. Запросите выгрузку снова.',
   'notif.list.data_export_ready': 'Выгрузка данных готова',
+  'notif.list.case_history_export_ready': 'PDF истории кейсов готов',
   // --- Коды ошибок (docs/06) ---
   'error.api.PAYMENTS_NOT_CONFIGURED':
       'Оплата временно недоступна. Попробуйте позже.',
@@ -271,6 +272,7 @@ const file06En = <String, String>{
   'dataExport.status.line.failed': 'The archive could not be built. Try again.',
   'dataExport.status.line.expired': 'The link has expired. Request the export again.',
   'notif.list.data_export_ready': 'Your data export is ready',
+  'notif.list.case_history_export_ready': 'Case history PDF is ready',
   // --- Error codes (docs/06) ---
   'error.api.PAYMENTS_NOT_CONFIGURED':
       'Payments are temporarily unavailable. Try again later.',

@@ -53,7 +53,11 @@ function make(
         retryAfterSeconds: 1200,
       }),
     },
-    config: { getOrThrow: jest.fn().mockReturnValue(60) },
+    config: {
+      getOrThrow: jest.fn().mockReturnValue(60),
+      // MEDIA_CDN_BASE_URL unset: links stay signed S3 (dev/e2e).
+      get: jest.fn().mockReturnValue(undefined),
+    },
     scans: { enqueueScan: jest.fn() },
     logger: { setContext: jest.fn(), error: jest.fn() },
     flags: { isEnabled: jest.fn().mockResolvedValue(false) },

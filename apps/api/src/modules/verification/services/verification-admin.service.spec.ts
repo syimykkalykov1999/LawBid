@@ -3,6 +3,8 @@ import { ErrorCode } from '../../../common/errors/error-code.enum';
 import type { AdminActor } from '../../admin-auth/admin-auth.decorators';
 import type { AuditLogService } from '../../admin-access/audit-log.service';
 import type { RateLimitService } from '../../auth/services/rate-limit.service';
+import type { BidStateMachine } from '../../bids/domain/bid-state-machine';
+import type { CaseJournalService } from '../../journal/case-journal.service';
 import type { FilesService } from '../../files/files.service';
 import type { NotificationsService } from '../../notifications/notifications.service';
 import type { PrismaService } from '../../../prisma/prisma.service';
@@ -46,6 +48,8 @@ describe('VerificationAdminService.documentUrl rate limit', () => {
       {} as VerificationChecksService,
       {} as VerificationProviderSelector,
       rateLimit,
+      {} as BidStateMachine,
+      {} as CaseJournalService,
     );
     return {
       service,

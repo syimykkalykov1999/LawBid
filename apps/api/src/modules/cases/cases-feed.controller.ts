@@ -44,8 +44,9 @@ const E = ErrorCode;
  * `GET /users/me/cases`, not this route, so it is implemented here for
  * the attorney representation; CaseAccessPolicy.decide already resolves
  * both roles' access.
- * TODO(docs/04 stage 4.9): add the client-owner representation of
- * GET /cases/:id (CaseDto via CasesService) for the client case screen.
+ * The owning client's representation (contacts, bids, journal) lives in
+ * MineController (`/users/me/cases/:id`, docs/04 §11); this route stays the
+ * attorney-facing detail.
  */
 @ApiTags('cases')
 @ApiBearerAuth()

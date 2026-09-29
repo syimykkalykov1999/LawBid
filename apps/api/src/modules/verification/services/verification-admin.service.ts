@@ -13,6 +13,8 @@ import {
 import { PrismaService } from '../../../prisma/prisma.service';
 import { withTxRetry } from '../../../prisma/tx-retry.util';
 import { AuditLogService } from '../../admin-access/audit-log.service';
+import { BidStateMachine } from '../../bids/domain/bid-state-machine';
+import { CaseJournalService } from '../../journal/case-journal.service';
 import type { AdminActor } from '../../admin-auth/admin-auth.decorators';
 import { RateLimitService } from '../../auth/services/rate-limit.service';
 import { FilesService } from '../../files/files.service';
@@ -90,6 +92,8 @@ export class VerificationAdminService {
     private readonly checks: VerificationChecksService,
     private readonly selector: VerificationProviderSelector,
     private readonly rateLimit: RateLimitService,
+    private readonly bidMachine: BidStateMachine,
+    private readonly journal: CaseJournalService,
   ) {}
 
   /** §2.5.1: oldest submission first; keyset cursor on (submitted_at, id). */
@@ -647,10 +651,9 @@ export class VerificationAdminService {
   /**
    * `suspend` (§2.5, §6.1): verification_status = suspended — the public
    * profile answers 404 and the attorney is out of search/recommendations;
-   * active bids → `withdrawn` in the same transaction (accepted cases stay).
-   * File 04's BidStateMachine does not exist yet, so the bids are updated
-   * directly here (TODO(docs/04 stage 4.x): route through BidStateMachine
-   * + case journal once it exists).
+   * active bids → `withdrawn` in the same transaction through the
+   * BidStateMachine (`system_withdraw`) with a journal row per bid
+   * (docs/04 §14); accepted cases stay.
    */
   async suspend(
     admin: AdminActor,
@@ -664,6 +667,39 @@ export class VerificationAdminService {
       }
       return (await this.suspendInTx(tx, admin, attorneyId, reason))!;
     });
+  }
+
+  /** docs/04 §14: every bid transition goes through the state machine and
+   * leaves a journal row; suspension withdraws the attorney's active bids. */
+  private async withdrawActiveBids(
+    tx: Tx,
+    attorneyId: string,
+    reason: string,
+  ): Promise<number> {
+    const results = await this.bidMachine.applyToActive(
+      tx,
+      { attorneyId },
+      'system_withdraw',
+    );
+    if (results.length === 0) return 0;
+    const cases = await tx.case.findMany({
+      where: { id: { in: results.map((r) => r.case_id) } },
+      select: { id: true, client_id: true },
+    });
+    const clientOf = new Map(cases.map((c) => [c.id, c.client_id]));
+    for (const r of results) {
+      const clientId = clientOf.get(r.case_id);
+      if (!clientId) continue;
+      await this.journal.append(tx, {
+        caseId: r.case_id,
+        clientId,
+        actor: { userId: null, role: null },
+        attorneyId,
+        event: r.plan.event,
+        payload: { bidId: r.id, reason: 'attorney_suspended', note: reason },
+      });
+    }
+    return results.length;
   }
 
   /** The §2.5 suspension effects inside the caller's transaction (also
@@ -681,10 +717,7 @@ export class VerificationAdminService {
         where: { user_id: attorneyId },
         data: { verification_status: 'suspended' },
       });
-      const { count } = await tx.bid.updateMany({
-        where: { attorney_id: attorneyId, status: 'active' },
-        data: { status: 'withdrawn' },
-      });
+      const count = await this.withdrawActiveBids(tx, attorneyId, reason);
       await this.audit.record(
         {
           adminId: admin.id,

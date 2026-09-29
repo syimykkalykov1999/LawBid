@@ -308,11 +308,7 @@ export class FilesService {
     if (!url) return none;
     const url256 =
       file.width !== null
-        ? await this.storage.signedGetUrl(
-            file.s3_bucket,
-            variantKey(file.s3_key, 256),
-            MEDIA_SIGNED_URL_TTL_SEC,
-          )
+        ? await this.mediaLink(file.s3_bucket, variantKey(file.s3_key, 256))
         : null;
     return { url, url256 };
   }
@@ -337,11 +333,7 @@ export class FilesService {
         if (!url) return;
         const url256 =
           file.width !== null
-            ? await this.storage.signedGetUrl(
-                file.s3_bucket,
-                variantKey(file.s3_key, 256),
-                MEDIA_SIGNED_URL_TTL_SEC,
-              )
+            ? await this.mediaLink(file.s3_bucket, variantKey(file.s3_key, 256))
             : null;
         out.set(file.id, { url, url256 });
       }),
@@ -380,8 +372,8 @@ export class FilesService {
   /**
    * docs/05 §3.2 post photos: main (≤ 2048 px), 320 px preview and
    * 1080 px medium links for clean `post_image` files, keyed by file id.
-   * Signing is local (no S3 round trip); one DB read for the batch.
-   * TODO(docs/06 infrastructure): serve through CloudFront.
+   * Signing is local (no S3 round trip); one DB read for the batch. With
+   * MEDIA_CDN_BASE_URL set the links are CloudFront URLs (docs/06 §6.1).
    */
   async postImageUrls(
     fileIds: string[],
@@ -400,11 +392,7 @@ export class FilesService {
       const url = await this.mediaUrlOf(file);
       if (!url) continue;
       const sign = (px: number) =>
-        this.storage.signedGetUrl(
-          file.s3_bucket,
-          variantKey(file.s3_key, px),
-          MEDIA_SIGNED_URL_TTL_SEC,
-        );
+        this.mediaLink(file.s3_bucket, variantKey(file.s3_key, px));
       out.set(file.id, {
         url,
         previewUrl: await sign(320),
@@ -412,6 +400,16 @@ export class FilesService {
       });
     }
     return out;
+  }
+
+  /** docs/06 §6.1: media (avatars, post images) come from CloudFront in
+   * deployed environments (`MEDIA_CDN_BASE_URL`, private bucket behind an
+   * origin access control); dev/e2e without a CDN keep short-lived signed
+   * S3 links. Documents never take this path. */
+  private mediaLink(bucket: string, key: string): Promise<string> {
+    const cdn = this.config.get<string>('MEDIA_CDN_BASE_URL');
+    if (cdn) return Promise.resolve(cdn + '/' + key);
+    return this.storage.signedGetUrl(bucket, key, MEDIA_SIGNED_URL_TTL_SEC);
   }
 
   private async mediaUrlOf(file: File): Promise<string | null> {
@@ -423,11 +421,7 @@ export class FilesService {
     ) {
       return null;
     }
-    return this.storage.signedGetUrl(
-      file.s3_bucket,
-      file.s3_key,
-      MEDIA_SIGNED_URL_TTL_SEC,
-    );
+    return this.mediaLink(file.s3_bucket, file.s3_key);
   }
 
   private async toDto(file: File): Promise<FileDto> {

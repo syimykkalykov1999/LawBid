@@ -14,11 +14,11 @@ import 'package:lawbid/shared/domain/user_role.dart';
 /// `/onboarding/push` — push-permission explainer (docs/01_FOUNDATION_AUTH
 /// .md §11 Шаг 3A/3B: "объяснение зачем, затем системный запрос").
 ///
-/// This stage ships the explainer only: FCM/APNs registration and the OS
-/// permission prompt arrive with notifications (TODO(file 05 §notifications):
-/// request the system permission + register the device token on "Allow").
-/// The user's choice is saved as step data (`pushOptIn`) so that later
-/// stage can prompt exactly the users who said yes here.
+/// The explainer; the OS prompt and the FCM token registration happen in
+/// PushService (docs/05 §9.6) once the user is signed in. The choice is
+/// saved as step data (`pushOptIn`): PushService skips the system prompt
+/// for users who declined here (they can still enable pushes in Settings →
+/// Notifications, which asks the OS again).
 class PushStepScreen extends ConsumerWidget {
   const PushStepScreen({super.key});
 

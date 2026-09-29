@@ -58,12 +58,6 @@ class WelcomeScreen extends ConsumerWidget {
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final t = ref.watch(translatorProvider);
 
-    void showNotBuiltYet() {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(t.t('auth.welcome.notBuiltYet'))),
-      );
-    }
-
     // Phase 3 of the auth networking work (docs/CHANGELOG.md): Apple/
     // Google buttons now drive real native sign-in via
     // `OnboardingFlow.signInWithApple()`/`.signInWithGoogle()`, mirroring
@@ -86,7 +80,8 @@ class WelcomeScreen extends ConsumerWidget {
       }
       final message = ref.read(onboardingFlowProvider).errorMessage;
       if (message != null) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(message)));
       }
     }
 
@@ -101,7 +96,8 @@ class WelcomeScreen extends ConsumerWidget {
     }
 
     final flowState = ref.watch(onboardingFlowProvider);
-    final themeMode = ref.watch(themeModeControllerProvider).value ?? ThemeMode.system;
+    final themeMode =
+        ref.watch(themeModeControllerProvider).value ?? ThemeMode.system;
     // Login-method flag gating (docs/01_FOUNDATION_AUTH.md §15 "Этап 1.8":
     // starter flags include phone_login/email_login/apple_login/
     // google_login — the exact four methods this screen offers, per
@@ -127,7 +123,7 @@ class WelcomeScreen extends ConsumerWidget {
           child: GavelStrikeIconButton(
             icon: const EmailGlyph(),
             semanticLabel: t.t('auth.welcome.email'),
-            onPressed: showNotBuiltYet,
+            onPressed: () => context.push(AuthRoutes.email),
           ),
         ),
       if (flags.isEnabled('apple_login'))
@@ -148,7 +144,8 @@ class WelcomeScreen extends ConsumerWidget {
             semanticLabel: t.t('auth.welcome.google'),
             isLoading: flowState.isSubmitting,
             onPressed: () => handleSocialSignIn(
-              () => ref.read(onboardingFlowProvider.notifier).signInWithGoogle(),
+              () =>
+                  ref.read(onboardingFlowProvider.notifier).signInWithGoogle(),
             ),
           ),
         ),
@@ -160,7 +157,9 @@ class WelcomeScreen extends ConsumerWidget {
     }
     final socialLoginRow = spacedIconButtons.isEmpty
         ? const SizedBox.shrink()
-        : Row(mainAxisAlignment: MainAxisAlignment.center, children: spacedIconButtons);
+        : Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: spacedIconButtons);
 
     return Scaffold(
       backgroundColor: colors.bg,
@@ -176,12 +175,15 @@ class WelcomeScreen extends ConsumerWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   AppIconButton(
-                    icon: Icon(isDark ? Icons.dark_mode_outlined : Icons.light_mode_outlined),
+                    icon: Icon(isDark
+                        ? Icons.dark_mode_outlined
+                        : Icons.light_mode_outlined),
                     semanticLabel: t.t('theme.toggle.label'),
                     onPressed: () {
                       ref
                           .read(themeModeControllerProvider.notifier)
-                          .setThemeMode(isDark ? ThemeMode.light : ThemeMode.dark);
+                          .setThemeMode(
+                              isDark ? ThemeMode.light : ThemeMode.dark);
                     },
                   ),
                   AppIconButton(
@@ -196,75 +198,84 @@ class WelcomeScreen extends ConsumerWidget {
               child: LayoutBuilder(
                 builder: (context, constraints) {
                   return SingleChildScrollView(
-                    padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenSide),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.screenSide),
                     child: ConstrainedBox(
-                      constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                      constraints:
+                          BoxConstraints(minHeight: constraints.maxHeight),
                       child: IntrinsicHeight(
                         child: Column(
                           children: [
-                      const SizedBox(height: 54),
-                      Text(
-                        t.t('auth.welcome.title'),
-                        textAlign: TextAlign.center,
-                        style: typography.titleWelcome.copyWith(color: colors.text),
-                      ),
-                      const SizedBox(height: 35),
-                      const ScalesLogo(
-                        size: 236,
-                        animated: true,
-                        semanticLabel: 'LawBid',
-                        standExtension: 50,
-                      ),
-                      // Flexible, not fixed (owner request, 2026-09-22:
-                      // center the phone/social buttons between the logo
-                      // and the legal text) -- paired with the second
-                      // Spacer further down, so this block sits mid-way in
-                      // whatever room is left, on both themes.
-                      const Spacer(),
-                      if (phoneLoginEnabled) ...[
-                        GavelStrikeButton(
-                          label: t.t('auth.welcome.phone'),
-                          icon: Icons.call,
-                          height: 48,
-                          // Brighter in dark theme only (owner follow-up,
-                          // 2026-09-22): gold read too dull here. Every
-                          // other primary button keeps the default variant.
-                          variant: isDark ? AppButtonVariant.ctaBright : AppButtonVariant.primary,
-                          onPressed: () {
-                            ref.read(onboardingFlowProvider.notifier).goToPhoneStep();
-                            context.push(AuthRoutes.phone);
-                          },
+                            const SizedBox(height: 54),
+                            Text(
+                              t.t('auth.welcome.title'),
+                              textAlign: TextAlign.center,
+                              style: typography.titleWelcome
+                                  .copyWith(color: colors.text),
+                            ),
+                            const SizedBox(height: 35),
+                            const ScalesLogo(
+                              size: 236,
+                              animated: true,
+                              semanticLabel: 'LawBid',
+                              standExtension: 50,
+                            ),
+                            // Flexible, not fixed (owner request, 2026-09-22:
+                            // center the phone/social buttons between the logo
+                            // and the legal text) -- paired with the second
+                            // Spacer further down, so this block sits mid-way in
+                            // whatever room is left, on both themes.
+                            const Spacer(),
+                            if (phoneLoginEnabled) ...[
+                              GavelStrikeButton(
+                                label: t.t('auth.welcome.phone'),
+                                icon: Icons.call,
+                                height: 48,
+                                // Brighter in dark theme only (owner follow-up,
+                                // 2026-09-22): gold read too dull here. Every
+                                // other primary button keeps the default variant.
+                                variant: isDark
+                                    ? AppButtonVariant.ctaBright
+                                    : AppButtonVariant.primary,
+                                onPressed: () {
+                                  ref
+                                      .read(onboardingFlowProvider.notifier)
+                                      .goToPhoneStep();
+                                  context.push(AuthRoutes.phone);
+                                },
+                              ),
+                              const SizedBox(height: 8),
+                            ],
+                            // file 07 §7.4: the gavel-strike animation applies to these
+                            // three social-login buttons too, not just "Продолжить с
+                            // телефоном" — GavelStrikeIconButton (added in stage 1.7,
+                            // docs/CHANGELOG.md, see gavel_strike_icon_button.dart).
+                            socialLoginRow,
+                            // Second flexible spacer (see the one above the phone
+                            // button): the pair centers the button block between the
+                            // logo and the legal text, while still pinning the legal
+                            // text flush to the bottom on tall screens and scrolling
+                            // normally (no overflow) on short ones -- see the
+                            // LayoutBuilder/ConstrainedBox/IntrinsicHeight setup above,
+                            // the standard Flutter idiom for pinning to the bottom of a
+                            // Column that must also remain scrollable.
+                            const Spacer(),
+                            LegalText(
+                              text: t.t('auth.welcome.legal'),
+                              links: {
+                                t.t('auth.welcome.legal.terms'):
+                                    showLegalDocNotBuiltYet,
+                                t.t('auth.welcome.legal.privacy'):
+                                    showLegalDocNotBuiltYet,
+                              },
+                              style: typography.legalFine,
+                            ),
+                            const SizedBox(height: AppSpacing.lg),
+                          ],
                         ),
-                        const SizedBox(height: 8),
-                      ],
-                      // file 07 §7.4: the gavel-strike animation applies to these
-                      // three social-login buttons too, not just "Продолжить с
-                      // телефоном" — GavelStrikeIconButton (added in stage 1.7,
-                      // docs/CHANGELOG.md, see gavel_strike_icon_button.dart).
-                      socialLoginRow,
-                      // Second flexible spacer (see the one above the phone
-                      // button): the pair centers the button block between the
-                      // logo and the legal text, while still pinning the legal
-                      // text flush to the bottom on tall screens and scrolling
-                      // normally (no overflow) on short ones -- see the
-                      // LayoutBuilder/ConstrainedBox/IntrinsicHeight setup above,
-                      // the standard Flutter idiom for pinning to the bottom of a
-                      // Column that must also remain scrollable.
-                      const Spacer(),
-                      LegalText(
-                        text: t.t('auth.welcome.legal'),
-                        links: {
-                          t.t('auth.welcome.legal.terms'): showLegalDocNotBuiltYet,
-                          t.t('auth.welcome.legal.privacy'): showLegalDocNotBuiltYet,
-                        },
-                        style: typography.legalFine,
                       ),
-                      const SizedBox(height: AppSpacing.lg),
-                    ],
-                  ),
-                ),
-              ),
-            );
+                    ),
+                  );
                 },
               ),
             ),

@@ -15,6 +15,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { S3StorageService } from '../files/storage/s3-storage.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { renderCaseHistoryPdf } from './case-history-pdf';
 import { CaseHistoryService } from './case-history.service';
 import type {
@@ -72,6 +73,7 @@ export class CaseHistoryExportRunner
     private readonly history: CaseHistoryService,
     private readonly storage: S3StorageService,
     private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
     private readonly logger: PinoLogger,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {
@@ -240,9 +242,13 @@ export class CaseHistoryExportRunner
       },
     });
     await this.redis.del(activeKey(data.userId));
-    // TODO(docs/05 stage 5.x): push "PDF is ready" once file 05 adds a
-    // notification type for it (docs/04 §12); until then the app polls
-    // GET /users/me/case-history/export/:exportId.
+    // docs/04 §12 "пользователь получает уведомление": the link itself is
+    // fetched from the app with a fresh reauth (10-minute signed URL).
+    await this.notifications.emit({
+      type: 'case_history_export_ready',
+      recipientId: data.userId,
+      payload: { exportId: data.exportId },
+    });
     return { cases: cases.length };
   }
 

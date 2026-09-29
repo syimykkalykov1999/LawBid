@@ -2,6 +2,7 @@ import { DynamicModule, Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import { AuthEventService } from '../auth/services/auth-event.service';
 import { S3StorageService } from '../files/storage/s3-storage.service';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import {
   CaseHistoryExportRunner,
@@ -23,8 +24,8 @@ export class CaseHistoryModule {
       // worker: only the plain AuthEventService the service injects.
       imports:
         options.mode === 'api'
-          ? [AuthModule, SubscriptionsModule]
-          : [SubscriptionsModule],
+          ? [AuthModule, SubscriptionsModule, NotificationsModule]
+          : [SubscriptionsModule, NotificationsModule],
       controllers: options.mode === 'api' ? [CaseHistoryController] : [],
       providers: [
         { provide: HISTORY_EXPORT_OPTIONS, useValue: options },

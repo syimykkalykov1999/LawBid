@@ -38,6 +38,7 @@ export const NOTIFICATION_CATEGORY: Record<
   subscription_payment_failed: 'system',
   subscription_status: 'system',
   data_export_ready: 'system',
+  case_history_export_ready: 'system',
   moderation_notice: 'system',
   security_new_device: 'system',
 };

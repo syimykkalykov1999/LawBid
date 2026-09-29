@@ -228,6 +228,7 @@ locals {
     S3_REGION           = data.aws_region.current.name
     S3_BUCKET_DOCUMENTS = module.s3.documents_bucket
     S3_BUCKET_MEDIA     = module.s3.media_bucket
+    MEDIA_CDN_BASE_URL  = "https://${module.s3.media_cdn_domain}"
     SES_REGION          = data.aws_region.current.name
     SES_FROM_ADDRESS    = var.ses_from_address
     EMAIL_PROVIDER      = "ses"

@@ -2,6 +2,7 @@ import { type DynamicModule, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PinoLogger } from 'nestjs-pino';
 import { AuthModule } from '../auth/auth.module';
+import { BidsModule } from '../bids/bids.module';
 import { createEmailProvider } from '../auth/providers/email/email-provider.factory';
 import { CaseLifecycleModule } from '../cases/lifecycle/case-lifecycle.module';
 import { S3StorageService } from '../files/storage/s3-storage.service';
@@ -39,6 +40,8 @@ export class PrivacyModule {
         NotificationsModule,
         CaseLifecycleModule,
         SubscriptionsModule,
+        JournalModule,
+        BidsModule,
         JournalModule,
         ...(options.mode === 'api' ? [AuthModule] : []),
       ],

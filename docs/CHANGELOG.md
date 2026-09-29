@@ -5807,3 +5807,24 @@ docs/06_PRODUCTION.md §13 stage 6.12, §9, §11.
   added); the subscribe flow returns `pendingConfirmation` instead of
   touching a disposed provider; pending-review badge text wraps; iOS lane
   picks the IPA `flutter build ipa` wrote.
+
+## File 06 wrap-up — leftovers found by the final cross-check — 2026-09-29
+
+- Welcome screen: «Продолжить с email» opens the email sign-in flow (was a
+  "not built yet" placeholder although the screen existed).
+- docs/04 §12: `case_history_export_ready` notification when the PDF is
+  built (migration `20260929220000_file06_review_history_export_notification`,
+  template en/ru, tap opens Settings → Case history).
+- docs/04 §14: attorney suspension (verifier / admin sanction) and account
+  anonymization withdraw bids through `BidStateMachine.applyToActive`
+  (`system_withdraw`) with a journal row per bid instead of a direct update.
+- docs/06 §6.1: media links come from CloudFront when `MEDIA_CDN_BASE_URL`
+  is set (Terraform passes the distribution domain to the api task);
+  documents stay on signed S3 links; dev/e2e unchanged.
+- OQ-001c: CloudWatch metric + alarm `cost-budget` on CostGuard's
+  `alert: cost_budget` log line (runbook `sms-spend.md`).
+- docs/01 §11 Шаг 3: users who declined pushes in onboarding are not
+  prompted by the OS at every start (`pushOptIn` honoured by PushService).
+- Dead code / stale notes removed: `AllowAllModerationHook` stub, the
+  file-05/06 TODOs in case history, files, cases feed, verification, push
+  step.

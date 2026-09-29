@@ -225,6 +225,17 @@ export const NOTIFICATION_TEMPLATES: Partial<
       body: 'Ссылка на скачивание отправлена на вашу почту и действует 24 часа.',
     },
   },
+  case_history_export_ready: {
+    group: 'system',
+    en: {
+      title: 'Case history PDF is ready',
+      body: 'Open Settings → Case history to download it (link valid 10 minutes).',
+    },
+    ru: {
+      title: 'PDF истории кейсов готов',
+      body: 'Откройте Настройки → История кейсов, чтобы скачать (ссылка действует 10 минут).',
+    },
+  },
   security_new_device: {
     group: 'system',
     en: {

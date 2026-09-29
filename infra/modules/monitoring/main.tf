@@ -408,3 +408,32 @@ resource "aws_cloudwatch_log_metric_filter" "push_failed" {
     unit      = "Count"
   }
 }
+
+# docs/COST_PROTECTION.md / OQ-001c: CostGuard emits `alert: cost_budget`
+# when a paid provider's budget window is exhausted (or nearly so).
+resource "aws_cloudwatch_log_metric_filter" "cost_budget" {
+  name           = "${var.name}-cost-budget"
+  log_group_name = var.api_log_group
+  pattern        = "{ $.alert = \"cost_budget\" }"
+  metric_transformation {
+    name      = "CostBudgetAlerts"
+    namespace = local.ns
+    value     = "1"
+    unit      = "Count"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "cost_budget" {
+  alarm_name          = "${var.name}-cost-budget"
+  alarm_description   = "A paid-provider budget (SMS/email/ID checks/storage) is exhausted or nearly so. Runbook: docs/runbooks/sms-spend.md"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  period              = 300
+  threshold           = 1
+  statistic           = "Sum"
+  metric_name         = "CostBudgetAlerts"
+  namespace           = local.ns
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.ops
+  tags                = var.tags
+}

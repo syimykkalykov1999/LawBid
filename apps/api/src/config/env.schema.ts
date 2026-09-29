@@ -301,6 +301,14 @@ export const envSchema = z
       s3BucketPattern,
       'S3_BUCKET_MEDIA must be a valid S3 bucket name',
     ),
+    // docs/06 §6.1: media (post images, avatars) served through CloudFront
+    // when set (https base URL of the distribution, no trailing slash);
+    // unset (dev/e2e) keeps short-lived signed S3 links. Documents never
+    // go through the CDN.
+    MEDIA_CDN_BASE_URL: optionalMatching(
+      /^https:\/\/[^\s/]+$/,
+      'MEDIA_CDN_BASE_URL must be an https origin without a path',
+    ),
     // MinIO root user/password locally; on AWS leave empty (IAM role).
     S3_ACCESS_KEY_ID: optionalMatching(
       /^\S{3,}$/,
