@@ -75,7 +75,10 @@ class CaseBidsNotifier extends PagedNotifier<CaseBid> {
     unawaited(
       ref
           .read(casesLocalDatabaseProvider)
-          .markSeen(key.caseId, page.items.map((b) => b.id)),
+          .markSeen(key.caseId, page.items.map((b) => b.id))
+          .then((_) {
+        if (ref.mounted) ref.invalidate(seenBidCountsProvider);
+      }),
     );
     return page;
   }
@@ -123,13 +126,10 @@ final caseFeedProvider = AsyncNotifierProvider.autoDispose
 );
 
 final attorneyCaseProvider =
-    FutureProvider.autoDispose.family<FeedCase, String>((ref, id) async {
-  final repo = ref.watch(casesRepositoryProvider);
-  final detail = await repo.attorneyCase(id);
-  // §4.3 view counter (server dedups per attorney+case); never blocks.
-  unawaited(repo.recordView(id).catchError((Object _) {}));
-  return detail;
-}, retry: _noRetry);
+    FutureProvider.autoDispose.family<FeedCase, String>(
+  (ref, id) => ref.watch(casesRepositoryProvider).attorneyCase(id),
+  retry: _noRetry,
+);
 
 // --- Attorney: "Моё" (docs/04 §11.2) ----------------------------------------
 
@@ -269,7 +269,10 @@ class CaseActions {
   }
 
   void _afterBidChange(CaseBid bid) {
-    _ref.invalidate(bidProvider(bid.id));
+    _ref
+      ..invalidate(bidProvider(bid.id))
+      ..invalidate(attorneyCaseProvider(bid.caseId))
+      ..invalidate(clientContactsProvider(bid.caseId));
     _clientCase(bid.caseId);
     _attorneyLists();
   }

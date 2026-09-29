@@ -39,6 +39,11 @@ class _WorkCaseScreenState extends ConsumerState<WorkCaseScreen> {
       ..invalidate(attorneyCaseProvider(widget.caseId))
       ..invalidate(clientContactsProvider(widget.caseId));
     await ref.read(attorneyCaseProvider(widget.caseId).future);
+    try {
+      await ref.read(clientContactsProvider(widget.caseId).future);
+    } on Object {
+      // Locked contacts (subscription) render their own state.
+    }
   }
 
   Future<void> _confirm() async {
@@ -87,17 +92,26 @@ class _WorkCaseScreenState extends ConsumerState<WorkCaseScreen> {
   }
 
   Future<void> _run(Future<void> Function() action, String doneKey) async {
+    if (_busy) return;
     setState(() => _busy = true);
     final t = ref.read(translatorProvider);
     try {
       await action();
-      await _refresh();
-      if (mounted) showAppSnackBar(context, t.t(doneKey));
     } on Object catch (e) {
-      if (mounted) showAppSnackBar(context, errorText(t, e));
-    } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        showAppSnackBar(context, errorText(t, e));
+        setState(() => _busy = false);
+      }
+      return;
     }
+    if (mounted) showAppSnackBar(context, t.t(doneKey));
+    // The action went through; a failed reload must not look like it failed.
+    try {
+      await _refresh();
+    } on Object {
+      // The screen's own error state / pull-to-refresh covers it.
+    }
+    if (mounted) setState(() => _busy = false);
   }
 
   Future<String?> _askText({

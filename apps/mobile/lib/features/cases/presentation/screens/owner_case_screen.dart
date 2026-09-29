@@ -241,7 +241,9 @@ class _OwnerCaseBody extends ConsumerWidget {
 
     return NotificationListener<ScrollNotification>(
       onNotification: (n) {
-        if (n.metrics.extentAfter < 400) {
+        if (n.depth == 0 &&
+            n.metrics.axis == Axis.vertical &&
+            n.metrics.extentAfter < 400) {
           ref.read(caseBidsProvider(bidsKey).notifier).loadMore();
         }
         return false;

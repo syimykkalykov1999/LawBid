@@ -6,6 +6,7 @@ import '../../../features/onboarding/domain/current_user.dart';
 import '../../../features/onboarding/domain/onboarding_step_id.dart';
 import '../../../features/onboarding/onboarding_routes.dart';
 import '../../../features/profile/domain/verification_gate.dart';
+import '../../../shared/domain/user_role.dart';
 import '../../startup/app_startup.dart';
 import '../app_routes.dart';
 
@@ -105,6 +106,16 @@ abstract final class AppRouterGuard {
       // before verification it opens the "Complete verification" gate.
       if (location == AppRoutes.create && attorneyNeedsVerification(user)) {
         return AppRoutes.verificationRequired;
+      }
+      // docs/04 §11: role-specific case screens. The server refuses the
+      // other role anyway; this keeps the user out of a dead-end error.
+      final clientOnly = location.startsWith('/mine/case/');
+      final attorneyOnly = location.startsWith('/mine/work') ||
+          location == AppRoutes.completedWork ||
+          RegExp(r'^/case/[^/]+/bid$').hasMatch(location);
+      if ((clientOnly && user.role != UserRole.client) ||
+          (attorneyOnly && user.role != UserRole.attorney)) {
+        return AppRoutes.mine;
       }
       return null;
     }

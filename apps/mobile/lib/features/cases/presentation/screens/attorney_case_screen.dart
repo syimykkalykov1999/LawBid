@@ -46,6 +46,16 @@ class _AttorneyCaseScreenState extends ConsumerState<AttorneyCaseScreen> {
   bool _messaging = false;
   bool? _savedOverride;
 
+  @override
+  void initState() {
+    super.initState();
+    // §4.3 view counter: once per screen open (server dedups per pair).
+    ref
+        .read(casesRepositoryProvider)
+        .recordView(widget.caseId)
+        .catchError((Object _) {});
+  }
+
   Future<void> _toggleSave(FeedCase c) async {
     final next = !(_savedOverride ?? c.isSaved);
     setState(() => _savedOverride = next);
@@ -63,6 +73,7 @@ class _AttorneyCaseScreenState extends ConsumerState<AttorneyCaseScreen> {
   }
 
   Future<void> _message(FeedCase c) async {
+    if (_messaging) return;
     setState(() => _messaging = true);
     final t = ref.read(translatorProvider);
     try {

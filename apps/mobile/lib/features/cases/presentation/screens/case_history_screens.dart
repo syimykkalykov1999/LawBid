@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -413,7 +411,6 @@ class _ExportSheet extends ConsumerStatefulWidget {
 class _ExportSheetState extends ConsumerState<_ExportSheet> {
   static const _poll = Duration(seconds: 3);
   static const _maxPolls = 40;
-  Timer? _timer;
   String? _error;
   bool _done = false;
 
@@ -423,43 +420,33 @@ class _ExportSheetState extends ConsumerState<_ExportSheet> {
     _start();
   }
 
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
-  }
-
+  /// Sequential polling (never overlapping requests); stops when the
+  /// sheet closes. The ready response consumes the reauth token, so the
+  /// link opens once and the section locks.
   Future<void> _start() async {
     final t = ref.read(translatorProvider);
     final token = ref.read(historyAccessProvider).token;
     if (token == null) return;
     final repo = ref.read(casesRepositoryProvider);
+    final access = ref.read(historyAccessProvider.notifier);
     try {
       final started = await repo.startExport(token);
-      var polls = 0;
-      _timer = Timer.periodic(_poll, (timer) async {
-        polls++;
-        try {
-          final s = await repo.exportStatus(token, started.exportId);
-          if (s.status == HistoryExportStatus.ready && s.url != null) {
-            timer.cancel();
-            ref.read(historyAccessProvider.notifier).lock();
-            await launchUrl(Uri.parse(s.url!),
-                mode: LaunchMode.externalApplication);
-            if (mounted) setState(() => _done = true);
-          } else if (s.status == HistoryExportStatus.failed ||
-              polls >= _maxPolls) {
-            timer.cancel();
-            if (mounted) setState(() => _error = t.t('history.pdf.failed'));
-          }
-        } on Object catch (e) {
-          timer.cancel();
-          if (_isReauthError(e))
-            ref.read(historyAccessProvider.notifier).lock();
-          if (mounted) setState(() => _error = errorText(t, e));
+      for (var i = 0; i < _maxPolls; i++) {
+        await Future<void>.delayed(_poll);
+        if (!mounted) return;
+        final s = await repo.exportStatus(token, started.exportId);
+        if (s.status == HistoryExportStatus.ready && s.url != null) {
+          access.lock();
+          await launchUrl(Uri.parse(s.url!),
+              mode: LaunchMode.externalApplication);
+          if (mounted) setState(() => _done = true);
+          return;
         }
-      });
+        if (s.status == HistoryExportStatus.failed) break;
+      }
+      if (mounted) setState(() => _error = t.t('history.pdf.failed'));
     } on Object catch (e) {
+      if (_isReauthError(e)) access.lock();
       if (mounted) setState(() => _error = errorText(t, e));
     }
   }

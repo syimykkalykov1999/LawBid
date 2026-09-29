@@ -7,6 +7,10 @@ import 'package:lawbid/shared/domain/cursor_page.dart';
 /// end, pull-to-refresh that keeps loaded rows when it fails. Same rules
 /// as ActiveDevicesController, factored for the many cases/bids lists.
 abstract class PagedNotifier<T> extends AsyncNotifier<PaginatedList<T>> {
+  /// Bumped by [refresh]; a next-page response from an older generation
+  /// is dropped instead of being appended to the fresh first page.
+  int _generation = 0;
+
   /// One page starting at [cursor] (null = first page).
   Future<CursorPage<T>> fetch(String? cursor);
 
@@ -17,12 +21,14 @@ abstract class PagedNotifier<T> extends AsyncNotifier<PaginatedList<T>> {
       PaginatedList.firstPage(await fetch(null));
 
   Future<void> refresh() async {
+    _generation++;
     final previous = state.value;
     if (previous == null) {
       state = const AsyncLoading();
-      state = await AsyncValue.guard(
+      final next = await AsyncValue.guard(
         () async => PaginatedList.firstPage(await fetch(null)),
       );
+      if (ref.mounted) state = next;
       return;
     }
     final page = await fetch(null);
@@ -33,12 +39,13 @@ abstract class PagedNotifier<T> extends AsyncNotifier<PaginatedList<T>> {
     final current = state.value;
     if (current == null || !current.canLoadMore) return;
     state = AsyncData(current.loadingMore());
+    final generation = _generation;
     try {
       final page = await fetch(current.nextCursor);
-      if (!ref.mounted) return;
+      if (!ref.mounted || generation != _generation) return;
       state = AsyncData((state.value ?? current).appended(page, idOf: idOf));
     } on Object catch (error) {
-      if (!ref.mounted) return;
+      if (!ref.mounted || generation != _generation) return;
       state = AsyncData((state.value ?? current).failedMore(error));
     }
   }

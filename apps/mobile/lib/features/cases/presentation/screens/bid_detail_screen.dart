@@ -186,7 +186,9 @@ class _BidDetailScreenState extends ConsumerState<BidDetailScreen> {
           isLoading: _busy,
           onPressed: () => _accept(bid),
         ),
-      if (myTurn && viewer == PartyRole.client)
+      // §6.3: the client may decline any active bid, whoever's turn it is;
+      // a counter-offer only on the client's turn.
+      if (viewer == PartyRole.client)
         ButtonPair(
           left: AppButton(
             label: t.t('cases.decline.button'),
@@ -196,7 +198,7 @@ class _BidDetailScreenState extends ConsumerState<BidDetailScreen> {
           right: AppButton(
             label: t.t('cases.counter.button'),
             variant: AppButtonVariant.secondary,
-            isEnabled: bid.canCounter,
+            isEnabled: myTurn && bid.canCounter,
             dimWhenDisabled: true,
             onPressed: _busy ? null : () => _counter(bid),
           ),
