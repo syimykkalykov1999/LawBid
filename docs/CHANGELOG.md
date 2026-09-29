@@ -5150,3 +5150,613 @@ iOS simulator builds succeed with the new plugins.
 
 Tests after the fixes: API unit 715/715, e2e 39 suites / 270; flutter
 test 603/603.
+
+# File 06 — Production (stages 6.1–6.12)
+
+Stage entries below were written as fragments in `docs/changelog.d/` during file 06 and folded here at the end of the file (2026-09-29).
+
+## Stage 6.1 — Base security and migration
+
+docs/06_PRODUCTION.md §13 stage 6.1, §4, §10.
+
+- Migration `stage_6_1_admin_credentials_export_jobs` (§10, the only
+  schema changes file 06 allows): `admin_credentials`, `data_export_jobs`
+  (+ enums), `subscriptions.grace_ends_at`, `audit_log.justification`;
+  `app_config` keys `subscription.past_due_grace_days` = 3,
+  `moderation.blocked_terms` / `hold_terms` = [], `moderation.auto_hide_reports`
+  = 3 (`FILE_06_SETTINGS`, seeded).
+- §4.1: CORS only for `ADMIN_ORIGINS` (the app sends no Origin); request
+  body cap `BODY_LIMIT_KB` (default 256, Stripe raw body kept) → 413
+  `PAYLOAD_TOO_LARGE`; server `requestTimeout` / `headersTimeout` /
+  `keepAliveTimeout` (`REQUEST_TIMEOUT_MS`). helmet/HSTS/CSP, validation
+  pipe, trust proxy and pino redaction were already in place (file 01).
+- §4.3: Sentry (`@sentry/nestjs`) when `SENTRY_DSN` is set, with
+  `scrubSentryEvent` (no request bodies/headers/cookies/query, user → id
+  only, PII-named fields redacted).
+- §4.4 CI: `codeql.yml` (security-extended), `container-scan.yml`
+  (new `apps/api/Dockerfile`, Trivy fails on CRITICAL/HIGH),
+  `dependabot.yml` (npm, pub, actions, docker), `npm audit` blocks on
+  critical (high stays advisory until multer/uuid upgrades), mobile
+  `dart pub outdated` advisory.
+- Tests: `stage-6-1.e2e-spec.ts` (migration, settings, 413, CORS, log
+  redaction of phone/email/token/search text), `authz-matrix.e2e-spec.ts`
+  (object routes × anonymous / stranger / wrong role → 401/403/404,
+  participant → 200), unit `scrubSentryEvent`.
+
+## Stage 6.2 — Admin: sign-in, RBAC, skeleton
+
+docs/06_PRODUCTION.md §13 stage 6.2, §2.1–2.3 (items 1, 12, 13).
+
+### API
+- `modules/admin-auth`: `POST /admin/auth/login/start` (emailed code,
+  always 204 — no admin enumeration) → `login/verify` (code → 5-minute
+  ticket; on the first sign-in also a TOTP enrollment: base32 secret +
+  `otpauth://` URI) → `POST /admin/auth/totp` (authenticator code → admin
+  JWT `aud = lawbid-admin`, 8 h; first time returns ten recovery codes
+  once) or `POST /admin/auth/recovery`; `POST /admin/auth/logout`,
+  `GET /admin/auth/me`. TOTP is RFC 6238 over `node:crypto` (no
+  dependency; RFC vectors in `totp.util.spec.ts`); the secret is
+  AES-256-GCM encrypted with `ADMIN_TOTP_ENC_KEY` in
+  `admin_credentials.totp_secret_enc`; recovery codes are stored as
+  SHA-256. Wrong second factor: 5 attempts, then the ticket is burned.
+- Sessions: Redis `adm:sess:{jti}` with the 30-minute idle TTL refreshed
+  on every request, absolute limit = JWT `exp` (8 h); logout, disable,
+  role change and 2FA reset revoke sessions immediately.
+- `AdminAuthGuard` + `@AdminEndpoint(...roles)` (= `@Public()` for the
+  mobile guard, `@Roles`, guard, audit interceptor, OpenAPI scheme
+  `admin`): audience check (mobile tokens → 401 on `/admin/*`, admin
+  tokens → 401 on the mobile API), session, then role/status read from
+  the DB on every call — deny by default, §2.2 matrix. `@Justification()`
+  requires `X-Justification` (10–500 chars) → `audit_log.justification`;
+  applied to verification document links.
+- Audit: every mutating admin request (and every justified view) gets an
+  `audit_log` row from `AdminAuditInterceptor` (`admin.<method route>`,
+  body with secret-like keys redacted, IP); services that already write
+  before/after rows opt out with `@SkipAutoAudit()`. Sign-in events:
+  `admin.login`, `admin.totp_enrolled`, `admin.recovery_code_used`,
+  `admin.logout`.
+- `modules/admin`: `GET /admin/dashboard` (§2.3.1 numbers, Redis cache
+  60 s; revenue = active × $399), `GET /admin/audit-log` (cursor; filters
+  adminId/action prefix/targetType/targetId/from/to; non-super_admins are
+  forced to their own rows), `/admin/admins` (super_admin: list, create,
+  set role, disable/enable, reset 2FA; explicit before/after audit rows;
+  no self-disable).
+- Migrated to the new guard: `/admin/verification/*` (verifier,
+  super_admin), `/admin/case-disputes/*` and `/admin/contact-issues/*`
+  (support, super_admin — §2.2 "Кейсы"), `/admin/i18n/*` (super_admin).
+  The interim `AdminRolesGuard` and i18n `AdminGuard` are removed.
+- Env: `ADMIN_TOTP_ENC_KEY` (≥ 32 chars; sign-in is 503
+  `ADMIN_AUTH_NOT_CONFIGURED` until set), `ADMIN_LOGIN_LIMIT_PER_IP_PER_HOUR`
+  (20), `ADMIN_PANEL_URL` (optional). New `ErrorCode`s:
+  `JUSTIFICATION_REQUIRED`, `ADMIN_TICKET_INVALID`, `ADMIN_TOTP_INVALID`,
+  `ADMIN_RECOVERY_CODE_INVALID`, `ADMIN_AUTH_NOT_CONFIGURED`,
+  `ADMIN_EMAIL_TAKEN`.
+- Contract regenerated (`packages/api-contract`).
+
+### apps/admin (Next.js 15, App Router, TypeScript, Tailwind v4,
+shadcn-style components, TanStack Query)
+- API types generated from `openapi.json` (`npm run generate`,
+  `openapi-typescript` + `openapi-fetch`).
+- The admin JWT never reaches the browser: `app/api/auth/session` performs
+  the TOTP/recovery exchange and stores the token in an httpOnly,
+  SameSite=strict cookie; `app/api/proxy/*` forwards calls to `/admin/*`
+  with it and clears the cookie on 401; `middleware.ts` sends
+  cookie-less visitors to `/login`. Strict CSP/headers in `next.config.ts`.
+- Screens: sign-in (email → code → authenticator with QR enrollment →
+  recovery codes shown once, recovery-code fallback), dashboard, audit
+  log (filters, "show more"), administrators (create, role, disable/
+  enable, reset 2FA). Navigation follows the §2.2 matrix; sections of
+  later stages are listed as "скоро".
+- CI: `admin-ci.yml` (generate → typecheck → lint → build).
+
+### Tests
+- Unit: `totp.util.spec.ts` (RFC 6238 vectors, ±1 step, base32, URI),
+  `admin-auth.guard.spec.ts` (401/403 matrix, justification).
+- e2e `stage-6-2.e2e-spec.ts`: enrollment + second sign-in, mobile token
+  on `/admin/*` and admin token on the mobile API → 401, ticket is not a
+  session, 5 wrong codes burn the ticket, no admin enumeration, recovery
+  code single use, §2.2 matrix cells, admins CRUD with audit before/after
+  and session revocation, auto-audit, dashboard cache, audit-log scoping
+  and cursor, idle timeout. `verification`, `stage-4-5/4-6` suites now
+  sign in through `/admin/auth` (`test/support/admin-login.ts`).
+
+## Stage 6.3 — Admin: verification UI and users
+
+docs/06_PRODUCTION.md §13 stage 6.3, §2.3 items 2–3, §3.4.
+
+### API
+- `modules/admin-users` (`/admin/users`, roles super_admin / moderator /
+  support per §2.2): `GET /admin/users` search by name (trigram on
+  `full_name_lower`), email, phone (any format → E.164), `@username`, id,
+  with role/status filters and cursor; `GET /admin/users/:id` card (role,
+  status, profile, licenses, subscription, active sessions/devices with
+  push-token counts, last 20 cases or bids, warning count — no contacts);
+  `GET /admin/users/:id/contacts` behind `@Justification()` (audited with
+  the reason); `POST …/sessions/revoke` (all three roles); `POST …/warn`,
+  `…/suspend`, `…/restore` (super_admin, moderator).
+- §3.4 sanctions (`AdminUsersService`): warn → `moderation_actions`
+  (`warn`) + `moderation_notice` notification (payload carries only the
+  action id); suspend → `users.status = suspended` + `suspended_reason`,
+  every session revoked (`admin_block`), `moderation_actions`; a client's
+  `open` cases → `archived` with active bids `rejected_auto` (shared
+  `CaseLifecycleService.archiveInTx`, journal + notifications + chats
+  closed), `in_progress` untouched; an attorney gets the file-03 §2.5
+  effects (`VerificationAdminService.suspendInTx`: profile suspended, bids
+  withdrawn). Restore → `active`, cases stay archived, attorney profile
+  restored (`restoreInTx`). Sign-in of a suspended user is refused
+  (`ACCOUNT_SUSPENDED`, unchanged from file 01). Every action writes its
+  own audit row with before/after; admins can't be sanctioned here.
+- Contract regenerated.
+
+### apps/admin
+- `/users`: search + filters + cursor list; `/users/[id]`: card, contacts
+  reveal through the reason dialog (X-Justification), actions by role
+  (revoke sessions; warn / suspend / restore with a reason).
+- `/verification`: queue with status/state filters; `/verification/[id]`:
+  take, per-license decision (verified / rejected with code + note),
+  re-check, documents opened by signed link after a reason, approve /
+  request info / reject (rejection code + comment), attorney suspend /
+  restore, checks and past requests.
+- `useReason()` dialog shared by every "enter a reason" step; nav entries
+  for Users and Verification enabled.
+- Fixes found in the browser smoke run: CSP allows `'unsafe-eval'` only
+  outside production (Next dev react-refresh); the openapi-fetch reroute
+  middleware rebuilds requests with a materialized body (Chrome sends
+  streaming bodies only over HTTP/2 → `ERR_ALPN_NEGOTIATION_FAILED`).
+
+### Tests
+- Unit: `parseUserQuery`. e2e `stage-6-3.e2e-spec.ts`: search by each
+  shape + filters + matrix (verifier 403, mobile token 401); card without
+  contacts, contacts need a reason and are audited; support revokes a real
+  OTP session (token → 401), moderator warns (notification + action, support
+  403); client suspension (sessions, `ACCOUNT_SUSPENDED` at sign-in, open
+  cases archived + bid rejected_auto, in_progress kept, 409 on repeat,
+  restore keeps the archive); attorney suspension (profile suspended, bid
+  withdrawn, restore → verified); admins are 403.
+- Browser smoke (built-in browser against the isolated e2e DB): sign-in
+  with QR enrollment and recovery codes, dashboard, verification queue →
+  take → license verified → approved, document link with a reason, users
+  search → card → contacts with a reason.
+
+## Stage 6.4 — Moderation
+
+docs/06_PRODUCTION.md §13 stage 6.4, §3.
+
+### API
+- `RuleBasedModerationHook` replaces the file-05 stub behind
+  `CONTENT_MODERATION_HOOK` (§3.3, no external AI): `moderation.blocked_terms`
+  → block (`422 CONTENT_BLOCKED` on posts and comments), `moderation.hold_terms`
+  → hold (stored as `hidden`), ≥ `moderation.max_links` (3) links → hold,
+  the same normalized text from one author within
+  `moderation.duplicate_window_hours` (24) → hold (Redis counter; Redis
+  down = rule skipped). Whole-word matching after NFKC/lower-case
+  normalization. New `app_config` keys seeded with `FILE_06_SETTINGS`.
+- `ModerationService` (global): resolves a report target (post, comment,
+  message, review, case, user → author, status, text, context) and applies
+  hide / remove / restore with the same side effects as the owners' own
+  paths — `posts_count` / `comment_count` / `reply_count` bumps, attorney
+  rating recalculation for reviews (file 03 §7.5), `deleted_at` for a
+  message (OQ-B). `autoHideIfThreshold`: `moderation.auto_hide_reports`
+  (3) distinct reporters with an open or actioned report hide the object
+  (OQ-C); called after `POST /reports` and `POST /reviews/:id/report`.
+- `/admin/moderation` (super_admin, moderator): `GET queue` — reports
+  grouped by object (count, distinct reporters, reasons, first/last
+  report, current object status, excerpt, author with warning/suspension
+  counts), oldest first, keyset cursor, filters status / targetType;
+  `GET targets/:type/:id` — object + context, all reports, author, the
+  author's history (sanctions and actions on their content),
+  `availableActions`; `POST targets/:type/:id/actions` — `hide`, `remove`,
+  `warn`, `suspend`, `restore`, `dismiss`, reason required: open reports
+  → `actioned` / `dismissed` with `handled_by`, a `moderation_actions` row
+  (except dismiss), an audit row with before/after, `moderation_notice` to
+  the author except for dismiss; `warn` / `suspend` / user `restore` reuse
+  `AdminUsersService` (§3.4). Non-applicable actions → `409
+  MODERATION_ACTION_NOT_APPLICABLE`.
+- Contract regenerated.
+
+### apps/mobile
+- `Post.status` from the contract; the author sees "Пост на проверке" /
+  "Post under review" on their own hidden post (§3.3).
+
+### apps/admin
+- `/moderation` queue (status / object filters, grouped rows with reporter
+  counts and author warnings) and `/moderation/[type]/[id]` card with the
+  object text, context ids, author + history, the reports table and the
+  action buttons (each through the reason dialog).
+
+### Tests
+- Unit: `RuleBasedModerationHook` (normalization, whole-word terms, links,
+  duplicates per author, zero thresholds).
+- e2e `stage-6-4.e2e-spec.ts`: blocked term → 422 on post and comment,
+  hold term / links / duplicate → `hidden`; 3 distinct reporters hide a
+  post (gone from profile, search and a follower's feed; `posts_count`
+  follows) and the queue shows the grouped row; 3 reports hide a review
+  and recalculate the rating; moderator card + hide/restore/hide (409 on
+  repeat)/warn/dismiss/remove with reports, notices and the audit trail;
+  support is 403; comment hide keeps `comment_count` in sync; message
+  hide sets `deleted_at`.
+
+## Stage 6.5 — Admin: disputes, "Не могу связаться", government requests
+
+docs/06_PRODUCTION.md §13 stage 6.5, §2.3 items 5, 11, 12, §5.4.
+
+### API
+- `modules/admin-cases` (support, super_admin — §2.2 "Кейсы"):
+  `GET /admin/case-disputes` (open | resolved, oldest first, cursor) and
+  `GET /admin/case-disputes/:id` with the `case_journal` chronology
+  (last 200 rows) and the opener's other disputes; `GET
+  /admin/contact-issues` (open | confirmed | rejected) and
+  `GET /admin/contact-issues/:id` with the disclosed fields, the client's
+  confirmed count against `contacts.suspend_after_confirmed_reports` and
+  the client's other reports. Decisions stay on the file-04 routes
+  (`POST /admin/case-disputes/:id/resolve`, `POST
+  /admin/contact-issues/:id/resolve`).
+- Dispute reopen (`in_progress`) now notifies both parties
+  (`case_updated` with `disputeId`/`decision`); `closed` already did via
+  `case_closed`. The §8.4 auto-suspension after the 3rd confirmed report
+  now carries the §3.4 effects: every session revoked and the client's
+  open cases archived (after commit).
+- `modules/admin-data-requests` (super_admin): `GET/POST
+  /admin/data-requests` (register a subpoena / court order: type,
+  reference, agency, received date, scope, notes), `GET /:id` with the
+  `data_access_log`, `PATCH /:id/status` (received → in_progress →
+  fulfilled | rejected, `closed_at`), `POST /:id/package` behind
+  `@Justification()`: sections `profile`, `contacts`, `cases`, `bids`,
+  `contact_disclosures`, `messages` chosen per request; the JSON package
+  is returned to the panel and every entity in it (user, cases, bids,
+  disclosures, conversations) becomes a `data_access_log` row before the
+  response; the request moves to `in_progress`; audit rows for create /
+  package (with the justification) / status.
+- Contract regenerated.
+
+### apps/admin
+- `/cases` with the two queues (tabs, "показать решённые"),
+  `/cases/disputes/[id]` (reason, parties, journal timeline, close / back
+  to work with a comment), `/cases/contact-issues/[id]` (attorney's
+  report, disclosure details, client's confirmed count and history,
+  confirm / reject with a comment).
+- `/data-requests` registry with the registration form and
+  `/data-requests/[id]`: scope, package builder (user id + sections →
+  reason dialog → JSON download), status editor, `data_access_log` table.
+
+### Tests
+- e2e `stage-6-5.e2e-spec.ts`: attorney opens a dispute → queue row and
+  card journal → `closed` (journal `dispute_resolved`, `case_closed` to
+  both) and `in_progress` (`case_updated` to both); three "Не могу
+  связаться" reports → queue, card (disclosure, history) → third
+  confirmation suspends the client (sessions revoked, open case archived,
+  in_progress cases kept); government request: register, package without
+  a reason → 400, with a reason → data (profile, contacts, cases, bids,
+  disclosures) and one `data_access_log` row per entity, status →
+  `in_progress` → `fulfilled` with `closed_at`, audit trail; support is
+  403 on data requests, verifier 403 on disputes.
+
+## Stage 6.6 — Admin: flags, config, localization, legal documents
+
+docs/06_PRODUCTION.md §13 stage 6.6, §2.3 items 7–10.
+
+### API (`modules/admin-config`, super_admin)
+- Feature flags: `GET /admin/feature-flags` (enabled, rollout percent,
+  description, `paid`, `requiredKeys`, `missingKeys`), `PATCH
+  /admin/feature-flags/:key` {enabled?, rolloutPercent?}. Paid flags
+  (`stripe_identity`, `persona_verification`, `profile_promotion`,
+  `video_posts`, `auto_bar_check`) need their provider keys in env
+  (`STRIPE_SECRET_KEY`/`STRIPE_PRICE_ID`, `PERSONA_API_KEY`,
+  `MUX_TOKEN_ID`/`MUX_TOKEN_SECRET`, `BAR_LOOKUP_API_KEY` — new optional
+  env keys) or enabling is `409 FLAG_PROVIDER_KEYS_MISSING`. The flags
+  cache is dropped on every write, so `GET /config/bootstrap` reflects the
+  change at once; audit before/after.
+- `app_config` editor: `GET /admin/config` lists every editable key with
+  its schema (type, min/max, default, current value, stored?) — the typed
+  `APP_SETTINGS` tunables, the cost-guard `budget.*` caps,
+  `sms.allowed_country_codes`, `min_app_version_ios|android`; `PUT
+  /admin/config/:key` validates against the schema (unknown keys and wrong
+  types/ranges → 400), drops the config cache, audits before/after.
+- Localization: `GET /admin/i18n/languages` (all, with translation counts
+  and bundle versions), `PATCH /admin/i18n/languages/:code` {isActive,
+  sort} (`en` can't be disabled), bootstrap cache dropped. The existing
+  xlsx/csv import already creates a language from a new column; it now
+  also drops the bootstrap cache so the app sees the language without a
+  release.
+- Legal documents: `GET /admin/legal-documents` (+ `/:id` with the full
+  text), `POST /admin/legal-documents` (draft version per type + locale,
+  Markdown or URL), `POST /admin/legal-documents/:id/publish` (becomes
+  current for its type + locale, previous current archived, bootstrap
+  cache dropped). Re-acceptance: `OnboardingService` now requires that the
+  accepted `terms` / `privacy` / `disclaimer` consent points at the
+  current version for the user's locale (fallback `en`); otherwise
+  `consents` is back in `missing` and the app's guard shows the consents
+  step on the next sign-in.
+- Contract regenerated.
+
+### apps/admin
+- `/flags` (switches with the paid-service warning and key status,
+  rollout percent), `/config` (typed inline editor with client-side
+  parsing and server validation), `/i18n` (languages on/off, import
+  dry-run → apply with the report, export link), `/legal` (versions table
+  with current/draft/archive, text preview, draft form, publish).
+
+### Tests
+- e2e `stage-6-6.e2e-spec.ts`: paid flag lists missing keys and refuses to
+  enable (409) while rollout edits work; a free flag flip shows up in the
+  next `/config/bootstrap`; finance is 403; config schema list, wrong
+  type / range / unknown key / bad country code → 400, a valid write is
+  visible through `AppSettingsService` and audited; xlsx import with a new
+  language column (dry-run adds nothing, apply adds the language and
+  bootstrap lists it), language switch-off removes it from bootstrap, `en`
+  can't be disabled; a user who accepted the current documents stays
+  complete after a draft is created and loses `requiredConsentsGranted`
+  once the new terms version is published, until they accept the new
+  document id.
+
+## Stage 6.7 — Stripe: subscription backend
+
+docs/06_PRODUCTION.md §13 stage 6.7, §1.1–1.6.
+
+### API
+- `modules/billing` behind `PaymentProvider` (§1.8): `StripePaymentProvider`
+  (official SDK; customers, SetupIntents, subscriptions with
+  `trial_period_days = 7`, card fingerprint, Customer Portal, webhook
+  signature) and `FakePaymentProvider` used when `STRIPE_SECRET_KEY` is
+  unset (dev / e2e; webhooks with `Stripe-Signature: fake`, state
+  versioned so out-of-order events behave like Stripe's re-read).
+- `SubscriptionAccessService` is real (§1.2): `trialing`/`active`, or
+  `past_due` before `grace_ends_at`; Redis cache 60 s, dropped by the sync
+  service and admin actions; a transaction client bypasses the cache
+  (bid accept). The stage-4 stub (verified ⇒ active) is gone.
+- `POST /subscriptions/start` (verified attorneys; customer + SetupIntent,
+  `trialEligible`), `POST /subscriptions/confirm` (card → subscription;
+  one trial per attorney and per `card_fingerprint`, otherwise `409
+  SUBSCRIPTION_TRIAL_UNAVAILABLE` until the app repeats with `chargeNow`),
+  `GET /subscriptions/me`, `GET /subscriptions/payments`, `POST
+  /subscriptions/portal-session`, `POST /subscriptions/cancel`
+  (`cancel_at_period_end`).
+- `POST /webhooks/stripe` (§1.5): raw-body signature, row in
+  `stripe_webhook_events` (idempotent by id), immediate 200, BullMQ queue
+  `stripe-webhooks` (5 attempts, exponential backoff, then
+  `stripe-webhooks-dlq` + error log). `SubscriptionSyncService` re-reads
+  the subscription from the provider for every event and reconciles the
+  row; access transitions: lost → `BidsService.withdrawActiveBidsForAttorney`
+  + `subscription_status`; regained → `subscription_status`;
+  `invoice.payment_failed` / `payment_action_required` → `past_due`,
+  `grace_ends_at = now + subscription.past_due_grace_days`, failed
+  `payments` row, `subscription_payment_failed`; `invoice.paid` →
+  succeeded `payments` row; `charge.refunded` → `refunded`. Status map:
+  `unpaid` / `incomplete_expired` → `expired`; a cancellation without a
+  successful payment → `expired` (OQ-H).
+- Trial reminder: delayed BullMQ job (`subscriptions` queue) at
+  `trial_ends_at − 2 days`, skipped when canceled or no longer trialing
+  (`subscription_trial_ending` with date and amount).
+- Admin (§1.6): `GET /admin/subscriptions/:userId` (support, finance,
+  super_admin — subscription, payments, Stripe Dashboard link, trials used
+  with the card), `POST /admin/subscriptions/:userId/extend` (finance,
+  super_admin; days + reason; `trial_end` moved at the provider, audited,
+  `subscription_status` to the attorney).
+- Workers run in the API process while `JOBS_ENABLED` and always in the
+  `worker` process (`BillingModule.register({ mode })`). New optional env
+  `STRIPE_PORTAL_RETURN_URL`; `stripe` dependency added. New `ErrorCode`s:
+  `PAYMENTS_NOT_CONFIGURED`, `SUBSCRIPTION_ALREADY_ACTIVE`,
+  `SUBSCRIPTION_TRIAL_UNAVAILABLE`, `SUBSCRIPTION_SETUP_INCOMPLETE`,
+  `SUBSCRIPTION_NOT_FOUND`, `WEBHOOK_SIGNATURE_INVALID`.
+- Contract regenerated.
+
+### Tests
+- Unit: `SubscriptionAccessService` (rule table, cache + invalidate,
+  transaction bypass).
+- e2e `stage-6-7.e2e-spec.ts` (fake provider): gates (client 403,
+  unverified 403, confirm before the card 409); trial → `invoice.paid` +
+  `subscription.updated` → active with one payment; the same event id
+  again is not queued and creates no duplicate; a late older event does
+  not win; bad signature 400; failed payment → `past_due` with grace
+  (still active, notified, failed payment row) → `unpaid` → `expired`,
+  bid withdrawn, `subscription_status`; re-subscription after expiry needs
+  `chargeNow`; the same card on another attorney gets no trial; cancel
+  keeps access with `cancelAtPeriodEnd`; portal URL; trial reminder
+  payload and skip-after-cancel; admin view (support), extend (finance,
+  audited), moderator 403.
+- Real-Stripe acceptance (test mode, test clocks) runs with
+  `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` / `STRIPE_PRICE_ID` set —
+  the same code path, provider swapped (OQ-021).
+
+## Stage 6.8 — Flutter: subscription screens and paywall
+
+docs/06_PRODUCTION.md §13 stage 6.8, §1.7.
+
+### Mobile (`apps/mobile`, feature `subscription`)
+- Settings → «Подписка» (attorneys only, docs/01 §3.6): the $399/мес plan
+  card (7-day trial line while a trial is still available, what the
+  subscription unlocks, no commission), «Текущий статус» with the pill,
+  the explanation line (trial end / next charge / scheduled cancellation
+  / grace period) and the actions that fit the status — «Управление»
+  (Stripe Customer Portal in the in-app browser), «Отменить» (confirm
+  dialog, `cancel_at_period_end`), «Обновить карту» on `past_due` with
+  the payment-failed notice, «Обновить» while `incomplete` — plus the
+  payment history entry. Loading/error/offline via the shared detail
+  states; pull-to-refresh; a refresh on app resume so a change made in
+  the portal or by a webhook shows up.
+- Start flow (§1.4): `POST /subscriptions/start` → `flutter_stripe`
+  PaymentSheet in setup mode (3-D Secure included) → `POST
+  /subscriptions/confirm` → polling `GET /subscriptions/me` while
+  `incomplete`. No trial (account or card): the honest «Пробный период
+  недоступен, будет списано $399 сейчас» dialog, and `chargeNow` only
+  after that consent (§1.1). The button is disabled with an explanation
+  and a link to verification until the attorney is `verified`.
+  `SubscribeController` is the one state machine (starting → card →
+  confirming → syncing); the Stripe SDK sits behind `CardCollector`, so
+  screens and tests never touch the platform channel.
+- Paywall (§1.7 п.3): `/subscription-required?reason=bid|chat|contacts`
+  names the locked action («Сделать бид», «Написать клиенту», «Контакты
+  клиента») and leads to the subscription screen; the docs/04 gates
+  (`routeSubscriptionError`, the chat composer, the contacts card) pass
+  their reason. The stage-4 placeholder screen is removed.
+- «История платежей» (§1.7 п.4): cursor-paged list from
+  `GET /subscriptions/payments` with amount, date, status and the failure
+  code of a failed charge.
+- Strings `file06_strings.dart` (ru/en); `ApiErrorCodes` now mirrors the
+  whole server enum again (admin/moderation/webhook codes added, texts
+  for `CONTENT_BLOCKED`, `PAYLOAD_TOO_LARGE` and the subscription codes).
+- Android: the activity theme is an `AppCompat` descendant (a
+  `flutter_stripe` requirement for the PaymentSheet); same window
+  backgrounds, `FlutterFragmentActivity` was already in place.
+  `STRIPE_PUBLISHABLE_KEY` (dart-define) is applied lazily on the first
+  card sheet, so app start-up is unchanged.
+
+### Tests
+- Repository mapping against the fake HTTP adapter, the subscribe state
+  machine (trial, consent before/after the card, cancel, polling window,
+  failures, double tap), and the screens' states (skeleton, offline +
+  retry, disabled CTA, trial start, charge-now dialog, payment failed,
+  cancel, ended, incomplete, dark + 200 % text, paywall, payments).
+
+## Stage 6.9 — Privacy and data lifecycle
+
+docs/06_PRODUCTION.md §13 stage 6.9, §5.1–5.3.
+
+### API (`modules/privacy`, jobs)
+- Anonymization (§5.1): daily `privacy.anonymize` takes every
+  `deletion_pending` user whose request is older than 14 days. External
+  side effects first and idempotent (Stripe subscription canceled
+  immediately through `PaymentProvider.cancelNow`; avatar and verification
+  files removed from S3), then the cases still in work are closed with a
+  journal event (`account_deleted_close`, new state-machine action from
+  `in_progress` / `pending_completion` / `disputed`; the counterpart gets
+  `case_closed`), a client's open cases are archived with bids
+  `rejected_auto`, and one transaction scrubs the user: `Deleted User`,
+  email/phone null, identifiers and push tokens gone, sessions revoked
+  (+ access-token blacklist), `status = deleted`, `anonymized_at`, files
+  `deleted_at`; attorney → `deleted_<id>`, bio/firm cleared, profile
+  suspended, active bids withdrawn, posts `removed`; own messages become
+  `[deleted]`. `case_journal`, `contact_disclosures`, `auth_events`,
+  `user_consents`, `audit_log` are untouched.
+- Data export (§5.2): `POST /users/me/data-export` (reauth) → row in
+  `data_export_jobs` (`user_data`), BullMQ queue `data-export` (jobId =
+  row id, atomic claim so a retry never builds two ZIPs); the worker
+  writes JSON files (profile, consents, devices, cases, bids, posts,
+  comments, likes, own messages) into one ZIP in the private documents
+  bucket, records the `files` row (`purpose = data_export`), sets
+  `expires_at = +24 h`, emits `data_export_ready` and emails the signed
+  link. `GET /users/me/data-export/:id` returns the status and a fresh
+  link while it is ready. The case-history PDF export now also records
+  its `data_export_jobs` row (`case_history_pdf`).
+- Journal (§5.3): monthly `journal.retention` removes `case_journal`
+  rows past `retain_until` in batches, on `RETENTION_DATABASE_URL`
+  (the `lawbid_retention` role; falls back to the app connection with a
+  warning when unset). Daily `journal.chain-verify` recomputes the chain
+  for every case with rows from the last 24 h plus 200 random cases; a
+  break is a fatal log + Sentry `fatal`. A head row whose predecessor was
+  removed by retention is accepted only when the head itself is older
+  than four years (`trimmedHeadAllowed`).
+- Cleanup (§5.3): daily `exports.cleanup` expires ready exports past
+  `expires_at` (S3 object removed, `files.deleted_at`, status `expired`)
+  and fails jobs stuck for a day.
+- Migration `20260929200000_stage_6_9_privacy`: `file_purpose.data_export`,
+  `notification_type.data_export_ready`. Env `RETENTION_DATABASE_URL`.
+
+### Tests
+- Unit: state machine (15 actions, `in_progress → closed`), journal
+  trimmed head, cron registry (19 schedules).
+- e2e `stage-6-9`: anonymized attorney has no name/email/phone/files and
+  the journal (with one more `closed` event) stays valid; client's open
+  case archived + bid `rejected_auto`; export needs reauth, one job in
+  flight per user, ZIP behind a signed link, `data_export_ready`,
+  expiry drops link and object; retention removes only rows past
+  `retain_until`; a forged payload is reported as `hash_mismatch`.
+
+## Stage 6.10 — Infrastructure (Terraform)
+
+docs/06_PRODUCTION.md §13 stage 6.10, §6.
+
+- `infra/modules`: network (VPC, 2 AZ, NAT per AZ, VPC endpoints), kms,
+  s3 (documents private/versioned/SSE-KMS with cross-region replication,
+  media behind CloudFront OAC, lifecycle for exports and old versions),
+  redis (ElastiCache 7, multi-AZ, TLS, AUTH token → `REDIS_URL` secret),
+  secrets (Secrets Manager entry per secret env var, values out of band),
+  ses (domain identity, DKIM, MAIL FROM, DMARC), alb (HTTPS only, idle
+  300 s for WebSockets, sticky api target group, WAF managed rules +
+  per-IP rate rule), ecs (Fargate: `api`, `worker`, `admin` services from
+  two images, one-off `migrate` task for `prisma migrate deploy` under
+  `lawbid_migrator`, CPU-60 % autoscaling with min 2 tasks, deployment
+  circuit breaker with rollback, secrets injected by ECS), monitoring
+  (SNS → email/Slack, log metric filters, the alarms of §8), stack
+  (composition) and `envs/staging`, `envs/prod` (S3 backend + lock,
+  example tfvars/backend files, reduced vs production sizes).
+- `apps/admin/Dockerfile` (Next.js standalone) and `output: 'standalone'`.
+- Validated with `terraform fmt -check` and `terraform validate` for both
+  environments (Terraform 1.9.8, AWS provider 5.100). Not applied: no AWS
+  account in this session — the acceptance steps are listed in
+  `infra/README.md`. OQ-023 (admin as an ECS service).
+
+## Stage 6.11 — CI/CD, observability, backups
+
+docs/06_PRODUCTION.md §13 stage 6.11, §7–§8, §6.4.
+
+### CI/CD
+- `deploy.yml` (§7.3): images to ECR → staging (one-off `migrate` ECS task
+  under `lawbid_migrator`, rolling deploy of api/worker/admin, smoke) →
+  `production` GitHub environment with required reviewers (the manual
+  gate) → backup-freshness check (`check-backup.sh`, CockroachDB Cloud
+  API) → migrations → rolling deploy → smoke; ECS circuit breaker rolls a
+  failed revision back. Scripts in `scripts/deploy/`.
+- `api-ci.yml`: OpenAPI breaking-change gate against the base branch
+  (`oasdiff breaking --fail-on ERR`, §7.2 п.2) next to the existing
+  contract-drift check.
+- `mobile-release.yml` + Fastlane (§7.4): tag-driven release builds with
+  Conventional-Commits notes, Android AAB signed with the upload keystore
+  from secrets (`build.gradle.kts` reads `ANDROID_KEYSTORE_*`, debug key
+  locally), iOS IPA (`ExportOptions.plist`, certificate/profile from
+  secrets), artifacts + GitHub release. Store uploads only on manual
+  dispatch with `upload=true` (owner tests on Android first; closed beta
+  per §11.2).
+
+### Observability (§8)
+- OpenTelemetry tracing (`src/telemetry/otel.ts`): auto-instrumentation
+  for http/express/ioredis/pg/socket.io, OTLP/HTTP exporter, on only when
+  `OTEL_EXPORTER_OTLP_ENDPOINT` is set (API and worker).
+- Metrics CloudWatch cannot see on its own are structured log lines picked
+  up by the metric filters of `infra/modules/monitoring`: `ops.queue-metrics`
+  (every minute: waiting/active/delayed/failed + oldest job age per BullMQ
+  queue), `ops.business-metrics` (every 10 min: registrations 24 h, open
+  cases, active bids, subscriptions by status), `transaction retried`
+  (40001), `stripe webhook moved to DLQ`, `subscription payment failed`,
+  WebSocket connection gauge, push failures, SMS sent.
+- Grafana dashboards (CloudWatch data source) in `infra/observability/grafana`:
+  API health, queues & workers, database & Redis, business.
+- Alarms of §8 in Terraform (5xx > 1 %, p95, unhealthy hosts, queue
+  backlog, retries, Stripe DLQ, failed payments, journal integrity, SMS
+  spend, Redis, ECS CPU) → SNS (email + Slack webhook).
+- `docs/runbooks/`: one page per alarm plus `backups.md` (RPO ≤ 1 h,
+  RTO ≤ 4 h, restore procedure, pre-migration backup check) and the
+  quarterly `restore-drill.md` log.
+
+### Not verifiable in this session
+The deploy and release workflows, the alarms firing and the first restore
+drill need the AWS/CockroachDB accounts and store credentials (stage
+6.11 acceptance is listed for the owner in `infra/README.md` and
+`docs/runbooks/restore-drill.md`).
+
+## Stage 6.12 — Testing, load, launch readiness
+
+docs/06_PRODUCTION.md §13 stage 6.12, §9, §11.
+
+- Security (§9.3): new e2e `security-contact-leak` — before acceptance
+  no attorney-facing response (case feed and detail, own bid, pre-
+  acceptance chat list/detail/messages with a phone and e-mail typed by
+  the client, case search, notifications, contacts endpoint) carries the
+  client's name, phone or e-mail; after acceptance without an active
+  subscription the contacts endpoint is `SUBSCRIPTION_REQUIRED` and the
+  work list stays clean. Together with the existing `authz-matrix`
+  (roles + IDOR), `auth-hardening` (tokens, refresh reuse, attestation),
+  `security-hardening` (headers, readiness, idempotency), `files` (MIME,
+  size, EICAR), `stage-6-2` (mobile token on `/admin`) and the chat
+  masking suites this is the automated part of §9.3.
+- Load (§9.4): `apps/api/k6/` — feed, search, attorney cases, bid, chat
+  (+ Socket.IO), OTP login, Stripe webhooks, and `all.js` mixing them at
+  the 5k RPS peak (`STAGE=peak`) and the 1-hour soak (`STAGE=soak`), with
+  the §9.4 thresholds; `docs/perf/README.md` (accounts, procedure,
+  results table).
+- Launch (§11): `docs/LAUNCH_CHECKLIST.md` — the §11.1 checklist, closed
+  beta, store data and the store-payment decision, all owner-ticked.
+- Critical flows (§9.2) are covered by the stage suites of files 1–6
+  (49 e2e suites); the pentest, the real load run and the restore drill
+  need the staging environment and are the owner's acceptance items.
+
