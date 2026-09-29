@@ -4758,3 +4758,395 @@ errors/warnings. Fixed along the way: empty-state sliver crash
 - Not changed (by design): the accept transaction appends journal rows one
   by one — the hash chain is sequential by definition; losing bids per case
   are few.
+
+## Stage 5.1 — Migration, counters, foundation
+
+docs/05_FEED_SEARCH_CHAT_NOTIFICATIONS.md §16 stage 5.1, §12–§14.
+
+- Migrations (§14): `stage_5_1_file_purpose_post_video` (own file:
+  CockroachDB can't use a new enum value in the adding transaction) and
+  `stage_5_1_feed_chat_notifications` — `posts.edited_at`,
+  `notifications.dedupe_key` + `aggregate_count` (default 1), partial UQ
+  `(user_id, dedupe_key) WHERE dedupe_key IS NOT NULL`, app_config
+  `rate_limit.*` (§13) and `notifications.retention_days` = 180.
+- `CounterAggregator` (`modules/counters`, global): bumps go to Redis
+  pending hashes (+ "touched today" set) in one EVAL; one flusher across
+  pods every 10 s applies each counter in one multi-row UPDATE (deltas put
+  back on DB failure); reads can overlay pending deltas; nightly
+  `counters.reconcile` job recomputes touched posts / comments /
+  attorney profiles from the source tables.
+- `UsageLimitsService` (`common/usage-limits`): §13 per-user fixed-window
+  limits from app_config → 429 `RATE_LIMITED`.
+- `ContentModerationHook` seam with the `allow` stub (§12.2, docs/06
+  replaces it). `post_video` uploads answer `FEATURE_DISABLED` while the
+  `video_posts` flag is off (§3.6).
+- Error codes (API enum, mobile `ApiErrorCodes`, en/ru,
+  `pending_keys/stage-5-1.csv`): POST_NOT_FOUND, POST_NOT_ALLOWED,
+  COMMENT_NOT_FOUND, FOLLOW_NOT_ALLOWED, CONVERSATION_NOT_FOUND,
+  CONVERSATION_CLOSED, MESSAGE_TOO_LONG, FEATURE_DISABLED,
+  SEARCH_QUERY_TOO_SHORT.
+
+Tests: e2e `stage-5-1.e2e-spec.ts` 3/3 (flush to DB, reconcile fixes
+drift, 429 past the limit); unit jobs/files green; flutter test 591/591.
+
+## Stage 5.2 — Posts and media (API)
+
+docs/05 §16 stage 5.2, §3.
+
+- `PostsModule` (`modules/posts`): `POST /posts` (Idempotency-Key; verified
+  active attorney only → else 403 POST_NOT_ALLOWED; §13 limit
+  `post_create`; ContentModerationHook allow/hold/block → published /
+  hidden / 422), `GET /posts/:id`, `PATCH /posts/:id` (text only, hashtags
+  recomputed, `editedAt` = "Изменено"), `DELETE /posts/:id` (soft),
+  `GET /attorneys/:id/posts` (cursor; the author also sees own hidden).
+- Hashtags (§3.1): letters/digits/`_`, ≤ 30 chars, lowercase, max 10 (the
+  11th ignored), stored in `tags` / `post_tags`.
+- Photos (§3.2): up to 10 clean `post_image` files in order
+  (`FilesService.assertAttachable`; a file can't be reused); the scan
+  worker re-encodes post photos (EXIF/GPS stripped — was kept before),
+  main ≤ 2048 px + 320 / 1080 px variants; `FilesService.postImageUrls`
+  signs all three (CloudFront: TODO docs/06).
+- `PostPresenter`: PostDto for a page in a fixed number of queries
+  (authors + avatars, media, likedByMe/savedByMe, tags, pending counter
+  deltas) — reused by feed, tags, search and saved lists.
+  `VISIBLE_POST_WHERE`: published, not deleted, author active and not
+  suspended.
+- `posts_count` through the counters aggregator (+1 publish, −1 delete).
+
+Tests: e2e `stage-5-2.e2e-spec.ts` 5/5; unit hashtags + post photo
+processing.
+
+## Stage 5.3 — Feed (API)
+
+docs/05 §16 stage 5.3, §2.2.
+
+- `GET /feed?cursor=&limit=10..20` (`modules/feed`, `FeedProvider` seam for
+  later profile promotion): followed attorneys' posts (+ own for an
+  attorney), newest first; with follows every 4th item is a
+  recommendation, without follows 100%; when followed posts run out,
+  recommendations fill the page.
+- Recommendations: `FeedRecoJob` every 10 minutes scores posts of the last
+  14 days `(likes + 2·comments + 2·saves) / (age_h + 2)^1.5` (active,
+  non-suspended authors) into a versioned ZSET `feed:reco:<v>` (TTL 1 h)
+  and moves `feed:reco:current`.
+- Opaque cursor `{f: last followed (created_at,id) | null, r: offset in the
+  pinned snapshot, v: snapshot version}` — no SQL offset; pages stay stable
+  while the snapshot is recomputed.
+- Exclusions: non-published / deleted / suspended-author posts
+  (`VISIBLE_POST_WHERE`); recommendations skip followed and own authors and
+  the viewer's last 500 shown recommendations (ZSET, TTL 3 days). Followed
+  posts are not hidden by "seen" so the feed still opens on them.
+- First page cached in Redis for 60 s per user.
+
+Tests: unit `feed-mixer.spec.ts` (mixing, multi-page no dups/gaps, cursor,
+score); e2e `stage-5-3.e2e-spec.ts` 2/2.
+
+## Stage 5.4 — Likes, comments, saves, reports (API)
+
+docs/05 §16 stage 5.4, §4, §5, §12.1.
+
+- Post likes `POST/DELETE /posts/:id/like` — idempotent on the PK; counter
+  and `post_like` notification only when a row changed; §13 `like` limit.
+- Saved posts through `/saved-items` (`itemType = post`, was 501) and
+  `GET /saved-items/posts` (deleted/hidden → `available = false`, "Пост
+  недоступен"); `save_count` via the aggregator.
+- Comments (`modules/comments`): `GET /posts/:id/comments`,
+  `GET /comments/:id/replies` (newest first, 20), `POST /posts/:id/comments`
+  (1–1000 chars, moderation hook, §13 `comment` limit; one level — a reply
+  to a reply attaches to the top-level parent with `@username` put in
+  front), `DELETE /comments/:id` (author or the post's author; a top-level
+  comment takes its replies), `POST/DELETE /comments/:id/like`.
+  Notifications `post_comment`, `comment_reply`, `comment_like`.
+- Comment authors: attorney → public profile fields; client → only
+  "Anna K." (no id, no avatar) — client profiles stay closed.
+- `POST /reports` (post, comment, message, user): §13 `report` limit; a
+  repeat by the same user on the same object is ignored (Redis claim + DB
+  check; no unique index — §14 allows no other schema change).
+
+Tests: e2e `stage-5-4.e2e-spec.ts` 4/4.
+
+## Stage 5.5 — Follows and suggestions (API)
+
+docs/05 §16 stage 5.5, §6.
+
+- `modules/follows`: `POST/DELETE /attorneys/:id/follow` — attorneys only,
+  never yourself (`FOLLOW_NOT_ALLOWED` 422); idempotent; `followers_count`
+  / `following_count` via the counter aggregator; `new_follower`
+  notification only when a row was created; §13 `follow` limit.
+- `GET /attorneys/:id/followers` lists attorney followers only (clients are
+  counted, never named); `GET /attorneys/:id/following` — both 404 unless
+  the id is an active, non-suspended attorney, so a client's follows are
+  never listable by others.
+- `GET /users/me/following` — the caller's own follows (§6.2).
+- `GET /suggestions/attorneys` — verified attorneys ranked by rating and
+  activity (posts in 30 days), the client's own state first; the pool is
+  cached in Redis per state for 10 minutes; followed and self are filtered
+  out per request.
+- Public attorney profile: `isFollowing`, counters overlay pending
+  aggregator deltas.
+
+Tests: e2e `stage-5-5.e2e-spec.ts` 3/3; unit 703/703.
+
+## Stage 5.6 — Search (API)
+
+docs/05 §16 stage 5.6, §7, §15 "Поиск".
+
+- `modules/search`: `SearchProvider` interface (`searchAttorneys`,
+  `searchCases`, `searchPosts`, `searchTags`) with `CockroachSearchProvider`
+  on the docs/02 §5.3 indexes (trigram GIN on `username_lower` /
+  `full_name_lower`, tsvector GIN on `posts/cases.search_tsv`, btree prefix
+  on `tags.tag_lower`).
+- `GET /search/attorneys` — name, `@username`, practice name, state; filters
+  practice, state, min rating, language. Attorneys only (clients are never
+  found), `suspended` hidden. Ranking: exact `@username`, prefix, trigram
+  similarity, then `verified`, then rating. List rows gain
+  `practiceI18nKeys` (first 3 practices, also in follows/suggestions).
+- `GET /search/cases` (attorneys only, 403 otherwise) — full text within the
+  docs/04 §4.1 visibility query (`buildVisibleCasesSql` gets optional
+  `text` / `since`), filters practice, state, period 24h/7d/30d/all; every
+  page also passes `CaseAccessPolicy.visibleCaseIds`. Unverified → empty.
+- `GET /search/posts` — published posts by `ts_rank`, then date.
+- `GET /search/tags` — hashtag prefix; `GET /search/trending-tags` — top 20
+  of 7 days from Redis, rebuilt by cron `search.trending-tags` every 10 min.
+- `GET /tags/:tag/posts?sort=top|new` — "Топ" by the §2.2.2 score over the
+  newest 5000 tagged posts, "Новые" by date (keyset).
+- Cost/scale: ranked results (attorneys, posts, tag top) are computed once
+  per query into a shared Redis id list (5–10 min) and paged by position —
+  next pages are one Redis read, no SQL OFFSET. Cache keys hash the query,
+  never the user id. §13 `search` limit (30/min) on `/search/*` except
+  trending. Request logs redact the query string of `/search/*` (§7.6).
+
+Tests: e2e `stage-5-6.e2e-spec.ts` 4/4 (incl. EXPLAIN on the trigram and
+tsvector indexes); unit `search-text.spec.ts`.
+
+## Stage 5.7 — Chats and realtime (API)
+
+docs/05 §16 stage 5.7, §8, §15 "Чаты"; docs/04 §9.
+
+- `modules/chat`: `GET /conversations?cursor=&updatedSince=` (by
+  `last_message_at`, chats with a message; unread count, mute, the other
+  side's `last_read_message_id` for "Seen"), `GET /conversations/:id`,
+  `GET /conversations/:id/messages?cursor=` (newest first) and `?afterId=`
+  (catch-up after a reconnect), `POST …/messages {clientMessageId, body}`
+  (idempotent on the UQ, 2000 chars → `MESSAGE_TOO_LONG`, `closed` →
+  `CONVERSATION_CLOSED` 409, attorney without subscription →
+  `SUBSCRIPTION_REQUIRED`, §13 `message` limit; the row lock serializes
+  with closing/unlocking), `POST …/read` (forward only, `message:read`),
+  `PATCH …/mute {until}`.
+- Counterpart: an attorney sees the client as "Клиент по кейсу" (no id,
+  name or photo) until `contacts_unlocked`; a client always sees the
+  attorney.
+- Contact masking (§8.3): `maskContactInfo` next to the file-04 detector —
+  phones (separators, spelled-out digits), emails (also "at … dot"), links
+  → `[контакт скрыт]` in `body_display`; `body_original` kept; never after
+  unlock.
+- System messages (§8.2) inside the file-04 transactions
+  (`ChatSystemMessages`): `offer_accepted` on accept, `accepted_by_other`
+  (+ closed) in the other attorneys' pre-acceptance chats, `no_agreement`
+  on decline/withdraw, `case_closed` on client close/delete and auto-archive
+  (pre-acceptance chats closed — client close/delete did not close them
+  before, docs/04 §9) and on completion close. `conversation:update` is
+  published after commit.
+- Realtime (§8.5): Socket.IO namespace `/realtime`, JWT at the handshake
+  and on `auth:refresh`, disconnect at token expiry, rooms `user:{id}` and
+  `conversation:{id}` (participants only), `typing:start/stop` relayed
+  (≤ 1/s per socket, not stored), Redis adapter across instances;
+  `RealtimePublisher` (Redis emitter) works from the API and the worker.
+  Presence set `rt:view:{user}:{conversation}` for push suppression (5.8).
+- Search (5.6 follow-up): short queries return `SEARCH_QUERY_TOO_SHORT`.
+
+Deps: @nestjs/websockets, @nestjs/platform-socket.io, socket.io,
+@socket.io/redis-adapter, @socket.io/redis-emitter; dev socket.io-client.
+
+Tests: e2e `stage-5-7.e2e-spec.ts` 5/5 (two API instances); unit masking
+cases; full unit 712/712, full e2e 38 suites green.
+
+## Stage 5.8 — Notifications, push, badges (API)
+
+docs/05 §16 stage 5.8, §9, §10, §15 "Уведомления и push".
+
+- `NotificationsService.emit` (single entry point): stores the row and
+  aggregates `post_like`, `comment_like`, `new_follower` per object and
+  hour (`dedupe_key` on the partial UQ, `aggregate_count`, latest actor,
+  back to unread and to the top). `new_message` is never stored — it only
+  queues its push.
+- Delivery (`push` queue, after commit): realtime `notification:new` +
+  `badge:update`; push only for the first row of an aggregate and push
+  types; category settings with `system` locked on; quiet hours defer the
+  job to their end (per the user's time zone, across midnight;
+  `security_new_device` exempt); chat pushes skipped while muted or while
+  the chat is open on a device (`rt:view:*`); email for `system` types
+  (once per row; `security_new_device` stays with the auth email channel).
+- FCM HTTP v1 sender (google-auth-library), chosen automatically when
+  `FCM_*` env is set; one send per device per logical push (retries skip
+  served devices), `UNREGISTERED`/invalid tokens deleted, 4 attempts with
+  exponential backoff. Tokens bound to the session chain: sign-out stops
+  pushes.
+- REST: `GET /notifications` (actor: attorney by profile, client as
+  "Anna K."), `POST /notifications/read {ids|all}`, `GET /badges`,
+  `GET/PUT /notification-settings`, `PUT /notification-settings/quiet-hours`,
+  `POST/DELETE /push-tokens`.
+- Badges (§10): Redis hash per user (chats, notifs), +1 on a message,
+  recount on reads/notifications, rebuilt from the DB when missing and at
+  least daily (TTL). `new_message` is not a row, so never counted twice.
+- Push templates en/ru for messages, social and system types; the auth
+  new-device push leg now emits `security_new_device`.
+- Cron `notifications.retention` (04:40 UTC): deletes rows older than
+  `notifications.retention_days` in batches.
+- Email provider factory shared by auth and notifications (same selection).
+
+Tests: e2e `stage-5-8.e2e-spec.ts` 6/6; stage 4.8 queue assertion updated
+(list-only rows are queued with `push: false`); files e2e moved to its own
+phone range (collided with profiles-practices); unit `notification-rules`.
+Full unit 715/715, full e2e 39 suites / 270 tests green.
+
+## Stage 5.9 — Flutter: feed, posts, comments, follows
+
+docs/05 §16 stage 5.9, §2–§6, §11 (feed).
+
+- `features/social`: repository (feed, posts CRUD, likes, saves via
+  `/saved-items`, comments/replies, follows, suggestions, tag pages,
+  reports, post photo upload presign → S3 → scan), drift store
+  `lawbid_social` (feed first page for offline, chat outbox and recent
+  searches for 5.10/5.11), providers with one source of truth for posts
+  shown in many lists (likes/saves/edits/deletes sync everywhere),
+  optimistic like/save/follow with rollback and in-flight dedupe (a second
+  tap never calls the API twice).
+- Feed: clients get one post stream; attorneys "Лента | Кейсы" with each
+  tab's scroll kept (IndexedStack). Empty feed: "Пока в ленте пусто" +
+  "Рекомендуемые адвокаты"; offline: the cached first page.
+- Post card: author (gold ring for verified, blue check), time ago,
+  "⋯" (report / copy link; own: edit text / delete / copy link), photo
+  carousel with a gold page indicator, double tap = like with a heart
+  bloom, animated like/save, share sheet with `lawbid.app/post/:id`,
+  3-line text with "ещё", tappable #tags, "Посмотреть все комментарии".
+  Text-only posts as quote cards.
+- Post screen (`/post/:id`, also the deep link): post, disclaimer,
+  comments with one reply level ("Anna K." for clients), likes, delete,
+  report, composer with reply-to.
+- Composer ("+" for attorneys): text with a 2200 counter, up to 10 photos
+  uploaded as they're picked, drag to reorder, disclaimer.
+- Tag page `#tag` (Топ / Новые), follower / following lists, profile:
+  real Follow button (morphing pill), follower counters open the lists,
+  "Посты" tab is a 3-column grid (text posts as tiles). "Моё →
+  Сохранённое" shows saved posts ("Пост недоступен" when gone); attorneys
+  switch between saved cases and posts.
+- Packages: share_plus, cached_network_image (images cached by stable file
+  key, so signed-URL rotation doesn't re-download), plus socket_io_client,
+  firebase_core/messaging, app_badge_plus, flutter_timezone for 5.11.
+
+Tests: `test/features/social` (optimistic like + rollback, no double API
+call, double tap only likes, offline cache fallback, post card render);
+deep link `/post/:id` now opens the post screen; feed/profile goldens
+updated. flutter test 597/597.
+
+## Stage 5.10 — Flutter: search
+
+docs/05 §16 stage 5.10, §7, §11 (search).
+
+- Search tab (replaces the stub): one query for all result tabs — clients
+  "Адвокаты | Посты | Темы", attorneys "Люди | Кейсы | Посты | Темы";
+  2+ characters and a 300 ms debounce, so one request per pause in typing
+  (never per keystroke).
+- Flip search bar: while idle and empty the hint flips through what can be
+  searched (name, @username, #topics, practice/state or cases) like a
+  split-flap board; focus warms the border to gold with a soft glow, the
+  icon tilts, "Cancel" slides in, clear pops in. Reduced motion: static
+  hint. The whole bar is a 48 px tap target.
+- Before typing: recent searches (local drift, per account, "Очистить"),
+  popular topics (trending, with post counts), recommended attorneys.
+- Results: attorney rows (rating, practices, states, Follow), case cards
+  (the attorney's accessible cases only — server-side), post cards, topic
+  rows → the tag page.
+- Filters sheet: practice (full tree, searchable), state, min rating and
+  language for attorneys; practice, state and period (24h/7d/30d/all) for
+  cases; active-filter badge on the tune button.
+
+Tests: debounce + 2-char minimum (one API call for "sa→sau→saul"), role
+tabs; a11y suite covers the search screen. flutter test 599/599.
+
+## Stage 5.11 — Flutter: chats, notifications, settings, push, badges
+
+docs/05 §16 stage 5.11, §8–§10, §11 (chat, notifications).
+
+- Feed header: Chats icon with the §10 badge (unread messages + unread
+  notifications), a gold count pill that pops on change; iOS app icon
+  badge mirrors the total (app_badge_plus).
+- Inbox screen "Чаты | Уведомления": a gliding segmented control with a
+  count per tab; "Прочитать все"; notification settings shortcut.
+- Chats list (§8.1): counterpart (a client is "Клиент по кейсу «…»" with a
+  neutral avatar until contacts unlock), last message (system messages and
+  hidden contacts localized), time, unread pill, muted icon, case chip,
+  role-specific empty states. Refreshed (debounced) on realtime events.
+- Conversation (§8.2–§8.5): header with case title (opens the case), "⋯"
+  mute/unmute and report; bubbles (own navy, theirs outlined) with day
+  separators; delivery states sending → sent → seen (gold double check +
+  "Прочитано" under the newest seen); failed messages "Не отправлено ·
+  Повторить / Удалить"; system messages as gold pills; masked contacts
+  shown as a localized inline marker + one-time hint; typing dots;
+  "Чат закрыт" banner; attorneys without a subscription get "Продлите
+  подписку" instead of the composer; read receipts only while the chat
+  is on screen.
+- Offline outbox (drift): a message shows at once as "отправляется", is
+  sent in order with its clientMessageId when the connection or the socket
+  comes back (never twice — server UQ + single-flight drain); definitive
+  refusals stop retrying.
+- Realtime client (socket_io_client): `/realtime` with the access token,
+  `auth:refresh` on rotation, re-auth on expiry, exponential reconnection;
+  after a reconnect the list, badges and open chat catch up over REST.
+- Notifications (§9.1): grouped Today / This week / Earlier, actor avatar
+  or a category medallion, localized `notif.list.<type>` texts (aggregated
+  "Sarah и ещё N"), gold unread dot; tap marks read and opens the target
+  (§9.2 routing shared with push taps).
+- Settings → Notifications (§9.5): push/email per category (system locked
+  with a lock note), quiet hours with time pickers in the device time zone
+  (flutter_timezone).
+- Push: Firebase messaging token registered per session, re-registered on
+  rotation, removed on sign-out; tapping a push opens its screen. Without
+  Firebase config files the app runs with push off (docs/KEYS_SETUP.md).
+- Case screens: "Написать клиенту" / "Открыть чат" now open the chat.
+- API: `PATCH /conversations/:id/mute` and `PUT
+  /notification-settings/quiet-hours` accept an absent value as "clear"
+  (generated clients drop null fields).
+
+Checks: flutter test 603/603 (outbox sends once after reconnect, refusal
+marks "not sent", UUID v4, notification routing); Android debug APK and
+iOS simulator builds succeed with the new plugins.
+
+## File 05 review fixes (subagent review: security, load, Flutter) — 2026-09-28
+
+- Security: while contacts are locked the attorney never receives the
+  client's user id (messages come with `senderId: null`; `typing` and
+  `message:read` carry no user id; a client actor's id is dropped from
+  notification payloads and push data). `/search/*` requests are logged
+  without their query object. A live socket re-checks the session
+  blacklist every 45 s (logout / "log out all" end it). FCM deletes a
+  token only on `UNREGISTERED` (a wrong project id can't wipe every
+  token), calls time out after 10 s, and a device is claimed with SET NX
+  before the send (a crash after FCM's 200 can skip, never duplicate).
+  Push tokens: `MinLength(20)`, at most 10 per user. Contact detection
+  and masking NFKC-normalize first (full-width digits).
+- Load: avatar links for a page in one query (`avatarUrlsMany`) instead
+  of one per row in posts, comments, follows, chats, notifications;
+  unread counts stop at 100 per chat / 1000 notifications; partial index
+  `notifications(user_id, created_at) WHERE read_at IS NULL` and
+  `notifications(created_at)` for retention; badge `+1` is one Lua call;
+  emit invalidates the cached unread count; feed streams at most the
+  2000 most recent follows and checks "seen" by ZMSCORE of the candidates
+  only; retention pauses between batches.
+- Flutter: the outbox loops until nothing is pending (a message written
+  while another is sending is no longer stranded), swallows non-API
+  errors, and merges the sent message before removing the outbox row;
+  older-page loading has a failed state with Retry (no refire loop, no
+  state change during build); push registers per signed-in user
+  (user B after user A) and clears the app-icon badge on sign-out;
+  `conversation:join` is retried until the server has finished the
+  handshake (server side guards an early join); a rotated token
+  reconnects a dead socket; sign-in side effects run from a provider,
+  not from MainShell's build; a fresh feed first page clears optimistic
+  overrides.
+- Owner decisions (OQ-014): Instagram-style attorney profile, "Написать"
+  → Chats screen, review star filter + order icon, no feed logo.
+
+Tests after the fixes: API unit 715/715, e2e 39 suites / 270; flutter
+test 603/603.
