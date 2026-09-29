@@ -137,36 +137,12 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
                     child: ReviewSummaryPanel(
                       summary: s,
                       selectedStars: _stars,
+                      sort: _sort,
                       // Tap a bar → only those reviews; tap again → all.
                       onStarsTap: (stars) => setState(() => _stars = _stars == stars ? null : stars),
+                      onSort: (v) => setState(() => _sort = v),
                     ),
                   ),
-          ),
-        if (reviewsTab && summary?.value?.isNew == false)
-          Padding(
-            padding: const EdgeInsets.only(bottom: AppSpacing.md),
-            child: Wrap(
-              spacing: AppSpacing.sm,
-              children: [
-                AppChip(
-                  label: t.t('reviews.sort.newest'),
-                  selected: _sort == ReviewsSort.newest,
-                  onTap: () => setState(() => _sort = ReviewsSort.newest),
-                ),
-                AppChip(
-                  label: t.t('reviews.sort.oldest'),
-                  selected: _sort == ReviewsSort.oldest,
-                  onTap: () => setState(() => _sort = ReviewsSort.oldest),
-                ),
-                if (_stars != null)
-                  AppChip(
-                    label: '$_stars ★',
-                    selected: true,
-                    trailing: const Icon(Icons.close_rounded, size: AppSpacing.lg),
-                    onTap: () => setState(() => _stars = null),
-                  ),
-              ],
-            ),
           ),
       ]),
     );

@@ -7,12 +7,14 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/widgets/star_rating.dart';
+import 'package:lawbid/features/profile/application/profile_providers.dart';
 
 /// "4.5" in the interface language, or "—" when there are no reviews
 /// (docs/03 §4.2 "вместо числа прочерк").
-String ratingNumber(L10nFormats f, Translator t, double? average) => average == null
-    ? t.t('profile.rating.none')
-    : f.number(double.parse(average.toStringAsFixed(1)));
+String ratingNumber(L10nFormats f, Translator t, double? average) =>
+    average == null
+        ? t.t('profile.rating.none')
+        : f.number(double.parse(average.toStringAsFixed(1)));
 
 /// One review (docs/03 §7.4): "Anna K.", stars, date, text, "Edited".
 /// No reviewer avatar — a neutral quote seal instead (client privacy).
@@ -57,9 +59,11 @@ class ReviewCard extends ConsumerWidget {
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: colors.goldTint,
-                      border: Border.all(color: colors.goldStroke.withValues(alpha: 0.5)),
+                      border: Border.all(
+                          color: colors.goldStroke.withValues(alpha: 0.5)),
                     ),
-                    child: Icon(Icons.format_quote_rounded, color: colors.goldStroke, size: AppSizes.iconSm),
+                    child: Icon(Icons.format_quote_rounded,
+                        color: colors.goldStroke, size: AppSizes.iconSm),
                   ),
                   const SizedBox(width: AppSpacing.md),
                   Expanded(
@@ -70,7 +74,8 @@ class ReviewCard extends ConsumerWidget {
                           author,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: typography.roleTitle.copyWith(color: colors.text),
+                          style:
+                              typography.roleTitle.copyWith(color: colors.text),
                         ),
                         const SizedBox(height: AppSpacing.xs),
                         Wrap(
@@ -78,10 +83,13 @@ class ReviewCard extends ConsumerWidget {
                           spacing: AppSpacing.sm,
                           runSpacing: AppSpacing.xs,
                           children: [
-                            StarRatingDisplay(value: review.rating.toDouble(), size: AppSpacing.lg),
+                            StarRatingDisplay(
+                                value: review.rating.toDouble(),
+                                size: AppSpacing.lg),
                             Text(
                               formats.date(review.createdAt),
-                              style: typography.bodySmall.copyWith(color: colors.textSecondary),
+                              style: typography.bodySmall
+                                  .copyWith(color: colors.textSecondary),
                             ),
                             if (review.isEdited)
                               Container(
@@ -91,11 +99,13 @@ class ReviewCard extends ConsumerWidget {
                                 ),
                                 decoration: BoxDecoration(
                                   color: colors.goldTint,
-                                  borderRadius: BorderRadius.circular(AppRadii.pill),
+                                  borderRadius:
+                                      BorderRadius.circular(AppRadii.pill),
                                 ),
                                 child: Text(
                                   t.t('reviews.edited'),
-                                  style: typography.badge.copyWith(color: colors.text),
+                                  style: typography.badge
+                                      .copyWith(color: colors.text),
                                 ),
                               ),
                           ],
@@ -112,7 +122,9 @@ class ReviewCard extends ConsumerWidget {
                         onTap: onReport,
                         child: SizedBox.square(
                           dimension: AppSizes.touchTarget,
-                          child: Icon(Icons.flag_outlined, color: colors.textSecondary, size: AppSizes.iconSm),
+                          child: Icon(Icons.flag_outlined,
+                              color: colors.textSecondary,
+                              size: AppSizes.iconSm),
                         ),
                       ),
                     ),
@@ -204,14 +216,16 @@ class RatingCard extends ConsumerWidget {
                 const SizedBox(height: AppSpacing.xs),
                 Text(
                   countText,
-                  style: typography.bodySmall.copyWith(color: ink, fontWeight: FontWeight.w600),
+                  style: typography.bodySmall
+                      .copyWith(color: ink, fontWeight: FontWeight.w600),
                 ),
               ],
             ),
           ),
           const SizedBox(width: AppSpacing.md),
           Container(
-            constraints: const BoxConstraints(minWidth: AppSizes.stateMedallion - AppSpacing.lg),
+            constraints: const BoxConstraints(
+                minWidth: AppSizes.stateMedallion - AppSpacing.lg),
             padding: const EdgeInsets.all(AppSpacing.md),
             decoration: BoxDecoration(
               color: ink,
@@ -220,7 +234,9 @@ class RatingCard extends ConsumerWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(number, style: typography.titleLarge.copyWith(color: colors.goldLight)),
+                Text(number,
+                    style: typography.titleLarge
+                        .copyWith(color: colors.goldLight)),
                 Text(
                   t.t('profile.rating.outOf'),
                   style: typography.caption.copyWith(color: colors.goldLight),
@@ -236,7 +252,9 @@ class RatingCard extends ConsumerWidget {
       button: onTap != null,
       label: isNew
           ? '$name. ${t.t('profile.rating.new')}'
-          : '$name. ${t.t('reviews.average.label', {'rating': number})}. $countText',
+          : '$name. ${t.t('reviews.average.label', {
+                  'rating': number
+                })}. $countText',
       onTap: onTap,
       excludeSemantics: true,
       child: onTap == null ? card : AppPressable(onTap: onTap, child: card),
@@ -252,6 +270,8 @@ class ReviewSummaryPanel extends ConsumerWidget {
     super.key,
     this.selectedStars,
     this.onStarsTap,
+    this.sort = ReviewsSort.newest,
+    this.onSort,
   });
 
   final ReviewSummary summary;
@@ -260,6 +280,11 @@ class ReviewSummaryPanel extends ConsumerWidget {
   /// second tap clears it.
   final int? selectedStars;
   final ValueChanged<int>? onStarsTap;
+
+  /// Date order; the small filter icon in the card's corner opens a
+  /// sheet with "Newest / Oldest" (owner request).
+  final ReviewsSort sort;
+  final ValueChanged<ReviewsSort>? onSort;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -270,14 +295,15 @@ class ReviewSummaryPanel extends ConsumerWidget {
     final reduce = context.reduceMotion;
     final total = summary.count;
 
-    return AppCard(
+    final card = AppCard(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Semantics(
             label: summary.isNew
                 ? t.t('profile.rating.new')
-                : t.t('reviews.average.label', {'rating': ratingNumber(formats, t, summary.average)}),
+                : t.t('reviews.average.label',
+                    {'rating': ratingNumber(formats, t, summary.average)}),
             excludeSemantics: true,
             child: Column(
               children: [
@@ -285,107 +311,205 @@ class ReviewSummaryPanel extends ConsumerWidget {
                   ratingNumber(formats, t, summary.average),
                   style: typography.titleLarge.copyWith(color: colors.text),
                 ),
-                StarRatingDisplay(value: summary.average ?? 0, size: AppSpacing.md + 2),
+                StarRatingDisplay(
+                    value: summary.average ?? 0, size: AppSpacing.md + 2),
                 const SizedBox(height: AppSpacing.xs),
                 Text(
-                  summary.isNew ? t.t('profile.rating.new') : t.plural('profile.rating.count', total),
-                  style: typography.caption.copyWith(color: colors.textSecondary),
+                  summary.isNew
+                      ? t.t('profile.rating.new')
+                      : t.plural('profile.rating.count', total),
+                  style:
+                      typography.caption.copyWith(color: colors.textSecondary),
                 ),
               ],
             ),
           ),
           const SizedBox(width: AppSpacing.lg),
           Expanded(
-            child: Column(
-              children: [
-                for (var stars = 5; stars >= 1; stars--)
-                  Semantics(
-                    label: t.t('reviews.distribution.row', {
-                      'stars': '$stars',
-                      'count': '${summary.distribution[stars] ?? 0}',
-                    }),
-                    button: onStarsTap != null,
-                    selected: selectedStars == stars,
-                    excludeSemantics: true,
-                    child: AppPressable(
-                      onTap: onStarsTap == null ? () {} : () => onStarsTap!(stars),
-                      child: AnimatedOpacity(
-                        duration: reduce ? Duration.zero : AppMotion.stateChange,
-                        opacity: selectedStars == null || selectedStars == stars ? 1 : 0.4,
-                        child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs + 1),
-                      child: Row(
-                        children: [
-                          SizedBox(
-                            width: AppSpacing.md,
-                            child: Text(
-                              '$stars',
-                              textScaler: TextScaler.noScaling,
-                              style: typography.caption.copyWith(color: colors.textSecondary),
-                            ),
-                          ),
-                          Icon(Icons.star_rounded, size: AppSpacing.md, color: colors.gold),
-                          const SizedBox(width: AppSpacing.sm),
-                          Expanded(
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(AppRadii.pill),
-                              child: Container(
-                                height: AppSpacing.sm,
-                                color: colors.skeletonBase,
-                                alignment: Alignment.centerLeft,
-                                child: TweenAnimationBuilder<double>(
-                                  tween: Tween(
-                                    begin: reduce ? _share(stars) : 0,
-                                    end: _share(stars),
-                                  ),
-                                  duration: reduce ? Duration.zero : AppMotion.entrance * 2,
-                                  curve: AppMotion.enterCurve,
-                                  builder: (context, v, _) => FractionallySizedBox(
-                                    widthFactor: v,
-                                    child: Container(color: colors.gold),
+            child: Padding(
+              padding:
+                  EdgeInsets.only(right: onSort == null ? 0 : AppSpacing.xl),
+              child: Column(
+                children: [
+                  for (var stars = 5; stars >= 1; stars--)
+                    Semantics(
+                      label: t.t('reviews.distribution.row', {
+                        'stars': '$stars',
+                        'count': '${summary.distribution[stars] ?? 0}',
+                      }),
+                      button: onStarsTap != null,
+                      selected: selectedStars == stars,
+                      excludeSemantics: true,
+                      child: AppPressable(
+                        onTap: onStarsTap == null
+                            ? () {}
+                            : () => onStarsTap!(stars),
+                        child: AnimatedOpacity(
+                          duration:
+                              reduce ? Duration.zero : AppMotion.stateChange,
+                          opacity:
+                              selectedStars == null || selectedStars == stars
+                                  ? 1
+                                  : 0.4,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                                vertical: AppSpacing.xs + 1),
+                            child: Row(
+                              children: [
+                                SizedBox(
+                                  width: AppSpacing.md,
+                                  child: Text(
+                                    '$stars',
+                                    textScaler: TextScaler.noScaling,
+                                    style: typography.caption
+                                        .copyWith(color: colors.textSecondary),
                                   ),
                                 ),
-                              ),
+                                Icon(Icons.star_rounded,
+                                    size: AppSpacing.md, color: colors.gold),
+                                const SizedBox(width: AppSpacing.sm),
+                                Expanded(
+                                  child: ClipRRect(
+                                    borderRadius:
+                                        BorderRadius.circular(AppRadii.pill),
+                                    child: Container(
+                                      height: AppSpacing.sm,
+                                      color: colors.skeletonBase,
+                                      alignment: Alignment.centerLeft,
+                                      child: TweenAnimationBuilder<double>(
+                                        tween: Tween(
+                                          begin: reduce ? _share(stars) : 0,
+                                          end: _share(stars),
+                                        ),
+                                        duration: reduce
+                                            ? Duration.zero
+                                            : AppMotion.entrance * 2,
+                                        curve: AppMotion.enterCurve,
+                                        builder: (context, v, _) =>
+                                            FractionallySizedBox(
+                                          widthFactor: v,
+                                          child: Container(color: colors.gold),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: AppSpacing.sm),
+                                SizedBox(
+                                  width: AppSpacing.xl,
+                                  child: Text(
+                                    formats.number(
+                                        summary.distribution[stars] ?? 0),
+                                    textAlign: TextAlign.end,
+                                    textScaler: TextScaler.noScaling,
+                                    style: typography.caption.copyWith(
+                                      color: selectedStars == stars
+                                          ? colors.text
+                                          : colors.textSecondary,
+                                      fontWeight: selectedStars == stars
+                                          ? FontWeight.w700
+                                          : null,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(width: AppSpacing.sm),
-                          SizedBox(
-                            width: AppSpacing.xl,
-                            child: Text(
-                              formats.number(summary.distribution[stars] ?? 0),
-                              textAlign: TextAlign.end,
-                              textScaler: TextScaler.noScaling,
-                              style: typography.caption.copyWith(
-                                color: selectedStars == stars ? colors.text : colors.textSecondary,
-                                fontWeight: selectedStars == stars ? FontWeight.w700 : null,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
                         ),
                       ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
           ),
         ],
       ),
     );
+    if (onSort == null) return card;
+    // The filter icon sits in the card's top-right corner, over the
+    // distribution, and never covers the numbers (they end before it).
+    return Stack(
+      children: [
+        card,
+        Positioned(
+          top: 0,
+          right: 0,
+          child: Semantics(
+            button: true,
+            label: t.t('reviews.sort.label'),
+            excludeSemantics: true,
+            child: AppTapTarget(
+              child: AppPressable(
+                onTap: () => _pickSort(context, t),
+                child: SizedBox.square(
+                  dimension: AppSizes.touchTarget,
+                  child: Icon(
+                    Icons.tune_rounded,
+                    size: AppSizes.iconSm,
+                    color: sort == ReviewsSort.newest
+                        ? colors.textSecondary
+                        : colors.goldDark,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
-  double _share(int stars) =>
-      summary.count == 0 ? 0 : (summary.distribution[stars] ?? 0) / summary.count;
+  Future<void> _pickSort(BuildContext context, Translator t) async {
+    final picked = await showAppBottomSheet<ReviewsSort>(
+      context: context,
+      builder: (sheet) {
+        final colors = Theme.of(sheet).extension<AppColorTokens>()!;
+        final typography = Theme.of(sheet).extension<AppTypographyTokens>()!;
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const AppSheetHandle(),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide,
+                    AppSpacing.sm, AppSpacing.screenSide, AppSpacing.md),
+                child: Text(t.t('reviews.sort.label'),
+                    style: typography.titleMedium.copyWith(color: colors.text)),
+              ),
+              for (final v in ReviewsSort.values)
+                AppListRow(
+                  icon: v == ReviewsSort.newest
+                      ? Icons.arrow_downward_rounded
+                      : Icons.arrow_upward_rounded,
+                  label: t.t('reviews.sort.${v.name}'),
+                  selected: v == sort,
+                  showChevron: false,
+                  onTap: () => Navigator.of(sheet).pop(v),
+                ),
+              const SizedBox(height: AppSpacing.md),
+            ],
+          ),
+        );
+      },
+    );
+    if (picked != null) onSort?.call(picked);
+  }
+
+  double _share(int stars) => summary.count == 0
+      ? 0
+      : (summary.distribution[stars] ?? 0) / summary.count;
 }
 
 /// "Report review" reasons sheet (docs/03 §7.2, `report_reason`).
-Future<ReviewReportReason?> showReportReasonSheet(BuildContext context, Translator t) {
+Future<ReviewReportReason?> showReportReasonSheet(
+    BuildContext context, Translator t) {
   return showAppBottomSheet<ReviewReportReason>(
     context: context,
     builder: (sheetContext) {
       final colors = Theme.of(sheetContext).extension<AppColorTokens>()!;
-      final typography = Theme.of(sheetContext).extension<AppTypographyTokens>()!;
+      final typography =
+          Theme.of(sheetContext).extension<AppTypographyTokens>()!;
       return SafeArea(
         top: false,
         child: Padding(
