@@ -15,6 +15,7 @@ import 'package:lawbid/features/settings/active_devices/presentation/active_devi
 import 'package:lawbid/features/settings/active_devices/domain/device_session_info.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
 import '../helpers/ux_harness.dart';
 
@@ -73,6 +74,9 @@ class _FakeDevicesRepo implements ActiveDevicesRepository {
 
 void main() {
   late List<Override> baseOverrides;
+
+  // "Моё" (docs/04) formats dates and money.
+  setUpAll(initializeDateFormatting);
 
   setUp(() async {
     SharedPreferences.setMockInitialValues({});

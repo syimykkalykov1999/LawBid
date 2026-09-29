@@ -269,3 +269,42 @@ const EdgeInsets kDetailPadding = EdgeInsets.fromLTRB(
   AppSpacing.screenSide,
   AppSpacing.xxl,
 );
+
+/// A 44px icon action for the top bar (48px touch area).
+class TopBarIcon extends StatelessWidget {
+  const TopBarIcon({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.color,
+    super.key,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    return AppTapTarget(
+      child: Semantics(
+        button: true,
+        label: label,
+        excludeSemantics: true,
+        child: AppPressable(
+          onTap: onTap,
+          child: SizedBox.square(
+            dimension: AppSizes.touchTarget,
+            child: Icon(
+              icon,
+              color: color ?? colors.text,
+              size: AppSizes.iconMd,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

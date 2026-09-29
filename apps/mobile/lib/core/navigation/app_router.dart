@@ -1,3 +1,12 @@
+import 'package:lawbid/features/cases/domain/case_models.dart';
+import 'package:lawbid/features/cases/presentation/screens/bid_detail_screen.dart';
+import 'package:lawbid/features/cases/presentation/screens/bid_form_screen.dart';
+import 'package:lawbid/features/cases/presentation/screens/case_history_screens.dart';
+import 'package:lawbid/features/cases/presentation/screens/case_route_screens.dart';
+import 'package:lawbid/features/cases/presentation/screens/edit_case_screen.dart';
+import 'package:lawbid/features/cases/presentation/screens/mine_views.dart';
+import 'package:lawbid/features/cases/presentation/screens/owner_case_screen.dart';
+import 'package:lawbid/features/cases/presentation/screens/work_case_screen.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -193,6 +202,76 @@ GoRouter appRouter(Ref ref) {
           LegalDocumentScreen(docType: state.pathParameters['docType'] ?? ''),
         ),
       ),
+      // docs/04 cases & bids (stages 4.9/4.10) — ROOT navigator.
+      GoRoute(
+        path: AppRoutes.myCasePattern,
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => AppPageTransitions.push(
+          state,
+          OwnerCaseScreen(caseId: state.pathParameters['id'] ?? ''),
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.myCaseEditPattern,
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => AppPageTransitions.push(
+          state,
+          EditCaseScreen(caseId: state.pathParameters['id'] ?? ''),
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.bidPattern,
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => AppPageTransitions.push(
+          state,
+          BidDetailScreen(
+            bidId: state.pathParameters['id'] ?? '',
+            listed: state.extra is CaseBid ? state.extra! as CaseBid : null,
+          ),
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.placeBidPattern,
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => AppPageTransitions.push(
+          state,
+          BidFormScreen(caseId: state.pathParameters['id'] ?? ''),
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.workCasePattern,
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => AppPageTransitions.push(
+          state,
+          WorkCaseScreen(caseId: state.pathParameters['id'] ?? ''),
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.completedWork,
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            AppPageTransitions.push(state, const CompletedWorkScreen()),
+      ),
+      GoRoute(
+        path: AppRoutes.caseHistory,
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            AppPageTransitions.push(state, const CaseHistoryScreen()),
+      ),
+      GoRoute(
+        path: AppRoutes.caseHistoryItemPattern,
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => AppPageTransitions.push(
+          state,
+          CaseHistoryDetailScreen(caseId: state.pathParameters['id'] ?? ''),
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.subscriptionRequired,
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            AppPageTransitions.modal(state, const SubscriptionRequiredScreen()),
+      ),
       ...authRoutes(),
       ...onboardingRoutes(),
       ...accountRoutes(parentNavigatorKey: _rootNavigatorKey),
@@ -213,7 +292,8 @@ class _GuardRefresh extends ChangeNotifier {
   _GuardRefresh(Ref ref) {
     ref
       ..listen(appStartupProvider, (_, __) => notifyListeners())
-      ..listen(sessionControllerProvider.select((s) => s?.sub), (_, __) => notifyListeners())
+      ..listen(sessionControllerProvider.select((s) => s?.sub),
+          (_, __) => notifyListeners())
       ..listen(currentUserControllerProvider, (_, __) => notifyListeners());
   }
 }

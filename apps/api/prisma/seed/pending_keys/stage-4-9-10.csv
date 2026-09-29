@@ -1,0 +1,323 @@
+key,en,ru
+cases.accept.button,Accept offer,Принять предложение
+cases.accept.clientTitle,Accept this bid?,Принять этот бид?
+cases.accept.clientMessage,"The case moves to work, the attorney gets your contacts and a chat opens. All other bids are declined automatically.","Кейс перейдёт в работу, адвокат получит ваши контакты и откроется чат. Остальные биды будут отклонены автоматически."
+cases.accept.attorneyTitle,Accept the client's offer?,Принять предложение клиента?
+cases.accept.attorneyMessage,The case moves to work and the client's contacts open to you.,"Кейс перейдёт в работу, и вам откроются контакты клиента."
+cases.accept.confirm,Accept,Принять
+cases.accept.done,Offer accepted,Предложение принято
+cases.decline.button,Decline,Отклонить
+cases.decline.title,Decline this bid?,Отклонить этот бид?
+cases.decline.message,The attorney will be notified. This can't be undone.,Адвокат получит уведомление. Отменить это нельзя.
+cases.decline.lastRound,"This was the last round. If you decline, the negotiation ends: the parties did not agree.","Это последний раунд. Если отклонить, торг завершится: стороны не договорились."
+cases.decline.confirm,Decline,Отклонить
+cases.decline.done,Bid declined,Бид отклонён
+cases.withdraw.button,Withdraw,Отозвать
+cases.withdraw.title,Withdraw your bid?,Отозвать ваш бид?
+cases.withdraw.message,You won't be able to bid on this case again.,Повторно сделать бид на этот кейс будет нельзя.
+cases.withdraw.confirm,Withdraw,Отозвать
+cases.withdraw.done,Bid withdrawn,Бид отозван
+cases.counter.button,Counter-offer,Встречное
+cases.counter.title,Counter-offer,Встречное предложение
+cases.counter.remaining,Counter-offers left: {n},Осталось встречных предложений: {n}
+cases.counter.amount,New amount,Новая сумма
+cases.counter.amountHourly,New hourly rate,Новая почасовая ставка
+cases.counter.message,Message (optional),Сообщение (необязательно)
+cases.counter.bindingWarning,"If the attorney agrees, the case moves to work and the other offers are declined.","Если адвокат согласится, кейс перейдёт в работу, остальные предложения будут отклонены."
+cases.counter.send,Send counter-offer,Отправить встречное
+cases.counter.done,Counter-offer sent,Встречное предложение отправлено
+cases.attorney.noReviews,No reviews yet,Пока нет отзывов
+cases.attorney.rating,{avg} · {count} reviews,{avg} · отзывов: {count}
+cases.bid.title,Bid,Бид
+cases.bid.yourTurn,Your move,Ваш ход
+cases.bid.waitingAttorney,Waiting for the attorney,Ожидает адвоката
+cases.bid.waitingClient,Waiting for the client,Ожидает клиента
+cases.bid.accepted,Accepted,Принят
+cases.bid.rejectedByClient,Declined by client,Отклонён клиентом
+cases.bid.rejectedAuto,Declined automatically,Отклонён автоматически
+cases.bid.withdrawn,Withdrawn,Отозван
+cases.bid.failed,No agreement,Не договорились
+cases.bid.unknown,Unknown,Неизвестно
+cases.bid.rounds,Round {used} of {max},Раунд {used} из {max}
+cases.bid.currentTerms,Current terms,Текущие условия
+cases.bid.duration,~{days} days,~{days} дн.
+cases.bid.message,Message,Сообщение
+cases.bid.history,Negotiation history,История торга
+cases.bid.openCase,Open the case,Открыть кейс
+cases.bidForm.cta,Place a bid,Сделать бид
+cases.bidForm.title,New bid,Новый бид
+cases.bidForm.heading,Your offer,Ваше предложение
+cases.bidForm.subtitle,The client sees your terms and message. Contacts are shared only after your bid is accepted.,Клиент увидит условия и сообщение. Контакты откроются только после принятия бида.
+cases.bidForm.feeType,Fee type,Тип оплаты
+cases.bidForm.amount,Amount,Сумма
+cases.bidForm.rate,Hourly rate,Почасовая ставка
+cases.bidForm.amountError,"Enter an amount from $1 to $10,000,000",Укажите сумму от $1 до $10 000 000
+cases.bidForm.message,Message to the client,Сообщение клиенту
+cases.bidForm.messageHint,Your experience with such cases and how you'd approach this one,Ваш опыт в таких делах и как вы подойдёте к этому
+cases.bidForm.messageError,At least {min} characters,Не меньше {min} символов
+cases.bidForm.start,When can you start,Когда сможете начать
+cases.bidForm.duration,"Estimated duration, days (optional)","Оценка срока, дней (необязательно)"
+cases.bidForm.durationHint,"For example, 30","Например, 30"
+cases.bidForm.durationError,From 1 to 3650 days,От 1 до 3650 дней
+cases.bidForm.submit,Send bid,Отправить бид
+cases.bidForm.sent,Bid sent,Бид отправлен
+cases.bids.title,Bids · {count},Биды · {count}
+cases.bids.sortNewest,Newest,Новые
+cases.bids.sortPrice,Lowest price,Дешевле
+cases.bids.sortRating,Top rated,Высший рейтинг
+cases.bids.emptyTitle,No bids yet,Пока нет бидов
+cases.bids.emptyMessage,Attorneys licensed in your state will see the case and send their offers.,Адвокаты с лицензией в вашем штате увидят кейс и пришлют предложения.
+cases.budget.clarifyLater,Clarify later,Уточню позже
+cases.budget.specify,Specify amount,Указать сумму
+cases.fee.fixed,Fixed fee,Фиксированная
+cases.fee.hourly,Hourly,Почасовая
+cases.fee.free,Free consultation,Бесплатная консультация
+cases.fee.freeShort,Free,Бесплатно
+cases.fee.perHour,{amount}/hr,{amount}/час
+cases.card.budget,Budget,Бюджет
+cases.card.new,NEW,NEW
+cases.card.bidsCount,Bids: {count},Бидов: {count}
+cases.card.newBids,+{count} new,+{count} новых
+cases.card.youBid,You placed a bid,Вы сделали бид
+cases.chat.open,Chat,Чат
+cases.chat.soon,Chats open in the Chats section.,Чаты откроются в разделе «Чаты».
+cases.chat.created,Conversation created. You'll find it in Chats.,Беседа создана. Она появится в разделе «Чаты».
+cases.contacts.title,Client contacts,Контакты клиента
+cases.contacts.phone,Phone,Телефон
+cases.contacts.email,Email,Email
+cases.contacts.preferred,Preferred contact,Предпочитаемый способ связи
+cases.contacts.note,When to reach,Когда удобно
+cases.contacts.call,Call,Позвонить
+cases.contacts.sms,SMS,SMS
+cases.contacts.mail,Email,Email
+cases.contacts.cantOpen,Couldn't open the app for this action,Не удалось открыть приложение для этого действия
+cases.contacts.locked,Renew your subscription to see the client's contacts. The chat stays available.,"Продлите подписку, чтобы увидеть контакты клиента. Чат остаётся доступен."
+cases.contacts.method.call,Call,Звонок
+cases.contacts.method.sms,SMS,SMS
+cases.contacts.method.email,Email,Email
+cases.contacts.method.in_app_chat,In-app chat,Чат в приложении
+cases.create.title,New case,Новый кейс
+cases.create.practice.title,What is your case about?,О чём ваш кейс?
+cases.create.practice.subtitle,Choose the area of law. Only attorneys who practice it will see the case.,Выберите область права. Кейс увидят только адвокаты этой практики.
+cases.create.practice.search,Search,Поиск
+cases.create.practice.searchHint,"For example, divorce or DUI","Например, развод или DUI"
+cases.create.practice.notSure,Not sure,Не знаю
+cases.create.practice.notSureHint,General practice attorneys will see it,Кейс увидят адвокаты общей практики
+cases.create.practice.noMatch,Nothing found. Try another word or choose “Not sure”.,Ничего не нашлось. Попробуйте другое слово или выберите «Не знаю».
+cases.create.essence.title,Describe the situation,Опишите ситуацию
+cases.create.essence.subtitle,A clear title and the key facts help attorneys give an accurate offer.,Понятный заголовок и главные факты помогут адвокатам дать точное предложение.
+cases.create.place.title,Where is the case?,Где ведётся дело?
+cases.create.place.subtitle,Attorneys see cases in the states where they are licensed.,"Адвокаты видят кейсы в штатах, где у них есть лицензия."
+cases.create.budget.title,Budget,Бюджет
+cases.create.budget.subtitle,Specify an amount or leave it for the offers.,Укажите сумму или оставьте это на предложения адвокатов.
+cases.create.budget.laterHint,Attorneys will propose their fee; you can negotiate each bid.,"Адвокаты предложат свою цену, по каждому биду можно торговаться."
+cases.create.review.title,Check and publish,Проверьте и опубликуйте
+cases.create.review.subtitle,Tap any line to change it.,"Нажмите на строку, чтобы изменить её."
+cases.create.disclaimer,LawBid is not a law firm and does not provide legal services.,LawBid не является юридической фирмой и не оказывает юридических услуг.
+cases.create.consent,I agree that my contacts will be shared with the attorney whose bid I accept.,"Я согласен, что мои контакты будут переданы адвокату, чей бид я приму."
+cases.create.publish,Publish,Опубликовать
+cases.create.published,Case published,Кейс опубликован
+cases.create.draftRestored,We restored your draft.,Мы восстановили ваш черновик.
+cases.create.startOver,Start over,Начать заново
+cases.create.saveDraftTitle,Save the draft?,Сохранить черновик?
+cases.create.saveDraftMessage,It stays on this device until you publish.,Он останется на этом устройстве до публикации.
+cases.create.saveDraft,Save draft,Сохранить черновик
+cases.create.discardDraft,Discard,Не сохранять
+cases.create.keepEditing,Keep editing,Продолжить
+cases.detail.title,Case,Кейс
+cases.detail.description,Description,Описание
+cases.detail.details,Details,Подробности
+cases.detail.published,Published {date},Опубликован {date}
+cases.detail.views,Views,Просмотры
+cases.detail.activity,Activity,Активность
+cases.detail.activityValue,{views} views · {bids} bids,{views} просмотров · {bids} бидов
+cases.detail.messageClient,Message the client,Написать клиенту
+cases.detail.yourBid,Your bid,Ваш бид
+cases.detail.openBid,Open the bid,Открыть бид
+cases.detail.privacyNote,The client's name and contacts are shown only after your bid is accepted.,Имя и контакты клиента видны только после принятия вашего бида.
+cases.edit.title,Edit case,Редактировать кейс
+cases.edit.saved,Changes saved,Изменения сохранены
+cases.edit.statesLocked,States can't be changed once the case has bids.,"Штаты нельзя изменить, когда у кейса есть биды."
+cases.feed.all,All,Все
+cases.feed.allPractices,All practices,Все практики
+cases.feed.allStates,All states,Все штаты
+cases.feed.practiceFilter,Practice,Практика
+cases.feed.stateFilter,State,Штат
+cases.feed.emptyTitle,No matching cases yet,Пока нет подходящих кейсов
+cases.feed.emptyMessage,New cases in your states and practices appear here.,Здесь появятся новые кейсы в ваших штатах и практиках.
+cases.feed.noPracticesTitle,Choose your practices,Выберите практики
+cases.feed.noPracticesMessage,Cases are matched to the practices you choose.,Кейсы подбираются по выбранным вами практикам.
+cases.feed.choosePractices,Choose practices,Выбрать практики
+cases.feed.noLicenseTitle,No verified license,Нет подтверждённой лицензии
+cases.feed.noLicenseMessage,Complete verification of a state license to see cases in that state.,"Пройдите верификацию лицензии, чтобы видеть кейсы этого штата."
+cases.feed.openVerification,Go to verification,Перейти к верификации
+cases.field.practice,Practice area,Практика
+cases.field.title,Title,Заголовок
+cases.field.titleHint,"For example, speeding ticket on the turnpike","Например, штраф за превышение скорости"
+cases.field.titleError,From {min} to {max} characters,От {min} до {max} символов
+cases.field.description,Description,Описание
+cases.field.descriptionHint,"What happened, when, and what you'd like to achieve","Что произошло, когда и чего вы хотите добиться"
+cases.field.descriptionError,At least {min} characters,Не меньше {min} символов
+cases.field.noContacts,Don't add contacts: they're shared automatically with the attorney you choose.,Не указывайте контакты: они автоматически передаются выбранному адвокату.
+cases.field.place,Location,Место
+cases.field.primaryState,Main state,Основной штат
+cases.field.state,State,Штат
+cases.field.states,States,Штаты
+cases.field.stateSearch,Search by name or code,Поиск по названию или коду
+cases.field.city,City (optional),Город (необязательно)
+cases.field.cityHint,"For example, Trenton","Например, Trenton"
+cases.field.addState,Add another state,Добавить ещё штат
+cases.field.budgetAmount,"Amount, USD","Сумма, USD"
+cases.field.budgetError,From $1 to {max},От $1 до {max}
+cases.issue.button,Can't reach the client,Не могу связаться
+cases.issue.title,What went wrong?,Что не так?
+cases.issue.comment,Comment,Комментарий
+cases.issue.send,Send to support,Отправить в поддержку
+cases.issue.sent,Report sent. Support will review it.,Обращение отправлено. Поддержка его рассмотрит.
+cases.issue.type.phone_invalid,Phone doesn't work,Телефон не работает
+cases.issue.type.no_answer,No answer,Не отвечает
+cases.issue.type.email_bounce,Email bounces,Письма не доходят
+cases.issue.type.wrong_person,Wrong person,Не тот человек
+cases.issue.type.other,Other,Другое
+cases.myBids.re,Re: {title},Re: {title}
+cases.owner.title,My case,Мой кейс
+cases.owner.actions,Case actions,Действия с кейсом
+cases.owner.edit,Edit,Редактировать
+cases.owner.close,Close case,Закрыть кейс
+cases.owner.closeTitle,Close the case?,Закрыть кейс?
+cases.owner.closeMessage,All active bids will be declined. A closed case can't be reopened.,Все активные биды будут отклонены. Закрытый кейс нельзя открыть заново.
+cases.owner.closed,Case closed,Кейс закрыт
+cases.owner.delete,Delete,Удалить
+cases.owner.deleteTitle,Delete the case?,Удалить кейс?
+cases.owner.deleteMessage,It disappears from the feed; its history is kept.,"Кейс исчезнет из ленты, его история сохранится."
+cases.owner.deleted,Case deleted,Кейс удалён
+cases.owner.complete,Done,Выполнено
+cases.owner.completeTitle,Mark the case as done?,Отметить кейс выполненным?
+cases.owner.completeMessage,"The attorney confirms within 7 days, otherwise the case closes automatically.","Адвокат подтвердит в течение 7 дней, иначе кейс закроется автоматически."
+cases.owner.completed,Sent to the attorney for confirmation,Отправлено адвокату на подтверждение
+cases.owner.restore,Restore from archive,Вернуть из архива
+cases.owner.restored,Case restored,Кейс возвращён
+cases.owner.review,Leave a review,Оставить отзыв
+cases.owner.viewBid,Terms,Условия
+cases.owner.attorneyAtWork,Attorney at work,Адвокат в работе
+cases.owner.pendingNotice,Waiting for the attorney to confirm. The case closes automatically on {date}.,Ждём подтверждения адвоката. Кейс закроется автоматически {date}.
+cases.owner.disputedNotice,The attorney disputed completion. Support will review it.,Адвокат оспорил выполнение. Поддержка рассмотрит спор.
+cases.owner.archivedNotice,The case is in the archive. Restore it to receive bids again.,"Кейс в архиве. Верните его, чтобы снова получать биды."
+cases.saved.add,Save,Сохранить
+cases.saved.remove,Remove from saved,Убрать из сохранённого
+cases.saved.added,Saved,Сохранено
+cases.saved.removed,Removed from saved,Убрано из сохранённого
+cases.saved.unavailable,Case unavailable,Кейс недоступен
+cases.start.immediately,Can start now,Могу начать сразу
+cases.start.withinWeek,Within a week,В течение недели
+cases.start.pickDate,Pick a date,Выбрать дату
+cases.start.onDate,From {date},С {date}
+cases.status.open,Open,Открыт
+cases.status.inProgress,In progress,В работе
+cases.status.pendingCompletion,Awaiting confirmation,Ждёт подтверждения
+cases.status.disputed,Disputed,Спор
+cases.status.closed,Closed,Закрыт
+cases.status.archived,Archived,В архиве
+cases.subscription.title,Subscription required,Нужна подписка
+cases.subscription.message,"Bids, messages to clients and client contacts are available with an active subscription or trial.","Биды, сообщения клиентам и их контакты доступны при активной подписке или триале."
+cases.subscription.cta,Renew subscription,Продлить подписку
+cases.timeline.client,Client,Клиент
+cases.timeline.attorney,Attorney,Адвокат
+cases.timeline.initial,Initial offer,Исходное предложение
+cases.timeline.round,Round {n},Раунд {n}
+cases.timeline.pending,Awaiting reply,Ожидает ответа
+cases.timeline.offerAccepted,Accepted,Принято
+cases.timeline.countered,Countered,Встречное
+cases.timeline.declined,Declined,Отклонено
+cases.timeline.superseded,Closed,Закрыто
+cases.timeline.accepted,"Offer accepted, the case is in progress","Предложение принято, кейс в работе"
+cases.timeline.failed,The parties did not agree,Стороны не договорились
+cases.timeline.rejectedByClient,The client declined the offer,Клиент отклонил предложение
+cases.timeline.rejectedAuto,Declined: another bid was accepted or the case closed,Отклонено: принят другой бид или кейс закрыт
+cases.timeline.withdrawn,The attorney withdrew the offer,Адвокат отозвал предложение
+cases.work.title,In progress,В работе
+cases.work.clientLocked,Contacts locked,Контакты скрыты
+cases.work.terms,Agreed terms,Условия
+cases.work.confirm,Confirm completion,Подтвердить выполнение
+cases.work.confirmTitle,Confirm completion?,Подтвердить выполнение?
+cases.work.confirmMessage,The case will close and the client will be asked for a review.,"Кейс закроется, клиенту предложат оставить отзыв."
+cases.work.confirmed,Case closed,Кейс закрыт
+cases.work.dispute,Dispute,Оспорить
+cases.work.disputeTitle,Dispute completion,Оспорить выполнение
+cases.work.disputeReason,Reason,Причина
+cases.work.disputed,Dispute sent to support,Спор отправлен в поддержку
+cases.work.pendingNotice,The client marked the case as done. Confirm or dispute it; otherwise it closes automatically in 7 days.,"Клиент отметил кейс выполненным. Подтвердите или оспорьте, иначе кейс закроется автоматически через 7 дней."
+cases.work.disputedNotice,The dispute is with support.,Спор рассматривает поддержка.
+common.edit,Edit,Изменить
+common.next,Next,Далее
+common.save,Save,Сохранить
+feed.tab.posts,Posts,Посты
+feed.tab.cases,Cases,Кейсы
+history.title,Case history,История кейсов
+history.detailTitle,Case timeline,Хронология кейса
+history.empty,No cases yet,Пока нет кейсов
+history.client,Client,Клиент
+history.clientHidden,Client,Клиент
+history.deleted,Deleted from feed,Удалён из ленты
+history.timeline,Events,События
+history.readonlyNote,Records can't be changed or deleted and are kept for 5 years.,"Записи нельзя изменить или удалить, они хранятся 5 лет."
+history.reauth.title,Confirm it's you,"Подтвердите, что это вы"
+history.reauth.message,We'll send a code to {phone}.,Мы отправим код на {phone}.
+history.reauth.noPhone,Add a verified phone in settings to open the history.,"Добавьте подтверждённый телефон в настройках, чтобы открыть историю."
+history.reauth.send,Get code,Получить код
+history.reauth.resend,Send the code again,Отправить код ещё раз
+history.reauth.code,Confirmation code,Код подтверждения
+history.reauth.invalid,Wrong or expired code,Неверный или просроченный код
+history.reauth.rateLimited,Too many attempts. Try again later.,Слишком много попыток. Попробуйте позже.
+history.pdf.download,Download PDF,Скачать PDF
+history.pdf.title,Download the history as PDF?,Скачать историю в PDF?
+history.pdf.message,We'll prepare the file. The link works for 10 minutes; a new download needs a new confirmation.,"Мы подготовим файл. Ссылка действует 10 минут, повторное скачивание потребует нового подтверждения."
+history.pdf.confirm,Prepare PDF,Подготовить PDF
+history.pdf.preparing,Preparing the PDF…,Готовим PDF…
+history.pdf.ready,The PDF is open. Confirm again to view the history.,"PDF открыт. Чтобы снова посмотреть историю, подтвердите вход."
+history.pdf.failed,Couldn't prepare the PDF. Try again later.,Не удалось подготовить PDF. Попробуйте позже.
+history.actor.client,Client,Клиент
+history.actor.attorney,Attorney,Адвокат
+history.actor.admin,Support,Поддержка
+history.actor.system,LawBid,LawBid
+history.event.created,Case created,Кейс создан
+history.event.updated,Case updated,Кейс изменён
+history.event.bid_placed,Bid placed,Бид отправлен
+history.event.offer_made,Counter-offer,Встречное предложение
+history.event.bid_accepted,Bid accepted,Бид принят
+history.event.bid_rejected,Bid declined,Бид отклонён
+history.event.bid_withdrawn,Bid withdrawn,Бид отозван
+history.event.negotiation_failed,The parties did not agree,Стороны не договорились
+history.event.contacts_disclosed,Contacts shared,Контакты переданы
+history.event.completion_requested,Marked as done,Отмечено «Выполнено»
+history.event.completion_confirmed,Completion confirmed,Выполнение подтверждено
+history.event.auto_closed,Closed automatically,Закрыт автоматически
+history.event.disputed,Completion disputed,Выполнение оспорено
+history.event.dispute_resolved,Dispute resolved,Спор решён
+history.event.archived,Archived,Перемещён в архив
+history.event.restored,Restored from archive,Возвращён из архива
+history.event.deleted,Deleted from feed,Удалён из ленты
+history.event.closed,Closed,Закрыт
+mine.title,Mine,Моё
+mine.tab.myCases,My cases,Мои кейсы
+mine.tab.saved,Saved,Сохранённое
+mine.tab.myBids,My bids,Мои биды
+mine.tab.inWork,In progress,В работе
+mine.filter.active,Active,Активные
+mine.filter.archived,Archive,Архив
+mine.filter.closed,Closed,Закрытые
+mine.filter.finished,Finished,Завершённые
+mine.cases.emptyTitle,You have no cases yet,У вас пока нет кейсов
+mine.cases.emptyMessage,Describe your situation and get offers from verified attorneys.,Опишите ситуацию и получите предложения от проверенных адвокатов.
+mine.cases.emptyFiltered,Nothing here yet,Здесь пока пусто
+mine.cases.create,Create a case,Создать кейс
+mine.savedPosts.empty,Saved posts will appear here.,Здесь появятся сохранённые посты.
+mine.saved.empty,Save cases to come back to them later.,"Сохраняйте кейсы, чтобы вернуться к ним позже."
+mine.bids.emptyActive,No active bids,Нет активных бидов
+mine.bids.emptyFinished,No finished bids yet,Пока нет завершённых бидов
+mine.bids.findCases,Find cases,Найти кейсы
+mine.work.empty,No cases in progress yet,Пока нет кейсов в работе
+mine.work.showCompleted,Show completed,Показать завершённые
+mine.work.completedTitle,Completed,Завершённые
+mine.work.completedEmpty,No completed cases yet,Пока нет завершённых кейсов
+profile.client.allCases,All my cases,Все мои кейсы

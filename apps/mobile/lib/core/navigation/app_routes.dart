@@ -63,7 +63,9 @@ abstract final class AppRoutes {
 
   /// Public attorney profile — same path as the `lawbid.app/lawyer/:username`
   /// deep link (docs/01 §12, DeepLinkRoutes.lawyerPath).
-  static String lawyer(String username) => '/lawyer/${Uri.encodeComponent(username)}';
+  static String lawyer(String username) =>
+      '/lawyer/${Uri.encodeComponent(username)}';
+
   /// The verification wizard (docs/03 §8 steps 1–5), pushed from
   /// [verification].
   static const verificationWizard = '/verification/wizard';
@@ -73,4 +75,44 @@ abstract final class AppRoutes {
   static const legalPrefix = '/legal/';
   static const legal = '/legal/:docType';
   static String legalDoc(String docType) => '$legalPrefix$docType';
+
+  // --- docs/04 cases & bids (stages 4.9/4.10) — ROOT navigator.
+
+  /// The client's own case (docs/04 §11.1).
+  static const myCasePattern = '/mine/case/:id';
+  static String myCase(String id) => '/mine/case/${Uri.encodeComponent(id)}';
+
+  /// Edit the client's case (docs/04 §3.5).
+  static const myCaseEditPattern = '/mine/case/:id/edit';
+  static String myCaseEdit(String id) =>
+      '/mine/case/${Uri.encodeComponent(id)}/edit';
+
+  /// Bid detail with the negotiation history (docs/04 §5.2, §6).
+  static const bidPattern = '/bid/:id';
+  static String bid(String id) => '/bid/${Uri.encodeComponent(id)}';
+
+  /// Attorney case detail — the `lawbid.app/case/:id` deep-link path
+  /// (DeepLinkRoutes.casePath); the owner is redirected to [myCase].
+  static String caseDetail(String id) => '/case/${Uri.encodeComponent(id)}';
+
+  /// Bid form (docs/04 §5.1).
+  static const placeBidPattern = '/case/:id/bid';
+  static String placeBid(String id) => '/case/${Uri.encodeComponent(id)}/bid';
+
+  /// "В работе" case: contacts, completion (docs/04 §8, §11.2).
+  static const workCasePattern = '/mine/work/:id';
+  static String workCase(String id) => '/mine/work/${Uri.encodeComponent(id)}';
+
+  /// "Завершённые" (docs/04 §11.2).
+  static const completedWork = '/mine/completed';
+
+  /// Settings → "История кейсов" (docs/04 §12).
+  static const caseHistory = '/profile/settings/case-history';
+  static const caseHistoryItemPattern = '/profile/settings/case-history/:id';
+  static String caseHistoryItem(String id) =>
+      '/profile/settings/case-history/${Uri.encodeComponent(id)}';
+
+  /// Subscription call-to-action (docs/04 §2; the paywall itself is
+  /// docs/06).
+  static const subscriptionRequired = '/subscription-required';
 }

@@ -123,7 +123,9 @@ class PagedListBody<T> extends ConsumerWidget {
                   ),
                   sliver: SliverToBoxAdapter(child: header),
                 ),
-              SliverFillRemaining(hasScrollBody: false, child: empty),
+              // hasScrollBody: true — the empty state uses LayoutBuilder,
+              // which cannot report intrinsic sizes.
+              SliverFillRemaining(child: empty),
             ],
           ),
         ),

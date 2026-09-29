@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/features/cases/presentation/screens/create_case_screen.dart';
+import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
+import 'package:lawbid/shared/domain/user_role.dart';
 
 /// Stage 1.5 stub for the "+" full-screen creation flow (file 07 §3.4:
 /// "Экран открывается как full-screen с крестиком"). Real content (Создать
@@ -13,6 +16,11 @@ class CreateScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // docs/04 §3.1: "+" opens the case wizard for clients; attorneys'
+    // "Пост в ленту" is docs/05.
+    if (ref.watch(currentUserRoleProvider) == UserRole.client) {
+      return const CreateCaseScreen();
+    }
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     return Scaffold(

@@ -78,7 +78,7 @@ class SettingsScreen extends ConsumerWidget {
           AppListRow(
             icon: Icons.history_rounded,
             label: t.t('settings.caseHistory'),
-            onTap: showNotBuiltYet,
+            onTap: () => context.push(AppRoutes.caseHistory),
           ),
         ],
       ),
@@ -123,7 +123,8 @@ class SettingsScreen extends ConsumerWidget {
           AppListRow(
             icon: Icons.download_rounded,
             label: t.t('settings.downloadData'),
-            onTap: () => showAppSnackBar(context, t.t('settings.downloadData.stub')),
+            onTap: () =>
+                showAppSnackBar(context, t.t('settings.downloadData.stub')),
           ),
         ],
       ),

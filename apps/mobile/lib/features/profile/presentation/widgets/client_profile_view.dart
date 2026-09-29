@@ -8,6 +8,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/features/cases/presentation/widgets/client_cases_grid.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
@@ -78,7 +79,8 @@ class _ClientBody extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    final avatarUrl = ref.watch(currentUserControllerProvider.select((s) => s.user?.avatarUrl));
+    final avatarUrl = ref
+        .watch(currentUserControllerProvider.select((s) => s.user?.avatarUrl));
     final showReviewEntry = !ref.watch(appEnvironmentProvider).isProd;
     final name = profile.fullName;
 
@@ -102,18 +104,21 @@ class _ClientBody extends ConsumerWidget {
                     header: true,
                     child: Text(
                       name.isEmpty ? t.t('profile.client.noName') : name,
-                      style: typography.titleWelcome.copyWith(color: colors.text),
+                      style:
+                          typography.titleWelcome.copyWith(color: colors.text),
                     ),
                   ),
                   const SizedBox(height: AppSpacing.xs),
                   Row(
                     children: [
-                      Icon(Icons.location_on_outlined, size: AppSpacing.lg, color: colors.goldStroke),
+                      Icon(Icons.location_on_outlined,
+                          size: AppSpacing.lg, color: colors.goldStroke),
                       const SizedBox(width: AppSpacing.xs),
                       Flexible(
                         child: Text(
                           profile.state.name,
-                          style: typography.bodySmall.copyWith(color: colors.textSecondary),
+                          style: typography.bodySmall
+                              .copyWith(color: colors.textSecondary),
                         ),
                       ),
                     ],
@@ -133,16 +138,19 @@ class _ClientBody extends ConsumerWidget {
       ),
       Row(
         children: [
-          Icon(Icons.folder_outlined, size: AppSizes.iconSm, color: colors.text),
+          Icon(Icons.folder_outlined,
+              size: AppSizes.iconSm, color: colors.text),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Semantics(
               header: true,
-              child: Text(t.t('profile.client.myCases'), style: typography.roleTitle.copyWith(color: colors.text)),
+              child: Text(t.t('profile.client.myCases'),
+                  style: typography.roleTitle.copyWith(color: colors.text)),
             ),
           ),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
+            padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
             decoration: BoxDecoration(
               color: colors.goldTint,
               borderRadius: BorderRadius.circular(AppRadii.pill),
@@ -150,33 +158,42 @@ class _ClientBody extends ConsumerWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.lock_outline_rounded, size: AppSpacing.md + 2, color: colors.text),
+                Icon(Icons.lock_outline_rounded,
+                    size: AppSpacing.md + 2, color: colors.text),
                 const SizedBox(width: AppSpacing.xs),
-                Text(t.t('profile.client.onlyYou'), style: typography.badge.copyWith(color: colors.text)),
+                Text(t.t('profile.client.onlyYou'),
+                    style: typography.badge.copyWith(color: colors.text)),
               ],
             ),
           ),
         ],
       ),
-      AppCard(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
-          child: Column(
-            children: [
-              const AppIconMedallion(icon: Icons.lock_outline_rounded, size: AppSizes.stateMedallion - AppSpacing.xl, iconSize: AppSizes.iconLg),
-              const SizedBox(height: AppSpacing.md),
-              Text(
-                t.t('profile.client.noCases'),
-                textAlign: TextAlign.center,
-                style: typography.roleTitle.copyWith(color: colors.text),
-              ),
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                t.t('profile.client.noCases.body'),
-                textAlign: TextAlign.center,
-                style: typography.body.copyWith(color: colors.textSecondary),
-              ),
-            ],
+      // docs/04 §11.3: the client's cases as a locked grid; the card
+      // below stays as the empty state.
+      ClientCasesGrid(
+        empty: AppCard(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
+            child: Column(
+              children: [
+                const AppIconMedallion(
+                    icon: Icons.lock_outline_rounded,
+                    size: AppSizes.stateMedallion - AppSpacing.xl,
+                    iconSize: AppSizes.iconLg),
+                const SizedBox(height: AppSpacing.md),
+                Text(
+                  t.t('profile.client.noCases'),
+                  textAlign: TextAlign.center,
+                  style: typography.roleTitle.copyWith(color: colors.text),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  t.t('profile.client.noCases.body'),
+                  textAlign: TextAlign.center,
+                  style: typography.body.copyWith(color: colors.textSecondary),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -194,7 +211,8 @@ class _ClientBody extends ConsumerWidget {
 
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide, AppSpacing.sm, AppSpacing.screenSide, AppSpacing.xxl),
+      padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide, AppSpacing.sm,
+          AppSpacing.screenSide, AppSpacing.xxl),
       children: [
         for (var i = 0; i < children.length; i++) ...[
           if (i > 0) const SizedBox(height: AppSpacing.lg),
@@ -204,13 +222,15 @@ class _ClientBody extends ConsumerWidget {
     );
   }
 
-  Future<void> _openReviewPlaceholder(BuildContext context, Translator t) async {
+  Future<void> _openReviewPlaceholder(
+      BuildContext context, Translator t) async {
     final controller = TextEditingController();
     final caseId = await showAppBottomSheet<String>(
       context: context,
       builder: (sheetContext) {
         final colors = Theme.of(sheetContext).extension<AppColorTokens>()!;
-        final typography = Theme.of(sheetContext).extension<AppTypographyTokens>()!;
+        final typography =
+            Theme.of(sheetContext).extension<AppTypographyTokens>()!;
         return Padding(
           padding: EdgeInsets.fromLTRB(
             AppSpacing.screenSide,
@@ -223,16 +243,22 @@ class _ClientBody extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const AppSheetHandle(),
-              Text(t.t('reviews.placeholder.entry'), style: typography.titleMedium.copyWith(color: colors.text)),
+              Text(t.t('reviews.placeholder.entry'),
+                  style: typography.titleMedium.copyWith(color: colors.text)),
               const SizedBox(height: AppSpacing.sm),
-              Text(t.t('reviews.placeholder.body'), style: typography.body.copyWith(color: colors.textSecondary)),
+              Text(t.t('reviews.placeholder.body'),
+                  style: typography.body.copyWith(color: colors.textSecondary)),
               const SizedBox(height: AppSpacing.lg),
-              AppTextField(controller: controller, label: t.t('reviews.placeholder.caseId'), autofocus: true),
+              AppTextField(
+                  controller: controller,
+                  label: t.t('reviews.placeholder.caseId'),
+                  autofocus: true),
               const SizedBox(height: AppSpacing.lg),
               AppButton(
                 label: t.t('common.confirm'),
                 height: AppSizes.touchTarget,
-                onPressed: () => Navigator.of(sheetContext).pop(controller.text.trim()),
+                onPressed: () =>
+                    Navigator.of(sheetContext).pop(controller.text.trim()),
               ),
             ],
           ),
@@ -252,11 +278,13 @@ class _ClientSkeleton extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ListView(
         physics: const NeverScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide, AppSpacing.sm, AppSpacing.screenSide, AppSpacing.xxl),
+        padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide, AppSpacing.sm,
+            AppSpacing.screenSide, AppSpacing.xxl),
         children: const [
           AppSkeletonCard(),
           SizedBox(height: AppSpacing.lg),
-          AppSkeleton(height: AppSizes.touchTarget, borderRadius: AppRadii.button),
+          AppSkeleton(
+              height: AppSizes.touchTarget, borderRadius: AppRadii.button),
           SizedBox(height: AppSpacing.lg),
           AppSkeleton(height: 160, borderRadius: AppRadii.card),
         ],

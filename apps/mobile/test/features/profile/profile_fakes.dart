@@ -13,6 +13,7 @@ import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 
 import '../../helpers/onboarding_harness.dart';
+import '../cases/cases_fakes.dart';
 
 /// Fixed "now" for window rules (review edit, username cooldown).
 final kNow = DateTime.utc(2026, 9, 20, 12);
@@ -361,6 +362,7 @@ List<Override> profileOverrides({
       clientProfileRepositoryProvider.overrideWithValue(clients ?? FakeClientRepo()),
       if (avatars != null) avatarUploadRepositoryProvider.overrideWithValue(avatars),
       clockProvider.overrideWithValue(() => kNow),
+      ...casesOverrides(),
     ];
 
 /// [onboardingWrapper] with the profile fakes.

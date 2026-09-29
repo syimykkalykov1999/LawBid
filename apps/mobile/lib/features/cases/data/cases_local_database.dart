@@ -6,6 +6,7 @@ part 'cases_local_database.g.dart';
 /// docs/04 §3.1: "Черновик хранится только локально (drift) до
 /// публикации". One row per account ([ownerId]) so a shared device never
 /// shows one user's draft to another.
+@DataClassName('CaseDraftRow')
 class CaseDrafts extends Table {
   TextColumn get ownerId => text()();
   TextColumn get json => text()();
@@ -18,6 +19,7 @@ class CaseDrafts extends Table {
 /// Bids the client has already seen on their case (docs/04 §11.1 card:
 /// "число непросмотренных новых"). Local only: `bids_count` counts every
 /// submitted bid, so unseen = bidsCount - seen rows for the case.
+@DataClassName('SeenBidRow')
 class SeenBids extends Table {
   TextColumn get caseId => text()();
   TextColumn get bidId => text()();
