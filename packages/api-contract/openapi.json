@@ -6678,423 +6678,6 @@
         ]
       }
     },
-    "/users/me/case-history": {
-      "get": {
-        "operationId": "listCaseHistory",
-        "parameters": [
-          {
-            "name": "cursor",
-            "required": false,
-            "in": "query",
-            "description": "meta.nextCursor of the previous page.",
-            "schema": {
-              "maxLength": 200,
-              "type": "string"
-            }
-          },
-          {
-            "name": "limit",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "minimum": 1,
-              "maximum": 50,
-              "default": 20,
-              "type": "number"
-            }
-          },
-          {
-            "name": "X-Reauth-Token",
-            "in": "header",
-            "description": "reauthToken from POST /auth/reauth (5 minutes).",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success envelope (docs/01 §7).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CaseHistoryItemListEnvelope"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request: VALIDATION_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized: REAUTH_INVALID",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden: REAUTH_REQUIRED, FORBIDDEN",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "426": {
-            "description": "Upgrade required: APP_UPDATE_REQUIRED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests: RATE_LIMITED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal error: INTERNAL_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Case history list (docs/04 §12)",
-        "tags": [
-          "case-history"
-        ]
-      }
-    },
-    "/users/me/case-history/export": {
-      "post": {
-        "operationId": "exportCaseHistory",
-        "parameters": [
-          {
-            "name": "X-Reauth-Token",
-            "in": "header",
-            "description": "reauthToken from POST /auth/reauth (5 minutes).",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success envelope (docs/01 §7).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CaseHistoryExportEnvelope"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized: REAUTH_INVALID",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden: REAUTH_REQUIRED, FORBIDDEN",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "426": {
-            "description": "Upgrade required: APP_UPDATE_REQUIRED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests: RATE_LIMITED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal error: INTERNAL_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Queue the case history PDF (docs/04 §12)",
-        "tags": [
-          "case-history"
-        ]
-      }
-    },
-    "/users/me/case-history/export/{exportId}": {
-      "get": {
-        "operationId": "getCaseHistoryExport",
-        "parameters": [
-          {
-            "name": "exportId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
-          },
-          {
-            "name": "X-Reauth-Token",
-            "in": "header",
-            "description": "reauthToken from POST /auth/reauth (5 minutes).",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success envelope (docs/01 §7).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CaseHistoryExportEnvelope"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized: REAUTH_INVALID",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden: REAUTH_REQUIRED, FORBIDDEN",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found: NOT_FOUND",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "426": {
-            "description": "Upgrade required: APP_UPDATE_REQUIRED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests: RATE_LIMITED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal error: INTERNAL_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Export status; when ready, a 10-minute signed PDF link (consumes the reauth token)",
-        "tags": [
-          "case-history"
-        ]
-      }
-    },
-    "/users/me/case-history/{caseId}": {
-      "get": {
-        "operationId": "getCaseHistory",
-        "parameters": [
-          {
-            "name": "caseId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
-          },
-          {
-            "name": "X-Reauth-Token",
-            "in": "header",
-            "description": "reauthToken from POST /auth/reauth (5 minutes).",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success envelope (docs/01 §7).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CaseHistoryDetailEnvelope"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized: REAUTH_INVALID",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden: REAUTH_REQUIRED, FORBIDDEN",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found: CASE_NOT_FOUND",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "426": {
-            "description": "Upgrade required: APP_UPDATE_REQUIRED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests: RATE_LIMITED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal error: INTERNAL_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Case timeline from case_journal (docs/04 §12)",
-        "tags": [
-          "case-history"
-        ]
-      }
-    },
     "/posts": {
       "post": {
         "operationId": "createPost",
@@ -7626,6 +7209,659 @@
         ]
       }
     },
+    "/posts/{id}/like": {
+      "post": {
+        "operationId": "likePost",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: POST_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Like a post (idempotent, docs/05 §4)",
+        "tags": [
+          "posts"
+        ]
+      },
+      "delete": {
+        "operationId": "unlikePost",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Remove a like (idempotent, docs/05 §4)",
+        "tags": [
+          "posts"
+        ]
+      }
+    },
+    "/saved-items/posts": {
+      "get": {
+        "operationId": "listSavedPosts",
+        "parameters": [
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "meta.nextCursor of the previous page.",
+            "schema": {
+              "maxLength": 300,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedPostItemListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Saved posts (docs/05 §4, \"Моё → Сохранённое\")",
+        "tags": [
+          "posts"
+        ]
+      }
+    },
+    "/users/me/case-history": {
+      "get": {
+        "operationId": "listCaseHistory",
+        "parameters": [
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "meta.nextCursor of the previous page.",
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "X-Reauth-Token",
+            "in": "header",
+            "description": "reauthToken from POST /auth/reauth (5 minutes).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseHistoryItemListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: REAUTH_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: REAUTH_REQUIRED, FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Case history list (docs/04 §12)",
+        "tags": [
+          "case-history"
+        ]
+      }
+    },
+    "/users/me/case-history/export": {
+      "post": {
+        "operationId": "exportCaseHistory",
+        "parameters": [
+          {
+            "name": "X-Reauth-Token",
+            "in": "header",
+            "description": "reauthToken from POST /auth/reauth (5 minutes).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseHistoryExportEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: REAUTH_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: REAUTH_REQUIRED, FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Queue the case history PDF (docs/04 §12)",
+        "tags": [
+          "case-history"
+        ]
+      }
+    },
+    "/users/me/case-history/export/{exportId}": {
+      "get": {
+        "operationId": "getCaseHistoryExport",
+        "parameters": [
+          {
+            "name": "exportId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Reauth-Token",
+            "in": "header",
+            "description": "reauthToken from POST /auth/reauth (5 minutes).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseHistoryExportEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: REAUTH_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: REAUTH_REQUIRED, FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Export status; when ready, a 10-minute signed PDF link (consumes the reauth token)",
+        "tags": [
+          "case-history"
+        ]
+      }
+    },
+    "/users/me/case-history/{caseId}": {
+      "get": {
+        "operationId": "getCaseHistory",
+        "parameters": [
+          {
+            "name": "caseId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Reauth-Token",
+            "in": "header",
+            "description": "reauthToken from POST /auth/reauth (5 minutes).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseHistoryDetailEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: REAUTH_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: REAUTH_REQUIRED, FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CASE_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Case timeline from case_journal (docs/04 §12)",
+        "tags": [
+          "case-history"
+        ]
+      }
+    },
     "/feed": {
       "get": {
         "operationId": "getFeed",
@@ -7721,6 +7957,627 @@
         "summary": "Feed: followed + recommended posts (docs/05 §2.2)",
         "tags": [
           "feed"
+        ]
+      }
+    },
+    "/posts/{id}/comments": {
+      "get": {
+        "operationId": "listComments",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "meta.nextCursor of the previous page.",
+            "schema": {
+              "maxLength": 300,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommentListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: POST_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Top-level comments, newest first (docs/05 §5.3)",
+        "tags": [
+          "comments"
+        ]
+      },
+      "post": {
+        "operationId": "createComment",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCommentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommentEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: POST_NOT_FOUND, COMMENT_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Comment or reply (docs/05 §5.1)",
+        "tags": [
+          "comments"
+        ]
+      }
+    },
+    "/comments/{id}/replies": {
+      "get": {
+        "operationId": "listReplies",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "meta.nextCursor of the previous page.",
+            "schema": {
+              "maxLength": 300,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommentListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: COMMENT_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Replies of a comment (docs/05 §5.3)",
+        "tags": [
+          "comments"
+        ]
+      }
+    },
+    "/comments/{id}": {
+      "delete": {
+        "operationId": "deleteComment",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommentDeletedEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: COMMENT_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delete own comment or one under own post (docs/05 §5.1)",
+        "tags": [
+          "comments"
+        ]
+      }
+    },
+    "/comments/{id}/like": {
+      "post": {
+        "operationId": "likeComment",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: COMMENT_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Like a comment (idempotent)",
+        "tags": [
+          "comments"
+        ]
+      },
+      "delete": {
+        "operationId": "unlikeComment",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Remove a comment like (idempotent)",
+        "tags": [
+          "comments"
+        ]
+      }
+    },
+    "/reports": {
+      "post": {
+        "operationId": "createReport",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateReportDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Report a post, comment, message or user (docs/05 §12.1)",
+        "tags": [
+          "reports"
         ]
       }
     },
@@ -15526,6 +16383,302 @@
           "amountCents"
         ]
       },
+      "PostAuthorDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "username": {
+            "type": "string"
+          },
+          "firstName": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastName": {
+            "type": "string",
+            "nullable": true
+          },
+          "avatarUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "256 px avatar link."
+          },
+          "verifiedBadge": {
+            "type": "boolean",
+            "description": "Blue check (docs/03 §6.3)."
+          }
+        },
+        "required": [
+          "id",
+          "username",
+          "verifiedBadge"
+        ]
+      },
+      "PostMediaDto": {
+        "type": "object",
+        "properties": {
+          "fileId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "position": {
+            "type": "integer"
+          },
+          "width": {
+            "type": "integer",
+            "nullable": true
+          },
+          "height": {
+            "type": "integer",
+            "nullable": true
+          },
+          "url": {
+            "type": "string",
+            "description": "Full size (≤ 2048 px), signed link."
+          },
+          "previewUrl": {
+            "type": "string",
+            "description": "320 px preview."
+          },
+          "mediumUrl": {
+            "type": "string",
+            "description": "1080 px medium."
+          }
+        },
+        "required": [
+          "fileId",
+          "position",
+          "url",
+          "previewUrl",
+          "mediumUrl"
+        ]
+      },
+      "ContentStatus": {
+        "type": "string",
+        "enum": [
+          "published",
+          "hidden",
+          "removed"
+        ]
+      },
+      "PostDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "author": {
+            "$ref": "#/components/schemas/PostAuthorDto"
+          },
+          "body": {
+            "type": "string"
+          },
+          "media": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PostMediaDto"
+            }
+          },
+          "tags": {
+            "description": "Hashtags without #, lowercase.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ContentStatus"
+              }
+            ]
+          },
+          "likeCount": {
+            "type": "integer"
+          },
+          "commentCount": {
+            "type": "integer"
+          },
+          "saveCount": {
+            "type": "integer"
+          },
+          "likedByMe": {
+            "type": "boolean"
+          },
+          "savedByMe": {
+            "type": "boolean"
+          },
+          "isMine": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "editedAt": {
+            "type": "string",
+            "nullable": true,
+            "description": "\"Изменено\" (§3.3)."
+          }
+        },
+        "required": [
+          "id",
+          "author",
+          "body",
+          "media",
+          "tags",
+          "status",
+          "likeCount",
+          "commentCount",
+          "saveCount",
+          "likedByMe",
+          "savedByMe",
+          "isMine",
+          "createdAt"
+        ]
+      },
+      "CreatePostDto": {
+        "type": "object",
+        "properties": {
+          "body": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2200
+          },
+          "mediaFileIds": {
+            "uniqueItems": true,
+            "maxItems": 10,
+            "description": "Clean post_image file ids, in display order.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "required": [
+          "body"
+        ]
+      },
+      "PostEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PostDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "UpdatePostDto": {
+        "type": "object",
+        "properties": {
+          "body": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2200
+          }
+        },
+        "required": [
+          "body"
+        ]
+      },
+      "PostDeletedDto": {
+        "type": "object",
+        "properties": {
+          "deleted": {
+            "type": "boolean",
+            "default": true
+          }
+        },
+        "required": [
+          "deleted"
+        ]
+      },
+      "PostDeletedEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PostDeletedDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "PostListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PostDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "SavedPostItemDto": {
+        "type": "object",
+        "properties": {
+          "postId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "savedAt": {
+            "type": "string"
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "post": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PostDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "postId",
+          "savedAt",
+          "available"
+        ]
+      },
+      "SavedPostItemListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SavedPostItemDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
       "HistoryPracticeAreaDto": {
         "type": "object",
         "properties": {
@@ -15827,191 +16980,108 @@
           "data"
         ]
       },
-      "PostAuthorDto": {
+      "CommentAuthorDto": {
         "type": "object",
         "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "username": {
+          "kind": {
+            "enum": [
+              "attorney",
+              "client"
+            ],
             "type": "string"
           },
-          "firstName": {
+          "attorneyId": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "format": "uuid",
+            "description": "Attorneys only."
           },
-          "lastName": {
+          "username": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "description": "Attorneys only."
+          },
+          "displayName": {
+            "type": "string",
+            "description": "Attorney: full name; client: \"Anna K.\""
           },
           "avatarUrl": {
             "type": "string",
-            "nullable": true,
-            "description": "256 px avatar link."
+            "nullable": true
           },
           "verifiedBadge": {
-            "type": "boolean",
-            "description": "Blue check (docs/03 §6.3)."
+            "type": "boolean"
           }
         },
         "required": [
-          "id",
-          "username",
+          "kind",
+          "displayName",
           "verifiedBadge"
         ]
       },
-      "PostMediaDto": {
-        "type": "object",
-        "properties": {
-          "fileId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "position": {
-            "type": "integer"
-          },
-          "width": {
-            "type": "integer",
-            "nullable": true
-          },
-          "height": {
-            "type": "integer",
-            "nullable": true
-          },
-          "url": {
-            "type": "string",
-            "description": "Full size (≤ 2048 px), signed link."
-          },
-          "previewUrl": {
-            "type": "string",
-            "description": "320 px preview."
-          },
-          "mediumUrl": {
-            "type": "string",
-            "description": "1080 px medium."
-          }
-        },
-        "required": [
-          "fileId",
-          "position",
-          "url",
-          "previewUrl",
-          "mediumUrl"
-        ]
-      },
-      "ContentStatus": {
-        "type": "string",
-        "enum": [
-          "published",
-          "hidden",
-          "removed"
-        ]
-      },
-      "PostDto": {
+      "CommentDto": {
         "type": "object",
         "properties": {
           "id": {
             "type": "string",
             "format": "uuid"
           },
+          "postId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "parentCommentId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
           "author": {
-            "$ref": "#/components/schemas/PostAuthorDto"
+            "$ref": "#/components/schemas/CommentAuthorDto"
           },
           "body": {
             "type": "string"
           },
-          "media": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/PostMediaDto"
-            }
-          },
-          "tags": {
-            "description": "Hashtags without #, lowercase.",
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "status": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ContentStatus"
-              }
-            ]
-          },
           "likeCount": {
             "type": "integer"
           },
-          "commentCount": {
-            "type": "integer"
-          },
-          "saveCount": {
+          "replyCount": {
             "type": "integer"
           },
           "likedByMe": {
             "type": "boolean"
           },
-          "savedByMe": {
-            "type": "boolean"
+          "canDelete": {
+            "type": "boolean",
+            "description": "Own comment, or a comment under own post."
           },
           "isMine": {
             "type": "boolean"
           },
           "createdAt": {
             "type": "string"
-          },
-          "editedAt": {
-            "type": "string",
-            "nullable": true,
-            "description": "\"Изменено\" (§3.3)."
           }
         },
         "required": [
           "id",
+          "postId",
           "author",
           "body",
-          "media",
-          "tags",
-          "status",
           "likeCount",
-          "commentCount",
-          "saveCount",
+          "replyCount",
           "likedByMe",
-          "savedByMe",
+          "canDelete",
           "isMine",
           "createdAt"
         ]
       },
-      "CreatePostDto": {
-        "type": "object",
-        "properties": {
-          "body": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 2200
-          },
-          "mediaFileIds": {
-            "uniqueItems": true,
-            "maxItems": 10,
-            "description": "Clean post_image file ids, in display order.",
-            "type": "array",
-            "items": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        },
-        "required": [
-          "body"
-        ]
-      },
-      "PostEnvelope": {
+      "CommentListEnvelope": {
         "type": "object",
         "properties": {
           "data": {
-            "$ref": "#/components/schemas/PostDto"
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CommentDto"
+            }
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
@@ -16021,20 +17091,39 @@
           "data"
         ]
       },
-      "UpdatePostDto": {
+      "CreateCommentDto": {
         "type": "object",
         "properties": {
           "body": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 2200
+            "maxLength": 1000
+          },
+          "parentCommentId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Reply target; a reply to a reply attaches to its top-level parent."
           }
         },
         "required": [
           "body"
         ]
       },
-      "PostDeletedDto": {
+      "CommentEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CommentDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "CommentDeletedDto": {
         "type": "object",
         "properties": {
           "deleted": {
@@ -16046,11 +17135,11 @@
           "deleted"
         ]
       },
-      "PostDeletedEnvelope": {
+      "CommentDeletedEnvelope": {
         "type": "object",
         "properties": {
           "data": {
-            "$ref": "#/components/schemas/PostDeletedDto"
+            "$ref": "#/components/schemas/CommentDeletedDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
@@ -16060,21 +17149,56 @@
           "data"
         ]
       },
-      "PostListEnvelope": {
+      "ReportTargetType": {
+        "type": "string",
+        "enum": [
+          "post",
+          "comment",
+          "message",
+          "user"
+        ]
+      },
+      "ReportReason": {
+        "type": "string",
+        "enum": [
+          "spam",
+          "abuse",
+          "misinformation",
+          "impersonation",
+          "inappropriate",
+          "other"
+        ]
+      },
+      "CreateReportDto": {
         "type": "object",
         "properties": {
-          "data": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/PostDto"
-            }
+          "targetType": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReportTargetType"
+              }
+            ]
           },
-          "meta": {
-            "$ref": "#/components/schemas/ResponseMetaDto"
+          "targetId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReportReason"
+              }
+            ]
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 1000
           }
         },
         "required": [
-          "data"
+          "targetType",
+          "targetId",
+          "reason"
         ]
       },
       "VerificationRequestStatus": {
@@ -18320,17 +19444,6 @@
         },
         "required": [
           "data"
-        ]
-      },
-      "ReportReason": {
-        "type": "string",
-        "enum": [
-          "spam",
-          "abuse",
-          "misinformation",
-          "impersonation",
-          "inappropriate",
-          "other"
         ]
       },
       "ReportStatus": {

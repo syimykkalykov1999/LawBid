@@ -9,6 +9,7 @@ import '../models/create_post_dto.dart';
 import '../models/post_deleted_envelope.dart';
 import '../models/post_envelope.dart';
 import '../models/post_list_envelope.dart';
+import '../models/saved_post_item_list_envelope.dart';
 import '../models/update_post_dto.dart';
 
 part 'posts_client.g.dart';
@@ -53,6 +54,29 @@ abstract class PostsClient {
   Future<PostListEnvelope> listAttorneyPosts({
     @Path('id') required String id,
     @Query('limit') num? limit = 20,
+    @Query('cursor') String? cursor,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Like a post (idempotent, docs/05 §4)
+  @POST('/posts/{id}/like')
+  Future<void> likePost({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Remove a like (idempotent, docs/05 §4)
+  @DELETE('/posts/{id}/like')
+  Future<void> unlikePost({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Saved posts (docs/05 §4, "Моё → Сохранённое").
+  ///
+  /// [cursor] - meta.nextCursor of the previous page.
+  @GET('/saved-items/posts')
+  Future<SavedPostItemListEnvelope> listSavedPosts({
     @Query('cursor') String? cursor,
     @Extras() Map<String, dynamic>? extras,
   });

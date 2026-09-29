@@ -43,7 +43,10 @@ describe('Stage 4.3 — attorney case feed, detail, views, save (e2e)', () => {
     redis,
     logger as never,
   );
-  const feed = new CasesFeedService(prisma, access, viewTracking);
+  const feed = new CasesFeedService(prisma, access, viewTracking, {
+    save: jest.fn(),
+    unsave: jest.fn(),
+  } as never);
 
   const leaf: Record<string, string> = {};
   let clientId: string;

@@ -189,3 +189,26 @@ export interface PostPage {
   items: PostDto[];
   nextCursor: string | null;
 }
+
+/** A "Сохранённое" post row (docs/05 §4): unavailable → "Пост недоступен". */
+export class SavedPostItemDto {
+  @ApiProperty({ format: 'uuid' })
+  postId!: string;
+
+  @ApiProperty()
+  savedAt!: string;
+
+  @ApiProperty()
+  available!: boolean;
+
+  @ApiPropertyOptional({ type: PostDto, nullable: true })
+  post!: PostDto | null;
+}
+
+export class SavedPostsQueryDto {
+  @ApiPropertyOptional({ description: 'meta.nextCursor of the previous page.' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  cursor?: string;
+}

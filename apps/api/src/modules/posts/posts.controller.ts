@@ -3,6 +3,8 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   Patch,
   Post,
@@ -34,9 +36,12 @@ import {
   PostDto,
   PostIdParamDto,
   PostsPageQueryDto,
+  SavedPostItemDto,
+  SavedPostsQueryDto,
   UpdatePostDto,
   type PostPage,
 } from './dto/posts.dto';
+import { PostEngagementService } from './post-engagement.service';
 import { PostsService } from './posts.service';
 
 const E = ErrorCode;
@@ -47,7 +52,10 @@ const E = ErrorCode;
 @ApiErrors(AUTHENTICATED_ERRORS)
 @Controller()
 export class PostsController {
-  constructor(private readonly posts: PostsService) {}
+  constructor(
+    private readonly posts: PostsService,
+    private readonly engagement: PostEngagementService,
+  ) {}
 
   @Post('posts')
   @UseGuards(RequireIdempotencyKeyGuard)
@@ -118,5 +126,37 @@ export class PostsController {
     @Query() q: PostsPageQueryDto,
   ): Promise<PostPage> {
     return this.posts.listByAttorney(user, p.id, q);
+  }
+
+  @Post('posts/:id/like')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Like a post (idempotent, docs/05 §4)' })
+  @ApiErrors({ 404: [E.POST_NOT_FOUND], 429: [E.RATE_LIMITED] })
+  likePost(
+    @CurrentUser() user: RequestUser,
+    @Param() p: PostIdParamDto,
+  ): Promise<void> {
+    return this.engagement.like(user.sub, p.id);
+  }
+
+  @Delete('posts/:id/like')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Remove a like (idempotent, docs/05 §4)' })
+  unlikePost(
+    @CurrentUser() user: RequestUser,
+    @Param() p: PostIdParamDto,
+  ): Promise<void> {
+    return this.engagement.unlike(user.sub, p.id);
+  }
+
+  @Get('saved-items/posts')
+  @ApiOperation({ summary: 'Saved posts (docs/05 §4, "Моё → Сохранённое")' })
+  @ApiEnvelopeResponse(SavedPostItemDto, { isArray: true })
+  @ApiErrors({ 400: [E.VALIDATION_ERROR] })
+  listSavedPosts(
+    @CurrentUser() user: RequestUser,
+    @Query() q: SavedPostsQueryDto,
+  ): Promise<{ items: SavedPostItemDto[]; nextCursor: string | null }> {
+    return this.engagement.listSaved(user.sub, q.cursor);
   }
 }

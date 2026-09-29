@@ -1,14 +1,11 @@
-import {
-  ForbiddenException,
-  Injectable,
-  NotImplementedException,
-} from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import type { Case, PracticeArea } from '@prisma/client';
 import {
   decodeCursor,
   encodeCursor,
 } from '../../../common/pagination/cursor.util';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
+import { PostEngagementService } from '../../posts/post-engagement.service';
 import { PrismaService } from '../../../prisma/prisma.service';
 import {
   CaseDetailForAttorneyDto,
@@ -53,6 +50,7 @@ export class CasesFeedService {
     private readonly prisma: PrismaService,
     private readonly access: CaseAccessPolicy,
     private readonly viewTracking: CaseViewTrackingService,
+    private readonly posts: PostEngagementService,
   ) {}
 
   /** GET /cases (docs/04 §4.2). Empty page, not an error, for a caller
@@ -145,11 +143,13 @@ export class CasesFeedService {
   }
 
   /** POST /saved-items (docs/04 §4.3 "Сохранить", §11.2, §15). Only
-   * itemType 'case' is implemented in stage 4.3; only an attorney with
-   * current visibility on the case can save it (§4.3 button only appears
-   * there); 'post' arrives with file 05. */
+   * attorney with current visibility on the case can save it (§4.3 button
+   * only appears there); posts (docs/05 §4) go to PostEngagementService. */
   async save(viewer: CaseViewer, dto: SavedItemDto): Promise<void> {
-    if (dto.itemType !== 'case') this.notImplementedPost();
+    // docs/05 §4: posts are saved by anyone who can see them.
+    if (dto.itemType === 'post') {
+      return this.posts.save(viewer.userId, dto.itemId);
+    }
     if (viewer.role !== 'attorney') {
       throw forbidden('Only attorneys save cases (§11.2).');
     }
@@ -176,20 +176,15 @@ export class CasesFeedService {
    * "закрытые/недоступные с пометкой «Кейс недоступен»" — the item can
    * still be removed from the list). */
   async unsave(viewer: CaseViewer, dto: SavedItemDto): Promise<void> {
-    if (dto.itemType !== 'case') this.notImplementedPost();
+    if (dto.itemType === 'post') {
+      return this.posts.unsave(viewer.userId, dto.itemId);
+    }
     await this.prisma.savedItem.deleteMany({
       where: {
         user_id: viewer.userId,
         item_type: 'case',
         item_id: dto.itemId,
       },
-    });
-  }
-
-  private notImplementedPost(): never {
-    throw new NotImplementedException({
-      code: ErrorCode.NOT_IMPLEMENTED,
-      message: 'Saving posts arrives with file 05.',
     });
   }
 

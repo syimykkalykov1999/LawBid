@@ -4,6 +4,7 @@ import { BidsModule } from '../bids/bids.module';
 import { FilesModule } from '../files/files.module';
 import { JournalModule } from '../journal/journal.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { PostsModule } from '../posts/posts.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { UsersModule } from '../users/users.module';
 import { CaseBidsController } from './case-bids/case-bids.controller';
@@ -44,6 +45,8 @@ import { CasesFeedService } from './services/cases-feed.service';
     AdminAccessModule,
     // Stage 4.6: the lifecycle service (shared with the §10.2 jobs).
     CaseLifecycleModule,
+    // docs/05 §4: /saved-items also saves posts.
+    PostsModule,
   ],
   controllers: [
     CasesController,

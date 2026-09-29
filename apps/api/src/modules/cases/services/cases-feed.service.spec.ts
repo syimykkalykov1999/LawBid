@@ -1,4 +1,4 @@
-import { ForbiddenException, NotImplementedException } from '@nestjs/common';
+import { ForbiddenException } from '@nestjs/common';
 import { CasesFeedService } from './cases-feed.service';
 import type { CaseViewer } from '../policies/case-access.policy';
 
@@ -94,12 +94,14 @@ function fakeDeps(opts: {
     }),
   };
   const viewTracking = { recordView: jest.fn().mockResolvedValue(true) };
+  const posts = { save: jest.fn(), unsave: jest.fn() };
   const service = new CasesFeedService(
     prisma as never,
     access as never,
     viewTracking as never,
+    posts as never,
   );
-  return { prisma, access, viewTracking, service };
+  return { prisma, access, viewTracking, posts, service };
 }
 
 const attorney: CaseViewer = { userId: 'att-1', role: 'attorney' };
@@ -240,11 +242,10 @@ describe('CasesFeedService', () => {
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
-    it('save: itemType post → NOT_IMPLEMENTED (file 05)', async () => {
-      const { service } = fakeDeps({});
-      await expect(
-        service.save(attorney, { itemType: 'post', itemId: 'p1' }),
-      ).rejects.toBeInstanceOf(NotImplementedException);
+    it('save: itemType post goes to the posts module (docs/05 §4)', async () => {
+      const { service, posts } = fakeDeps({});
+      await service.save(attorney, { itemType: 'post', itemId: 'p1' });
+      expect(posts.save).toHaveBeenCalledWith(attorney.userId, 'p1');
     });
 
     it('save: CASE_NOT_AVAILABLE when not visible', async () => {
