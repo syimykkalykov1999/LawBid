@@ -36,6 +36,11 @@ const doc = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
 for (const path of Object.keys(doc.paths)) {
   if (path.startsWith("/health/")) delete doc.paths[path];
 }
+// A schema with properties but no `required` list (all-optional PATCH
+// bodies, e.g. UpdateCaseDto) would otherwise come out all-required.
+for (const schema of Object.values(doc.components.schemas)) {
+  if (schema.properties && !schema.required) schema.required = [];
+}
 fs.writeFileSync(process.argv[2], JSON.stringify(doc, null, 2) + "\n");
 ' ../openapi.json .dart_tool/openapi.client.json
 # Start from an empty output tree so a removed endpoint/schema also

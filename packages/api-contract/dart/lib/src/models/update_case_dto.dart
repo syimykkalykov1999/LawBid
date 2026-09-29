@@ -11,29 +11,29 @@ part 'update_case_dto.g.dart';
 @JsonSerializable()
 class UpdateCaseDto {
   const UpdateCaseDto({
-    required this.title,
-    required this.description,
-    required this.practiceAreaId,
-    required this.primaryStateCode,
-    required this.additionalStateCodes,
-    required this.city,
-    required this.budgetMode,
-    required this.budgetAmountDollars,
+    this.title,
+    this.description,
+    this.practiceAreaId,
+    this.primaryStateCode,
+    this.additionalStateCodes,
+    this.city,
+    this.budgetMode,
+    this.budgetAmountDollars,
   });
 
   factory UpdateCaseDto.fromJson(Map<String, Object?> json) =>
       _$UpdateCaseDtoFromJson(json);
 
-  final String title;
-  final String description;
+  final String? title;
+  final String? description;
 
   /// A leaf (specialization).
-  final String practiceAreaId;
-  final String primaryStateCode;
-  final List<String> additionalStateCodes;
+  final String? practiceAreaId;
+  final String? primaryStateCode;
+  final List<String>? additionalStateCodes;
   final String? city;
-  final BudgetMode budgetMode;
-  final int budgetAmountDollars;
+  final BudgetMode? budgetMode;
+  final int? budgetAmountDollars;
 
   Map<String, Object?> toJson() => _$UpdateCaseDtoToJson(this);
 }
