@@ -1,0 +1,42 @@
+# docs/06_PRODUCTION.md §4.4 (stage 6.1): build the API image and scan it
+# with Trivy; CRITICAL/HIGH vulnerabilities fail the check.
+name: Container scan
+
+on:
+  pull_request:
+    branches: [main, master]
+    paths:
+      - "apps/api/**"
+      - "packages/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/container-scan.yml"
+  push:
+    branches: [main, master]
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  trivy:
+    name: Build image + Trivy
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -f apps/api/Dockerfile -t lawbid-api:ci .
+      - name: Trivy (fail on CRITICAL/HIGH)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: lawbid-api:ci
+          format: sarif
+          output: trivy.sarif
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+      - uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy.sarif

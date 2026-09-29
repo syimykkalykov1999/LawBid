@@ -35,6 +35,10 @@ export class RealtimePublisher {
 
   toUsers(userIds: string[], event: RealtimeEvent, data: unknown): void {
     if (userIds.length === 0) return;
+    // The emitter publishes through ioredis and drops the returned
+    // promise; on a closing connection that would surface as an unhandled
+    // rejection. Best-effort delivery: skip when Redis isn't ready.
+    if (this.redis.status !== 'ready') return;
     try {
       this.emitter.to(userIds.map(userRoom)).emit(event, data);
     } catch {

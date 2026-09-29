@@ -1,0 +1,23 @@
+# docs/06_PRODUCTION.md §4.4 (stage 6.1): pinned lock files, updates via PR.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    groups:
+      nestjs:
+        patterns: ["@nestjs/*"]
+  - package-ecosystem: pub
+    directory: "/apps/mobile"
+    schedule:
+      interval: weekly
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+  - package-ecosystem: docker
+    directory: "/apps/api"
+    schedule:
+      interval: weekly

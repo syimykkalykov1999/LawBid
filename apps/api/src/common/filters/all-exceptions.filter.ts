@@ -53,6 +53,20 @@ export class AllExceptionsFilter implements ExceptionFilter {
     message: string;
     details?: Record<string, unknown>;
   } {
+    // body-parser's limit (docs/06 §4.1, stage 6.1) throws before Nest's
+    // pipeline; it carries `type` instead of an HttpException status.
+    if (
+      typeof exception === 'object' &&
+      exception !== null &&
+      (exception as { type?: unknown }).type === 'entity.too.large'
+    ) {
+      return {
+        status: HttpStatus.PAYLOAD_TOO_LARGE,
+        code: ErrorCode.PAYLOAD_TOO_LARGE,
+        message: 'Request body too large.',
+      };
+    }
+
     // A BadRequestException thrown by feature code with its own ErrorCode
     // (I18N_IMPORT_INVALID, I18N_LANGUAGE_NOT_FOUND) keeps that code — only
     // ValidationPipe's code-less 400s become VALIDATION_ERROR.

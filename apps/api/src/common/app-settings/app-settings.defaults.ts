@@ -56,11 +56,21 @@ export const FILE_05_SETTINGS = {
   'notifications.retention_days': 180,
 } as const;
 
+// docs/06_PRODUCTION.md §1.2, §3.3, §10 (stage 6.1): subscription grace and
+// the rule-based moderation lists/thresholds (edited in the admin panel).
+export const FILE_06_SETTINGS = {
+  'subscription.past_due_grace_days': 3,
+  'moderation.blocked_terms': [] as string[],
+  'moderation.hold_terms': [] as string[],
+  'moderation.auto_hide_reports': 3,
+} as const;
+
 /** Every typed app_config tunable with its spec default. */
 export const APP_SETTINGS = {
   ...FILE_03_SETTINGS,
   ...FILE_04_SETTINGS,
   ...FILE_05_SETTINGS,
+  ...FILE_06_SETTINGS,
 };
 
 export type AppSettingKey = keyof typeof APP_SETTINGS;

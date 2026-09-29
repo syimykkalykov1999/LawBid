@@ -1,3 +1,4 @@
+import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
@@ -15,6 +16,15 @@ async function bootstrap(): Promise<void> {
 
   const port = process.env.PORT ?? 3000;
   await app.listen(port);
+  // docs/06 §4.1 (stage 6.1): server-side request timeouts (the ALB idle
+  // timeout stays above keepAliveTimeout, so it never races the API).
+  const server = app.getHttpServer();
+  const requestTimeout = app
+    .get(ConfigService)
+    .getOrThrow<number>('REQUEST_TIMEOUT_MS');
+  server.requestTimeout = requestTimeout;
+  server.headersTimeout = Math.min(requestTimeout, 15_000);
+  server.keepAliveTimeout = 65_000;
 }
 
 void bootstrap();

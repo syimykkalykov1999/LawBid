@@ -40,6 +40,7 @@ import {
   FILE_03_SETTINGS,
   FILE_04_SETTINGS,
   FILE_05_SETTINGS,
+  FILE_06_SETTINGS,
 } from '../src/common/app-settings/app-settings.defaults';
 
 const prisma = new PrismaClient();
@@ -345,6 +346,7 @@ async function seedAppConfig(): Promise<void> {
   for (const [key, value] of Object.entries({
     ...FILE_04_SETTINGS,
     ...FILE_05_SETTINGS,
+    ...FILE_06_SETTINGS,
   })) {
     await prisma.appConfig.upsert({
       where: { key },

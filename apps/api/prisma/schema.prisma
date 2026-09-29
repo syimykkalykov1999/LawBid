@@ -568,6 +568,8 @@ model User {
   reports_handled          Report[]                  @relation("ReportHandler")
   moderation_actions       ModerationAction[]        @relation("ModerationAdmin")
   admin_profile            AdminProfile?
+  admin_credential         AdminCredential?
+  data_export_jobs         DataExportJob[]
   audit_entries            AuditLog[]                @relation("AuditAdmin")
   data_requests_handled    DataAccessRequest[]       @relation("DataRequestHandler")
   data_access_entries      DataAccessLog[]           @relation("DataAccessAdmin")
@@ -601,6 +603,7 @@ model File {
   avatar_of User[] @relation("UserAvatar")
 
   verification_documents VerificationDocument[]
+  data_export_jobs       DataExportJob[]
 
   post_media PostMedia[]
 
@@ -1600,6 +1603,8 @@ model Subscription {
   current_period_end     DateTime?          @db.Timestamptz
   cancel_at_period_end   Boolean            @default(false)
   canceled_at            DateTime?          @db.Timestamptz
+  // docs/06 §1.2 (stage 6.1): past_due keeps access until this moment.
+  grace_ends_at          DateTime?          @db.Timestamptz
   // One card = one trial.
   card_fingerprint       String?
   created_at             DateTime           @default(now()) @db.Timestamptz
@@ -1699,6 +1704,8 @@ model AuditLog {
   action        String
   target_type   String
   target_id     String?  @db.Uuid
+  // docs/06 §2.1 (stage 6.1): why sensitive data was viewed (≥ 10 chars).
+  justification String?
   before        Json?
   after         Json?
   ip            String?
@@ -1746,4 +1753,56 @@ model DataAccessLog {
 
   @@index([request_id])
   @@map("data_access_log")
+}
+
+// docs/06 §2.1, §10 (stage 6.1): admin 2FA. The TOTP secret is stored
+// encrypted (AES-256-GCM with ADMIN_TOTP_ENC_KEY; KMS envelope when the AWS
+// stack exists — OQ-016), recovery codes only as hashes.
+model AdminCredential {
+  user_id             String    @id @db.Uuid
+  user                User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  totp_secret_enc     String
+  totp_enabled_at     DateTime? @db.Timestamptz
+  recovery_codes_hash String[]
+  last_login_at       DateTime? @db.Timestamptz
+  created_at          DateTime  @default(now()) @db.Timestamptz
+  updated_at          DateTime  @updatedAt @db.Timestamptz
+
+  @@map("admin_credentials")
+}
+
+enum DataExportType {
+  user_data
+  case_history_pdf
+
+  @@map("data_export_type")
+}
+
+enum DataExportStatus {
+  queued
+  processing
+  ready
+  failed
+  expired
+
+  @@map("data_export_status")
+}
+
+// docs/06 §5.2, §10 (stage 6.1): user data export / case history PDF jobs.
+model DataExportJob {
+  id         String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String           @db.Uuid
+  user       User             @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  type       DataExportType
+  status     DataExportStatus @default(queued)
+  file_id    String?          @db.Uuid
+  file       File?            @relation(fields: [file_id], references: [id], onDelete: SetNull)
+  expires_at DateTime?        @db.Timestamptz
+  error      String?
+  created_at DateTime         @default(now()) @db.Timestamptz
+  updated_at DateTime         @updatedAt @db.Timestamptz
+
+  @@index([user_id, created_at(sort: Desc)])
+  @@index([status, expires_at])
+  @@map("data_export_jobs")
 }

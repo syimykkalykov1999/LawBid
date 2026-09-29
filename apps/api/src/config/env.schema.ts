@@ -451,6 +451,14 @@ export const envSchema = z
     // higher than the real number of proxies (clients could then spoof
     // their IP and escape per-IP limits).
     TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0),
+    // docs/06 §4.1 (stage 6.1): CORS only for the admin panel's origin(s);
+    // the mobile app sends no Origin. Comma-separated.
+    ADMIN_ORIGINS: z.string().default(''),
+    // Request body cap (KB) and server timeouts (ms).
+    BODY_LIMIT_KB: z.coerce.number().int().min(16).max(10240).default(256),
+    REQUEST_TIMEOUT_MS: z.coerce.number().int().min(1000).default(30_000),
+    // docs/06 §4.3 (stage 6.1): Sentry with PII scrubbing; off when unset.
+    SENTRY_DSN: z.string().url().optional(),
   })
   .superRefine((env, ctx) => {
     if (

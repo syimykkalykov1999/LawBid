@@ -67,6 +67,11 @@ jobs:
         working-directory: apps/mobile
         run: flutter pub get
 
+      - name: Dependency audit (advisory) — docs/06 §4.4
+        working-directory: apps/mobile
+        continue-on-error: true
+        run: dart pub outdated --no-dev-dependencies
+
       - name: Generate code (freezed/riverpod/json_serializable/drift)
         working-directory: apps/mobile
         run: dart run build_runner build --delete-conflicting-outputs

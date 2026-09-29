@@ -234,15 +234,12 @@ jobs:
           fi
           cd packages/api-contract/dart && dart analyze --fatal-warnings
 
-      - name: Dependency audit (advisory)
-        # ADVISORY, not blocking: `npm audit --audit-level=high` currently
-        # reports 9 pre-existing high-severity transitive vulnerabilities
-        # (multer via @nestjs/platform-express, uuid via exceljs), fixable
-        # only via `npm audit fix --force`, which would force major/breaking
-        # version bumps of @nestjs/platform-express and exceljs — a real
-        # dependency-upgrade decision out of scope for the CI-pipeline work
-        # this workflow was added for (file 01 §16 DoD). See docs/
-        # CHANGELOG.md's CI-pipeline entry. Tracked as follow-up work, not a
-        # bare TODO here.
+      - name: Dependency audit (critical blocks; high is advisory)
+        # docs/06 §4.4 (stage 6.1): a critical vulnerability blocks the
+        # merge. High findings stay advisory in the next step until the
+        # pre-existing transitive ones (multer, uuid) are upgraded.
+        run: npm audit --audit-level=critical --workspace apps/api
+
+      - name: Dependency audit (high, advisory)
         continue-on-error: true
         run: npm audit --audit-level=high --workspace apps/api

@@ -101,6 +101,8 @@ export enum ErrorCode {
   FILE_TYPE_NOT_ALLOWED = 'FILE_TYPE_NOT_ALLOWED',
   // 400: over files.max_size_mb / files.avatar_max_size_mb.
   FILE_TOO_LARGE = 'FILE_TOO_LARGE',
+  // 413: request body over BODY_LIMIT_KB (docs/06 §4.1).
+  PAYLOAD_TOO_LARGE = 'PAYLOAD_TOO_LARGE',
   // 400: the uploaded object's size or SHA-256 differs from the declared.
   FILE_CHECKSUM_MISMATCH = 'FILE_CHECKSUM_MISMATCH',
   // 409: confirm called before the object was uploaded to S3.
