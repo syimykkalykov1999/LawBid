@@ -6832,6 +6832,423 @@
         ]
       }
     },
+    "/users/me/case-history": {
+      "get": {
+        "operationId": "listCaseHistory",
+        "parameters": [
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "meta.nextCursor of the previous page.",
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "X-Reauth-Token",
+            "in": "header",
+            "description": "reauthToken from POST /auth/reauth (5 minutes).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseHistoryItemListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: REAUTH_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: REAUTH_REQUIRED, FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Case history list (docs/04 §12)",
+        "tags": [
+          "case-history"
+        ]
+      }
+    },
+    "/users/me/case-history/export": {
+      "post": {
+        "operationId": "exportCaseHistory",
+        "parameters": [
+          {
+            "name": "X-Reauth-Token",
+            "in": "header",
+            "description": "reauthToken from POST /auth/reauth (5 minutes).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseHistoryExportEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: REAUTH_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: REAUTH_REQUIRED, FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Queue the case history PDF (docs/04 §12)",
+        "tags": [
+          "case-history"
+        ]
+      }
+    },
+    "/users/me/case-history/export/{exportId}": {
+      "get": {
+        "operationId": "getCaseHistoryExport",
+        "parameters": [
+          {
+            "name": "exportId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Reauth-Token",
+            "in": "header",
+            "description": "reauthToken from POST /auth/reauth (5 minutes).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseHistoryExportEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: REAUTH_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: REAUTH_REQUIRED, FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Export status; when ready, a 10-minute signed PDF link",
+        "tags": [
+          "case-history"
+        ]
+      }
+    },
+    "/users/me/case-history/{caseId}": {
+      "get": {
+        "operationId": "getCaseHistory",
+        "parameters": [
+          {
+            "name": "caseId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Reauth-Token",
+            "in": "header",
+            "description": "reauthToken from POST /auth/reauth (5 minutes).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseHistoryDetailEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: REAUTH_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: REAUTH_REQUIRED, FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CASE_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Case timeline from case_journal (docs/04 §12)",
+        "tags": [
+          "case-history"
+        ]
+      }
+    },
     "/verification/me": {
       "get": {
         "operationId": "getVerificationOverview",
@@ -13791,6 +14208,291 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/ReviewReportDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "HistoryPracticeAreaDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "i18nKey": {
+            "type": "string"
+          },
+          "nameEn": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "i18nKey",
+          "nameEn"
+        ]
+      },
+      "HistoryAcceptedBidDto": {
+        "type": "object",
+        "properties": {
+          "amountCents": {
+            "type": "number",
+            "description": "Final amount in cents."
+          },
+          "feeType": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "amountCents",
+          "feeType"
+        ]
+      },
+      "CaseHistoryItemDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "practiceArea": {
+            "$ref": "#/components/schemas/HistoryPracticeAreaDto"
+          },
+          "primaryStateCode": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "description": "Final status of the case."
+          },
+          "deleted": {
+            "type": "boolean",
+            "description": "The case was deleted from the feed."
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "closedAt": {
+            "type": "string",
+            "nullable": true
+          },
+          "archivedAt": {
+            "type": "string",
+            "nullable": true
+          },
+          "acceptedBid": {
+            "nullable": true,
+            "description": "The accepted bid; for an attorney only when it is their own bid.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/HistoryAcceptedBidDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "practiceArea",
+          "primaryStateCode",
+          "status",
+          "deleted",
+          "createdAt"
+        ]
+      },
+      "CaseHistoryItemListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CaseHistoryItemDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "CaseHistoryExportDto": {
+        "type": "object",
+        "properties": {
+          "exportId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "ready",
+              "failed"
+            ],
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "nullable": true,
+            "description": "Signed download link, valid 10 minutes (status ready)."
+          },
+          "expiresAt": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "exportId",
+          "status"
+        ]
+      },
+      "CaseHistoryExportEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CaseHistoryExportDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "CaseHistoryEventDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "eventType": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "actorRole": {
+            "enum": [
+              "client",
+              "attorney",
+              "admin",
+              "system"
+            ],
+            "type": "string"
+          },
+          "amountCents": {
+            "type": "number",
+            "nullable": true
+          },
+          "feeType": {
+            "type": "string",
+            "nullable": true
+          },
+          "roundNo": {
+            "type": "number",
+            "nullable": true
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "eventType",
+          "createdAt",
+          "actorRole"
+        ]
+      },
+      "CaseHistoryDetailDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "practiceArea": {
+            "$ref": "#/components/schemas/HistoryPracticeAreaDto"
+          },
+          "primaryStateCode": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "description": "Final status of the case."
+          },
+          "deleted": {
+            "type": "boolean",
+            "description": "The case was deleted from the feed."
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "closedAt": {
+            "type": "string",
+            "nullable": true
+          },
+          "archivedAt": {
+            "type": "string",
+            "nullable": true
+          },
+          "acceptedBid": {
+            "nullable": true,
+            "description": "The accepted bid; for an attorney only when it is their own bid.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/HistoryAcceptedBidDto"
+              }
+            ]
+          },
+          "clientName": {
+            "type": "string",
+            "nullable": true,
+            "description": "Client full name. For an attorney only if contacts were disclosed to them on this case; null → the app shows \"Client\"."
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CaseHistoryEventDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "practiceArea",
+          "primaryStateCode",
+          "status",
+          "deleted",
+          "createdAt",
+          "events"
+        ]
+      },
+      "CaseHistoryDetailEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CaseHistoryDetailDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"

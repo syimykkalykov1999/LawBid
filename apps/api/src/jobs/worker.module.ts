@@ -7,6 +7,7 @@ import { AppSettingsModule } from '../common/app-settings/app-settings.module';
 import { JobsModule } from './jobs.module';
 import { NotificationsModule } from '../modules/notifications/notifications.module';
 import { FilesWorkerModule } from '../modules/files/files-worker.module';
+import { CaseHistoryModule } from '../modules/case-history/case-history.module';
 
 /**
  * Root module of the dedicated `worker` process (docs/06_PRODUCTION.md §6:
@@ -34,6 +35,8 @@ import { FilesWorkerModule } from '../modules/files/files-worker.module';
     JobsModule.register({ mode: 'worker' }),
     // docs/03 stage 3.2: antivirus scan + image processing (`files` queue).
     FilesWorkerModule,
+    // docs/04 §12 (stage 4.7): case history PDF export queue.
+    CaseHistoryModule.register({ mode: 'worker' }),
   ],
 })
 export class WorkerModule {}

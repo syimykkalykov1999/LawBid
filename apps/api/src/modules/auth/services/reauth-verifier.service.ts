@@ -32,7 +32,42 @@ export class ReauthVerifier {
     private readonly config: ConfigService,
   ) {}
 
+  /**
+   * Validates the header token for the current session WITHOUT consuming
+   * it: read-only screens behind reauth (docs/04 §12 "История кейсов":
+   * list, pages, case timelines) stay open for the token's 5-minute life.
+   * A token already consumed by a sensitive action is still rejected.
+   */
+  async assertValid(req: Request & { user?: RequestUser }): Promise<void> {
+    const claims = this.verify(req);
+    if (await this.redis.exists(`reauth:used:${claims.jti}`)) {
+      throw new UnauthorizedException({
+        code: ErrorCode.REAUTH_INVALID,
+        message: 'Reauth token already used.',
+      });
+    }
+  }
+
   async assertAndConsume(req: Request & { user?: RequestUser }): Promise<void> {
+    const claims = this.verify(req);
+    const usedKey = `reauth:used:${claims.jti}`;
+    const ttl = this.config.getOrThrow<number>('REAUTH_TOKEN_TTL_SECONDS');
+    // SET ... NX: first caller wins the token, any replay (even a
+    // concurrent one) fails.
+    const firstUse = await this.redis.set(usedKey, '1', 'EX', ttl, 'NX');
+    if (firstUse !== 'OK') {
+      throw new UnauthorizedException({
+        code: ErrorCode.REAUTH_INVALID,
+        message: 'Reauth token already used.',
+      });
+    }
+  }
+
+  private verify(req: Request & { user?: RequestUser }): {
+    sub: string;
+    sid: string;
+    jti: string;
+  } {
     const header = req.header(REAUTH_HEADER);
     if (!header) {
       throw new ForbiddenException({
@@ -64,16 +99,6 @@ export class ReauthVerifier {
       });
     }
 
-    const usedKey = `reauth:used:${claims.jti}`;
-    const ttl = this.config.getOrThrow<number>('REAUTH_TOKEN_TTL_SECONDS');
-    // SET ... NX: first caller wins the token, any replay (even a
-    // concurrent one) fails.
-    const firstUse = await this.redis.set(usedKey, '1', 'EX', ttl, 'NX');
-    if (firstUse !== 'OK') {
-      throw new UnauthorizedException({
-        code: ErrorCode.REAUTH_INVALID,
-        message: 'Reauth token already used.',
-      });
-    }
+    return claims;
   }
 }

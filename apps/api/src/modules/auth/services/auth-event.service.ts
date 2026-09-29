@@ -36,6 +36,8 @@ export const AUTH_EVENT_TYPES = {
   NEW_DEVICE: 'new_device',
   // Refresh-token rotation hit the per-session-chain limit.
   REFRESH_RATE_LIMITED: 'refresh_rate_limited',
+  // docs/04 §12: every entry into "История кейсов" (docs/02 §4.A list).
+  HISTORY_VIEWED: 'history_viewed',
 } as const;
 export type AuthEventType =
   (typeof AUTH_EVENT_TYPES)[keyof typeof AUTH_EVENT_TYPES];
