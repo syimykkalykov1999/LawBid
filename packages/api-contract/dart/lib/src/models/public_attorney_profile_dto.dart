@@ -29,6 +29,7 @@ class PublicAttorneyProfileDto {
     required this.rating,
     required this.counters,
     required this.isSelf,
+    required this.isFollowing,
   });
 
   factory PublicAttorneyProfileDto.fromJson(Map<String, Object?> json) =>
@@ -59,6 +60,9 @@ class PublicAttorneyProfileDto {
 
   /// True when this is the caller's own profile.
   final bool isSelf;
+
+  /// The viewer follows this attorney (docs/05 §6.2).
+  final bool isFollowing;
 
   Map<String, Object?> toJson() => _$PublicAttorneyProfileDtoToJson(this);
 }

@@ -1,5 +1,6 @@
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { CounterAggregator } from '../../counters/counter-aggregator.service';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { withTxRetry } from '../../../prisma/tx-retry.util';
 import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
@@ -64,6 +65,7 @@ export class AttorneyProfilesService {
     private readonly settings: AppSettingsService,
     private readonly practices: PracticeAreasService,
     private readonly files: FilesService,
+    private readonly counters: CounterAggregator,
   ) {}
 
   async getOwn(
@@ -276,10 +278,26 @@ export class AttorneyProfilesService {
     const states = new Map<string, string>();
     for (const l of row.licenses) states.set(l.state.code, l.state.name);
     // Public photo only (a clean `avatar` file); documents never.
-    const [avatar, practiceAreas] = await Promise.all([
-      this.files.avatarUrls(row.user.avatar_file_id),
-      this.practices.selectedOf(row.user_id),
-    ]);
+    const [avatar, practiceAreas, follow, pPosts, pFollowers, pFollowing] =
+      await Promise.all([
+        this.files.avatarUrls(row.user.avatar_file_id),
+        this.practices.selectedOf(row.user_id),
+        this.prisma.follow.findUnique({
+          where: {
+            follower_id_followee_id: {
+              follower_id: viewerId,
+              followee_id: row.user_id,
+            },
+          },
+          select: { follower_id: true },
+        }),
+        // docs/05 §4–§6: counters shown = DB + not yet flushed deltas.
+        this.counters.pending('attorney', 'posts_count', [row.user_id]),
+        this.counters.pending('attorney', 'followers_count', [row.user_id]),
+        this.counters.pending('attorney', 'following_count', [row.user_id]),
+      ]);
+    const plus = (base: number, m: Map<string, number>) =>
+      Math.max(0, base + (m.get(row.user_id) ?? 0));
     return {
       id: row.user_id,
       username: row.username,
@@ -296,11 +314,12 @@ export class AttorneyProfilesService {
       practiceAreas,
       rating: { avg: Number(row.rating_avg), count: row.rating_count },
       counters: {
-        posts: row.posts_count,
-        followers: row.followers_count,
-        following: row.following_count,
+        posts: plus(row.posts_count, pPosts),
+        followers: plus(row.followers_count, pFollowers),
+        following: plus(row.following_count, pFollowing),
       },
       isSelf: row.user_id === viewerId,
+      isFollowing: follow !== null,
     };
   }
 

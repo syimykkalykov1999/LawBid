@@ -82,6 +82,7 @@ describe('AttorneyProfilesService', () => {
       settings as unknown as AppSettingsService,
       {} as PracticeAreasService,
       {} as FilesService,
+      {} as never,
     );
     // getOwn is covered by e2e; here only the write path matters.
     jest.spyOn(svc, 'getOwn').mockResolvedValue({} as never);
@@ -177,6 +178,7 @@ describe('AttorneyProfilesService', () => {
     function withRow(row: Record<string, unknown> | null) {
       const prisma = {
         attorneyProfile: { findUnique: jest.fn(() => Promise.resolve(row)) },
+        follow: { findUnique: jest.fn(() => Promise.resolve(null)) },
       };
       return new AttorneyProfilesService(
         prisma as unknown as PrismaService,
@@ -193,6 +195,7 @@ describe('AttorneyProfilesService', () => {
             ),
           ),
         } as unknown as FilesService,
+        { pending: jest.fn(() => Promise.resolve(new Map())) } as never,
       );
     }
     const base = {

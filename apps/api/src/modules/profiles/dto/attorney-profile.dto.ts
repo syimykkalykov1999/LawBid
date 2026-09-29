@@ -278,4 +278,9 @@ export class PublicAttorneyProfileDto {
 
   @ApiProperty({ description: "True when this is the caller's own profile." })
   isSelf!: boolean;
+
+  @ApiProperty({
+    description: 'The viewer follows this attorney (docs/05 §6.2).',
+  })
+  isFollowing!: boolean;
 }

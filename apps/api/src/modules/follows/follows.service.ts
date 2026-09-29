@@ -1,0 +1,327 @@
+import {
+  Inject,
+  Injectable,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
+import type Redis from 'ioredis';
+import { ErrorCode } from '../../common/errors/error-code.enum';
+import {
+  decodeCursor,
+  encodeCursor,
+} from '../../common/pagination/cursor.util';
+import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
+import { PrismaService } from '../../prisma/prisma.service';
+import { REDIS_CLIENT } from '../../redis/redis.constants';
+import type { RequestUser } from '../auth/decorators/current-user.decorator';
+import { CounterAggregator } from '../counters/counter-aggregator.service';
+import { FilesService } from '../files/files.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import type { AttorneyListItemDto, AttorneyListPage } from './follows.dto';
+
+const PAGE = 20;
+/** Suggestions pool per client state, rebuilt at most every 10 minutes. */
+const SUGGEST_POOL = 300;
+const SUGGEST_TTL_SEC = 10 * 60;
+
+/** A followable attorney: active, not suspended (docs/03 §6.1). */
+const LISTABLE_ATTORNEY = {
+  role: 'attorney' as const,
+  status: 'active' as const,
+  deleted_at: null,
+  attorney_profile: { verification_status: { not: 'suspended' as const } },
+};
+
+/**
+ * docs/05 §6 (stage 5.5): follows go to attorneys only; clients may follow
+ * but are never listed by name (only counted); "Подписки" of a client are
+ * visible to that client alone.
+ */
+@Injectable()
+export class FollowsService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly limits: UsageLimitsService,
+    private readonly counters: CounterAggregator,
+    private readonly notifications: NotificationsService,
+    private readonly files: FilesService,
+    @Inject(REDIS_CLIENT) private readonly redis: Redis,
+  ) {}
+
+  async follow(user: RequestUser, attorneyId: string): Promise<void> {
+    if (attorneyId === user.sub) throw notAllowed();
+    const target = await this.prisma.user.findFirst({
+      where: { id: attorneyId, deleted_at: null },
+      select: {
+        role: true,
+        status: true,
+        attorney_profile: { select: { verification_status: true } },
+      },
+    });
+    if (!target) {
+      throw new NotFoundException({
+        code: ErrorCode.NOT_FOUND,
+        message: 'Attorney not found.',
+      });
+    }
+    if (
+      target.role !== 'attorney' ||
+      target.status !== 'active' ||
+      target.attorney_profile?.verification_status === 'suspended'
+    ) {
+      throw notAllowed();
+    }
+    await this.limits.consume('follow', user.sub);
+    const { count } = await this.prisma.follow.createMany({
+      data: [{ follower_id: user.sub, followee_id: attorneyId }],
+      skipDuplicates: true,
+    });
+    if (count === 0) return;
+    await this.counters.bump('attorney', attorneyId, 'followers_count', 1);
+    if (user.role === 'attorney') {
+      await this.counters.bump('attorney', user.sub, 'following_count', 1);
+    }
+    await this.notifications.emit({
+      type: 'new_follower',
+      recipientId: attorneyId,
+      // A client follower has no public profile: only the attorney's id is
+      // a navigation target (docs/05 §9.2).
+      payload:
+        user.role === 'attorney'
+          ? { actorId: user.sub }
+          : { actorKind: 'client' },
+    });
+  }
+
+  async unfollow(user: RequestUser, attorneyId: string): Promise<void> {
+    const { count } = await this.prisma.follow.deleteMany({
+      where: { follower_id: user.sub, followee_id: attorneyId },
+    });
+    if (count === 0) return;
+    await this.counters.bump('attorney', attorneyId, 'followers_count', -1);
+    if (user.role === 'attorney') {
+      await this.counters.bump('attorney', user.sub, 'following_count', -1);
+    }
+  }
+
+  /** GET /attorneys/:id/followers — attorney followers only (§6.2). */
+  async followers(
+    viewerId: string,
+    attorneyId: string,
+    cursor?: string,
+  ): Promise<AttorneyListPage> {
+    await this.assertPublicAttorney(attorneyId);
+    return this.pageOf(viewerId, cursor, 'followee', attorneyId);
+  }
+
+  /** GET /attorneys/:id/following — public list of attorneys. */
+  async following(
+    viewerId: string,
+    attorneyId: string,
+    cursor?: string,
+  ): Promise<AttorneyListPage> {
+    await this.assertPublicAttorney(attorneyId);
+    return this.pageOf(viewerId, cursor, 'follower', attorneyId);
+  }
+
+  /** The public lists exist for attorneys only: a client's follows are
+   * visible to that client alone (§6.2), so any other id is a 404. */
+  private async assertPublicAttorney(attorneyId: string): Promise<void> {
+    const found = await this.prisma.user.findFirst({
+      where: { id: attorneyId, ...LISTABLE_ATTORNEY },
+      select: { id: true },
+    });
+    if (!found) {
+      throw new NotFoundException({
+        code: ErrorCode.NOT_FOUND,
+        message: 'Attorney not found.',
+      });
+    }
+  }
+
+  /** GET /users/me/following — the caller's own follows. */
+  mine(viewerId: string, cursor?: string): Promise<AttorneyListPage> {
+    return this.pageOf(viewerId, cursor, 'follower', viewerId);
+  }
+
+  /**
+   * GET /suggestions/attorneys (§6.3): verified attorneys the user does not
+   * follow, by rating and activity (posts in 30 days), a client's own state
+   * first. The ranked pool is cached per state for 10 minutes; the cursor is
+   * a position in it.
+   */
+  async suggestions(
+    user: RequestUser,
+    cursor?: string,
+  ): Promise<AttorneyListPage> {
+    const state =
+      user.role === 'client'
+        ? ((
+            await this.prisma.clientProfile.findUnique({
+              where: { user_id: user.sub },
+              select: { state_code: true },
+            })
+          )?.state_code ?? null)
+        : null;
+    const pool = await this.suggestionPool(state);
+    const followed = new Set(
+      (
+        await this.prisma.follow.findMany({
+          where: { follower_id: user.sub, followee_id: { in: pool } },
+          select: { followee_id: true },
+        })
+      ).map((f) => f.followee_id),
+    );
+    const start = cursor
+      ? Math.max(
+          0,
+          Number.parseInt(Buffer.from(cursor, 'base64url').toString(), 10) || 0,
+        )
+      : 0;
+    const picked: string[] = [];
+    let i = start;
+    for (; i < pool.length && picked.length < PAGE; i++) {
+      if (pool[i] !== user.sub && !followed.has(pool[i])) picked.push(pool[i]);
+    }
+    return {
+      items: await this.present(picked, user.sub),
+      nextCursor:
+        i < pool.length ? Buffer.from(String(i)).toString('base64url') : null,
+    };
+  }
+
+  private async suggestionPool(state: string | null): Promise<string[]> {
+    const key = `suggest:attorneys:${state ?? 'all'}`;
+    const cached = await this.redis.get(key);
+    if (cached) return JSON.parse(cached) as string[];
+    const since = new Date(Date.now() - 30 * 24 * 3600 * 1000);
+    const rows = await this.prisma.$queryRaw<{ id: string }[]>`
+      SELECT a.user_id::STRING AS id
+      FROM attorney_profiles AS a
+      JOIN users AS u ON u.id = a.user_id AND u.status = 'active' AND u.deleted_at IS NULL
+      WHERE a.verification_status = 'verified'
+      ORDER BY
+        (${state}::STRING IS NOT NULL AND EXISTS (
+          SELECT 1 FROM attorney_licenses l
+          WHERE l.attorney_id = a.user_id AND l.state_code = ${state}::STRING
+            AND l.license_status = 'verified')) DESC,
+        a.rating_avg DESC,
+        (SELECT count(*) FROM posts p
+         WHERE p.author_id = a.user_id AND p.status = 'published'
+           AND p.deleted_at IS NULL AND p.created_at > ${since}) DESC,
+        a.rating_count DESC,
+        a.user_id
+      LIMIT ${SUGGEST_POOL}`;
+    const ids = rows.map((r) => r.id);
+    await this.redis.set(key, JSON.stringify(ids), 'EX', SUGGEST_TTL_SEC);
+    return ids;
+  }
+
+  /** Keyset over follows(created_at, other id), attorneys only. */
+  private async pageOf(
+    viewerId: string,
+    cursor: string | undefined,
+    side: 'followee' | 'follower',
+    attorneyId: string,
+  ): Promise<AttorneyListPage> {
+    const c = cursor ? decodeCursor(cursor) : undefined;
+    const other = side === 'followee' ? 'follower_id' : 'followee_id';
+    const rows = await this.prisma.follow.findMany({
+      where: {
+        ...(side === 'followee'
+          ? { followee_id: attorneyId }
+          : { follower_id: attorneyId }),
+        // Clients are counted, never listed (§6.2).
+        [side === 'followee' ? 'follower' : 'followee']: LISTABLE_ATTORNEY,
+        ...(c
+          ? {
+              OR: [
+                { created_at: { lt: c.createdAt } },
+                { created_at: c.createdAt, [other]: { lt: c.id } },
+              ],
+            }
+          : {}),
+      },
+      orderBy: [{ created_at: 'desc' }, { [other]: 'desc' }],
+      take: PAGE + 1,
+    });
+    const page = rows.slice(0, PAGE);
+    const ids = page.map((r) =>
+      side === 'followee' ? r.follower_id : r.followee_id,
+    );
+    const last = page[page.length - 1];
+    return {
+      items: await this.present(ids, viewerId),
+      nextCursor:
+        rows.length > PAGE && last
+          ? encodeCursor({
+              createdAt: last.created_at,
+              id: side === 'followee' ? last.follower_id : last.followee_id,
+            })
+          : null,
+    };
+  }
+
+  private async present(
+    ids: string[],
+    viewerId: string,
+  ): Promise<AttorneyListItemDto[]> {
+    if (ids.length === 0) return [];
+    const [users, mine] = await Promise.all([
+      this.prisma.user.findMany({
+        where: { id: { in: ids }, ...LISTABLE_ATTORNEY },
+        select: {
+          id: true,
+          first_name: true,
+          last_name: true,
+          avatar_file_id: true,
+          attorney_profile: {
+            select: {
+              username: true,
+              verification_status: true,
+              rating_avg: true,
+              rating_count: true,
+              licenses: {
+                where: { license_status: 'verified' },
+                select: { state_code: true },
+                orderBy: { state_code: 'asc' },
+              },
+            },
+          },
+        },
+      }),
+      this.prisma.follow.findMany({
+        where: { follower_id: viewerId, followee_id: { in: ids } },
+        select: { followee_id: true },
+      }),
+    ]);
+    const following = new Set(mine.map((m) => m.followee_id));
+    const byId = new Map(users.map((u) => [u.id, u]));
+    const out: AttorneyListItemDto[] = [];
+    for (const id of ids) {
+      const u = byId.get(id);
+      const p = u?.attorney_profile;
+      if (!u || !p) continue;
+      out.push({
+        id,
+        username: p.username,
+        firstName: u.first_name,
+        lastName: u.last_name,
+        avatarUrl: (await this.files.avatarUrls(u.avatar_file_id)).url256,
+        verifiedBadge:
+          p.verification_status === 'verified' && p.licenses.length > 0,
+        rating: { avg: Number(p.rating_avg), count: p.rating_count },
+        states: p.licenses.map((l) => l.state_code),
+        isFollowing: following.has(id),
+      });
+    }
+    return out;
+  }
+}
+
+function notAllowed(): UnprocessableEntityException {
+  return new UnprocessableEntityException({
+    code: ErrorCode.FOLLOW_NOT_ALLOWED,
+    message: 'You can follow attorneys only, and not yourself.',
+  });
+}

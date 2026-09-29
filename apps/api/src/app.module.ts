@@ -21,6 +21,7 @@ import { PostsModule } from './modules/posts/posts.module';
 import { FeedModule } from './modules/feed/feed.module';
 import { CommentsModule } from './modules/comments/comments.module';
 import { ReportsModule } from './modules/reports/reports.module';
+import { FollowsModule } from './modules/follows/follows.module';
 import { BidsModule } from './modules/bids/bids.module';
 import { NegotiationsModule } from './modules/negotiations/negotiations.module';
 import { JournalModule } from './modules/journal/journal.module';
@@ -121,6 +122,7 @@ const isDev =
     FeedModule,
     CommentsModule,
     ReportsModule,
+    FollowsModule,
     BidsModule,
     NegotiationsModule,
     JournalModule,
