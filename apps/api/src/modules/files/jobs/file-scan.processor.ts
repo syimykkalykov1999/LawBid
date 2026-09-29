@@ -83,6 +83,7 @@ export class FileScanProcessor {
         data,
         mime,
         avatar: file.purpose === 'avatar',
+        postImage: file.purpose === 'post_image',
       });
     } catch (err) {
       // Undecodable image: permanent, retrying won't help.

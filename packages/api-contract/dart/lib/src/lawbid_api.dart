@@ -16,6 +16,7 @@ import 'clients/admin_contact_issues_client.dart';
 import 'clients/admin_case_disputes_client.dart';
 import 'clients/bids_client.dart';
 import 'clients/case_history_client.dart';
+import 'clients/posts_client.dart';
 import 'clients/verification_client.dart';
 import 'clients/admin_verification_client.dart';
 import 'clients/practice_areas_client.dart';
@@ -46,6 +47,7 @@ class LawbidApi {
   AdminCaseDisputesClient? _adminCaseDisputes;
   BidsClient? _bids;
   CaseHistoryClient? _caseHistory;
+  PostsClient? _posts;
   VerificationClient? _verification;
   AdminVerificationClient? _adminVerification;
   PracticeAreasClient? _practiceAreas;
@@ -80,6 +82,8 @@ class LawbidApi {
 
   CaseHistoryClient get caseHistory =>
       _caseHistory ??= CaseHistoryClient(_dio, baseUrl: _baseUrl);
+
+  PostsClient get posts => _posts ??= PostsClient(_dio, baseUrl: _baseUrl);
 
   VerificationClient get verification =>
       _verification ??= VerificationClient(_dio, baseUrl: _baseUrl);

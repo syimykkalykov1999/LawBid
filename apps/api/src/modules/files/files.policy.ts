@@ -84,6 +84,11 @@ export const MEDIA_SIGNED_URL_TTL_SEC = 60 * 60;
 export const AVATAR_MAIN_PX = 1024;
 export const AVATAR_VARIANT_PX: readonly number[] = [256];
 
+/** docs/05 §3.2 post photos: stored main ≤ 2048 px on the long side (the
+ * app already downscales), variants 320 px (preview) and 1080 px (medium). */
+export const POST_IMAGE_MAIN_PX = 2048;
+export const POST_IMAGE_VARIANT_PX: readonly number[] = [320, 1080];
+
 /** Decompression-bomb guard for the scan worker: images above this many
  * pixels (width × height) are refused before decoding. 40 MP covers any
  * phone photo or document scan (≈160 MB as raw RGBA). */

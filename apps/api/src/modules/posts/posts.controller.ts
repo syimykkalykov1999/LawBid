@@ -1,0 +1,122 @@
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiHeader,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
+import {
+  ApiEnvelopeResponse,
+  ApiErrors,
+  AUTHENTICATED_ERRORS,
+} from '../../common/dto/api-docs.decorators';
+import { ErrorCode } from '../../common/errors/error-code.enum';
+import { IdempotencyInterceptor } from '../../idempotency/idempotency.interceptor';
+import { RequireIdempotencyKeyGuard } from '../../idempotency/require-idempotency-key.guard';
+import {
+  CurrentUser,
+  type RequestUser,
+} from '../auth/decorators/current-user.decorator';
+import {
+  CreatePostDto,
+  PostDeletedDto,
+  PostDto,
+  PostIdParamDto,
+  PostsPageQueryDto,
+  UpdatePostDto,
+  type PostPage,
+} from './dto/posts.dto';
+import { PostsService } from './posts.service';
+
+const E = ErrorCode;
+
+/** docs/05 §3, §15 "Лента и посты" (stage 5.2). */
+@ApiTags('posts')
+@ApiBearerAuth()
+@ApiErrors(AUTHENTICATED_ERRORS)
+@Controller()
+export class PostsController {
+  constructor(private readonly posts: PostsService) {}
+
+  @Post('posts')
+  @UseGuards(RequireIdempotencyKeyGuard)
+  @UseInterceptors(IdempotencyInterceptor)
+  @ApiHeader({ name: 'Idempotency-Key', required: true })
+  @ApiOperation({ summary: 'Publish a post (verified attorney, docs/05 §3.1)' })
+  @ApiEnvelopeResponse(PostDto, { status: 201 })
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    403: [E.POST_NOT_ALLOWED],
+    404: [E.NOT_FOUND],
+    409: [E.FILE_NOT_ATTACHABLE],
+    422: [E.VALIDATION_ERROR],
+    429: [E.RATE_LIMITED],
+  })
+  createPost(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: CreatePostDto,
+  ): Promise<PostDto> {
+    return this.posts.create(user, dto);
+  }
+
+  @Get('posts/:id')
+  @ApiOperation({ summary: 'A post (docs/05 §3.5)' })
+  @ApiEnvelopeResponse(PostDto)
+  @ApiErrors({ 404: [E.POST_NOT_FOUND] })
+  getPost(
+    @CurrentUser() user: RequestUser,
+    @Param() p: PostIdParamDto,
+  ): Promise<PostDto> {
+    return this.posts.get(user, p.id);
+  }
+
+  @Patch('posts/:id')
+  @ApiOperation({ summary: 'Edit the text of an own post (docs/05 §3.3)' })
+  @ApiEnvelopeResponse(PostDto)
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    404: [E.POST_NOT_FOUND],
+    422: [E.VALIDATION_ERROR],
+  })
+  updatePost(
+    @CurrentUser() user: RequestUser,
+    @Param() p: PostIdParamDto,
+    @Body() dto: UpdatePostDto,
+  ): Promise<PostDto> {
+    return this.posts.update(user, p.id, dto.body);
+  }
+
+  @Delete('posts/:id')
+  @ApiOperation({ summary: 'Delete an own post (soft, docs/05 §3.3)' })
+  @ApiEnvelopeResponse(PostDeletedDto)
+  @ApiErrors({ 404: [E.POST_NOT_FOUND] })
+  deletePost(
+    @CurrentUser() user: RequestUser,
+    @Param() p: PostIdParamDto,
+  ): Promise<{ deleted: true }> {
+    return this.posts.remove(user, p.id);
+  }
+
+  @Get('attorneys/:id/posts')
+  @ApiOperation({ summary: "An attorney's posts, newest first (docs/05 §15)" })
+  @ApiEnvelopeResponse(PostDto, { isArray: true })
+  @ApiErrors({ 400: [E.VALIDATION_ERROR] })
+  listAttorneyPosts(
+    @CurrentUser() user: RequestUser,
+    @Param() p: PostIdParamDto,
+    @Query() q: PostsPageQueryDto,
+  ): Promise<PostPage> {
+    return this.posts.listByAttorney(user, p.id, q);
+  }
+}

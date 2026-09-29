@@ -17,6 +17,7 @@ import { CaseHistoryModule } from './modules/case-history/case-history.module';
 import { PushModule } from './modules/notifications/push/push.module';
 import { CountersModule } from './modules/counters/counters.module';
 import { ModerationModule } from './modules/moderation/moderation.module';
+import { PostsModule } from './modules/posts/posts.module';
 import { BidsModule } from './modules/bids/bids.module';
 import { NegotiationsModule } from './modules/negotiations/negotiations.module';
 import { JournalModule } from './modules/journal/journal.module';
@@ -112,6 +113,8 @@ const isDev =
     // docs/05 stage 5.1: counters aggregator + moderation hook (global).
     CountersModule,
     ModerationModule,
+    // docs/05 §3 (stage 5.2).
+    PostsModule,
     BidsModule,
     NegotiationsModule,
     JournalModule,

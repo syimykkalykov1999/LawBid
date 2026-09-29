@@ -4,6 +4,8 @@ import decodeHeic from 'heic-decode';
 import {
   AVATAR_MAIN_PX,
   AVATAR_VARIANT_PX,
+  POST_IMAGE_MAIN_PX,
+  POST_IMAGE_VARIANT_PX,
   FILE_MIME,
   MAX_INPUT_PIXELS,
   type FileMime,
@@ -34,8 +36,9 @@ export interface ProcessedFile {
  * - avatar (docs/03 §4.1): EXIF orientation applied, square centre crop,
  *   1024 px JPEG plus a 256 px variant, all metadata (EXIF/GPS) stripped
  *   — sharp writes no metadata unless asked to.
- * Other files (PDF, JPEG/PNG documents and post photos) are left as
- * uploaded; post photo variants are docs/05 §3.2 work.
+ * - post photo (docs/05 §3.2): oriented, re-encoded JPEG ≤ 2048 px with
+ *   320/1080 px variants — metadata (EXIF/GPS location!) stripped.
+ * Other files (PDF, JPEG/PNG documents) are left as uploaded.
  * Every input is capped at MAX_INPUT_PIXELS (sharp `limitInputPixels`,
  * plus a header check where nothing is decoded); an oversized image is
  * rejected like an undecodable one (the scan job marks it `failed`).
@@ -62,6 +65,7 @@ export class ImageProcessor {
     data: Buffer;
     mime: FileMime;
     avatar: boolean;
+    postImage?: boolean;
   }): Promise<ProcessedFile> {
     if (input.mime === FILE_MIME.pdf) {
       return { main: null, variants: new Map(), width: null, height: null };
@@ -84,6 +88,19 @@ export class ImageProcessor {
       const variants = new Map<number, ProcessedImage>();
       for (const px of AVATAR_VARIANT_PX) {
         variants.set(px, await this.square(oriented, px));
+      }
+      return { main, variants, width: main.width, height: main.height };
+    }
+
+    if (input.postImage) {
+      const oriented = await source
+        .rotate()
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+      const main = await this.fitted(oriented, POST_IMAGE_MAIN_PX);
+      const variants = new Map<number, ProcessedImage>();
+      for (const px of POST_IMAGE_VARIANT_PX) {
+        variants.set(px, await this.fitted(oriented, px));
       }
       return { main, variants, width: main.width, height: main.height };
     }
@@ -138,6 +155,28 @@ export class ImageProcessor {
     } finally {
       images.dispose();
     }
+  }
+
+  /** Long side ≤ [px], aspect kept, never upscaled, JPEG, no metadata. */
+  private async fitted(
+    raw: { data: Buffer; info: sharp.OutputInfo },
+    px: number,
+  ): Promise<ProcessedImage> {
+    const { width, height, channels } = raw.info;
+    const out = await sharp(raw.data, {
+      raw: { width, height, channels },
+      limitInputPixels: MAX_INPUT_PIXELS,
+    })
+      .resize(px, px, { fit: 'inside', withoutEnlargement: true })
+      .flatten({ background: '#ffffff' })
+      .jpeg({ quality: 85, mozjpeg: true })
+      .toBuffer({ resolveWithObject: true });
+    return {
+      data: out.data,
+      mime: FILE_MIME.jpeg,
+      width: out.info.width,
+      height: out.info.height,
+    };
   }
 
   private async square(

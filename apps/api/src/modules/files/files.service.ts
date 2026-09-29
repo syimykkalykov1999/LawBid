@@ -345,6 +345,43 @@ export class FilesService {
     };
   }
 
+  /**
+   * docs/05 §3.2 post photos: main (≤ 2048 px), 320 px preview and
+   * 1080 px medium links for clean `post_image` files, keyed by file id.
+   * Signing is local (no S3 round trip); one DB read for the batch.
+   * TODO(docs/06 infrastructure): serve through CloudFront.
+   */
+  async postImageUrls(
+    fileIds: string[],
+  ): Promise<
+    Map<string, { url: string; previewUrl: string; mediumUrl: string }>
+  > {
+    const out = new Map<
+      string,
+      { url: string; previewUrl: string; mediumUrl: string }
+    >();
+    if (fileIds.length === 0) return out;
+    const files = await this.prisma.file.findMany({
+      where: { id: { in: fileIds }, purpose: 'post_image' },
+    });
+    for (const file of files) {
+      const url = await this.mediaUrlOf(file);
+      if (!url) continue;
+      const sign = (px: number) =>
+        this.storage.signedGetUrl(
+          file.s3_bucket,
+          variantKey(file.s3_key, px),
+          MEDIA_SIGNED_URL_TTL_SEC,
+        );
+      out.set(file.id, {
+        url,
+        previewUrl: await sign(320),
+        mediumUrl: await sign(1080),
+      });
+    }
+    return out;
+  }
+
   private async mediaUrlOf(file: File): Promise<string | null> {
     if (
       file.deleted_at !== null ||

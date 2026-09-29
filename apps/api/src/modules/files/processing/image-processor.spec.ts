@@ -49,6 +49,20 @@ describe('ImageProcessor', () => {
     expect([out.width, out.height]).toEqual([64, 48]);
   });
 
+  it('post photo: oriented, ≤2048 px, 320/1080 variants, EXIF stripped', async () => {
+    const src = await jpegWithExif(3000, 2000); // orientation 6 → portrait
+    const out = await processor.process({
+      data: src,
+      mime: 'image/jpeg',
+      avatar: false,
+      postImage: true,
+    });
+    expect([out.main?.width, out.main?.height]).toEqual([1365, 2048]);
+    expect((await sharp(out.main!.data).metadata()).exif).toBeUndefined();
+    expect(out.variants.get(320)?.height).toBe(320);
+    expect(out.variants.get(1080)?.height).toBe(1080);
+  });
+
   it('avatar: square crop, 1024 max + 256 variant, EXIF stripped', async () => {
     const src = await jpegWithExif(2000, 1200);
     expect((await sharp(src).metadata()).exif).toBeDefined();
