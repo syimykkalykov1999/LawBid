@@ -2,6 +2,7 @@ import { HttpException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import type { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import type { PrismaService } from '../../prisma/prisma.service';
+import type { ModerationService } from '../moderation/moderation.service';
 import type { NotificationsService } from '../notifications/notifications.service';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { ReviewsService } from './reviews.service';
@@ -63,10 +64,14 @@ function setup() {
   };
   const settings = { number: jest.fn(() => Promise.resolve(14)) };
   const notifications = { emit: jest.fn(() => Promise.resolve({ id: 'n' })) };
+  const moderation = {
+    autoHideIfThreshold: jest.fn(() => Promise.resolve(false)),
+  };
   const service = new ReviewsService(
     prisma as unknown as PrismaService,
     settings as unknown as AppSettingsService,
     notifications as unknown as NotificationsService,
+    moderation as unknown as ModerationService,
   );
   return { tx, prisma, settings, notifications, service };
 }

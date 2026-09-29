@@ -11398,7 +11398,7 @@
             }
           },
           "422": {
-            "description": "Error: VALIDATION_ERROR",
+            "description": "Error: CONTENT_BLOCKED",
             "content": {
               "application/json": {
                 "schema": {
@@ -11600,7 +11600,7 @@
             }
           },
           "422": {
-            "description": "Error: VALIDATION_ERROR",
+            "description": "Error: CONTENT_BLOCKED",
             "content": {
               "application/json": {
                 "schema": {
@@ -12497,6 +12497,411 @@
         ]
       }
     },
+    "/admin/moderation/queue": {
+      "get": {
+        "operationId": "moderationQueue",
+        "parameters": [
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "open",
+              "type": "string",
+              "enum": [
+                "open",
+                "actioned",
+                "dismissed"
+              ]
+            }
+          },
+          {
+            "name": "targetType",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "post",
+                "comment",
+                "message",
+                "user",
+                "case",
+                "review"
+              ]
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "meta.nextCursor of the previous page.",
+            "schema": {
+              "maxLength": 300,
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModerationQueueItemListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Reports grouped by object, oldest first",
+        "tags": [
+          "admin-moderation"
+        ]
+      }
+    },
+    "/admin/moderation/targets/{type}/{id}": {
+      "get": {
+        "operationId": "moderationCard",
+        "parameters": [
+          {
+            "name": "type",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "post",
+                "comment",
+                "message",
+                "user",
+                "case",
+                "review"
+              ]
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModerationCardEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Object, its reports, author and history",
+        "tags": [
+          "admin-moderation"
+        ]
+      }
+    },
+    "/admin/moderation/targets/{type}/{id}/actions": {
+      "post": {
+        "operationId": "moderationAct",
+        "parameters": [
+          {
+            "name": "type",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "post",
+                "comment",
+                "message",
+                "user",
+                "case",
+                "review"
+              ]
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModerationActionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModerationActionResultEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: MODERATION_ACTION_NOT_APPLICABLE, ACCOUNT_SUSPENDED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "hide / remove / warn / suspend / restore / dismiss (reason required)",
+        "tags": [
+          "admin-moderation"
+        ]
+      }
+    },
     "/feed": {
       "get": {
         "operationId": "getFeed",
@@ -12756,7 +13161,7 @@
             }
           },
           "422": {
-            "description": "Error: VALIDATION_ERROR",
+            "description": "Error: CONTENT_BLOCKED",
             "content": {
               "application/json": {
                 "schema": {
@@ -17316,6 +17721,8 @@
           "ADMIN_RECOVERY_CODE_INVALID",
           "ADMIN_AUTH_NOT_CONFIGURED",
           "ADMIN_EMAIL_TAKEN",
+          "CONTENT_BLOCKED",
+          "MODERATION_ACTION_NOT_APPLICABLE",
           "CASE_NOT_FOUND",
           "CASE_NOT_AVAILABLE",
           "CASE_INVALID_STATE",
@@ -23745,6 +24152,401 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/CaseHistoryDetailDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "ModerationAuthorDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "role": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "string"
+          },
+          "firstName": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastName": {
+            "type": "string",
+            "nullable": true
+          },
+          "username": {
+            "type": "string",
+            "nullable": true
+          },
+          "warnings": {
+            "type": "integer"
+          },
+          "suspensions": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "role",
+          "status",
+          "firstName",
+          "lastName",
+          "username",
+          "warnings",
+          "suspensions"
+        ]
+      },
+      "ModerationQueueItemDto": {
+        "type": "object",
+        "properties": {
+          "targetType": {
+            "enum": [
+              "post",
+              "comment",
+              "message",
+              "user",
+              "case",
+              "review"
+            ],
+            "type": "string"
+          },
+          "targetId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reports": {
+            "type": "integer"
+          },
+          "reporters": {
+            "type": "integer"
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "firstReportedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastReportedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "targetStatus": {
+            "type": "string",
+            "nullable": true,
+            "description": "Current object status (hidden = auto-hidden or moderated)."
+          },
+          "excerpt": {
+            "type": "string",
+            "nullable": true,
+            "description": "First 200 characters."
+          },
+          "author": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ModerationAuthorDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "targetType",
+          "targetId",
+          "reports",
+          "reporters",
+          "reasons",
+          "firstReportedAt",
+          "lastReportedAt",
+          "targetStatus",
+          "excerpt",
+          "author"
+        ]
+      },
+      "ModerationQueueItemListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModerationQueueItemDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "ModerationReportDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reporterId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "handledAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "reporterId",
+          "reason",
+          "note",
+          "status",
+          "createdAt",
+          "handledAt"
+        ]
+      },
+      "ModerationHistoryItemDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "action": {
+            "type": "string"
+          },
+          "targetType": {
+            "type": "string"
+          },
+          "targetId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "action",
+          "targetType",
+          "targetId",
+          "reason",
+          "createdAt"
+        ]
+      },
+      "ModerationCardDto": {
+        "type": "object",
+        "properties": {
+          "targetType": {
+            "enum": [
+              "post",
+              "comment",
+              "message",
+              "user",
+              "case",
+              "review"
+            ],
+            "type": "string"
+          },
+          "targetId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "nullable": true
+          },
+          "text": {
+            "type": "string",
+            "nullable": true,
+            "description": "Full text / title+description; null for a user."
+          },
+          "context": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "postId, conversationId, attorneyId …"
+          },
+          "createdAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "author": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ModerationAuthorDto"
+              }
+            ]
+          },
+          "reports": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModerationReportDto"
+            }
+          },
+          "authorHistory": {
+            "description": "Author's past sanctions and content actions.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModerationHistoryItemDto"
+            }
+          },
+          "availableActions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "hide",
+                "remove",
+                "warn",
+                "suspend",
+                "restore",
+                "dismiss"
+              ]
+            },
+            "description": "Actions that apply to this object now."
+          }
+        },
+        "required": [
+          "targetType",
+          "targetId",
+          "status",
+          "text",
+          "context",
+          "createdAt",
+          "author",
+          "reports",
+          "authorHistory",
+          "availableActions"
+        ]
+      },
+      "ModerationCardEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ModerationCardDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "ModerationActionResultDto": {
+        "type": "object",
+        "properties": {
+          "targetType": {
+            "enum": [
+              "post",
+              "comment",
+              "message",
+              "user",
+              "case",
+              "review"
+            ],
+            "type": "string"
+          },
+          "targetId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "action": {
+            "enum": [
+              "hide",
+              "remove",
+              "warn",
+              "suspend",
+              "restore",
+              "dismiss"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "nullable": true
+          },
+          "reportsHandled": {
+            "type": "integer",
+            "description": "Open reports closed by this action."
+          }
+        },
+        "required": [
+          "targetType",
+          "targetId",
+          "action",
+          "status",
+          "reportsHandled"
+        ]
+      },
+      "ModerationActionDto": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "enum": [
+              "hide",
+              "remove",
+              "warn",
+              "suspend",
+              "restore",
+              "dismiss"
+            ],
+            "type": "string"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "Required for every action (§3.2)."
+          }
+        },
+        "required": [
+          "action",
+          "reason"
+        ]
+      },
+      "ModerationActionResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ModerationActionResultDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"

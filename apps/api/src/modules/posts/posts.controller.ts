@@ -68,7 +68,7 @@ export class PostsController {
     403: [E.POST_NOT_ALLOWED],
     404: [E.NOT_FOUND],
     409: [E.FILE_NOT_ATTACHABLE],
-    422: [E.VALIDATION_ERROR],
+    422: [E.CONTENT_BLOCKED],
     429: [E.RATE_LIMITED],
   })
   createPost(
@@ -95,7 +95,7 @@ export class PostsController {
   @ApiErrors({
     400: [E.VALIDATION_ERROR],
     404: [E.POST_NOT_FOUND],
-    422: [E.VALIDATION_ERROR],
+    422: [E.CONTENT_BLOCKED],
   })
   updatePost(
     @CurrentUser() user: RequestUser,

@@ -82,7 +82,7 @@ export class CommentsService {
     });
     if (verdict === 'block') {
       throw new UnprocessableEntityException({
-        code: ErrorCode.VALIDATION_ERROR,
+        code: ErrorCode.CONTENT_BLOCKED,
         message: 'This content cannot be published.',
       });
     }

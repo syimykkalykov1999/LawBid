@@ -78,6 +78,7 @@ class Post {
     required this.isMine,
     required this.createdAt,
     this.editedAt,
+    this.status = 'published',
   });
 
   final String id;
@@ -92,6 +93,12 @@ class Post {
   final bool isMine;
   final DateTime createdAt;
   final DateTime? editedAt;
+
+  /// `published` | `hidden` | `removed` (docs/05 §12). Only the author
+  /// ever receives a non-published post: docs/06 §3.3 "Пост на проверке".
+  final String status;
+
+  bool get pendingReview => isMine && status == 'hidden';
 
   Post copyWith({
     String? body,
@@ -115,6 +122,7 @@ class Post {
         isMine: isMine,
         createdAt: createdAt,
         editedAt: editedAt ?? this.editedAt,
+        status: status,
       );
 }
 

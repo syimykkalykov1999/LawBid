@@ -8,7 +8,7 @@ import {
 import { Reflector } from '@nestjs/core';
 import type { Prisma } from '@prisma/client';
 import type { Request } from 'express';
-import { type Observable, tap } from 'rxjs';
+import { mergeMap, type Observable } from 'rxjs';
 import { AuditLogService } from '../admin-access/audit-log.service';
 import {
   AUDIT_ACTION_KEY,
@@ -60,23 +60,24 @@ export class AdminAuditInterceptor implements NestInterceptor {
         AUDIT_ACTION_KEY,
         context.getHandler(),
       ) ?? `${req.method.toLowerCase()} ${routeOf(req)}`;
+    // Awaited (not fire-and-forget): the row must exist when the response
+    // leaves — "каждое действие есть в audit_log" is checked right after.
     return next.handle().pipe(
-      tap({
-        next: () => {
-          void this.audit
-            .record({
-              adminId: admin.id,
-              action: `admin.${name}`,
-              targetType: targetTypeOf(req),
-              targetId: targetIdOf(req),
-              after: isView ? null : scrubBody(req.body),
-              ip: req.ip ?? null,
-              justification: admin.justification,
-            })
-            .catch((e: unknown) =>
-              this.logger.error(`audit_log write failed: ${String(e)}`),
-            );
-        },
+      mergeMap(async (body: unknown) => {
+        try {
+          await this.audit.record({
+            adminId: admin.id,
+            action: `admin.${name}`,
+            targetType: targetTypeOf(req),
+            targetId: targetIdOf(req),
+            after: isView ? null : scrubBody(req.body),
+            ip: req.ip ?? null,
+            justification: admin.justification,
+          });
+        } catch (e) {
+          this.logger.error(`audit_log write failed: ${String(e)}`);
+        }
+        return body;
       }),
     );
   }

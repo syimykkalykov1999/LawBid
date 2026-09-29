@@ -151,6 +151,12 @@ export enum ErrorCode {
   ADMIN_AUTH_NOT_CONFIGURED = 'ADMIN_AUTH_NOT_CONFIGURED',
   // 409: an account with this email already exists.
   ADMIN_EMAIL_TAKEN = 'ADMIN_EMAIL_TAKEN',
+  // Moderation (docs/06 §3, stage 6.4)
+  // 422: the rule-based check (blocked terms) refused the publication.
+  CONTENT_BLOCKED = 'CONTENT_BLOCKED',
+  // 409: the action does not apply to this object / state (e.g. remove a
+  // user, restore something that is not hidden).
+  MODERATION_ACTION_NOT_APPLICABLE = 'MODERATION_ACTION_NOT_APPLICABLE',
 
   // Cases and bids (docs/04_CASES_BIDS.md §15, stage 4.1 state machines
   // and access policy).

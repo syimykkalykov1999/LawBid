@@ -32,6 +32,7 @@ import {
 } from '../../common/dto/api-docs.decorators';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { UsageLimitsModule } from '../../common/usage-limits/usage-limits.module';
+import { ModerationService } from '../moderation/moderation.service';
 import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
@@ -78,6 +79,7 @@ export class ReportsService {
     private readonly prisma: PrismaService,
     private readonly limits: UsageLimitsService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    private readonly moderation: ModerationService,
   ) {}
 
   async create(userId: string, dto: CreateReportDto): Promise<void> {
@@ -110,6 +112,8 @@ export class ReportsService {
         note: dto.note ?? null,
       },
     });
+    // docs/06 §3.3: the third distinct reporter hides the object.
+    await this.moderation.autoHideIfThreshold(dto.targetType, dto.targetId);
   }
 }
 

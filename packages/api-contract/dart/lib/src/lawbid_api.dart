@@ -24,6 +24,7 @@ import 'clients/admin_case_disputes_client.dart';
 import 'clients/bids_client.dart';
 import 'clients/posts_client.dart';
 import 'clients/case_history_client.dart';
+import 'clients/admin_moderation_client.dart';
 import 'clients/feed_client.dart';
 import 'clients/comments_client.dart';
 import 'clients/reports_client.dart';
@@ -67,6 +68,7 @@ class LawbidApi {
   BidsClient? _bids;
   PostsClient? _posts;
   CaseHistoryClient? _caseHistory;
+  AdminModerationClient? _adminModeration;
   FeedClient? _feed;
   CommentsClient? _comments;
   ReportsClient? _reports;
@@ -129,6 +131,9 @@ class LawbidApi {
 
   CaseHistoryClient get caseHistory =>
       _caseHistory ??= CaseHistoryClient(_dio, baseUrl: _baseUrl);
+
+  AdminModerationClient get adminModeration =>
+      _adminModeration ??= AdminModerationClient(_dio, baseUrl: _baseUrl);
 
   FeedClient get feed => _feed ??= FeedClient(_dio, baseUrl: _baseUrl);
 

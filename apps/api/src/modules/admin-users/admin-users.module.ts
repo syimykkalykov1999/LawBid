@@ -20,5 +20,7 @@ import { AdminUsersService } from './admin-users.service';
   ],
   controllers: [AdminUsersController],
   providers: [AdminUsersService],
+  // docs/06 §3.2: the moderation queue applies the same §3.4 sanctions.
+  exports: [AdminUsersService],
 })
 export class AdminUsersModule {}

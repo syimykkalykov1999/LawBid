@@ -63,6 +63,9 @@ export const FILE_06_SETTINGS = {
   'moderation.blocked_terms': [] as string[],
   'moderation.hold_terms': [] as string[],
   'moderation.auto_hide_reports': 3,
+  // §3.3 "массовые ссылки" / "повторяющийся текст от одного автора" → hold.
+  'moderation.max_links': 3,
+  'moderation.duplicate_window_hours': 24,
 } as const;
 
 /** Every typed app_config tunable with its spec default. */

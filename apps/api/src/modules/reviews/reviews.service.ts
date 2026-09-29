@@ -1,4 +1,5 @@
 import {
+  Optional,
   ConflictException,
   ForbiddenException,
   HttpException,
@@ -8,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { Prisma, type Review } from '@prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import { ModerationService } from '../moderation/moderation.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
   decodeCursor,
@@ -60,6 +62,9 @@ export class ReviewsService {
     private readonly prisma: PrismaService,
     private readonly settings: AppSettingsService,
     private readonly notifications: NotificationsService,
+    // Optional: the worker process (src/worker.ts) wires CaseLifecycleModule
+    // without the global ModerationModule and never reports reviews.
+    @Optional() private readonly moderation?: ModerationService,
   ) {}
 
   /** POST /cases/:caseId/review (§7.1, §7.2). */
@@ -331,6 +336,8 @@ export class ReviewsService {
         },
       });
     });
+    // docs/06 §3.3: the third distinct reporter hides the review.
+    await this.moderation?.autoHideIfThreshold('review', review.id);
     return {
       id: report.id,
       reviewId,

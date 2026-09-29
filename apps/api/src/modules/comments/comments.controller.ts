@@ -71,7 +71,7 @@ export class CommentsController {
   @ApiErrors({
     400: [E.VALIDATION_ERROR],
     404: [E.POST_NOT_FOUND, E.COMMENT_NOT_FOUND],
-    422: [E.VALIDATION_ERROR],
+    422: [E.CONTENT_BLOCKED],
     429: [E.RATE_LIMITED],
   })
   createComment(

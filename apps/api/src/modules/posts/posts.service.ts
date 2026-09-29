@@ -229,7 +229,7 @@ export class PostsService {
     const verdict = await this.moderation.check(text, { kind, authorId });
     if (verdict === 'block') {
       throw new UnprocessableEntityException({
-        code: ErrorCode.VALIDATION_ERROR,
+        code: ErrorCode.CONTENT_BLOCKED,
         message: 'This content cannot be published.',
       });
     }

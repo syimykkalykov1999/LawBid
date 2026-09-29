@@ -102,6 +102,25 @@ class PostCard extends ConsumerWidget {
                 expanded: inDetail,
               ),
             ),
+          if (p.pendingReview)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.lg, AppSpacing.xs, AppSpacing.lg, 0),
+              child: Row(
+                children: [
+                  Icon(Icons.hourglass_top_rounded,
+                      size: 14, color: colors.textSecondary),
+                  const SizedBox(width: AppSpacing.xs),
+                  Text(
+                    t.t('post.pending_review'),
+                    style: Theme.of(context)
+                        .extension<AppTypographyTokens>()!
+                        .caption
+                        .copyWith(color: colors.textSecondary),
+                  ),
+                ],
+              ),
+            ),
           if (p.editedAt != null)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),

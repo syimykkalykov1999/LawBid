@@ -415,6 +415,7 @@ abstract final class SocialMappers {
         isMine: d.isMine,
         createdAt: DateTime.parse(d.createdAt),
         editedAt: d.editedAt == null ? null : DateTime.parse(d.editedAt!),
+        status: d.status.name,
       );
 
   static Comment comment(api.CommentDto d) => Comment(

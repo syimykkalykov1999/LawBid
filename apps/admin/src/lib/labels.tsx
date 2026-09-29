@@ -23,6 +23,39 @@ export const REQUEST_STATUS: Record<string, string> = {
   rejected: 'отклонена',
 };
 
+export const TARGET_TYPE: Record<string, string> = {
+  post: 'Пост',
+  comment: 'Комментарий',
+  message: 'Сообщение',
+  user: 'Пользователь',
+  case: 'Кейс',
+  review: 'Отзыв',
+};
+
+export const REPORT_REASON: Record<string, string> = {
+  spam: 'спам',
+  abuse: 'оскорбления',
+  misinformation: 'дезинформация',
+  impersonation: 'выдача себя за другого',
+  inappropriate: 'неприемлемое',
+  other: 'другое',
+};
+
+export const MOD_ACTION: Record<string, string> = {
+  hide: 'Скрыть',
+  remove: 'Удалить',
+  warn: 'Предупредить автора',
+  suspend: 'Приостановить пользователя',
+  restore: 'Восстановить',
+  dismiss: 'Отклонить жалобу',
+};
+
+export const CONTENT_STATUS: Record<string, string> = {
+  published: 'опубликован',
+  hidden: 'скрыт',
+  removed: 'удалён',
+};
+
 export function StatusBadge({ status }: { status: string }) {
   return (
     <Badge
