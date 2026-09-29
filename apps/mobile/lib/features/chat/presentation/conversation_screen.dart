@@ -214,13 +214,21 @@ class _Header extends ConsumerWidget {
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final c = conversation;
     final attorney = ref.watch(currentUserRoleProvider) == UserRole.attorney;
+    final caseId = c.caseId;
     return Semantics(
-      button: true,
-      label: t.t('chat.openCase'),
+      button: caseId != null,
+      label: caseId != null ? t.t('chat.openCase') : counterpartName(t, c),
       child: AppPressable(
-        onTap: () => context.push(attorney
-            ? AppRoutes.caseDetail(c.caseId)
-            : AppRoutes.myCase(c.caseId)),
+        // Without a case (reserved) the header opens the attorney's profile.
+        onTap: () {
+          if (caseId != null) {
+            context.push(attorney
+                ? AppRoutes.caseDetail(caseId)
+                : AppRoutes.myCase(caseId));
+          } else if (c.counterpart.isAttorney && c.counterpart.username != null) {
+            context.push(AppRoutes.lawyer(c.counterpart.username!));
+          }
+        },
         child: Row(
           children: [
             CounterpartAvatar(counterpart: c.counterpart, size: 36),
@@ -238,7 +246,10 @@ class _Header extends ConsumerWidget {
                         color: colors.text, fontWeight: FontWeight.w600),
                   ),
                   Text(
-                    c.caseTitle,
+                    c.caseTitle ??
+                        (c.counterpart.username == null
+                            ? t.t('chat.direct')
+                            : '@${c.counterpart.username}'),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: type.caption.copyWith(color: colors.goldDark),

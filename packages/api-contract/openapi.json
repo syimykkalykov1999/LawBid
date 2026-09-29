@@ -14640,6 +14640,31 @@
             }
           },
           {
+            "name": "rating",
+            "required": false,
+            "in": "query",
+            "description": "Only reviews with this star rating (tap on the bar).",
+            "schema": {
+              "minimum": 1,
+              "maximum": 5,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "description": "Order by date.",
+            "schema": {
+              "default": "newest",
+              "type": "string",
+              "enum": [
+                "newest",
+                "oldest"
+              ]
+            }
+          },
+          {
             "name": "cursor",
             "required": false,
             "in": "query",
@@ -19787,10 +19812,13 @@
           },
           "caseId": {
             "type": "string",
-            "format": "uuid"
+            "nullable": true,
+            "format": "uuid",
+            "description": "Reserved: null when a conversation has no case."
           },
           "caseTitle": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "status": {
             "enum": [
@@ -19841,8 +19869,6 @@
         },
         "required": [
           "id",
-          "caseId",
-          "caseTitle",
           "status",
           "contactsUnlocked",
           "counterpart",

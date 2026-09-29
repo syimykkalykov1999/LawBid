@@ -14,13 +14,13 @@ part 'conversation_dto.g.dart';
 class ConversationDto {
   const ConversationDto({
     required this.id,
-    required this.caseId,
-    required this.caseTitle,
     required this.status,
     required this.contactsUnlocked,
     required this.counterpart,
     required this.unreadCount,
     required this.updatedAt,
+    this.caseId,
+    this.caseTitle,
     this.lastMessage,
     this.lastMessageAt,
     this.mutedUntil,
@@ -31,8 +31,10 @@ class ConversationDto {
       _$ConversationDtoFromJson(json);
 
   final String id;
-  final String caseId;
-  final String caseTitle;
+
+  /// Reserved: null when a conversation has no case.
+  final String? caseId;
+  final String? caseTitle;
   final ConversationDtoStatus status;
   final bool contactsUnlocked;
   final ConversationCounterpartDto counterpart;

@@ -36,7 +36,9 @@ abstract interface class PracticesRepository {
 
 /// docs/03 §7 reviews. Throws [ApiException].
 abstract interface class ReviewsRepository {
-  Future<ReviewPage> list(String attorneyId, {String? cursor});
+  /// [rating] 1–5: only reviews with that many stars (tap on the bar).
+  Future<ReviewPage> list(String attorneyId,
+      {String? cursor, int? rating, bool oldest = false});
 
   Future<ReviewSummary> summary(String attorneyId);
 
@@ -145,9 +147,16 @@ class ApiReviewsRepository implements ReviewsRepository {
   static const pageSize = 20;
 
   @override
-  Future<ReviewPage> list(String attorneyId, {String? cursor}) async {
+  Future<ReviewPage> list(String attorneyId,
+      {String? cursor, int? rating, bool oldest = false}) async {
     final env = await guardApiCall(
-      () => _client.list(id: attorneyId, limit: pageSize, cursor: cursor),
+      () => _client.list(
+        id: attorneyId,
+        limit: pageSize,
+        cursor: cursor,
+        rating: rating,
+        sort: oldest ? api.Sort3.oldest : api.Sort3.newest,
+      ),
     );
     return ReviewPage(
       items: env.data.map(ProfileMappers.publicReview).toList(growable: false),

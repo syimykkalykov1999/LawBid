@@ -224,20 +224,29 @@ export class ReviewsService {
     await this.assertVisibleAttorney(attorneyId);
     const limit = query.limit ?? REVIEWS_PAGE_DEFAULT;
     const cursor = query.cursor ? decodeCursor(query.cursor) : undefined;
+    const oldest = query.sort === 'oldest';
     const rows = await this.prisma.review.findMany({
       where: {
         attorney_id: attorneyId,
         status: 'published',
+        ...(query.rating !== undefined ? { rating: query.rating } : {}),
         ...(cursor
           ? {
-              OR: [
-                { created_at: { lt: cursor.createdAt } },
-                { created_at: cursor.createdAt, id: { lt: cursor.id } },
-              ],
+              OR: oldest
+                ? [
+                    { created_at: { gt: cursor.createdAt } },
+                    { created_at: cursor.createdAt, id: { gt: cursor.id } },
+                  ]
+                : [
+                    { created_at: { lt: cursor.createdAt } },
+                    { created_at: cursor.createdAt, id: { lt: cursor.id } },
+                  ],
             }
           : {}),
       },
-      orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+      orderBy: oldest
+        ? [{ created_at: 'asc' }, { id: 'asc' }]
+        : [{ created_at: 'desc' }, { id: 'desc' }],
       take: limit + 1,
       include: { client: CLIENT_NAME },
     });

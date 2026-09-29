@@ -306,6 +306,9 @@ export class FollowsService {
     ]);
     const following = new Set(mine.map((m) => m.followee_id));
     const byId = new Map(users.map((u) => [u.id, u]));
+    const avatars = await this.files.avatarUrlsMany(
+      users.map((u) => u.avatar_file_id),
+    );
     const out: AttorneyListItemDto[] = [];
     for (const id of ids) {
       const u = byId.get(id);
@@ -316,7 +319,9 @@ export class FollowsService {
         username: p.username,
         firstName: u.first_name,
         lastName: u.last_name,
-        avatarUrl: (await this.files.avatarUrls(u.avatar_file_id)).url256,
+        avatarUrl: u.avatar_file_id
+          ? (avatars.get(u.avatar_file_id)?.url256 ?? null)
+          : null,
         verifiedBadge:
           p.verification_status === 'verified' && p.licenses.length > 0,
         rating: { avg: Number(p.rating_avg), count: p.rating_count },

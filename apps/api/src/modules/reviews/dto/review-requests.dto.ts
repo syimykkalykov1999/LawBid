@@ -3,6 +3,7 @@ import { ReportReason } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
 import {
   IsEnum,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -100,6 +101,28 @@ export class ReportReviewDto {
 }
 
 export class ListReviewsQueryDto {
+  @ApiPropertyOptional({
+    type: 'integer',
+    minimum: 1,
+    maximum: 5,
+    description: 'Only reviews with this star rating (tap on the bar).',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(5)
+  rating?: number;
+
+  @ApiPropertyOptional({
+    enum: ['newest', 'oldest'],
+    default: 'newest',
+    description: 'Order by date.',
+  })
+  @IsOptional()
+  @IsIn(['newest', 'oldest'])
+  sort?: 'newest' | 'oldest';
+
   @ApiPropertyOptional({
     description: 'meta.nextCursor of the previous page.',
   })

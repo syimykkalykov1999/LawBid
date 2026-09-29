@@ -329,16 +329,15 @@ export class CommentsService {
       this.counters.pending('comment', 'reply_count', ids),
     ]);
     const byId = new Map(authors.map((a) => [a.id, a]));
-    const avatar = new Map<string, string | null>();
-    await Promise.all(
-      authors
-        .filter((a) => a.role === 'attorney')
-        .map(async (a) =>
-          avatar.set(
-            a.id,
-            (await this.files.avatarUrls(a.avatar_file_id)).url256,
-          ),
-        ),
+    const attorneys = authors.filter((a) => a.role === 'attorney');
+    const files = await this.files.avatarUrlsMany(
+      attorneys.map((a) => a.avatar_file_id),
+    );
+    const avatar = new Map<string, string | null>(
+      attorneys.map((a) => [
+        a.id,
+        a.avatar_file_id ? (files.get(a.avatar_file_id)?.url256 ?? null) : null,
+      ]),
     );
     const liked = new Set(likes.map((l) => l.comment_id));
     return rows.map((r) => {

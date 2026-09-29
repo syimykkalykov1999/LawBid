@@ -1453,8 +1453,11 @@ model SavedItem {
 
 model Conversation {
   id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  case_id           String             @db.Uuid
-  case              Case               @relation(fields: [case_id], references: [id], onDelete: Restrict)
+  // Nullable since 2026-09-28 (migration applied, then the owner kept
+  // chats case-only per docs/04 §9 — no code writes NULL today; partial UQ
+  // (attorney_id, client_id) WHERE case_id IS NULL is raw SQL).
+  case_id           String?            @db.Uuid
+  case              Case?              @relation(fields: [case_id], references: [id], onDelete: Restrict)
   attorney_id       String             @db.Uuid
   attorney          User               @relation("ConversationAttorney", fields: [attorney_id], references: [id], onDelete: Restrict)
   client_id         String             @db.Uuid

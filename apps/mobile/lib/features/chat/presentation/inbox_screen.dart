@@ -342,8 +342,10 @@ class _ConversationRow extends ConsumerWidget {
                       ],
                     ],
                   ),
-                  const SizedBox(height: AppSpacing.xs),
-                  _CaseChip(title: c.caseTitle, closed: c.closed),
+                  if (c.caseTitle != null) ...[
+                    const SizedBox(height: AppSpacing.xs),
+                    _CaseChip(title: c.caseTitle!, closed: c.closed),
+                  ],
                 ],
               ),
             ),
@@ -393,7 +395,12 @@ class _CaseChip extends StatelessWidget {
 /// "Клиент по кейсу «…»" until contacts unlock (§8.1), else the name.
 String counterpartName(Translator t, Conversation c) {
   final p = c.counterpart;
-  if (p.hidden) return t.t('chat.hiddenClient', {'title': c.caseTitle});
+  if (p.hidden) {
+    final title = c.caseTitle;
+    return title == null
+        ? t.t('chat.hiddenClient.direct')
+        : t.t('chat.hiddenClient', {'title': title});
+  }
   return p.displayName ?? (p.username == null ? '' : '@${p.username}');
 }
 

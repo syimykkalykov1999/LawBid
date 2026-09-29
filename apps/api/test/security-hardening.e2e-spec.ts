@@ -17,6 +17,10 @@ import { BOOTSTRAP_CACHE_KEY } from '../src/modules/feature-flags/services/boots
  * test/support/e2e-global-setup.ts — and the exact main.ts wiring via
  * configureApp().
  */
+// App boots with production settings several times; under the full serial
+// run a boot can exceed jest's 5 s default.
+jest.setTimeout(30_000);
+
 describe('Security hardening (e2e)', () => {
   let app: NestExpressApplication;
   let prisma: PrismaService;

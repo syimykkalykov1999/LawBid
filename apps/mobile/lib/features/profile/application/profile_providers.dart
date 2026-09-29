@@ -124,16 +124,25 @@ class ReviewsListState {
 
 /// `GET /attorneys/:id/reviews?cursor=` — first page is the AsyncValue
 /// (skeleton / error / offline states), later pages drive the footer.
-class ReviewsListController extends AsyncNotifier<ReviewsListState> {
-  ReviewsListController(this.attorneyId);
+/// Reviews list key: the attorney and an optional star filter (owner
+/// request: tapping a bar in the distribution shows only those reviews).
+enum ReviewsSort { newest, oldest }
 
-  final String attorneyId;
+typedef ReviewsKey = ({String attorneyId, int? rating, ReviewsSort sort});
+
+class ReviewsListController extends AsyncNotifier<ReviewsListState> {
+  ReviewsListController(this.key);
+
+  final ReviewsKey key;
+  String get attorneyId => key.attorneyId;
 
   @override
   Future<ReviewsListState> build() => _firstPage();
 
   Future<ReviewsListState> _firstPage() async {
-    final page = await ref.read(reviewsRepositoryProvider).list(attorneyId);
+    final page = await ref
+        .read(reviewsRepositoryProvider)
+        .list(attorneyId, rating: key.rating, oldest: key.sort == ReviewsSort.oldest);
     return ReviewsListState(
       items: page.items,
       nextCursor: page.nextCursor,
@@ -157,7 +166,10 @@ class ReviewsListController extends AsyncNotifier<ReviewsListState> {
     try {
       final page = await ref
           .read(reviewsRepositoryProvider)
-          .list(attorneyId, cursor: current.nextCursor);
+          .list(attorneyId,
+              cursor: current.nextCursor,
+              rating: key.rating,
+              oldest: key.sort == ReviewsSort.oldest);
       if (!ref.mounted) return;
       state = AsyncData(
         current.copyWith(
@@ -176,7 +188,7 @@ class ReviewsListController extends AsyncNotifier<ReviewsListState> {
 }
 
 final reviewsListProvider = AsyncNotifierProvider.autoDispose
-    .family<ReviewsListController, ReviewsListState, String>(
+    .family<ReviewsListController, ReviewsListState, ReviewsKey>(
   ReviewsListController.new,
   retry: (_, __) => null,
 );

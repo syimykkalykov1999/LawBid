@@ -9,8 +9,6 @@ part of 'conversation_dto.dart';
 ConversationDto _$ConversationDtoFromJson(Map<String, dynamic> json) =>
     ConversationDto(
       id: json['id'] as String,
-      caseId: json['caseId'] as String,
-      caseTitle: json['caseTitle'] as String,
       status: ConversationDtoStatus.fromJson(json['status'] as String),
       contactsUnlocked: json['contactsUnlocked'] as bool,
       counterpart: ConversationCounterpartDto.fromJson(
@@ -18,6 +16,8 @@ ConversationDto _$ConversationDtoFromJson(Map<String, dynamic> json) =>
       ),
       unreadCount: json['unreadCount'] as num,
       updatedAt: DateTime.parse(json['updatedAt'] as String),
+      caseId: json['caseId'] as String?,
+      caseTitle: json['caseTitle'] as String?,
       lastMessage: json['lastMessage'] == null
           ? null
           : MessageDto.fromJson(json['lastMessage'] as Map<String, dynamic>),
@@ -34,8 +34,8 @@ ConversationDto _$ConversationDtoFromJson(Map<String, dynamic> json) =>
 Map<String, dynamic> _$ConversationDtoToJson(ConversationDto instance) =>
     <String, dynamic>{
       'id': instance.id,
-      'caseId': instance.caseId,
-      'caseTitle': instance.caseTitle,
+      'caseId': ?instance.caseId,
+      'caseTitle': ?instance.caseTitle,
       'status': instance.status.toJson(),
       'contactsUnlocked': instance.contactsUnlocked,
       'counterpart': instance.counterpart.toJson(),

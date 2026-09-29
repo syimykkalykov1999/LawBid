@@ -46,8 +46,9 @@ class Conversation {
   });
 
   final String id;
-  final String caseId;
-  final String caseTitle;
+  /// Reserved: null when a conversation has no case (none today).
+  final String? caseId;
+  final String? caseTitle;
   final ConversationStatus status;
   final bool contactsUnlocked;
   final Counterpart counterpart;

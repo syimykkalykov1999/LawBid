@@ -77,14 +77,14 @@ export class PostPresenter {
         this.counters.pending('post', 'save_count', ids),
       ]);
     const urls = await this.files.postImageUrls(media.map((m) => m.file_id));
-    const avatars = new Map<string, string | null>();
-    await Promise.all(
-      authors.map(async (a) =>
-        avatars.set(
-          a.id,
-          (await this.files.avatarUrls(a.avatar_file_id)).url256,
-        ),
-      ),
+    const files = await this.files.avatarUrlsMany(
+      authors.map((a) => a.avatar_file_id),
+    );
+    const avatars = new Map<string, string | null>(
+      authors.map((a) => [
+        a.id,
+        a.avatar_file_id ? (files.get(a.avatar_file_id)?.url256 ?? null) : null,
+      ]),
     );
     const authorById = new Map(authors.map((a) => [a.id, a]));
     const liked = new Set(likes.map((l) => l.post_id));

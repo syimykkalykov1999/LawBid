@@ -189,11 +189,18 @@ class FollowButton extends ConsumerWidget {
                   color: following ? colors.text : colors.onCtaBright,
                 ),
                 const SizedBox(width: AppSpacing.xs),
-                Text(
-                  t.t(following ? 'follow.following' : 'follow.follow'),
-                  style: type.button.copyWith(
-                    fontSize: 14,
-                    color: following ? colors.text : colors.onCtaBright,
+                // Shrinks at 200% text scale instead of overflowing.
+                Flexible(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      t.t(following ? 'follow.following' : 'follow.follow'),
+                      maxLines: 1,
+                      style: type.button.copyWith(
+                        fontSize: 14,
+                        color: following ? colors.text : colors.onCtaBright,
+                      ),
+                    ),
                   ),
                 ),
               ],

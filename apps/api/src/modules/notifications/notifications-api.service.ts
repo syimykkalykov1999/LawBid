@@ -215,6 +215,9 @@ export class NotificationsApiService {
         })
       : [];
     const byId = new Map(actors.map((a) => [a.id, a]));
+    const avatars = await this.files.avatarUrlsMany(
+      actors.filter((a) => a.role === 'attorney').map((a) => a.avatar_file_id),
+    );
     const out: NotificationDto[] = [];
     for (const r of rows) {
       const payload = (r.payload ?? {}) as Record<string, unknown>;
@@ -236,9 +239,10 @@ export class NotificationsApiService {
               username: isAttorney
                 ? (a.attorney_profile?.username ?? null)
                 : null,
-              avatarUrl: isAttorney
-                ? (await this.files.avatarUrls(a.avatar_file_id)).url256
-                : null,
+              avatarUrl:
+                isAttorney && a.avatar_file_id
+                  ? (avatars.get(a.avatar_file_id)?.url256 ?? null)
+                  : null,
             }
           : null,
         aggregateCount: r.aggregate_count,

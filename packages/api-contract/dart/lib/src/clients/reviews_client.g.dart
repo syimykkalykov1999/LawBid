@@ -123,14 +123,18 @@ class _ReviewsClient implements ReviewsClient {
   @override
   Future<PublicReviewListEnvelope> list({
     required String id,
+    Sort3? sort = Sort3.newest,
     int? limit = 20,
+    int? rating,
     String? cursor,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
     _extra.addAll(extras ?? <String, dynamic>{});
     final queryParameters = <String, dynamic>{
+      r'sort': sort?.toJson(),
       r'limit': limit,
+      r'rating': rating,
       r'cursor': cursor,
     };
     queryParameters.removeWhere((k, v) => v == null);

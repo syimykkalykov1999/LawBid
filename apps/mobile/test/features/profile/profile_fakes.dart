@@ -212,12 +212,18 @@ class FakeReviewsRepo implements ReviewsRepository {
     return own;
   }
 
+  /// Star filters and orders asked for (owner's review filter).
+  final listFilters = <(int?, bool)>[];
+
   @override
-  Future<ReviewPage> list(String attorneyId, {String? cursor}) async {
+  Future<ReviewPage> list(String attorneyId,
+      {String? cursor, int? rating, bool oldest = false}) async {
     listCursors.add(cursor);
+    listFilters.add((rating, oldest));
     final index = cursor == null ? 0 : int.parse(cursor);
     if (pages.isEmpty) return const ReviewPage(items: []);
-    return ReviewPage(items: pages[index], nextCursor: index + 1 < pages.length ? '${index + 1}' : null);
+    final items = pages[index].where((r) => rating == null || r.rating == rating).toList();
+    return ReviewPage(items: items, nextCursor: index + 1 < pages.length ? '${index + 1}' : null);
   }
 
   @override

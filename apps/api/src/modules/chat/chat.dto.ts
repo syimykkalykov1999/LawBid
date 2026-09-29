@@ -145,11 +145,16 @@ export class ConversationDto {
   @ApiProperty({ format: 'uuid' })
   id!: string;
 
-  @ApiProperty({ format: 'uuid' })
-  caseId!: string;
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    format: 'uuid',
+    description: 'Reserved: null when a conversation has no case.',
+  })
+  caseId!: string | null;
 
-  @ApiProperty()
-  caseTitle!: string;
+  @ApiPropertyOptional({ type: String, nullable: true })
+  caseTitle!: string | null;
 
   @ApiProperty({ enum: ['pre_acceptance', 'active', 'closed'] })
   status!: 'pre_acceptance' | 'active' | 'closed';

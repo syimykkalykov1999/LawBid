@@ -86,7 +86,8 @@ void main() {
       expect(find.text('Follow'), findsOneWidget);
       expect(find.bySemanticsLabel('Share'), findsOneWidget);
       expect(find.text('Edit'), findsNothing);
-      expect(find.text('Message'), findsNothing); // chat opens from a case only
+      // Owner decision (OQ-014): "Message" leads to the Chats screen.
+      expect(find.text('Message'), findsOneWidget);
       await _teardown(tester);
     });
 

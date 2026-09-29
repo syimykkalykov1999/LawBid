@@ -305,6 +305,7 @@ export 'models/filter3.dart';
 export 'models/period.dart';
 export 'models/sort2.dart';
 export 'models/status.dart';
+export 'models/sort3.dart';
 export 'models/otp_request_dto_channel.dart';
 export 'models/otp_verify_dto_channel.dart';
 export 'models/social_login_dto_provider.dart';

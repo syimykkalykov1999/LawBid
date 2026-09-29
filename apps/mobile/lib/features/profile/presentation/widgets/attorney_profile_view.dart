@@ -18,6 +18,7 @@ import 'package:lawbid/features/profile/presentation/widgets/review_widgets.dart
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart';
 import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart';
 import 'package:lawbid/features/social/social_routes.dart';
+import 'package:lawbid/features/chat/chat_routes.dart';
 
 enum AttorneyProfileTab { posts, reviews }
 
@@ -29,8 +30,8 @@ String attorneyShareLink(String host, String username) => 'https://$host/lawyer/
 /// + blue check, counters) → gold rating card → "Attorney" chip + bio →
 /// chip rows (firm, practices, licensed states) → buttons → Posts /
 /// Reviews tabs. The same view serves the caller's own profile ([profile]
-/// `.isSelf`: Edit + Share) and anyone else's (Follow + Share; no "Message"
-/// — chats open from a case only). Pull-to-refresh reloads everything.
+/// `.isSelf`: Edit + Share) and anyone else's (Follow + Message + Share;
+/// "Message" opens the Chats screen — chats start from a case, docs/04 §9).
 class AttorneyProfileView extends ConsumerStatefulWidget {
   const AttorneyProfileView({
     required this.profile,
@@ -55,7 +56,12 @@ class AttorneyProfileView extends ConsumerStatefulWidget {
 class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
   late AttorneyProfileTab _tab = widget.initialTab;
 
+  /// Reviews tab: star filter (null = all) and date order.
+  int? _stars;
+  ReviewsSort _sort = ReviewsSort.newest;
+
   PublicAttorneyProfile get p => widget.profile;
+  ReviewsKey get _reviewsKey => (attorneyId: p.id, rating: _stars, sort: _sort);
 
   Future<void> _report(Translator t, Review review) async {
     final reason = await showReportReasonSheet(context, t);
@@ -78,7 +84,7 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
   Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
     final reviewsTab = _tab == AttorneyProfileTab.reviews;
-    final reviews = reviewsTab ? ref.watch(reviewsListProvider(p.id)) : null;
+    final reviews = reviewsTab ? ref.watch(reviewsListProvider(_reviewsKey)) : null;
     final summary = reviewsTab ? ref.watch(reviewSummaryProvider(p.id)) : null;
     final state = reviews?.value;
 
@@ -94,14 +100,6 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
         // row, icon tabs (owner request 2026-09-28).
         _HeaderCard(profile: p),
         const SizedBox(height: AppSpacing.md),
-        // Buttons right under the counters (owner request): flat, quiet.
-        _Actions(
-          isSelf: p.isSelf,
-          attorneyId: p.id,
-          isFollowing: p.isFollowing,
-          onShare: () => _share(t),
-        ),
-        const SizedBox(height: AppSpacing.md),
         _AboutSection(
           profile: p,
           onRating: () => setState(() => _tab = AttorneyProfileTab.reviews),
@@ -109,6 +107,18 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
         const SizedBox(height: AppSpacing.md),
         _ChipRows(profile: p),
         const SizedBox(height: AppSpacing.sm),
+        // Instagram order: buttons right above the tabs — Follow |
+        // Message | share icon (owner request).
+        _Actions(
+          isSelf: p.isSelf,
+          attorneyId: p.id,
+          isFollowing: p.isFollowing,
+          // Owner decision (OQ-014): "Написать" leads to the Chats screen;
+          // chats themselves open from a case (docs/04 §9).
+          onMessage: () => context.push(ChatRoutes.inbox),
+          onShare: () => _share(t),
+        ),
+        const SizedBox(height: AppSpacing.md),
         _Tabs(
           selected: _tab,
           onChanged: (tab) => setState(() => _tab = tab),
@@ -124,8 +134,39 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
                 ? const SizedBox.shrink()
                 : Padding(
                     padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                    child: ReviewSummaryPanel(summary: s),
+                    child: ReviewSummaryPanel(
+                      summary: s,
+                      selectedStars: _stars,
+                      // Tap a bar → only those reviews; tap again → all.
+                      onStarsTap: (stars) => setState(() => _stars = _stars == stars ? null : stars),
+                    ),
                   ),
+          ),
+        if (reviewsTab && summary?.value?.isNew == false)
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.md),
+            child: Wrap(
+              spacing: AppSpacing.sm,
+              children: [
+                AppChip(
+                  label: t.t('reviews.sort.newest'),
+                  selected: _sort == ReviewsSort.newest,
+                  onTap: () => setState(() => _sort = ReviewsSort.newest),
+                ),
+                AppChip(
+                  label: t.t('reviews.sort.oldest'),
+                  selected: _sort == ReviewsSort.oldest,
+                  onTap: () => setState(() => _sort = ReviewsSort.oldest),
+                ),
+                if (_stars != null)
+                  AppChip(
+                    label: '$_stars ★',
+                    selected: true,
+                    trailing: const Icon(Icons.close_rounded, size: AppSpacing.lg),
+                    onTap: () => setState(() => _stars = null),
+                  ),
+              ],
+            ),
           ),
       ]),
     );
@@ -153,14 +194,22 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
         title: t.t(offline ? 'offline.title' : 'error.default.title'),
         message: t.t(offline ? 'offline.message' : 'reviews.error'),
         actionLabel: t.t('error.retry'),
-        onAction: () => ref.invalidate(reviewsListProvider(p.id)),
+        onAction: () => ref.invalidate(reviewsListProvider(_reviewsKey)),
       );
     } else if (state != null && state.items.isEmpty) {
-      footer = _TabMessage(
-        icon: Icons.star_outline_rounded,
-        title: t.t('profile.rating.new'),
-        message: t.t(p.isSelf ? 'reviews.empty.self' : 'reviews.empty.other'),
-      );
+      footer = _stars != null
+          ? _TabMessage(
+              icon: Icons.star_outline_rounded,
+              title: t.t('reviews.filter.emptyTitle', {'stars': '$_stars'}),
+              message: t.t('reviews.filter.emptyMessage'),
+              actionLabel: t.t('reviews.filter.showAll'),
+              onAction: () => setState(() => _stars = null),
+            )
+          : _TabMessage(
+              icon: Icons.star_outline_rounded,
+              title: t.t('profile.rating.new'),
+              message: t.t(p.isSelf ? 'reviews.empty.self' : 'reviews.empty.other'),
+            );
     } else if (state != null) {
       items = state.items;
       status = state.status;
@@ -181,15 +230,15 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
       // Only the Reviews tab paginates; the posts placeholder must not
       // wake the (autoDispose) reviews list.
       onLoadMore: () {
-        if (reviewsTab) ref.read(reviewsListProvider(p.id).notifier).loadMore();
+        if (reviewsTab) ref.read(reviewsListProvider(_reviewsKey).notifier).loadMore();
       },
       onRetry: () {
-        if (reviewsTab) ref.read(reviewsListProvider(p.id).notifier).loadMore();
+        if (reviewsTab) ref.read(reviewsListProvider(_reviewsKey).notifier).loadMore();
       },
       onRefresh: () async {
         ref
           ..invalidate(reviewSummaryProvider(p.id))
-          ..invalidate(reviewsListProvider(p.id));
+          ..invalidate(reviewsListProvider(_reviewsKey));
         await widget.onRefresh();
       },
       itemBuilder: (context, review, index) => AppEntrance(
@@ -418,7 +467,6 @@ class _AboutSection extends ConsumerWidget {
           child: AppPressable(
             onTap: onRating,
             child: Row(
-              mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(Icons.star_rounded, size: 16, color: colors.gold),
                 const SizedBox(width: 3),
@@ -427,9 +475,13 @@ class _AboutSection extends ConsumerWidget {
                   style: typography.bodySmall.copyWith(color: colors.text, fontWeight: FontWeight.w700),
                 ),
                 Text(' · ', style: typography.bodySmall.copyWith(color: colors.textSecondary)),
-                Text(
-                  r.isNew ? t.t('profile.rating.newShort') : t.plural('profile.rating.count', r.count),
-                  style: typography.bodySmall.copyWith(color: colors.textSecondary),
+                Flexible(
+                  child: Text(
+                    r.isNew ? t.t('profile.rating.newShort') : t.plural('profile.rating.count', r.count),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: typography.bodySmall.copyWith(color: colors.textSecondary),
+                  ),
                 ),
                 Icon(Icons.chevron_right_rounded, size: 16, color: colors.textSecondary),
               ],
@@ -620,12 +672,14 @@ class _Actions extends ConsumerWidget {
     required this.isSelf,
     required this.attorneyId,
     required this.isFollowing,
+    required this.onMessage,
     required this.onShare,
   });
 
   final bool isSelf;
   final String attorneyId;
   final bool isFollowing;
+  final VoidCallback onMessage;
   final VoidCallback onShare;
 
   @override
@@ -642,6 +696,15 @@ class _Actions extends ConsumerWidget {
                 )
               : FollowButton(attorneyId: attorneyId, initial: isFollowing, expanded: true),
         ),
+        if (!isSelf) ...[
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: _QuietButton(
+              label: t.t('profile.action.message'),
+              onTap: onMessage,
+            ),
+          ),
+        ],
         const SizedBox(width: AppSpacing.sm),
         // Share as a small icon square (Instagram-style), full tap target.
         Semantics(
@@ -669,12 +732,13 @@ class _Actions extends ConsumerWidget {
 
 /// Instagram-style secondary button: soft fill, no icon, small type.
 class _QuietButton extends StatelessWidget {
-  const _QuietButton({required this.label, required this.onTap});
+  const _QuietButton({required this.label, required this.onTap, this.loading = false});
 
   static const double height = AppSizes.touchTarget;
 
   final String label;
   final VoidCallback onTap;
+  final bool loading;
 
   @override
   Widget build(BuildContext context) {
@@ -694,7 +758,18 @@ class _QuietButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(AppRadii.field),
             border: Border.all(color: colors.border),
           ),
-          child: Text(label, style: typography.button.copyWith(fontSize: 14, color: colors.text)),
+          child: loading
+              ? SizedBox.square(
+                  dimension: AppSizes.iconSm,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: colors.text),
+                )
+              : Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(label, maxLines: 1, style: typography.button.copyWith(fontSize: 14, color: colors.text)),
+                  ),
+                ),
         ),
       ),
     );

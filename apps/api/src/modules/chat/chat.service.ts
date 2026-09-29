@@ -17,7 +17,7 @@ import { withTxRetry } from '../../prisma/tx-retry.util';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { maskContactInfo } from '../cases/domain/contact-detector';
 import { FilesService } from '../files/files.service';
-import { BadgesService } from '../notifications/badges.service';
+import { BadgesService, UNREAD_CAP } from '../notifications/badges.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { RealtimePublisher } from '../realtime/realtime-publisher.service';
 import { SubscriptionAccessService } from '../subscriptions/subscription-access.service';
@@ -87,12 +87,11 @@ export class ChatService {
     cursor?: string,
     updatedSince?: string,
   ): Promise<ConversationPage> {
-    const side = this.sideOf(user);
-    if (!side) return { items: [], nextCursor: null };
+    if (!this.sideOf(user)) return { items: [], nextCursor: null };
     const c = cursor ? decodeCursor(cursor) : undefined;
     const rows = await this.prisma.conversation.findMany({
       where: {
-        [side]: user.sub,
+        OR: [{ client_id: user.sub }, { attorney_id: user.sub }],
         // A chat appears in the list once it has a message (§8.1).
         last_message_at: { not: null },
         ...(updatedSince
@@ -421,13 +420,18 @@ export class ChatService {
     const [cases, users, lastMessages, participants, unread] =
       await Promise.all([
         this.prisma.case.findMany({
-          where: { id: { in: convs.map((c) => c.case_id) } },
+          where: {
+            id: {
+              in: convs.flatMap((c) => (c.case_id ? [c.case_id] : [])),
+            },
+          },
           select: { id: true, title: true },
         }),
         this.prisma.user.findMany({
           where: { id: { in: otherIds } },
           select: {
             id: true,
+            role: true,
             first_name: true,
             last_name: true,
             avatar_file_id: true,
@@ -455,16 +459,20 @@ export class ChatService {
           },
         }),
         this.prisma.$queryRaw<{ id: string; n: bigint }[]>`
-          SELECT cp.conversation_id::STRING AS id, count(m.id) AS n
+          SELECT cp.conversation_id::STRING AS id,
+                 (SELECT count(*) FROM (
+                    SELECT 1 FROM messages m
+                    WHERE m.conversation_id = cp.conversation_id
+                      AND m.deleted_at IS NULL
+                      AND (m.sender_id IS NULL OR m.sender_id <> ${viewerId}::UUID)
+                      AND (lr.id IS NULL
+                           OR (m.created_at, m.id) > (lr.created_at, lr.id))
+                    ORDER BY m.created_at DESC
+                    LIMIT ${UNREAD_CAP}) x) AS n
           FROM conversation_participants cp
           LEFT JOIN messages lr ON lr.id = cp.last_read_message_id
-          JOIN messages m ON m.conversation_id = cp.conversation_id
           WHERE cp.user_id = ${viewerId}::UUID
-            AND cp.conversation_id = ANY(${ids}::UUID[])
-            AND m.deleted_at IS NULL
-            AND (m.sender_id IS NULL OR m.sender_id <> ${viewerId}::UUID)
-            AND (lr.id IS NULL OR (m.created_at, m.id) > (lr.created_at, lr.id))
-          GROUP BY cp.conversation_id`,
+            AND cp.conversation_id = ANY(${ids}::UUID[])`,
       ]);
     const titleOf = new Map(cases.map((c) => [c.id, c.title]));
     const userOf = new Map(users.map((u) => [u.id, u]));
@@ -473,12 +481,15 @@ export class ChatService {
       participants.map((p) => [`${p.conversation_id}:${p.user_id}`, p]),
     );
     const unreadOf = new Map(unread.map((r) => [r.id, Number(r.n)]));
+    const avatars = await this.files.avatarUrlsMany(
+      users.map((u) => u.avatar_file_id),
+    );
 
     const out: ConversationDto[] = [];
     for (const c of convs) {
       const otherId = c.client_id === viewerId ? c.attorney_id : c.client_id;
       const other = userOf.get(otherId);
-      const otherIsClient = otherId === c.client_id;
+      const otherIsClient = other?.role !== 'attorney';
       // docs/04 §9: an attorney sees "Клиент по кейсу «…»" (no name, no
       // photo) until contacts are unlocked; a client always sees the
       // attorney's public identity.
@@ -487,7 +498,7 @@ export class ChatService {
       out.push({
         id: c.id,
         caseId: c.case_id,
-        caseTitle: titleOf.get(c.case_id) ?? '',
+        caseTitle: c.case_id ? (titleOf.get(c.case_id) ?? null) : null,
         status: c.status,
         contactsUnlocked: c.contacts_unlocked,
         counterpart: {
@@ -501,7 +512,9 @@ export class ChatService {
           avatarUrl:
             hidden || !other
               ? null
-              : (await this.files.avatarUrls(other.avatar_file_id)).url256,
+              : other.avatar_file_id
+                ? (avatars.get(other.avatar_file_id)?.url256 ?? null)
+                : null,
           verifiedBadge:
             other?.attorney_profile?.verification_status === 'verified',
         },

@@ -247,9 +247,19 @@ class RatingCard extends ConsumerWidget {
 /// Reviews tab header (docs/03 §7.4): average, count, distribution 5 → 1
 /// with bars that grow in (instant under reduce-motion).
 class ReviewSummaryPanel extends ConsumerWidget {
-  const ReviewSummaryPanel({required this.summary, super.key});
+  const ReviewSummaryPanel({
+    required this.summary,
+    super.key,
+    this.selectedStars,
+    this.onStarsTap,
+  });
 
   final ReviewSummary summary;
+
+  /// Star filter in effect (owner request): its bar is highlighted; a
+  /// second tap clears it.
+  final int? selectedStars;
+  final ValueChanged<int>? onStarsTap;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -294,9 +304,16 @@ class ReviewSummaryPanel extends ConsumerWidget {
                       'stars': '$stars',
                       'count': '${summary.distribution[stars] ?? 0}',
                     }),
+                    button: onStarsTap != null,
+                    selected: selectedStars == stars,
                     excludeSemantics: true,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs / 2),
+                    child: AppPressable(
+                      onTap: onStarsTap == null ? () {} : () => onStarsTap!(stars),
+                      child: AnimatedOpacity(
+                        duration: reduce ? Duration.zero : AppMotion.stateChange,
+                        opacity: selectedStars == null || selectedStars == stars ? 1 : 0.4,
+                        child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs + 1),
                       child: Row(
                         children: [
                           SizedBox(
@@ -338,10 +355,15 @@ class ReviewSummaryPanel extends ConsumerWidget {
                               formats.number(summary.distribution[stars] ?? 0),
                               textAlign: TextAlign.end,
                               textScaler: TextScaler.noScaling,
-                              style: typography.caption.copyWith(color: colors.textSecondary),
+                              style: typography.caption.copyWith(
+                                color: selectedStars == stars ? colors.text : colors.textSecondary,
+                                fontWeight: selectedStars == stars ? FontWeight.w700 : null,
+                              ),
                             ),
                           ),
                         ],
+                      ),
+                        ),
                       ),
                     ),
                   ),

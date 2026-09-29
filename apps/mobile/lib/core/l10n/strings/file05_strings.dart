@@ -221,6 +221,14 @@ const file05Ru = <String, String>{
   'notif.list.security_new_device': 'Вход в аккаунт с нового устройства',
   // --- profile header (owner redesign) ---
   'profile.rating.newShort': 'Новый',
+  'profile.action.message': 'Написать',
+  'chat.direct': 'Чат',
+  'chat.hiddenClient.direct': 'Клиент',
+  'reviews.sort.newest': 'Новые',
+  'reviews.sort.oldest': 'Старые',
+  'reviews.filter.emptyTitle': 'Нет отзывов на {stars} ★',
+  'reviews.filter.emptyMessage': 'С такой оценкой отзывов пока нет.',
+  'reviews.filter.showAll': 'Показать все',
 };
 
 const file05En = <String, String>{
@@ -433,4 +441,12 @@ const file05En = <String, String>{
   'notif.list.security_new_device': 'New sign-in from another device',
   // --- profile header (owner redesign) ---
   'profile.rating.newShort': 'New',
+  'profile.action.message': 'Message',
+  'chat.direct': 'Chat',
+  'chat.hiddenClient.direct': 'Client',
+  'reviews.sort.newest': 'Newest',
+  'reviews.sort.oldest': 'Oldest',
+  'reviews.filter.emptyTitle': 'No {stars}-star reviews',
+  'reviews.filter.emptyMessage': 'There are no reviews with this rating yet.',
+  'reviews.filter.showAll': 'Show all',
 };

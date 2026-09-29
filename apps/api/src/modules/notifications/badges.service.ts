@@ -11,6 +11,11 @@ export interface Badges {
 }
 
 const key = (userId: string) => `badge:${userId}`;
+/** Unread messages per chat stop at this (the app shows "99+"): cost
+ * stays bounded however long a chat's history is (load review). */
+export const UNREAD_CAP = 100;
+/** "999+" on the notifications badge: counting stops here. */
+const NOTIFS_CAP = 1000;
 /** The hash expires daily, so every user's counters are re-read from the
  * DB at least once a day (§10 "раз в сутки сверяются с БД"). */
 const TTL_SEC = 24 * 3600;
@@ -60,9 +65,13 @@ export class BadgesService {
 
   /** A message for [userId] arrived (after commit). */
   async messageArrived(userId: string): Promise<void> {
-    if (await this.redis.exists(key(userId))) {
-      await this.redis.hincrby(key(userId), 'chats', 1);
-    }
+    // Only bumps an existing counter (a missing hash is rebuilt on read):
+    // one atomic round trip.
+    await this.redis.eval(
+      "if redis.call('HEXISTS', KEYS[1], 'chats') == 1 then return redis.call('HINCRBY', KEYS[1], 'chats', 1) end return 0",
+      1,
+      key(userId),
+    );
     await this.publish(userId);
   }
 
@@ -101,22 +110,32 @@ export class BadgesService {
     return shape(chats, notifs);
   }
 
-  private countNotifications(userId: string): Promise<number> {
-    return this.prisma.notification.count({
-      where: { user_id: userId, read_at: null },
-    });
+  /** Partial index notifications_user_unread_idx; stops at the cap. */
+  private async countNotifications(userId: string): Promise<number> {
+    const [row] = await this.prisma.$queryRaw<{ n: bigint }[]>`
+      SELECT count(*) AS n FROM (
+        SELECT 1 FROM notifications
+        WHERE user_id = ${userId}::UUID AND read_at IS NULL
+        LIMIT ${NOTIFS_CAP}) x`;
+    return Number(row?.n ?? 0);
   }
 
   private async countChats(userId: string): Promise<number> {
+    // Per chat at most UNREAD_CAP rows are read (the index on
+    // messages(conversation_id, created_at DESC) stops each scan early).
     const [row] = await this.prisma.$queryRaw<{ n: bigint }[]>`
-      SELECT count(m.id) AS n
+      SELECT coalesce(sum((
+        SELECT count(*) FROM (
+          SELECT 1 FROM messages m
+          WHERE m.conversation_id = cp.conversation_id
+            AND m.deleted_at IS NULL
+            AND (m.sender_id IS NULL OR m.sender_id <> ${userId}::UUID)
+            AND (lr.id IS NULL OR (m.created_at, m.id) > (lr.created_at, lr.id))
+          ORDER BY m.created_at DESC
+          LIMIT ${UNREAD_CAP}) x)), 0)::INT8 AS n
       FROM conversation_participants cp
       LEFT JOIN messages lr ON lr.id = cp.last_read_message_id
-      JOIN messages m ON m.conversation_id = cp.conversation_id
-      WHERE cp.user_id = ${userId}::UUID
-        AND m.deleted_at IS NULL
-        AND (m.sender_id IS NULL OR m.sender_id <> ${userId}::UUID)
-        AND (lr.id IS NULL OR (m.created_at, m.id) > (lr.created_at, lr.id))`;
+      WHERE cp.user_id = ${userId}::UUID`;
     return Number(row?.n ?? 0);
   }
 }

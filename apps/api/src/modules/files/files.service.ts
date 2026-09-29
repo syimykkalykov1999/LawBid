@@ -317,6 +317,38 @@ export class FilesService {
     return { url, url256 };
   }
 
+  /** [avatarUrls] for a whole page in one query (lists of posts,
+   * comments, chats, follows, notifications — no N+1). */
+  async avatarUrlsMany(
+    fileIds: (string | null | undefined)[],
+  ): Promise<Map<string, { url: string | null; url256: string | null }>> {
+    const ids = [...new Set(fileIds.filter((x): x is string => !!x))];
+    const out = new Map<
+      string,
+      { url: string | null; url256: string | null }
+    >();
+    if (ids.length === 0) return out;
+    const files = await this.prisma.file.findMany({
+      where: { id: { in: ids }, purpose: 'avatar' },
+    });
+    await Promise.all(
+      files.map(async (file) => {
+        const url = await this.mediaUrlOf(file);
+        if (!url) return;
+        const url256 =
+          file.width !== null
+            ? await this.storage.signedGetUrl(
+                file.s3_bucket,
+                variantKey(file.s3_key, 256),
+                MEDIA_SIGNED_URL_TTL_SEC,
+              )
+            : null;
+        out.set(file.id, { url, url256 });
+      }),
+    );
+    return out;
+  }
+
   /**
    * docs/03 §2.2: verification files are viewed ONLY by verifier /
    * super_admin through links living `verification.signed_url_ttl_sec`
