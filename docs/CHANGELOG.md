@@ -4382,3 +4382,361 @@ dev DB, raw SQL appended)
 (rollback together, chain under concurrent appends as `lawbid_app`, tamper
 edit/delete detected, `lawbid_app` UPDATE/DELETE denied, full negotiation +
 accept, policy SQL).
+
+## Stage 4.2: Case creation and management — docs/04 §3, §11.1, §15, §16 — 2026-09-27
+
+**API (apps/api)**
+- `CasesController` (`modules/cases`) replaces the stage-1.7 `POST /cases`
+  stub: `POST /cases`, `PATCH /cases/:id`, `POST /cases/:id/close`,
+  `DELETE /cases/:id`, `POST /cases/:id/restore`,
+  `POST /cases/:id/keep-alive`, `GET /users/me/cases?filter=&cursor=`.
+  `CasesService` is the single implementation behind them; every status
+  change goes through `CaseStateMachine.apply()` (4.1) inside `withTxRetry`,
+  every mutation appends a `case_journal` row via
+  `CaseJournalService.append()` in the same transaction.
+- §3.1–§3.4 validation: title 10-120, description 30-5000, city ≤80,
+  practice area must be an active leaf (specialization, not a category),
+  primary + up to 2 additional states via `validateCaseStates` (4.1) plus a
+  DB existence/active check; budget entered in whole dollars, stored in
+  cents (`budgetCentsOf`, `.cursorrules` "Деньги только в центах").
+- `contact-detector.ts`: regex-based phone/email/link detection for
+  title/description/city (`CASE_CONTAINS_CONTACT_INFO`, 400), with
+  normalization for spelled-out digits (en/ru) and "at"/"dot" (en/ru,
+  "собака"/"точка") email obfuscation — Unicode-aware word boundaries
+  (`\p{L}`/`\p{N}` lookaround) since `\b` doesn't bound Cyrillic in JS.
+- `client_contact_sharing` consent gate: `POST /cases` checks the latest
+  `user_consents` row for the type; if never granted, the request must
+  carry `clientContactSharingConsent: true` (else 403
+  `CLIENT_CONTACT_SHARING_CONSENT_REQUIRED`) and the consent row is written
+  in the same transaction as the case. Later cases don't need the flag
+  again.
+- §3.5 edit: practice area / states are rejected (409 `CASE_INVALID_STATE`,
+  `details.reason = 'bids_exist'`) once `bids_count > 0`; other fields stay
+  editable. A state-only or practice-only patch merges with the case's
+  current other half (client doesn't have to resend the unchanged side).
+  Every changed field is diffed into the `updated` journal payload
+  (`{old, new}`); attorneys with an `active` bid get a `case_updated`
+  notification when bids exist and something actually changed.
+- Close/delete auto-reject every `active` bid via
+  `BidStateMachine.applyToActive()` (4.1), journal `bid_rejected` per bid
+  (`payload.reason` = `case_closed` / `case_deleted`) and notify each
+  attorney; delete only from `open`/`archived` (`in_progress` etc. get 409
+  via the state machine's transition table, no extra guard needed).
+  Restore resets `stale_prompt_sent_at` too (so the §10.2 stale job can
+  fire again); keep-alive is the same in-place action as "Да, актуален".
+- `GET /users/me/cases`: cursor pagination (`meta.nextCursor`,
+  `(created_at, id)` keyset), `filter=active|archived|closed` maps to the
+  §10.1 status groups; soft-deleted cases are hidden by the existing
+  soft-delete Prisma extension, no explicit filter needed.
+- New error codes: `CASE_CONTAINS_CONTACT_INFO`,
+  `CLIENT_CONTACT_SHARING_CONSENT_REQUIRED` (mobile `ApiErrorCodes`, en/ru
+  texts in `static_translator.dart` + `api_error_text.dart`,
+  `pending_keys/stage-4-2.csv`, regenerated OpenAPI + Dart client). Renamed
+  `CasesController` handler methods (`createCase`, `updateCase`, ...) to
+  avoid an operationId collision with `ReviewsController`'s `create`/
+  `update` (Nest's operationId = method name only, must be unique
+  process-wide).
+
+**Tests**
+- Unit: `contact-detector.spec.ts` (email/link/phone incl. spelled-out
+  en/ru and obfuscated email, plus negative cases: abbreviations, scattered
+  numbers); `cases.service.spec.ts` (`budgetCentsOf`).
+- e2e (`test/stage-4-2.e2e-spec.ts`, real CockroachDB/Redis): no case
+  without verified contacts or the contact-sharing consent (and the
+  consent isn't asked for again); >3 states / duplicate state / short
+  description / contact info in text / unknown state / non-leaf practice
+  all rejected, nothing persisted; Idempotency-Key required and replay-safe
+  on create; edit blocks practice/state changes once a bid exists but
+  keeps other fields editable and notifies bidders; close/delete
+  auto-reject and notify; delete blocked on `in_progress`; restore resets
+  the stale-prompt flag; keep-alive works only on `open`; `GET
+  /users/me/cases` filters, paginates, and excludes other clients' and
+  deleted cases.
+
+## Stage 4.3 — Showing cases to attorneys (API)
+
+docs/04_CASES_BIDS.md §16 stage 4.3, §4.
+
+- `CasesFeedController` / `CasesFeedService` (`apps/api/src/modules/cases`):
+  `GET /cases?practiceAreaId=&state=&cursor=&limit=` (attorney feed, newest
+  first, cursor pagination, filters limited to the attorney's own practices
+  and licensed states), `GET /cases/:id` (attorney representation: never a
+  client field), `POST /cases/:id/view`, `POST|DELETE /saved-items`.
+- Visibility (§4.1) in `queries/cases-visible.sql.ts`, the index-friendly
+  shape of docs/02 §5.4 incl. the `general_practice.not_sure_or_other`
+  exception; `EXPLAIN` in `test/stage-4-3.e2e-spec.ts` asserts no full scan.
+- `CaseAccessPolicy.assertVisibleToAttorney`: ineligible attorney gets
+  `CASE_NOT_AVAILABLE` (404) on a direct id (new code: API enum, mobile
+  `ApiErrorCodes`, en/ru text, `pending_keys/stage-4-3.csv`).
+- `CaseViewTrackingService` (§4.3 views): dedup per (attorney, case) in a
+  Redis set with a 60-day TTL (bounded memory at scale), pending deltas in
+  a Redis hash, flushed every 15 s by HSCAN + one atomic Lua drain per 500
+  cases + one multi-row `UPDATE`; deltas are put back if the DB write
+  fails (no lost views). Safe with many API instances flushing at once.
+- Handler names made unique for OpenAPI operationIds (`listCaseFeed`,
+  `getCaseDetail`, `recordCaseView`); contract regenerated.
+- Not done here: client-owner representation of `GET /cases/:id` —
+  TODO(stage 4.9), the client case screen that needs it.
+
+Tests: unit (feed service, controller, view tracking incl. TTL and
+DB-failure restore, policy), e2e `stage-4-3.e2e-spec.ts` 13/13; stages
+4.1/4.2/4.4 e2e re-run after merge 30/30; API unit 685/685; flutter test
+583/583, analyze 0 errors/warnings.
+
+## Stage 4.4 — Bids and negotiation (API)
+
+docs/04_CASES_BIDS.md §16 stage 4.4, §5–§6.
+
+- `BidsController`/`BidsService` (`apps/api/src/modules/bids`):
+  `POST /cases/:caseId/bids` (create — one active-or-ever bid per attorney
+  per case via UQ `bids(case_id, attorney_id)`, second attempt is
+  `BID_ALREADY_EXISTS`; requires `SubscriptionAccessService.isActive()`,
+  else `SUBSCRIPTION_REQUIRED`; eligibility reuses stage 4.1's
+  `CaseAccessPolicy`), `POST /bids/:id/withdraw`, `POST /bids/:id/decline`,
+  `POST /bids/:id/counter` (§6.1 turn-taking, 5-round cap, unavailable for
+  `free_consultation`), `GET /bids/:id` (participants only, full offer
+  history). Every transition goes through stage 4.1's `BidStateMachine`;
+  `CaseJournalService.append()` runs in the same transaction. Bid
+  acceptance (§7, contacts) stays out of scope — stage 4.5.
+- `BidsService.withdrawActiveBidsForAttorney(attorneyId)`: withdraws every
+  `active` bid of an attorney (§2), for the future file-06 subscription
+  webhook to call directly.
+- `BidSubscriptionLapseJob` (hourly, `jobs/handlers/bid-subscription-
+  lapse.job.ts`): safety net until file 06 wires the real webhook —
+  sweeps attorneys with active bids whose `SubscriptionAccessService.
+  isActive()` has gone false (today's stub: `verification_status`
+  leaving `verified`, e.g. via the nightly license-expiry job or a
+  suspension) and withdraws their bids. Idempotent; no extra Redis lock
+  needed (the `cron` queue runs at worker concurrency 1).
+- New error codes (`ErrorCode` + mobile `ApiErrorCodes` +
+  `static_translator.dart` en/ru): `SUBSCRIPTION_REQUIRED`,
+  `BID_ALREADY_EXISTS`.
+- `CaseAccessPolicy` is provided directly inside `BidsModule` (not via
+  importing `CasesModule`) to avoid pulling `CasesController` /
+  `UsersModule` / `AuthModule` / `FilesModule` into the `worker` process,
+  which now also imports `BidsModule` for the lapse job.
+- Tests: `test/stage-4-4.e2e-spec.ts` (creation, dedup, subscription gate,
+  turn-taking, 5-round cap + `failed_negotiation`, `free_consultation`
+  counter block, `GET /bids/:id` access, direct
+  `withdrawActiveBidsForAttorney`, the lapse job), plus unit specs for the
+  pure DTO-normalization helpers and the job's pagination.
+- Translation keys added to `prisma/seed/pending_keys/stage-4-4.csv`.
+- Regenerated `packages/api-contract` (openapi.json + Dart client).
+
+Not done in this stage (left for their own stages): `GET
+/cases/:id/bids` (client's bid list — needs attorney profile/rating
+rendering, stage 4.3/later), `POST /bids/:id/accept` (stage 4.5's
+critical transaction).
+
+## Stage 4.5 — Bid acceptance and client contacts (API)
+
+docs/04_CASES_BIDS.md §16 stage 4.5, §7–§9.
+
+- `POST /bids/:id/accept` (`bids/acceptance/BidAcceptanceService`): one
+  `withTxRetry` transaction — `SELECT … FOR UPDATE` on the case row, then
+  the bid row; case `open` is checked first so the loser of a race gets
+  `CASE_INVALID_STATE`; turn/state via `BidStateMachine`; §7 step 2
+  re-check (attorney verified, verified license in a case state,
+  `SubscriptionAccessService.isActive(…, tx)`) — otherwise the transaction
+  rolls back, the bid is `system_withdraw`n in its own transaction and the
+  client gets `BID_ATTORNEY_INACTIVE`. Then: bid/offer `accepted`, case
+  `in_progress` + `accepted_bid_id`, every other active bid
+  `rejected_auto` (offers `superseded`), conversation upserted `active` +
+  `contacts_unlocked`, other `pre_acceptance` chats on the case `closed`,
+  one append-only `contact_disclosures` row (fields, IP, device), journal
+  `bid_accepted` / `contacts_disclosed` / `bid_rejected` per loser,
+  notifications (`bid_accepted` or `offer_accepted`, `bid_rejected`) in the
+  same transaction. Idempotency-Key supported.
+- `GET /cases/:id/bids` (client owner's bid list, §5.2).
+- `GET /cases/:id/contacts` (accepted attorney only; `SUBSCRIPTION_REQUIRED`
+  while the subscription is inactive, opens again on renewal without a
+  second disclosure row, §8.3); `POST /cases/:id/contact-issues` (§8.4).
+- `POST /admin/contact-issues/:id/resolve` (support/moderator/super_admin,
+  audit_log): `contact_issue_update` to both sides, `moderation_notice` on
+  `confirmed`, client suspended at `contacts.suspend_after_confirmed_reports`
+  (default 3).
+- New error codes (API enum, mobile `ApiErrorCodes`, en/ru,
+  `pending_keys/stage-4-5.csv`): `BID_ATTORNEY_INACTIVE`, `CONTACTS_LOCKED`,
+  `CONTACT_ISSUE_ALREADY_OPEN`, `CONTACT_ISSUE_INVALID_STATE`.
+
+Tests: e2e `stage-4-5.e2e-spec.ts` 4/4 (parallel accepts — exactly one
+wins, stable 3/3 re-runs; auto-reject, in_progress, gone from feed,
+journal rows, single disclosure; contacts subscription gate; inactive
+attorney; suspension on the 3rd confirmed report); stages 4.1–4.4 e2e
+43/43; API unit 689/689; flutter test 583/583, analyze 0 errors/warnings.
+
+## Stage 4.6 — Case lifecycle and jobs (API)
+
+docs/04_CASES_BIDS.md §16 stage 4.6, §10.
+
+- `CaseLifecycleService` / `CaseLifecycleController`
+  (`modules/cases/lifecycle`): `POST /cases/:id/complete` (client
+  "Выполнено": pending_completion, auto_close_at = +7 days,
+  `completion_requested` to the attorney), `POST /cases/:id/confirm-completion`
+  (attorney → closed), `POST /cases/:id/dispute {reason}` (attorney →
+  disputed + `case_disputes` row; Idempotency-Key). Non-participants: 404.
+- `POST /admin/case-disputes/:id/resolve {decision: closed|in_progress, note}`
+  — API stub with a role (support/moderator/super_admin), audit_log; the
+  admin screen is docs/06.
+- Every close (confirm, auto-close, admin close): `case_closed` to both
+  sides + `review_requested` to the client (docs/03 §7.3).
+- `CaseStateMachine`: new in-place system action `system_stale_prompt`
+  (`stale_prompt_sent_at = now()`), so the §10.2 job changes cases only via
+  the machine (.cursorrules).
+- Hourly jobs (`jobs/handlers/case-lifecycle.jobs.ts`): stale prompt
+  (30 days idle → `case_stale_prompt`), auto-archive (14 days after the
+  prompt without activity → archived, active bids rejected_auto reason
+  `case_archived`, pre-acceptance chats closed, `case_archived`), auto-close
+  (`auto_close_at` reached → closed, `auto_closed`), completion reminder
+  (≤ 24 h left → one `completion_reminder`). Keyset batches of 500 on the
+  §10.2 partial indexes; each case re-checked under `SELECT … FOR UPDATE`;
+  Redis lock per job (`withJobLock`, SET NX PX + compare-and-delete).
+- `CasesService.toFullDto` made public for the lifecycle controllers.
+
+Tests: e2e `stage-4-6.e2e-spec.ts` 6/6 with an injected clock (stale
+prompt once, archive at +14 d, keep-alive reset, reminder once, auto-close
+at +7 d, confirm/dispute/admin decision, held lock skips); unit: machine
+table 6×14, runner dispatch; API unit 695/695.
+
+## Stage 4.7 — Case history (API)
+
+docs/04_CASES_BIDS.md §16 stage 4.7, §12.
+
+- `CaseHistoryModule` (`modules/case-history`):
+  `GET /users/me/case-history?cursor=&limit=`, `GET /users/me/case-history/:caseId`
+  (timeline from `case_journal`), `POST /users/me/case-history/export` (202,
+  BullMQ queue `case-history-export`), `GET /users/me/case-history/export/:exportId`
+  (status; when ready a signed S3 link valid 10 minutes).
+- Client: cases where `client_id` = user; attorney: cases they bid on —
+  including closed, archived and deleted-from-feed cases. Read-only: no
+  update/delete route. Attorney timelines hide other attorneys' bid events;
+  the client's name shows only if contacts were disclosed to that attorney
+  (else null → "Client"); accepted bid shown to an attorney only if theirs.
+  Payload reduced to display fields (no IP/device from contacts_disclosed).
+- Reauth: viewing needs a valid `X-Reauth-Token` for its 5-minute life
+  (`ReauthVerifier.assertValid`, non-consuming; a consumed token is still
+  refused); export and every download link consume one (ReauthGuard) —
+  "при повторном скачивании нужен новый reauth". Entry into the section
+  and each timeline write `history_viewed` to auth_events.
+- PDF: pdfkit (MIT) with Inter (`apps/api/assets/fonts`, Latin + Cyrillic),
+  up to 1000 most recent cases per file, private `documents` bucket
+  (`exports/case-history/<userId>/<exportId>.pdf`); export state in Redis
+  24 h; jobId = exportId (no double render). Worker process runs the queue
+  too (`CaseHistoryModule.register({ mode: 'worker' })`).
+- Deviation (no migration allowed outside 4.1): there is no
+  `notification_type` for "PDF ready" yet, so the app polls the export
+  status; TODO(docs/05) adds the push.
+
+Tests: e2e `stage-4-7.e2e-spec.ts` 3/3 (REAUTH_REQUIRED; deleted case stays
+in history; same token for list+timeline; history_viewed rows; attorney
+name/bid visibility; PDF `%PDF` via a link with `X-Amz-Expires=600`;
+reused token → REAUTH_INVALID; foreign export 404); API unit 695/695.
+
+## Stage 4.8 — Case & bid notifications
+
+docs/04_CASES_BIDS.md §16 stage 4.8, §13.
+
+- Every §13 event is emitted through `NotificationsService.emit()` inside
+  the transaction of the change it announces (bid_received,
+  offer_countered, bid_accepted, offer_accepted, bid_rejected incl.
+  `reason=withdrawn`, negotiation_failed, case_updated, case_stale_prompt,
+  case_archived, completion_requested, completion_reminder, case_closed,
+  contact_issue_update, moderation_notice) — a retried transaction rolls
+  its row back, Idempotency-Key replays create none, jobs re-check under
+  row locks / Redis claims.
+- Push queue (`modules/notifications/push`): `emit()` queues a delayed job
+  on the `push` BullMQ queue with jobId = notification id (at most one
+  push per stored row; never fails the caller on a Redis outage).
+  `case_updated` (and likes) are list-only. `PushDispatcher` (API while
+  JOBS_ENABLED, always in the worker) reads the committed row (a row that
+  never committed is retried, then dropped), honours
+  `notification_settings.push_enabled` per category, localizes the text by
+  `users.ui_language` and hands it to `PushSender` — a logging stub until
+  docs/05 wires FCM (TODO(docs/05 §9.5)).
+- Localized templates `notif.bids.<type>.title|body`,
+  `notif.cases.<type>.title|body` (en/ru defaults in
+  `notification-templates.ts`, overridable in `i18n_translations`;
+  `pending_keys/stage-4-8.csv`; same keys in mobile `static_translator`).
+- Fix: the §10.2 jobs now use a lean `CaseLifecycleModule`, so the worker
+  process boots without HTTP-side modules (jobs e2e caught it).
+- Fix (stale since stage 4.2): `onboarding.e2e-spec.ts` still expected the
+  stage 1.7 `POST /cases` stub (501 / empty body); it now posts a valid
+  case and checks the role/contacts gates and a real 201.
+
+Tests: e2e `stage-4-8.e2e-spec.ts` 3/3 (full negotiation → one row per
+event and recipient, retries add none; one push job per row, case_updated
+not queued; ru text, disabled category, rolled-back row); full API e2e
+30/30 suites (234 tests); unit 695/695.
+
+## Stages 4.9/4.10 — API support for the app screens
+
+docs/04_CASES_BIDS.md §9, §11, §15 (`modules/cases/mine`).
+
+- `GET /users/me/cases/:id` — the owner's case (CaseDto) + "Адвокат в
+  работе" (accepted bid with the attorney summary) + the chat id.
+  Deviation: §15 lists one `GET /cases/:id` with per-role representations;
+  the generated typed client needs one response shape per route, so the
+  owner representation lives here and `GET /cases/:id` stays the
+  attorney one (§4.3).
+- `GET /users/me/bids?filter=active|finished` — "Мои биды" (case ref +
+  last offer), keyset on bids(attorney_id, status, updated_at DESC).
+- `GET /users/me/work?filter=active|closed` — "В работе" / "Завершённые";
+  the client's name is null while the subscription is inactive (§8.3).
+- `GET /saved-items?type=case` — saved cases: available ones as feed
+  cards, closed / no-longer-visible ones `available=false` ("Кейс
+  недоступен"). §15 lists only POST/DELETE; the list is needed by §11.2.
+- `POST /cases/:id/conversation` — "Написать клиенту" (§9 rule 2): case
+  visible to the attorney, active subscription/trial, one conversation per
+  (case, attorney), `pre_acceptance`, open cases only.
+
+Tests: e2e `stage-4-mine.e2e-spec.ts` 4/4; unit 695/695.
+
+## Stages 4.9 / 4.10 — Flutter: cases & bids for clients and attorneys
+
+docs/04_CASES_BIDS.md §3, §4, §5, §6, §8, §11, §12 (`apps/mobile/lib/features/cases`).
+
+**Client (4.9)**
+- "+" → case wizard (§3.1): practice (category → specialization, search,
+  "Not sure"), essence, place (main state from the profile, up to 2 more,
+  city), budget (amount / "Clarify later"), review with the disclaimer and
+  the first-case `client_contact_sharing` checkbox; publish with the gavel
+  strike. Draft kept only locally (drift `lawbid_cases`, per account),
+  saved as you type; closing offers Save / Discard; restored draft banner.
+  CASE_CONTAINS_CONTACT_INFO returns to the text step with the message.
+- "Моё" → "Мои кейсы" (Active / Archive / Closed) with unseen-bid counts
+  (local), "Сохранённое" (posts: docs/05). Case detail: status actions
+  (edit, close, delete, restore, "Выполнено", review), "Адвокат в работе",
+  bids with sorting (newest / lowest price / top rated). Edit screen reuses
+  the wizard steps; practice/states locked once bids exist.
+- Bid detail with the negotiation timeline (dialogue by rounds, gold rail,
+  closing line incl. "Стороны не договорились"), round counter, actions by
+  turn: accept (gavel strike), decline, counter (binding-offer warning).
+- Client profile "Мои кейсы" (§11.3): locked grid of the cases.
+
+**Attorney (4.10)**
+- Feed → "Кейсы" tab: cards (category band + NEW, place, budget, views,
+  bids, "Вы сделали бид"), filters by own practice / licensed state, gates:
+  not verified, no verified license, no practices.
+- Case detail (no client field), save/unsave, "Сделать бид" or the own bid
+  card (`ownBidId`), "Написать клиенту"; SUBSCRIPTION_REQUIRED → the
+  subscription call-to-action (paywall is docs/06).
+- Bid form (§5.1). "Моё": "Мои биды" (Active / Finished, "Re: …"),
+  "В работе" + "Завершённые", "Сохранённое" (unavailable cases marked).
+- In-progress case: client contacts with Call / SMS / Email / Chat, locked
+  notice without a subscription, "Не могу связаться", confirm / dispute.
+- Settings → "История кейсов": SMS-code reauth, read-only list and
+  timelines, PDF export (polling; the link consumes the token).
+
+**Design**: in-app only (pre-app screens untouched), navy/gold, Source
+Serif titles, staggered entrances, sliding segmented controls and tab
+underline, animated round pips and checkmarks; everything respects
+reduce-motion; 44/48 targets; tokens + t() only; 5 states on every list.
+
+**Other**: deep link `/case/:id` opens the real screen; `PagedNotifier`
+shared pagination; 322 en/ru keys (`pending_keys/stage-4-9-10.csv`).
+Chat screens are docs/05 (buttons explain where chats will appear).
+
+Tests: flutter test 591/591 (new: draft rules, wizard publish/consent and
+contact-info error, bid actions by turn, empty states); analyze 0
+errors/warnings. Fixed along the way: empty-state sliver crash
+(LayoutBuilder intrinsic), drift row class name clash.
