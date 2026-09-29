@@ -295,40 +295,68 @@ class ReviewSummaryPanel extends ConsumerWidget {
     final reduce = context.reduceMotion;
     final total = summary.count;
 
-    final card = AppCard(
+    return AppCard(
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+        // The average starts level with the "5" bar; the filter icon sits
+        // under it, part of the left column (owner request).
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Semantics(
-            label: summary.isNew
-                ? t.t('profile.rating.new')
-                : t.t('reviews.average.label',
-                    {'rating': ratingNumber(formats, t, summary.average)}),
-            excludeSemantics: true,
-            child: Column(
-              children: [
-                Text(
-                  ratingNumber(formats, t, summary.average),
-                  style: typography.titleLarge.copyWith(color: colors.text),
+          Column(
+            children: [
+              Semantics(
+                label: summary.isNew
+                    ? t.t('profile.rating.new')
+                    : t.t('reviews.average.label',
+                        {'rating': ratingNumber(formats, t, summary.average)}),
+                excludeSemantics: true,
+                child: Column(
+                  children: [
+                    Text(
+                      ratingNumber(formats, t, summary.average),
+                      style: typography.titleLarge
+                          .copyWith(color: colors.text, height: 1),
+                    ),
+                    StarRatingDisplay(
+                        value: summary.average ?? 0, size: AppSpacing.md + 2),
+                    const SizedBox(height: AppSpacing.xs),
+                    Text(
+                      summary.isNew
+                          ? t.t('profile.rating.new')
+                          : t.plural('profile.rating.count', total),
+                      style: typography.caption
+                          .copyWith(color: colors.textSecondary),
+                    ),
+                  ],
                 ),
-                StarRatingDisplay(
-                    value: summary.average ?? 0, size: AppSpacing.md + 2),
-                const SizedBox(height: AppSpacing.xs),
-                Text(
-                  summary.isNew
-                      ? t.t('profile.rating.new')
-                      : t.plural('profile.rating.count', total),
-                  style:
-                      typography.caption.copyWith(color: colors.textSecondary),
+              ),
+              if (onSort != null)
+                Semantics(
+                  button: true,
+                  label: t.t('reviews.sort.label'),
+                  excludeSemantics: true,
+                  child: AppTapTarget(
+                    child: AppPressable(
+                      onTap: () => _pickSort(context, t),
+                      child: SizedBox(
+                        height: AppSizes.touchTarget - AppSpacing.sm,
+                        width: AppSizes.touchTarget,
+                        child: Icon(
+                          Icons.tune_rounded,
+                          size: AppSizes.iconSm,
+                          color: sort == ReviewsSort.newest
+                              ? colors.textSecondary
+                              : colors.goldDark,
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
-              ],
-            ),
+            ],
           ),
           const SizedBox(width: AppSpacing.lg),
           Expanded(
             child: Padding(
-              padding:
-                  EdgeInsets.only(right: onSort == null ? 0 : AppSpacing.xl),
+              padding: EdgeInsets.zero,
               child: Column(
                 children: [
                   for (var stars = 5; stars >= 1; stars--)
@@ -424,38 +452,6 @@ class ReviewSummaryPanel extends ConsumerWidget {
           ),
         ],
       ),
-    );
-    if (onSort == null) return card;
-    // The filter icon sits in the card's top-right corner, over the
-    // distribution, and never covers the numbers (they end before it).
-    return Stack(
-      children: [
-        card,
-        Positioned(
-          top: 0,
-          right: 0,
-          child: Semantics(
-            button: true,
-            label: t.t('reviews.sort.label'),
-            excludeSemantics: true,
-            child: AppTapTarget(
-              child: AppPressable(
-                onTap: () => _pickSort(context, t),
-                child: SizedBox.square(
-                  dimension: AppSizes.touchTarget,
-                  child: Icon(
-                    Icons.tune_rounded,
-                    size: AppSizes.iconSm,
-                    color: sort == ReviewsSort.newest
-                        ? colors.textSecondary
-                        : colors.goldDark,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
     );
   }
 
