@@ -51,6 +51,7 @@ abstract final class ProfileMappers {
         rating: rating(d.rating),
         counters: counters(d.counters),
         isSelf: d.isSelf,
+        isFollowing: d.isFollowing,
         // The header avatar is small: prefer the 256 px square variant.
         avatarUrl: d.avatarUrl256 ?? d.avatarUrl,
       );

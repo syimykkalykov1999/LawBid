@@ -19,6 +19,7 @@ import 'package:lawbid/features/onboarding/domain/onboarding_step_id.dart';
 import 'package:lawbid/features/onboarding/domain/profile_input.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../features/social/social_fakes.dart';
 
 /// CurrentUserController pinned to a fixed state (no session listening).
 class FixedUserController extends CurrentUserController {
@@ -147,6 +148,8 @@ Future<Widget Function(Widget)> onboardingWrapper(
           appStartupProvider.overrideWith(() => FixedStartup(startup)),
           languageCatalogProvider.overrideWith((ref) async => kLanguageCatalog),
           if (repo != null) onboardingRepositoryProvider.overrideWithValue(repo),
+          // docs/05: screens that show posts/follows never hit the network.
+          ...socialOverrides(),
           ...extra,
         ],
         child: MaterialApp(

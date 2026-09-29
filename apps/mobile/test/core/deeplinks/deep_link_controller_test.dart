@@ -21,6 +21,10 @@ import 'package:lawbid/features/onboarding/application/current_user_controller.d
 import 'package:lawbid/features/onboarding/domain/current_user.dart';
 import 'package:lawbid/features/onboarding/domain/onboarding_step_id.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
+import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/features/social/application/social_providers.dart';
+import 'package:lawbid/features/social/data/social_repository.dart';
+import 'package:lawbid/features/social/presentation/screens/social_screens.dart';
 
 import '../../features/auth/auth_test_harness.dart';
 import '../../helpers/fixtures.dart';
@@ -109,6 +113,7 @@ void main() {
         sessionControllerProvider.overrideWith(() => FakeSession(signedIn: signedIn)),
         currentUserControllerProvider.overrideWith(MutableUser.new),
         deepLinkSourceProvider.overrideWithValue(source),
+        socialRepositoryProvider.overrideWithValue(_OfflineSocialRepository()),
         deepLinkNavigatorProvider.overrideWithValue(navigate ?? navigations.add),
       ],
     );
@@ -280,7 +285,7 @@ void main() {
 
   // `/lawyer/:username` now opens the real attorney profile (docs/03 stage
   // 3.9) — covered in test/features/profile/profile_screens_test.dart.
-  testWidgets('the post route shows the "coming soon" placeholder and can leave', (tester) async {
+  testWidgets('the post route opens the post screen (docs/05) and can leave', (tester) async {
     final c = await container();
     final router = GoRouter(
       initialLocation: '/feed',
@@ -291,15 +296,20 @@ void main() {
     );
     addTearDown(router.dispose);
     await tester.pumpWidget(routedApp(c, router));
-    // /case/:id opens the real case screen since docs/04 (CaseRouteScreen).
-    for (final loc in ['/post/p1']) {
-      router.go(loc);
-      await tester.pumpAndSettle();
-      expect(find.byType(DeepLinkPlaceholderScreen), findsOneWidget);
-      expect(find.text('Coming soon'), findsOneWidget);
-      await tester.tap(find.text('Back').last);
-      await tester.pumpAndSettle();
-      expect(find.text('FEED'), findsOneWidget);
-    }
+    router.go('/post/p1');
+    await tester.pumpAndSettle();
+    expect(find.byType(PostScreen), findsOneWidget);
+    router.go('/feed');
+    await tester.pumpAndSettle();
+    expect(find.text('FEED'), findsOneWidget);
   });
+
+}
+
+/// Every call fails as "no connection": enough for route tests.
+class _OfflineSocialRepository implements SocialRepository {
+  @override
+  dynamic noSuchMethod(Invocation invocation) => Future<Never>.error(
+        const ApiException(code: ApiException.networkErrorCode, message: 'offline'),
+      );
 }

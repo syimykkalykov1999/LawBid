@@ -41,6 +41,7 @@ import 'package:lawbid/features/verification/presentation/screens/verification_s
 import 'package:lawbid/features/verification/presentation/screens/verification_wizard_screen.dart';
 import 'package:lawbid/features/search/presentation/screens/search_screen.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:lawbid/features/social/social_routes.dart';
 
 part 'app_router.g.dart';
 
@@ -278,6 +279,8 @@ GoRouter appRouter(Ref ref) {
       // docs/01_FOUNDATION_AUTH.md §12 content links (/case/:id,
       // /lawyer/:username, /post/:id) — core/deeplinks.
       ...deepLinkRoutes(),
+      // docs/05 feed: tag pages, follower lists.
+      ...socialRoutes(_rootNavigatorKey),
     ],
   );
 }

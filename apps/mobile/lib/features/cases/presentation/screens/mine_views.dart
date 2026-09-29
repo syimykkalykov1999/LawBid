@@ -11,6 +11,7 @@ import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_cards.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
+import 'package:lawbid/features/social/presentation/screens/social_screens.dart';
 
 enum _ClientTab { cases, saved }
 
@@ -63,11 +64,7 @@ class _ClientMineViewState extends ConsumerState<ClientMineView> {
                       Expanded(child: MyCasesList(filter: _filter)),
                     ],
                   )
-                : AppEmptyState(
-                    key: const ValueKey('saved'),
-                    icon: Icons.bookmark_outline_rounded,
-                    message: t.t('mine.savedPosts.empty'),
-                  ),
+                : const SavedPostsList(key: ValueKey('saved')),
           ),
         ),
       ],
@@ -237,7 +234,7 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
             );
           },
         ),
-      _AttorneyTab.saved => const SavedCasesList(key: ValueKey('saved')),
+      _AttorneyTab.saved => const _AttorneySaved(key: ValueKey('saved')),
     };
     return Column(
       children: [
@@ -262,7 +259,44 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
   }
 }
 
-/// "Сохранённое" for attorneys: saved cases (posts arrive with docs/05).
+enum _SavedKind { cases, posts }
+
+/// "Сохранённое" for attorneys: saved cases (docs/04) and posts (docs/05).
+class _AttorneySaved extends ConsumerStatefulWidget {
+  const _AttorneySaved({super.key});
+
+  @override
+  ConsumerState<_AttorneySaved> createState() => _AttorneySavedState();
+}
+
+class _AttorneySavedState extends ConsumerState<_AttorneySaved> {
+  _SavedKind _kind = _SavedKind.cases;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ref.watch(translatorProvider);
+    return Column(
+      children: [
+        const SizedBox(height: AppSpacing.sm),
+        FilterChips<_SavedKind>(
+          value: _kind,
+          options: [
+            (_SavedKind.cases, t.t('mine.saved.cases')),
+            (_SavedKind.posts, t.t('mine.saved.posts')),
+          ],
+          onChanged: (v) => setState(() => _kind = v),
+        ),
+        Expanded(
+          child: _kind == _SavedKind.cases
+              ? const SavedCasesList()
+              : const SavedPostsList(),
+        ),
+      ],
+    );
+  }
+}
+
+/// Saved cases of an attorney (docs/04 §11.2).
 class SavedCasesList extends ConsumerWidget {
   const SavedCasesList({super.key});
 

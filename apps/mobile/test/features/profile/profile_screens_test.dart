@@ -125,6 +125,7 @@ void main() {
             'rating': {'avg': 0, 'count': 0},
             'counters': {'posts': 0, 'followers': 0, 'following': 0},
             'isSelf': false,
+            'isFollowing': false,
           };
       PublicAttorneyProfile map(String? main, String? small) =>
           ProfileMappers.publicProfile(api.PublicAttorneyProfileDto.fromJson(json(main, small)));

@@ -15,6 +15,9 @@ import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_avatar.dart';
 import 'package:lawbid/features/profile/presentation/widgets/review_widgets.dart';
+import 'package:lawbid/features/social/presentation/screens/social_screens.dart';
+import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart';
+import 'package:lawbid/features/social/social_routes.dart';
 
 enum AttorneyProfileTab { posts, reviews }
 
@@ -100,6 +103,8 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
         const SizedBox(height: AppSpacing.lg),
         _Actions(
           isSelf: p.isSelf,
+          attorneyId: p.id,
+          isFollowing: p.isFollowing,
           onShare: () => _share(t),
         ),
         const SizedBox(height: AppSpacing.xl),
@@ -130,10 +135,11 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
     var status = AppPaginationStatus.idle;
     List<Review> items = const [];
     if (!reviewsTab) {
-      footer = _TabMessage(
-        icon: Icons.article_outlined,
-        title: t.t('profile.posts.empty.title'),
-        message: t.t(p.isSelf ? 'profile.posts.empty.self' : 'profile.posts.empty.other'),
+      // docs/05: the attorney's posts as a grid (text posts as tiles).
+      footer = ProfilePostsGrid(
+        attorneyId: p.id,
+        emptyTitle: t.t('profile.posts.empty.title'),
+        emptyMessage: t.t(p.isSelf ? 'profile.posts.empty.self' : 'profile.posts.empty.other'),
       );
     } else if (reviews == null || reviews.isLoading && state == null) {
       footer = const Column(
@@ -340,9 +346,17 @@ class _HeaderCard extends ConsumerWidget {
                   children: [
                     _Counter(value: formats.number(profile.counters.posts), label: t.t('profile.counters.posts')),
                     _Divider(color: colors.border),
-                    _Counter(value: formats.number(profile.counters.followers), label: t.t('profile.counters.followers')),
+                    _Counter(
+                      value: formats.number(profile.counters.followers),
+                      label: t.t('profile.counters.followers'),
+                      onTap: () => context.push(SocialRoutes.followers(profile.id)),
+                    ),
                     _Divider(color: colors.border),
-                    _Counter(value: formats.number(profile.counters.following), label: t.t('profile.counters.following')),
+                    _Counter(
+                      value: formats.number(profile.counters.following),
+                      label: t.t('profile.counters.following'),
+                      onTap: () => context.push(SocialRoutes.following(profile.id)),
+                    ),
                   ],
                 ),
               ],
@@ -355,20 +369,27 @@ class _HeaderCard extends ConsumerWidget {
 }
 
 class _Counter extends StatelessWidget {
-  const _Counter({required this.value, required this.label});
+  const _Counter({required this.value, required this.label, this.onTap});
 
   final String value;
   final String label;
+
+  /// Followers / following open their lists (docs/05 §6.2).
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
+    final tap = onTap;
     return Expanded(
       child: Semantics(
         label: '$value $label',
+        button: tap != null,
         excludeSemantics: true,
-        child: Column(
+        child: AppPressable(
+          onTap: tap ?? () {},
+          child: Column(
           children: [
             Text(value, style: typography.roleTitle.copyWith(color: colors.text)),
             Text(
@@ -378,6 +399,7 @@ class _Counter extends StatelessWidget {
               style: typography.caption.copyWith(color: colors.textSecondary),
             ),
           ],
+        ),
         ),
       ),
     );
@@ -599,9 +621,16 @@ class StepLabel extends StatelessWidget {
 }
 
 class _Actions extends ConsumerWidget {
-  const _Actions({required this.isSelf, required this.onShare});
+  const _Actions({
+    required this.isSelf,
+    required this.attorneyId,
+    required this.isFollowing,
+    required this.onShare,
+  });
 
   final bool isSelf;
+  final String attorneyId;
+  final bool isFollowing;
   final VoidCallback onShare;
 
   @override
@@ -617,12 +646,10 @@ class _Actions extends ConsumerWidget {
                   height: AppSizes.touchTarget,
                   onPressed: () => context.push(AppRoutes.profileEdit),
                 )
-              : AppButton(
-                  label: t.t('profile.action.follow'),
-                  icon: Icons.person_add_alt_rounded,
-                  height: AppSizes.touchTarget,
-                  // TODO(docs/05 follows): wire POST /follows when the feed file lands.
-                  onPressed: () => showAppSnackBar(context, t.t('auth.welcome.notBuiltYet')),
+              : FollowButton(
+                  attorneyId: attorneyId,
+                  initial: isFollowing,
+                  expanded: true,
                 ),
         ),
         const SizedBox(width: AppSpacing.md),

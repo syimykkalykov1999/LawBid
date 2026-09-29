@@ -77,6 +77,7 @@ class PagedListBody<T> extends ConsumerWidget {
     required this.onRefresh,
     required this.onLoadMore,
     required this.onRetryMore,
+    this.skeleton,
     this.header,
     super.key,
   });
@@ -89,6 +90,9 @@ class PagedListBody<T> extends ConsumerWidget {
   final Future<void> Function() onRefresh;
   final VoidCallback onLoadMore;
   final VoidCallback onRetryMore;
+
+  /// Loading placeholder; case-card skeletons by default.
+  final Widget? skeleton;
   final Widget? header;
 
   @override
@@ -165,7 +169,10 @@ class PagedListBody<T> extends ConsumerWidget {
           key: const ValueKey('error'),
           child: CasesErrorView(error: error, t: t, onRetry: pull),
         ),
-      _ => const CasesListSkeleton(key: ValueKey('loading')),
+      _ => KeyedSubtree(
+          key: const ValueKey('loading'),
+          child: skeleton ?? const CasesListSkeleton(),
+        ),
     };
     return AnimatedSwitcher(
       duration: context.reduceMotion ? Duration.zero : AppMotion.stateChange,

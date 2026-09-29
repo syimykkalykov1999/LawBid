@@ -2,17 +2,15 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/cases/presentation/screens/case_route_screens.dart';
 import '../../features/profile/presentation/screens/attorney_profile_screen.dart';
+import '../../features/social/presentation/screens/social_screens.dart';
 import '../navigation/app_page_transitions.dart';
-import 'deep_link.dart';
-import 'deep_link_placeholder_screen.dart';
 
 /// Routes the §12 content deep links land on (docs/01_FOUNDATION_AUTH.md:
 /// `lawbid.app/case/:id`, `/lawyer/:username`, `/post/:id`).
 ///
 /// `/lawyer/:username` opens the real public attorney profile (docs/03
-/// stage 3.9), `/case/:id` the real case screen (docs/04). TODO(docs/05):
-/// replace the post placeholder — keep these paths, they are what the
-/// published links use.
+/// stage 3.9), `/case/:id` the real case screen (docs/04), `/post/:id` the
+/// post screen (docs/05). Keep these paths: the published links use them.
 abstract final class DeepLinkRoutes {
   static const casePath = '/case/:id';
   static const lawyerPath = '/lawyer/:username';
@@ -39,8 +37,7 @@ List<RouteBase> deepLinkRoutes() => [
         path: DeepLinkRoutes.postPath,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          DeepLinkPlaceholderScreen(
-              kind: ContentKind.post, id: state.pathParameters['id'] ?? ''),
+          PostScreen(postId: state.pathParameters['id'] ?? ''),
         ),
       ),
     ];

@@ -130,6 +130,7 @@ class PublicAttorneyProfile {
     this.practices = const [],
     this.counters = const ProfileCounters(),
     this.avatarUrl,
+    this.isFollowing = false,
   });
 
   final String id;
@@ -147,6 +148,9 @@ class PublicAttorneyProfile {
   final RatingInfo rating;
   final ProfileCounters counters;
   final bool isSelf;
+
+  /// The viewer follows this attorney (docs/05 §6).
+  final bool isFollowing;
 
   /// Signed link to the attorney photo (`avatarUrl256`, else the 1024 px
   /// `avatarUrl` of `GET /attorneys/:username`); null → initials.

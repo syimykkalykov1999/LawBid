@@ -6,21 +6,15 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/cases/presentation/screens/attorney_cases_tab.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
+import 'package:lawbid/features/social/presentation/screens/social_screens.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 
-/// Feed tab (docs/01 §3.1). Header per docs/07 §10: the small static
-/// ScalesLogo (≈96 wide, no animation, no swing) on the left; the right
-/// side is [AppFeedHeader.trailing], reserved for the Chats icon with its
-/// unread badge — built in file 05 together with chats/notifications, so
-/// it is intentionally empty here (no dead placeholder button).
+/// Feed tab (docs/01 §3.1, docs/05 §2). Header per docs/07 §10: the small
+/// static ScalesLogo on the left; the right side ([AppFeedHeader.trailing])
+/// is the Chats icon with its unread badge (docs/05 §10).
 ///
-/// The feed content itself (posts for clients; Posts/Cases tabs for
-/// attorneys) is file 05. Until then the screen shows its empty state: a
-/// still preview of the content cards that will fill it (the reusable
-/// `AppContentCard` silhouette), title and message. Loading/error/
-/// offline/pagination come with the feed's data source in file 05 via
-/// `AppContentCardSkeleton`, `AppErrorState` and `AppPaginatedListView`;
-/// the global offline banner already covers this tab.
+/// Clients: one post stream. Attorneys: "Лента" (posts) and "Кейсы"
+/// (docs/04 §4.2) tabs.
 class FeedScreen extends ConsumerStatefulWidget {
   const FeedScreen({super.key});
 
@@ -31,26 +25,20 @@ class FeedScreen extends ConsumerStatefulWidget {
 enum _FeedTab { posts, cases }
 
 class _FeedScreenState extends ConsumerState<FeedScreen> {
-  // docs/04 §4.2: attorneys get "Посты" and "Кейсы"; the cases tab opens
-  // first until the post feed (docs/05) has content.
-  _FeedTab _tab = _FeedTab.cases;
+  // docs/05 §2.1: attorneys get "Лента" (posts) and "Кейсы"; switching
+  // keeps each tab's scroll position (IndexedStack keeps both alive).
+  _FeedTab _tab = _FeedTab.posts;
 
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final attorney = ref.watch(currentUserRoleProvider) == UserRole.attorney;
-    final posts = AppEmptyState(
-      key: const ValueKey('posts'),
-      illustration: const FeedPreviewIllustration(),
-      title: t.t('feed.empty.title'),
-      message: t.t('feed.empty.message'),
-    );
     return Scaffold(
       backgroundColor: colors.bg,
       appBar: AppFeedHeader(logoSemanticLabel: t.t('brand.name')),
       body: !attorney
-          ? posts
+          ? const PostsFeedView()
           : Column(
               children: [
                 PillTabs<_FeedTab>(
@@ -62,13 +50,12 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                   onChanged: (v) => setState(() => _tab = v),
                 ),
                 Expanded(
-                  child: AnimatedSwitcher(
-                    duration: context.reduceMotion
-                        ? Duration.zero
-                        : AppMotion.stateChange,
-                    child: _tab == _FeedTab.cases
-                        ? const AttorneyCasesTab(key: ValueKey('cases'))
-                        : posts,
+                  child: IndexedStack(
+                    index: _tab.index,
+                    children: const [
+                      PostsFeedView(),
+                      AttorneyCasesTab(),
+                    ],
                   ),
                 ),
               ],
