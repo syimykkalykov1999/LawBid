@@ -42,7 +42,7 @@ export class SearchController {
   @ApiOperation({ summary: 'Attorneys / people (docs/05 §7.3)' })
   @ApiEnvelopeResponse(AttorneyListItemDto, { isArray: true })
   @ApiErrors({
-    400: [ErrorCode.VALIDATION_ERROR],
+    400: [ErrorCode.VALIDATION_ERROR, ErrorCode.SEARCH_QUERY_TOO_SHORT],
     429: [ErrorCode.RATE_LIMITED],
   })
   attorneys(
@@ -56,7 +56,7 @@ export class SearchController {
   @ApiOperation({ summary: 'Cases visible to the attorney (docs/05 §7.4)' })
   @ApiEnvelopeResponse(CaseFeedItemDto, { isArray: true })
   @ApiErrors({
-    400: [ErrorCode.VALIDATION_ERROR],
+    400: [ErrorCode.VALIDATION_ERROR, ErrorCode.SEARCH_QUERY_TOO_SHORT],
     403: [ErrorCode.FORBIDDEN],
     429: [ErrorCode.RATE_LIMITED],
   })
@@ -71,7 +71,7 @@ export class SearchController {
   @ApiOperation({ summary: 'Posts, full text (docs/05 §7.5)' })
   @ApiEnvelopeResponse(PostDto, { isArray: true })
   @ApiErrors({
-    400: [ErrorCode.VALIDATION_ERROR],
+    400: [ErrorCode.VALIDATION_ERROR, ErrorCode.SEARCH_QUERY_TOO_SHORT],
     429: [ErrorCode.RATE_LIMITED],
   })
   posts(

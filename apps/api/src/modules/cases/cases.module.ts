@@ -1,3 +1,4 @@
+import { ChatSystemModule } from '../chat/chat-system.module';
 import { Module } from '@nestjs/common';
 import { AdminAccessModule } from '../admin-access/admin-access.module';
 import { BidsModule } from '../bids/bids.module';
@@ -35,6 +36,7 @@ import { CasesFeedService } from './services/cases-feed.service';
 @Module({
   imports: [
     UsersModule,
+    ChatSystemModule,
     BidsModule,
     JournalModule,
     NotificationsModule,

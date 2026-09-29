@@ -1,3 +1,4 @@
+import { ChatSystemModule } from '../../chat/chat-system.module';
 import { Module } from '@nestjs/common';
 import { AppSettingsModule } from '../../../common/app-settings/app-settings.module';
 import { AuditLogService } from '../../admin-access/audit-log.service';
@@ -15,7 +16,12 @@ import { CaseLifecycleService } from './case-lifecycle.service';
  * without pulling the HTTP-side modules (files, auth guards, cost guard).
  */
 @Module({
-  imports: [JournalModule, NotificationsModule, AppSettingsModule],
+  imports: [
+    JournalModule,
+    NotificationsModule,
+    AppSettingsModule,
+    ChatSystemModule,
+  ],
   providers: [
     CaseLifecycleService,
     CaseStateMachine,

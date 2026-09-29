@@ -133,3 +133,38 @@ export function assertNoContactInfo(
     }
   }
 }
+
+/** docs/05 §8.3: what a hidden contact is replaced with in `body_display`
+ * (the app shows its localized form of this marker). */
+export const CONTACT_MASK = '[контакт скрыт]';
+
+const DIGIT_TOKEN = `(?:\\d|(?<![\\p{L}\\p{N}])(?:${Object.keys(DIGIT_WORDS).join('|')})(?![\\p{L}\\p{N}]))`;
+/** 7+ digits (or spelled-out digits) separated only by phone punctuation. */
+const PHONE_RUN_RE = new RegExp(
+  `(?:\\+\\s*)?\\(?${DIGIT_TOKEN}(?:[\\s\\-.()]*${DIGIT_TOKEN}){6,}`,
+  'giu',
+);
+const OBFUSCATED_EMAIL_RE =
+  /[a-z0-9._%+-]+\s+(?:at|собака)\s+[a-z0-9-]+(?:\s*(?:\.|dot|точка)\s*[a-z0-9-]+)+/giu;
+
+/**
+ * docs/05 §8.3 (file 04 §9): replaces phone numbers (with separators or
+ * spelled out), emails (also "name at site dot com") and links with
+ * CONTACT_MASK. Same heuristics as containsContactInfo().
+ */
+export function maskContactInfo(text: string): {
+  text: string;
+  masked: boolean;
+} {
+  let out = text;
+  for (const re of [
+    new RegExp(URL_RE.source, 'gi'),
+    new RegExp(EMAIL_RE.source, 'gi'),
+    OBFUSCATED_EMAIL_RE,
+    new RegExp(BARE_DOMAIN_RE.source, 'gi'),
+    PHONE_RUN_RE,
+  ]) {
+    out = out.replace(re, CONTACT_MASK);
+  }
+  return { text: out, masked: out !== text };
+}

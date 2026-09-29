@@ -6,6 +6,10 @@ import {
 import type { Case, Prisma } from '@prisma/client';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { PrismaService } from '../../../prisma/prisma.service';
+import {
+  ChatSystemMessages,
+  type ChatChange,
+} from '../../chat/chat-system.service';
 import { withTxRetry } from '../../../prisma/tx-retry.util';
 import type { AdminActor } from '../../admin-access/current-admin.decorator';
 import { AuditLogService } from '../../admin-access/audit-log.service';
@@ -56,6 +60,7 @@ export class CaseLifecycleService {
     private readonly notifications: NotificationsService,
     private readonly reviews: ReviewsService,
     private readonly audit: AuditLogService,
+    private readonly chat: ChatSystemMessages,
   ) {}
 
   /** POST /cases/:id/complete — client "Выполнено" (§10.1):
@@ -94,7 +99,9 @@ export class CaseLifecycleService {
   /** POST /cases/:id/confirm-completion — attorney "Подтвердить" (§10.1). */
   async confirmCompletion(user: RequestUser, caseId: string): Promise<Case> {
     if (user.role !== 'attorney') throw caseNotFound();
-    return withTxRetry(this.prisma, async (tx) => {
+    const chat: ChatChange[] = [];
+    const after = await withTxRetry(this.prisma, async (tx) => {
+      chat.length = 0;
       const { clientId, attorneyId } = await this.parties(tx, caseId);
       if (attorneyId !== user.sub) throw caseNotFound();
       return this.closeInTx(tx, {
@@ -104,8 +111,11 @@ export class CaseLifecycleService {
         action: 'attorney_confirm',
         actor: { userId: user.sub, role: 'attorney' },
         payload: {},
+        chat,
       });
     });
+    this.chat.publish(chat);
+    return after;
   }
 
   /** POST /cases/:id/dispute — attorney "Оспорить" with a mandatory reason
@@ -148,7 +158,9 @@ export class CaseLifecycleService {
     decision: DisputeDecision,
     note: string,
   ): Promise<Case> {
-    return withTxRetry(this.prisma, async (tx) => {
+    const chat: ChatChange[] = [];
+    const resolved = await withTxRetry(this.prisma, async (tx) => {
+      chat.length = 0;
       const dispute = await tx.caseDispute.findUnique({
         where: { id: disputeId },
         select: { case_id: true, status: true },
@@ -178,6 +190,7 @@ export class CaseLifecycleService {
           action: 'admin_resolve_close',
           actor,
           payload,
+          chat,
         });
       } else {
         const res = await this.caseMachine.apply(tx, {
@@ -217,6 +230,8 @@ export class CaseLifecycleService {
       );
       return after;
     });
+    this.chat.publish(chat);
+    return resolved;
   }
 
   /** §10.2 "Напоминание об актуальности" for one case. Returns false when
@@ -268,7 +283,9 @@ export class CaseLifecycleService {
     now: Date,
     promptedBefore: Date,
   ): Promise<boolean> {
-    return withTxRetry(this.prisma, async (tx) => {
+    const chat: ChatChange[] = [];
+    const done = await withTxRetry(this.prisma, async (tx) => {
+      chat.length = 0;
       const row = await this.lockCase(tx, caseId);
       if (
         !row ||
@@ -320,22 +337,30 @@ export class CaseLifecycleService {
           tx,
         );
       }
-      await tx.conversation.updateMany({
-        where: { case_id: caseId, status: 'pre_acceptance' },
-        data: { status: 'closed' },
-      });
+      chat.push(
+        ...(await this.chat.post(
+          tx,
+          { case_id: caseId, status: 'pre_acceptance' },
+          'case_closed',
+          { close: true },
+        )),
+      );
       await this.notifications.emit(
         { type: 'case_archived', recipientId: clientId, payload: { caseId } },
         tx,
       );
       return true;
     });
+    this.chat.publish(chat);
+    return done;
   }
 
   /** §10.2 auto-close for one case (auto_close_at reached, attorney did
    * not answer): closed, event auto_closed. */
   async autoClose(caseId: string, now: Date): Promise<boolean> {
-    return withTxRetry(this.prisma, async (tx) => {
+    const chat: ChatChange[] = [];
+    const done = await withTxRetry(this.prisma, async (tx) => {
+      chat.length = 0;
       const row = await this.lockCase(tx, caseId);
       if (
         !row ||
@@ -354,9 +379,12 @@ export class CaseLifecycleService {
         actor: SYSTEM,
         payload: {},
         now,
+        chat,
       });
       return true;
     });
+    this.chat.publish(chat);
+    return done;
   }
 
   /** Shared close effects (§10.1): the transition + journal, `case_closed`
@@ -375,6 +403,8 @@ export class CaseLifecycleService {
       actor: Actor;
       payload: Prisma.InputJsonObject;
       now?: Date;
+      /** Collects chat changes to publish after commit. */
+      chat: ChatChange[];
     },
   ): Promise<Case> {
     const { caseId, clientId, attorneyId } = input;
@@ -398,6 +428,14 @@ export class CaseLifecycleService {
       );
     }
     await this.reviews.requestReview({ caseId, clientId, attorneyId }, tx);
+    // docs/05 §8.2 "Кейс закрыт" in the case's open conversations.
+    input.chat.push(
+      ...(await this.chat.post(
+        tx,
+        { case_id: caseId, status: { not: 'closed' } },
+        'case_closed',
+      )),
+    );
     return after;
   }
 

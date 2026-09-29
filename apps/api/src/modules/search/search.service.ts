@@ -76,7 +76,13 @@ function invalid(field: string, message: string): BadRequestException {
 
 function textQuery(raw: string): string {
   const q = normalizeQuery(raw);
-  if (q.length < 2) throw invalid('q', 'At least 2 characters.');
+  if (q.length < 2) {
+    throw new BadRequestException({
+      code: ErrorCode.SEARCH_QUERY_TOO_SHORT,
+      message: 'At least 2 characters.',
+      details: { field: 'q', min: 2 },
+    });
+  }
   return q;
 }
 

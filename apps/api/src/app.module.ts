@@ -23,6 +23,9 @@ import { CommentsModule } from './modules/comments/comments.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { FollowsModule } from './modules/follows/follows.module';
 import { SearchModule } from './modules/search/search.module';
+import { ChatModule } from './modules/chat/chat.module';
+import { RealtimeModule } from './modules/realtime/realtime.module';
+import { RealtimeGatewayModule } from './modules/realtime/realtime-gateway.module';
 import { BidsModule } from './modules/bids/bids.module';
 import { NegotiationsModule } from './modules/negotiations/negotiations.module';
 import { JournalModule } from './modules/journal/journal.module';
@@ -132,6 +135,10 @@ const isDev =
     ReportsModule,
     FollowsModule,
     SearchModule,
+    // docs/05 §8 chats + §8.5 realtime (publisher global, gateway API-only).
+    RealtimeModule,
+    RealtimeGatewayModule,
+    ChatModule,
     BidsModule,
     NegotiationsModule,
     JournalModule,

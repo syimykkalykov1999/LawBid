@@ -1,3 +1,4 @@
+import { ChatSystemModule } from '../chat/chat-system.module';
 import { Module } from '@nestjs/common';
 import { CaseStateMachine } from '../cases/domain/case-state-machine';
 import { CaseAccessPolicy } from '../cases/policies/case-access.policy';
@@ -26,7 +27,12 @@ import { BidStateMachine } from './domain/bid-state-machine';
  * dependency-free CaseStateMachine the same way.
  */
 @Module({
-  imports: [JournalModule, NotificationsModule, SubscriptionsModule],
+  imports: [
+    JournalModule,
+    NotificationsModule,
+    SubscriptionsModule,
+    ChatSystemModule,
+  ],
   controllers: [BidsController, BidAcceptanceController],
   providers: [
     BidStateMachine,

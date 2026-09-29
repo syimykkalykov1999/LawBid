@@ -155,6 +155,7 @@ describe('Search (e2e, docs/05 §7, stage 5.6)', () => {
       .query({ q: 'a' })
       .set(viewer.auth);
     expect(short.status).toBe(400);
+    expect(short.body.error.code).toBe('SEARCH_QUERY_TOO_SHORT');
   });
 
   it('cases: only within the attorney licenses and practices; clients get 403', async () => {

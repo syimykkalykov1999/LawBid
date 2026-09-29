@@ -10,6 +10,10 @@ import {
   caseInvalidState,
   caseNotFound,
 } from '../../cases/domain/case-state-machine';
+import {
+  ChatSystemMessages,
+  type ChatChange,
+} from '../../chat/chat-system.service';
 import { CaseJournalService } from '../../journal/case-journal.service';
 import { NotificationsService } from '../../notifications/notifications.service';
 import { SubscriptionAccessService } from '../../subscriptions/subscription-access.service';
@@ -64,6 +68,7 @@ export class BidAcceptanceService {
     private readonly journal: CaseJournalService,
     private readonly notifications: NotificationsService,
     private readonly subscriptions: SubscriptionAccessService,
+    private readonly chat: ChatSystemMessages,
   ) {}
 
   /** POST /bids/:id/accept — the client accepts the attorney's offer, or
@@ -75,10 +80,13 @@ export class BidAcceptanceService {
     meta: RequestMeta,
   ): Promise<BidDto> {
     const by = await this.partyOf(user, bidId);
+    const chat: ChatChange[] = [];
     try {
-      const result = await withTxRetry(this.prisma, (tx) =>
-        this.acceptInTx(tx, bidId, by, user.sub, meta),
-      );
+      const result = await withTxRetry(this.prisma, (tx) => {
+        chat.length = 0;
+        return this.acceptInTx(tx, bidId, by, user.sub, meta, chat);
+      });
+      this.chat.publish(chat);
       return toBidDto(result);
     } catch (error) {
       if (error instanceof AttorneyInactive) {
@@ -100,6 +108,7 @@ export class BidAcceptanceService {
     by: PartyRole,
     actorId: string,
     meta: RequestMeta,
+    chat: ChatChange[],
   ) {
     const now = new Date();
     const ref = await tx.bid.findUnique({
@@ -205,14 +214,22 @@ export class BidAcceptanceService {
       ],
       skipDuplicates: true,
     });
-    await tx.conversation.updateMany({
-      where: {
-        case_id: caseId,
-        attorney_id: { not: attorneyId },
-        status: 'pre_acceptance',
-      },
-      data: { status: 'closed' },
-    });
+    // docs/05 §8.2 system messages: "Предложение принято, контакты
+    // открыты" here; "Кейс принят другим адвокатом…" (read-only) in the
+    // others' pre-acceptance chats.
+    chat.push(
+      ...(await this.chat.post(tx, { id: conversation.id }, 'offer_accepted')),
+      ...(await this.chat.post(
+        tx,
+        {
+          case_id: caseId,
+          attorney_id: { not: attorneyId },
+          status: 'pre_acceptance',
+        },
+        'accepted_by_other',
+        { close: true },
+      )),
+    );
 
     // §7 step 7 / §8.2: the append-only disclosure record (who, when,
     // which fields, IP and device). UQ contact_disclosures(bid_id): a bid

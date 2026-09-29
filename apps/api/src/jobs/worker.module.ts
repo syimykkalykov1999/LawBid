@@ -10,6 +10,7 @@ import { FilesWorkerModule } from '../modules/files/files-worker.module';
 import { CaseHistoryModule } from '../modules/case-history/case-history.module';
 import { PushModule } from '../modules/notifications/push/push.module';
 import { CountersModule } from '../modules/counters/counters.module';
+import { RealtimeModule } from '../modules/realtime/realtime.module';
 
 /**
  * Root module of the dedicated `worker` process (docs/06_PRODUCTION.md §6:
@@ -43,6 +44,8 @@ import { CountersModule } from '../modules/counters/counters.module';
     PushModule.register({ mode: 'worker' }),
     // docs/05 stage 5.1: counters flush + nightly reconcile.
     CountersModule,
+    // docs/05 §8.5: jobs publish realtime events through Redis.
+    RealtimeModule,
   ],
 })
 export class WorkerModule {}

@@ -11,6 +11,10 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { CaseAccessPolicy } from '../cases/policies/case-access.policy';
+import {
+  ChatSystemMessages,
+  type ChatChange,
+} from '../chat/chat-system.service';
 import { CaseJournalService } from '../journal/case-journal.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { SubscriptionAccessService } from '../subscriptions/subscription-access.service';
@@ -37,6 +41,7 @@ export class BidsService {
     private readonly notifications: NotificationsService,
     private readonly subscriptions: SubscriptionAccessService,
     private readonly caseAccess: CaseAccessPolicy,
+    private readonly chat: ChatSystemMessages,
   ) {}
 
   /** POST /cases/:caseId/bids (§5.1). One active-or-ever bid per attorney
@@ -253,7 +258,9 @@ export class BidsService {
     by: PartyRole,
     extra: { amountCents?: number; message?: string | null },
   ): Promise<BidDto> {
+    const chat: ChatChange[] = [];
     const result = await withTxRetry(this.prisma, async (tx) => {
+      chat.length = 0;
       const before = await tx.bid.findUnique({
         where: { id: bidId },
         select: { case_id: true, attorney_id: true },
@@ -298,12 +305,27 @@ export class BidsService {
         plan,
         tx,
       });
+      if (action !== 'counter') {
+        // docs/05 §8.2 "Стороны не договорились" in their chat, if any.
+        chat.push(
+          ...(await this.chat.post(
+            tx,
+            {
+              case_id: before.case_id,
+              attorney_id: before.attorney_id,
+              status: { not: 'closed' },
+            },
+            'no_agreement',
+          )),
+        );
+      }
       const offers = await tx.bidOffer.findMany({
         where: { bid_id: bidId },
         orderBy: { round_no: 'asc' },
       });
       return { ...bid, offers };
     });
+    this.chat.publish(chat);
     return toBidDto(result);
   }
 

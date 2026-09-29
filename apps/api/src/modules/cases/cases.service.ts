@@ -23,6 +23,10 @@ import {
   type CaseStateInput,
 } from './domain/case-states.rule';
 import { assertNoContactInfo } from './domain/contact-detector';
+import {
+  ChatSystemMessages,
+  type ChatChange,
+} from '../chat/chat-system.service';
 import { CaseJournalService } from '../journal/case-journal.service';
 import {
   MY_CASES_PAGE_DEFAULT,
@@ -189,6 +193,7 @@ export class CasesService {
     private readonly bidMachine: BidStateMachine,
     private readonly journal: CaseJournalService,
     private readonly notifications: NotificationsService,
+    private readonly chat: ChatSystemMessages,
   ) {}
 
   /** POST /cases (§3.1–§3.4). */
@@ -681,7 +686,9 @@ export class CasesService {
     rejectReason: 'case_closed' | 'case_deleted',
   ): Promise<CaseDto> {
     this.assertClientRole(user);
+    const chat: ChatChange[] = [];
     const updated = await withTxRetry(this.prisma, async (tx) => {
+      chat.length = 0;
       const current = await tx.case.findUnique({
         where: { id: caseId },
         select: { client_id: true },
@@ -723,8 +730,18 @@ export class CasesService {
           tx,
         );
       }
+      // docs/04 §9: pre-acceptance chats become read-only ("Кейс закрыт").
+      chat.push(
+        ...(await this.chat.post(
+          tx,
+          { case_id: caseId, status: 'pre_acceptance' },
+          'case_closed',
+          { close: true },
+        )),
+      );
       return afterCase;
     });
+    this.chat.publish(chat);
     return this.toFullDto(updated);
   }
 }

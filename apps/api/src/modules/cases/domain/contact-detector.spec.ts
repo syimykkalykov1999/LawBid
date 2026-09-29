@@ -71,3 +71,28 @@ describe('assertNoContactInfo', () => {
     ).not.toThrow();
   });
 });
+
+describe('maskContactInfo (docs/05 §8.3)', () => {
+  const { maskContactInfo, CONTACT_MASK } =
+    jest.requireActual<typeof import('./contact-detector')>(
+      './contact-detector',
+    );
+
+  it.each([
+    ['Call me at (555) 123-4567 today', `Call me at ${CONTACT_MASK} today`],
+    ['five five five one two three four', CONTACT_MASK],
+    ['mail john.doe@example.com now', `mail ${CONTACT_MASK} now`],
+    ['john at example dot com', CONTACT_MASK],
+    ['see https://evil.io/x please', `see ${CONTACT_MASK} please`],
+    ['visit mysite.com', `visit ${CONTACT_MASK}`],
+  ])('%s', (input, expected) => {
+    expect(maskContactInfo(input)).toEqual({ text: expected, masked: true });
+  });
+
+  it('leaves ordinary text alone', () => {
+    expect(maskContactInfo('I got one ticket in 2024, e.g. speeding')).toEqual({
+      text: 'I got one ticket in 2024, e.g. speeding',
+      masked: false,
+    });
+  });
+});
