@@ -9,6 +9,9 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/auth/application/sign_out.dart';
 import 'package:lawbid/features/settings/account/account_routes.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
+import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
+import 'package:lawbid/features/subscription/subscription_routes.dart';
+import 'package:lawbid/shared/domain/user_role.dart';
 
 /// `/profile/settings` (file 01 §3.6: "Настройки (гамбургер): Аккаунт,
 /// Безопасность, Язык, Тема, Подписка (адвокат), История кейсов
@@ -71,11 +74,13 @@ class SettingsScreen extends ConsumerWidget {
             label: t.t('settings.security'),
             onTap: () => context.push(AppRoutes.activeDevices),
           ),
-          AppListRow(
-            icon: Icons.workspace_premium_outlined,
-            label: t.t('settings.subscription'),
-            onTap: showNotBuiltYet,
-          ),
+          // docs/01 §3.6 "Подписка (адвокат)" → docs/06 §1.7 screens.
+          if (ref.watch(currentUserRoleProvider) == UserRole.attorney)
+            AppListRow(
+              icon: Icons.workspace_premium_outlined,
+              label: t.t('settings.subscription'),
+              onTap: () => context.push(SubscriptionRoutes.subscription),
+            ),
           AppListRow(
             icon: Icons.history_rounded,
             label: t.t('settings.caseHistory'),

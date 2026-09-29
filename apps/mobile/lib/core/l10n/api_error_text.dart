@@ -118,6 +118,16 @@ const _keys = <String, String>{
       'error.api.CASE_CONTAINS_CONTACT_INFO',
   ApiErrorCodes.clientContactSharingConsentRequired:
       'error.api.CLIENT_CONTACT_SHARING_CONSENT_REQUIRED',
+  ApiErrorCodes.paymentsNotConfigured: 'error.api.PAYMENTS_NOT_CONFIGURED',
+  ApiErrorCodes.subscriptionAlreadyActive:
+      'error.api.SUBSCRIPTION_ALREADY_ACTIVE',
+  ApiErrorCodes.subscriptionTrialUnavailable:
+      'error.api.SUBSCRIPTION_TRIAL_UNAVAILABLE',
+  ApiErrorCodes.subscriptionSetupIncomplete:
+      'error.api.SUBSCRIPTION_SETUP_INCOMPLETE',
+  ApiErrorCodes.subscriptionNotFound: 'error.api.SUBSCRIPTION_NOT_FOUND',
+  ApiErrorCodes.payloadTooLarge: 'error.api.PAYLOAD_TOO_LARGE',
+  ApiErrorCodes.contentBlocked: 'error.api.CONTENT_BLOCKED',
   ApiErrorCodes.reauthRequired: 'error.api.REAUTH_REQUIRED',
   ApiErrorCodes.reauthInvalid: 'error.api.REAUTH_INVALID',
   ApiErrorCodes.clientContactsIncomplete:

@@ -47,7 +47,8 @@ class _WorkCaseScreenState extends ConsumerState<WorkCaseScreen> {
           await ref.read(caseActionsProvider).openConversation(widget.caseId);
       if (mounted) await context.push(ChatRoutes.conversation(conv.id));
     } on Object catch (e) {
-      if (mounted && !routeSubscriptionError(context, e)) {
+      if (mounted &&
+          !routeSubscriptionError(context, e, reason: 'chat')) {
         showAppSnackBar(context, errorText(t, e));
       }
     } finally {
@@ -416,7 +417,8 @@ class _ContactsBlock extends ConsumerWidget {
           action: AppButton(
             label: t.t('cases.subscription.cta'),
             height: AppSizes.touchTarget,
-            onPressed: () => context.push(AppRoutes.subscriptionRequired),
+            onPressed: () =>
+                context.push(AppRoutes.subscriptionRequiredFor('contacts')),
           ),
         ),
       AsyncError(:final error) => CasesErrorView(

@@ -2,7 +2,6 @@ import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/screens/bid_detail_screen.dart';
 import 'package:lawbid/features/cases/presentation/screens/bid_form_screen.dart';
 import 'package:lawbid/features/cases/presentation/screens/case_history_screens.dart';
-import 'package:lawbid/features/cases/presentation/screens/case_route_screens.dart';
 import 'package:lawbid/features/cases/presentation/screens/edit_case_screen.dart';
 import 'package:lawbid/features/cases/presentation/screens/mine_views.dart';
 import 'package:lawbid/features/cases/presentation/screens/owner_case_screen.dart';
@@ -42,6 +41,7 @@ import 'package:lawbid/features/verification/presentation/screens/verification_w
 import 'package:lawbid/features/search/presentation/screens/search_screen.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:lawbid/features/social/social_routes.dart';
+import 'package:lawbid/features/subscription/subscription_routes.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 
 part 'app_router.g.dart';
@@ -268,12 +268,6 @@ GoRouter appRouter(Ref ref) {
           CaseHistoryDetailScreen(caseId: state.pathParameters['id'] ?? ''),
         ),
       ),
-      GoRoute(
-        path: AppRoutes.subscriptionRequired,
-        parentNavigatorKey: _rootNavigatorKey,
-        pageBuilder: (context, state) =>
-            AppPageTransitions.modal(state, const SubscriptionRequiredScreen()),
-      ),
       ...authRoutes(),
       ...onboardingRoutes(),
       ...accountRoutes(parentNavigatorKey: _rootNavigatorKey),
@@ -284,6 +278,8 @@ GoRouter appRouter(Ref ref) {
       ...socialRoutes(_rootNavigatorKey),
       // docs/05 chats, notifications, notification settings.
       ...chatRoutes(_rootNavigatorKey),
+      // docs/06 §1.7: Settings → Подписка, payments, gate paywall.
+      ...subscriptionRoutes(_rootNavigatorKey),
     ],
   );
 }

@@ -115,4 +115,9 @@ abstract final class AppRoutes {
   /// Subscription call-to-action (docs/04 §2; the paywall itself is
   /// docs/06).
   static const subscriptionRequired = '/subscription-required';
+
+  /// The paywall naming the locked action (docs/06 §1.7 п.3):
+  /// `bid` | `chat` | `contacts`.
+  static String subscriptionRequiredFor(String reason) =>
+      '/subscription-required?reason=${Uri.encodeComponent(reason)}';
 }

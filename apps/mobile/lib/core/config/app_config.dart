@@ -36,8 +36,9 @@ abstract final class AppConfig {
   );
 
   /// Stripe Dashboard → Developers → API keys → Publishable key
-  /// (`pk_test_…` / `pk_live_…`). Reserved for the subscription stage
-  /// (docs/06_PRODUCTION.md §1); nothing reads it yet.
+  /// (`pk_test_…` / `pk_live_…`). Read by `StripeCardCollector`
+  /// (docs/06_PRODUCTION.md §1.4, stage 6.8) on the first card sheet; an
+  /// empty value makes the subscribe button report "оплата не настроена".
   static const String stripePublishableKey = String.fromEnvironment(
     'STRIPE_PUBLISHABLE_KEY',
   );

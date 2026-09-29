@@ -24,10 +24,16 @@ subprojects {
 // plugins still apply KGP. Without this its Kotlin sources never compile and
 // GeneratedPluginRegistrant fails with "cannot find symbol FilePickerPlugin".
 // Remove once every plugin supports built-in Kotlin.
+//
+// stripe_android (flutter_stripe 14, stage 6.8) applies KGP itself but sets
+// no jvmTarget, so Kotlin follows the host JDK while its Java stays on 17
+// ("Inconsistent JVM-target compatibility"); pin it the same way.
 subprojects {
-    if (project.name == "file_picker") {
+    if (project.name == "file_picker" || project.name == "stripe_android") {
         project.plugins.withId("com.android.library") {
-            project.pluginManager.apply("org.jetbrains.kotlin.android")
+            if (project.name == "file_picker") {
+                project.pluginManager.apply("org.jetbrains.kotlin.android")
+            }
             // Match the plugin's Java target (17), not the host JDK's.
             project.extensions.configure<org.jetbrains.kotlin.gradle.dsl.KotlinAndroidProjectExtension> {
                 compilerOptions.jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)

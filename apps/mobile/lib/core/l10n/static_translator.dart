@@ -1,6 +1,7 @@
 import 'package:lawbid/core/l10n/app_language.dart';
 import 'package:lawbid/core/l10n/plural_rules.dart';
 import 'package:lawbid/core/l10n/strings/file05_strings.dart';
+import 'package:lawbid/core/l10n/strings/file06_strings.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 
 /// Stage-1.5-originated stopgap [Translator], now bilingual (owner request,
@@ -852,6 +853,7 @@ class StaticTranslatorRu extends _MapTranslator {
         'reviews.placeholder.caseId': "ID кейса",
         'error.default.title': "Что-то пошло не так",
         ...file05Ru,
+        ...file06Ru,
       };
 }
 
@@ -1950,5 +1952,6 @@ class StaticTranslatorEn extends _MapTranslator {
         'reviews.placeholder.caseId': "Case ID",
         'error.default.title': "Something went wrong",
         ...file05En,
+        ...file06En,
       };
 }

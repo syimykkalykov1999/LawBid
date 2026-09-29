@@ -754,7 +754,8 @@ class _SubscriptionGate extends StatelessWidget {
             AppButton(
               label: t.t('chat.renew'),
               height: AppSizes.touchTarget,
-              onPressed: () => context.push(AppRoutes.subscriptionRequired),
+              onPressed: () =>
+                  context.push(AppRoutes.subscriptionRequiredFor('chat')),
             ),
           ],
         ),

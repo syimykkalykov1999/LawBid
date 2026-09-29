@@ -22,9 +22,13 @@ import 'package:lawbid/features/chat/chat_routes.dart';
 
 /// Opens the subscription call-to-action when the server answers
 /// SUBSCRIPTION_REQUIRED (docs/04 §2); true when it handled [e].
-bool routeSubscriptionError(BuildContext context, Object e) {
+bool routeSubscriptionError(
+  BuildContext context,
+  Object e, {
+  String reason = 'generic',
+}) {
   if (e is ApiException && e.code == ApiErrorCodes.subscriptionRequired) {
-    context.push(AppRoutes.subscriptionRequired);
+    context.push(AppRoutes.subscriptionRequiredFor(reason));
     return true;
   }
   return false;
@@ -81,7 +85,8 @@ class _AttorneyCaseScreenState extends ConsumerState<AttorneyCaseScreen> {
       final conv = await ref.read(caseActionsProvider).openConversation(c.id);
       if (mounted) await context.push(ChatRoutes.conversation(conv.id));
     } on Object catch (e) {
-      if (mounted && !routeSubscriptionError(context, e)) {
+      if (mounted &&
+          !routeSubscriptionError(context, e, reason: 'chat')) {
         showAppSnackBar(context, errorText(t, e));
       }
     } finally {

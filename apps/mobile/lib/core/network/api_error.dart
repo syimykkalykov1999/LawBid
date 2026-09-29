@@ -119,6 +119,28 @@ abstract final class ApiErrorCodes {
   static const caseContainsContactInfo = 'CASE_CONTAINS_CONTACT_INFO';
   static const clientContactSharingConsentRequired =
       'CLIENT_CONTACT_SHARING_CONSENT_REQUIRED';
+  // Subscription / Stripe (docs/06 §1, stage 6.7)
+  static const paymentsNotConfigured = 'PAYMENTS_NOT_CONFIGURED';
+  static const subscriptionAlreadyActive = 'SUBSCRIPTION_ALREADY_ACTIVE';
+  static const subscriptionTrialUnavailable =
+      'SUBSCRIPTION_TRIAL_UNAVAILABLE';
+  static const subscriptionSetupIncomplete =
+      'SUBSCRIPTION_SETUP_INCOMPLETE';
+  static const subscriptionNotFound = 'SUBSCRIPTION_NOT_FOUND';
+  static const webhookSignatureInvalid = 'WEBHOOK_SIGNATURE_INVALID';
+  // Request limits, admin panel, moderation, flags, legal (docs/06)
+  static const payloadTooLarge = 'PAYLOAD_TOO_LARGE';
+  static const justificationRequired = 'JUSTIFICATION_REQUIRED';
+  static const adminTicketInvalid = 'ADMIN_TICKET_INVALID';
+  static const adminTotpInvalid = 'ADMIN_TOTP_INVALID';
+  static const adminRecoveryCodeInvalid = 'ADMIN_RECOVERY_CODE_INVALID';
+  static const adminAuthNotConfigured = 'ADMIN_AUTH_NOT_CONFIGURED';
+  static const adminEmailTaken = 'ADMIN_EMAIL_TAKEN';
+  static const contentBlocked = 'CONTENT_BLOCKED';
+  static const moderationActionNotApplicable =
+      'MODERATION_ACTION_NOT_APPLICABLE';
+  static const flagProviderKeysMissing = 'FLAG_PROVIDER_KEYS_MISSING';
+  static const legalDocumentInvalidState = 'LEGAL_DOCUMENT_INVALID_STATE';
 
   /// Every server code, in enum order.
   static const all = <String>[
@@ -208,6 +230,23 @@ abstract final class ApiErrorCodes {
     bidAlreadyExists,
     caseContainsContactInfo,
     clientContactSharingConsentRequired,
+    paymentsNotConfigured,
+    subscriptionAlreadyActive,
+    subscriptionTrialUnavailable,
+    subscriptionSetupIncomplete,
+    subscriptionNotFound,
+    webhookSignatureInvalid,
+    payloadTooLarge,
+    justificationRequired,
+    adminTicketInvalid,
+    adminTotpInvalid,
+    adminRecoveryCodeInvalid,
+    adminAuthNotConfigured,
+    adminEmailTaken,
+    contentBlocked,
+    moderationActionNotApplicable,
+    flagProviderKeysMissing,
+    legalDocumentInvalidState,
   ];
 }
 

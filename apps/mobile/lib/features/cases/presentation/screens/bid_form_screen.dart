@@ -112,7 +112,7 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
       context.pushReplacement(AppRoutes.bid(bid.id));
     } on Object catch (e) {
       if (!mounted) return;
-      if (routeSubscriptionError(context, e)) {
+      if (routeSubscriptionError(context, e, reason: 'bid')) {
         setState(() => _busy = false);
         return;
       }
