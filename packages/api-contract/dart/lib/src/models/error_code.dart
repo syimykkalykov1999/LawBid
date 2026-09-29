@@ -154,6 +154,14 @@ enum ErrorCode {
   clientContactSharingConsentRequired(
     'CLIENT_CONTACT_SHARING_CONSENT_REQUIRED',
   ),
+  @JsonValue('BID_ATTORNEY_INACTIVE')
+  bidAttorneyInactive('BID_ATTORNEY_INACTIVE'),
+  @JsonValue('CONTACTS_LOCKED')
+  contactsLocked('CONTACTS_LOCKED'),
+  @JsonValue('CONTACT_ISSUE_ALREADY_OPEN')
+  contactIssueAlreadyOpen('CONTACT_ISSUE_ALREADY_OPEN'),
+  @JsonValue('CONTACT_ISSUE_INVALID_STATE')
+  contactIssueInvalidState('CONTACT_ISSUE_INVALID_STATE'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

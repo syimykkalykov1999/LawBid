@@ -51,4 +51,11 @@ abstract class BidsClient {
     @Body() required CounterOfferDto body,
     @Extras() Map<String, dynamic>? extras,
   });
+
+  /// Accept a bid (whichever party's turn it is): case → in_progress, other bids auto-rejected, contacts disclosed
+  @POST('/bids/{id}/accept')
+  Future<BidEnvelope> acceptBid({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
 }

@@ -172,4 +172,19 @@ export enum ErrorCode {
   // 403: the client has never granted the client_contact_sharing consent
   // (§3.1 step 5) and this request doesn't grant it either.
   CLIENT_CONTACT_SHARING_CONSENT_REQUIRED = 'CLIENT_CONTACT_SHARING_CONSENT_REQUIRED',
+  // Bid acceptance and client contacts (docs/04_CASES_BIDS.md §7–§8,
+  // stage 4.5).
+  // 409: at the moment of acceptance the bid's attorney is no longer
+  // verified / licensed in a state of the case / subscribed (§7 step 2);
+  // the bid has been withdrawn — the client picks another one.
+  BID_ATTORNEY_INACTIVE = 'BID_ATTORNEY_INACTIVE',
+  // 403: the attorney has no accepted bid on this case, so the client's
+  // contacts were never disclosed to them (§8.1). Also for "Не могу
+  // связаться" before any disclosure (§8.4).
+  CONTACTS_LOCKED = 'CONTACTS_LOCKED',
+  // 409: the attorney already has an open "Не могу связаться" report on
+  // this case awaiting support (§8.4).
+  CONTACT_ISSUE_ALREADY_OPEN = 'CONTACT_ISSUE_ALREADY_OPEN',
+  // 409: the report is already resolved (confirmed/rejected).
+  CONTACT_ISSUE_INVALID_STATE = 'CONTACT_ISSUE_INVALID_STATE',
 }

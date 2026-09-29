@@ -1,0 +1,5 @@
+key,en,ru
+error.api.BID_ATTORNEY_INACTIVE,This attorney is no longer available. Please choose another bid.,"Этот адвокат недоступен, выберите другой бид."
+error.api.CONTACTS_LOCKED,Client contacts open only after your bid is accepted.,Контакты клиента откроются только после принятия вашего бида.
+error.api.CONTACT_ISSUE_ALREADY_OPEN,You already reported this case. Support is reviewing it.,Вы уже сообщили о проблеме по этому кейсу. Поддержка её рассматривает.
+error.api.CONTACT_ISSUE_INVALID_STATE,This report has already been resolved.,Это обращение уже рассмотрено.

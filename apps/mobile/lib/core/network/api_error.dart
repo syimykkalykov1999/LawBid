@@ -101,6 +101,10 @@ abstract final class ApiErrorCodes {
   // Bids and negotiation (docs/04 §5–§6, stage 4.4)
   static const subscriptionRequired = 'SUBSCRIPTION_REQUIRED';
   static const caseNotAvailable = 'CASE_NOT_AVAILABLE';
+  static const bidAttorneyInactive = 'BID_ATTORNEY_INACTIVE';
+  static const contactsLocked = 'CONTACTS_LOCKED';
+  static const contactIssueAlreadyOpen = 'CONTACT_ISSUE_ALREADY_OPEN';
+  static const contactIssueInvalidState = 'CONTACT_ISSUE_INVALID_STATE';
   static const bidAlreadyExists = 'BID_ALREADY_EXISTS';
   // Case creation and management (docs/04 §3, stage 4.2)
   static const caseContainsContactInfo = 'CASE_CONTAINS_CONTACT_INFO';
@@ -179,6 +183,10 @@ abstract final class ApiErrorCodes {
     bidCounterNotAllowed,
     subscriptionRequired,
     caseNotAvailable,
+    bidAttorneyInactive,
+    contactsLocked,
+    contactIssueAlreadyOpen,
+    contactIssueInvalidState,
     bidAlreadyExists,
     caseContainsContactInfo,
     clientContactSharingConsentRequired,

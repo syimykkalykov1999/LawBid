@@ -18,7 +18,7 @@ import { BidStateMachine, bidNotFound } from './domain/bid-state-machine';
 import type { BidDto } from './dto/bid-responses.dto';
 import type { CounterOfferDto, CreateBidDto } from './dto/bid-requests.dto';
 
-type BidWithOffers = Bid & { offers: BidOffer[] };
+export type BidWithOffers = Bid & { offers: BidOffer[] };
 type BidWithCase = Bid & { case: { client_id: string; status: string } };
 
 /**
@@ -145,7 +145,7 @@ export class BidsService {
         );
         return { ...created, offers: [offer] };
       });
-      return toDto(bid);
+      return toBidDto(bid);
     } catch (error) {
       if (isUniqueViolation(error)) {
         throw new ConflictException({
@@ -192,7 +192,7 @@ export class BidsService {
       where: { bid_id: bid.id },
       orderBy: { round_no: 'asc' },
     });
-    return toDto({ ...bid, offers });
+    return toBidDto({ ...bid, offers });
   }
 
   /**
@@ -304,7 +304,7 @@ export class BidsService {
       });
       return { ...bid, offers };
     });
-    return toDto(result);
+    return toBidDto(result);
   }
 
   private async notifyOutcome(input: {
@@ -448,7 +448,8 @@ function isUniqueViolation(error: unknown): boolean {
   );
 }
 
-function toDto(bid: BidWithOffers): BidDto {
+/** Response shape shared with stage 4.5 (BidAcceptanceService). */
+export function toBidDto(bid: BidWithOffers): BidDto {
   return {
     id: bid.id,
     caseId: bid.case_id,

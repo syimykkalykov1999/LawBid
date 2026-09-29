@@ -5,14 +5,19 @@
 import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
+import '../models/case_bid_item_list_envelope.dart';
 import '../models/case_deleted_envelope.dart';
 import '../models/case_detail_for_attorney_envelope.dart';
 import '../models/case_envelope.dart';
 import '../models/case_feed_item_list_envelope.dart';
 import '../models/case_summary_list_envelope.dart';
+import '../models/client_contacts_envelope.dart';
+import '../models/contact_issue_report_envelope.dart';
 import '../models/create_case_dto.dart';
+import '../models/create_contact_issue_dto.dart';
 import '../models/filter.dart';
 import '../models/saved_item_dto.dart';
+import '../models/sort.dart';
 import '../models/update_case_dto.dart';
 
 part 'cases_client.g.dart';
@@ -116,6 +121,33 @@ abstract class CasesClient {
   @DELETE('/saved-items')
   Future<void> unsaveItem({
     @Body() required SavedItemDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Bids on my case with the attorney summary (client, docs/04 §5.2; sort newest / lowest_price / highest_rating).
+  ///
+  /// [cursor] - meta.nextCursor of the previous page.
+  @GET('/cases/{id}/bids')
+  Future<CaseBidItemListEnvelope> listCaseBids({
+    @Path('id') required String id,
+    @Query('cursor') String? cursor,
+    @Query('sort') Sort? sort = Sort.newest,
+    @Query('limit') int? limit = 20,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Client contacts for the attorney whose bid was accepted (active subscription required, docs/04 §8)
+  @GET('/cases/{id}/contacts')
+  Future<ClientContactsEnvelope> getCaseContacts({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// "Can’t reach the client" report (attorney, docs/04 §8.4)
+  @POST('/cases/{id}/contact-issues')
+  Future<ContactIssueReportEnvelope> reportContactIssue({
+    @Path('id') required String id,
+    @Body() required CreateContactIssueDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 }

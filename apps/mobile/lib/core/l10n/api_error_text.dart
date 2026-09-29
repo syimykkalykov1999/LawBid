@@ -100,6 +100,10 @@ const _keys = <String, String>{
   ApiErrorCodes.bidCounterNotAllowed: 'error.api.BID_COUNTER_NOT_ALLOWED',
   ApiErrorCodes.subscriptionRequired: 'error.api.SUBSCRIPTION_REQUIRED',
   ApiErrorCodes.caseNotAvailable: 'error.api.CASE_NOT_AVAILABLE',
+  ApiErrorCodes.bidAttorneyInactive: 'error.api.BID_ATTORNEY_INACTIVE',
+  ApiErrorCodes.contactsLocked: 'error.api.CONTACTS_LOCKED',
+  ApiErrorCodes.contactIssueAlreadyOpen: 'error.api.CONTACT_ISSUE_ALREADY_OPEN',
+  ApiErrorCodes.contactIssueInvalidState: 'error.api.CONTACT_ISSUE_INVALID_STATE',
   ApiErrorCodes.bidAlreadyExists: 'error.api.BID_ALREADY_EXISTS',
   ApiErrorCodes.caseContainsContactInfo:
       'error.api.CASE_CONTAINS_CONTACT_INFO',

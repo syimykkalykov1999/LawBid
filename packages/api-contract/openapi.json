@@ -4452,6 +4452,516 @@
         ]
       }
     },
+    "/cases/{id}/bids": {
+      "get": {
+        "operationId": "listCaseBids",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "newest",
+              "type": "string",
+              "enum": [
+                "newest",
+                "lowest_price",
+                "highest_rating"
+              ]
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "meta.nextCursor of the previous page.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseBidItemListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CASE_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Bids on my case with the attorney summary (client, docs/04 §5.2; sort newest / lowest_price / highest_rating)",
+        "tags": [
+          "cases"
+        ]
+      }
+    },
+    "/cases/{id}/contacts": {
+      "get": {
+        "operationId": "getCaseContacts",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientContactsEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN, CONTACTS_LOCKED, SUBSCRIPTION_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CASE_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Client contacts for the attorney whose bid was accepted (active subscription required, docs/04 §8)",
+        "tags": [
+          "cases"
+        ]
+      }
+    },
+    "/cases/{id}/contact-issues": {
+      "post": {
+        "operationId": "reportContactIssue",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateContactIssueDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContactIssueReportEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR, IDEMPOTENCY_KEY_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN, CONTACTS_LOCKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CASE_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: CONTACT_ISSUE_ALREADY_OPEN, IDEMPOTENCY_KEY_CONFLICT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "\"Can’t reach the client\" report (attorney, docs/04 §8.4)",
+        "tags": [
+          "cases"
+        ]
+      }
+    },
+    "/admin/contact-issues/{id}/resolve": {
+      "post": {
+        "operationId": "resolveContactIssue",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveContactIssueDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContactIssueResolutionEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: CONTACT_ISSUE_INVALID_STATE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Confirm or reject a contact-issue report; the threshold suspends the client (docs/04 §8.4)",
+        "tags": [
+          "admin-contact-issues"
+        ]
+      }
+    },
     "/cases/{caseId}/bids": {
       "post": {
         "operationId": "createBid",
@@ -5035,6 +5545,121 @@
           }
         ],
         "summary": "Counter-offer, whichever party's turn it is (max 5 rounds)",
+        "tags": [
+          "bids"
+        ]
+      }
+    },
+    "/bids/{id}/accept": {
+      "post": {
+        "operationId": "acceptBid",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BidEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND, CASE_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: CASE_INVALID_STATE, BID_INVALID_STATE, BID_NOT_YOUR_TURN, BID_ATTORNEY_INACTIVE, IDEMPOTENCY_KEY_CONFLICT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Accept a bid (whichever party's turn it is): case → in_progress, other bids auto-rejected, contacts disclosed",
         "tags": [
           "bids"
         ]
@@ -9152,7 +9777,11 @@
           "SUBSCRIPTION_REQUIRED",
           "BID_ALREADY_EXISTS",
           "CASE_CONTAINS_CONTACT_INFO",
-          "CLIENT_CONTACT_SHARING_CONSENT_REQUIRED"
+          "CLIENT_CONTACT_SHARING_CONSENT_REQUIRED",
+          "BID_ATTORNEY_INACTIVE",
+          "CONTACTS_LOCKED",
+          "CONTACT_ISSUE_ALREADY_OPEN",
+          "CONTACT_ISSUE_INVALID_STATE"
         ]
       },
       "ErrorBodyDto": {
@@ -11691,6 +12320,414 @@
           "attorney"
         ]
       },
+      "RatingDto": {
+        "type": "object",
+        "properties": {
+          "avg": {
+            "type": "number",
+            "description": "Average of published reviews, 0 if none."
+          },
+          "count": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "avg",
+          "count"
+        ]
+      },
+      "BidAttorneySummaryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "username": {
+            "type": "string"
+          },
+          "firstName": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastName": {
+            "type": "string",
+            "nullable": true
+          },
+          "avatarUrl256": {
+            "type": "string",
+            "nullable": true,
+            "description": "Signed link to the 256 px avatar; null when none."
+          },
+          "verifiedBadge": {
+            "type": "boolean",
+            "description": "Blue check (docs/03 §6.3)."
+          },
+          "rating": {
+            "$ref": "#/components/schemas/RatingDto"
+          }
+        },
+        "required": [
+          "id",
+          "username",
+          "firstName",
+          "lastName",
+          "avatarUrl256",
+          "verifiedBadge",
+          "rating"
+        ]
+      },
+      "CaseBidItemDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "caseId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "attorneyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BidStatus"
+              }
+            ]
+          },
+          "feeType": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/FeeType"
+              }
+            ]
+          },
+          "amountCents": {
+            "type": "integer"
+          },
+          "message": {
+            "type": "string"
+          },
+          "startAvailability": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StartAvailability"
+              }
+            ]
+          },
+          "startDate": {
+            "type": "string",
+            "nullable": true,
+            "format": "date"
+          },
+          "estimatedDurationDays": {
+            "type": "integer",
+            "nullable": true
+          },
+          "roundCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 5
+          },
+          "turn": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PartyRole"
+              }
+            ]
+          },
+          "decidedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "attorney": {
+            "$ref": "#/components/schemas/BidAttorneySummaryDto"
+          }
+        },
+        "required": [
+          "id",
+          "caseId",
+          "attorneyId",
+          "status",
+          "feeType",
+          "amountCents",
+          "message",
+          "startAvailability",
+          "startDate",
+          "estimatedDurationDays",
+          "roundCount",
+          "turn",
+          "decidedAt",
+          "createdAt",
+          "attorney"
+        ]
+      },
+      "CaseBidItemListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CaseBidItemDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "ClientContactsDto": {
+        "type": "object",
+        "properties": {
+          "caseId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "bidId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "firstName": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastName": {
+            "type": "string",
+            "nullable": true
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true,
+            "description": "E.164."
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "contactMethod": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ContactMethod"
+              }
+            ]
+          },
+          "contactNote": {
+            "type": "string",
+            "nullable": true,
+            "description": "The client’s note on when to be contacted."
+          },
+          "disclosedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the contacts were first disclosed (the accept transaction, §8.2)."
+          }
+        },
+        "required": [
+          "caseId",
+          "bidId",
+          "firstName",
+          "lastName",
+          "phone",
+          "email",
+          "contactMethod",
+          "contactNote",
+          "disclosedAt"
+        ]
+      },
+      "ClientContactsEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ClientContactsDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "ContactIssueType": {
+        "type": "string",
+        "enum": [
+          "phone_invalid",
+          "no_answer",
+          "email_bounce",
+          "wrong_person",
+          "other"
+        ]
+      },
+      "ContactIssueStatus": {
+        "type": "string",
+        "enum": [
+          "open",
+          "confirmed",
+          "rejected"
+        ]
+      },
+      "ContactIssueReportDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "caseId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "bidId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "issueType": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ContactIssueType"
+              }
+            ]
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ContactIssueStatus"
+              }
+            ]
+          },
+          "resolvedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "resolutionNote": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "caseId",
+          "bidId",
+          "issueType",
+          "note",
+          "status",
+          "resolvedAt",
+          "resolutionNote",
+          "createdAt"
+        ]
+      },
+      "CreateContactIssueDto": {
+        "type": "object",
+        "properties": {
+          "issueType": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ContactIssueType"
+              }
+            ]
+          },
+          "note": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "issueType"
+        ]
+      },
+      "ContactIssueReportEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ContactIssueReportDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "ContactIssueResolutionDto": {
+        "type": "object",
+        "properties": {
+          "report": {
+            "$ref": "#/components/schemas/ContactIssueReportDto"
+          },
+          "confirmedReports": {
+            "type": "number",
+            "description": "The client's confirmed reports after this decision (all cases)."
+          },
+          "clientSuspended": {
+            "type": "boolean",
+            "description": "True when this decision reached contacts.suspend_after_confirmed_reports and suspended the client."
+          }
+        },
+        "required": [
+          "report",
+          "confirmedReports",
+          "clientSuspended"
+        ]
+      },
+      "ResolveContactIssueDto": {
+        "type": "object",
+        "properties": {
+          "decision": {
+            "enum": [
+              "confirmed",
+              "rejected"
+            ],
+            "type": "string"
+          },
+          "note": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "decision",
+          "note"
+        ]
+      },
+      "ContactIssueResolutionEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ContactIssueResolutionDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
       "OfferStatus": {
         "type": "string",
         "enum": [
@@ -13062,22 +14099,6 @@
           "status",
           "expiresAt",
           "rejectionCode"
-        ]
-      },
-      "RatingDto": {
-        "type": "object",
-        "properties": {
-          "avg": {
-            "type": "number",
-            "description": "Average of published reviews, 0 if none."
-          },
-          "count": {
-            "type": "number"
-          }
-        },
-        "required": [
-          "avg",
-          "count"
         ]
       },
       "ProfileCountersDto": {
