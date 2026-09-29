@@ -454,7 +454,10 @@ export class CaseLifecycleService {
       attorneyId: string;
       action: Extract<
         CaseAction,
-        'attorney_confirm' | 'auto_close' | 'admin_resolve_close'
+        | 'attorney_confirm'
+        | 'auto_close'
+        | 'admin_resolve_close'
+        | 'account_deleted_close'
       >;
       actor: Actor;
       payload: Prisma.InputJsonObject;
@@ -493,6 +496,57 @@ export class CaseLifecycleService {
       )),
     );
     return after;
+  }
+
+  /**
+   * docs/06 §5.1 account anonymization: every case the user is still
+   * party to (as client, or as the attorney of the accepted bid) in
+   * `in_progress` / `pending_completion` / `disputed` is closed with a
+   * journal event; the counterpart gets `case_closed` (closeInTx). One
+   * transaction per case. Returns the closed case ids.
+   */
+  async closeCasesOfDeletedUser(
+    userId: string,
+    now: Date = new Date(),
+  ): Promise<string[]> {
+    const rows = await this.prisma.case.findMany({
+      where: {
+        status: { in: ['in_progress', 'pending_completion', 'disputed'] },
+        OR: [{ client_id: userId }, { accepted_bid: { attorney_id: userId } }],
+      },
+      select: { id: true },
+    });
+    const closed: string[] = [];
+    for (const { id } of rows) {
+      const chat: ChatChange[] = [];
+      const done = await withTxRetry(this.prisma, async (tx) => {
+        chat.length = 0;
+        const row = await this.lockCase(tx, id);
+        if (
+          !row ||
+          !(
+            ['in_progress', 'pending_completion', 'disputed'] as string[]
+          ).includes(row.status)
+        ) {
+          return false;
+        }
+        const { clientId, attorneyId } = await this.parties(tx, id);
+        await this.closeInTx(tx, {
+          caseId: id,
+          clientId,
+          attorneyId,
+          action: 'account_deleted_close',
+          actor: SYSTEM,
+          payload: { reason: 'account_deleted' },
+          now,
+          chat,
+        });
+        return true;
+      });
+      this.chat.publish(chat);
+      if (done) closed.push(id);
+    }
+    return closed;
   }
 
   /** The case's client and the attorney of its accepted bid. A case

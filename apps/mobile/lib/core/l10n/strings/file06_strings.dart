@@ -97,6 +97,38 @@ const file06Ru = <String, String>{
       'Телефон и e-mail клиента открываются с активной подпиской или пробным периодом.',
   'paywall.trialHint': '7 дней бесплатно для верифицированных адвокатов.',
   'paywall.cta': 'Перейти к подписке',
+  // --- Выгрузка данных (docs/06 §5.2) ---
+  'dataExport.title': 'Копия ваших данных',
+  'dataExport.intro':
+      'Мы соберём ZIP-архив с JSON-файлами и пришлём ссылку. Подготовка занимает несколько минут.',
+  'dataExport.includes.profile': 'Профиль, согласия и настройки',
+  'dataExport.includes.cases': 'Кейсы и биды',
+  'dataExport.includes.social': 'Посты, комментарии и лайки',
+  'dataExport.includes.messages': 'Ваши сообщения в чатах',
+  'dataExport.includes.devices': 'Устройства и входы',
+  'dataExport.link':
+      'Ссылка действует 24 часа и придёт на {email}. Она также появится здесь.',
+  'dataExport.linkNoEmail':
+      'Ссылка действует 24 часа и появится здесь, когда архив будет готов.',
+  'dataExport.reauthNote': 'Подтверждение нужно, чтобы архив получили только вы.',
+  'dataExport.request': 'Запросить выгрузку',
+  'dataExport.requestAgain': 'Запросить снова',
+  'dataExport.download': 'Скачать архив',
+  'dataExport.cantOpen': 'Не удалось открыть ссылку.',
+  'dataExport.status.title': 'Статус выгрузки',
+  'dataExport.status.queued': 'В очереди',
+  'dataExport.status.processing': 'Готовится',
+  'dataExport.status.ready': 'Готово',
+  'dataExport.status.failed': 'Ошибка',
+  'dataExport.status.expired': 'Истекла',
+  'dataExport.status.unknown': 'Статус уточняется',
+  'dataExport.status.line.processing':
+      'Собираем архив. Экран обновится сам; можно закрыть приложение — ссылка придёт на почту.',
+  'dataExport.status.line.ready': 'Ссылка действует до {date}.',
+  'dataExport.status.line.readyNoDate': 'Архив готов.',
+  'dataExport.status.line.failed': 'Не удалось собрать архив. Попробуйте ещё раз.',
+  'dataExport.status.line.expired': 'Срок ссылки истёк. Запросите выгрузку снова.',
+  'notif.list.data_export_ready': 'Выгрузка данных готова',
   // --- Коды ошибок (docs/06) ---
   'error.api.PAYMENTS_NOT_CONFIGURED':
       'Оплата временно недоступна. Попробуйте позже.',
@@ -207,6 +239,38 @@ const file06En = <String, String>{
       "The client's phone and e-mail open with an active subscription or trial.",
   'paywall.trialHint': '7 days free for verified attorneys.',
   'paywall.cta': 'Go to subscription',
+  // --- Data export (docs/06 §5.2) ---
+  'dataExport.title': 'A copy of your data',
+  'dataExport.intro':
+      'We will build a ZIP archive of JSON files and send you a link. It takes a few minutes.',
+  'dataExport.includes.profile': 'Profile, consents and settings',
+  'dataExport.includes.cases': 'Cases and bids',
+  'dataExport.includes.social': 'Posts, comments and likes',
+  'dataExport.includes.messages': 'Your chat messages',
+  'dataExport.includes.devices': 'Devices and sign-ins',
+  'dataExport.link':
+      'The link works for 24 hours and goes to {email}. It also appears here.',
+  'dataExport.linkNoEmail':
+      'The link works for 24 hours and appears here once the archive is ready.',
+  'dataExport.reauthNote': 'Confirmation makes sure only you receive the archive.',
+  'dataExport.request': 'Request export',
+  'dataExport.requestAgain': 'Request again',
+  'dataExport.download': 'Download archive',
+  'dataExport.cantOpen': 'Could not open the link.',
+  'dataExport.status.title': 'Export status',
+  'dataExport.status.queued': 'Queued',
+  'dataExport.status.processing': 'Preparing',
+  'dataExport.status.ready': 'Ready',
+  'dataExport.status.failed': 'Failed',
+  'dataExport.status.expired': 'Expired',
+  'dataExport.status.unknown': 'Status pending',
+  'dataExport.status.line.processing':
+      'Building the archive. This screen updates itself; you can close the app — the link also goes to your email.',
+  'dataExport.status.line.ready': 'The link works until {date}.',
+  'dataExport.status.line.readyNoDate': 'The archive is ready.',
+  'dataExport.status.line.failed': 'The archive could not be built. Try again.',
+  'dataExport.status.line.expired': 'The link has expired. Request the export again.',
+  'notif.list.data_export_ready': 'Your data export is ready',
   // --- Error codes (docs/06) ---
   'error.api.PAYMENTS_NOT_CONFIGURED':
       'Payments are temporarily unavailable. Try again later.',

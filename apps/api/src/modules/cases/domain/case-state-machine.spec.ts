@@ -36,6 +36,10 @@ const ALLOWED: [CaseStatus, CaseAction, CaseStatus, string][] = [
   ['pending_completion', 'attorney_dispute', 'disputed', 'disputed'],
   ['disputed', 'admin_resolve_close', 'closed', 'dispute_resolved'],
   ['disputed', 'admin_resolve_reopen', 'in_progress', 'dispute_resolved'],
+  // docs/06 §5.1: account anonymization closes the cases still in work.
+  ['in_progress', 'account_deleted_close', 'closed', 'closed'],
+  ['pending_completion', 'account_deleted_close', 'closed', 'closed'],
+  ['disputed', 'account_deleted_close', 'closed', 'closed'],
   // In-place (§3.5, §10.2): edit / keep-alive only while open; delete only
   // from open or archived.
   ['open', 'client_edit', 'open', 'updated'],
@@ -65,9 +69,9 @@ describe('CaseStateMachine (docs/04 §10.1)', () => {
     CASE_ACTIONS.map((a) => [s, a] as const),
   );
 
-  it('covers every status × action pair (6 × 14)', () => {
-    expect(CASE_ACTIONS).toHaveLength(14);
-    expect(pairs).toHaveLength(84);
+  it('covers every status × action pair (6 × 15)', () => {
+    expect(CASE_ACTIONS).toHaveLength(15);
+    expect(pairs).toHaveLength(90);
   });
 
   it.each(pairs)('%s + %s', (from, action) => {
@@ -103,6 +107,7 @@ describe('CaseStateMachine (docs/04 §10.1)', () => {
         'open->archived',
         'archived->open',
         'in_progress->pending_completion',
+        'in_progress->closed',
         'pending_completion->closed',
         'pending_completion->disputed',
         'disputed->closed',

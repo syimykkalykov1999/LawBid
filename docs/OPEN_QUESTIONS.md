@@ -405,3 +405,13 @@ docs/03 этап 3.2. Шаг фото добавляется в онбордин
    конец льготы» + N дней; причина обязательна и пишется в аудит.
 7. Автоотзыв бидов при потере доступа — `withdrawn` (файл 04 §2), не
    `rejected_auto` (это статус для архива кейса).
+
+## OQ-022 — Journal chain heads after retention (stage 6.9)
+Once `journal.retention` removes rows past `retain_until`, the oldest
+remaining row of a long-lived case points (`prev_hash`) at a row that no
+longer exists. The daily chain check accepts such a head only when the
+head itself is older than 4 years (retention is 5); a younger head with a
+non-null `prev_hash` is reported as a break (a recent row was deleted).
+Decision taken (no check-in requested): the 4-year threshold is a
+constant next to `JOURNAL_RETENTION_YEARS`; confirm or change before
+launch (docs/06 §5.3).

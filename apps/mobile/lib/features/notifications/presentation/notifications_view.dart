@@ -16,6 +16,7 @@ import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/social/social_routes.dart';
+import 'package:lawbid/features/subscription/subscription_routes.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 
 /// Where a notification (or its push) leads (docs/05 §9.2); null = no
@@ -67,7 +68,9 @@ String? notificationRoute({
     case 'subscription_trial_ending' ||
           'subscription_payment_failed' ||
           'subscription_status':
-      return AppRoutes.subscriptionRequired;
+      return SubscriptionRoutes.subscription;
+    case 'data_export_ready':
+      return AppRoutes.dataExport;
     case 'security_new_device':
       return AppRoutes.activeDevices;
   }

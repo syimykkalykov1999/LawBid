@@ -65,6 +65,13 @@ export const PURPOSE_RULES: Record<FilePurpose, PurposeRule> = {
     sizeSetting: 'files.max_size_mb',
     bucket: 'media',
   },
+  // docs/06 §5.2: written by the data-export worker only; never presigned
+  // (no MIME is accepted for upload).
+  data_export: {
+    mimes: [],
+    sizeSetting: 'files.max_size_mb',
+    bucket: 'documents',
+  },
 };
 
 export const MB = 1024 * 1024;

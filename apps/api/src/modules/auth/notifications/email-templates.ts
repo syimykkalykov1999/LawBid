@@ -193,3 +193,35 @@ export function buildNewDeviceEmail(input: {
     html,
   };
 }
+
+/** docs/06 §5.2: the user data export is ready; the link lives 24 hours. */
+export function buildDataExportEmail(input: {
+  email: string;
+  url: string;
+  expiresAt: Date;
+  appLinkBaseUrl?: string;
+}): EmailMessage {
+  const until = `${input.expiresAt.toISOString().replace('T', ' ').slice(0, 16)} UTC`;
+  const text = [
+    'Your LawBid data export is ready',
+    '',
+    'Download the ZIP archive (JSON files with your profile, cases, bids, posts, comments, likes, messages, consents and devices):',
+    input.url,
+    '',
+    `The link works until ${until}. Only you can open it; do not forward this email.`,
+    "If you didn't request an export, sign out of all devices in Settings → Security.",
+  ].join('\n');
+  const html = [
+    '<p><strong>Your LawBid data export is ready</strong></p>',
+    '<p>Download the ZIP archive (JSON files with your profile, cases, bids, posts, comments, likes, messages, consents and devices):</p>',
+    `<p><a href="${escapeHtml(input.url)}">Download my data</a></p>`,
+    `<p>The link works until ${escapeHtml(until)}. Only you can open it; do not forward this email.</p>`,
+    "<p>If you didn't request an export, sign out of all devices in Settings → Security.</p>",
+  ].join('');
+  return {
+    to: input.email,
+    subject: 'Your LawBid data export is ready',
+    text,
+    html,
+  };
+}

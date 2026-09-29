@@ -91,6 +91,9 @@ export interface PaymentProvider {
     id: string,
     cancel: boolean,
   ): Promise<ProviderSubscription>;
+  /** docs/06 §5.1 account anonymization: cancel immediately, no proration
+   * refund; the row is then synced like any provider state. */
+  cancelNow(id: string): Promise<ProviderSubscription>;
   /** §1.6 "продлить подписку на N дней": moves trial_end / the period. */
   extendUntil(id: string, untilUnix: number): Promise<ProviderSubscription>;
   createPortalSession(customerId: string, returnUrl: string): Promise<string>;

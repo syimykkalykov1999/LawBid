@@ -13,6 +13,7 @@ import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/cases/application/case_history_controller.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
+import 'package:lawbid/features/cases/presentation/widgets/reauth_gate_view.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
@@ -53,7 +54,12 @@ class CaseHistoryScreen extends ConsumerWidget {
         duration: context.reduceMotion ? Duration.zero : AppMotion.stepSwitch,
         child: access.isOpen
             ? const _HistoryList(key: ValueKey('list'))
-            : _ReauthView(key: const ValueKey('reauth'), access: access, t: t),
+            : ReauthGateView(
+                key: const ValueKey('reauth'),
+                access: access,
+                t: t,
+                note: t.t('history.readonlyNote'),
+              ),
       ),
     );
   }
@@ -71,97 +77,6 @@ class CaseHistoryScreen extends ConsumerWidget {
     await showAppBottomSheet<void>(
       context: context,
       builder: (_) => const _ExportSheet(),
-    );
-  }
-}
-
-class _ReauthView extends ConsumerWidget {
-  const _ReauthView({required this.access, required this.t, super.key});
-
-  final HistoryAccess access;
-  final Translator t;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    final c = ref.read(historyAccessProvider.notifier);
-    final phone = c.phone;
-    final error = switch (access.error) {
-      'invalid' => t.t('history.reauth.invalid'),
-      'rateLimited' => t.t('history.reauth.rateLimited'),
-      'network' => t.t('offline.message'),
-      _ => null,
-    };
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.screenSide,
-        AppSpacing.xxxl,
-        AppSpacing.screenSide,
-        AppSpacing.xxl,
-      ),
-      children: [
-        const AppEntrance(
-          scale: true,
-          child: Center(
-            child: AppIconMedallion(
-              icon: Icons.lock_person_outlined,
-              size: AppSizes.stateMedallion,
-            ),
-          ),
-        ),
-        const SizedBox(height: AppSpacing.xl),
-        AppEntrance(
-          index: 1,
-          child: Text(
-            t.t('history.reauth.title'),
-            textAlign: TextAlign.center,
-            style: typography.titleLarge.copyWith(color: colors.text),
-          ),
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        AppEntrance(
-          index: 2,
-          child: Text(
-            phone == null
-                ? t.t('history.reauth.noPhone')
-                : t.t('history.reauth.message', {'phone': phone}),
-            textAlign: TextAlign.center,
-            style: typography.body.copyWith(color: colors.textSecondary),
-          ),
-        ),
-        const SizedBox(height: AppSpacing.xl),
-        if (access.codeSent)
-          AppOtpField(
-            semanticLabel: t.t('history.reauth.code'),
-            errorText: error,
-            onCompleted: c.submitCode,
-          )
-        else if (error != null)
-          Text(error,
-              textAlign: TextAlign.center,
-              style: typography.bodySmall.copyWith(color: colors.dangerText)),
-        const SizedBox(height: AppSpacing.xl),
-        if (!access.codeSent && phone != null)
-          AppButton(
-            label: t.t('history.reauth.send'),
-            isLoading: access.busy,
-            onPressed: c.sendCode,
-          ),
-        if (access.codeSent)
-          AppButton(
-            label: t.t('history.reauth.resend'),
-            variant: AppButtonVariant.secondary,
-            isLoading: access.busy,
-            onPressed: c.sendCode,
-          ),
-        const SizedBox(height: AppSpacing.lg),
-        Text(
-          t.t('history.readonlyNote'),
-          textAlign: TextAlign.center,
-          style: typography.caption.copyWith(color: colors.textSecondary),
-        ),
-      ],
     );
   }
 }

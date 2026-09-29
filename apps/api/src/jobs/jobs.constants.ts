@@ -35,6 +35,14 @@ export const CRON_JOBS = {
   trendingTags: 'search.trending-tags',
   /** docs/05 stage 5.8: notifications older than retention_days. */
   notificationsRetention: 'notifications.retention',
+  /** docs/06 §5.1: anonymize accounts past the 14-day grace period. */
+  privacyAnonymize: 'privacy.anonymize',
+  /** docs/06 §5.3: monthly case_journal removal past retain_until. */
+  journalRetention: 'journal.retention',
+  /** docs/06 §5.3: daily hash-chain check of case_journal. */
+  journalChainVerify: 'journal.chain-verify',
+  /** docs/06 §5.3: expired export files. */
+  exportsCleanup: 'exports.cleanup',
 } as const;
 
 export type CronJobName = (typeof CRON_JOBS)[keyof typeof CRON_JOBS];
@@ -69,6 +77,10 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.feedReco, pattern: '*/10 * * * *' },
   { name: CRON_JOBS.trendingTags, pattern: '5-55/10 * * * *' },
   { name: CRON_JOBS.notificationsRetention, pattern: '40 4 * * *' },
+  { name: CRON_JOBS.privacyAnonymize, pattern: '10 2 * * *' },
+  { name: CRON_JOBS.journalRetention, pattern: '30 2 1 * *' },
+  { name: CRON_JOBS.journalChainVerify, pattern: '50 2 * * *' },
+  { name: CRON_JOBS.exportsCleanup, pattern: '10 3 * * *' },
 ];
 
 export const DISPOSABLE_DOMAINS_FETCHER = Symbol('DISPOSABLE_DOMAINS_FETCHER');

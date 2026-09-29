@@ -17,6 +17,10 @@ import { CountersReconcileJob } from './handlers/counters-reconcile.job';
 import { FeedRecoJob } from '../modules/feed/feed-reco.job';
 import { TrendingTagsJob } from '../modules/search/trending-tags.job';
 import { NotificationsRetentionJob } from './handlers/notifications-retention.job';
+import { AccountAnonymizationService } from '../modules/privacy/account-anonymization.service';
+import { ExportsCleanupService } from '../modules/privacy/exports-cleanup.service';
+import { JournalIntegrityService } from '../modules/privacy/journal-integrity.service';
+import { JournalRetentionService } from '../modules/privacy/journal-retention.service';
 
 /** Routes a `cron` queue job to its handler by job name. The return value
  * becomes the BullMQ job's `returnvalue` (visible in queue dashboards). */
@@ -38,6 +42,10 @@ export class CronProcessor {
     private readonly feedReco: FeedRecoJob,
     private readonly trendingTags: TrendingTagsJob,
     private readonly notificationsRetention: NotificationsRetentionJob,
+    private readonly anonymization: AccountAnonymizationService,
+    private readonly journalRetention: JournalRetentionService,
+    private readonly journalIntegrity: JournalIntegrityService,
+    private readonly exportsCleanup: ExportsCleanupService,
   ) {}
 
   async process(name: string): Promise<unknown> {
@@ -72,6 +80,14 @@ export class CronProcessor {
         return this.trendingTags.run();
       case CRON_JOBS.notificationsRetention:
         return this.notificationsRetention.run();
+      case CRON_JOBS.privacyAnonymize:
+        return this.anonymization.anonymizeDue();
+      case CRON_JOBS.journalRetention:
+        return this.journalRetention.run();
+      case CRON_JOBS.journalChainVerify:
+        return this.journalIntegrity.run();
+      case CRON_JOBS.exportsCleanup:
+        return this.exportsCleanup.run();
       default:
         // A job left over from an older/newer release: fail it visibly
         // rather than "succeed" doing nothing.

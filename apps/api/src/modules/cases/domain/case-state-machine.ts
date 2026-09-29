@@ -45,6 +45,8 @@ export type CaseAction =
   // §10.1 admin resolves a dispute (file 06).
   | 'admin_resolve_close'
   | 'admin_resolve_reopen'
+  // docs/06 §5.1: account anonymization closes the cases still in work.
+  | 'account_deleted_close'
   // In-place actions (status unchanged): §3.5 edit and delete, §10.2
   // "Да, актуален".
   | 'client_edit'
@@ -97,6 +99,11 @@ export const CASE_TRANSITIONS: Readonly<
     from: ['disputed'],
     to: 'in_progress',
     event: 'dispute_resolved',
+  },
+  account_deleted_close: {
+    from: ['in_progress', 'pending_completion', 'disputed'],
+    to: 'closed',
+    event: 'closed',
   },
   client_edit: { from: ['open'], to: null, event: 'updated' },
   client_keep_alive: { from: ['open'], to: null, event: 'updated' },
@@ -192,6 +199,7 @@ export function planCaseTransition(
       break;
     case 'auto_close':
     case 'admin_resolve_close':
+    case 'account_deleted_close':
       data = { closed_at: now };
       break;
     case 'attorney_dispute':

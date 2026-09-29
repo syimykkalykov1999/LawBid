@@ -85,6 +85,10 @@ export const envSchema = z
       .default('development'),
     PORT: z.coerce.number().int().positive().default(3000),
     DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
+    // docs/02 §6.3 / docs/06 §5.3: the `lawbid_retention` role (DELETE on
+    // case_journal only) used by the monthly journal retention job. Unset
+    // (dev / e2e): the job runs on DATABASE_URL and logs a warning.
+    RETENTION_DATABASE_URL: z.string().min(1).optional(),
     REDIS_URL: z.string().min(1, 'REDIS_URL is required'),
     SUBSCRIPTION_PAST_DUE_GRACE_DAYS: z.coerce
       .number()

@@ -108,6 +108,9 @@ abstract final class AppRoutes {
 
   /// Settings → "История кейсов" (docs/04 §12).
   static const caseHistory = '/profile/settings/case-history';
+
+  /// Settings → «Скачать мои данные» (docs/06 §5.2).
+  static const dataExport = '/profile/settings/data-export';
   static const caseHistoryItemPattern = '/profile/settings/case-history/:id';
   static String caseHistoryItem(String id) =>
       '/profile/settings/case-history/${Uri.encodeComponent(id)}';

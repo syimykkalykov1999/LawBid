@@ -126,6 +126,18 @@ export class FakePaymentProvider implements PaymentProvider {
     return Promise.resolve(strip(next));
   }
 
+  cancelNow(id: string): Promise<ProviderSubscription> {
+    const s = this.must(id);
+    const next = {
+      ...s,
+      status: 'canceled' as const,
+      cancelAtPeriodEnd: false,
+      canceledAt: Math.floor(Date.now() / 1000),
+    };
+    this.subscriptions.set(id, next);
+    return Promise.resolve(strip(next));
+  }
+
   extendUntil(id: string, untilUnix: number): Promise<ProviderSubscription> {
     const s = this.must(id);
     const next = {

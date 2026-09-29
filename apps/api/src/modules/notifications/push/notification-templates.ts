@@ -214,6 +214,17 @@ export const NOTIFICATION_TEMPLATES: Partial<
     },
     ru: { title: 'Подписка', body: 'Статус вашей подписки изменился.' },
   },
+  data_export_ready: {
+    group: 'system',
+    en: {
+      title: 'Your data export is ready',
+      body: 'The download link was sent to your email and works for 24 hours.',
+    },
+    ru: {
+      title: 'Выгрузка данных готова',
+      body: 'Ссылка на скачивание отправлена на вашу почту и действует 24 часа.',
+    },
+  },
   security_new_device: {
     group: 'system',
     en: {

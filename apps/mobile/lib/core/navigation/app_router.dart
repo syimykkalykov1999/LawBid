@@ -42,6 +42,7 @@ import 'package:lawbid/features/search/presentation/screens/search_screen.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:lawbid/features/social/social_routes.dart';
 import 'package:lawbid/features/subscription/subscription_routes.dart';
+import 'package:lawbid/features/settings/data_export/presentation/data_export_screen.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 
 part 'app_router.g.dart';
@@ -259,6 +260,12 @@ GoRouter appRouter(Ref ref) {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) =>
             AppPageTransitions.push(state, const CaseHistoryScreen()),
+      ),
+      GoRoute(
+        path: AppRoutes.dataExport,
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            AppPageTransitions.push(state, const DataExportScreen()),
       ),
       GoRoute(
         path: AppRoutes.caseHistoryItemPattern,

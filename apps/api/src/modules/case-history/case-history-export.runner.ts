@@ -104,6 +104,10 @@ export class CaseHistoryExportRunner
       if (job.attemptsMade >= (job.opts.attempts ?? 1)) {
         void this.setState(exportId, { userId, status: 'failed', key: null });
         void this.redis.del(activeKey(userId));
+        void this.prisma.dataExportJob.updateMany({
+          where: { id: exportId },
+          data: { status: 'failed', error: error.message.slice(0, 500) },
+        });
       }
     });
   }
@@ -136,6 +140,16 @@ export class CaseHistoryExportRunner
       userId: user.sub,
       status: 'queued',
       key: null,
+    });
+    // docs/06 §5.2: the same mechanism as the user data export — the row
+    // in data_export_jobs (type case_history_pdf) is the audit trail.
+    await this.prisma.dataExportJob.create({
+      data: {
+        id: exportId,
+        user_id: user.sub,
+        type: 'case_history_pdf',
+        status: 'queued',
+      },
     });
     await this.queue.add(
       'case-history.export',
@@ -217,6 +231,13 @@ export class CaseHistoryExportRunner
       userId: data.userId,
       status: 'ready',
       key,
+    });
+    await this.prisma.dataExportJob.updateMany({
+      where: { id: data.exportId },
+      data: {
+        status: 'ready',
+        expires_at: new Date(Date.now() + STATE_TTL_SEC * 1000),
+      },
     });
     await this.redis.del(activeKey(data.userId));
     // TODO(docs/05 stage 5.x): push "PDF is ready" once file 05 adds a

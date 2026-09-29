@@ -104,6 +104,8 @@ enum FilePurpose {
   verification_selfie
   // docs/05 §3.6, §14 (stage 5.1): enabled later by the video_posts flag.
   post_video
+  // docs/06 §5.2 (stage 6.9): "Скачать мои данные" ZIP in the private bucket.
+  data_export
 
   @@map("file_purpose")
 }
@@ -377,6 +379,8 @@ enum NotificationType {
   review_received
   // docs/04_CASES_BIDS.md §3.5, §14 (stage 4.1): a case with bids was edited.
   case_updated
+  // docs/06 §5.2 (stage 6.9): the data export ZIP is ready (link by email).
+  data_export_ready
 
   @@map("notification_type")
 }

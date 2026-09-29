@@ -140,30 +140,54 @@ export class CaseJournalService {
   }
 
   /**
-   * Recomputes the case's chain from its first row. Used by the file-06
-   * daily integrity worker.
-   * TODO(docs/06 integrity worker): once lawbid_retention starts deleting
-   * rows past retain_until (docs/02 §6.2), the oldest remaining row of a
-   * long-lived case has a non-null prev_hash; the worker must then accept
-   * a head whose predecessor is past retention.
+   * Recomputes the case's chain from its first remaining row. Used by
+   * the docs/06 §5.3 daily integrity job. Once the monthly retention job
+   * (docs/02 §6.2) has removed rows past `retain_until`, the oldest
+   * remaining row of a long-lived case has a non-null prev_hash: such a
+   * head is accepted only when it is itself old enough that its
+   * predecessor could have reached retention (see [trimmedHeadAllowed]).
    */
   async verifyChain(
     caseId: string,
     db: JournalReader = this.prisma,
+    opts: { now?: Date } = {},
   ): Promise<ChainVerification> {
     const rows = await db.caseJournal.findMany({
       where: { case_id: caseId },
       orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
     });
-    return verifyRows(rows);
+    return verifyRows(rows, {
+      allowTrimmedHead:
+        rows.length > 0 && trimmedHeadAllowed(rows[0], opts.now ?? new Date()),
+    });
   }
 }
 
+/** A head row may point at a removed predecessor only when that
+ * predecessor could already be past retention: the head itself must be
+ * older than (retention − 1 year). Younger heads with a prev_hash are a
+ * break (a deleted recent row). */
+export function trimmedHeadAllowed(
+  head: Pick<CaseJournal, 'prev_hash' | 'created_at'>,
+  now: Date,
+): boolean {
+  if (head.prev_hash === null) return false;
+  const limit = new Date(now.getTime());
+  limit.setUTCFullYear(limit.getUTCFullYear() - (JOURNAL_RETENTION_YEARS - 1));
+  return head.created_at < limit;
+}
+
 /** Pure chain check over rows in chain order. */
-export function verifyRows(rows: readonly CaseJournal[]): ChainVerification {
+export function verifyRows(
+  rows: readonly CaseJournal[],
+  opts: { allowTrimmedHead?: boolean } = {},
+): ChainVerification {
   let expectedPrev: string | null = null;
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
+    if (i === 0 && opts.allowTrimmedHead && row.prev_hash !== null) {
+      expectedPrev = row.prev_hash;
+    }
     if (row.prev_hash !== expectedPrev) {
       return {
         valid: false,

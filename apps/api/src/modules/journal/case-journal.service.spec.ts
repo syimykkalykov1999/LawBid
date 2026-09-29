@@ -8,6 +8,7 @@ import {
   SYSTEM_ACTOR,
   computeRowHash,
   retainUntil,
+  trimmedHeadAllowed,
   verifyRows,
 } from './case-journal.service';
 
@@ -205,6 +206,26 @@ describe('CaseJournalService (docs/02 §4.D hash chain)', () => {
         reason: 'link_mismatch',
       });
       expect(verifyRows([rows[0], rows[2], rows[1], rows[3]]).valid).toBe(
+        false,
+      );
+    });
+
+    it('retention-trimmed head: accepted only when old enough (docs/06 §5.3)', async () => {
+      const rows = await chain();
+      const tail = [rows[1], rows[2], rows[3]];
+      // Without the allowance a non-null head prev_hash is a break.
+      expect(verifyRows(tail).valid).toBe(false);
+      expect(verifyRows(tail, { allowTrimmedHead: true }).valid).toBe(true);
+      // A fresh head cannot have lost its predecessor to retention.
+      const now = new Date('2026-09-29T12:00:00Z');
+      expect(trimmedHeadAllowed(tail[0], now)).toBe(false);
+      expect(
+        trimmedHeadAllowed(
+          { ...tail[0], created_at: new Date('2022-01-01T00:00:00Z') },
+          now,
+        ),
+      ).toBe(true);
+      expect(trimmedHeadAllowed({ ...tail[0], prev_hash: null }, now)).toBe(
         false,
       );
     });

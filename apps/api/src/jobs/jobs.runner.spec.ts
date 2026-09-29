@@ -21,6 +21,10 @@ import { CountersReconcileJob } from './handlers/counters-reconcile.job';
 import { FeedRecoJob } from '../modules/feed/feed-reco.job';
 import { TrendingTagsJob } from '../modules/search/trending-tags.job';
 import { NotificationsRetentionJob } from './handlers/notifications-retention.job';
+import { AccountAnonymizationService } from '../modules/privacy/account-anonymization.service';
+import { ExportsCleanupService } from '../modules/privacy/exports-cleanup.service';
+import { JournalIntegrityService } from '../modules/privacy/journal-integrity.service';
+import { JournalRetentionService } from '../modules/privacy/journal-retention.service';
 
 jest.mock('bullmq', () => {
   const queue = {
@@ -118,6 +122,10 @@ function processor() {
       { run: jest.fn() } as unknown as FeedRecoJob,
       { run: jest.fn() } as unknown as TrendingTagsJob,
       { run: jest.fn() } as unknown as NotificationsRetentionJob,
+      { anonymizeDue: jest.fn() } as unknown as AccountAnonymizationService,
+      { run: jest.fn() } as unknown as JournalRetentionService,
+      { run: jest.fn() } as unknown as JournalIntegrityService,
+      { run: jest.fn() } as unknown as ExportsCleanupService,
     ),
   };
 }
@@ -141,7 +149,7 @@ describe('JobsRunner', () => {
     });
     const upserts = mocked.__queue.upsertJobScheduler.mock.calls;
     expect(upserts).toHaveLength(CRON_SCHEDULES.length);
-    expect(upserts).toHaveLength(15);
+    expect(upserts).toHaveLength(19);
     const byName = Object.fromEntries(
       upserts.map((c: unknown[]) => [c[0], c[1]]),
     );

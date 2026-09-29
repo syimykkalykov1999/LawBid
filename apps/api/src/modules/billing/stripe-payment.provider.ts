@@ -128,6 +128,10 @@ export class StripePaymentProvider implements PaymentProvider {
     );
   }
 
+  async cancelNow(id: string): Promise<ProviderSubscription> {
+    return mapSubscription(await this.stripe.subscriptions.cancel(id));
+  }
+
   async extendUntil(
     id: string,
     untilUnix: number,

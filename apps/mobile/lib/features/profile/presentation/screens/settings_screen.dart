@@ -122,15 +122,11 @@ class SettingsScreen extends ConsumerWidget {
             label: t.t('settings.legal'),
             onTap: () => context.push(AppRoutes.legalDoc('terms')),
           ),
-          // file 01 §10.7 / §15 stage 1.7: "«Скачать мои данные»
-          // (заглушка на этом этапе, полная реализация в файле 6)".
-          // TODO(file 06 §data-export): request the background ZIP/JSON
-          // export and email the link.
+          // file 01 §10.7 → docs/06 §5.2: the background ZIP/JSON export.
           AppListRow(
             icon: Icons.download_rounded,
             label: t.t('settings.downloadData'),
-            onTap: () =>
-                showAppSnackBar(context, t.t('settings.downloadData.stub')),
+            onTap: () => context.push(AppRoutes.dataExport),
           ),
         ],
       ),

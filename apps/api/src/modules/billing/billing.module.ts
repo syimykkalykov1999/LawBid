@@ -32,6 +32,11 @@ export class BillingModule {
   static register(options: BillingModuleOptions): DynamicModule {
     return {
       module: BillingModule,
+      // Global: PrivacyModule (anonymization) needs PAYMENT_PROVIDER and the
+      // sync service; a second `register()` would be a second instance
+      // (Nest 11 keys dynamic modules by reference), i.e. a second fake
+      // provider store in dev/e2e.
+      global: true,
       imports: [
         SubscriptionsModule,
         BidsModule,
