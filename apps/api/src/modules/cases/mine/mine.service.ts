@@ -3,7 +3,13 @@ import {
   ForbiddenException,
   Injectable,
 } from '@nestjs/common';
-import type { Bid, BidStatus, CaseStatus, Prisma } from '@prisma/client';
+import type {
+  Bid,
+  BidStatus,
+  CaseStatus,
+  ConversationStatus,
+  Prisma,
+} from '@prisma/client';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import {
   decodeCursor,
@@ -355,7 +361,7 @@ export class MineService {
 
 function toConversation(c: {
   id: string;
-  status: string;
+  status: ConversationStatus;
   contacts_unlocked: boolean;
 }): CaseConversationDto {
   return {

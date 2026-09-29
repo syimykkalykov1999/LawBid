@@ -4,6 +4,8 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'fee_type.dart';
+
 part 'history_accepted_bid_dto.g.dart';
 
 @JsonSerializable()
@@ -17,8 +19,8 @@ class HistoryAcceptedBidDto {
       _$HistoryAcceptedBidDtoFromJson(json);
 
   /// Final amount in cents.
-  final num amountCents;
-  final String feeType;
+  final int amountCents;
+  final FeeType feeType;
 
   Map<String, Object?> toJson() => _$HistoryAcceptedBidDtoToJson(this);
 }

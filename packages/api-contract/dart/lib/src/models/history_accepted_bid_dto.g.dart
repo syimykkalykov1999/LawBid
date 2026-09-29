@@ -9,13 +9,13 @@ part of 'history_accepted_bid_dto.dart';
 HistoryAcceptedBidDto _$HistoryAcceptedBidDtoFromJson(
   Map<String, dynamic> json,
 ) => HistoryAcceptedBidDto(
-  amountCents: json['amountCents'] as num,
-  feeType: json['feeType'] as String,
+  amountCents: (json['amountCents'] as num).toInt(),
+  feeType: FeeType.fromJson(json['feeType'] as String),
 );
 
 Map<String, dynamic> _$HistoryAcceptedBidDtoToJson(
   HistoryAcceptedBidDto instance,
 ) => <String, dynamic>{
   'amountCents': instance.amountCents,
-  'feeType': instance.feeType,
+  'feeType': instance.feeType.toJson(),
 };

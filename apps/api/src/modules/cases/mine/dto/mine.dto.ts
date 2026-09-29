@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional, OmitType } from '@nestjs/swagger';
+import { CaseStatus, ConversationStatus, FeeType } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
   IsIn,
@@ -80,8 +81,8 @@ export class BidCaseRefDto {
   @ApiProperty()
   title!: string;
 
-  @ApiProperty()
-  status!: string;
+  @ApiProperty({ enum: CaseStatus, enumName: 'CaseStatus' })
+  status!: CaseStatus;
 
   @ApiProperty()
   primaryStateCode!: string;
@@ -113,8 +114,8 @@ export class WorkItemDto {
   @ApiProperty()
   title!: string;
 
-  @ApiProperty()
-  status!: string;
+  @ApiProperty({ enum: CaseStatus, enumName: 'CaseStatus' })
+  status!: CaseStatus;
 
   @ApiPropertyOptional({
     type: String,
@@ -124,10 +125,10 @@ export class WorkItemDto {
   })
   clientName!: string | null;
 
-  @ApiProperty()
-  feeType!: string;
+  @ApiProperty({ enum: FeeType, enumName: 'FeeType' })
+  feeType!: FeeType;
 
-  @ApiProperty()
+  @ApiProperty({ type: 'integer' })
   amountCents!: number;
 
   @ApiPropertyOptional({ type: String, nullable: true })
@@ -177,8 +178,8 @@ export class CaseConversationDto {
   @ApiProperty({ format: 'uuid' })
   conversationId!: string;
 
-  @ApiProperty({ enum: ['pre_acceptance', 'active', 'closed'] })
-  status!: string;
+  @ApiProperty({ enum: ConversationStatus, enumName: 'ConversationStatus' })
+  status!: ConversationStatus;
 
   @ApiProperty()
   contactsUnlocked!: boolean;

@@ -9,7 +9,7 @@ part of 'case_conversation_dto.dart';
 CaseConversationDto _$CaseConversationDtoFromJson(Map<String, dynamic> json) =>
     CaseConversationDto(
       conversationId: json['conversationId'] as String,
-      status: CaseConversationDtoStatus.fromJson(json['status'] as String),
+      status: ConversationStatus.fromJson(json['status'] as String),
       contactsUnlocked: json['contactsUnlocked'] as bool,
     );
 

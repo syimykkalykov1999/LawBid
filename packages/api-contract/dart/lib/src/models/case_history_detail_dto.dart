@@ -5,6 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'case_history_event_dto.dart';
+import 'case_status.dart';
 import 'history_accepted_bid_dto.dart';
 import 'history_practice_area_dto.dart';
 
@@ -36,7 +37,7 @@ class CaseHistoryDetailDto {
   final String primaryStateCode;
 
   /// Final status of the case.
-  final String status;
+  final CaseStatus status;
 
   /// The case was deleted from the feed.
   final bool deleted;

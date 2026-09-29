@@ -4,6 +4,9 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'case_status.dart';
+import 'fee_type.dart';
+
 part 'work_item_dto.g.dart';
 
 @JsonSerializable()
@@ -27,12 +30,12 @@ class WorkItemDto {
   final String caseId;
   final String bidId;
   final String title;
-  final String status;
+  final CaseStatus status;
 
   /// Client name; null while the subscription is inactive (contacts are locked, §8.3).
   final String? clientName;
-  final String feeType;
-  final num amountCents;
+  final FeeType feeType;
+  final int amountCents;
   final String? autoCloseAt;
   final String? acceptedAt;
   final String? closedAt;

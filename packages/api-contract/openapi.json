@@ -14331,7 +14331,11 @@
             "type": "string"
           },
           "status": {
-            "type": "string"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CaseStatus"
+              }
+            ]
           },
           "primaryStateCode": {
             "type": "string"
@@ -14547,7 +14551,11 @@
             "type": "string"
           },
           "status": {
-            "type": "string"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CaseStatus"
+              }
+            ]
           },
           "clientName": {
             "type": "string",
@@ -14555,10 +14563,14 @@
             "description": "Client name; null while the subscription is inactive (contacts are locked, §8.3)."
           },
           "feeType": {
-            "type": "string"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/FeeType"
+              }
+            ]
           },
           "amountCents": {
-            "type": "number"
+            "type": "integer"
           },
           "autoCloseAt": {
             "type": "string",
@@ -14650,6 +14662,14 @@
           "data"
         ]
       },
+      "ConversationStatus": {
+        "type": "string",
+        "enum": [
+          "pre_acceptance",
+          "active",
+          "closed"
+        ]
+      },
       "CaseConversationDto": {
         "type": "object",
         "properties": {
@@ -14658,11 +14678,10 @@
             "format": "uuid"
           },
           "status": {
-            "type": "string",
-            "enum": [
-              "pre_acceptance",
-              "active",
-              "closed"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ConversationStatus"
+              }
             ]
           },
           "contactsUnlocked": {
@@ -14891,11 +14910,15 @@
         "type": "object",
         "properties": {
           "amountCents": {
-            "type": "number",
+            "type": "integer",
             "description": "Final amount in cents."
           },
           "feeType": {
-            "type": "string"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/FeeType"
+              }
+            ]
           }
         },
         "required": [
@@ -14920,8 +14943,12 @@
             "type": "string"
           },
           "status": {
-            "type": "string",
-            "description": "Final status of the case."
+            "description": "Final status of the case.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CaseStatus"
+              }
+            ]
           },
           "deleted": {
             "type": "boolean",
@@ -15043,15 +15070,19 @@
             "type": "string"
           },
           "amountCents": {
-            "type": "number",
+            "type": "integer",
             "nullable": true
           },
           "feeType": {
-            "type": "string",
-            "nullable": true
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/FeeType"
+              }
+            ]
           },
           "roundNo": {
-            "type": "number",
+            "type": "integer",
             "nullable": true
           },
           "reason": {
@@ -15083,8 +15114,12 @@
             "type": "string"
           },
           "status": {
-            "type": "string",
-            "description": "Final status of the case."
+            "description": "Final status of the case.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CaseStatus"
+              }
+            ]
           },
           "deleted": {
             "type": "boolean",

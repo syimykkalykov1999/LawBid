@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import type { Prisma } from '@prisma/client';
+import type { FeeType, Prisma } from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
   decodeCursor,
@@ -220,7 +220,7 @@ export class CaseHistoryService {
             ? role
             : 'system',
         amountCents: num(p.amountCents),
-        feeType: str(p.feeType),
+        feeType: str(p.feeType) as FeeType | null,
         roundNo: num(p.roundNo),
         reason: str(p.reason),
       };

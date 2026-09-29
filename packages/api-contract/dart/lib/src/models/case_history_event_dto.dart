@@ -5,6 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'case_history_event_dto_actor_role.dart';
+import 'fee_type.dart';
 
 part 'case_history_event_dto.g.dart';
 
@@ -28,9 +29,9 @@ class CaseHistoryEventDto {
   final String eventType;
   final String createdAt;
   final CaseHistoryEventDtoActorRole actorRole;
-  final num? amountCents;
-  final String? feeType;
-  final num? roundNo;
+  final int? amountCents;
+  final FeeType? feeType;
+  final int? roundNo;
   final String? reason;
 
   Map<String, Object?> toJson() => _$CaseHistoryEventDtoToJson(this);

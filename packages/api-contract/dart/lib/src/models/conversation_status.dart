@@ -5,7 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 @JsonEnum()
-enum CaseConversationDtoStatus {
+enum ConversationStatus {
   @JsonValue('pre_acceptance')
   preAcceptance('pre_acceptance'),
   @JsonValue('active')
@@ -16,9 +16,9 @@ enum CaseConversationDtoStatus {
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);
 
-  const CaseConversationDtoStatus(this.json);
+  const ConversationStatus(this.json);
 
-  factory CaseConversationDtoStatus.fromJson(String json) =>
+  factory ConversationStatus.fromJson(String json) =>
       values.firstWhere((e) => e.json == json, orElse: () => $unknown);
 
   final String? json;
@@ -37,6 +37,6 @@ enum CaseConversationDtoStatus {
   String toString() => json?.toString() ?? super.toString();
 
   /// Returns all defined enum values excluding the $unknown value.
-  static List<CaseConversationDtoStatus> get $valuesDefined =>
+  static List<ConversationStatus> get $valuesDefined =>
       values.where((value) => value != $unknown).toList();
 }

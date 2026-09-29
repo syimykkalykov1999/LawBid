@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { CaseStatus, FeeType } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
   IsInt,
@@ -60,11 +61,11 @@ export class HistoryPracticeAreaDto {
 }
 
 export class HistoryAcceptedBidDto {
-  @ApiProperty({ description: 'Final amount in cents.' })
+  @ApiProperty({ type: 'integer', description: 'Final amount in cents.' })
   amountCents!: number;
 
-  @ApiProperty()
-  feeType!: string;
+  @ApiProperty({ enum: FeeType, enumName: 'FeeType' })
+  feeType!: FeeType;
 }
 
 /** One row of "История кейсов" (docs/04 §12). */
@@ -81,8 +82,12 @@ export class CaseHistoryItemDto {
   @ApiProperty()
   primaryStateCode!: string;
 
-  @ApiProperty({ description: 'Final status of the case.' })
-  status!: string;
+  @ApiProperty({
+    enum: CaseStatus,
+    enumName: 'CaseStatus',
+    description: 'Final status of the case.',
+  })
+  status!: CaseStatus;
 
   @ApiProperty({ description: 'The case was deleted from the feed.' })
   deleted!: boolean;
@@ -119,13 +124,17 @@ export class CaseHistoryEventDto {
   @ApiProperty({ enum: ['client', 'attorney', 'admin', 'system'] })
   actorRole!: 'client' | 'attorney' | 'admin' | 'system';
 
-  @ApiPropertyOptional({ type: Number, nullable: true })
+  @ApiPropertyOptional({ type: 'integer', nullable: true })
   amountCents!: number | null;
 
-  @ApiPropertyOptional({ type: String, nullable: true })
-  feeType!: string | null;
+  @ApiPropertyOptional({
+    enum: FeeType,
+    enumName: 'FeeType',
+    nullable: true,
+  })
+  feeType!: FeeType | null;
 
-  @ApiPropertyOptional({ type: Number, nullable: true })
+  @ApiPropertyOptional({ type: 'integer', nullable: true })
   roundNo!: number | null;
 
   @ApiPropertyOptional({ type: String, nullable: true })

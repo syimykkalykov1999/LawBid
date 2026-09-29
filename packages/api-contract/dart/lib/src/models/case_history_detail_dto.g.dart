@@ -15,7 +15,7 @@ CaseHistoryDetailDto _$CaseHistoryDetailDtoFromJson(
     json['practiceArea'] as Map<String, dynamic>,
   ),
   primaryStateCode: json['primaryStateCode'] as String,
-  status: json['status'] as String,
+  status: CaseStatus.fromJson(json['status'] as String),
   deleted: json['deleted'] as bool,
   createdAt: json['createdAt'] as String,
   events: (json['events'] as List<dynamic>)
@@ -38,7 +38,7 @@ Map<String, dynamic> _$CaseHistoryDetailDtoToJson(
   'title': instance.title,
   'practiceArea': instance.practiceArea.toJson(),
   'primaryStateCode': instance.primaryStateCode,
-  'status': instance.status,
+  'status': instance.status.toJson(),
   'deleted': instance.deleted,
   'createdAt': instance.createdAt,
   'closedAt': ?instance.closedAt,

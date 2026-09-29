@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'case_conversation_dto_status.dart';
+import 'conversation_status.dart';
 
 part 'case_conversation_dto.g.dart';
 
@@ -20,7 +20,7 @@ class CaseConversationDto {
       _$CaseConversationDtoFromJson(json);
 
   final String conversationId;
-  final CaseConversationDtoStatus status;
+  final ConversationStatus status;
   final bool contactsUnlocked;
 
   Map<String, Object?> toJson() => _$CaseConversationDtoToJson(this);

@@ -4,6 +4,8 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'case_status.dart';
+
 part 'bid_case_ref_dto.g.dart';
 
 @JsonSerializable()
@@ -22,7 +24,7 @@ class BidCaseRefDto {
 
   final String id;
   final String title;
-  final String status;
+  final CaseStatus status;
   final String primaryStateCode;
   final String practiceAreaNameEn;
   final String practiceAreaI18nKey;
