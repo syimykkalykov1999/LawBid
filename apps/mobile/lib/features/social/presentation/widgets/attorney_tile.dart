@@ -163,7 +163,7 @@ class FollowButton extends ConsumerWidget {
           decoration: BoxDecoration(
             color: following ? Colors.transparent : colors.ctaBright,
             borderRadius: BorderRadius.circular(
-                expanded ? AppRadii.button : AppRadii.pill),
+                expanded ? AppRadii.field : AppRadii.pill),
             border: Border.all(
               color: following ? colors.border : colors.ctaBright,
             ),

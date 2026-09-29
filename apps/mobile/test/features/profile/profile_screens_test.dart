@@ -84,7 +84,7 @@ void main() {
       expect(find.text('New York'), findsOneWidget);
       expect(find.text('1,280'), findsOneWidget);
       expect(find.text('Follow'), findsOneWidget);
-      expect(find.text('Share'), findsOneWidget);
+      expect(find.bySemanticsLabel('Share'), findsOneWidget);
       expect(find.text('Edit'), findsNothing);
       expect(find.text('Message'), findsNothing); // chat opens from a case only
       await _teardown(tester);
@@ -142,7 +142,7 @@ void main() {
         overrides: profileOverrides(attorneys: FakeAttorneyRepo(profile: attorneyProfile(isSelf: true))),
       );
       expect(find.text('Edit'), findsOneWidget);
-      expect(find.text('Share'), findsOneWidget);
+      expect(find.bySemanticsLabel('Share'), findsOneWidget);
       expect(find.text('Follow'), findsNothing);
       await _teardown(tester);
     });

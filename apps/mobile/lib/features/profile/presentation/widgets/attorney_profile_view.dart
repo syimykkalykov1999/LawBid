@@ -92,22 +92,23 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
         // Instagram-like: avatar + counters (posts, followers, following,
         // ★ rating → reviews), name, bio, info chips, one compact button
         // row, icon tabs (owner request 2026-09-28).
-        _HeaderCard(
-          profile: p,
-          onRating: () => setState(() => _tab = AttorneyProfileTab.reviews),
-        ),
+        _HeaderCard(profile: p),
         const SizedBox(height: AppSpacing.md),
-        _AboutSection(profile: p),
-        const SizedBox(height: AppSpacing.md),
-        _ChipRows(profile: p),
-        const SizedBox(height: AppSpacing.lg),
+        // Buttons right under the counters (owner request): flat, quiet.
         _Actions(
           isSelf: p.isSelf,
           attorneyId: p.id,
           isFollowing: p.isFollowing,
           onShare: () => _share(t),
         ),
-        const SizedBox(height: AppSpacing.lg),
+        const SizedBox(height: AppSpacing.md),
+        _AboutSection(
+          profile: p,
+          onRating: () => setState(() => _tab = AttorneyProfileTab.reviews),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        _ChipRows(profile: p),
+        const SizedBox(height: AppSpacing.sm),
         _Tabs(
           selected: _tab,
           onChanged: (tab) => setState(() => _tab = tab),
@@ -242,10 +243,9 @@ class _VerificationBanner extends StatelessWidget {
 }
 
 class _HeaderCard extends ConsumerWidget {
-  const _HeaderCard({required this.profile, required this.onRating});
+  const _HeaderCard({required this.profile});
 
   final PublicAttorneyProfile profile;
-  final VoidCallback onRating;
 
   static const _avatar = 88.0;
 
@@ -254,7 +254,6 @@ class _HeaderCard extends ConsumerWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final t = ref.watch(translatorProvider);
     final formats = ref.watch(l10nFormatsProvider);
-    final r = profile.rating;
     return Row(
       children: [
         // Thin gold ring for verified attorneys (the brand accent).
@@ -299,12 +298,6 @@ class _HeaderCard extends ConsumerWidget {
                 value: formats.number(profile.counters.following),
                 label: t.t('profile.counters.following'),
                 onTap: () => context.push(SocialRoutes.following(profile.id)),
-              ),
-              _Counter(
-                value: r.isNew ? '—' : r.average!.toStringAsFixed(1),
-                label: r.isNew ? t.t('profile.rating.newShort') : t.plural('profile.rating.count', r.count),
-                star: true,
-                onTap: onRating,
               ),
             ],
           ),
@@ -377,9 +370,10 @@ class _Counter extends StatelessWidget {
 }
 
 class _AboutSection extends ConsumerWidget {
-  const _AboutSection({required this.profile});
+  const _AboutSection({required this.profile, required this.onRating});
 
   final PublicAttorneyProfile profile;
+  final VoidCallback onRating;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -387,6 +381,7 @@ class _AboutSection extends ConsumerWidget {
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final t = ref.watch(translatorProvider);
     final bio = profile.bio?.trim();
+    final r = profile.rating;
     final name = profile.fullName.isEmpty ? '@${profile.username}' : profile.fullName;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -413,6 +408,33 @@ class _AboutSection extends ConsumerWidget {
         Text(
           '@${profile.username} · ${t.t('profile.attorneyChip')}',
           style: typography.caption.copyWith(color: colors.textSecondary),
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        // Rating as a quiet line under the name (not a badge on the
+        // photo, not a card): "★ 4.5 · 12 reviews", tap → Reviews.
+        Semantics(
+          button: true,
+          label: t.t('profile.tab.reviews'),
+          child: AppPressable(
+            onTap: onRating,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.star_rounded, size: 16, color: colors.gold),
+                const SizedBox(width: 3),
+                Text(
+                  r.isNew ? '—' : r.average!.toStringAsFixed(1),
+                  style: typography.bodySmall.copyWith(color: colors.text, fontWeight: FontWeight.w700),
+                ),
+                Text(' · ', style: typography.bodySmall.copyWith(color: colors.textSecondary)),
+                Text(
+                  r.isNew ? t.t('profile.rating.newShort') : t.plural('profile.rating.count', r.count),
+                  style: typography.bodySmall.copyWith(color: colors.textSecondary),
+                ),
+                Icon(Icons.chevron_right_rounded, size: 16, color: colors.textSecondary),
+              ],
+            ),
+          ),
         ),
         if (bio != null && bio.isNotEmpty) ...[
           const SizedBox(height: AppSpacing.sm),
@@ -609,6 +631,7 @@ class _Actions extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translatorProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
     return Row(
       children: [
         Expanded(
@@ -620,8 +643,24 @@ class _Actions extends ConsumerWidget {
               : FollowButton(attorneyId: attorneyId, initial: isFollowing, expanded: true),
         ),
         const SizedBox(width: AppSpacing.sm),
-        Expanded(
-          child: _QuietButton(label: t.t('profile.action.share'), onTap: onShare),
+        // Share as a small icon square (Instagram-style), full tap target.
+        Semantics(
+          button: true,
+          label: t.t('profile.action.share'),
+          excludeSemantics: true,
+          child: AppPressable(
+            onTap: onShare,
+            child: Container(
+              width: AppSizes.touchTarget,
+              height: _QuietButton.height,
+              decoration: BoxDecoration(
+                color: colors.surface,
+                borderRadius: BorderRadius.circular(AppRadii.field),
+                border: Border.all(color: colors.border),
+              ),
+              child: Icon(Icons.ios_share_rounded, size: AppSizes.iconSm, color: colors.text),
+            ),
+          ),
         ),
       ],
     );
@@ -631,6 +670,8 @@ class _Actions extends ConsumerWidget {
 /// Instagram-style secondary button: soft fill, no icon, small type.
 class _QuietButton extends StatelessWidget {
   const _QuietButton({required this.label, required this.onTap});
+
+  static const double height = AppSizes.touchTarget;
 
   final String label;
   final VoidCallback onTap;
@@ -646,11 +687,11 @@ class _QuietButton extends StatelessWidget {
       child: AppPressable(
         onTap: onTap,
         child: Container(
-          height: AppSizes.touchTarget,
+          height: height,
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: colors.surface,
-            borderRadius: BorderRadius.circular(AppRadii.button),
+            borderRadius: BorderRadius.circular(AppRadii.field),
             border: Border.all(color: colors.border),
           ),
           child: Text(label, style: typography.button.copyWith(fontSize: 14, color: colors.text)),
