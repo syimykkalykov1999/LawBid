@@ -24,7 +24,7 @@ class _AdminModerationClient implements AdminModerationClient {
   Future<ModerationQueueItemListEnvelope> moderationQueue({
     TargetType? targetType,
     String? cursor,
-    Status3? status = Status3.open,
+    Status5? status = Status5.open,
     int? limit = 20,
     Map<String, dynamic>? extras,
   }) async {

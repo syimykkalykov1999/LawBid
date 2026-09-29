@@ -56,6 +56,56 @@ export const CONTENT_STATUS: Record<string, string> = {
   removed: 'удалён',
 };
 
+export const CASE_STATUS: Record<string, string> = {
+  open: 'открыт',
+  in_progress: 'в работе',
+  pending_completion: 'ожидает подтверждения',
+  disputed: 'спор',
+  closed: 'закрыт',
+  archived: 'в архиве',
+};
+
+export const JOURNAL_EVENT: Record<string, string> = {
+  created: 'кейс создан',
+  updated: 'кейс изменён',
+  bid_placed: 'бид отправлен',
+  offer_made: 'встречное предложение',
+  bid_accepted: 'бид принят',
+  bid_rejected: 'бид отклонён',
+  bid_withdrawn: 'бид отозван',
+  negotiation_failed: 'переговоры не удались',
+  contacts_disclosed: 'контакты раскрыты',
+  completion_requested: 'запрошено завершение',
+  completion_confirmed: 'завершение подтверждено',
+  auto_closed: 'закрыт автоматически',
+  disputed: 'открыт спор',
+  dispute_resolved: 'спор решён',
+  archived: 'в архив',
+  restored: 'восстановлен',
+  deleted: 'удалён',
+  closed: 'закрыт',
+};
+
+export const ISSUE_TYPE: Record<string, string> = {
+  phone_invalid: 'номер недействителен',
+  no_answer: 'не отвечает',
+  email_bounce: 'письмо не доставлено',
+  wrong_person: 'другой человек',
+  other: 'другое',
+};
+
+export const DATA_REQUEST_STATUS: Record<string, string> = {
+  received: 'получен',
+  in_progress: 'в работе',
+  fulfilled: 'исполнен',
+  rejected: 'отклонён',
+};
+
+export function partyName(p: { firstName: string | null; lastName: string | null; username?: string | null; id: string } | null): string {
+  if (!p) return '—';
+  return [p.firstName, p.lastName].filter(Boolean).join(' ') || (p.username ? `@${p.username}` : p.id.slice(0, 8));
+}
+
 export function StatusBadge({ status }: { status: string }) {
   return (
     <Badge

@@ -1,5 +1,6 @@
 import { ChatSystemModule } from '../chat/chat-system.module';
 import { Module } from '@nestjs/common';
+import { AuthModule } from '../auth/auth.module';
 import { AdminAccessModule } from '../admin-access/admin-access.module';
 import { BidsModule } from '../bids/bids.module';
 import { FilesModule } from '../files/files.module';
@@ -47,6 +48,8 @@ import { CasesFeedService } from './services/cases-feed.service';
     AdminAccessModule,
     // Stage 4.6: the lifecycle service (shared with the §10.2 jobs).
     CaseLifecycleModule,
+    // docs/06 §3.4 (stage 6.5): session revocation on auto-suspension.
+    AuthModule,
     // docs/05 §4: /saved-items also saves posts.
     PostsModule,
   ],

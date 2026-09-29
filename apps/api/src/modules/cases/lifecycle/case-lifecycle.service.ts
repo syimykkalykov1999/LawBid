@@ -205,6 +205,19 @@ export class CaseLifecycleService {
           event: res.plan.event,
           payload,
         });
+        // docs/06 §2.3 item 5: both sides learn about the decision (the
+        // `closed` branch does it through closeInTx → case_closed).
+        for (const recipientId of [clientId, attorneyId]) {
+          if (!recipientId) continue;
+          await this.notifications.emit(
+            {
+              type: 'case_updated',
+              recipientId,
+              payload: { caseId, disputeId, decision },
+            },
+            tx,
+          );
+        }
         after = res.case;
       }
       await tx.caseDispute.update({

@@ -6,6 +6,8 @@ import {
 } from '@nestjs/common';
 import type { ContactIssueReport, Prisma } from '@prisma/client';
 import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
+import { SessionRevocationService } from '../../auth/services/session-revocation.service';
+import { CaseLifecycleService } from '../lifecycle/case-lifecycle.service';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { withTxRetry } from '../../../prisma/tx-retry.util';
@@ -53,6 +55,8 @@ export class CaseContactsService {
     private readonly notifications: NotificationsService,
     private readonly audit: AuditLogService,
     private readonly settings: AppSettingsService,
+    private readonly sessions: SessionRevocationService,
+    private readonly lifecycle: CaseLifecycleService,
   ) {}
 
   /** GET /cases/:id/contacts (§8.1–§8.3). */
@@ -143,7 +147,7 @@ export class CaseContactsService {
     const threshold = await this.settings.number(
       'contacts.suspend_after_confirmed_reports',
     );
-    return withTxRetry(this.prisma, async (tx) => {
+    const result = await withTxRetry(this.prisma, async (tx) => {
       const report = await tx.contactIssueReport.findUnique({
         where: { id: reportId },
       });
@@ -258,6 +262,22 @@ export class CaseContactsService {
         clientSuspended,
       };
     });
+    // docs/06 §3.4: a suspension revokes every session and archives the
+    // client's open cases (after the commit — one transaction per case).
+    if (result.clientSuspended) {
+      const row = await this.prisma.contactIssueReport.findUnique({
+        where: { id: reportId },
+        select: { client_id: true },
+      });
+      if (row) {
+        await this.sessions.revokeAllChainsForUser(
+          row.client_id,
+          'admin_block',
+        );
+        await this.lifecycle.archiveOpenCasesOfClient(row.client_id);
+      }
+    }
+    return result;
   }
 
   /** The attorney's disclosure on this case, or the right refusal:
