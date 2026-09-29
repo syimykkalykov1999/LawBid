@@ -24,7 +24,8 @@ enum AttorneyProfileTab { posts, reviews }
 
 /// Public link of an attorney profile (docs/03 §4.2 «Поделиться», deep
 /// link of docs/01 §12).
-String attorneyShareLink(String host, String username) => 'https://$host/lawyer/$username';
+String attorneyShareLink(String host, String username) =>
+    'https://$host/lawyer/$username';
 
 /// docs/03 §4.2 attorney profile, top to bottom: header (photo, @username
 /// + blue check, counters) → gold rating card → "Attorney" chip + bio →
@@ -50,7 +51,8 @@ class AttorneyProfileView extends ConsumerStatefulWidget {
   final AttorneyProfileTab initialTab;
 
   @override
-  ConsumerState<AttorneyProfileView> createState() => _AttorneyProfileViewState();
+  ConsumerState<AttorneyProfileView> createState() =>
+      _AttorneyProfileViewState();
 }
 
 class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
@@ -76,7 +78,8 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
 
   Future<void> _share(Translator t) async {
     final host = ref.read(appEnvironmentProvider).deepLinkHost;
-    await Clipboard.setData(ClipboardData(text: attorneyShareLink(host, p.username)));
+    await Clipboard.setData(
+        ClipboardData(text: attorneyShareLink(host, p.username)));
     if (mounted) showAppSnackBar(context, t.t('profile.share.copied'));
   }
 
@@ -84,7 +87,8 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
   Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
     final reviewsTab = _tab == AttorneyProfileTab.reviews;
-    final reviews = reviewsTab ? ref.watch(reviewsListProvider(_reviewsKey)) : null;
+    final reviews =
+        reviewsTab ? ref.watch(reviewsListProvider(_reviewsKey)) : null;
     final summary = reviewsTab ? ref.watch(reviewSummaryProvider(p.id)) : null;
     final state = reviews?.value;
 
@@ -127,7 +131,9 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
         if (reviewsTab && summary != null)
           summary.when(
             skipLoadingOnReload: true,
-            loading: () => const AppSkeleton(height: AppSizes.stateMedallion + AppSpacing.xxl, borderRadius: AppRadii.card),
+            loading: () => const AppSkeleton(
+                height: AppSizes.stateMedallion + AppSpacing.xxl,
+                borderRadius: AppRadii.card),
             error: (_, __) => const SizedBox.shrink(),
             // No reviews: the tab's "New — no reviews" state says it all.
             data: (s) => s.isNew
@@ -139,7 +145,8 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
                       selectedStars: _stars,
                       sort: _sort,
                       // Tap a bar → only those reviews; tap again → all.
-                      onStarsTap: (stars) => setState(() => _stars = _stars == stars ? null : stars),
+                      onStarsTap: (stars) => setState(
+                          () => _stars = _stars == stars ? null : stars),
                       onSort: (v) => setState(() => _sort = v),
                     ),
                   ),
@@ -157,11 +164,17 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
       footer = ProfilePostsGrid(
         attorneyId: p.id,
         emptyTitle: t.t('profile.posts.empty.title'),
-        emptyMessage: t.t(p.isSelf ? 'profile.posts.empty.self' : 'profile.posts.empty.other'),
+        emptyMessage: t.t(p.isSelf
+            ? 'profile.posts.empty.self'
+            : 'profile.posts.empty.other'),
       );
     } else if (reviews == null || reviews.isLoading && state == null) {
       footer = const Column(
-        children: [ReviewCardSkeleton(), SizedBox(height: AppSpacing.md), ReviewCardSkeleton()],
+        children: [
+          ReviewCardSkeleton(),
+          SizedBox(height: AppSpacing.md),
+          ReviewCardSkeleton()
+        ],
       );
     } else if (reviews.hasError && state == null) {
       final offline = isOfflineError(reviews.error);
@@ -184,7 +197,8 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
           : _TabMessage(
               icon: Icons.star_outline_rounded,
               title: t.t('profile.rating.new'),
-              message: t.t(p.isSelf ? 'reviews.empty.self' : 'reviews.empty.other'),
+              message:
+                  t.t(p.isSelf ? 'reviews.empty.self' : 'reviews.empty.other'),
             );
     } else if (state != null) {
       items = state.items;
@@ -206,10 +220,12 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
       // Only the Reviews tab paginates; the posts placeholder must not
       // wake the (autoDispose) reviews list.
       onLoadMore: () {
-        if (reviewsTab) ref.read(reviewsListProvider(_reviewsKey).notifier).loadMore();
+        if (reviewsTab)
+          ref.read(reviewsListProvider(_reviewsKey).notifier).loadMore();
       },
       onRetry: () {
-        if (reviewsTab) ref.read(reviewsListProvider(_reviewsKey).notifier).loadMore();
+        if (reviewsTab)
+          ref.read(reviewsListProvider(_reviewsKey).notifier).loadMore();
       },
       onRefresh: () async {
         ref
@@ -251,10 +267,12 @@ class _VerificationBanner extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(t.t('gate.verify.title'), style: typography.roleTitle.copyWith(color: colors.text)),
+                  Text(t.t('gate.verify.title'),
+                      style: typography.roleTitle.copyWith(color: colors.text)),
                   Text(
                     t.t('profile.verifyBanner.body'),
-                    style: typography.bodySmall.copyWith(color: colors.textSecondary),
+                    style: typography.bodySmall
+                        .copyWith(color: colors.textSecondary),
                   ),
                 ],
               ),
@@ -277,6 +295,7 @@ class _HeaderCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final t = ref.watch(translatorProvider);
     final formats = ref.watch(l10nFormatsProvider);
     return Row(
@@ -303,7 +322,8 @@ class _HeaderCard extends ConsumerWidget {
             child: ProfileAvatar(
               size: _avatar,
               url: profile.avatarUrl,
-              initials: initialsOf(profile.firstName, profile.lastName, fallback: profile.username),
+              initials: initialsOf(profile.firstName, profile.lastName,
+                  fallback: profile.username),
               heroTag: attorneyAvatarHeroTag(profile.username),
               semanticLabel: t.t('profile.avatar.label'),
             ),
@@ -311,18 +331,52 @@ class _HeaderCard extends ConsumerWidget {
         ),
         const SizedBox(width: AppSpacing.md),
         Expanded(
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _Counter(value: formats.number(profile.counters.posts), label: t.t('profile.counters.posts')),
-              _Counter(
-                value: formats.number(profile.counters.followers),
-                label: t.t('profile.counters.followers'),
-                onTap: () => context.push(SocialRoutes.followers(profile.id)),
+              // Owner 2026-09-29 (Instagram layout): the name sits next to
+              // the avatar, above the counters.
+              Row(
+                children: [
+                  Flexible(
+                    child: Semantics(
+                      header: true,
+                      child: Text(
+                        profile.fullName.isEmpty
+                            ? '@${profile.username}'
+                            : profile.fullName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: typography.body.copyWith(
+                            color: colors.text, fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ),
+                  if (profile.verifiedBadge) ...[
+                    const SizedBox(width: AppSpacing.xs),
+                    VerifiedBadge(semanticLabel: t.t('profile.verified.label')),
+                  ],
+                ],
               ),
-              _Counter(
-                value: formats.number(profile.counters.following),
-                label: t.t('profile.counters.following'),
-                onTap: () => context.push(SocialRoutes.following(profile.id)),
+              const SizedBox(height: AppSpacing.sm),
+              Row(
+                children: [
+                  _Counter(
+                      value: formats.number(profile.counters.posts),
+                      label: t.t('profile.counters.posts')),
+                  _Counter(
+                    value: formats.number(profile.counters.followers),
+                    label: t.t('profile.counters.followers'),
+                    onTap: () =>
+                        context.push(SocialRoutes.followers(profile.id)),
+                  ),
+                  _Counter(
+                    value: formats.number(profile.counters.following),
+                    label: t.t('profile.counters.following'),
+                    onTap: () =>
+                        context.push(SocialRoutes.following(profile.id)),
+                  ),
+                ],
               ),
             ],
           ),
@@ -333,7 +387,11 @@ class _HeaderCard extends ConsumerWidget {
 }
 
 class _Counter extends StatelessWidget {
-  const _Counter({required this.value, required this.label, this.onTap, this.star = false});
+  const _Counter(
+      {required this.value,
+      required this.label,
+      this.onTap,
+      this.star = false});
 
   final String value;
   final String label;
@@ -374,7 +432,8 @@ class _Counter extends StatelessWidget {
                         value,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: typography.body.copyWith(color: colors.text, fontWeight: FontWeight.w700),
+                        style: typography.body.copyWith(
+                            color: colors.text, fontWeight: FontWeight.w700),
                       ),
                     ),
                   ],
@@ -383,7 +442,8 @@ class _Counter extends StatelessWidget {
                   label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: typography.caption.copyWith(color: colors.textSecondary),
+                  style:
+                      typography.caption.copyWith(color: colors.textSecondary),
                 ),
               ],
             ),
@@ -407,34 +467,14 @@ class _AboutSection extends ConsumerWidget {
     final t = ref.watch(translatorProvider);
     final bio = profile.bio?.trim();
     final r = profile.rating;
-    final name = profile.fullName.isEmpty ? '@${profile.username}' : profile.fullName;
+    // Owner 2026-09-29: the name moved next to the avatar (_HeaderCard)
+    // and the "@username · Attorney" caption is gone — the handle is the
+    // screen's centered title (ProfileHandleBar).
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Flexible(
-              child: Semantics(
-                header: true,
-                child: Text(
-                  name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: typography.body.copyWith(color: colors.text, fontWeight: FontWeight.w700),
-                ),
-              ),
-            ),
-            if (profile.verifiedBadge) ...[
-              const SizedBox(width: AppSpacing.xs),
-              VerifiedBadge(semanticLabel: t.t('profile.verified.label')),
-            ],
-          ],
-        ),
-        // Owner 2026-09-29: the "@username · Attorney" caption is gone —
-        // the handle is the screen's centered title (ProfileHandleBar).
-        const SizedBox(height: AppSpacing.xs),
-        // Rating as a quiet line under the name (not a badge on the
-        // photo, not a card): "★ 4.5 · 12 reviews", tap → Reviews.
+        // Rating as a quiet line (not a badge on the photo, not a card):
+        // "★ 4.5 · 12 reviews", tap → Reviews.
         Semantics(
           button: true,
           label: t.t('profile.tab.reviews'),
@@ -446,25 +486,34 @@ class _AboutSection extends ConsumerWidget {
                 const SizedBox(width: 3),
                 Text(
                   r.isNew ? '—' : r.average!.toStringAsFixed(1),
-                  style: typography.bodySmall.copyWith(color: colors.text, fontWeight: FontWeight.w700),
+                  style: typography.bodySmall.copyWith(
+                      color: colors.text, fontWeight: FontWeight.w700),
                 ),
-                Text(' · ', style: typography.bodySmall.copyWith(color: colors.textSecondary)),
+                Text(' · ',
+                    style: typography.bodySmall
+                        .copyWith(color: colors.textSecondary)),
                 Flexible(
                   child: Text(
-                    r.isNew ? t.t('profile.rating.newShort') : t.plural('profile.rating.count', r.count),
+                    r.isNew
+                        ? t.t('profile.rating.newShort')
+                        : t.plural('profile.rating.count', r.count),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: typography.bodySmall.copyWith(color: colors.textSecondary),
+                    style: typography.bodySmall
+                        .copyWith(color: colors.textSecondary),
                   ),
                 ),
-                Icon(Icons.chevron_right_rounded, size: 16, color: colors.textSecondary),
+                Icon(Icons.chevron_right_rounded,
+                    size: 16, color: colors.textSecondary),
               ],
             ),
           ),
         ),
         if (bio != null && bio.isNotEmpty) ...[
           const SizedBox(height: AppSpacing.sm),
-          Text(bio, style: typography.bodySmall.copyWith(color: colors.text, height: 1.4)),
+          Text(bio,
+              style: typography.bodySmall
+                  .copyWith(color: colors.text, height: 1.4)),
         ],
       ],
     );
@@ -493,7 +542,8 @@ List<PracticeChipGroup> groupPractices(
     for (final entry in byCategory.entries)
       if (entry.value.length == 1)
         PracticeChipGroup(
-          label: localizedName(t, entry.value.first.i18nKey, entry.value.first.nameEn),
+          label: localizedName(
+              t, entry.value.first.i18nKey, entry.value.first.nameEn),
           items: const [],
         )
       else
@@ -501,9 +551,12 @@ List<PracticeChipGroup> groupPractices(
           label: localizedName(
             t,
             entry.value.first.categoryI18nKey,
-            categories[entry.key]?.nameEn ?? humanizeCode(entry.value.first.categoryCode),
+            categories[entry.key]?.nameEn ??
+                humanizeCode(entry.value.first.categoryCode),
           ),
-          items: [for (final p in entry.value) localizedName(t, p.i18nKey, p.nameEn)],
+          items: [
+            for (final p in entry.value) localizedName(t, p.i18nKey, p.nameEn)
+          ],
         ),
   ];
 }
@@ -530,7 +583,8 @@ class _ChipRows extends ConsumerWidget {
             children: [
               Semantics(
                 label: label,
-                child: Icon(icon, size: AppSizes.iconSm, color: colors.goldDark),
+                child:
+                    Icon(icon, size: AppSizes.iconSm, color: colors.goldDark),
               ),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
@@ -552,20 +606,31 @@ class _ChipRows extends ConsumerWidget {
 
     final languages = [
       for (final code in profile.languages)
-        kLanguageCatalog.where((l) => l.code == code).map((l) => l.nativeName).firstOrNull ?? code,
+        kLanguageCatalog
+                .where((l) => l.code == code)
+                .map((l) => l.nativeName)
+                .firstOrNull ??
+            code,
     ];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (firm != null && firm.isNotEmpty)
-          row(t.t('profile.section.firm'), Icons.apartment_rounded, [AppChip(label: firm)]),
+          row(t.t('profile.section.firm'), Icons.apartment_rounded,
+              [AppChip(label: firm)]),
         if (groups.isNotEmpty)
           row(t.t('profile.section.practices'), Icons.gavel_rounded, [
             for (final g in groups)
               AppChip(
-                label: g.items.isEmpty ? g.label : t.t('profile.practices.group', {'name': g.label, 'count': '${g.items.length}'}),
-                trailing: g.items.isEmpty ? null : Icon(Icons.expand_more_rounded, size: AppSpacing.lg, color: colors.textSecondary),
+                label: g.items.isEmpty
+                    ? g.label
+                    : t.t('profile.practices.group',
+                        {'name': g.label, 'count': '${g.items.length}'}),
+                trailing: g.items.isEmpty
+                    ? null
+                    : Icon(Icons.expand_more_rounded,
+                        size: AppSpacing.lg, color: colors.textSecondary),
                 onTap: g.items.isEmpty ? null : () => _showGroup(context, g),
               ),
           ]),
@@ -586,11 +651,13 @@ class _ChipRows extends ConsumerWidget {
       context: context,
       builder: (sheetContext) {
         final colors = Theme.of(sheetContext).extension<AppColorTokens>()!;
-        final typography = Theme.of(sheetContext).extension<AppTypographyTokens>()!;
+        final typography =
+            Theme.of(sheetContext).extension<AppTypographyTokens>()!;
         return SafeArea(
           top: false,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide, AppSpacing.md, AppSpacing.screenSide, AppSpacing.lg),
+            padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide,
+                AppSpacing.md, AppSpacing.screenSide, AppSpacing.lg),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -598,7 +665,9 @@ class _ChipRows extends ConsumerWidget {
                 const AppSheetHandle(),
                 Semantics(
                   header: true,
-                  child: Text(group.label, style: typography.titleMedium.copyWith(color: colors.text)),
+                  child: Text(group.label,
+                      style:
+                          typography.titleMedium.copyWith(color: colors.text)),
                 ),
                 const SizedBox(height: AppSpacing.md),
                 Wrap(
@@ -633,7 +702,8 @@ class StepLabel extends StatelessWidget {
         Flexible(
           child: Text(
             label,
-            style: typography.bodySmall.copyWith(color: colors.textSecondary, fontWeight: FontWeight.w600),
+            style: typography.bodySmall.copyWith(
+                color: colors.textSecondary, fontWeight: FontWeight.w600),
           ),
         ),
       ],
@@ -668,7 +738,8 @@ class _Actions extends ConsumerWidget {
                   label: t.t('profile.action.edit'),
                   onTap: () => context.push(AppRoutes.profileEdit),
                 )
-              : FollowButton(attorneyId: attorneyId, initial: isFollowing, expanded: true),
+              : FollowButton(
+                  attorneyId: attorneyId, initial: isFollowing, expanded: true),
         ),
         if (!isSelf) ...[
           const SizedBox(width: AppSpacing.sm),
@@ -695,7 +766,8 @@ class _Actions extends ConsumerWidget {
                 borderRadius: BorderRadius.circular(AppRadii.field),
                 border: Border.all(color: colors.border),
               ),
-              child: Icon(Icons.ios_share_rounded, size: AppSizes.iconSm, color: colors.text),
+              child: Icon(Icons.ios_share_rounded,
+                  size: AppSizes.iconSm, color: colors.text),
             ),
           ),
         ),
@@ -706,7 +778,8 @@ class _Actions extends ConsumerWidget {
 
 /// Instagram-style secondary button: soft fill, no icon, small type.
 class _QuietButton extends StatelessWidget {
-  const _QuietButton({required this.label, required this.onTap, this.loading = false});
+  const _QuietButton(
+      {required this.label, required this.onTap, this.loading = false});
 
   static const double height = AppSizes.touchTarget;
 
@@ -735,13 +808,18 @@ class _QuietButton extends StatelessWidget {
           child: loading
               ? SizedBox.square(
                   dimension: AppSizes.iconSm,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: colors.text),
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2, color: colors.text),
                 )
               : Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
                   child: FittedBox(
                     fit: BoxFit.scaleDown,
-                    child: Text(label, maxLines: 1, style: typography.button.copyWith(fontSize: 14, color: colors.text)),
+                    child: Text(label,
+                        maxLines: 1,
+                        style: typography.button
+                            .copyWith(fontSize: 14, color: colors.text)),
                   ),
                 ),
         ),
@@ -762,11 +840,20 @@ class _Tabs extends ConsumerWidget {
     final t = ref.watch(translatorProvider);
     final reduce = context.reduceMotion;
     final tabs = [
-      (AttorneyProfileTab.posts, t.t('profile.tab.posts'), Icons.grid_on_rounded),
-      (AttorneyProfileTab.reviews, t.t('profile.tab.reviews'), Icons.star_border_rounded),
+      (
+        AttorneyProfileTab.posts,
+        t.t('profile.tab.posts'),
+        Icons.grid_on_rounded
+      ),
+      (
+        AttorneyProfileTab.reviews,
+        t.t('profile.tab.reviews'),
+        Icons.star_border_rounded
+      ),
     ];
     return DecoratedBox(
-      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: colors.border))),
+      decoration: BoxDecoration(
+          border: Border(bottom: BorderSide(color: colors.border))),
       child: Stack(
         children: [
           Row(
@@ -788,7 +875,9 @@ class _Tabs extends ConsumerWidget {
                         child: Icon(
                           icon,
                           size: AppSizes.iconMd,
-                          color: tab == selected ? colors.text : colors.textSecondary,
+                          color: tab == selected
+                              ? colors.text
+                              : colors.textSecondary,
                         ),
                       ),
                     ),
@@ -798,7 +887,9 @@ class _Tabs extends ConsumerWidget {
           ),
           Positioned.fill(
             child: AnimatedAlign(
-              alignment: selected == AttorneyProfileTab.posts ? Alignment.bottomLeft : Alignment.bottomRight,
+              alignment: selected == AttorneyProfileTab.posts
+                  ? Alignment.bottomLeft
+                  : Alignment.bottomRight,
               duration: reduce ? Duration.zero : AppMotion.stateChange,
               curve: AppMotion.enterCurve,
               child: FractionallySizedBox(
@@ -834,14 +925,22 @@ class _TabMessage extends StatelessWidget {
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     return AppEntrance(
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl, horizontal: AppSpacing.lg),
+        padding: const EdgeInsets.symmetric(
+            vertical: AppSpacing.xl, horizontal: AppSpacing.lg),
         child: Column(
           children: [
-            AppIconMedallion(icon: icon, size: AppSizes.stateMedallion - AppSpacing.xl, iconSize: AppSizes.iconLg),
+            AppIconMedallion(
+                icon: icon,
+                size: AppSizes.stateMedallion - AppSpacing.xl,
+                iconSize: AppSizes.iconLg),
             const SizedBox(height: AppSpacing.md),
-            Text(title, textAlign: TextAlign.center, style: typography.roleTitle.copyWith(color: colors.text)),
+            Text(title,
+                textAlign: TextAlign.center,
+                style: typography.roleTitle.copyWith(color: colors.text)),
             const SizedBox(height: AppSpacing.xs),
-            Text(message, textAlign: TextAlign.center, style: typography.body.copyWith(color: colors.textSecondary)),
+            Text(message,
+                textAlign: TextAlign.center,
+                style: typography.body.copyWith(color: colors.textSecondary)),
             if (actionLabel != null) ...[
               const SizedBox(height: AppSpacing.lg),
               SizedBox(
@@ -871,17 +970,25 @@ class AttorneyProfileSkeleton extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListView(
       physics: const NeverScrollableScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide, AppSpacing.sm, AppSpacing.screenSide, AppSpacing.xxl),
+      padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide, AppSpacing.sm,
+          AppSpacing.screenSide, AppSpacing.xxl),
       children: const [
         AppSkeleton(height: 200, borderRadius: AppRadii.card),
         SizedBox(height: AppSpacing.md),
         AppSkeleton(height: 104, borderRadius: AppRadii.card),
         SizedBox(height: AppSpacing.lg),
-        FractionallySizedBox(widthFactor: 0.3, alignment: Alignment.centerLeft, child: AppSkeleton(height: AppSpacing.xl, borderRadius: AppRadii.pill)),
+        FractionallySizedBox(
+            widthFactor: 0.3,
+            alignment: Alignment.centerLeft,
+            child: AppSkeleton(
+                height: AppSpacing.xl, borderRadius: AppRadii.pill)),
         SizedBox(height: AppSpacing.md),
         AppSkeleton(height: AppSpacing.md),
         SizedBox(height: AppSpacing.sm),
-        FractionallySizedBox(widthFactor: 0.8, alignment: Alignment.centerLeft, child: AppSkeleton(height: AppSpacing.md)),
+        FractionallySizedBox(
+            widthFactor: 0.8,
+            alignment: Alignment.centerLeft,
+            child: AppSkeleton(height: AppSpacing.md)),
         SizedBox(height: AppSpacing.lg),
         Row(
           children: [
@@ -891,7 +998,9 @@ class AttorneyProfileSkeleton extends StatelessWidget {
           ],
         ),
         SizedBox(height: AppSpacing.xl),
-        AppSkeleton(height: AppSizes.touchTarget + AppSpacing.sm, borderRadius: AppRadii.button),
+        AppSkeleton(
+            height: AppSizes.touchTarget + AppSpacing.sm,
+            borderRadius: AppRadii.button),
       ],
     );
   }
