@@ -441,3 +441,34 @@ they are, on purpose: attorney bar numbers (`attorney_licenses`),
 verification request rows (regulatory trail, files already deleted),
 client-authored case text and bid messages (business records tied to the
 counterpart). Confirm with counsel before launch.
+
+## OQ-026 — Clients are searchable and have usernames (owner, 2026-09-29)
+docs/05 §7.1 limits the people search to attorneys and docs/03 §5 gives
+clients no public profile. Owner decision 2026-09-29: "клиент может найти
+адвоката, адвокат может найти клиента в поисковике" — People search
+(both roles) finds attorneys AND clients by @username and by first/last
+name, like Instagram. Consequences implemented: `client_profiles.username`
+(same rules as attorney usernames, auto-generated for existing clients),
+a public client mini-profile (name, @username, state, avatar — no contacts,
+docs/06 §1.5 masking unchanged), and a people-search endpoint that returns
+both roles. Contact details still open only through an accepted bid.
+
+## OQ-027 — In-app header, tabs and status bar (owner, 2026-09-29)
+Owner decisions that replace the spec wording, applied to the signed-in
+shell only (pre-app screens unchanged):
+- Feed header: a centered text wordmark "LawBid" (Source Serif 4), Chats
+  icon right, empty left slot, lower bar (52) — instead of docs/07 §10's
+  scales logo on the left.
+- The system status bar (clock/battery/wifi) is hidden in-app for both
+  roles (`SystemUiMode.manual`, bottom overlay only); it returns on the
+  welcome/sign-in screens.
+- Tabs everywhere (feed Posts/Cases, search People/Cases/Posts/Topics,
+  Mine, topic sort): equal-width segments, centered labels, one rounded
+  container with separators, gold tint + underline on the selected one.
+- Bottom nav: rounded top corners.
+- "Mine" and "Profile" screens have no title bar; profile screens show
+  "@username" centered (avatar or back button left, gear right); the
+  "@username · Attorney" caption under the name is removed.
+- Search: no permanent field; a magnifier at the right of the tabs row
+  opens a full-width field over the row, with the Filters button inside on
+  the left and the magnifier inside on the right (Android back closes it).

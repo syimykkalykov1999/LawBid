@@ -50,6 +50,44 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   SearchFilters _attorneyFilters = const SearchFilters();
   SearchFilters _caseFilters = const SearchFilters();
 
+  /// Owner 2026-09-29: the field is hidden behind a magnifier button in
+  /// the tabs row; tapping it expands the field over the row.
+  bool _expanded = false;
+
+  void _expand() {
+    setState(() => _expanded = true);
+    // Focus after the field is in the tree.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _expanded) _focus.requestFocus();
+    });
+  }
+
+  void _collapse() {
+    _timer?.cancel();
+    _focus.unfocus();
+    _controller.clear();
+    setState(() {
+      _expanded = false;
+      _query = '';
+    });
+  }
+
+  /// Magnifier inside the expanded field: submits a query, or closes the
+  /// field when there is nothing to search.
+  void _onMagnifier() {
+    if (_controller.text.trim().isEmpty) {
+      _collapse();
+      return;
+    }
+    _timer?.cancel();
+    final next = normalizeSearch(_controller.text);
+    if (next.length >= kSearchMinChars) {
+      setState(() => _query = next);
+      ref.read(recentSearchesProvider.notifier).remember(next);
+    }
+    _focus.unfocus();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -90,7 +128,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       ..text = q
       ..selection = TextSelection.collapsed(offset: q.length);
     _timer?.cancel();
-    setState(() => _query = normalizeSearch(q));
+    setState(() {
+      _expanded = true;
+      _query = normalizeSearch(q);
+    });
   }
 
   Future<void> _openFilters(bool forCases) async {
@@ -126,86 +167,168 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     if (!tabs.any((x) => x.$1 == _tab)) _tab = SearchTab.attorneys;
     final filterable = _tab == SearchTab.attorneys || _tab == SearchTab.cases;
     final filters = _tab == SearchTab.cases ? _caseFilters : _attorneyFilters;
+    final motion = context.reduceMotion ? Duration.zero : AppMotion.stateChange;
 
-    return Scaffold(
-      backgroundColor: colors.bg,
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide,
-                  AppSpacing.md, AppSpacing.screenSide, AppSpacing.sm,),
-              child: FlipSearchBar(
-                controller: _controller,
-                focusNode: _focus,
-                semanticLabel: t.t('search.field'),
-                cancelLabel: t.t('common.cancel'),
-                clearLabel: t.t('search.clear'),
-                hints: [
-                  t.t(attorney ? 'search.hint.attorney' : 'search.hint.client'),
-                  t.t('search.hint.username'),
-                  t.t('search.hint.tag'),
-                  t.t(attorney ? 'search.hint.cases' : 'search.hint.practice'),
-                ],
-                onSubmitted: (v) =>
-                    ref.read(recentSearchesProvider.notifier).remember(v),
-              ),
-            ),
-            Row(
-              children: [
-                Expanded(
-                  child: PillTabs<SearchTab>(
-                    value: _tab,
-                    tabs: tabs,
-                    onChanged: (v) => setState(() => _tab = v),
-                  ),
+    final tabsRow = PillTabs<SearchTab>(
+      value: _tab,
+      tabs: tabs,
+      padding: EdgeInsets.zero,
+      onChanged: (v) => setState(() => _tab = v),
+    );
+
+    // Filters button: inside the field at the left edge (owner
+    // 2026-09-29). Dimmed on tabs that have no filters yet.
+    final filterButton = Badge(
+      isLabelVisible: filterable && filters.activeCount > 0,
+      label: Text('${filters.activeCount}'),
+      backgroundColor: colors.gold,
+      textColor: colors.navy,
+      child: AppIconButton(
+        icon: Icon(
+          Icons.tune_rounded,
+          color: filterable ? colors.text : colors.textSecondary,
+        ),
+        semanticLabel: t.t('search.filters'),
+        onPressed:
+            filterable ? () => _openFilters(_tab == SearchTab.cases) : null,
+      ),
+    );
+
+    final field = FlipSearchBar(
+      controller: _controller,
+      focusNode: _focus,
+      semanticLabel: t.t('search.field'),
+      cancelLabel: t.t('common.cancel'),
+      clearLabel: t.t('search.clear'),
+      showCancel: false,
+      leading: filterButton,
+      trailing: AppIconButton(
+        icon: Icon(Icons.search_rounded, color: colors.goldDark),
+        semanticLabel: t.t('search.open'),
+        onPressed: _onMagnifier,
+      ),
+      hints: [
+        t.t(attorney ? 'search.hint.attorney' : 'search.hint.client'),
+        t.t('search.hint.username'),
+        t.t('search.hint.tag'),
+        t.t(attorney ? 'search.hint.cases' : 'search.hint.practice'),
+      ],
+      onSubmitted: (v) => ref.read(recentSearchesProvider.notifier).remember(v),
+    );
+
+    return PopScope(
+      // Android back while the field is open closes the field first.
+      canPop: !_expanded,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _expanded) _collapse();
+      },
+      child: Scaffold(
+        backgroundColor: colors.bg,
+        body: SafeArea(
+          bottom: false,
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.screenSide,
+                  AppSpacing.sm,
+                  AppSpacing.screenSide,
+                  AppSpacing.sm,
                 ),
-                AnimatedSize(
+                child: AnimatedSwitcher(
+                  duration: motion,
+                  switchInCurve: AppMotion.enterCurve,
+                  switchOutCurve: AppMotion.enterCurve,
+                  layoutBuilder: (current, previous) => Stack(
+                    alignment: Alignment.centerRight,
+                    children: [...previous, if (current != null) current],
+                  ),
+                  transitionBuilder: (child, animation) => FadeTransition(
+                    opacity: animation,
+                    child: SizeTransition(
+                      sizeFactor: animation,
+                      axis: Axis.horizontal,
+                      axisAlignment: 1,
+                      child: child,
+                    ),
+                  ),
+                  child: _expanded
+                      ? KeyedSubtree(
+                          key: const ValueKey('field'),
+                          child: field,
+                        )
+                      : Row(
+                          key: const ValueKey('tabs'),
+                          children: [
+                            Expanded(child: tabsRow),
+                            const SizedBox(width: AppSpacing.sm),
+                            // 48 px hit box must fit inside the row's
+                            // clip: the row is 48 tall and leaves 2 px on
+                            // the right.
+                            SizedBox(
+                              height: AppSizes.hitTarget,
+                              child: Padding(
+                                padding: const EdgeInsets.only(
+                                  right: (AppSizes.hitTarget -
+                                          AppSizes.touchTarget) /
+                                      2,
+                                ),
+                                child: Center(
+                                  child: AppIconButton(
+                                    icon: Icon(
+                                      Icons.search_rounded,
+                                      color: colors.text,
+                                    ),
+                                    semanticLabel: t.t('search.open'),
+                                    onPressed: _expand,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                ),
+              ),
+              // While searching, the result sections stay switchable
+              // under the field.
+              AnimatedSize(
+                duration: motion,
+                curve: AppMotion.enterCurve,
+                alignment: Alignment.topCenter,
+                child: _expanded && _query.isNotEmpty
+                    ? Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                          AppSpacing.screenSide,
+                          0,
+                          AppSpacing.screenSide,
+                          AppSpacing.sm,
+                        ),
+                        child: tabsRow,
+                      )
+                    : const SizedBox(width: double.infinity),
+              ),
+              Expanded(
+                child: AnimatedSwitcher(
                   duration: context.reduceMotion
                       ? Duration.zero
                       : AppMotion.stateChange,
-                  child: filterable
-                      ? Padding(
-                          padding: const EdgeInsets.only(right: AppSpacing.sm),
-                          child: Badge(
-                            isLabelVisible: filters.activeCount > 0,
-                            label: Text('${filters.activeCount}'),
-                            backgroundColor: colors.gold,
-                            textColor: colors.navy,
-                            child: AppIconButton(
-                              icon: Icon(Icons.tune_rounded, color: colors.text),
-                              semanticLabel: t.t('search.filters'),
-                              onPressed: () =>
-                                  _openFilters(_tab == SearchTab.cases),
-                            ),
-                          ),
+                  child: _query.isEmpty
+                      ? _BeforeTyping(
+                          key: const ValueKey('idle'),
+                          onRecent: _useRecent,
                         )
-                      : const SizedBox.shrink(),
-                ),
-              ],
-            ),
-            Expanded(
-              child: AnimatedSwitcher(
-                duration: context.reduceMotion
-                    ? Duration.zero
-                    : AppMotion.stateChange,
-                child: _query.isEmpty
-                    ? _BeforeTyping(
-                        key: const ValueKey('idle'),
-                        onRecent: _useRecent,
-                      )
-                    : KeyedSubtree(
-                        key: ValueKey('$_tab:$_query'),
-                        child: _Results(
-                          tab: _tab,
-                          query: _query,
-                          filters: filters,
+                      : KeyedSubtree(
+                          key: ValueKey('$_tab:$_query'),
+                          child: _Results(
+                            tab: _tab,
+                            query: _query,
+                            filters: filters,
+                          ),
                         ),
-                      ),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -306,7 +429,9 @@ class _TagRow extends StatelessWidget {
       onTap: () => context.push(SocialRoutes.tag(tag.tag)),
       child: Padding(
         padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.screenSide, vertical: AppSpacing.md,),
+          horizontal: AppSpacing.screenSide,
+          vertical: AppSpacing.md,
+        ),
         child: Row(
           children: [
             Container(
@@ -321,9 +446,13 @@ class _TagRow extends StatelessWidget {
             ),
             const SizedBox(width: AppSpacing.md),
             Expanded(
-              child: Text('#${tag.tag}',
-                  style: type.body.copyWith(
-                      color: colors.text, fontWeight: FontWeight.w600,),),
+              child: Text(
+                '#${tag.tag}',
+                style: type.body.copyWith(
+                  color: colors.text,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
             Icon(Icons.chevron_right_rounded, color: colors.textSecondary),
           ],
@@ -350,13 +479,19 @@ class _BeforeTyping extends ConsumerWidget {
     final trending = ref.watch(trendingTagsProvider);
 
     Widget title(String text, {Widget? trailing}) => Padding(
-          padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide,
-              AppSpacing.lg, AppSpacing.sm, AppSpacing.sm,),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.screenSide,
+            AppSpacing.lg,
+            AppSpacing.sm,
+            AppSpacing.sm,
+          ),
           child: Row(
             children: [
               Expanded(
-                child: Text(text,
-                    style: type.titleMedium.copyWith(color: colors.text),),
+                child: Text(
+                  text,
+                  style: type.titleMedium.copyWith(color: colors.text),
+                ),
               ),
               if (trailing != null) trailing,
             ],
@@ -388,8 +523,8 @@ class _BeforeTyping extends ConsumerWidget {
                   for (final q in recent)
                     AppChip(
                       label: q,
-                      leading:
-                          const Icon(Icons.history_rounded, size: AppSpacing.lg),
+                      leading: const Icon(Icons.history_rounded,
+                          size: AppSpacing.lg),
                       onTap: () => onRecent(q),
                     ),
                 ],
@@ -401,7 +536,8 @@ class _BeforeTyping extends ConsumerWidget {
                 title(t.t('search.trending')),
                 Padding(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.screenSide,),
+                    horizontal: AppSpacing.screenSide,
+                  ),
                   child: Wrap(
                     spacing: AppSpacing.sm,
                     runSpacing: AppSpacing.sm,
@@ -411,8 +547,11 @@ class _BeforeTyping extends ConsumerWidget {
                           label: tag.postsCount == null
                               ? '#${tag.tag}'
                               : '#${tag.tag} · ${SocialFormat.count(f, tag.postsCount!)}',
-                          leading: Icon(Icons.local_fire_department_rounded,
-                              size: AppSpacing.lg, color: colors.gold,),
+                          leading: Icon(
+                            Icons.local_fire_department_rounded,
+                            size: AppSpacing.lg,
+                            color: colors.gold,
+                          ),
                           onTap: () => context.push(SocialRoutes.tag(tag.tag)),
                         ),
                     ]),
@@ -422,9 +561,10 @@ class _BeforeTyping extends ConsumerWidget {
             AsyncError(:final error) when isOfflineError(error) => [
                 Padding(
                   padding: const EdgeInsets.all(AppSpacing.screenSide),
-                  child: Text(t.t('offline.message'),
-                      style:
-                          type.bodySmall.copyWith(color: colors.textSecondary),),
+                  child: Text(
+                    t.t('offline.message'),
+                    style: type.bodySmall.copyWith(color: colors.textSecondary),
+                  ),
                 ),
               ],
             _ => const <Widget>[],

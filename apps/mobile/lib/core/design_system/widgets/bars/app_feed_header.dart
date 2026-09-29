@@ -1,23 +1,20 @@
 import 'package:flutter/material.dart';
 
 import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
+import 'package:lawbid/core/design_system/tokens/app_fonts.dart';
 import 'package:lawbid/core/design_system/tokens/app_sizes.dart';
 import 'package:lawbid/core/design_system/tokens/app_spacing.dart';
-import 'package:lawbid/core/design_system/widgets/display/scales_logo.dart';
 
-/// Feed top bar (docs/01 §3 "Лента (верх): LawBid логотип слева, иконка
-/// Чатов справа (бейдж)"; docs/07 §10: the logo is the scales, "уменьшенная
-/// версия без анимации, ширина ≈ 96, без качания").
-///
-/// The logo is ALWAYS static here: [ScalesLogo] with `animated: false`
-/// creates no ticker at all, and nothing in this header animates it (no
-/// entrance swing either) — the swing belongs to the welcome screen only
-/// (docs/07 §5.2).
+/// Feed top bar. Owner decision 2026-09-29 (OQ-027, replaces docs/07 §10
+/// "scales logo left"): a centered TEXT wordmark "LawBid" in the brand
+/// serif — like Instagram's wordmark — with the Chats icon on the right
+/// and an empty slot of the same width on the left, so the wordmark sits
+/// exactly in the middle. The bar is lower than before (56 instead of 76).
 ///
 /// [trailing] is the documented slot for the Chats icon with its unread
-/// badge (docs/01 §3.1/§3.2 — built in file 05, "Лента/поиск/чаты/
-/// уведомления"). Until then the slot stays empty: no placeholder icon
-/// that would lead nowhere.
+/// badge (docs/01 §3.1/§3.2). The status bar is hidden while the signed-in
+/// shell is on screen (see `MainShell`), so only the safe-area inset that
+/// the platform still reports is applied.
 class AppFeedHeader extends StatelessWidget implements PreferredSizeWidget {
   const AppFeedHeader({
     required this.logoSemanticLabel,
@@ -26,15 +23,14 @@ class AppFeedHeader extends StatelessWidget implements PreferredSizeWidget {
     this.showLogo = true,
   });
 
-  /// Owner request 2026-09-28: the Feed shows no logo for now; the header
-  /// keeps its screen-reader name.
+  /// `false` keeps only the screen-reader name of the header.
   final bool showLogo;
 
-  /// Screen-reader name of the logo (docs/07 §5.1: semantics label
-  /// "LawBid"); also marks the header.
+  /// The wordmark text and the screen-reader name of the header
+  /// (docs/07 §5.1: semantics label "LawBid").
   final String logoSemanticLabel;
 
-  /// Right-aligned actions — file 05's Chats icon + badge goes here.
+  /// Right-aligned actions — the Chats icon + badge goes here.
   final List<Widget> trailing;
 
   @override
@@ -47,7 +43,7 @@ class AppFeedHeader extends StatelessWidget implements PreferredSizeWidget {
     return Container(
       height: AppSizes.feedHeader + topInset,
       padding: EdgeInsets.fromLTRB(
-        AppSpacing.screenSide,
+        AppSpacing.screenSide - AppSpacing.xs,
         topInset,
         AppSpacing.screenSide - AppSpacing.xs,
         0,
@@ -58,22 +54,42 @@ class AppFeedHeader extends StatelessWidget implements PreferredSizeWidget {
       ),
       child: Row(
         children: [
-          if (showLogo)
-            Semantics(
-              header: true,
-              child: ScalesLogo(
-                size: AppSizes.feedHeaderLogo,
-                semanticLabel: logoSemanticLabel,
+          // Left slot: empty for now (owner: "пока ничего"), but as wide
+          // as the trailing icons so the wordmark is centered.
+          const SizedBox(width: AppSizes.touchTarget),
+          Expanded(
+            child: Center(
+              child: Semantics(
+                header: true,
+                label: logoSemanticLabel,
+                excludeSemantics: true,
+                child: showLogo
+                    ? MediaQuery.withClampedTextScaling(
+                        maxScaleFactor: 1.3,
+                        child: Text(
+                          logoSemanticLabel,
+                          maxLines: 1,
+                          style: TextStyle(
+                            fontFamily: AppFontFamilies.serif,
+                            fontSize: AppSizes.feedWordmark,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.4,
+                            height: 1,
+                            color: colors.text,
+                          ),
+                        ),
+                      )
+                    : const SizedBox.shrink(),
               ),
-            )
-          else
-            Semantics(
-              header: true,
-              label: logoSemanticLabel,
-              child: const SizedBox.shrink(),
             ),
-          const Spacer(),
-          ...trailing,
+          ),
+          SizedBox(
+            width: AppSizes.touchTarget,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: trailing,
+            ),
+          ),
         ],
       ),
     );

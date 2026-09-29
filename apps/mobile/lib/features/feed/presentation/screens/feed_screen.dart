@@ -37,9 +37,9 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
     final attorney = ref.watch(currentUserRoleProvider) == UserRole.attorney;
     return Scaffold(
       backgroundColor: colors.bg,
+      // Owner 2026-09-29 (OQ-027): centered "LawBid" wordmark is back.
       appBar: AppFeedHeader(
         logoSemanticLabel: t.t('brand.name'),
-        showLogo: false,
         trailing: const [ChatsIconButton()],
       ),
       body: !attorney

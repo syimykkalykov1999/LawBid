@@ -9,7 +9,10 @@ import 'package:lawbid/features/onboarding/application/current_user_controller.d
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/presentation/screens/attorney_profile_screen.dart';
 import 'package:lawbid/features/profile/presentation/widgets/attorney_profile_view.dart';
+import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/widgets/client_profile_view.dart';
+import 'package:lawbid/features/profile/presentation/widgets/profile_avatar.dart';
+import 'package:lawbid/features/profile/presentation/widgets/profile_handle_bar.dart';
 
 /// Profile tab (docs/03 §8 «Профиль»): an attorney sees their own public
 /// profile (§4.2, with Edit/Share and — before verification — a
@@ -40,10 +43,23 @@ class ProfileScreen extends ConsumerWidget {
       );
     }
 
+    // Owner 2026-09-29: Instagram-style header — "@username" centered,
+    // a small avatar left, the gear right; no "Profile" word.
     return Scaffold(
       backgroundColor: colors.bg,
-      appBar: AppTopBar(
-        title: Text(t.t('profile.tab.title')),
+      appBar: ProfileHandleBar(
+        handle: username,
+        leading: SizedBox.square(
+          dimension: AppSizes.touchTarget,
+          child: Center(
+            child: ProfileAvatar(
+              size: AppSizes.iconLg + AppSpacing.xs,
+              url: user?.avatarUrl,
+              initials: initialsOf(user?.firstName, user?.lastName),
+              semanticLabel: t.t('profile.avatar.label'),
+            ),
+          ),
+        ),
         actions: [
           Semantics(
             button: true,

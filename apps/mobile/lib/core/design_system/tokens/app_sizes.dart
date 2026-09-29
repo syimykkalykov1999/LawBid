@@ -52,9 +52,17 @@ abstract final class AppSizes {
 
   // --- p12 leaf-1.6 (docs/01 §8.3 offline + pagination, docs/07 §10) ------
 
-  /// Feed header (docs/07 §10: small static ScalesLogo, width ≈ 96, left).
+  /// Feed header. Owner decision 2026-09-29 (OQ-027): centered text
+  /// wordmark "LawBid" instead of the scales logo, and a lower bar.
   static const double feedHeaderLogo = 96;
-  static const double feedHeader = 76;
+  static const double feedHeader = 52;
+  static const double feedWordmark = 26;
+
+  /// Segmented tabs (owner 2026-09-29): row height.
+  static const double segmentedTabs = 44;
+
+  /// Bottom nav: rounded top corners (owner 2026-09-29).
+  static const double bottomNavRadius = 18;
 
   /// Offline banner row (icon + one line at 100% text scale).
   static const double bannerMinHeight = 44;

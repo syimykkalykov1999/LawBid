@@ -430,10 +430,8 @@ class _AboutSection extends ConsumerWidget {
             ],
           ],
         ),
-        Text(
-          '@${profile.username} · ${t.t('profile.attorneyChip')}',
-          style: typography.caption.copyWith(color: colors.textSecondary),
-        ),
+        // Owner 2026-09-29: the "@username · Attorney" caption is gone —
+        // the handle is the screen's centered title (ProfileHandleBar).
         const SizedBox(height: AppSpacing.xs),
         // Rating as a quiet line under the name (not a badge on the
         // photo, not a card): "★ 4.5 · 12 reviews", tap → Reviews.

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/tokens/app_motion.dart';
@@ -21,13 +22,38 @@ import 'package:lawbid/features/notifications/application/push_service.dart';
 /// tab's own Navigator/scroll state when switching — see the stage 1.5
 /// architecture review in docs/CHANGELOG.md for why this variant was chosen
 /// over the ТЗ's literal "ShellRoute" wording.
-class MainShell extends ConsumerWidget {
+class MainShell extends ConsumerStatefulWidget {
   const MainShell({required this.navigationShell, super.key});
 
   final StatefulNavigationShell navigationShell;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<MainShell> createState() => _MainShellState();
+}
+
+class _MainShellState extends ConsumerState<MainShell> {
+  StatefulNavigationShell get navigationShell => widget.navigationShell;
+
+  @override
+  void initState() {
+    super.initState();
+    // Owner 2026-09-29 (OQ-027): the system status bar (clock/battery)
+    // is hidden while the signed-in shell is on screen, for both roles.
+    // Pre-app screens (welcome/sign-in) are outside the shell and keep it.
+    SystemChrome.setEnabledSystemUIMode(
+      SystemUiMode.manual,
+      overlays: const [SystemUiOverlay.bottom],
+    );
+  }
+
+  @override
+  void dispose() {
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final role = ref.watch(currentUserRoleProvider);
     final translator = ref.watch(translatorProvider);
     final tabs = tabsForRole(role, translator);

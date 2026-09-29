@@ -141,6 +141,8 @@ const file06Ru = <String, String>{
   'error.api.PAYLOAD_TOO_LARGE': 'Файл или запрос слишком большой.',
   'error.api.CONTENT_BLOCKED':
       'Текст не прошёл проверку. Уберите запрещённые слова или ссылки и попробуйте снова.',
+  // Owner changes 2026-09-29 (search field behind the magnifier).
+  'search.open': 'Поиск',
 };
 
 const file06En = <String, String>{
@@ -285,4 +287,6 @@ const file06En = <String, String>{
   'error.api.PAYLOAD_TOO_LARGE': 'The file or request is too large.',
   'error.api.CONTENT_BLOCKED':
       'The text did not pass review. Remove prohibited words or links and try again.',
+  // Owner changes 2026-09-29 (search field behind the magnifier).
+  'search.open': 'Search',
 };

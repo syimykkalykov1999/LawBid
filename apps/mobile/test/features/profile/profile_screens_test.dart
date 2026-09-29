@@ -75,7 +75,8 @@ void main() {
       expect(find.text('Jane Doe'), findsOneWidget);
       expect(find.text('4.5'), findsOneWidget);
       expect(find.text('12 reviews'), findsOneWidget);
-      expect(find.textContaining('Attorney'), findsWidgets);
+      // Owner 2026-09-29: the "@username · Attorney" caption is gone; the
+      // handle is the centered title (asserted above).
       expect(find.textContaining('Family and immigration attorney'), findsOneWidget);
       expect(find.text('Doe & Partners LLP'), findsOneWidget);
       // Two picked leaves of one category are grouped; a single one isn't.

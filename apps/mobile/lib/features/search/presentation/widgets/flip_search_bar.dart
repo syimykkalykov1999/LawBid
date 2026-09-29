@@ -20,6 +20,9 @@ class FlipSearchBar extends StatefulWidget {
     required this.clearLabel,
     required this.semanticLabel,
     this.onSubmitted,
+    this.leading,
+    this.trailing,
+    this.showCancel = true,
     super.key,
   });
 
@@ -32,6 +35,18 @@ class FlipSearchBar extends StatefulWidget {
   final String clearLabel;
   final String semanticLabel;
   final ValueChanged<String>? onSubmitted;
+
+  /// Owner 2026-09-29: replaces the default magnifier at the left edge
+  /// (the Search tab puts its Filters button here).
+  final Widget? leading;
+
+  /// Owner 2026-09-29: a control at the right edge, after the clear
+  /// button (the Search tab puts its magnifier here).
+  final Widget? trailing;
+
+  /// Whether the "Cancel" text button slides in next to the field while
+  /// focused. `false` when the caller has its own way to close.
+  final bool showCancel;
 
   @override
   State<FlipSearchBar> createState() => _FlipSearchBarState();
@@ -127,15 +142,20 @@ class _FlipSearchBarState extends State<FlipSearchBar> {
       ),
       child: Row(
         children: [
-          const SizedBox(width: AppSpacing.md),
-          AnimatedRotation(
-            turns: focused ? -0.06 : 0,
-            duration: d,
-            child: Icon(
-              Icons.search_rounded,
-              color: focused ? colors.goldDark : colors.textSecondary,
+          if (widget.leading != null) ...[
+            const SizedBox(width: AppSpacing.xs),
+            widget.leading!,
+          ] else ...[
+            const SizedBox(width: AppSpacing.md),
+            AnimatedRotation(
+              turns: focused ? -0.06 : 0,
+              duration: d,
+              child: Icon(
+                Icons.search_rounded,
+                color: focused ? colors.goldDark : colors.textSecondary,
+              ),
             ),
-          ),
+          ],
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Stack(
@@ -203,9 +223,15 @@ class _FlipSearchBarState extends State<FlipSearchBar> {
                     },
             ),
           ),
+          if (widget.trailing != null) ...[
+            widget.trailing!,
+            const SizedBox(width: AppSpacing.xs),
+          ],
         ],
       ),
     );
+
+    if (!widget.showCancel) return field;
 
     return Row(
       children: [

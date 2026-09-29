@@ -9,6 +9,7 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/presentation/widgets/attorney_profile_view.dart';
+import 'package:lawbid/features/profile/presentation/widgets/profile_handle_bar.dart';
 
 /// Loads `GET /attorneys/:username` and renders every screen state:
 /// skeleton, error + Retry, offline, "Profile unavailable" (404 — unknown,
@@ -111,8 +112,9 @@ class AttorneyProfileScreen extends ConsumerWidget {
     final t = ref.watch(translatorProvider);
     return Scaffold(
       backgroundColor: colors.bg,
-      appBar: AppTopBar(
-        title: Text(t.t('profile.attorney.title')),
+      // Owner 2026-09-29: "@username" centered, like the own-profile tab.
+      appBar: ProfileHandleBar(
+        handle: username,
         leading: AppBackButton(semanticLabel: t.t('common.back'), onPressed: () => _leave(context)),
       ),
       body: SafeArea(
