@@ -40,6 +40,7 @@ import { DevModule } from './modules/dev/dev.module';
 import { FilesModule } from './modules/files/files.module';
 import { AdminAuthModule } from './modules/admin-auth/admin-auth.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { AdminUsersModule } from './modules/admin-users/admin-users.module';
 import { CostGuardModule } from './common/cost-guard/cost-guard.module';
 import { JobsModule } from './jobs/jobs.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
@@ -128,6 +129,7 @@ const isDev =
     // docs/06 stage 6.2: admin JWT, RBAC, dashboard/audit/admins.
     AdminAuthModule,
     AdminModule,
+    AdminUsersModule,
     UsersModule,
     I18nModule,
     CasesModule,

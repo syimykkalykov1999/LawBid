@@ -5,24 +5,22 @@
 import 'package:json_annotation/json_annotation.dart';
 
 @JsonEnum()
-enum VerificationStatus {
-  @JsonValue('unverified')
-  unverified('unverified'),
-  @JsonValue('pending')
-  pending('pending'),
-  @JsonValue('verified')
-  verified('verified'),
-  @JsonValue('rejected')
-  rejected('rejected'),
+enum AdminUserListItemDtoStatus {
+  @JsonValue('active')
+  active('active'),
   @JsonValue('suspended')
   suspended('suspended'),
+  @JsonValue('deletion_pending')
+  deletionPending('deletion_pending'),
+  @JsonValue('deleted')
+  deleted('deleted'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);
 
-  const VerificationStatus(this.json);
+  const AdminUserListItemDtoStatus(this.json);
 
-  factory VerificationStatus.fromJson(String json) =>
+  factory AdminUserListItemDtoStatus.fromJson(String json) =>
       values.firstWhere((e) => e.json == json, orElse: () => $unknown);
 
   final String? json;
@@ -41,6 +39,6 @@ enum VerificationStatus {
   String toString() => json?.toString() ?? super.toString();
 
   /// Returns all defined enum values excluding the $unknown value.
-  static List<VerificationStatus> get $valuesDefined =>
+  static List<AdminUserListItemDtoStatus> get $valuesDefined =>
       values.where((value) => value != $unknown).toList();
 }

@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-part of 'admin_verification_client.dart';
+part of 'admin_users_client.dart';
 
 // dart format off
 
@@ -11,8 +11,8 @@ part of 'admin_verification_client.dart';
 // ignore_for_file: type=lint
 // ignore_for_file: unnecessary_brace_in_string_interps,no_leading_underscores_for_local_identifiers,unused_element,unnecessary_string_interpolations,unused_element_parameter,avoid_unused_constructor_parameters,unreachable_from_main,avoid_redundant_argument_values
 
-class _AdminVerificationClient implements AdminVerificationClient {
-  _AdminVerificationClient(this._dio, {this.baseUrl, this.errorLogger});
+class _AdminUsersClient implements AdminUsersClient {
+  _AdminUsersClient(this._dio, {this.baseUrl, this.errorLogger});
 
   final Dio _dio;
 
@@ -21,10 +21,11 @@ class _AdminVerificationClient implements AdminVerificationClient {
   final ParseErrorLogger? errorLogger;
 
   @override
-  Future<VerificationQueueItemListEnvelope> listVerificationQueue({
+  Future<AdminUserListItemListEnvelope> searchUsers({
     int? limit = 20,
-    Status2? status,
-    String? stateCode,
+    String? q,
+    Role? role,
+    Status? status,
     String? cursor,
     Map<String, dynamic>? extras,
   }) async {
@@ -32,27 +33,28 @@ class _AdminVerificationClient implements AdminVerificationClient {
     _extra.addAll(extras ?? <String, dynamic>{});
     final queryParameters = <String, dynamic>{
       r'limit': limit,
+      r'q': q,
+      r'role': role?.toJson(),
       r'status': status?.toJson(),
-      r'stateCode': stateCode,
       r'cursor': cursor,
     };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};
     const Map<String, dynamic>? _data = null;
-    final _options = _setStreamType<VerificationQueueItemListEnvelope>(
+    final _options = _setStreamType<AdminUserListItemListEnvelope>(
       Options(method: 'GET', headers: _headers, extra: _extra)
           .compose(
             _dio.options,
-            '/admin/verification/requests',
+            '/admin/users',
             queryParameters: queryParameters,
             data: _data,
           )
           .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
     );
     final _result = await _dio.fetch<Map<String, Object?>>(_options);
-    late VerificationQueueItemListEnvelope _value;
+    late AdminUserListItemListEnvelope _value;
     try {
-      _value = VerificationQueueItemListEnvelope.fromJson(_result.data!);
+      _value = AdminUserListItemListEnvelope.fromJson(_result.data!);
     } on Object catch (e, s) {
       errorLogger?.logError(e, s, _options, response: _result);
       rethrow;
@@ -61,7 +63,7 @@ class _AdminVerificationClient implements AdminVerificationClient {
   }
 
   @override
-  Future<AdminVerificationRequestEnvelope> getVerificationCard({
+  Future<AdminUserCardEnvelope> getUserCard({
     required String id,
     Map<String, dynamic>? extras,
   }) async {
@@ -71,20 +73,20 @@ class _AdminVerificationClient implements AdminVerificationClient {
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};
     const Map<String, dynamic>? _data = null;
-    final _options = _setStreamType<AdminVerificationRequestEnvelope>(
+    final _options = _setStreamType<AdminUserCardEnvelope>(
       Options(method: 'GET', headers: _headers, extra: _extra)
           .compose(
             _dio.options,
-            '/admin/verification/requests/${id}',
+            '/admin/users/${id}',
             queryParameters: queryParameters,
             data: _data,
           )
           .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
     );
     final _result = await _dio.fetch<Map<String, Object?>>(_options);
-    late AdminVerificationRequestEnvelope _value;
+    late AdminUserCardEnvelope _value;
     try {
-      _value = AdminVerificationRequestEnvelope.fromJson(_result.data!);
+      _value = AdminUserCardEnvelope.fromJson(_result.data!);
     } on Object catch (e, s) {
       errorLogger?.logError(e, s, _options, response: _result);
       rethrow;
@@ -93,8 +95,8 @@ class _AdminVerificationClient implements AdminVerificationClient {
   }
 
   @override
-  Future<DocumentUrlEnvelope> getVerificationDocumentUrl({
-    required String documentId,
+  Future<AdminUserContactsEnvelope> getUserContacts({
+    required String id,
     required String xJustification,
     Map<String, dynamic>? extras,
   }) async {
@@ -105,20 +107,20 @@ class _AdminVerificationClient implements AdminVerificationClient {
     final _headers = <String, dynamic>{r'X-Justification': xJustification};
     _headers.removeWhere((k, v) => v == null);
     const Map<String, dynamic>? _data = null;
-    final _options = _setStreamType<DocumentUrlEnvelope>(
-      Options(method: 'POST', headers: _headers, extra: _extra)
+    final _options = _setStreamType<AdminUserContactsEnvelope>(
+      Options(method: 'GET', headers: _headers, extra: _extra)
           .compose(
             _dio.options,
-            '/admin/verification/documents/${documentId}/url',
+            '/admin/users/${id}/contacts',
             queryParameters: queryParameters,
             data: _data,
           )
           .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
     );
     final _result = await _dio.fetch<Map<String, Object?>>(_options);
-    late DocumentUrlEnvelope _value;
+    late AdminUserContactsEnvelope _value;
     try {
-      _value = DocumentUrlEnvelope.fromJson(_result.data!);
+      _value = AdminUserContactsEnvelope.fromJson(_result.data!);
     } on Object catch (e, s) {
       errorLogger?.logError(e, s, _options, response: _result);
       rethrow;
@@ -127,7 +129,7 @@ class _AdminVerificationClient implements AdminVerificationClient {
   }
 
   @override
-  Future<AdminVerificationRequestEnvelope> takeVerificationRequest({
+  Future<SanctionResultEnvelope> revokeUserSessions({
     required String id,
     Map<String, dynamic>? extras,
   }) async {
@@ -137,20 +139,20 @@ class _AdminVerificationClient implements AdminVerificationClient {
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};
     const Map<String, dynamic>? _data = null;
-    final _options = _setStreamType<AdminVerificationRequestEnvelope>(
+    final _options = _setStreamType<SanctionResultEnvelope>(
       Options(method: 'POST', headers: _headers, extra: _extra)
           .compose(
             _dio.options,
-            '/admin/verification/requests/${id}/take',
+            '/admin/users/${id}/sessions/revoke',
             queryParameters: queryParameters,
             data: _data,
           )
           .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
     );
     final _result = await _dio.fetch<Map<String, Object?>>(_options);
-    late AdminVerificationRequestEnvelope _value;
+    late SanctionResultEnvelope _value;
     try {
-      _value = AdminVerificationRequestEnvelope.fromJson(_result.data!);
+      _value = SanctionResultEnvelope.fromJson(_result.data!);
     } on Object catch (e, s) {
       errorLogger?.logError(e, s, _options, response: _result);
       rethrow;
@@ -159,10 +161,9 @@ class _AdminVerificationClient implements AdminVerificationClient {
   }
 
   @override
-  Future<AdminVerificationRequestEnvelope> decideVerificationLicense({
+  Future<SanctionResultEnvelope> warnUser({
     required String id,
-    required String licenseId,
-    required LicenseDecisionDto body,
+    required WarnUserDto body,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
@@ -172,20 +173,20 @@ class _AdminVerificationClient implements AdminVerificationClient {
     final _headers = <String, dynamic>{};
     final _data = <String, dynamic>{};
     _data.addAll(body.toJson());
-    final _options = _setStreamType<AdminVerificationRequestEnvelope>(
+    final _options = _setStreamType<SanctionResultEnvelope>(
       Options(method: 'POST', headers: _headers, extra: _extra)
           .compose(
             _dio.options,
-            '/admin/verification/requests/${id}/licenses/${licenseId}/decision',
+            '/admin/users/${id}/warn',
             queryParameters: queryParameters,
             data: _data,
           )
           .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
     );
     final _result = await _dio.fetch<Map<String, Object?>>(_options);
-    late AdminVerificationRequestEnvelope _value;
+    late SanctionResultEnvelope _value;
     try {
-      _value = AdminVerificationRequestEnvelope.fromJson(_result.data!);
+      _value = SanctionResultEnvelope.fromJson(_result.data!);
     } on Object catch (e, s) {
       errorLogger?.logError(e, s, _options, response: _result);
       rethrow;
@@ -194,7 +195,41 @@ class _AdminVerificationClient implements AdminVerificationClient {
   }
 
   @override
-  Future<AdminVerificationRequestEnvelope> approveVerificationRequest({
+  Future<SanctionResultEnvelope> suspendUser({
+    required String id,
+    required SuspendUserDto body,
+    Map<String, dynamic>? extras,
+  }) async {
+    final _extra = <String, dynamic>{};
+    _extra.addAll(extras ?? <String, dynamic>{});
+    final queryParameters = <String, dynamic>{};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{};
+    final _data = <String, dynamic>{};
+    _data.addAll(body.toJson());
+    final _options = _setStreamType<SanctionResultEnvelope>(
+      Options(method: 'POST', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/admin/users/${id}/suspend',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late SanctionResultEnvelope _value;
+    try {
+      _value = SanctionResultEnvelope.fromJson(_result.data!);
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
+  @override
+  Future<SanctionResultEnvelope> restoreUser({
     required String id,
     Map<String, dynamic>? extras,
   }) async {
@@ -204,186 +239,20 @@ class _AdminVerificationClient implements AdminVerificationClient {
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};
     const Map<String, dynamic>? _data = null;
-    final _options = _setStreamType<AdminVerificationRequestEnvelope>(
+    final _options = _setStreamType<SanctionResultEnvelope>(
       Options(method: 'POST', headers: _headers, extra: _extra)
           .compose(
             _dio.options,
-            '/admin/verification/requests/${id}/approve',
+            '/admin/users/${id}/restore',
             queryParameters: queryParameters,
             data: _data,
           )
           .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
     );
     final _result = await _dio.fetch<Map<String, Object?>>(_options);
-    late AdminVerificationRequestEnvelope _value;
+    late SanctionResultEnvelope _value;
     try {
-      _value = AdminVerificationRequestEnvelope.fromJson(_result.data!);
-    } on Object catch (e, s) {
-      errorLogger?.logError(e, s, _options, response: _result);
-      rethrow;
-    }
-    return _value;
-  }
-
-  @override
-  Future<AdminVerificationRequestEnvelope> requestVerificationInfo({
-    required String id,
-    required RequestInfoDto body,
-    Map<String, dynamic>? extras,
-  }) async {
-    final _extra = <String, dynamic>{};
-    _extra.addAll(extras ?? <String, dynamic>{});
-    final queryParameters = <String, dynamic>{};
-    queryParameters.removeWhere((k, v) => v == null);
-    final _headers = <String, dynamic>{};
-    final _data = <String, dynamic>{};
-    _data.addAll(body.toJson());
-    final _options = _setStreamType<AdminVerificationRequestEnvelope>(
-      Options(method: 'POST', headers: _headers, extra: _extra)
-          .compose(
-            _dio.options,
-            '/admin/verification/requests/${id}/request-info',
-            queryParameters: queryParameters,
-            data: _data,
-          )
-          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
-    );
-    final _result = await _dio.fetch<Map<String, Object?>>(_options);
-    late AdminVerificationRequestEnvelope _value;
-    try {
-      _value = AdminVerificationRequestEnvelope.fromJson(_result.data!);
-    } on Object catch (e, s) {
-      errorLogger?.logError(e, s, _options, response: _result);
-      rethrow;
-    }
-    return _value;
-  }
-
-  @override
-  Future<AdminVerificationRequestEnvelope> rejectVerificationRequest({
-    required String id,
-    required RejectRequestDto body,
-    Map<String, dynamic>? extras,
-  }) async {
-    final _extra = <String, dynamic>{};
-    _extra.addAll(extras ?? <String, dynamic>{});
-    final queryParameters = <String, dynamic>{};
-    queryParameters.removeWhere((k, v) => v == null);
-    final _headers = <String, dynamic>{};
-    final _data = <String, dynamic>{};
-    _data.addAll(body.toJson());
-    final _options = _setStreamType<AdminVerificationRequestEnvelope>(
-      Options(method: 'POST', headers: _headers, extra: _extra)
-          .compose(
-            _dio.options,
-            '/admin/verification/requests/${id}/reject',
-            queryParameters: queryParameters,
-            data: _data,
-          )
-          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
-    );
-    final _result = await _dio.fetch<Map<String, Object?>>(_options);
-    late AdminVerificationRequestEnvelope _value;
-    try {
-      _value = AdminVerificationRequestEnvelope.fromJson(_result.data!);
-    } on Object catch (e, s) {
-      errorLogger?.logError(e, s, _options, response: _result);
-      rethrow;
-    }
-    return _value;
-  }
-
-  @override
-  Future<LicenseRecheckEnvelope> recheckLicense({
-    required String licenseId,
-    Map<String, dynamic>? extras,
-  }) async {
-    final _extra = <String, dynamic>{};
-    _extra.addAll(extras ?? <String, dynamic>{});
-    final queryParameters = <String, dynamic>{};
-    queryParameters.removeWhere((k, v) => v == null);
-    final _headers = <String, dynamic>{};
-    const Map<String, dynamic>? _data = null;
-    final _options = _setStreamType<LicenseRecheckEnvelope>(
-      Options(method: 'POST', headers: _headers, extra: _extra)
-          .compose(
-            _dio.options,
-            '/admin/verification/licenses/${licenseId}/recheck',
-            queryParameters: queryParameters,
-            data: _data,
-          )
-          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
-    );
-    final _result = await _dio.fetch<Map<String, Object?>>(_options);
-    late LicenseRecheckEnvelope _value;
-    try {
-      _value = LicenseRecheckEnvelope.fromJson(_result.data!);
-    } on Object catch (e, s) {
-      errorLogger?.logError(e, s, _options, response: _result);
-      rethrow;
-    }
-    return _value;
-  }
-
-  @override
-  Future<AttorneyVerificationStatusEnvelope> suspendAttorney({
-    required String attorneyId,
-    required SuspendAttorneyDto body,
-    Map<String, dynamic>? extras,
-  }) async {
-    final _extra = <String, dynamic>{};
-    _extra.addAll(extras ?? <String, dynamic>{});
-    final queryParameters = <String, dynamic>{};
-    queryParameters.removeWhere((k, v) => v == null);
-    final _headers = <String, dynamic>{};
-    final _data = <String, dynamic>{};
-    _data.addAll(body.toJson());
-    final _options = _setStreamType<AttorneyVerificationStatusEnvelope>(
-      Options(method: 'POST', headers: _headers, extra: _extra)
-          .compose(
-            _dio.options,
-            '/admin/verification/attorneys/${attorneyId}/suspend',
-            queryParameters: queryParameters,
-            data: _data,
-          )
-          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
-    );
-    final _result = await _dio.fetch<Map<String, Object?>>(_options);
-    late AttorneyVerificationStatusEnvelope _value;
-    try {
-      _value = AttorneyVerificationStatusEnvelope.fromJson(_result.data!);
-    } on Object catch (e, s) {
-      errorLogger?.logError(e, s, _options, response: _result);
-      rethrow;
-    }
-    return _value;
-  }
-
-  @override
-  Future<AttorneyVerificationStatusEnvelope> restoreAttorney({
-    required String attorneyId,
-    Map<String, dynamic>? extras,
-  }) async {
-    final _extra = <String, dynamic>{};
-    _extra.addAll(extras ?? <String, dynamic>{});
-    final queryParameters = <String, dynamic>{};
-    queryParameters.removeWhere((k, v) => v == null);
-    final _headers = <String, dynamic>{};
-    const Map<String, dynamic>? _data = null;
-    final _options = _setStreamType<AttorneyVerificationStatusEnvelope>(
-      Options(method: 'POST', headers: _headers, extra: _extra)
-          .compose(
-            _dio.options,
-            '/admin/verification/attorneys/${attorneyId}/restore',
-            queryParameters: queryParameters,
-            data: _data,
-          )
-          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
-    );
-    final _result = await _dio.fetch<Map<String, Object?>>(_options);
-    late AttorneyVerificationStatusEnvelope _value;
-    try {
-      _value = AttorneyVerificationStatusEnvelope.fromJson(_result.data!);
+      _value = SanctionResultEnvelope.fromJson(_result.data!);
     } on Object catch (e, s) {
       errorLogger?.logError(e, s, _options, response: _result);
       rethrow;

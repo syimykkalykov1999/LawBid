@@ -67,6 +67,8 @@ const STATE_BAR_ADAPTER_LIST: StateBarAdapter[] = [];
     VerificationAdminService,
   ],
   exports: [
+    // docs/06 §3.4: user suspension applies the §2.5 attorney effects.
+    VerificationAdminService,
     BAR_LOOKUP_PROVIDER,
     ID_VERIFICATION_PROVIDER,
     VerificationProviderSelector,

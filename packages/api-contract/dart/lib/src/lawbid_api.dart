@@ -10,8 +10,11 @@ import 'clients/admin_auth_client.dart';
 import 'clients/admin_dashboard_client.dart';
 import 'clients/admin_audit_log_client.dart';
 import 'clients/admin_admins_client.dart';
-import 'clients/users_client.dart';
+import 'clients/admin_users_client.dart';
+import 'clients/verification_client.dart';
+import 'clients/admin_verification_client.dart';
 import 'clients/files_client.dart';
+import 'clients/users_client.dart';
 import 'clients/i18n_client.dart';
 import 'clients/admin_i18n_client.dart';
 import 'clients/cases_client.dart';
@@ -28,8 +31,6 @@ import 'clients/follows_client.dart';
 import 'clients/search_client.dart';
 import 'clients/chat_client.dart';
 import 'clients/notifications_client.dart';
-import 'clients/verification_client.dart';
-import 'clients/admin_verification_client.dart';
 import 'clients/practice_areas_client.dart';
 import 'clients/attorneys_client.dart';
 import 'clients/profiles_client.dart';
@@ -52,8 +53,11 @@ class LawbidApi {
   AdminDashboardClient? _adminDashboard;
   AdminAuditLogClient? _adminAuditLog;
   AdminAdminsClient? _adminAdmins;
-  UsersClient? _users;
+  AdminUsersClient? _adminUsers;
+  VerificationClient? _verification;
+  AdminVerificationClient? _adminVerification;
   FilesClient? _files;
+  UsersClient? _users;
   I18nClient? _i18n;
   AdminI18nClient? _adminI18n;
   CasesClient? _cases;
@@ -70,8 +74,6 @@ class LawbidApi {
   SearchClient? _search;
   ChatClient? _chat;
   NotificationsClient? _notifications;
-  VerificationClient? _verification;
-  AdminVerificationClient? _adminVerification;
   PracticeAreasClient? _practiceAreas;
   AttorneysClient? _attorneys;
   ProfilesClient? _profiles;
@@ -93,9 +95,18 @@ class LawbidApi {
   AdminAdminsClient get adminAdmins =>
       _adminAdmins ??= AdminAdminsClient(_dio, baseUrl: _baseUrl);
 
-  UsersClient get users => _users ??= UsersClient(_dio, baseUrl: _baseUrl);
+  AdminUsersClient get adminUsers =>
+      _adminUsers ??= AdminUsersClient(_dio, baseUrl: _baseUrl);
+
+  VerificationClient get verification =>
+      _verification ??= VerificationClient(_dio, baseUrl: _baseUrl);
+
+  AdminVerificationClient get adminVerification =>
+      _adminVerification ??= AdminVerificationClient(_dio, baseUrl: _baseUrl);
 
   FilesClient get files => _files ??= FilesClient(_dio, baseUrl: _baseUrl);
+
+  UsersClient get users => _users ??= UsersClient(_dio, baseUrl: _baseUrl);
 
   I18nClient get i18n => _i18n ??= I18nClient(_dio, baseUrl: _baseUrl);
 
@@ -136,12 +147,6 @@ class LawbidApi {
 
   NotificationsClient get notifications =>
       _notifications ??= NotificationsClient(_dio, baseUrl: _baseUrl);
-
-  VerificationClient get verification =>
-      _verification ??= VerificationClient(_dio, baseUrl: _baseUrl);
-
-  AdminVerificationClient get adminVerification =>
-      _adminVerification ??= AdminVerificationClient(_dio, baseUrl: _baseUrl);
 
   PracticeAreasClient get practiceAreas =>
       _practiceAreas ??= PracticeAreasClient(_dio, baseUrl: _baseUrl);

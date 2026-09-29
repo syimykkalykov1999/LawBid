@@ -296,7 +296,53 @@ export class CaseLifecycleService {
       ) {
         return false;
       }
-      const clientId = row.client_id;
+      await this.archiveInTx(tx, caseId, row.client_id, now, chat);
+      return true;
+    });
+    this.chat.publish(chat);
+    return done;
+  }
+
+  /**
+   * docs/06 §3.4: a suspended client's `open` cases go to `archived` with
+   * active bids `rejected_auto`; `in_progress` cases stay. Same effects
+   * as the §10.2 auto-archive (journal, attorney notifications, chats
+   * closed), one transaction per case. Returns the archived case ids.
+   */
+  async archiveOpenCasesOfClient(
+    clientId: string,
+    now: Date = new Date(),
+  ): Promise<string[]> {
+    const open = await this.prisma.case.findMany({
+      where: { client_id: clientId, status: 'open' },
+      select: { id: true },
+    });
+    const archived: string[] = [];
+    for (const { id } of open) {
+      const chat: ChatChange[] = [];
+      const done = await withTxRetry(this.prisma, async (tx) => {
+        chat.length = 0;
+        const row = await this.lockCase(tx, id);
+        if (!row || row.status !== 'open') return false;
+        await this.archiveInTx(tx, id, row.client_id, now, chat);
+        return true;
+      });
+      this.chat.publish(chat);
+      if (done) archived.push(id);
+    }
+    return archived;
+  }
+
+  /** Archive one locked `open` case: status, bids, journal, chats,
+   * notifications (shared by auto-archive and client suspension). */
+  private async archiveInTx(
+    tx: Prisma.TransactionClient,
+    caseId: string,
+    clientId: string,
+    now: Date,
+    chat: ChatChange[],
+  ): Promise<void> {
+    {
       const { plan } = await this.caseMachine.apply(tx, {
         caseId,
         action: 'auto_archive',
@@ -349,10 +395,7 @@ export class CaseLifecycleService {
         { type: 'case_archived', recipientId: clientId, payload: { caseId } },
         tx,
       );
-      return true;
-    });
-    this.chat.publish(chat);
-    return done;
+    }
   }
 
   /** §10.2 auto-close for one case (auto_close_at reached, attorney did

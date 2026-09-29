@@ -38,13 +38,30 @@ async function throwApiError(response: Response): Promise<never> {
   );
 }
 
+/**
+ * Re-targets a request to another path. Rebuilt with a materialized body:
+ * `new Request(url, request)` would carry a streaming body, which Chrome
+ * only sends over HTTP/2 (ERR_ALPN_NEGOTIATION_FAILED on plain HTTP/1.1).
+ */
+async function reroute(
+  request: Request,
+  map: (pathname: string) => string,
+): Promise<Request> {
+  const url = new URL(request.url);
+  url.pathname = map(url.pathname);
+  const hasBody = request.method !== 'GET' && request.method !== 'HEAD';
+  return new Request(url, {
+    method: request.method,
+    headers: request.headers,
+    body: hasBody ? await request.text() : undefined,
+    credentials: 'same-origin',
+  });
+}
+
 const toProxy: Middleware = {
-  onRequest({ request }) {
-    const url = new URL(request.url);
-    // `/admin/x` → `/api/proxy/x`
-    url.pathname = url.pathname.replace(/^\/admin\//, '/api/proxy/');
-    return new Request(url, request);
-  },
+  // `/admin/x` → `/api/proxy/x`
+  onRequest: ({ request }) =>
+    reroute(request, (p) => p.replace(/^\/admin\//, '/api/proxy/')),
   async onResponse({ response }) {
     if (response.ok) return response;
     if (response.status === 401 && typeof window !== 'undefined') {
@@ -61,14 +78,8 @@ api.use(toProxy);
 /** The unauthenticated sign-in steps go through app/api/public. */
 export const publicApi = createClient<paths>({ baseUrl: '/' });
 publicApi.use({
-  onRequest({ request }) {
-    const url = new URL(request.url);
-    url.pathname = url.pathname.replace(
-      /^\/admin\/auth\//,
-      '/api/public/auth/',
-    );
-    return new Request(url, request);
-  },
+  onRequest: ({ request }) =>
+    reroute(request, (p) => p.replace(/^\/admin\/auth\//, '/api/public/auth/')),
   async onResponse({ response }) {
     if (response.ok) return response;
     return throwApiError(response);

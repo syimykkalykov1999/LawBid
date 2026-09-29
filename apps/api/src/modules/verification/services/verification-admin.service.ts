@@ -662,6 +662,21 @@ export class VerificationAdminService {
       if (profile.verification_status === 'suspended') {
         throw profileInvalid(profile.verification_status);
       }
+      return (await this.suspendInTx(tx, admin, attorneyId, reason))!;
+    });
+  }
+
+  /** The §2.5 suspension effects inside the caller's transaction (also
+   * used by the docs/06 §3.4 user sanction). Null when already suspended. */
+  async suspendInTx(
+    tx: Tx,
+    admin: AdminActor,
+    attorneyId: string,
+    reason: string,
+  ): Promise<AttorneyVerificationStatusDto | null> {
+    {
+      const profile = await this.profileOr404(tx, attorneyId);
+      if (profile.verification_status === 'suspended') return null;
       await tx.attorneyProfile.update({
         where: { user_id: attorneyId },
         data: { verification_status: 'suspended' },
@@ -692,7 +707,7 @@ export class VerificationAdminService {
         verificationStatus: 'suspended',
         withdrawnBids: count,
       };
-    });
+    }
   }
 
   /** `restore` (§2.5): back to `verified` (the status before suspension,
@@ -707,6 +722,19 @@ export class VerificationAdminService {
       if (profile.verification_status !== 'suspended') {
         throw profileInvalid(profile.verification_status);
       }
+      return (await this.restoreInTx(tx, admin, attorneyId))!;
+    });
+  }
+
+  /** Restore inside the caller's transaction; null when not suspended. */
+  async restoreInTx(
+    tx: Tx,
+    admin: AdminActor,
+    attorneyId: string,
+  ): Promise<AttorneyVerificationStatusDto | null> {
+    {
+      const profile = await this.profileOr404(tx, attorneyId);
+      if (profile.verification_status !== 'suspended') return null;
       const lastSuspend = await tx.auditLog.findFirst({
         where: {
           action: AUDIT_ACTION.suspend,
@@ -744,7 +772,7 @@ export class VerificationAdminService {
       );
       await this.notify(tx, attorneyId, { kind: KIND.restored });
       return { attorneyId, verificationStatus: restored, withdrawnBids: 0 };
-    });
+    }
   }
 
   private async notify(

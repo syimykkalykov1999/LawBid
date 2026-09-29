@@ -4,7 +4,6 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-/// Only `clean` files can be attached (avatar, verification, posts).
 @JsonEnum()
 enum ScanStatus {
   @JsonValue('pending')
