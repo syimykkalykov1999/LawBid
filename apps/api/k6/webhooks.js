@@ -1,8 +1,11 @@
 import http from 'k6/http';
 import { check } from 'k6';
 import crypto from 'k6/crypto';
-import { BASE_URL, WRITE_THRESHOLDS, stages } from './lib/config.js';
+import { BASE_URL, WRITE_THRESHOLDS, requirePaidFlowsAllowed, stages } from './lib/config.js';
 
+// Each event makes the worker read Stripe (test mode): 1 % of the budget,
+// and only with the operator's confirmation.
+requirePaidFlowsAllowed('webhooks');
 const SECRET = __ENV.STRIPE_WEBHOOK_SECRET || '';
 export const options = { scenarios: { webhooks: { ...stages('write'), exec: 'webhook' } }, thresholds: WRITE_THRESHOLDS };
 

@@ -38,8 +38,8 @@ class PostCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final p = ref.watch(postOverridesProvider.select((m) => m[post.id])) ??
-        post;
+    final p =
+        ref.watch(postOverridesProvider.select((m) => m[post.id])) ?? post;
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final actions = ref.read(socialActionsProvider);
@@ -111,12 +111,14 @@ class PostCard extends ConsumerWidget {
                   Icon(Icons.hourglass_top_rounded,
                       size: 14, color: colors.textSecondary),
                   const SizedBox(width: AppSpacing.xs),
-                  Text(
-                    t.t('post.pending_review'),
-                    style: Theme.of(context)
-                        .extension<AppTypographyTokens>()!
-                        .caption
-                        .copyWith(color: colors.textSecondary),
+                  Flexible(
+                    child: Text(
+                      t.t('post.pending_review'),
+                      style: Theme.of(context)
+                          .extension<AppTypographyTokens>()!
+                          .caption
+                          .copyWith(color: colors.textSecondary),
+                    ),
                   ),
                 ],
               ),
@@ -143,9 +145,10 @@ class PostCard extends ConsumerWidget {
                   foregroundColor: colors.textSecondary,
                 ),
                 child: Text(
-                  t.t('post.viewComments',
-                      {'count': SocialFormat.count(
-                          ref.watch(l10nFormatsProvider), p.commentCount)}),
+                  t.t('post.viewComments', {
+                    'count': SocialFormat.count(
+                        ref.watch(l10nFormatsProvider), p.commentCount)
+                  }),
                 ),
               ),
             ),
@@ -273,11 +276,13 @@ class GoldRingAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final avatar = AppAvatar(
-      imageProvider: url == null ? null : CachedNetworkImageProvider(
-        url!,
-        // Signed URLs change per request: cache by the stable path.
-        cacheKey: Uri.parse(url!).path,
-      ),
+      imageProvider: url == null
+          ? null
+          : CachedNetworkImageProvider(
+              url!,
+              // Signed URLs change per request: cache by the stable path.
+              cacheKey: Uri.parse(url!).path,
+            ),
       initials: initials,
       size: ring ? size - 4 : size,
     );
@@ -509,7 +514,8 @@ class _PostMediaCarouselState extends State<PostMediaCarousel>
                   fadeInDuration: context.reduceMotion
                       ? Duration.zero
                       : AppMotion.stateChange,
-                  placeholder: (_, __) => ColoredBox(color: colors.skeletonBase),
+                  placeholder: (_, __) =>
+                      ColoredBox(color: colors.skeletonBase),
                   errorWidget: (_, __, ___) => ColoredBox(
                     color: colors.skeletonBase,
                     child: Icon(Icons.image_not_supported_outlined,
@@ -567,7 +573,9 @@ class _HeartBurst extends StatelessWidget {
                 size: 108,
                 color: Colors.white,
                 shadows: [
-                  Shadow(color: colors.gold.withValues(alpha: 0.6), blurRadius: 28),
+                  Shadow(
+                      color: colors.gold.withValues(alpha: 0.6),
+                      blurRadius: 28),
                   Shadow(color: colors.shadow, blurRadius: 12),
                 ],
               ),
@@ -593,7 +601,8 @@ class _Dots extends StatelessWidget {
       children: [
         for (var i = 0; i < count; i++)
           AnimatedContainer(
-            duration: context.reduceMotion ? Duration.zero : AppMotion.stateChange,
+            duration:
+                context.reduceMotion ? Duration.zero : AppMotion.stateChange,
             curve: AppMotion.enterCurve,
             margin: const EdgeInsets.symmetric(horizontal: 3),
             width: i == index ? 18 : 6,

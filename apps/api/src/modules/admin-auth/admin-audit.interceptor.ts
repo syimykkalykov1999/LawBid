@@ -8,7 +8,7 @@ import {
 import { Reflector } from '@nestjs/core';
 import type { Prisma } from '@prisma/client';
 import type { Request } from 'express';
-import { mergeMap, type Observable } from 'rxjs';
+import { catchError, mergeMap, throwError, type Observable } from 'rxjs';
 import { AuditLogService } from '../admin-access/audit-log.service';
 import {
   AUDIT_ACTION_KEY,
@@ -78,6 +78,34 @@ export class AdminAuditInterceptor implements NestInterceptor {
           this.logger.error(`audit_log write failed: ${String(e)}`);
         }
         return body;
+      }),
+      // Security review: denied / failed privileged calls leave a row too
+      // (`outcome: failed` + HTTP status), so the trail cannot be emptied
+      // by making an action fail.
+      catchError((error: unknown) => {
+        const status =
+          typeof (error as { getStatus?: () => number }).getStatus ===
+          'function'
+            ? (error as { getStatus: () => number }).getStatus()
+            : 500;
+        return throwError(() => error).pipe(
+          catchError(async (err: unknown) => {
+            try {
+              await this.audit.record({
+                adminId: admin.id,
+                action: `admin.${name}`,
+                targetType: targetTypeOf(req),
+                targetId: targetIdOf(req),
+                after: { outcome: 'failed', status },
+                ip: req.ip ?? null,
+                justification: admin.justification,
+              });
+            } catch (e) {
+              this.logger.error(`audit_log write failed: ${String(e)}`);
+            }
+            throw err;
+          }),
+        );
       }),
     );
   }

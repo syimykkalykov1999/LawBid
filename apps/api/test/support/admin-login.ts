@@ -76,8 +76,12 @@ export async function adminSession(
   }
   const session = await api()
     .post('/api/v1/admin/auth/totp')
-    .send({ ticket, code: totpCode(secret) })
-    .expect(200);
+    .send({ ticket, code: totpCode(secret) });
+  if (session.status !== 200) {
+    throw new Error(
+      `admin totp step ${session.status}: ${JSON.stringify(session.body)}`,
+    );
+  }
   const data = (
     session.body as {
       data: { accessToken: string; recoveryCodes?: string[] };
@@ -109,9 +113,12 @@ export async function adminSignIn(
     .send({ email, code: '000000' })
     .expect(200);
   const { ticket } = (verify.body as { data: { ticket: string } }).data;
+  // The next 30-second step: a code is single-use inside its window
+  // (replay guard), and this sign-in usually follows the enrollment one
+  // within seconds.
   const session = await api()
     .post('/api/v1/admin/auth/totp')
-    .send({ ticket, code: totpCode(totpSecret) })
+    .send({ ticket, code: totpCode(totpSecret, Date.now() + 30_000) })
     .expect(200);
   const { accessToken } = (session.body as { data: { accessToken: string } })
     .data;

@@ -24,6 +24,13 @@ const ses = {
   SES_REGION: 'us-east-1',
   SES_FROM_ADDRESS: 'LawBid <no-reply@example.com>',
 };
+// Review fix (file 06): a deployed API must never run the fake payment
+// provider, so production needs the Stripe trio.
+const stripe = {
+  STRIPE_SECRET_KEY: `sk_live_${'a'.repeat(24)}`,
+  STRIPE_WEBHOOK_SECRET: `whsec_${'b'.repeat(32)}`,
+  STRIPE_PRICE_ID: 'price_1Live399',
+};
 
 function issues(env: Record<string, string>): string[] {
   const result = envSchema.safeParse({ ...base, ...env });
@@ -93,12 +100,25 @@ describe('envSchema — credentials', () => {
         SMS_PROVIDER: 'mock',
         ...twilio,
         ...ses,
+        ...stripe,
       }),
     ).toEqual(['SMS_PROVIDER']);
   });
 
   it('production with complete credentials boots', () => {
-    expect(issues({ NODE_ENV: 'production', ...twilio, ...ses })).toEqual([]);
+    expect(
+      issues({ NODE_ENV: 'production', ...twilio, ...ses, ...stripe }),
+    ).toEqual([]);
+  });
+
+  it('production without Stripe keys is refused (no fake provider there)', () => {
+    expect(issuePaths({ NODE_ENV: 'production', ...twilio, ...ses })).toEqual(
+      expect.arrayContaining([
+        'STRIPE_SECRET_KEY',
+        'STRIPE_WEBHOOK_SECRET',
+        'STRIPE_PRICE_ID',
+      ]),
+    );
   });
 
   it('production refuses placeholder secrets from .env.example', () => {
@@ -107,6 +127,7 @@ describe('envSchema — credentials', () => {
         NODE_ENV: 'production',
         ...twilio,
         ...ses,
+        ...stripe,
         JWT_KEYS: 'dev1:CHANGE_ME_32_CHARS_MINIMUM_SECRET_A',
         JWT_ACTIVE_KID: 'dev1',
       }),
@@ -153,6 +174,7 @@ describe('envSchema — credentials', () => {
         NODE_ENV: 'production',
         ...twilio,
         ...ses,
+        ...stripe,
         STRIPE_SECRET_KEY: testKey,
       }),
     ).toEqual(['STRIPE_SECRET_KEY']);
@@ -185,6 +207,7 @@ describe('envSchema — credentials', () => {
         NODE_ENV: 'production',
         ...twilio,
         ...ses,
+        ...stripe,
         OTP_DEV_FIXED_CODE: 'false',
       }),
     ).toEqual([]);
@@ -196,6 +219,9 @@ describe('envSchema — credentials', () => {
         NODE_ENV: 'staging',
         ...twilio,
         ...ses,
+        ...stripe,
+        // Staging runs on Stripe test keys (docs/06 §6.2).
+        STRIPE_SECRET_KEY: `sk_test_${'a'.repeat(24)}`,
         S3_ENDPOINT: 'http://localhost:9000',
       }),
     ).toEqual(['S3_ENDPOINT']);

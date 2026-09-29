@@ -1,7 +1,8 @@
 # docs/06 §7.4 — iOS lanes. Signing certificates/profiles come from the
-# App Store Connect API key + `match`-less manual profiles provided by the
-# workflow (MATCH is optional; the owner picks the signing strategy before
-# the first TestFlight upload, docs/06 §11.2).
+# App Store Connect API key; the certificate and profile are installed by
+# the workflow from secrets and Xcode signs automatically
+# (ExportOptions.plist: signingStyle automatic). The owner may switch to
+# `match` before the first TestFlight upload (docs/06 §11.2).
 default_platform(:ios)
 
 platform :ios do
@@ -25,7 +26,8 @@ platform :ios do
     build(flavor: "prod")
     upload_to_testflight(
       api_key: api_key,
-      ipa: "../build/ios/ipa/lawbid.ipa",
+      # `flutter build ipa` names the file after the product; take the one it wrote.
+      ipa: Dir["../build/ios/ipa/*.ipa"].first,
       skip_waiting_for_build_processing: true,
       changelog: ENV.fetch("RELEASE_NOTES", ""),
     )

@@ -5760,3 +5760,50 @@ docs/06_PRODUCTION.md §13 stage 6.12, §9, §11.
   (49 e2e suites); the pentest, the real load run and the restore drill
   need the staging environment and are the owner's acceptance items.
 
+
+## File 06 review fixes (subagent review: security, load/cost, Flutter) — 2026-09-29
+
+### Security
+- A deployed API (`NODE_ENV` staging/production) refuses to boot without
+  `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID`; the
+  billing module also throws instead of falling back to the fake provider
+  (which accepts `Stripe-Signature: fake`).
+- Admin 2FA: the login ticket is consumed atomically (`DEL` result
+  checked), a TOTP code is single-use inside its window
+  (`adm:totp:used:<admin>:<code>`, 95 s), a recovery code is removed with a
+  conditional update so two parallel requests cannot both succeed; the
+  last active `super_admin` can be neither demoted nor disabled.
+- Admin audit interceptor records failed/denied privileged calls too
+  (`after: { outcome: 'failed', status }`).
+- Admin proxy: no client-supplied `X-Forwarded-For` forwarded (OQ-024),
+  dot segments rejected, non-JSON upstream answers handled.
+- Terraform: admin task fixed to `https://api.<host>/api/v1` (a shell
+  substitution had emptied the host), admin and migrate tasks get a
+  permission-less task role, optional WAF allow-list for the admin host
+  (`admin_allowed_cidrs`), state-secret note in `infra/README.md`.
+- Mobile release workflow: secrets via `env` + `printf`, jobs in the
+  protected `release` environment; mobile opens only `https` links.
+
+### Load / cost
+- Indexes: `users(created_at)`, `users(status, deletion_requested_at)`,
+  `messages(sender_id)`, `case_journal(created_at)`, `bids(status)`
+  (migration `20260929210000_stage_6_12_review_indexes`).
+- Anonymization: Stripe cancel is idempotent on retry (already-canceled
+  subscriptions are only synced), messages scrubbed in 5 000-row batches
+  outside the transaction, verification payloads emptied (OQ-025).
+- Journal chain check bounded (5 000 changed cases per run, random
+  sample by UUID range instead of `ORDER BY random()`).
+- Stripe: webhook retries back off 15 s → 2 min (a 429 burst is not a
+  DLQ), DLQ jobs bounded, processed webhook rows pruned after 30 days,
+  subscription idempotency key gets an hour bucket.
+- Moderation duplicate counter: `INCR` + `EXPIRE` in one `MULTI`.
+- Terraform: `noeviction` for Redis (BullMQ), request-count target
+  tracking on the api service, staging on one NAT and fewer endpoints.
+- k6: the 5k RPS budget is split by scenario weight; OTP-login and
+  webhook scenarios require `STAGING_MOCK_PROVIDERS=1`.
+
+### Flutter
+- `subscriptionPrice` no longer recurses for amounts with cents (test
+  added); the subscribe flow returns `pendingConfirmation` instead of
+  touching a disposed provider; pending-review badge text wraps; iOS lane
+  picks the IPA `flutter build ipa` wrote.

@@ -189,7 +189,9 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
     try {
       final url = await ref.read(subscriptionRepositoryProvider).portalUrl();
       if (!mounted) return;
-      final opened = await launchUrl(url, mode: LaunchMode.inAppBrowserView);
+      // Only https (security review): the portal URL comes from the server.
+      final opened = url.scheme == 'https' &&
+          await launchUrl(url, mode: LaunchMode.inAppBrowserView);
       if (!opened && mounted) {
         showAppSnackBar(context, _t.t('subscription.portal.cantOpen'));
       }
@@ -793,4 +795,7 @@ String subscriptionPrice(L10nFormats formats, int cents) => cents % 100 == 0
         name: 'USD',
         decimalDigits: 0,
       ).format(cents ~/ 100)
-    : subscriptionPrice(formats, cents);
+    : NumberFormat.simpleCurrency(
+        locale: formats.locale,
+        name: 'USD',
+      ).format(cents / 100);

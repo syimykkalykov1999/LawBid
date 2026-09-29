@@ -1,9 +1,10 @@
 import http from 'k6/http';
 import { check } from 'k6';
-import { BASE_URL, WRITE_THRESHOLDS, stages } from './lib/config.js';
+import { BASE_URL, WRITE_THRESHOLDS, requirePaidFlowsAllowed, stages } from './lib/config.js';
 
 // Staging runs with OTP_DEV_FIXED_CODE=true and SMS_PROVIDER=mock for this
 // scenario (never against real Twilio: docs/COST_PROTECTION.md).
+requirePaidFlowsAllowed('otp-login');
 export const options = { scenarios: { login: { ...stages('write'), exec: 'login' } }, thresholds: WRITE_THRESHOLDS };
 
 export function login() {

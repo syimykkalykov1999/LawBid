@@ -60,6 +60,12 @@ export class BillingModule {
           inject: [ConfigService],
           useFactory: (config: ConfigService) => {
             const key = config.get<string>('STRIPE_SECRET_KEY');
+            const nodeEnv = config.get<string>('NODE_ENV');
+            if (!key && (nodeEnv === 'production' || nodeEnv === 'staging')) {
+              throw new Error(
+                `STRIPE_SECRET_KEY is required in NODE_ENV=: the fake payment provider is dev/test only`,
+              );
+            }
             return key
               ? new StripePaymentProvider(
                   key,

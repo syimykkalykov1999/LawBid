@@ -102,7 +102,9 @@ export class StripePaymentProvider implements PaymentProvider {
         metadata: input.metadata,
       },
       {
-        idempotencyKey: `subscription:${input.metadata.userId}:${input.paymentMethodId}:${input.trialDays ?? 0}`,
+        // Retries within the hour dedupe; a later re-subscription with the
+        // same card is a new request (Stripe replays a key for 24 h).
+        idempotencyKey: `subscription:${input.metadata.userId}:${input.paymentMethodId}:${input.trialDays ?? 0}:${new Date().toISOString().slice(0, 13)}`,
       },
     );
     return mapSubscription(sub);

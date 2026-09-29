@@ -20,6 +20,10 @@ async function forward(req: NextRequest, path: string[]): Promise<Response> {
       { status: 401 },
     );
   }
+  // Security review: dot segments would let `new URL` escape `/admin/`.
+  if (path.some((s) => s === '.' || s === '..' || s === '')) {
+    return NextResponse.json({ error: { code: 'NOT_FOUND' } }, { status: 404 });
+  }
   const url = new URL(
     `${apiBaseUrl()}/admin/${path.map(encodeURIComponent).join('/')}`,
   );
@@ -30,7 +34,6 @@ async function forward(req: NextRequest, path: string[]): Promise<Response> {
     const v = req.headers.get(h);
     if (v) headers.set(h, v);
   }
-  headers.set('x-forwarded-for', req.headers.get('x-forwarded-for') ?? '');
   const upstream = await fetch(url, {
     method: req.method,
     headers,

@@ -60,10 +60,12 @@ resource "random_password" "auth" {
 resource "aws_elasticache_parameter_group" "this" {
   name   = "${var.name}-redis7"
   family = "redis7"
-  # BullMQ needs no eviction of its keys; caches carry their own TTLs.
+  # BullMQ requires noeviction (a dropped job key corrupts a queue); caches
+  # carry their own TTLs, so memory pressure shows up as the redis-memory
+  # alarm instead of silent data loss.
   parameter {
     name  = "maxmemory-policy"
-    value = "volatile-lru"
+    value = "noeviction"
   }
   tags = var.tags
 }

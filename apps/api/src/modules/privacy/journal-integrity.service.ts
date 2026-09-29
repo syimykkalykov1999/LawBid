@@ -9,6 +9,9 @@ import {
 
 /** Random cases checked on top of the day's changed ones. */
 const SAMPLE = 200;
+/** Upper bound of changed cases per run (load review): the rest is picked
+ * up by the next night; a break is still found within days. */
+const MAX_CHANGED = 5_000;
 
 export interface IntegrityRunResult {
   checked: number;
@@ -37,9 +40,12 @@ export class JournalIntegrityService {
       where: { created_at: { gte: since } },
       select: { case_id: true },
       distinct: ['case_id'],
+      take: MAX_CHANGED,
     });
+    // A random UUID range instead of ORDER BY random() (no full sort).
     const sample = await this.prisma.$queryRaw<{ id: string }[]>`
-      SELECT id::STRING AS id FROM cases ORDER BY random() LIMIT ${SAMPLE}`;
+      SELECT id::STRING AS id FROM cases
+      WHERE id >= gen_random_uuid() ORDER BY id LIMIT ${SAMPLE}`;
     const ids = new Set<string>([
       ...changed.map((r) => r.case_id),
       ...sample.map((r) => r.id),

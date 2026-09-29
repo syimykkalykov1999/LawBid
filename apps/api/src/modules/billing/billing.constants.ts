@@ -14,7 +14,8 @@ export const TRIAL_REMINDER_JOB = 'trial-reminder';
 /** §1.5 "5 повторов с backoff, затем dead-letter". */
 export const WEBHOOK_JOB_OPTS = {
   attempts: 5,
-  backoff: { type: 'exponential', delay: 3_000 },
+  // 15 s → 30 s → 60 s → 120 s (≈ 4 min): a Stripe 429 burst is not a DLQ.
+  backoff: { type: 'exponential', delay: 15_000 },
   removeOnComplete: { count: 5_000 },
   removeOnFail: { count: 5_000 },
 } as const;

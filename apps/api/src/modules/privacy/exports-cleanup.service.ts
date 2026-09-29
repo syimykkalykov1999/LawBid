@@ -21,9 +21,28 @@ export class ExportsCleanupService {
     this.logger.setContext(ExportsCleanupService.name);
   }
 
+  /** Load review: processed Stripe webhook payloads older than 30 days are
+   * not needed (the row's idempotency job is long gone); trimmed in
+   * batches so the table does not grow forever. */
+  private async pruneWebhookEvents(now: Date): Promise<number> {
+    const before = new Date(now.getTime() - 30 * 24 * 3600 * 1000);
+    let removed = 0;
+    for (;;) {
+      const n = await this.prisma.$executeRaw`
+        DELETE FROM stripe_webhook_events
+        WHERE processed_at IS NOT NULL AND processed_at < ${before}
+        ORDER BY processed_at
+        LIMIT 5000`;
+      removed += n;
+      if (n < 5000) break;
+    }
+    return removed;
+  }
+
   async run(
     now: Date = new Date(),
-  ): Promise<{ expired: number; failed: number }> {
+  ): Promise<{ expired: number; failed: number; webhookEvents: number }> {
+    const webhookEvents = await this.pruneWebhookEvents(now);
     const due = await this.prisma.dataExportJob.findMany({
       where: { status: 'ready', expires_at: { lt: now } },
       include: {
@@ -55,8 +74,8 @@ export class ExportsCleanupService {
       },
       data: { status: 'failed', error: 'stale' },
     });
-    if (expired || failed)
-      this.logger.info({ expired, failed }, 'exports cleanup');
-    return { expired, failed };
+    if (expired || failed || webhookEvents)
+      this.logger.info({ expired, failed, webhookEvents }, 'exports cleanup');
+    return { expired, failed, webhookEvents };
   }
 }

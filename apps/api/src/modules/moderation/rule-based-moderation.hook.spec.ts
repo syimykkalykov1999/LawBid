@@ -27,6 +27,26 @@ function hook(overrides: Partial<Record<string, unknown>> = {}) {
       return Promise.resolve(n);
     },
     expire: () => Promise.resolve(1),
+    // The hook counts through MULTI (INCR + EXPIRE atomically).
+    multi() {
+      const ops: (() => Promise<unknown>)[] = [];
+      const chain = {
+        incr: (k: string) => {
+          ops.push(() => redis.incr(k));
+          return chain;
+        },
+        expire: () => {
+          ops.push(() => Promise.resolve(1));
+          return chain;
+        },
+        exec: async () => {
+          const out: [null, unknown][] = [];
+          for (const op of ops) out.push([null, await op()]);
+          return out;
+        },
+      };
+      return chain;
+    },
   } as unknown as Redis;
   return new RuleBasedModerationHook(settings, redis);
 }

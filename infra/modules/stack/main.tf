@@ -18,6 +18,19 @@ variable "vpc_cidr" {
   type    = string
   default = "10.20.0.0/16"
 }
+variable "nat_per_az" {
+  type    = bool
+  default = true
+}
+variable "interface_endpoints" {
+  type    = list(string)
+  default = ["ecr.api", "ecr.dkr", "logs", "secretsmanager", "kms"]
+}
+variable "admin_allowed_cidrs" {
+  type        = list(string)
+  default     = []
+  description = "When set, admin.<domain> answers only these CIDRs (WAF); empty = open, 2FA only."
+}
 variable "domain" { type = string }
 variable "api_host" { type = string }
 variable "admin_host" { type = string }
@@ -127,11 +140,13 @@ module "kms_replica" {
 }
 
 module "network" {
-  source = "../network"
-  name   = local.name
-  cidr   = var.vpc_cidr
-  azs    = var.azs
-  tags   = local.tags
+  source              = "../network"
+  name                = local.name
+  cidr                = var.vpc_cidr
+  azs                 = var.azs
+  nat_per_az          = var.nat_per_az
+  interface_endpoints = var.interface_endpoints
+  tags                = local.tags
 }
 
 module "s3" {
@@ -160,6 +175,7 @@ module "alb" {
   api_host              = var.api_host
   admin_host            = var.admin_host
   waf_rate_limit_per_5m = var.waf_rate_limit_per_5m
+  admin_allowed_cidrs   = var.admin_allowed_cidrs
   tags                  = local.tags
 }
 
@@ -243,11 +259,12 @@ module "ecs" {
   api_env                 = local.api_env
   admin_env = {
     NODE_ENV      = "production"
-    API_BASE_URL  = "https:///api/v1"
+    API_BASE_URL  = "https://${var.api_host}/api/v1"
     COOKIE_SECURE = "true"
   }
   secret_arns                      = local.app_secret_arns
   migrator_database_url_secret_arn = module.secrets.arns["MIGRATOR_DATABASE_URL"]
+  alb_resource_label               = "${module.alb.arn_suffix}/${module.alb.api_target_group_arn_suffix}"
   api_max_tasks                    = var.api_max_tasks
   worker_max_tasks                 = var.worker_max_tasks
   tags                             = local.tags

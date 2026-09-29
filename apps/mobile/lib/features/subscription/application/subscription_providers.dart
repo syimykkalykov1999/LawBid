@@ -177,6 +177,9 @@ class SubscribeController extends Notifier<SubscribeState> {
       }
 
       overview = await _settle(repo, overview);
+      // The screen may be gone by now (autoDispose): the server has the
+      // result, nothing to show here.
+      if (!ref.mounted) return SubscribeOutcome.pendingConfirmation;
       ref.read(subscriptionOverviewProvider.notifier).apply(overview);
       _phase(SubscribePhase.idle);
       final s = overview.subscription;

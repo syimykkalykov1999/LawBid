@@ -31,10 +31,34 @@ export const WRITE_THRESHOLDS = {
   checks: ['rate>0.995'],
 };
 
-/** smoke: does it work; peak: 5k RPS for 10 min; soak: 1 hour at 60 %. */
-export function stages(kind = 'read') {
+/** docs/06 §9.4: 5 000 RPS peak, split across the scenarios of all.js by
+ * weight (a single-scenario run gets the whole budget). */
+export const PEAK_RPS = Number(__ENV.PEAK_RPS || 5000);
+export const WEIGHTS = {
+  feed: 0.4,
+  search: 0.15,
+  cases: 0.2,
+  bid: 0.05,
+  message: 0.1,
+  login: 0.02,
+  webhook: 0.01,
+};
+
+/** Paid or rate-limited flows (OTP → SMS/email, Stripe test-mode reads)
+ * run only when the operator confirms staging uses the mock providers. */
+export function requirePaidFlowsAllowed(name) {
+  if (__ENV.STAGING_MOCK_PROVIDERS !== '1') {
+    throw new Error(
+      `: set STAGING_MOCK_PROVIDERS=1 only when SMS_PROVIDER/EMAIL_PROVIDER are mock and Stripe is test mode`,
+    );
+  }
+}
+
+/** smoke: does it work; peak: the weighted share of 5k RPS for 10 min;
+ * soak: 1 hour at 60 %. */
+export function stages(kind = 'read', weight = 1) {
   const stage = __ENV.STAGE || 'smoke';
-  const peak = kind === 'read' ? 3500 : 1500; // 5k RPS shared across kinds
+  const peak = Math.max(1, Math.round(PEAK_RPS * weight));
   if (stage === 'peak') {
     return {
       executor: 'ramping-arrival-rate',

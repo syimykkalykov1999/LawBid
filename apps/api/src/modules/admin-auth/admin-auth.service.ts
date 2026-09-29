@@ -37,6 +37,8 @@ import {
 
 const TICKET_TTL_SECONDS = 5 * 60;
 const TICKET_MAX_ATTEMPTS = 5;
+/** A TOTP code stays unusable for the whole ±1-step window it is valid in. */
+const TOTP_REPLAY_WINDOW_SECONDS = 95;
 const RECOVERY_CODES = 10;
 const LOGIN_START_PER_EMAIL_PER_HOUR = 5;
 const LOGIN_VERIFY_PER_EMAIL_PER_HOUR = 10;
@@ -171,7 +173,20 @@ export class AdminAuthService {
     if (!verifyTotp(secret, code)) {
       await this.failAttempt(jti, ErrorCode.ADMIN_TOTP_INVALID);
     }
-    await this.redis.del(this.ticketKey(jti));
+    // Security review: a code is single-use inside its ±1-step window
+    // (RFC 6238 §5.2), and the ticket is consumed atomically so two
+    // parallel requests cannot both turn into sessions.
+    const fresh = await this.redis.set(
+      `adm:totp:used:${admin.id}:${code}`,
+      '1',
+      'EX',
+      TOTP_REPLAY_WINDOW_SECONDS,
+      'NX',
+    );
+    if (fresh !== 'OK') {
+      await this.failAttempt(jti, ErrorCode.ADMIN_TOTP_INVALID);
+    }
+    await this.consumeTicket(jti);
 
     let recoveryCodes: string[] | undefined;
     if (!cred.totp_enabled_at) {
@@ -211,12 +226,15 @@ export class AdminAuthService {
     if (!cred.totp_enabled_at || !cred.recovery_codes_hash.includes(hash)) {
       await this.failAttempt(jti, ErrorCode.ADMIN_RECOVERY_CODE_INVALID);
     }
-    await this.redis.del(this.ticketKey(jti));
+    await this.consumeTicket(jti);
     const remaining = cred.recovery_codes_hash.filter((h) => h !== hash);
-    await this.prisma.adminCredential.update({
-      where: { user_id: admin.id },
+    // Conditional: the code must still be in the list when we remove it, so
+    // two concurrent requests with one code cannot both succeed.
+    const { count } = await this.prisma.adminCredential.updateMany({
+      where: { user_id: admin.id, recovery_codes_hash: { has: hash } },
       data: { recovery_codes_hash: remaining, last_login_at: new Date() },
     });
+    if (count === 0) throw ticketInvalid();
     await this.audit.record({
       adminId: admin.id,
       action: ADMIN_AUDIT.recoveryUsed,
@@ -335,6 +353,12 @@ export class AdminAuthService {
         admin_role: user.admin_profile.admin_role,
       } satisfies AdminRow,
     };
+  }
+
+  /** Consumes the ticket exactly once (DEL returns 0 for a lost race). */
+  private async consumeTicket(jti: string): Promise<void> {
+    if ((await this.redis.del(this.ticketKey(jti))) === 0)
+      throw ticketInvalid();
   }
 
   /** Counts a wrong second factor; the 5th burns the ticket. */

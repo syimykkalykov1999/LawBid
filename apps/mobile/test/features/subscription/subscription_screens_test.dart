@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/l10n/app_language.dart';
+import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
@@ -233,6 +235,15 @@ void main() {
           theme: AppTheme.dark(), textScale: 2);
       expect(tester.takeException(), isNull);
       expect(find.byType(PlanCard), findsOneWidget);
+    });
+  });
+
+  group('subscriptionPrice', () {
+    test('whole dollars without cents, exact amount otherwise', () {
+      final formats = L10nFormats(AppLanguage.en);
+      expect(subscriptionPrice(formats, 39900), '\$399');
+      expect(subscriptionPrice(formats, 39950), '\$399.50');
+      expect(subscriptionPrice(formats, 5), '\$0.05');
     });
   });
 

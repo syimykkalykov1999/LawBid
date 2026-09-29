@@ -54,6 +54,7 @@ class _ExportBody extends ConsumerWidget {
   Future<void> _download(BuildContext context, Translator t, String url) async {
     final uri = Uri.tryParse(url);
     if (uri == null ||
+        uri.scheme != 'https' ||
         !await launchUrl(uri, mode: LaunchMode.externalApplication)) {
       if (context.mounted) {
         showAppSnackBar(context, t.t('dataExport.cantOpen'));

@@ -74,8 +74,14 @@ export class RuleBasedModerationHook implements ContentModerationHook {
         .digest('hex')
         .slice(0, 32)}`;
       try {
-        const seen = await this.redis.incr(key);
-        if (seen === 1) await this.redis.expire(key, windowHours * 3600);
+        // One round trip and atomic (a crash between INCR and EXPIRE would
+        // leave an immortal key).
+        const [[, seenRaw]] = (await this.redis
+          .multi()
+          .incr(key)
+          .expire(key, windowHours * 3600, 'NX')
+          .exec()) ?? [[null, 0]];
+        const seen = Number(seenRaw);
         if (seen > 1) verdict = 'hold';
       } catch {
         // Redis unavailable: skip the duplicate rule (best effort).

@@ -74,6 +74,14 @@ variable "worker_max_tasks" {
   type    = number
   default = 10
 }
+variable "alb_resource_label" {
+  type        = string
+  description = "<alb arn_suffix>/<api target group arn_suffix> for ALBRequestCountPerTarget scaling."
+}
+variable "api_requests_per_task" {
+  type    = number
+  default = 200
+}
 variable "log_retention_days" {
   type    = number
   default = 30
@@ -158,6 +166,14 @@ resource "aws_iam_role" "task" {
   tags               = var.tags
 }
 
+# Admin and migrate tasks carry no application permissions (security
+# review): the admin only talks to the API, the migrate task only to the DB.
+resource "aws_iam_role" "task_minimal" {
+  name               = "${var.name}-ecs-task-minimal"
+  assume_role_policy = data.aws_iam_policy_document.ecs_assume.json
+  tags               = var.tags
+}
+
 # --- task definitions ----------------------------------------------------
 locals {
   api_environment = [for k, v in var.api_env : { name = k, value = v }]
@@ -229,7 +245,7 @@ resource "aws_ecs_task_definition" "admin" {
   cpu                      = var.admin_cpu
   memory                   = var.admin_memory
   execution_role_arn       = aws_iam_role.execution.arn
-  task_role_arn            = aws_iam_role.task.arn
+  task_role_arn            = aws_iam_role.task_minimal.arn
   container_definitions = jsonencode([{
     name         = "admin"
     image        = var.admin_image
@@ -258,7 +274,7 @@ resource "aws_ecs_task_definition" "migrate" {
   cpu                      = 512
   memory                   = 1024
   execution_role_arn       = aws_iam_role.execution.arn
-  task_role_arn            = aws_iam_role.task.arn
+  task_role_arn            = aws_iam_role.task_minimal.arn
   container_definitions = jsonencode([{
     name             = "migrate"
     image            = var.api_image
@@ -396,3 +412,22 @@ output "worker_service_name" { value = aws_ecs_service.worker.name }
 output "admin_service_name" { value = aws_ecs_service.admin.name }
 output "migrate_task_definition_arn" { value = aws_ecs_task_definition.migrate.arn }
 output "log_group_names" { value = { for k, g in aws_cloudwatch_log_group.svc : k => g.name } }
+
+# Load review: CPU alone lags a traffic spike; requests per task scales
+# out before saturation (both policies apply, the higher desired count wins).
+resource "aws_appautoscaling_policy" "api_requests" {
+  name               = "${var.name}-api-requests"
+  policy_type        = "TargetTrackingScaling"
+  service_namespace  = aws_appautoscaling_target.svc["api"].service_namespace
+  scalable_dimension = aws_appautoscaling_target.svc["api"].scalable_dimension
+  resource_id        = aws_appautoscaling_target.svc["api"].resource_id
+  target_tracking_scaling_policy_configuration {
+    target_value       = var.api_requests_per_task
+    scale_in_cooldown  = 300
+    scale_out_cooldown = 60
+    predefined_metric_specification {
+      predefined_metric_type = "ALBRequestCountPerTarget"
+      resource_label         = var.alb_resource_label
+    }
+  }
+}

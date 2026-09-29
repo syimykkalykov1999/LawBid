@@ -26,7 +26,10 @@ k6 run -e STAGE=soak apps/api/k6/all.js        # every scenario, 1 hour
 | `chat.js` | `POST /conversations/:id/messages` + Socket.IO connect/subscribe | write + ws |
 | `otp-login.js` | `POST /auth/otp/request` → `/auth/otp/verify` (fixed code, staging) | write |
 | `webhooks.js` | `POST /webhooks/stripe` signed with the staging secret | write |
-| `all.js` | the above as parallel scenarios; `STAGE=smoke|peak|soak` | mixed |
+| `all.js` | the above as parallel scenarios sharing the 5k RPS budget by weight (`lib/config.js` WEIGHTS); `STAGE=smoke|peak|soak` | mixed |
+
+`otp-login.js` and `webhooks.js` refuse to start without
+`STAGING_MOCK_PROVIDERS=1` (mock SMS/email, Stripe test mode).
 
 Every script exports the same `thresholds` (`lib/config.js`): p95 by kind,
 error rate, and `checks` > 99.5 %. Write flows use disposable load

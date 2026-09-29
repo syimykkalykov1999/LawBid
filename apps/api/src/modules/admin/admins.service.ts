@@ -119,6 +119,9 @@ export class AdminsService {
     const updated = await withTxRetry(this.prisma, async (tx) => {
       const before = await this.load(tx, id);
       if (before.admin_profile?.admin_role === role) return before;
+      if (before.admin_profile?.admin_role === 'super_admin') {
+        await assertNotLastSuperAdmin(tx, id);
+      }
       const after = await tx.user.update({
         where: { id },
         data: { admin_profile: { update: { admin_role: role } } },
@@ -153,6 +156,9 @@ export class AdminsService {
     const updated = await withTxRetry(this.prisma, async (tx) => {
       const before = await this.load(tx, id);
       if (before.status === status) return before;
+      if (!enabled && before.admin_profile?.admin_role === 'super_admin') {
+        await assertNotLastSuperAdmin(tx, id);
+      }
       const after = await tx.user.update({
         where: { id },
         data: { status },
@@ -237,3 +243,27 @@ const cannotTargetSelf = () =>
     code: ErrorCode.FORBIDDEN,
     message: 'You cannot change your own admin account.',
   });
+
+/** Security review: the last active super_admin can be neither demoted
+ * nor disabled — otherwise nobody could manage admins any more. */
+const lastSuperAdmin = () =>
+  new ForbiddenException({
+    code: ErrorCode.FORBIDDEN,
+    message: 'This is the last active super_admin.',
+  });
+
+async function assertNotLastSuperAdmin(
+  tx: Prisma.TransactionClient,
+  id: string,
+): Promise<void> {
+  const others = await tx.user.count({
+    where: {
+      id: { not: id },
+      role: 'admin',
+      status: 'active',
+      deleted_at: null,
+      admin_profile: { admin_role: 'super_admin' },
+    },
+  });
+  if (others === 0) throw lastSuperAdmin();
+}

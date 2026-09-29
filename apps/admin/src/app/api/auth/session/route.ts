@@ -33,7 +33,11 @@ export async function POST(req: Request): Promise<Response> {
     ),
     cache: 'no-store',
   });
-  const payload = (await upstream.json()) as {
+  // A non-JSON upstream answer (ALB 502, gateway timeout) must not turn
+  // into an unhandled 500 here.
+  const payload = (await upstream.json().catch(() => ({
+    error: { code: 'UPSTREAM_UNAVAILABLE', message: 'The API did not answer.' },
+  }))) as {
     data?: { accessToken: string; admin: unknown; recoveryCodes?: string[] };
   };
   if (!upstream.ok || !payload.data) {

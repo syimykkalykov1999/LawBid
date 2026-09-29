@@ -353,15 +353,16 @@ describe('stage 6.2 — admin auth, RBAC, audit, admins, dashboard (e2e)', () =>
     expect(rows[2].ip).toBeTruthy();
   });
 
-  it('auto-audits successful mutating admin requests only (rejected import: nothing; logout: a row)', async () => {
+  it('auto-audits mutating admin requests, failed ones with outcome=failed (security review); logout: a row', async () => {
     const sup = await adminSession(baseUrl, prisma, 'super_admin');
     await api()
       .post('/api/v1/admin/i18n/import?mode=dry-run')
       .set(sup.auth)
       .expect(400);
-    expect(
-      (await actions(sup.userId)).filter((a) => a.startsWith('admin.post')),
-    ).toEqual([]);
+    const rejected = await prisma.auditLog.findFirst({
+      where: { admin_id: sup.userId, action: 'admin.post admin/i18n/import' },
+    });
+    expect(rejected?.after).toEqual({ outcome: 'failed', status: 400 });
     await api().post('/api/v1/admin/auth/logout').set(sup.auth).expect(200);
     await api().get('/api/v1/admin/auth/me').set(sup.auth).expect(401);
     expect(await actions(sup.userId)).toContain('admin.logout');

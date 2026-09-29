@@ -122,7 +122,11 @@ export class BillingRunner implements OnApplicationBootstrap, OnModuleDestroy {
         await this.dlq?.add(
           'dead',
           { eventId: row.stripe_event_id, error: String(e) },
-          { jobId: row.stripe_event_id },
+          {
+            jobId: row.stripe_event_id,
+            removeOnComplete: { count: 5_000 },
+            removeOnFail: { count: 5_000 },
+          },
         );
       }
       throw e;

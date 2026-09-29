@@ -89,3 +89,10 @@ After the first apply:
 - Redis and CockroachDB are private (no public endpoints); the tasks reach
   AWS APIs through VPC endpoints and the internet (Stripe, Twilio, FCM)
   through the NAT gateways.
+
+## State and secrets
+
+The state contains the generated Redis AUTH token (`random_password`).
+The state bucket must be SSE-KMS encrypted with access limited to the
+deploy role and the owner; never commit `terraform.tfstate` or copy it
+into tickets. All other secret values are set outside Terraform.

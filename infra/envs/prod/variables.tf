@@ -75,3 +75,16 @@ variable "p95_target_ms" {
   type    = number
   default = 600
 }
+variable "nat_per_az" {
+  type    = bool
+  default = true
+}
+variable "interface_endpoints" {
+  type    = list(string)
+  default = ["ecr.api", "ecr.dkr", "logs", "secretsmanager", "kms"]
+}
+# Security review: restrict the admin host to the office/VPN ranges once known.
+variable "admin_allowed_cidrs" {
+  type    = list(string)
+  default = []
+}

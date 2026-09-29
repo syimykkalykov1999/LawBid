@@ -13,6 +13,15 @@ variable "cidr" {
   default = "10.20.0.0/16"
 }
 variable "azs" { type = list(string) }
+variable "nat_per_az" {
+  type        = bool
+  default     = true
+  description = "false = one NAT gateway (staging cost); true = one per AZ (prod availability)."
+}
+variable "interface_endpoints" {
+  type    = list(string)
+  default = ["ecr.api", "ecr.dkr", "logs", "secretsmanager", "kms"]
+}
 variable "tags" {
   type    = map(string)
   default = {}
@@ -48,14 +57,14 @@ resource "aws_subnet" "private" {
 }
 
 resource "aws_eip" "nat" {
-  count  = length(var.azs)
+  count  = var.nat_per_az ? length(var.azs) : 1
   domain = "vpc"
   tags   = merge(var.tags, { Name = "${var.name}-nat-${count.index}" })
 }
 
 # One NAT per AZ: an AZ outage never takes the other AZ's egress with it.
 resource "aws_nat_gateway" "this" {
-  count         = length(var.azs)
+  count         = var.nat_per_az ? length(var.azs) : 1
   allocation_id = aws_eip.nat[count.index].id
   subnet_id     = aws_subnet.public[count.index].id
   tags          = merge(var.tags, { Name = "${var.name}-nat-${count.index}" })
@@ -82,7 +91,7 @@ resource "aws_route_table" "private" {
   vpc_id = aws_vpc.this.id
   route {
     cidr_block     = "0.0.0.0/0"
-    nat_gateway_id = aws_nat_gateway.this[count.index].id
+    nat_gateway_id = aws_nat_gateway.this[var.nat_per_az ? count.index : 0].id
   }
   tags = merge(var.tags, { Name = "${var.name}-private-${count.index}" })
 }
@@ -123,7 +132,7 @@ resource "aws_vpc_endpoint" "s3" {
 }
 
 resource "aws_vpc_endpoint" "interface" {
-  for_each = toset(["ecr.api", "ecr.dkr", "logs", "secretsmanager", "kms"])
+  for_each = toset(var.interface_endpoints)
 
   vpc_id              = aws_vpc.this.id
   service_name        = "com.amazonaws.${data.aws_region.current.name}.${each.key}"

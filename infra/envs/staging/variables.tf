@@ -75,3 +75,17 @@ variable "p95_target_ms" {
   type    = number
   default = 600
 }
+# Load/cost review: staging runs one NAT and skips the KMS/Secrets Manager
+# interface endpoints (reachable through the NAT), prod keeps one NAT per AZ.
+variable "nat_per_az" {
+  type    = bool
+  default = false
+}
+variable "interface_endpoints" {
+  type    = list(string)
+  default = ["ecr.api", "ecr.dkr", "logs"]
+}
+variable "admin_allowed_cidrs" {
+  type    = list(string)
+  default = []
+}

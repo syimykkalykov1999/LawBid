@@ -87,6 +87,23 @@ export class AccountAnonymizationService {
     return result;
   }
 
+  /** Own messages → `[deleted]` (§5.1), 5 000 rows per statement so the
+   * largest table is never locked for long; idempotent (already scrubbed
+   * rows are skipped). */
+  private async scrubMessages(userId: string): Promise<void> {
+    for (;;) {
+      const n = await this.prisma.$executeRaw`
+        UPDATE messages
+        SET body_original = ${DELETED_MESSAGE_BODY},
+            body_display = ${DELETED_MESSAGE_BODY},
+            contact_masked = false
+        WHERE sender_id = ${userId}::UUID
+          AND body_display <> ${DELETED_MESSAGE_BODY}
+        LIMIT 5000`;
+      if (n < 5000) break;
+    }
+  }
+
   /** Anonymizes one user (idempotent: a second run is a no-op). */
   async anonymize(userId: string, now: Date = new Date()): Promise<boolean> {
     const user = await this.prisma.user.findUnique({
@@ -110,7 +127,15 @@ export class AccountAnonymizationService {
       sub?.stripe_subscription_id &&
       !['canceled', 'expired'].includes(sub.status)
     ) {
-      const remote = await this.payments.cancelNow(sub.stripe_subscription_id);
+      // Idempotent on retry (load review): a subscription the provider
+      // already shows as canceled is only synced, never canceled again.
+      const current = await this.payments.retrieveSubscription(
+        sub.stripe_subscription_id,
+      );
+      const remote =
+        current && current.status === 'canceled'
+          ? current
+          : await this.payments.cancelNow(sub.stripe_subscription_id);
       await this.sync.apply(remote);
     }
 
@@ -215,18 +240,18 @@ export class AccountAnonymizationService {
         });
       }
       // Comments keep their rows: the author renders as "Deleted User"
-      // through the scrubbed user row (§5.1).
-      await tx.message.updateMany({
-        where: { sender_id: userId },
-        data: {
-          body_original: DELETED_MESSAGE_BODY,
-          body_display: DELETED_MESSAGE_BODY,
-          contact_masked: false,
-        },
+      // through the scrubbed user row (§5.1). Messages are scrubbed in
+      // batches after this transaction (largest table, load review).
+      // Verification provider payloads may hold the person's name (§5.1
+      // "ID-документы удаляются"): emptied, the row itself stays.
+      await tx.verificationCheck.updateMany({
+        where: { request: { attorney_id: userId } },
+        data: { details: {} },
       });
       return active.map((s) => s.session_chain_id);
     });
 
+    await this.scrubMessages(userId);
     // Access tokens of the revoked chains die within their 15 minutes.
     if (chains.length > 0) {
       await Promise.all(

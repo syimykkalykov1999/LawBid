@@ -591,6 +591,21 @@ export const envSchema = z
     }
 
     if (isDeployedEnv(env.NODE_ENV)) {
+      // docs/06 §1.5 / security review: a deployed API must never fall back to
+      // the fake payment provider (it accepts `Stripe-Signature: fake`).
+      for (const key of [
+        'STRIPE_SECRET_KEY',
+        'STRIPE_WEBHOOK_SECRET',
+        'STRIPE_PRICE_ID',
+      ] as const) {
+        if (!env[key]) {
+          ctx.addIssue({
+            code: 'custom',
+            path: [key],
+            message: ` is required in NODE_ENV= (the fake payment provider is dev/test only)`,
+          });
+        }
+      }
       if (env.S3_ENDPOINT) {
         ctx.addIssue({
           code: 'custom',

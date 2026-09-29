@@ -17,6 +17,10 @@ variable "waf_rate_limit_per_5m" {
   type    = number
   default = 3000
 }
+variable "admin_allowed_cidrs" {
+  type    = list(string)
+  default = []
+}
 variable "access_logs_bucket" {
   type    = string
   default = null
@@ -169,11 +173,61 @@ resource "aws_lb_listener_rule" "admin" {
 }
 
 # --- WAF ----------------------------------------------------------------
+resource "aws_wafv2_ip_set" "admin" {
+  count              = length(var.admin_allowed_cidrs) > 0 ? 1 : 0
+  name               = "${var.name}-admin-allow"
+  scope              = "REGIONAL"
+  ip_address_version = "IPV4"
+  addresses          = var.admin_allowed_cidrs
+  tags               = var.tags
+}
+
 resource "aws_wafv2_web_acl" "this" {
   name  = "${var.name}-waf"
   scope = "REGIONAL"
   default_action {
     allow {}
+  }
+
+  # Security review: admin.<domain> only from the allow-list when one is set.
+  dynamic "rule" {
+    for_each = length(var.admin_allowed_cidrs) > 0 ? [1] : []
+    content {
+      name     = "admin-allow-list"
+      priority = 0
+      action {
+        block {}
+      }
+      statement {
+        and_statement {
+          statement {
+            byte_match_statement {
+              search_string         = var.admin_host
+              positional_constraint = "EXACTLY"
+              field_to_match {
+                single_header { name = "host" }
+              }
+              text_transformation {
+                priority = 0
+                type     = "LOWERCASE"
+              }
+            }
+          }
+          statement {
+            not_statement {
+              statement {
+                ip_set_reference_statement { arn = aws_wafv2_ip_set.admin[0].arn }
+              }
+            }
+          }
+        }
+      }
+      visibility_config {
+        cloudwatch_metrics_enabled = true
+        metric_name                = "${var.name}-admin-allow-list"
+        sampled_requests_enabled   = true
+      }
+    }
   }
 
   rule {

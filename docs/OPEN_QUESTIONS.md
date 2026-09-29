@@ -424,3 +424,20 @@ Decision taken: a third ECS Fargate service `admin` (Next.js standalone
 image, `apps/admin/Dockerfile`) behind the same ALB on `admin.<domain>`;
 CloudFront stays for media. Revisit only if the owner wants a static
 admin (would require moving the token to the browser).
+
+## OQ-024 — Admin audit IP behind the admin service (file 06 review)
+The admin panel calls the API server-side. The API trusts one proxy hop
+(`TRUST_PROXY_HOPS=1`), so the audited IP and the per-IP admin login limit
+see the admin service's NAT address, not the operator's. The proxy no
+longer forwards a client-supplied `X-Forwarded-For` (spoofable). Options
+for the owner: an internal ALB path for admin → API with
+`TRUST_PROXY_HOPS=2`, or accept NAT-level IPs in `audit_log` (the per-email
+login limit still applies).
+
+## OQ-025 — Data kept after anonymization (file 06 review)
+docs/06 §5.1 names what is scrubbed; the anonymizer additionally empties
+verification provider payloads (`verification_checks.details`). Left as
+they are, on purpose: attorney bar numbers (`attorney_licenses`),
+verification request rows (regulatory trail, files already deleted),
+client-authored case text and bid messages (business records tied to the
+counterpart). Confirm with counsel before launch.
