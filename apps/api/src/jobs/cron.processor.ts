@@ -17,6 +17,7 @@ import { CountersReconcileJob } from './handlers/counters-reconcile.job';
 import { FeedRecoJob } from '../modules/feed/feed-reco.job';
 import { TrendingTagsJob } from '../modules/search/trending-tags.job';
 import { NotificationsRetentionJob } from './handlers/notifications-retention.job';
+import { OpsMetricsJob } from './handlers/ops-metrics.job';
 import { AccountAnonymizationService } from '../modules/privacy/account-anonymization.service';
 import { ExportsCleanupService } from '../modules/privacy/exports-cleanup.service';
 import { JournalIntegrityService } from '../modules/privacy/journal-integrity.service';
@@ -46,6 +47,7 @@ export class CronProcessor {
     private readonly journalRetention: JournalRetentionService,
     private readonly journalIntegrity: JournalIntegrityService,
     private readonly exportsCleanup: ExportsCleanupService,
+    private readonly opsMetrics: OpsMetricsJob,
   ) {}
 
   async process(name: string): Promise<unknown> {
@@ -88,6 +90,10 @@ export class CronProcessor {
         return this.journalIntegrity.run();
       case CRON_JOBS.exportsCleanup:
         return this.exportsCleanup.run();
+      case CRON_JOBS.opsQueueMetrics:
+        return this.opsMetrics.queueDepths();
+      case CRON_JOBS.opsBusinessMetrics:
+        return this.opsMetrics.businessCounters();
       default:
         // A job left over from an older/newer release: fail it visibly
         // rather than "succeed" doing nothing.

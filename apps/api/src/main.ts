@@ -1,3 +1,8 @@
+// Tracing must be wired before any instrumented module is required.
+import { startTelemetry } from './telemetry/otel';
+
+startTelemetry('api');
+
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';

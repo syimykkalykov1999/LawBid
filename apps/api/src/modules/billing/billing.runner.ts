@@ -116,7 +116,8 @@ export class BillingRunner implements OnApplicationBootstrap, OnModuleDestroy {
       const last = job.attemptsMade + 1 >= (job.opts.attempts ?? 1);
       if (last) {
         this.logger.error(
-          `stripe event ${row.stripe_event_id} (${row.type}) moved to ${STRIPE_WEBHOOKS_DLQ}: ${String(e)}`,
+          { eventId: row.stripe_event_id, type: row.type, err: String(e) },
+          'stripe webhook moved to DLQ',
         );
         await this.dlq?.add(
           'dead',

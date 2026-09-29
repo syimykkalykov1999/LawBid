@@ -1,0 +1,33 @@
+{
+  "title": "LawBid — queues & workers",
+  "uid": "lawbid-queues",
+  "tags": ["lawbid"],
+  "timezone": "utc",
+  "schemaVersion": 39,
+  "templating": { "list": [
+    { "name": "env", "type": "custom", "query": "staging,prod", "current": { "text": "prod", "value": "prod" } },
+    { "name": "region", "type": "custom", "query": "us-east-1", "current": { "text": "us-east-1", "value": "us-east-1" } }
+  ] },
+  "panels": [
+    { "type": "timeseries", "title": "Waiting jobs per queue", "gridPos": { "x": 0, "y": 0, "w": 12, "h": 9 },
+      "targets": [{ "datasource": { "type": "cloudwatch" }, "region": "$region", "namespace": "LawBid/lawbid-$env", "metricName": "QueueWaiting", "statistic": "Maximum", "period": "60", "dimensions": { "queue": "*" } }] },
+    { "type": "timeseries", "title": "Oldest waiting job age (s) per queue", "gridPos": { "x": 12, "y": 0, "w": 12, "h": 9 },
+      "targets": [{ "datasource": { "type": "cloudwatch" }, "region": "$region", "namespace": "LawBid/lawbid-$env", "metricName": "QueueOldestAgeSeconds", "statistic": "Maximum", "period": "60", "dimensions": { "queue": "*" } }],
+      "fieldConfig": { "defaults": { "unit": "s", "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 300 }] } } } },
+    { "type": "timeseries", "title": "Stripe webhooks → DLQ / failed payments", "gridPos": { "x": 0, "y": 9, "w": 12, "h": 8 },
+      "targets": [
+        { "datasource": { "type": "cloudwatch" }, "region": "$region", "namespace": "LawBid/lawbid-$env", "metricName": "StripeWebhookFailed", "statistic": "Sum", "period": "300", "label": "webhooks to DLQ" },
+        { "datasource": { "type": "cloudwatch" }, "region": "$region", "namespace": "LawBid/lawbid-$env", "metricName": "PaymentFailed", "statistic": "Sum", "period": "300", "label": "payments failed" }
+      ] },
+    { "type": "timeseries", "title": "Push failures / SMS sent", "gridPos": { "x": 12, "y": 9, "w": 12, "h": 8 },
+      "targets": [
+        { "datasource": { "type": "cloudwatch" }, "region": "$region", "namespace": "LawBid/lawbid-$env", "metricName": "PushFailed", "statistic": "Sum", "period": "300", "label": "push failed" },
+        { "datasource": { "type": "cloudwatch" }, "region": "$region", "namespace": "LawBid/lawbid-$env", "metricName": "SmsSent", "statistic": "Sum", "period": "300", "label": "sms sent" }
+      ] },
+    { "type": "timeseries", "title": "ECS CPU — worker", "gridPos": { "x": 0, "y": 17, "w": 12, "h": 8 },
+      "targets": [{ "datasource": { "type": "cloudwatch" }, "region": "$region", "namespace": "AWS/ECS", "metricName": "CPUUtilization", "statistic": "Average", "period": "60", "dimensions": { "ClusterName": "lawbid-$env", "ServiceName": "worker" } }] },
+    { "type": "stat", "title": "Journal chain breaks (24 h) — must be 0", "gridPos": { "x": 12, "y": 17, "w": 12, "h": 8 },
+      "targets": [{ "datasource": { "type": "cloudwatch" }, "region": "$region", "namespace": "LawBid/lawbid-$env", "metricName": "JournalChainBroken", "statistic": "Sum", "period": "86400" }],
+      "fieldConfig": { "defaults": { "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] } } } }
+  ]
+}

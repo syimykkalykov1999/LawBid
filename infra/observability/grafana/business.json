@@ -1,0 +1,31 @@
+{
+  "title": "LawBid — business",
+  "uid": "lawbid-business",
+  "tags": ["lawbid"],
+  "timezone": "utc",
+  "schemaVersion": 39,
+  "templating": { "list": [
+    { "name": "env", "type": "custom", "query": "staging,prod", "current": { "text": "prod", "value": "prod" } },
+    { "name": "region", "type": "custom", "query": "us-east-1", "current": { "text": "us-east-1", "value": "us-east-1" } }
+  ] },
+  "panels": [
+    { "type": "stat", "title": "Registrations (24 h)", "gridPos": { "x": 0, "y": 0, "w": 6, "h": 6 },
+      "targets": [{ "datasource": { "type": "cloudwatch" }, "region": "$region", "namespace": "LawBid/lawbid-$env", "metricName": "BusinessRegistrations24h", "statistic": "Maximum", "period": "600" }] },
+    { "type": "stat", "title": "Open cases", "gridPos": { "x": 6, "y": 0, "w": 6, "h": 6 },
+      "targets": [{ "datasource": { "type": "cloudwatch" }, "region": "$region", "namespace": "LawBid/lawbid-$env", "metricName": "BusinessCasesOpen", "statistic": "Maximum", "period": "600" }] },
+    { "type": "stat", "title": "Active bids", "gridPos": { "x": 12, "y": 0, "w": 6, "h": 6 },
+      "targets": [{ "datasource": { "type": "cloudwatch" }, "region": "$region", "namespace": "LawBid/lawbid-$env", "metricName": "BusinessBidsActive", "statistic": "Maximum", "period": "600" }] },
+    { "type": "stat", "title": "Subscriptions active / trialing / past due", "gridPos": { "x": 18, "y": 0, "w": 6, "h": 6 },
+      "targets": [
+        { "datasource": { "type": "cloudwatch" }, "region": "$region", "namespace": "LawBid/lawbid-$env", "metricName": "BusinessSubscriptionsActive", "statistic": "Maximum", "period": "600", "label": "active" },
+        { "datasource": { "type": "cloudwatch" }, "region": "$region", "namespace": "LawBid/lawbid-$env", "metricName": "BusinessSubscriptionsTrialing", "statistic": "Maximum", "period": "600", "label": "trialing" },
+        { "datasource": { "type": "cloudwatch" }, "region": "$region", "namespace": "LawBid/lawbid-$env", "metricName": "BusinessSubscriptionsPastDue", "statistic": "Maximum", "period": "600", "label": "past due" }
+      ] },
+    { "type": "timeseries", "title": "Trend — cases, bids, subscriptions", "gridPos": { "x": 0, "y": 6, "w": 24, "h": 10 },
+      "targets": [
+        { "datasource": { "type": "cloudwatch" }, "region": "$region", "namespace": "LawBid/lawbid-$env", "metricName": "BusinessCasesOpen", "statistic": "Maximum", "period": "600", "label": "open cases" },
+        { "datasource": { "type": "cloudwatch" }, "region": "$region", "namespace": "LawBid/lawbid-$env", "metricName": "BusinessBidsActive", "statistic": "Maximum", "period": "600", "label": "active bids" },
+        { "datasource": { "type": "cloudwatch" }, "region": "$region", "namespace": "LawBid/lawbid-$env", "metricName": "BusinessSubscriptionsActive", "statistic": "Maximum", "period": "600", "label": "active subscriptions" }
+      ] }
+  ]
+}

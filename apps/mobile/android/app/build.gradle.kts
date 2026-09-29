@@ -67,11 +67,23 @@ android {
         }
     }
 
+    signingConfigs {
+        create("upload") {
+            storeFile = System.getenv("ANDROID_KEYSTORE_PATH")?.let { file(it) }
+            storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+            keyAlias = System.getenv("ANDROID_KEY_ALIAS")
+            keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // docs/06 §7.4: the upload keystore comes from the environment
+            // (ANDROID_KEYSTORE_PATH / _PASSWORD / KEY_ALIAS / KEY_PASSWORD, set
+            // by the mobile-release workflow from GitHub Secrets); without it
+            // the debug key keeps `flutter run --release` working locally.
+            signingConfig = if (System.getenv("ANDROID_KEYSTORE_PATH") != null)
+                signingConfigs.getByName("upload") else signingConfigs.getByName("debug")
         }
     }
 }

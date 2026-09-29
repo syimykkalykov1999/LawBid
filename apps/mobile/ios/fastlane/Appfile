@@ -1,0 +1,4 @@
+# docs/06 §7.4. App Store Connect API key via env (ASC_KEY_ID, ASC_ISSUER_ID,
+# ASC_KEY_CONTENT) — see Fastfile; nothing here is a secret.
+app_identifier("com.lawbid.lawbid")
+team_id(ENV["APPLE_TEAM_ID"])

@@ -21,6 +21,7 @@ import { CountersReconcileJob } from './handlers/counters-reconcile.job';
 import { FeedRecoJob } from '../modules/feed/feed-reco.job';
 import { TrendingTagsJob } from '../modules/search/trending-tags.job';
 import { NotificationsRetentionJob } from './handlers/notifications-retention.job';
+import { OpsMetricsJob } from './handlers/ops-metrics.job';
 import { AccountAnonymizationService } from '../modules/privacy/account-anonymization.service';
 import { ExportsCleanupService } from '../modules/privacy/exports-cleanup.service';
 import { JournalIntegrityService } from '../modules/privacy/journal-integrity.service';
@@ -126,6 +127,10 @@ function processor() {
       { run: jest.fn() } as unknown as JournalRetentionService,
       { run: jest.fn() } as unknown as JournalIntegrityService,
       { run: jest.fn() } as unknown as ExportsCleanupService,
+      {
+        queueDepths: jest.fn(),
+        businessCounters: jest.fn(),
+      } as unknown as OpsMetricsJob,
     ),
   };
 }
@@ -149,7 +154,7 @@ describe('JobsRunner', () => {
     });
     const upserts = mocked.__queue.upsertJobScheduler.mock.calls;
     expect(upserts).toHaveLength(CRON_SCHEDULES.length);
-    expect(upserts).toHaveLength(19);
+    expect(upserts).toHaveLength(21);
     const byName = Object.fromEntries(
       upserts.map((c: unknown[]) => [c[0], c[1]]),
     );

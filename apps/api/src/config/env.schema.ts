@@ -462,6 +462,11 @@ export const envSchema = z
     BODY_LIMIT_KB: z.coerce.number().int().min(16).max(10240).default(256),
     REQUEST_TIMEOUT_MS: z.coerce.number().int().min(1000).default(30_000),
     // docs/06 §4.3 (stage 6.1): Sentry with PII scrubbing; off when unset.
+    // docs/06 §8: OpenTelemetry Collector (OTLP/HTTP base URL). Unset = off.
+    OTEL_EXPORTER_OTLP_ENDPOINT: optionalMatching(
+      /^https?:\/\//,
+      'OTEL_EXPORTER_OTLP_ENDPOINT must be an http(s) URL',
+    ),
     SENTRY_DSN: z.string().url().optional(),
     // docs/06 §2.1 (stage 6.2): encrypts admin TOTP secrets at rest
     // (admin_credentials.totp_secret_enc). Admin sign-in is 503 until set.

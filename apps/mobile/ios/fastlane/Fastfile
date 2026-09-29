@@ -1,0 +1,33 @@
+# docs/06 §7.4 — iOS lanes. Signing certificates/profiles come from the
+# App Store Connect API key + `match`-less manual profiles provided by the
+# workflow (MATCH is optional; the owner picks the signing strategy before
+# the first TestFlight upload, docs/06 §11.2).
+default_platform(:ios)
+
+platform :ios do
+  desc "Build the prod IPA (release, scheme prod). Env: BUILD_NUMBER, DART_DEFINES_FILE"
+  lane :build do |options|
+    flavor = options[:flavor] || "prod"
+    sh("cd ../.. && flutter build ipa --release --flavor #{flavor} -t lib/main_#{flavor}.dart " \
+       "--build-number=#{ENV.fetch('BUILD_NUMBER', '1')} " \
+       "--dart-define-from-file=#{ENV.fetch('DART_DEFINES_FILE', "config/#{flavor}.json")} " \
+       "--export-options-plist=ios/ExportOptions.plist")
+  end
+
+  desc "Upload the prod IPA to TestFlight (closed beta, docs/06 §11.2). Owner decides when to run."
+  lane :testflight_upload do
+    api_key = app_store_connect_api_key(
+      key_id: ENV.fetch("ASC_KEY_ID"),
+      issuer_id: ENV.fetch("ASC_ISSUER_ID"),
+      key_content: ENV.fetch("ASC_KEY_CONTENT"),
+      is_key_content_base64: true,
+    )
+    build(flavor: "prod")
+    upload_to_testflight(
+      api_key: api_key,
+      ipa: "../build/ios/ipa/lawbid.ipa",
+      skip_waiting_for_build_processing: true,
+      changelog: ENV.fetch("RELEASE_NOTES", ""),
+    )
+  end
+end

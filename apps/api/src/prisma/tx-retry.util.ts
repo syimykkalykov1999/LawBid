@@ -4,6 +4,14 @@ import {
 } from '@prisma/client/runtime/library';
 import type { Prisma } from '@prisma/client';
 import type { PrismaService } from './prisma.service';
+import pino from 'pino';
+
+// docs/06 §8 "число повторов транзакций (40001)": one JSON line per retry,
+// picked up by the CloudWatch metric filter (infra/modules/monitoring).
+const retryLog = pino({
+  name: 'tx-retry',
+  level: process.env.NODE_ENV === 'test' ? 'silent' : 'info',
+});
 
 /**
  * docs/06_PRODUCTION.md §12 (.cursorrules): "Транзакции с несколькими
@@ -47,6 +55,10 @@ export async function withTxRetry<T>(
       }
       const jitter = Math.random() * baseDelayMs;
       const delay = baseDelayMs * 2 ** (attempt - 1) + jitter;
+      retryLog.info(
+        { attempt, delayMs: Math.round(delay) },
+        'transaction retried',
+      );
       await sleep(delay);
     }
   }

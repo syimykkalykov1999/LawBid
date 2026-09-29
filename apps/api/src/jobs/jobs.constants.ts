@@ -43,6 +43,10 @@ export const CRON_JOBS = {
   journalChainVerify: 'journal.chain-verify',
   /** docs/06 §5.3: expired export files. */
   exportsCleanup: 'exports.cleanup',
+  /** docs/06 §8: queue depth / oldest job age → CloudWatch (log metric). */
+  opsQueueMetrics: 'ops.queue-metrics',
+  /** docs/06 §8: business counters for the Grafana dashboard. */
+  opsBusinessMetrics: 'ops.business-metrics',
 } as const;
 
 export type CronJobName = (typeof CRON_JOBS)[keyof typeof CRON_JOBS];
@@ -81,6 +85,8 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.journalRetention, pattern: '30 2 1 * *' },
   { name: CRON_JOBS.journalChainVerify, pattern: '50 2 * * *' },
   { name: CRON_JOBS.exportsCleanup, pattern: '10 3 * * *' },
+  { name: CRON_JOBS.opsQueueMetrics, pattern: '* * * * *' },
+  { name: CRON_JOBS.opsBusinessMetrics, pattern: '*/10 * * * *' },
 ];
 
 export const DISPOSABLE_DOMAINS_FETCHER = Symbol('DISPOSABLE_DOMAINS_FETCHER');

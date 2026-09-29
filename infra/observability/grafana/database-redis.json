@@ -1,0 +1,24 @@
+{
+  "title": "LawBid — database & Redis",
+  "uid": "lawbid-db",
+  "tags": ["lawbid"],
+  "timezone": "utc",
+  "schemaVersion": 39,
+  "templating": { "list": [
+    { "name": "env", "type": "custom", "query": "staging,prod", "current": { "text": "prod", "value": "prod" } },
+    { "name": "region", "type": "custom", "query": "us-east-1", "current": { "text": "us-east-1", "value": "us-east-1" } }
+  ] },
+  "panels": [
+    { "type": "text", "title": "CockroachDB Cloud", "gridPos": { "x": 0, "y": 0, "w": 24, "h": 3 },
+      "options": { "mode": "markdown", "content": "CockroachDB Cloud metrics (SQL latency, connections, storage, backups) come from the Cloud Console's Prometheus endpoint — add the `cockroachdb` Prometheus data source and the panels below use it; until then use the console. Transaction retries (40001) are on the API health board." } },
+    { "type": "timeseries", "title": "Redis engine CPU (%)", "gridPos": { "x": 0, "y": 3, "w": 8, "h": 8 },
+      "targets": [{ "datasource": { "type": "cloudwatch" }, "region": "$region", "namespace": "AWS/ElastiCache", "metricName": "EngineCPUUtilization", "statistic": "Average", "period": "60", "dimensions": { "ReplicationGroupId": "lawbid-$env-redis" } }] },
+    { "type": "timeseries", "title": "Redis memory (%)", "gridPos": { "x": 8, "y": 3, "w": 8, "h": 8 },
+      "targets": [{ "datasource": { "type": "cloudwatch" }, "region": "$region", "namespace": "AWS/ElastiCache", "metricName": "DatabaseMemoryUsagePercentage", "statistic": "Average", "period": "60", "dimensions": { "ReplicationGroupId": "lawbid-$env-redis" } }] },
+    { "type": "timeseries", "title": "Redis latency (µs) / connections", "gridPos": { "x": 16, "y": 3, "w": 8, "h": 8 },
+      "targets": [
+        { "datasource": { "type": "cloudwatch" }, "region": "$region", "namespace": "AWS/ElastiCache", "metricName": "StringBasedCmdsLatency", "statistic": "Average", "period": "60", "dimensions": { "ReplicationGroupId": "lawbid-$env-redis" }, "label": "string cmds latency" },
+        { "datasource": { "type": "cloudwatch" }, "region": "$region", "namespace": "AWS/ElastiCache", "metricName": "CurrConnections", "statistic": "Average", "period": "60", "dimensions": { "ReplicationGroupId": "lawbid-$env-redis" }, "label": "connections" }
+      ] }
+  ]
+}

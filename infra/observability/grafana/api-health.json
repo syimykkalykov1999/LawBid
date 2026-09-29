@@ -1,0 +1,48 @@
+{
+  "title": "LawBid — API health",
+  "uid": "lawbid-api-health",
+  "tags": ["lawbid"],
+  "timezone": "utc",
+  "schemaVersion": 39,
+  "templating": {
+    "list": [
+      { "name": "env", "type": "custom", "query": "staging,prod", "current": { "text": "prod", "value": "prod" } },
+      { "name": "region", "type": "custom", "query": "us-east-1", "current": { "text": "us-east-1", "value": "us-east-1" } }
+    ]
+  },
+  "panels": [
+    { "type": "timeseries", "title": "Requests / s", "gridPos": { "x": 0, "y": 0, "w": 8, "h": 8 },
+      "targets": [{ "datasource": { "type": "cloudwatch" }, "region": "$region", "namespace": "AWS/ApplicationELB", "metricName": "RequestCount", "statistic": "Sum", "period": "60", "dimensions": { "LoadBalancer": "app/lawbid-$env-alb/*" }, "expression": "", "label": "rps" }],
+      "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "drawStyle": "line" } } } },
+    { "type": "timeseries", "title": "Latency p50 / p95 / p99 (target)", "gridPos": { "x": 8, "y": 0, "w": 8, "h": 8 },
+      "targets": [
+        { "datasource": { "type": "cloudwatch" }, "region": "$region", "namespace": "AWS/ApplicationELB", "metricName": "TargetResponseTime", "statistic": "p50", "period": "60", "dimensions": { "LoadBalancer": "app/lawbid-$env-alb/*" }, "label": "p50" },
+        { "datasource": { "type": "cloudwatch" }, "region": "$region", "namespace": "AWS/ApplicationELB", "metricName": "TargetResponseTime", "statistic": "p95", "period": "60", "dimensions": { "LoadBalancer": "app/lawbid-$env-alb/*" }, "label": "p95" },
+        { "datasource": { "type": "cloudwatch" }, "region": "$region", "namespace": "AWS/ApplicationELB", "metricName": "TargetResponseTime", "statistic": "p99", "period": "60", "dimensions": { "LoadBalancer": "app/lawbid-$env-alb/*" }, "label": "p99" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s", "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 0.3 }, { "color": "red", "value": 0.6 }] } } } },
+    { "type": "timeseries", "title": "5xx share (%)", "gridPos": { "x": 16, "y": 0, "w": 8, "h": 8 },
+      "targets": [
+        { "datasource": { "type": "cloudwatch" }, "region": "$region", "namespace": "AWS/ApplicationELB", "metricName": "HTTPCode_Target_5XX_Count", "statistic": "Sum", "period": "60", "dimensions": { "LoadBalancer": "app/lawbid-$env-alb/*" }, "id": "err", "hide": true },
+        { "datasource": { "type": "cloudwatch" }, "region": "$region", "namespace": "AWS/ApplicationELB", "metricName": "RequestCount", "statistic": "Sum", "period": "60", "dimensions": { "LoadBalancer": "app/lawbid-$env-alb/*" }, "id": "req", "hide": true },
+        { "datasource": { "type": "cloudwatch" }, "region": "$region", "expression": "IF(req > 0, 100 * err / req, 0)", "id": "ratio", "label": "5xx %" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percent", "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] } } } },
+    { "type": "timeseries", "title": "Healthy / unhealthy API tasks", "gridPos": { "x": 0, "y": 8, "w": 8, "h": 8 },
+      "targets": [
+        { "datasource": { "type": "cloudwatch" }, "region": "$region", "namespace": "AWS/ApplicationELB", "metricName": "HealthyHostCount", "statistic": "Average", "period": "60", "dimensions": { "TargetGroup": "targetgroup/lawbid-$env-api/*", "LoadBalancer": "app/lawbid-$env-alb/*" }, "label": "healthy" },
+        { "datasource": { "type": "cloudwatch" }, "region": "$region", "namespace": "AWS/ApplicationELB", "metricName": "UnHealthyHostCount", "statistic": "Maximum", "period": "60", "dimensions": { "TargetGroup": "targetgroup/lawbid-$env-api/*", "LoadBalancer": "app/lawbid-$env-alb/*" }, "label": "unhealthy" }
+      ] },
+    { "type": "timeseries", "title": "WebSocket connections (per task, sum)", "gridPos": { "x": 8, "y": 8, "w": 8, "h": 8 },
+      "targets": [{ "datasource": { "type": "cloudwatch" }, "region": "$region", "namespace": "LawBid/lawbid-$env", "metricName": "WebSocketConnections", "statistic": "Sum", "period": "60", "label": "connections" }] },
+    { "type": "timeseries", "title": "Transaction retries (40001)", "gridPos": { "x": 16, "y": 8, "w": 8, "h": 8 },
+      "targets": [{ "datasource": { "type": "cloudwatch" }, "region": "$region", "namespace": "LawBid/lawbid-$env", "metricName": "TxRetries", "statistic": "Sum", "period": "300", "label": "retries / 5 min" }] },
+    { "type": "timeseries", "title": "ECS CPU / memory — api", "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 },
+      "targets": [
+        { "datasource": { "type": "cloudwatch" }, "region": "$region", "namespace": "AWS/ECS", "metricName": "CPUUtilization", "statistic": "Average", "period": "60", "dimensions": { "ClusterName": "lawbid-$env", "ServiceName": "api" }, "label": "cpu %" },
+        { "datasource": { "type": "cloudwatch" }, "region": "$region", "namespace": "AWS/ECS", "metricName": "MemoryUtilization", "statistic": "Average", "period": "60", "dimensions": { "ClusterName": "lawbid-$env", "ServiceName": "api" }, "label": "memory %" }
+      ] },
+    { "type": "timeseries", "title": "WAF blocked requests", "gridPos": { "x": 12, "y": 16, "w": 12, "h": 8 },
+      "targets": [{ "datasource": { "type": "cloudwatch" }, "region": "$region", "namespace": "AWS/WAFV2", "metricName": "BlockedRequests", "statistic": "Sum", "period": "300", "dimensions": { "WebACL": "lawbid-$env-waf", "Region": "$region", "Rule": "ALL" }, "label": "blocked" }] }
+  ]
+}

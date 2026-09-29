@@ -137,7 +137,7 @@ resource "aws_cloudwatch_log_metric_filter" "payment_failed" {
 resource "aws_cloudwatch_log_metric_filter" "sms_sent" {
   name           = "${var.name}-sms-sent"
   log_group_name = var.api_log_group
-  pattern        = "{ $.msg = \"sms sent\" }"
+  pattern        = "{ $.msg = \"Twilio SMS OTP sent\" }"
   metric_transformation {
     name      = "SmsSent"
     namespace = local.ns
@@ -363,3 +363,48 @@ resource "aws_cloudwatch_metric_alarm" "service_cpu" {
 
 output "alerts_topic_arn" { value = aws_sns_topic.alerts.arn }
 output "metrics_namespace" { value = local.ns }
+
+# --- gauges for the dashboards (docs/06 §8 metrics list) ------------------
+resource "aws_cloudwatch_log_metric_filter" "ws_connections" {
+  name           = "${var.name}-ws-connections"
+  log_group_name = var.api_log_group
+  pattern        = "{ $.metric = \"ws_connections\" }"
+  metric_transformation {
+    name      = "WebSocketConnections"
+    namespace = local.ns
+    value     = "$.count"
+    unit      = "Count"
+  }
+}
+
+resource "aws_cloudwatch_log_metric_filter" "business" {
+  for_each = toset([
+    "registrations24h",
+    "casesOpen",
+    "bidsActive",
+    "subscriptionsActive",
+    "subscriptionsTrialing",
+    "subscriptionsPastDue",
+  ])
+  name           = "${var.name}-business-${each.key}"
+  log_group_name = var.worker_log_group
+  pattern        = "{ $.metric = \"business\" }"
+  metric_transformation {
+    name      = "Business${title(each.key)}"
+    namespace = local.ns
+    value     = "$.${each.key}"
+    unit      = "Count"
+  }
+}
+
+resource "aws_cloudwatch_log_metric_filter" "push_failed" {
+  name           = "${var.name}-push-failed"
+  log_group_name = var.worker_log_group
+  pattern        = "{ $.msg = \"push send failed\" }"
+  metric_transformation {
+    name      = "PushFailed"
+    namespace = local.ns
+    value     = "1"
+    unit      = "Count"
+  }
+}

@@ -1,0 +1,123 @@
+# docs/06 §7.3 — main → images → staging → smoke → manual approval →
+# migrations (one-off ECS task, lawbid_migrator) → prod rolling deploy →
+# smoke. Rollback of a bad rollout is automatic (ECS deployment circuit
+# breaker, infra/modules/ecs); this workflow also fails fast on smoke.
+#
+# Required repository/environment secrets (never in the repo):
+#   AWS_DEPLOY_ROLE_STAGING / AWS_DEPLOY_ROLE_PROD  — OIDC role ARNs
+#   AWS_REGION, ECR_REGISTRY (123456789012.dkr.ecr.<region>.amazonaws.com)
+#   STAGING_API_URL / PROD_API_URL, STAGING_ADMIN_URL / PROD_ADMIN_URL
+# The `production` environment must require reviewers (the manual gate).
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/api/**"
+      - "apps/admin/**"
+      - "packages/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/deploy.yml"
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Existing image tag to (re)deploy (default: this commit)"
+        required: false
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
+  IMAGE_TAG: ${{ inputs.image_tag || github.sha }}
+
+jobs:
+  build:
+    name: Build & push images
+    runs-on: ubuntu-latest
+    if: ${{ !inputs.image_tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_STAGING }}
+          aws-region: ${{ env.AWS_REGION }}
+      - uses: aws-actions/amazon-ecr-login@v2
+      - uses: docker/setup-buildx-action@v3
+      - name: Build & push api
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          push: true
+          tags: |
+            ${{ env.ECR_REGISTRY }}/lawbid-api:${{ env.IMAGE_TAG }}
+          build-args: APP_VERSION=${{ env.IMAGE_TAG }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Build & push admin
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/admin/Dockerfile
+          push: true
+          tags: |
+            ${{ env.ECR_REGISTRY }}/lawbid-admin:${{ env.IMAGE_TAG }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy-staging:
+    name: Deploy staging
+    needs: [build]
+    if: ${{ always() && (needs.build.result == 'success' || needs.build.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+      url: ${{ secrets.STAGING_API_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_STAGING }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Migrations (one-off task, waits for exit 0)
+        run: scripts/deploy/run-migrations.sh lawbid-staging
+      - name: Roll api / worker / admin
+        run: scripts/deploy/roll-services.sh lawbid-staging "$IMAGE_TAG"
+      - name: Smoke
+        run: scripts/deploy/smoke.sh "${{ secrets.STAGING_API_URL }}" "${{ secrets.STAGING_ADMIN_URL }}"
+
+  deploy-prod:
+    name: Deploy production (manual approval)
+    needs: [deploy-staging]
+    runs-on: ubuntu-latest
+    # The GitHub environment `production` carries the required reviewers:
+    # docs/06 §7.3 "ручное подтверждение".
+    environment:
+      name: production
+      url: ${{ secrets.PROD_API_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_PROD }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Fresh backup exists (docs/06 §6.4 "перед каждой продовой миграцией")
+        run: scripts/deploy/check-backup.sh
+        env:
+          COCKROACH_API_KEY: ${{ secrets.COCKROACH_CLOUD_API_KEY }}
+          COCKROACH_CLUSTER_ID: ${{ secrets.COCKROACH_CLOUD_CLUSTER_ID }}
+      - name: Migrations (expand/contract only, docs/02 §7.1)
+        run: scripts/deploy/run-migrations.sh lawbid-prod
+      - name: Rolling deploy api / worker / admin
+        run: scripts/deploy/roll-services.sh lawbid-prod "$IMAGE_TAG"
+      - name: Smoke
+        run: scripts/deploy/smoke.sh "${{ secrets.PROD_API_URL }}" "${{ secrets.PROD_ADMIN_URL }}"

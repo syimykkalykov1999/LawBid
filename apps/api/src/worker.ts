@@ -1,3 +1,8 @@
+// Tracing must be wired before any instrumented module is required.
+import { startTelemetry } from './telemetry/otel';
+
+startTelemetry('worker');
+
 import { NestFactory } from '@nestjs/core';
 import { Logger } from 'nestjs-pino';
 import { WorkerModule } from './jobs/worker.module';

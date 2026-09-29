@@ -10,6 +10,7 @@ import {
 } from '@nestjs/websockets';
 import { createAdapter } from '@socket.io/redis-adapter';
 import type Redis from 'ioredis';
+import { PinoLogger } from 'nestjs-pino';
 import type { Namespace, Socket } from 'socket.io';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
@@ -82,15 +83,28 @@ export class RealtimeGateway
 {
   private pub?: Redis;
   private sub?: Redis;
+  private nsp?: Namespace;
 
   constructor(
     private readonly tokens: TokenService,
     private readonly revocation: SessionRevocationService,
     private readonly prisma: PrismaService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
-  ) {}
+    private readonly logger: PinoLogger,
+  ) {
+    this.logger.setContext(RealtimeGateway.name);
+  }
+
+  /** docs/06 §8 "число активных WebSocket-соединений": a gauge line per
+   * connect/disconnect on this instance (CloudWatch metric filter sums
+   * the instances). */
+  private gauge(): void {
+    const count = this.nsp?.sockets.size ?? 0;
+    this.logger.info({ metric: 'ws_connections', count }, 'ws connections');
+  }
 
   afterInit(nsp: Namespace): void {
+    this.nsp = nsp;
     // Test doubles of REDIS_CLIENT can't pub/sub: stay on the in-memory
     // adapter (a single instance) then.
     if (typeof this.redis.duplicate !== 'function') return;
@@ -140,9 +154,11 @@ export class RealtimeGateway
     }, REVOCATION_CHECK_MS);
     state(socket).revocationTimer?.unref?.();
     await socket.join(userRoom(claims.sub));
+    this.gauge();
   }
 
   async handleDisconnect(socket: Socket): Promise<void> {
+    this.gauge();
     const s = state(socket);
     if (!s?.user) return;
     clearTimeout(s.expiryTimer);

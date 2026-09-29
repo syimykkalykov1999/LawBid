@@ -1,0 +1,5 @@
+# docs/06 §7.4 — Fastlane for the store lanes (run from apps/mobile/android
+# or apps/mobile/ios). `bundle install` once; CI uses `bundle exec fastlane`.
+source "https://rubygems.org"
+
+gem "fastlane", "~> 2.228"

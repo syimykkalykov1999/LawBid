@@ -1,0 +1,4 @@
+# docs/06 §7.4. The service-account JSON comes from the GitHub secret
+# PLAY_SERVICE_ACCOUNT_JSON (written to a temp file by the workflow).
+json_key_file(ENV["PLAY_JSON_KEY_FILE"])
+package_name("com.lawbid.lawbid")

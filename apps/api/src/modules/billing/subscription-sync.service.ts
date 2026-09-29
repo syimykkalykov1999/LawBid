@@ -186,6 +186,11 @@ export class SubscriptionSyncService {
       },
     });
     if (!paid) {
+      // docs/06 §8 "всплеск неуспешных платежей": metric filter on this line.
+      this.logger.warn(
+        { subscriptionId: sub.id, failureCode: invoice.failureCode ?? type },
+        'subscription payment failed',
+      );
       // §1.5: past_due + grace immediately, whatever the provider's own
       // dunning state says, and the attorney is told to fix the card.
       const graceDays = await this.settings.number(

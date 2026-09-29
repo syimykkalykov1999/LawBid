@@ -1,0 +1,27 @@
+# docs/06 §7.4 — Android lanes. Flavors dev/staging/prod (build.gradle.kts);
+# the release keystore and its passwords arrive only through environment
+# variables (android/app/build.gradle.kts reads them) — never committed.
+default_platform(:android)
+
+platform :android do
+  desc "Build the prod AAB (release). Env: ANDROID_KEYSTORE_PATH, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD, BUILD_NUMBER, DART_DEFINES_FILE"
+  lane :build do |options|
+    flavor = options[:flavor] || "prod"
+    sh("cd ../.. && flutter build appbundle --release --flavor #{flavor} -t lib/main_#{flavor}.dart " \
+       "--build-number=#{ENV.fetch('BUILD_NUMBER', '1')} " \
+       "--dart-define-from-file=#{ENV.fetch('DART_DEFINES_FILE', "config/#{flavor}.json")}")
+  end
+
+  desc "Upload the prod AAB to Google Play Internal testing (docs/06 §11.2 closed beta). Owner decides when to run: workflow_dispatch with upload=true."
+  lane :internal do
+    build(flavor: "prod")
+    upload_to_play_store(
+      track: "internal",
+      aab: "../build/app/outputs/bundle/prodRelease/app-prod-release.aab",
+      release_status: "draft",
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+    )
+  end
+end
