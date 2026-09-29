@@ -128,6 +128,7 @@ export class CaseHistoryExportRunner
   async status(
     user: RequestUser,
     exportId: string,
+    opts: { withLink: boolean } = { withLink: true },
   ): Promise<CaseHistoryExportDto> {
     const state = await this.getState(exportId);
     if (!state || state.userId !== user.sub) {
@@ -136,7 +137,7 @@ export class CaseHistoryExportRunner
         message: 'Export not found.',
       });
     }
-    if (state.status !== 'ready' || !state.key) {
+    if (state.status !== 'ready' || !state.key || !opts.withLink) {
       return { exportId, status: state.status, url: null, expiresAt: null };
     }
     const url = await this.storage.signedGetUrl(

@@ -7,7 +7,6 @@ import {
   Post,
   Query,
   Req,
-  UseGuards,
 } from '@nestjs/common';
 import type { Request } from 'express';
 import {
@@ -26,8 +25,6 @@ import {
   CurrentUser,
   type RequestUser,
 } from '../auth/decorators/current-user.decorator';
-import { ReauthRequired } from '../auth/decorators/reauth-required.decorator';
-import { ReauthGuard } from '../auth/guards/reauth.guard';
 import { ReauthVerifier } from '../auth/services/reauth-verifier.service';
 import type { RequestMeta } from '../auth/services/session.service';
 import { CaseHistoryExportRunner } from './case-history-export.runner';
@@ -55,9 +52,9 @@ const REAUTH_ERRORS = {
 
 /**
  * docs/04_CASES_BIDS.md §12, §15 (stage 4.7). Viewing (list, timeline)
- * needs a valid reauth token for its 5-minute life; each export and each
- * download link consumes one ("при повторном скачивании нужен новый
- * reauth"). Read-only: no update/delete route exists.
+ * and the export request need a valid reauth token for its 5-minute
+ * life; each download link consumes one ("при повторном скачивании нужен
+ * новый reauth"). Read-only: no update/delete route exists.
  */
 @ApiTags('case-history')
 @ApiBearerAuth()
@@ -87,32 +84,41 @@ export class CaseHistoryController {
   @Post('export')
   @HttpCode(HttpStatus.ACCEPTED)
   @Reauth
-  @ReauthRequired()
-  @UseGuards(ReauthGuard)
   @ApiOperation({ summary: 'Queue the case history PDF (docs/04 §12)' })
   @ApiEnvelopeResponse(CaseHistoryExportDto)
   @ApiErrors(REAUTH_ERRORS)
-  exportCaseHistory(
+  async exportCaseHistory(
     @CurrentUser() user: RequestUser,
+    @Req() req: Request,
   ): Promise<CaseHistoryExportDto> {
+    await this.reauth.assertValid(req);
     this.history.visibleWhere(user);
     return this.exports.enqueue(user);
   }
 
   @Get('export/:exportId')
   @Reauth
-  @ReauthRequired()
-  @UseGuards(ReauthGuard)
   @ApiOperation({
-    summary: 'Export status; when ready, a 10-minute signed PDF link',
+    summary:
+      'Export status; when ready, a 10-minute signed PDF link (consumes the reauth token)',
   })
   @ApiEnvelopeResponse(CaseHistoryExportDto)
   @ApiErrors({ ...REAUTH_ERRORS, 404: [E.NOT_FOUND] })
-  getCaseHistoryExport(
+  async getCaseHistoryExport(
     @CurrentUser() user: RequestUser,
     @Param() params: HistoryExportIdParamDto,
+    @Req() req: Request,
   ): Promise<CaseHistoryExportDto> {
-    return this.exports.status(user, params.exportId);
+    // Polling while the PDF is queued keeps the token; issuing the
+    // download link consumes it ("при повторном скачивании нужен новый
+    // reauth", docs/04 §12).
+    await this.reauth.assertValid(req);
+    const status = await this.exports.status(user, params.exportId, {
+      withLink: false,
+    });
+    if (status.status !== 'ready') return status;
+    await this.reauth.assertAndConsume(req);
+    return this.exports.status(user, params.exportId, { withLink: true });
   }
 
   @Get(':caseId')

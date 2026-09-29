@@ -37,7 +37,7 @@ abstract class CaseHistoryClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Export status; when ready, a 10-minute signed PDF link.
+  /// Export status; when ready, a 10-minute signed PDF link (consumes the reauth token).
   ///
   /// [xReauthToken] - reauthToken from POST /auth/reauth (5 minutes).
   @GET('/users/me/case-history/export/{exportId}')

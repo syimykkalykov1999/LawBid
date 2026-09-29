@@ -6983,7 +6983,7 @@
             "bearer": []
           }
         ],
-        "summary": "Export status; when ready, a 10-minute signed PDF link",
+        "summary": "Export status; when ready, a 10-minute signed PDF link (consumes the reauth token)",
         "tags": [
           "case-history"
         ]
