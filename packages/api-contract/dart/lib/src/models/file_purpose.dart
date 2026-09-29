@@ -14,6 +14,8 @@ enum FilePurpose {
   verificationDocument('verification_document'),
   @JsonValue('verification_selfie')
   verificationSelfie('verification_selfie'),
+  @JsonValue('post_video')
+  postVideo('post_video'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

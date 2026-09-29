@@ -39,6 +39,7 @@ import { US_STATES } from '../src/common/reference-data/us-states';
 import {
   FILE_03_SETTINGS,
   FILE_04_SETTINGS,
+  FILE_05_SETTINGS,
 } from '../src/common/app-settings/app-settings.defaults';
 
 const prisma = new PrismaClient();
@@ -339,8 +340,12 @@ async function seedAppConfig(): Promise<void> {
     `  app_config (file 03 §9): ${Object.keys(FILE_03_SETTINGS).length} upserted`,
   );
 
-  // docs/04_CASES_BIDS.md §14 (stage 4.1). `update: {}` as above.
-  for (const [key, value] of Object.entries(FILE_04_SETTINGS)) {
+  // docs/04_CASES_BIDS.md §14 (stage 4.1) and docs/05 §13–§14 (stage 5.1).
+  // `update: {}` as above.
+  for (const [key, value] of Object.entries({
+    ...FILE_04_SETTINGS,
+    ...FILE_05_SETTINGS,
+  })) {
     await prisma.appConfig.upsert({
       where: { key },
       create: { key, value },

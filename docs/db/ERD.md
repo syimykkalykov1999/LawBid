@@ -88,6 +88,7 @@ erDiagram
     String user_agent "nullable"
     Json meta "nullable"
     DateTime created_at
+    Int created_shard
   }
   legal_documents {
     String id PK
@@ -192,6 +193,7 @@ erDiagram
     String firm_name "nullable"
     enum_VerificationStatus verification_status
     DateTime verified_at "nullable"
+    DateTime username_changed_at "nullable"
     Decimal rating_avg
     Int rating_count
     Int posts_count
@@ -210,6 +212,8 @@ erDiagram
     DateTime verified_at "nullable"
     String verified_by FK "nullable"
     Json auto_check_result "nullable"
+    String rejection_code "nullable"
+    String rejection_note "nullable"
     DateTime created_at
     DateTime updated_at
   }
@@ -229,6 +233,9 @@ erDiagram
     DateTime reviewed_at "nullable"
     String rejection_reason "nullable"
     String admin_note "nullable"
+    String info_request_message "nullable"
+    String applicant_comment "nullable"
+    String rejection_code "nullable"
     DateTime created_at
     DateTime updated_at
   }
@@ -239,6 +246,7 @@ erDiagram
     String file_id FK
     String state_code FK "nullable"
     String notes "nullable"
+    String side "nullable"
     DateTime created_at
     DateTime updated_at
   }
@@ -317,6 +325,7 @@ erDiagram
     String client_id FK
     String actor_user_id FK "nullable"
     enum_UserRole actor_role "nullable"
+    String attorney_id FK "nullable"
     enum_CaseJournalEvent event_type
     Json payload
     String prev_hash "nullable"
@@ -369,6 +378,7 @@ erDiagram
     Int rating
     String body "nullable"
     enum_ReviewStatus status
+    DateTime edited_at "nullable"
     DateTime created_at
     DateTime updated_at
   }
@@ -381,9 +391,11 @@ erDiagram
     Int like_count
     Int comment_count
     Int save_count
+    DateTime edited_at "nullable"
     DateTime deleted_at "nullable"
     tsvector search_tsv "nullable"
     DateTime created_at
+    Int created_shard
     DateTime updated_at
   }
   post_media {
@@ -481,6 +493,8 @@ erDiagram
     Json payload
     DateTime read_at "nullable"
     DateTime created_at
+    String dedupe_key "nullable"
+    Int aggregate_count
   }
   notification_settings {
     String user_id PK,FK
@@ -586,6 +600,7 @@ erDiagram
     Json after "nullable"
     String ip "nullable"
     DateTime created_at
+    Int created_shard
   }
   data_access_requests {
     String id PK
@@ -648,6 +663,7 @@ erDiagram
   case_journal }o--|| cases : "case_id"
   case_journal }o--|| users : "client_id"
   case_journal }o--o| users : "actor_user_id"
+  case_journal }o--o| users : "attorney_id"
   contact_disclosures }o--|| cases : "case_id"
   contact_disclosures |o--|| bids : "bid_id"
   contact_disclosures }o--|| users : "client_id"

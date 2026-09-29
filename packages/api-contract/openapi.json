@@ -11211,7 +11211,16 @@
           "BID_ATTORNEY_INACTIVE",
           "CONTACTS_LOCKED",
           "CONTACT_ISSUE_ALREADY_OPEN",
-          "CONTACT_ISSUE_INVALID_STATE"
+          "CONTACT_ISSUE_INVALID_STATE",
+          "POST_NOT_FOUND",
+          "POST_NOT_ALLOWED",
+          "COMMENT_NOT_FOUND",
+          "FOLLOW_NOT_ALLOWED",
+          "CONVERSATION_NOT_FOUND",
+          "CONVERSATION_CLOSED",
+          "MESSAGE_TOO_LONG",
+          "FEATURE_DISABLED",
+          "SEARCH_QUERY_TOO_SHORT"
         ]
       },
       "ErrorBodyDto": {
@@ -12740,7 +12749,8 @@
           "avatar",
           "post_image",
           "verification_document",
-          "verification_selfie"
+          "verification_selfie",
+          "post_video"
         ]
       },
       "PresignFileDto": {

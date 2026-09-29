@@ -101,6 +101,15 @@ abstract final class ApiErrorCodes {
   // Bids and negotiation (docs/04 §5–§6, stage 4.4)
   static const subscriptionRequired = 'SUBSCRIPTION_REQUIRED';
   static const caseNotAvailable = 'CASE_NOT_AVAILABLE';
+  static const postNotFound = 'POST_NOT_FOUND';
+  static const postNotAllowed = 'POST_NOT_ALLOWED';
+  static const commentNotFound = 'COMMENT_NOT_FOUND';
+  static const followNotAllowed = 'FOLLOW_NOT_ALLOWED';
+  static const conversationNotFound = 'CONVERSATION_NOT_FOUND';
+  static const conversationClosed = 'CONVERSATION_CLOSED';
+  static const messageTooLong = 'MESSAGE_TOO_LONG';
+  static const featureDisabled = 'FEATURE_DISABLED';
+  static const searchQueryTooShort = 'SEARCH_QUERY_TOO_SHORT';
   static const bidAttorneyInactive = 'BID_ATTORNEY_INACTIVE';
   static const contactsLocked = 'CONTACTS_LOCKED';
   static const contactIssueAlreadyOpen = 'CONTACT_ISSUE_ALREADY_OPEN';
@@ -183,6 +192,15 @@ abstract final class ApiErrorCodes {
     bidCounterNotAllowed,
     subscriptionRequired,
     caseNotAvailable,
+    postNotFound,
+    postNotAllowed,
+    commentNotFound,
+    followNotAllowed,
+    conversationNotFound,
+    conversationClosed,
+    messageTooLong,
+    featureDisabled,
+    searchQueryTooShort,
     bidAttorneyInactive,
     contactsLocked,
     contactIssueAlreadyOpen,

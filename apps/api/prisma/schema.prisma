@@ -102,6 +102,8 @@ enum FilePurpose {
   post_image
   verification_document
   verification_selfie
+  // docs/05 §3.6, §14 (stage 5.1): enabled later by the video_posts flag.
+  post_video
 
   @@map("file_purpose")
 }
@@ -1310,6 +1312,8 @@ model Post {
   like_count    Int                      @default(0)
   comment_count Int                      @default(0)
   save_count    Int                      @default(0)
+  // docs/05 §3.3, §14 (stage 5.1): "Изменено" after a text edit.
+  edited_at     DateTime?                @db.Timestamptz
   deleted_at    DateTime?                @db.Timestamptz
   // STORED computed column (§5.3): to_tsvector('english', body). Read-only.
   search_tsv    Unsupported("tsvector")? @default(dbgenerated("to_tsvector('english'::STRING, body)"))
@@ -1522,6 +1526,10 @@ model Notification {
   payload    Json
   read_at    DateTime?            @db.Timestamptz
   created_at DateTime             @default(now()) @db.Timestamptz
+  // docs/05 §9.4, §14 (stage 5.1): aggregation window key; partial UQ
+  // (user_id, dedupe_key) WHERE dedupe_key IS NOT NULL is raw SQL.
+  dedupe_key      String?
+  aggregate_count Int     @default(1)
 
   @@index([user_id, created_at(sort: Desc)])
   @@map("notifications")

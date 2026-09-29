@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   HttpException,
   HttpStatus,
   Inject,
@@ -8,6 +9,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
 import { Prisma, type File, type FilePurpose } from '@prisma/client';
 import type Redis from 'ioredis';
 import { createHash, randomUUID } from 'node:crypto';
@@ -72,6 +74,7 @@ export class FilesService {
     private readonly config: ConfigService,
     private readonly scans: FileScanRunner,
     private readonly logger: PinoLogger,
+    private readonly flags: FeatureFlagsService,
   ) {
     this.logger.setContext(FilesService.name);
   }
@@ -80,6 +83,15 @@ export class FilesService {
     userId: string,
     dto: PresignFileDto,
   ): Promise<PresignedFileDto> {
+    if (
+      dto.purpose === 'post_video' &&
+      !(await this.flags.isEnabled('video_posts', false))
+    ) {
+      throw new ForbiddenException({
+        code: ErrorCode.FEATURE_DISABLED,
+        message: 'Video posts are not available yet.',
+      });
+    }
     const rule = PURPOSE_RULES[dto.purpose];
     const mime = rule.mimes.find((m) => m === dto.mime);
     if (!mime) {

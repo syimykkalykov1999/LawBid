@@ -17,6 +17,7 @@ import {
   CaseCompletionReminderJob,
   CaseStalePromptJob,
 } from './handlers/case-lifecycle.jobs';
+import { CountersReconcileJob } from './handlers/counters-reconcile.job';
 
 jest.mock('bullmq', () => {
   const queue = {
@@ -78,11 +79,15 @@ function processor() {
   const caseJob = () => ({
     run: jest.fn(() => Promise.resolve({ processed: 1, ran: true })),
   });
+  const countersRecon = {
+    run: jest.fn(() => Promise.resolve({ flushed: 1, reconciled: 2 })),
+  };
   const stale = caseJob();
   const archive = caseJob();
   const autoClose = caseJob();
   const completion = caseJob();
   return {
+    countersRecon,
     stale,
     archive,
     autoClose,
@@ -106,6 +111,7 @@ function processor() {
       archive as unknown as CaseAutoArchiveJob,
       autoClose as unknown as CaseAutoCloseJob,
       completion as unknown as CaseCompletionReminderJob,
+      countersRecon as unknown as CountersReconcileJob,
     ),
   };
 }
@@ -129,7 +135,7 @@ describe('JobsRunner', () => {
     });
     const upserts = mocked.__queue.upsertJobScheduler.mock.calls;
     expect(upserts).toHaveLength(CRON_SCHEDULES.length);
-    expect(upserts).toHaveLength(11);
+    expect(upserts).toHaveLength(12);
     const byName = Object.fromEntries(
       upserts.map((c: unknown[]) => [c[0], c[1]]),
     );
@@ -293,6 +299,12 @@ describe('CronProcessor', () => {
       });
       expect(job.run).toHaveBeenCalledTimes(1);
     }
+    await expect(
+      p.processor.process(CRON_JOBS.countersReconcile),
+    ).resolves.toEqual({
+      flushed: 1,
+      reconciled: 2,
+    });
   });
 
   it('fails unknown job names instead of silently succeeding', async () => {

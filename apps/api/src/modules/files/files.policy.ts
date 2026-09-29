@@ -57,6 +57,14 @@ export const PURPOSE_RULES: Record<FilePurpose, PurposeRule> = {
     sizeSetting: 'files.max_size_mb',
     bucket: 'documents',
   },
+  // docs/05 §3.6: prepared, off behind the `video_posts` flag (presign
+  // answers FEATURE_DISABLED). Video MIME types and transcoding arrive
+  // when the flag is turned on.
+  post_video: {
+    mimes: [],
+    sizeSetting: 'files.max_size_mb',
+    bucket: 'media',
+  },
 };
 
 export const MB = 1024 * 1024;

@@ -43,7 +43,24 @@ export const FILE_04_SETTINGS = {
   'contacts.suspend_after_confirmed_reports': 3,
 } as const;
 
+// docs/05_FEED_SEARCH_CHAT_NOTIFICATIONS.md §13, §14 (stage 5.1): per-user
+// action limits (429 RATE_LIMITED past them) and notification retention.
+export const FILE_05_SETTINGS = {
+  'rate_limit.post_create_per_day': 10,
+  'rate_limit.comment_per_hour': 30,
+  'rate_limit.like_per_hour': 300,
+  'rate_limit.follow_per_day': 200,
+  'rate_limit.message_per_minute': 60,
+  'rate_limit.search_per_minute': 30,
+  'rate_limit.report_per_day': 20,
+  'notifications.retention_days': 180,
+} as const;
+
 /** Every typed app_config tunable with its spec default. */
-export const APP_SETTINGS = { ...FILE_03_SETTINGS, ...FILE_04_SETTINGS };
+export const APP_SETTINGS = {
+  ...FILE_03_SETTINGS,
+  ...FILE_04_SETTINGS,
+  ...FILE_05_SETTINGS,
+};
 
 export type AppSettingKey = keyof typeof APP_SETTINGS;

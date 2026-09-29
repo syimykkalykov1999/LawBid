@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
+import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
 import { FilesController } from './files.controller';
 import { FilesService } from './files.service';
 import { filesCoreProviders } from './files-core.providers';
@@ -14,7 +15,8 @@ import { FilesBootstrapService } from './storage/files-bootstrap.service';
  * FilesService.assertAttachable().
  */
 @Module({
-  imports: [AuthModule],
+  // FeatureFlagsModule: `video_posts` gate on post_video uploads (docs/05 §3.6).
+  imports: [AuthModule, FeatureFlagsModule],
   controllers: [FilesController],
   providers: [
     ...filesCoreProviders({ mode: 'api' }),

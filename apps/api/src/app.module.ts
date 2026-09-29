@@ -15,6 +15,8 @@ import { I18nModule } from './modules/i18n/i18n.module';
 import { CasesModule } from './modules/cases/cases.module';
 import { CaseHistoryModule } from './modules/case-history/case-history.module';
 import { PushModule } from './modules/notifications/push/push.module';
+import { CountersModule } from './modules/counters/counters.module';
+import { ModerationModule } from './modules/moderation/moderation.module';
 import { BidsModule } from './modules/bids/bids.module';
 import { NegotiationsModule } from './modules/negotiations/negotiations.module';
 import { JournalModule } from './modules/journal/journal.module';
@@ -107,6 +109,9 @@ const isDev =
     CaseHistoryModule.register({ mode: 'api' }),
     // docs/04 stage 4.8: `push` queue consumer (while JOBS_ENABLED).
     PushModule.register({ mode: 'api' }),
+    // docs/05 stage 5.1: counters aggregator + moderation hook (global).
+    CountersModule,
+    ModerationModule,
     BidsModule,
     NegotiationsModule,
     JournalModule,

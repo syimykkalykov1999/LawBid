@@ -9,6 +9,7 @@ import { NotificationsModule } from '../modules/notifications/notifications.modu
 import { FilesWorkerModule } from '../modules/files/files-worker.module';
 import { CaseHistoryModule } from '../modules/case-history/case-history.module';
 import { PushModule } from '../modules/notifications/push/push.module';
+import { CountersModule } from '../modules/counters/counters.module';
 
 /**
  * Root module of the dedicated `worker` process (docs/06_PRODUCTION.md §6:
@@ -40,6 +41,8 @@ import { PushModule } from '../modules/notifications/push/push.module';
     CaseHistoryModule.register({ mode: 'worker' }),
     // docs/04 stage 4.8: `push` queue consumer.
     PushModule.register({ mode: 'worker' }),
+    // docs/05 stage 5.1: counters flush + nightly reconcile.
+    CountersModule,
   ],
 })
 export class WorkerModule {}

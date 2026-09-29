@@ -162,6 +162,24 @@ enum ErrorCode {
   contactIssueAlreadyOpen('CONTACT_ISSUE_ALREADY_OPEN'),
   @JsonValue('CONTACT_ISSUE_INVALID_STATE')
   contactIssueInvalidState('CONTACT_ISSUE_INVALID_STATE'),
+  @JsonValue('POST_NOT_FOUND')
+  postNotFound('POST_NOT_FOUND'),
+  @JsonValue('POST_NOT_ALLOWED')
+  postNotAllowed('POST_NOT_ALLOWED'),
+  @JsonValue('COMMENT_NOT_FOUND')
+  commentNotFound('COMMENT_NOT_FOUND'),
+  @JsonValue('FOLLOW_NOT_ALLOWED')
+  followNotAllowed('FOLLOW_NOT_ALLOWED'),
+  @JsonValue('CONVERSATION_NOT_FOUND')
+  conversationNotFound('CONVERSATION_NOT_FOUND'),
+  @JsonValue('CONVERSATION_CLOSED')
+  conversationClosed('CONVERSATION_CLOSED'),
+  @JsonValue('MESSAGE_TOO_LONG')
+  messageTooLong('MESSAGE_TOO_LONG'),
+  @JsonValue('FEATURE_DISABLED')
+  featureDisabled('FEATURE_DISABLED'),
+  @JsonValue('SEARCH_QUERY_TOO_SHORT')
+  searchQueryTooShort('SEARCH_QUERY_TOO_SHORT'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

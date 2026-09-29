@@ -187,4 +187,24 @@ export enum ErrorCode {
   CONTACT_ISSUE_ALREADY_OPEN = 'CONTACT_ISSUE_ALREADY_OPEN',
   // 409: the report is already resolved (confirmed/rejected).
   CONTACT_ISSUE_INVALID_STATE = 'CONTACT_ISSUE_INVALID_STATE',
+
+  // --- docs/05_FEED_SEARCH_CHAT_NOTIFICATIONS.md §15 (stage 5.1) ---
+  // 404: no such post, or deleted / hidden / removed for this viewer.
+  POST_NOT_FOUND = 'POST_NOT_FOUND',
+  // 403: posting needs a verified, active attorney (§3.1).
+  POST_NOT_ALLOWED = 'POST_NOT_ALLOWED',
+  // 404: no such comment (or deleted).
+  COMMENT_NOT_FOUND = 'COMMENT_NOT_FOUND',
+  // 422: follow a client or yourself (§6.1).
+  FOLLOW_NOT_ALLOWED = 'FOLLOW_NOT_ALLOWED',
+  // 404: not a participant, or no such conversation.
+  CONVERSATION_NOT_FOUND = 'CONVERSATION_NOT_FOUND',
+  // 409: the conversation is closed (read only, §8.2).
+  CONVERSATION_CLOSED = 'CONVERSATION_CLOSED',
+  // 400: a message longer than 2000 characters (§8.2).
+  MESSAGE_TOO_LONG = 'MESSAGE_TOO_LONG',
+  // 403: the feature is off by a feature flag (video posts, §3.6).
+  FEATURE_DISABLED = 'FEATURE_DISABLED',
+  // 400: search needs at least 2 characters (§7.1).
+  SEARCH_QUERY_TOO_SHORT = 'SEARCH_QUERY_TOO_SHORT',
 }

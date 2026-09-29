@@ -56,6 +56,7 @@ function make(
     config: { getOrThrow: jest.fn().mockReturnValue(60) },
     scans: { enqueueScan: jest.fn() },
     logger: { setContext: jest.fn(), error: jest.fn() },
+    flags: { isEnabled: jest.fn().mockResolvedValue(false) },
   };
   const service = new FilesService(
     deps.prisma as unknown as PrismaService,
@@ -67,6 +68,7 @@ function make(
     deps.config as unknown as ConfigService,
     deps.scans as unknown as FileScanRunner,
     deps.logger as unknown as PinoLogger,
+    deps.flags as never,
   );
   return { service, deps };
 }

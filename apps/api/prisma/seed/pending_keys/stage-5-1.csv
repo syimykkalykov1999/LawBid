@@ -1,0 +1,10 @@
+key,en,ru
+error.api.POST_NOT_FOUND,This post is no longer available.,Этот пост больше недоступен.
+error.api.POST_NOT_ALLOWED,Only verified attorneys can publish posts.,Публиковать посты могут только верифицированные адвокаты.
+error.api.COMMENT_NOT_FOUND,This comment is no longer available.,Этот комментарий больше недоступен.
+error.api.FOLLOW_NOT_ALLOWED,"You can follow attorneys only, and not yourself.",Подписаться можно только на адвоката и не на себя.
+error.api.CONVERSATION_NOT_FOUND,This chat is not available.,Этот чат недоступен.
+error.api.CONVERSATION_CLOSED,The chat is closed. You can only read it.,"Чат закрыт, его можно только читать."
+error.api.MESSAGE_TOO_LONG,The message is too long (up to 2000 characters).,Сообщение слишком длинное (до 2000 символов).
+error.api.FEATURE_DISABLED,This feature is not available yet.,Эта функция пока недоступна.
+error.api.SEARCH_QUERY_TOO_SHORT,Type at least 2 characters.,Введите хотя бы 2 символа.
