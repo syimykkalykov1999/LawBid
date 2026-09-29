@@ -137,6 +137,7 @@ describe('I18nImportService.run — dry-run', () => {
     const service = new I18nImportService(
       prisma as never,
       bundle as unknown as I18nBundleService,
+      { del: jest.fn() } as never,
     );
 
     const report = await service.run(
@@ -162,6 +163,7 @@ describe('I18nImportService.run — dry-run', () => {
     const service = new I18nImportService(
       prisma as never,
       bundle as unknown as I18nBundleService,
+      { del: jest.fn() } as never,
     );
 
     const report = await service.run(
@@ -186,6 +188,7 @@ describe('I18nImportService.run — dry-run', () => {
     const service = new I18nImportService(
       prisma as never,
       bundle as unknown as I18nBundleService,
+      { del: jest.fn() } as never,
     );
 
     const report = await service.run(
@@ -206,6 +209,7 @@ describe('I18nImportService.run — apply', () => {
     const service = new I18nImportService(
       prisma as never,
       bundle as unknown as I18nBundleService,
+      { del: jest.fn() } as never,
     );
 
     await expect(
@@ -222,6 +226,7 @@ describe('I18nImportService.run — apply', () => {
     const service = new I18nImportService(
       prisma as never,
       bundle as unknown as I18nBundleService,
+      { del: jest.fn() } as never,
     );
 
     const report = await service.run(
@@ -249,6 +254,7 @@ describe('I18nImportService.run — apply', () => {
     const service = new I18nImportService(
       prisma as never,
       bundle as unknown as I18nBundleService,
+      { del: jest.fn() } as never,
     );
 
     const report = await service.run(
@@ -279,6 +285,7 @@ describe('I18nImportService.run — apply', () => {
     const service = new I18nImportService(
       prisma as never,
       bundle as unknown as I18nBundleService,
+      { del: jest.fn() } as never,
     );
 
     // en unchanged, ru changed

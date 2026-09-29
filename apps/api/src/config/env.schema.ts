@@ -471,6 +471,22 @@ export const envSchema = z
       .int()
       .positive()
       .default(20),
+    // docs/06 §2.3 item 7 (stage 6.6): provider keys a paid flag needs
+    // before it can be switched on. Optional; presence is all the panel
+    // checks (the integrations themselves come with their stages).
+    PERSONA_API_KEY: z.preprocess(
+      blankToUndefined,
+      z.string().min(8).optional(),
+    ),
+    BAR_LOOKUP_API_KEY: z.preprocess(
+      blankToUndefined,
+      z.string().min(8).optional(),
+    ),
+    MUX_TOKEN_ID: z.preprocess(blankToUndefined, z.string().min(8).optional()),
+    MUX_TOKEN_SECRET: z.preprocess(
+      blankToUndefined,
+      z.string().min(8).optional(),
+    ),
     // Shown in authenticator apps and in the admin panel's links.
     ADMIN_PANEL_URL: z.preprocess(
       blankToUndefined,

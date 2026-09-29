@@ -9,7 +9,7 @@ import { REDIS_CLIENT } from '../../../redis/redis.constants';
  * but there is no reason to give it a different cache lifetime than the
  * flags it's served alongside in the same bootstrap payload. */
 const APP_CONFIG_CACHE_TTL_SECONDS = 30;
-const APP_CONFIG_CACHE_KEY = 'config:app_config';
+export const APP_CONFIG_CACHE_KEY = 'config:app_config';
 
 /**
  * Reads the full `app_config` table as a flat `{key: value}` map

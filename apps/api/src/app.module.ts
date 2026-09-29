@@ -43,6 +43,7 @@ import { AdminModule } from './modules/admin/admin.module';
 import { AdminUsersModule } from './modules/admin-users/admin-users.module';
 import { AdminCasesModule } from './modules/admin-cases/admin-cases.module';
 import { AdminDataRequestsModule } from './modules/admin-data-requests/admin-data-requests.module';
+import { AdminConfigModule } from './modules/admin-config/admin-config.module';
 import { CostGuardModule } from './common/cost-guard/cost-guard.module';
 import { JobsModule } from './jobs/jobs.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
@@ -134,6 +135,7 @@ const isDev =
     AdminUsersModule,
     AdminCasesModule,
     AdminDataRequestsModule,
+    AdminConfigModule,
     UsersModule,
     I18nModule,
     CasesModule,

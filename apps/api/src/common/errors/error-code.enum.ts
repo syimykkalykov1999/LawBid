@@ -157,6 +157,13 @@ export enum ErrorCode {
   // 409: the action does not apply to this object / state (e.g. remove a
   // user, restore something that is not hidden).
   MODERATION_ACTION_NOT_APPLICABLE = 'MODERATION_ACTION_NOT_APPLICABLE',
+  // Admin config (docs/06 §2.3 items 7–10, stage 6.6)
+  // 409: a paid-service flag can't be enabled without the provider keys;
+  // details.missingKeys.
+  FLAG_PROVIDER_KEYS_MISSING = 'FLAG_PROVIDER_KEYS_MISSING',
+  // 409: publishing a legal document version that is already current, or
+  // a draft that has no content.
+  LEGAL_DOCUMENT_INVALID_STATE = 'LEGAL_DOCUMENT_INVALID_STATE',
 
   // Cases and bids (docs/04_CASES_BIDS.md §15, stage 4.1 state machines
   // and access policy).

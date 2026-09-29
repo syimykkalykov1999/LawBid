@@ -30,6 +30,6 @@ import { AppVersionGuard } from './guards/app-version.guard';
     BootstrapService,
     { provide: APP_GUARD, useClass: AppVersionGuard },
   ],
-  exports: [FeatureFlagsService, AppConfigService],
+  exports: [FeatureFlagsService, AppConfigService, BootstrapService],
 })
 export class FeatureFlagsModule {}

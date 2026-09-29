@@ -1,7 +1,10 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { withTxRetry } from '../../../prisma/tx-retry.util';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
+import type Redis from 'ioredis';
+import { REDIS_CLIENT } from '../../../redis/redis.constants';
+import { BOOTSTRAP_CACHE_KEY } from '../../feature-flags/services/bootstrap.service';
 import { nativeNameForLanguage } from '../language-names';
 import {
   buildParsedWorkbook,
@@ -41,6 +44,7 @@ export class I18nImportService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly bundle: I18nBundleService,
+    @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {}
 
   async run(
@@ -257,5 +261,8 @@ export class I18nImportService {
     for (const [lang, version] of versionByLang) {
       await this.bundle.cacheVersion(lang, version);
     }
+    // docs/06 §2.3 item 9: a new language column adds a language — the
+    // bootstrap payload (languages) must reflect it without a release.
+    if (newLanguages.length > 0) await this.redis.del(BOOTSTRAP_CACHE_KEY);
   }
 }

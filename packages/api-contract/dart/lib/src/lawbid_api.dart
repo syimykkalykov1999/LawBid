@@ -16,6 +16,7 @@ import 'clients/admin_verification_client.dart';
 import 'clients/files_client.dart';
 import 'clients/admin_cases_client.dart';
 import 'clients/admin_data_requests_client.dart';
+import 'clients/admin_config_client.dart';
 import 'clients/users_client.dart';
 import 'clients/i18n_client.dart';
 import 'clients/admin_i18n_client.dart';
@@ -62,6 +63,7 @@ class LawbidApi {
   FilesClient? _files;
   AdminCasesClient? _adminCases;
   AdminDataRequestsClient? _adminDataRequests;
+  AdminConfigClient? _adminConfig;
   UsersClient? _users;
   I18nClient? _i18n;
   AdminI18nClient? _adminI18n;
@@ -117,6 +119,9 @@ class LawbidApi {
 
   AdminDataRequestsClient get adminDataRequests =>
       _adminDataRequests ??= AdminDataRequestsClient(_dio, baseUrl: _baseUrl);
+
+  AdminConfigClient get adminConfig =>
+      _adminConfig ??= AdminConfigClient(_dio, baseUrl: _baseUrl);
 
   UsersClient get users => _users ??= UsersClient(_dio, baseUrl: _baseUrl);
 

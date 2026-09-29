@@ -148,6 +148,10 @@ enum ErrorCode {
   contentBlocked('CONTENT_BLOCKED'),
   @JsonValue('MODERATION_ACTION_NOT_APPLICABLE')
   moderationActionNotApplicable('MODERATION_ACTION_NOT_APPLICABLE'),
+  @JsonValue('FLAG_PROVIDER_KEYS_MISSING')
+  flagProviderKeysMissing('FLAG_PROVIDER_KEYS_MISSING'),
+  @JsonValue('LEGAL_DOCUMENT_INVALID_STATE')
+  legalDocumentInvalidState('LEGAL_DOCUMENT_INVALID_STATE'),
   @JsonValue('CASE_NOT_FOUND')
   caseNotFound('CASE_NOT_FOUND'),
   @JsonValue('CASE_NOT_AVAILABLE')

@@ -99,7 +99,7 @@ export class OnboardingService {
       throw new NotFoundException({ code: ErrorCode.NOT_FOUND });
     }
     const [consentsOk, facts, avatarUrl, avatarClean] = await Promise.all([
-      this.requiredConsentsGranted(userId),
+      this.requiredConsentsGranted(userId, user.ui_language),
       this.profiles.facts(userId, user.role, user.onboarding_state?.data),
       this.files.mediaUrl(user.avatar_file_id),
       this.files.isCleanAvatar(user.avatar_file_id, userId),
@@ -260,19 +260,67 @@ export class OnboardingService {
     });
   }
 
-  /** Current consent state = latest row per (user, type) (docs/02 §4.A). */
-  private async requiredConsentsGranted(userId: string): Promise<boolean> {
-    const rows = await this.prisma.userConsent.findMany({
-      where: { user_id: userId, consent_type: { in: [...REQUIRED_CONSENTS] } },
-      orderBy: { created_at: 'desc' },
-      distinct: ['consent_type'],
-      select: { consent_type: true, granted: true },
+  /**
+   * Current consent state = latest row per (user, type) (docs/02 §4.A).
+   * docs/06 §2.3 item 10: for consents that point at a legal document
+   * (terms, privacy, disclaimer) the accepted version must be the current
+   * one for the user's locale (falling back to `en`); a newer published
+   * version puts `consents` back into `missing`, so the app's guard sends
+   * the user to the consents step on the next sign-in.
+   */
+  private async requiredConsentsGranted(
+    userId: string,
+    locale = 'en',
+  ): Promise<boolean> {
+    const [rows, current] = await Promise.all([
+      this.prisma.userConsent.findMany({
+        where: {
+          user_id: userId,
+          consent_type: { in: [...REQUIRED_CONSENTS] },
+        },
+        orderBy: { created_at: 'desc' },
+        distinct: ['consent_type'],
+        select: {
+          consent_type: true,
+          granted: true,
+          document: { select: { doc_type: true, version: true } },
+        },
+      }),
+      this.prisma.legalDocument.findMany({
+        where: { is_current: true },
+        select: { doc_type: true, locale: true, version: true },
+      }),
+    ]);
+    const requiredVersion = (docType: string): string | null => {
+      const forLocale = current.find(
+        (d) => d.doc_type === docType && d.locale === locale,
+      );
+      const en = current.find(
+        (d) => d.doc_type === docType && d.locale === 'en',
+      );
+      const any = current.find((d) => d.doc_type === docType);
+      return (forLocale ?? en ?? any)?.version ?? null;
+    };
+    return REQUIRED_CONSENTS.every((t) => {
+      const row = rows.find((r) => r.consent_type === t);
+      if (row?.granted !== true) return false;
+      if (!DOCUMENT_CONSENTS.has(t)) return true;
+      const required = requiredVersion(t);
+      // No published document for this type, or a consent recorded without
+      // a document (before versions existed): nothing to re-accept. Only a
+      // consent that points at a superseded version is stale.
+      if (required === null || !row.document) return true;
+      return row.document.version === required;
     });
-    return REQUIRED_CONSENTS.every(
-      (t) => rows.find((r) => r.consent_type === t)?.granted === true,
-    );
   }
 }
+
+/** Consent types backed by a legal_documents row (LegalDocType). */
+const DOCUMENT_CONSENTS: ReadonlySet<ConsentType> = new Set<ConsentType>([
+  'terms',
+  'privacy',
+  'disclaimer',
+]);
 
 /** §11 guard rules: client needs BOTH phone and email verified and a
  * state of residence (3A); attorney needs a verified phone, at least one
