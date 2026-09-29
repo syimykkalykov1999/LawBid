@@ -17,7 +17,7 @@ import {
   CaseCompletionReminderJob,
   CaseStalePromptJob,
 } from './handlers/case-lifecycle.jobs';
-import { CasesModule } from '../modules/cases/cases.module';
+import { CaseLifecycleModule } from '../modules/cases/lifecycle/case-lifecycle.module';
 import { BidsModule } from '../modules/bids/bids.module';
 import { SubscriptionsModule } from '../modules/subscriptions/subscriptions.module';
 
@@ -40,7 +40,7 @@ export class JobsModule {
         NotificationsModule,
         SubscriptionsModule,
         BidsModule,
-        CasesModule,
+        CaseLifecycleModule,
       ],
       providers: [
         { provide: JOBS_OPTIONS, useValue: options },

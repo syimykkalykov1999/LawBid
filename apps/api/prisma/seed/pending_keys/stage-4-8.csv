@@ -1,0 +1,29 @@
+key,en,ru
+notif.bids.bid_received.title,New bid,Новый бид
+notif.bids.bid_received.body,An attorney sent a bid on your case.,Адвокат отправил бид на ваш кейс.
+notif.bids.offer_countered.title,Counter-offer,Встречное предложение
+notif.bids.offer_countered.body,You received a counter-offer. Your move.,Вам сделали встречное предложение. Ваш ход.
+notif.bids.bid_accepted.title,Bid accepted,Бид принят
+notif.bids.bid_accepted.body,The client accepted your bid. Contacts and chat are open.,Клиент принял ваш бид. Контакты и чат открыты.
+notif.bids.offer_accepted.title,Offer accepted,Предложение принято
+notif.bids.offer_accepted.body,The attorney accepted your offer. The case is in progress.,Адвокат принял ваше предложение. Кейс в работе.
+notif.bids.bid_rejected.title,Bid update,Изменение по биду
+notif.bids.bid_rejected.body,A bid on the case is no longer active.,Бид по кейсу больше не активен.
+notif.bids.negotiation_failed.title,No agreement,Стороны не договорились
+notif.bids.negotiation_failed.body,The parties did not reach an agreement.,Стороны не договорились.
+notif.cases.case_updated.title,Case updated,Кейс обновлён
+notif.cases.case_updated.body,The client updated a case you bid on.,"Клиент обновил кейс, на который вы сделали бид."
+notif.cases.case_stale_prompt.title,Is your case still relevant?,Кейс ещё актуален?
+notif.cases.case_stale_prompt.body,Keep it open or close it.,Оставьте его открытым или закройте.
+notif.cases.case_archived.title,Case archived,Кейс в архиве
+notif.cases.case_archived.body,Your case moved to the archive. You can restore it.,Ваш кейс перемещён в архив. Его можно вернуть.
+notif.cases.completion_requested.title,Client marked the case done,Клиент отметил «Выполнено»
+notif.cases.completion_requested.body,Confirm or dispute within 7 days.,Подтвердите или оспорьте в течение 7 дней.
+notif.cases.completion_reminder.title,Case closes soon,Скоро автозакрытие
+notif.cases.completion_reminder.body,The case closes automatically within 24 hours.,Кейс закроется автоматически в течение 24 часов.
+notif.cases.case_closed.title,Case closed,Кейс закрыт
+notif.cases.case_closed.body,The case is closed.,Кейс закрыт.
+notif.cases.contact_issue_update.title,Contact report reviewed,Обращение рассмотрено
+notif.cases.contact_issue_update.body,"Support reviewed the ""can’t reach"" report.",Поддержка рассмотрела обращение «Не могу связаться».
+notif.cases.moderation_notice.title,Account notice,Уведомление по аккаунту
+notif.cases.moderation_notice.body,Please keep your contact details up to date.,"Пожалуйста, поддерживайте контакты в актуальном состоянии."

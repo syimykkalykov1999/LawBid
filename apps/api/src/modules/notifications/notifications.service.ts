@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { NotificationCategory, NotificationType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { PushQueueService } from './push/push-queue.service';
 
 /** docs/05_FEED_SEARCH_CHAT_NOTIFICATIONS.md §9.2: category of every
  * notification type (drives the per-category settings of §9.5). Typed as
@@ -59,7 +60,10 @@ export interface NotificationEmit {
  */
 @Injectable()
 export class NotificationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly push?: PushQueueService,
+  ) {}
 
   /** Returns the stored row id, or null for `new_message`, which is
    * push-only and never stored (docs/05 §9.2). */
@@ -69,7 +73,7 @@ export class NotificationsService {
   ): Promise<{ id: string } | null> {
     if (input.type === 'new_message') return null;
     const db = tx ?? this.prisma;
-    return db.notification.create({
+    const row = await db.notification.create({
       data: {
         user_id: input.recipientId,
         type: input.type,
@@ -78,5 +82,10 @@ export class NotificationsService {
       },
       select: { id: true },
     });
+    // docs/04 stage 4.8: queue the push (jobId = row id → at most one push
+    // per stored event; delayed so the caller's transaction commits first,
+    // a rolled-back row is dropped by the dispatcher).
+    await this.push?.enqueue(row.id, input.type);
+    return row;
   }
 }

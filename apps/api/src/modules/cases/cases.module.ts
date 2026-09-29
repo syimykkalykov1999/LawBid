@@ -4,7 +4,6 @@ import { BidsModule } from '../bids/bids.module';
 import { FilesModule } from '../files/files.module';
 import { JournalModule } from '../journal/journal.module';
 import { NotificationsModule } from '../notifications/notifications.module';
-import { ReviewsModule } from '../reviews/reviews.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { UsersModule } from '../users/users.module';
 import { CaseBidsController } from './case-bids/case-bids.controller';
@@ -18,7 +17,7 @@ import { ContactIssuesAdminController } from './contacts/contact-issues-admin.co
 import { CaseStateMachine } from './domain/case-state-machine';
 import { CaseDisputesAdminController } from './lifecycle/case-disputes-admin.controller';
 import { CaseLifecycleController } from './lifecycle/case-lifecycle.controller';
-import { CaseLifecycleService } from './lifecycle/case-lifecycle.service';
+import { CaseLifecycleModule } from './lifecycle/case-lifecycle.module';
 import { CaseAccessPolicy } from './policies/case-access.policy';
 import { CaseViewTrackingService } from './services/case-view-tracking.service';
 import { CasesFeedService } from './services/cases-feed.service';
@@ -41,8 +40,8 @@ import { CasesFeedService } from './services/cases-feed.service';
     FilesModule,
     SubscriptionsModule,
     AdminAccessModule,
-    // Stage 4.6: review request when a case closes (docs/03 §7.3).
-    ReviewsModule,
+    // Stage 4.6: the lifecycle service (shared with the §10.2 jobs).
+    CaseLifecycleModule,
   ],
   controllers: [
     CasesController,
@@ -61,13 +60,7 @@ import { CasesFeedService } from './services/cases-feed.service';
     CaseViewTrackingService,
     CaseBidsService,
     CaseContactsService,
-    CaseLifecycleService,
   ],
-  exports: [
-    CasesService,
-    CaseStateMachine,
-    CaseAccessPolicy,
-    CaseLifecycleService,
-  ],
+  exports: [CasesService, CaseStateMachine, CaseAccessPolicy],
 })
 export class CasesModule {}

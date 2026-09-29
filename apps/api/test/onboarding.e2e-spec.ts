@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { LoggerErrorInterceptor, Logger } from 'nestjs-pino';
@@ -65,6 +66,52 @@ describe('Onboarding (e2e) — stage 1.7 server side', () => {
 
   const api = () => request(app.getHttpServer());
 
+  /** A body that passes POST /cases validation (docs/04 §3.1), so these
+   * checks exercise the role/onboarding gate, not the DTO (the stage 1.7
+   * stub was replaced by the real endpoint in docs/04 stage 4.2). */
+  async function validCaseBody(): Promise<Record<string, unknown>> {
+    const category = await prisma.practiceArea.upsert({
+      where: { code: 'e2e_onboarding_cat' },
+      create: {
+        code: 'e2e_onboarding_cat',
+        name_en: 'E2E onboarding category',
+        i18n_key: 'practice.e2e_onboarding_cat',
+        sort: 1,
+      },
+      update: {},
+      select: { id: true },
+    });
+    // A leaf = active specialization under an active category.
+    const leaf = await prisma.practiceArea.upsert({
+      where: { code: 'e2e_onboarding_leaf' },
+      create: {
+        code: 'e2e_onboarding_leaf',
+        parent_id: category.id,
+        name_en: 'E2E onboarding',
+        i18n_key: 'practice.e2e_onboarding_leaf',
+        sort: 1,
+      },
+      update: {},
+      select: { id: true },
+    });
+    return {
+      practiceAreaId: leaf.id,
+      title: 'Need help with a landlord dispute',
+      description:
+        'My landlord kept my security deposit without a valid reason and I need advice on next steps.',
+      primaryStateCode: 'NY',
+      budgetMode: 'clarify_later',
+      clientContactSharingConsent: true,
+    };
+  }
+
+  const postCase = async (auth: Record<string, string>) =>
+    api()
+      .post('/api/v1/cases')
+      .set(auth)
+      .set('Idempotency-Key', randomUUID())
+      .send(await validCaseBody());
+
   async function login(phone: string): Promise<string> {
     await api()
       .post('/api/v1/auth/otp/request')
@@ -95,7 +142,7 @@ describe('Onboarding (e2e) — stage 1.7 server side', () => {
       .expect(201);
   }
 
-  it('client: full flow, resume, contact gate, POST /cases stub', async () => {
+  it('client: full flow, resume, contact gate, POST /cases', async () => {
     const token = await login('+12025557001');
     const auth = { Authorization: `Bearer ${token}` };
 
@@ -104,7 +151,7 @@ describe('Onboarding (e2e) — stage 1.7 server side', () => {
     expect(fresh.body.data.missing).toEqual(['consents', 'role', 'name']);
 
     // No role yet -> cannot create a case.
-    await api().post('/api/v1/cases').set(auth).expect(403);
+    expect((await postCase(auth)).status).toBe(403);
 
     await grantRequiredConsents(token);
     await api()
@@ -158,7 +205,8 @@ describe('Onboarding (e2e) — stage 1.7 server side', () => {
       .expect(403);
     expect(blocked.body.error.code).toBe('CLIENT_CONTACTS_INCOMPLETE');
 
-    const noCase = await api().post('/api/v1/cases').set(auth).expect(403);
+    const noCase = await postCase(auth);
+    expect(noCase.status).toBe(403);
     expect(noCase.body.error.code).toBe('CLIENT_CONTACTS_INCOMPLETE');
 
     // Email verification itself is covered by contacts/verify; the SMTP
@@ -176,8 +224,9 @@ describe('Onboarding (e2e) — stage 1.7 server side', () => {
     expect(done.body.data.onboarding.completedAt).toEqual(expect.any(String));
     expect(done.body.data.missing).toEqual([]);
 
-    const stub = await api().post('/api/v1/cases').set(auth).expect(501);
-    expect(stub.body.error.code).toBe('NOT_IMPLEMENTED');
+    // Onboarding complete: the real endpoint (docs/04 stage 4.2) creates it.
+    const created = await postCase(auth);
+    expect(created.status).toBe(201);
   });
 
   it('attorney: completes with a verified phone, no email needed', async () => {
@@ -213,7 +262,8 @@ describe('Onboarding (e2e) — stage 1.7 server side', () => {
       .post('/api/v1/users/me/onboarding/complete')
       .set(auth)
       .expect(200);
-    const res = await api().post('/api/v1/cases').set(auth).expect(403);
+    const res = await postCase(auth);
+    expect(res.status).toBe(403);
     expect(res.body.error.code).toBe('FORBIDDEN');
   });
 

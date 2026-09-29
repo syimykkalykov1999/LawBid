@@ -14,6 +14,7 @@ import { UsersModule } from './modules/users/users.module';
 import { I18nModule } from './modules/i18n/i18n.module';
 import { CasesModule } from './modules/cases/cases.module';
 import { CaseHistoryModule } from './modules/case-history/case-history.module';
+import { PushModule } from './modules/notifications/push/push.module';
 import { BidsModule } from './modules/bids/bids.module';
 import { NegotiationsModule } from './modules/negotiations/negotiations.module';
 import { JournalModule } from './modules/journal/journal.module';
@@ -104,6 +105,8 @@ const isDev =
     CasesModule,
     // docs/04 §12 (stage 4.7): case history + PDF export queue.
     CaseHistoryModule.register({ mode: 'api' }),
+    // docs/04 stage 4.8: `push` queue consumer (while JOBS_ENABLED).
+    PushModule.register({ mode: 'api' }),
     BidsModule,
     NegotiationsModule,
     JournalModule,

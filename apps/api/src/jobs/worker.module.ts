@@ -8,6 +8,7 @@ import { JobsModule } from './jobs.module';
 import { NotificationsModule } from '../modules/notifications/notifications.module';
 import { FilesWorkerModule } from '../modules/files/files-worker.module';
 import { CaseHistoryModule } from '../modules/case-history/case-history.module';
+import { PushModule } from '../modules/notifications/push/push.module';
 
 /**
  * Root module of the dedicated `worker` process (docs/06_PRODUCTION.md §6:
@@ -37,6 +38,8 @@ import { CaseHistoryModule } from '../modules/case-history/case-history.module';
     FilesWorkerModule,
     // docs/04 §12 (stage 4.7): case history PDF export queue.
     CaseHistoryModule.register({ mode: 'worker' }),
+    // docs/04 stage 4.8: `push` queue consumer.
+    PushModule.register({ mode: 'worker' }),
   ],
 })
 export class WorkerModule {}
