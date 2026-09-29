@@ -23,7 +23,10 @@ final notificationsRepositoryProvider = Provider<NotificationsRepository>(
 class BadgesNotifier extends Notifier<Badges> {
   @override
   Badges build() {
-    if (ref.watch(currentUserIdProvider) == null) return const Badges();
+    if (ref.watch(currentUserIdProvider) == null) {
+      unawaited(_appIcon(0));
+      return const Badges();
+    }
     final sub = ref.watch(realtimeEventsProvider).listen((e) {
       if (e.name == 'badge:update') {
         final b = Badges.fromEvent(e.data);

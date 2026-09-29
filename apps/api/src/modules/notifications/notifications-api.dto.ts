@@ -10,6 +10,7 @@ import {
   IsUUID,
   Matches,
   MaxLength,
+  MinLength,
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
@@ -179,6 +180,7 @@ export class UpdateNotificationSettingsDto {
 export class PushTokenDto {
   @ApiProperty({ description: 'FCM registration token.' })
   @IsString()
+  @MinLength(20)
   @MaxLength(4096)
   token!: string;
 

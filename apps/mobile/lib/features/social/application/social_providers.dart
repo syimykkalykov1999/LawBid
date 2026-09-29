@@ -47,6 +47,9 @@ class PostOverrides extends Notifier<Map<String, Post>> {
   Map<String, Post> build() => const {};
 
   void put(Post post) => state = {...state, post.id: post};
+
+  /// A fresh first page from the server is the truth again.
+  void clear() => state = const {};
 }
 
 final postOverridesProvider =
@@ -85,7 +88,10 @@ class FeedNotifier extends PagedNotifier<Post> {
     final repo = ref.read(socialRepositoryProvider);
     try {
       final page = await repo.feed(cursor: cursor);
-      if (cursor == null) fromCache = false;
+      if (cursor == null) {
+        fromCache = false;
+        ref.read(postOverridesProvider.notifier).clear();
+      }
       return page;
     } on ApiException catch (e) {
       if (cursor != null || !e.isNetworkError) rethrow;

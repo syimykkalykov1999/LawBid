@@ -165,7 +165,6 @@ export class PushDispatcher
       'postId',
       'commentId',
       'reviewId',
-      'actorId',
     ]) {
       if (typeof payload[k] === 'string') deepLink[k] = payload[k];
     }

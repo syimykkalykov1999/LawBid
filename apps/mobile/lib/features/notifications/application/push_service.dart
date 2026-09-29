@@ -11,6 +11,7 @@ import 'package:lawbid/features/notifications/presentation/notifications_view.da
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
+import 'package:lawbid/features/chat/application/chat_providers.dart';
 
 /// docs/05 §9.5 push on the device: FCM token registered for this session
 /// (`POST /push-tokens`), re-registered when it rotates, removed on
@@ -21,16 +22,25 @@ class PushService {
 
   final Ref _ref;
   String? _token;
-  bool _started = false;
+
+  /// The user this device is registered for; a different sign-in
+  /// registers again (review: user B after user A got no pushes).
+  String? _startedFor;
   final _subs = <StreamSubscription<Object?>>[];
 
   Future<void> start() async {
-    if (_started) return;
-    _started = true;
+    final user = _ref.read(currentUserIdProvider);
+    if (user == null || _startedFor == user) return;
+    _startedFor = user;
+    for (final s in _subs) {
+      await s.cancel();
+    }
+    _subs.clear();
     try {
       if (Firebase.apps.isEmpty) await Firebase.initializeApp();
     } on Object catch (e) {
       debugPrint('push disabled: $e');
+      _startedFor = null;
       return;
     }
     final m = FirebaseMessaging.instance;
@@ -49,6 +59,7 @@ class PushService {
       if (initial != null) _open(initial);
     } on Object catch (e) {
       debugPrint('push setup failed: $e');
+      _startedFor = null; // try again on the next shell start
     }
   }
 
@@ -66,6 +77,7 @@ class PushService {
 
   /// Sign-out: this device stops receiving pushes.
   Future<void> unregister() async {
+    _startedFor = null;
     final token = _token;
     if (token == null) return;
     try {
@@ -97,4 +109,16 @@ final pushServiceProvider = Provider<PushService>((ref) {
   final service = PushService(ref);
   ref.onDispose(service.dispose);
   return service;
+});
+
+/// Per sign-in start-up work: push registration and the outbox drain.
+/// Re-runs when the user changes (MainShell listens to it, so it never
+/// runs from a widget's build).
+final sessionServicesProvider = Provider<void>((ref) {
+  final user = ref.watch(currentUserIdProvider);
+  if (user == null) return;
+  Future.microtask(() {
+    ref.read(pushServiceProvider).start();
+    ref.read(outboxSenderProvider).drain();
+  });
 });

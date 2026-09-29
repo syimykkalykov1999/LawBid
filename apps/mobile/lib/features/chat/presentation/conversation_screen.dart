@@ -297,7 +297,15 @@ class _MessageList extends ConsumerWidget {
       itemCount: items.length + (state.nextCursor != null ? 1 : 0),
       itemBuilder: (context, i) {
         if (i == items.length) {
-          onMore();
+          if (state.loadMoreFailed) {
+            return Center(
+              child: TextButton(onPressed: onMore, child: Text(t.t('error.retry'))),
+            );
+          }
+          // Ask for the older page after this frame (never during build).
+          if (!state.loadingMore) {
+            WidgetsBinding.instance.addPostFrameCallback((_) => onMore());
+          }
           return const Padding(
             padding: EdgeInsets.all(AppSpacing.md),
             child: Center(

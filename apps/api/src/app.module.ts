@@ -87,9 +87,13 @@ export const pinoHttpOptions: PinoHttpOptions = {
   },
   // docs/05 §7.6: search text is never logged next to the caller.
   serializers: {
-    req: (req: { url?: string }) =>
+    req: (req: { url?: string; query?: unknown }) =>
       req.url?.includes('/search/')
-        ? { ...req, url: req.url.replace(/\?.*$/, '?[REDACTED]') }
+        ? {
+            ...req,
+            url: req.url.replace(/\?.*$/, '?[REDACTED]'),
+            query: undefined,
+          }
         : req,
   },
   transport:

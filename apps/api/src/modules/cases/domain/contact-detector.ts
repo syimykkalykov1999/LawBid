@@ -101,7 +101,8 @@ function hasLongDigitRun(text: string): boolean {
 /** True if `text` looks like it contains a phone number, email or link. */
 export function containsContactInfo(text: string): boolean {
   if (!text) return false;
-  const lower = text.toLowerCase();
+  // Full-width digits/letters (security review) fold to ASCII first.
+  const lower = text.normalize('NFKC').toLowerCase();
   return (
     EMAIL_RE.test(lower) ||
     URL_RE.test(lower) ||
@@ -156,7 +157,7 @@ export function maskContactInfo(text: string): {
   text: string;
   masked: boolean;
 } {
-  let out = text;
+  let out = text.normalize('NFKC');
   for (const re of [
     new RegExp(URL_RE.source, 'gi'),
     new RegExp(EMAIL_RE.source, 'gi'),

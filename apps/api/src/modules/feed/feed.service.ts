@@ -31,6 +31,8 @@ const SEEN_TTL_SEC = 3 * 24 * 3600;
 const FIRST_PAGE_TTL_SEC = 60;
 /** How far into the snapshot one page may scan for unseen candidates. */
 const RECO_SCAN = 200;
+/** Followed authors considered for the stream. */
+const FOLLOWEES_MAX = 2000;
 
 function badCursor(): BadRequestException {
   return new BadRequestException({
@@ -78,9 +80,14 @@ export class FeedService implements FeedProvider {
       }
     }
 
+    // Bounded: the most recent follows feed the "followed" stream (load
+    // review — an account following 50k attorneys can't make an unbounded
+    // IN list).
     const followees = await this.prisma.follow.findMany({
       where: { follower_id: viewer.sub },
       select: { followee_id: true },
+      orderBy: { created_at: 'desc' },
+      take: FOLLOWEES_MAX,
     });
     const hasFollows = followees.length > 0;
     const authorIds = followees.map((f) => f.followee_id);
@@ -188,9 +195,9 @@ export class FeedService implements FeedProvider {
       offset + RECO_SCAN - 1,
     );
     if (ids.length === 0) return { posts: [], next: () => offset, version };
-    const seen = new Set(
-      await this.redis.zrange(seenKey(viewer.sub), '0', '-1'),
-    );
+    // Only the candidates are checked, not the whole seen set.
+    const scores = await this.redis.zmscore(seenKey(viewer.sub), ...ids);
+    const seen = new Set(ids.filter((_, i) => scores[i] !== null));
     const exclude = new Set(excludeAuthors);
     const rows = await this.prisma.post.findMany({
       where: {

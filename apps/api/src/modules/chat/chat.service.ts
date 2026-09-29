@@ -132,7 +132,7 @@ export class ChatService {
     cursor?: string,
     afterId?: string,
   ): Promise<MessagePage> {
-    await this.load(user, id);
+    const conv = await this.load(user, id);
     if (afterId) {
       const anchor = await this.prisma.message.findFirst({
         where: { id: afterId, conversation_id: id },
@@ -152,7 +152,7 @@ export class ChatService {
         take: CATCH_UP_MAX,
       });
       return {
-        items: rows.map((m) => this.toMessage(m, user.sub)),
+        items: rows.map((m) => this.toMessage(m, user.sub, conv)),
         nextCursor: null,
       };
     }
@@ -176,7 +176,7 @@ export class ChatService {
     const page = rows.slice(0, MESSAGES_PAGE);
     const last = page[page.length - 1];
     return {
-      items: page.map((m) => this.toMessage(m, user.sub)),
+      items: page.map((m) => this.toMessage(m, user.sub, conv)),
       nextCursor:
         rows.length > MESSAGES_PAGE && last
           ? encodeCursor({ createdAt: last.created_at, id: last.id })
@@ -278,7 +278,7 @@ export class ChatService {
       message: this.toMessage(message, user.sub),
     });
     this.realtime.toUsers([other], 'message:new', {
-      message: this.toMessage(message, other),
+      message: this.toMessage(message, other, conv),
     });
     // §8.4: badge + push to the recipient (the dispatcher skips it while
     // the chat is open on their device or muted).
@@ -335,9 +335,9 @@ export class ChatService {
     if (result.moved) {
       const other =
         user.sub === conv.client_id ? conv.attorney_id : conv.client_id;
+      // No user id: the receiver knows it was the other side.
       this.realtime.toUsers([other], 'message:read', {
         conversationId: id,
-        userId: user.sub,
         lastReadMessageId: result.lastReadMessageId,
       });
       await this.badges.chatsChanged(user.sub);
@@ -394,11 +394,26 @@ export class ChatService {
     });
   }
 
-  private toMessage(m: Message, viewerId: string): MessageDto {
+  /** Security review (docs/05): while contacts are locked the attorney
+   * must not learn the client's user id — their messages come with
+   * senderId null (the app treats "not mine" the same). */
+  private toMessage(
+    m: Message,
+    viewerId: string,
+    conv?: Pick<
+      Conversation,
+      'attorney_id' | 'client_id' | 'contacts_unlocked'
+    >,
+  ): MessageDto {
+    const hideSender =
+      conv !== undefined &&
+      viewerId === conv.attorney_id &&
+      !conv.contacts_unlocked &&
+      m.sender_id === conv.client_id;
     return {
       id: m.id,
       conversationId: m.conversation_id,
-      senderId: m.sender_id,
+      senderId: hideSender ? null : m.sender_id,
       type: m.type,
       body: m.body_display,
       contactMasked: m.contact_masked,
@@ -518,7 +533,7 @@ export class ChatService {
           verifiedBadge:
             other?.attorney_profile?.verification_status === 'verified',
         },
-        lastMessage: last ? this.toMessage(last, viewerId) : null,
+        lastMessage: last ? this.toMessage(last, viewerId, c) : null,
         lastMessageAt: c.last_message_at,
         unreadCount: unreadOf.get(c.id) ?? 0,
         mutedUntil: partOf.get(`${c.id}:${viewerId}`)?.muted_until ?? null,

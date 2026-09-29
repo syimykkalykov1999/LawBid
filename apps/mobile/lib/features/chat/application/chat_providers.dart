@@ -37,7 +37,9 @@ class ConversationsNotifier extends PagedNotifier<Conversation> {
           e.name == RealtimeEvent.reconnected) {
         _debounce?.cancel();
         _debounce = Timer(const Duration(milliseconds: 600), () {
-          if (ref.mounted) unawaited(refresh());
+          if (!ref.mounted) return;
+          // Offline / 5xx while events arrive: keep what is shown.
+          unawaited(refresh().catchError((Object _) {}));
         });
       }
     });
@@ -88,6 +90,7 @@ class OutboxSender {
   final Ref _ref;
   StreamSubscription<RealtimeEvent>? _sub;
   Future<void>? _running;
+  bool _again = false;
   final _sent = StreamController<ChatMessage>.broadcast();
 
   /// Messages the server accepted (for threads whose socket is down).
@@ -96,9 +99,27 @@ class OutboxSender {
   /// Set when the server said "renew your subscription" (§8.4).
   final subscriptionRequired = ValueNotifier<bool>(false);
 
-  Future<void> drain() => _running ??= _drain().whenComplete(() {
-        _running = null;
-      });
+  /// Single-flight; a call during a run queues one more pass, so a
+  /// message written while another is sending is never left behind.
+  Future<void> drain() {
+    final running = _running;
+    if (running != null) {
+      _again = true;
+      return running;
+    }
+    return _running = _loop().whenComplete(() => _running = null);
+  }
+
+  Future<void> _loop() async {
+    do {
+      _again = false;
+      try {
+        await _drain();
+      } on Object {
+        // A drift/parse failure must not surface as an uncaught error.
+      }
+    } while (_again);
+  }
 
   Future<void> _drain() async {
     final owner = _ref.read(currentUserIdProvider);
@@ -109,8 +130,10 @@ class OutboxSender {
       if (row.failedCode != null) continue;
       try {
         final m = await repo.send(row.conversationId, row.clientMessageId, row.body);
-        await db.sent(row.clientMessageId);
+        // Merge into the thread before the outbox row disappears, so the
+        // bubble never blinks out.
         _sent.add(m);
+        await db.sent(row.clientMessageId);
       } on ApiException catch (e) {
         if (e.isNetworkError || e.statusCode == 429 || (e.statusCode ?? 500) >= 500) {
           // Temporary: keep it and stop; the next trigger retries in order.
@@ -144,6 +167,7 @@ class ChatThreadState {
     this.loading = true,
     this.loadingMore = false,
     this.error,
+    this.loadMoreFailed = false,
     this.typing = false,
   });
 
@@ -158,6 +182,10 @@ class ChatThreadState {
   final bool loading;
   final bool loadingMore;
   final Object? error;
+
+  /// The last older-page load failed: the list shows Retry instead of
+  /// firing again on every rebuild.
+  final bool loadMoreFailed;
   final bool typing;
 
   /// Newest first, the outbox on top.
@@ -173,6 +201,7 @@ class ChatThreadState {
     bool? loadingMore,
     Object? error,
     bool clearError = false,
+    bool? loadMoreFailed,
     bool? typing,
   }) =>
       ChatThreadState(
@@ -183,6 +212,7 @@ class ChatThreadState {
         loading: loading ?? this.loading,
         loadingMore: loadingMore ?? this.loadingMore,
         error: clearError ? null : (error ?? this.error),
+        loadMoreFailed: loadMoreFailed ?? this.loadMoreFailed,
         typing: typing ?? this.typing,
       );
 }
@@ -250,7 +280,7 @@ class ChatThread extends Notifier<ChatThreadState> {
   Future<void> loadMore() async {
     final cursor = state.nextCursor;
     if (cursor == null || state.loadingMore) return;
-    state = state.copyWith(loadingMore: true);
+    state = state.copyWith(loadingMore: true, loadMoreFailed: false);
     try {
       final page = await _repo.messages(id, cursor: cursor);
       if (!ref.mounted) return;
@@ -261,7 +291,9 @@ class ChatThread extends Notifier<ChatThreadState> {
         loadingMore: false,
       );
     } on Object {
-      if (ref.mounted) state = state.copyWith(loadingMore: false);
+      if (ref.mounted) {
+        state = state.copyWith(loadingMore: false, loadMoreFailed: true);
+      }
     }
   }
 

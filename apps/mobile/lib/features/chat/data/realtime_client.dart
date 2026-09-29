@@ -74,7 +74,7 @@ class RealtimeClient {
     socket
       ..onConnect((_) {
         for (final id in _rooms) {
-          socket.emit('conversation:join', {'conversationId': id});
+          _join(id);
         }
         if (_everConnected) {
           _events.add(const RealtimeEvent(RealtimeEvent.reconnected, null));
@@ -94,7 +94,11 @@ class RealtimeClient {
     final s = _socket;
     if (s == null) return;
     s.auth = {'token': token};
-    if (s.connected) s.emit('auth:refresh', {'token': token});
+    if (s.connected) {
+      s.emit('auth:refresh', {'token': token});
+    } else if (!s.active) {
+      s.connect();
+    }
   }
 
   Future<void> _reauth() async {
@@ -109,9 +113,22 @@ class RealtimeClient {
 
   void join(String conversationId) {
     _rooms.add(conversationId);
-    if (connected) {
-      _socket!.emit('conversation:join', {'conversationId': conversationId});
-    }
+    if (connected) _join(conversationId);
+  }
+
+  /// The server may still be finishing the handshake: a refused join is
+  /// retried shortly (review finding).
+  void _join(String conversationId, [int attempt = 0]) {
+    final s = _socket;
+    if (s == null || !s.connected || !_rooms.contains(conversationId)) return;
+    s.emitWithAck('conversation:join', {'conversationId': conversationId},
+        ack: (Object? data) {
+      final ok = data is Map && data['ok'] == true;
+      if (!ok && attempt < 4 && !_disposed) {
+        Future<void>.delayed(Duration(milliseconds: 300 * (attempt + 1)),
+            () => _join(conversationId, attempt + 1));
+      }
+    });
   }
 
   void leave(String conversationId) {

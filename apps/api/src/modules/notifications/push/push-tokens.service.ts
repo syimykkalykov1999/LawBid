@@ -44,6 +44,19 @@ export class PushTokensService {
         last_seen_at: new Date(),
       },
     });
+    // Keep the newest MAX_DEVICES per user (security review: no unbounded
+    // token rows from one account).
+    const stale = await this.prisma.pushToken.findMany({
+      where: { user_id: userId },
+      orderBy: { last_seen_at: 'desc' },
+      skip: MAX_DEVICES,
+      select: { id: true },
+    });
+    if (stale.length > 0) {
+      await this.prisma.pushToken.deleteMany({
+        where: { id: { in: stale.map((s) => s.id) } },
+      });
+    }
   }
 
   async unregister(userId: string, token: string): Promise<void> {

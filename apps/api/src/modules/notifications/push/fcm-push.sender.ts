@@ -10,6 +10,7 @@ import { PushTokensService } from './push-tokens.service';
 const SCOPE = 'https://www.googleapis.com/auth/firebase.messaging';
 /** Devices already served for a logical push, kept for the retry window. */
 const SENT_TTL_SEC = 24 * 3600;
+const FCM_TIMEOUT_MS = 10_000;
 
 /** A temporary FCM failure: BullMQ retries the job (§9.5: 3 attempts,
  * exponential backoff). */
@@ -50,54 +51,72 @@ export class FcmPushSender implements PushSender {
     const { token: access } = await this.jwt.getAccessToken();
     let temporary = 0;
     for (const device of devices) {
-      if (await this.redis.sismember(sentKey, device)) continue;
-      const res = await fetch(this.url, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${access}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          message: {
-            token: device,
-            notification: { title: message.title, body: message.body },
-            data: message.data,
-            android: { priority: 'high' },
-            apns: {
-              payload: {
-                aps: {
-                  sound: 'default',
-                  ...(message.badge !== undefined
-                    ? { badge: message.badge }
-                    : {}),
+      // Claim the device before the call: a crash between FCM's 200 and
+      // the mark can at most skip a push, never double it (load review).
+      const claimed = await this.redis.set(
+        `${sentKey}:${device}`,
+        '1',
+        'EX',
+        SENT_TTL_SEC,
+        'NX',
+      );
+      if (claimed === null) continue;
+      let res: Response;
+      try {
+        res = await fetch(this.url, {
+          method: 'POST',
+          signal: AbortSignal.timeout(FCM_TIMEOUT_MS),
+          headers: {
+            Authorization: `Bearer ${access}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            message: {
+              token: device,
+              notification: { title: message.title, body: message.body },
+              data: message.data,
+              android: { priority: 'high' },
+              apns: {
+                payload: {
+                  aps: {
+                    sound: 'default',
+                    ...(message.badge !== undefined
+                      ? { badge: message.badge }
+                      : {}),
+                  },
                 },
               },
             },
+          }),
+        });
+      } catch (error) {
+        // Network / timeout: release the claim so the retry sends.
+        await this.redis.del(`${sentKey}:${device}`);
+        temporary++;
+        this.logger.warn(
+          {
+            userId: message.userId,
+            err: error instanceof Error ? error.message : error,
           },
-        }),
-      });
-      if (res.ok) {
-        await this.redis
-          .multi()
-          .sadd(sentKey, device)
-          .expire(sentKey, SENT_TTL_SEC)
-          .exec();
+          'fcm send failed',
+        );
         continue;
       }
+      if (res.ok) continue;
       const body = (await res.json().catch(() => ({}))) as {
         error?: { status?: string; details?: { errorCode?: string }[] };
       };
       const code =
         body.error?.details?.find((d) => d.errorCode)?.errorCode ??
         body.error?.status;
-      if (
-        res.status === 404 ||
-        code === 'UNREGISTERED' ||
-        code === 'INVALID_ARGUMENT'
-      ) {
+      // Only a token the platform no longer knows is dropped; a wrong
+      // project id (404 for everyone) or a bad payload must not erase
+      // every user's tokens (security review).
+      if (code === 'UNREGISTERED') {
         await this.tokens.remove(device);
         continue;
       }
+      await this.redis.del(`${sentKey}:${device}`);
       temporary++;
       this.logger.warn(
         { userId: message.userId, status: res.status, code },

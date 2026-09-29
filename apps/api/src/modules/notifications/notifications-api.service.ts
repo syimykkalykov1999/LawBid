@@ -224,11 +224,14 @@ export class NotificationsApiService {
       const a =
         typeof payload.actorId === 'string' ? byId.get(payload.actorId) : null;
       const isAttorney = a?.role === 'attorney';
+      // A client actor stays anonymous (§5.2): their id leaves the payload.
+      const safePayload = { ...payload };
+      delete safePayload.actorId;
       out.push({
         id: r.id,
         type: r.type,
         category: r.category,
-        payload,
+        payload: isAttorney ? payload : safePayload,
         actor: a
           ? {
               id: isAttorney ? a.id : null,

@@ -28,6 +28,8 @@ export class NotificationsRetentionJob {
         LIMIT ${BATCH}`;
       deleted += n;
       if (n < BATCH) break;
+      // Short pause so a big backlog never hogs the DB (load review).
+      await new Promise((r) => setTimeout(r, 200));
     }
     return { deleted };
   }

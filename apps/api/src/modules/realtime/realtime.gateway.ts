@@ -31,10 +31,15 @@ const UUID_RE =
 const VIEW_TTL_SEC = 3600;
 /** At most one typing event per socket per this window. */
 const TYPING_MIN_GAP_MS = 1000;
+/** How often a live socket re-checks the session blacklist. */
+const REVOCATION_CHECK_MS = 45_000;
 
 interface SocketState {
   user: AccessTokenClaims;
   expiryTimer?: NodeJS.Timeout;
+  /** Security review: a revoked session (logout, "log out all") must
+   * stop receiving events before the access token expires. */
+  revocationTimer?: NodeJS.Timeout;
   lastTypingAt?: number;
   viewing: Set<string>;
 }
@@ -125,6 +130,15 @@ export class RealtimeGateway
     }
     socket.data = { user: claims, viewing: new Set<string>() } as SocketState;
     this.armExpiry(socket, token);
+    state(socket).revocationTimer = setInterval(() => {
+      void this.revocation.isBlacklisted(state(socket).user.sid).then((r) => {
+        if (r) {
+          socket.emit('auth:error', { code: 'AUTH_SESSION_REVOKED' });
+          socket.disconnect(true);
+        }
+      });
+    }, REVOCATION_CHECK_MS);
+    state(socket).revocationTimer?.unref?.();
     await socket.join(userRoom(claims.sub));
   }
 
@@ -132,6 +146,7 @@ export class RealtimeGateway
     const s = state(socket);
     if (!s?.user) return;
     clearTimeout(s.expiryTimer);
+    clearInterval(s.revocationTimer);
     try {
       for (const id of s.viewing) {
         await this.redis.srem(viewingKey(s.user.sub, id), socket.id);
@@ -165,8 +180,8 @@ export class RealtimeGateway
     @MessageBody() body: { conversationId?: unknown },
   ): Promise<{ ok: boolean }> {
     const id = this.conversationIdOf(body);
-    const uid = state(socket).user.sub;
-    if (!id) return { ok: false };
+    const uid = state(socket)?.user?.sub;
+    if (!id || !uid) return { ok: false };
     const member = await this.prisma.conversationParticipant.findUnique({
       where: { conversation_id_user_id: { conversation_id: id, user_id: uid } },
       select: { user_id: true },
@@ -228,7 +243,7 @@ export class RealtimeGateway
     if (typing) s.lastTypingAt = now;
     socket
       .to(conversationRoom(id))
-      .emit('typing', { conversationId: id, userId: s.user.sub, typing });
+      .emit('typing', { conversationId: id, typing });
   }
 
   private conversationIdOf(body: { conversationId?: unknown }): string | null {
