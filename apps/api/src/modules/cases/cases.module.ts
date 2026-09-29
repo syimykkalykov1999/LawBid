@@ -15,6 +15,8 @@ import { CaseContactsController } from './contacts/case-contacts.controller';
 import { CaseContactsService } from './contacts/case-contacts.service';
 import { ContactIssuesAdminController } from './contacts/contact-issues-admin.controller';
 import { CaseStateMachine } from './domain/case-state-machine';
+import { MineController } from './mine/mine.controller';
+import { MineService } from './mine/mine.service';
 import { CaseDisputesAdminController } from './lifecycle/case-disputes-admin.controller';
 import { CaseLifecycleController } from './lifecycle/case-lifecycle.controller';
 import { CaseLifecycleModule } from './lifecycle/case-lifecycle.module';
@@ -51,6 +53,7 @@ import { CasesFeedService } from './services/cases-feed.service';
     ContactIssuesAdminController,
     CaseLifecycleController,
     CaseDisputesAdminController,
+    MineController,
   ],
   providers: [
     CasesService,
@@ -60,6 +63,7 @@ import { CasesFeedService } from './services/cases-feed.service';
     CaseViewTrackingService,
     CaseBidsService,
     CaseContactsService,
+    MineService,
   ],
   exports: [CasesService, CaseStateMachine, CaseAccessPolicy],
 })

@@ -66,7 +66,7 @@ export function decodeBidListCursor(
   });
 }
 
-const BID_LIST_INCLUDE = {
+export const BID_LIST_INCLUDE = {
   attorney: {
     select: {
       first_name: true,
@@ -89,7 +89,9 @@ const BID_LIST_INCLUDE = {
   },
 } satisfies Prisma.BidInclude;
 
-type BidListRow = Prisma.BidGetPayload<{ include: typeof BID_LIST_INCLUDE }>;
+export type BidListRow = Prisma.BidGetPayload<{
+  include: typeof BID_LIST_INCLUDE;
+}>;
 
 /**
  * docs/04 §5.2 (stage 4.5): GET /cases/:id/bids — the case owner's list
@@ -104,6 +106,18 @@ export class CaseBidsService {
     private readonly caseAccess: CaseAccessPolicy,
     private readonly files: FilesService,
   ) {}
+
+  /** §11.1 "Адвокат в работе": the accepted bid of the owner's case. */
+  async acceptedFor(
+    acceptedBidId: string | null,
+  ): Promise<CaseBidItemDto | null> {
+    if (!acceptedBidId) return null;
+    const bid = await this.prisma.bid.findUnique({
+      where: { id: acceptedBidId },
+      include: BID_LIST_INCLUDE,
+    });
+    return bid ? this.toItem(bid) : null;
+  }
 
   async list(
     user: RequestUser,
@@ -145,7 +159,8 @@ export class CaseBidsService {
     };
   }
 
-  private async toItem(bid: BidListRow): Promise<CaseBidItemDto> {
+  /** A bid with the attorney's public summary (§5.2 card). */
+  async toItem(bid: BidListRow): Promise<CaseBidItemDto> {
     const a = bid.attorney;
     const p = a.attorney_profile;
     const avatar = await this.files.avatarUrls(a.avatar_file_id);

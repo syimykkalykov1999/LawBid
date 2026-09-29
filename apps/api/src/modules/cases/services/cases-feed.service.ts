@@ -190,10 +190,9 @@ export class CasesFeedService {
     return profile?.verification_status === 'verified';
   }
 
-  private async hydrate(
-    ids: string[],
-    attorneyId: string,
-  ): Promise<CaseFeedItemDto[]> {
+  /** Feed-card representation of cases by id (order kept, missing ids
+   * skipped). Also used by the saved-cases list (docs/04 §11.2). */
+  async hydrate(ids: string[], attorneyId: string): Promise<CaseFeedItemDto[]> {
     if (ids.length === 0) return [];
     const [rows, ownBids] = await Promise.all([
       this.prisma.case.findMany({
