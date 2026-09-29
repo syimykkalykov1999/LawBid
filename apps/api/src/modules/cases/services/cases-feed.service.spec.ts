@@ -57,6 +57,7 @@ function fakeDeps(opts: {
         .mockResolvedValue(
           (opts.ownBidCaseIds ?? []).map((case_id) => ({ case_id })),
         ),
+      findUnique: jest.fn().mockResolvedValue(null),
     },
     savedItem: {
       findFirst: jest.fn().mockResolvedValue(opts.savedItem ?? null),
@@ -185,6 +186,7 @@ describe('CasesFeedService', () => {
       const detail = await service.getDetailForAttorney('att-1', 'case-1');
       expect(detail.description).toBe('Got a ticket on the turnpike.');
       expect(detail.isSaved).toBe(true);
+      expect(detail.ownBidId).toBeNull();
       expect(Object.keys(detail)).not.toContain('client');
     });
   });

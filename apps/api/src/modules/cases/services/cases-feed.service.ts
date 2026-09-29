@@ -113,7 +113,7 @@ export class CasesFeedService {
     // transaction; a case deleted/closed/moved in between is possible but
     // vanishingly unlikely — still handled, not left as a 500.
     if (!item) throw caseNotAvailable();
-    const [row, saved] = await Promise.all([
+    const [row, saved, ownBid] = await Promise.all([
       this.prisma.case.findUniqueOrThrow({
         where: { id: caseId },
         select: { description: true },
@@ -122,8 +122,19 @@ export class CasesFeedService {
         where: { user_id: attorneyId, item_type: 'case', item_id: caseId },
         select: { user_id: true },
       }),
+      this.prisma.bid.findUnique({
+        where: {
+          case_id_attorney_id: { case_id: caseId, attorney_id: attorneyId },
+        },
+        select: { id: true },
+      }),
     ]);
-    return { ...item, description: row.description, isSaved: !!saved };
+    return {
+      ...item,
+      description: row.description,
+      isSaved: !!saved,
+      ownBidId: ownBid?.id ?? null,
+    };
   }
 
   /** POST /cases/:id/view (docs/04 §4.3): dedup + batched counter. The

@@ -13656,6 +13656,11 @@
           },
           "isSaved": {
             "type": "boolean"
+          },
+          "ownBidId": {
+            "type": "string",
+            "nullable": true,
+            "description": "The attorney's own bid on this case (§4.3: shown instead of \"Сделать бид\")."
           }
         },
         "required": [

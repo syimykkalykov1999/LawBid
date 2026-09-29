@@ -172,6 +172,14 @@ export class CaseDetailForAttorneyDto extends CaseFeedItemDto {
 
   @ApiProperty()
   isSaved!: boolean;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description:
+      'The attorney\'s own bid on this case (§4.3: shown instead of "Сделать бид").',
+  })
+  ownBidId!: string | null;
 }
 
 export interface CaseFeedPage {

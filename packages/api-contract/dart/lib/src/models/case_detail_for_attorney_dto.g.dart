@@ -28,6 +28,7 @@ CaseDetailForAttorneyDto _$CaseDetailForAttorneyDtoFromJson(
   description: json['description'] as String,
   isSaved: json['isSaved'] as bool,
   city: json['city'] as String?,
+  ownBidId: json['ownBidId'] as String?,
 );
 
 Map<String, dynamic> _$CaseDetailForAttorneyDtoToJson(
@@ -48,4 +49,5 @@ Map<String, dynamic> _$CaseDetailForAttorneyDtoToJson(
   'hasOwnBid': instance.hasOwnBid,
   'description': instance.description,
   'isSaved': instance.isSaved,
+  'ownBidId': ?instance.ownBidId,
 };

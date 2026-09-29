@@ -28,6 +28,7 @@ class CaseDetailForAttorneyDto {
     required this.description,
     required this.isSaved,
     this.city,
+    this.ownBidId,
   });
 
   factory CaseDetailForAttorneyDto.fromJson(Map<String, Object?> json) =>
@@ -52,6 +53,9 @@ class CaseDetailForAttorneyDto {
   final bool hasOwnBid;
   final String description;
   final bool isSaved;
+
+  /// The attorney's own bid on this case (§4.3: shown instead of "Сделать бид").
+  final String? ownBidId;
 
   Map<String, Object?> toJson() => _$CaseDetailForAttorneyDtoToJson(this);
 }
