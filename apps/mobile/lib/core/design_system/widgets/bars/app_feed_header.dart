@@ -23,7 +23,12 @@ class AppFeedHeader extends StatelessWidget implements PreferredSizeWidget {
     required this.logoSemanticLabel,
     super.key,
     this.trailing = const [],
+    this.showLogo = true,
   });
+
+  /// Owner request 2026-09-28: the Feed shows no logo for now; the header
+  /// keeps its screen-reader name.
+  final bool showLogo;
 
   /// Screen-reader name of the logo (docs/07 §5.1: semantics label
   /// "LawBid"); also marks the header.
@@ -53,13 +58,20 @@ class AppFeedHeader extends StatelessWidget implements PreferredSizeWidget {
       ),
       child: Row(
         children: [
-          Semantics(
-            header: true,
-            child: ScalesLogo(
-              size: AppSizes.feedHeaderLogo,
-              semanticLabel: logoSemanticLabel,
+          if (showLogo)
+            Semantics(
+              header: true,
+              child: ScalesLogo(
+                size: AppSizes.feedHeaderLogo,
+                semanticLabel: logoSemanticLabel,
+              ),
+            )
+          else
+            Semantics(
+              header: true,
+              label: logoSemanticLabel,
+              child: const SizedBox.shrink(),
             ),
-          ),
           const Spacer(),
           ...trailing,
         ],

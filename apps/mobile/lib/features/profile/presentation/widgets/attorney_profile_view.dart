@@ -89,14 +89,14 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
           _VerificationBanner(t: t),
           const SizedBox(height: AppSpacing.md),
         ],
-        _HeaderCard(profile: p),
-        const SizedBox(height: AppSpacing.md),
-        RatingCard(
-          name: p.fullName.isEmpty ? '@${p.username}' : p.fullName,
-          rating: p.rating,
-          onTap: () => setState(() => _tab = AttorneyProfileTab.reviews),
+        // Instagram-like: avatar + counters (posts, followers, following,
+        // ★ rating → reviews), name, bio, info chips, one compact button
+        // row, icon tabs (owner request 2026-09-28).
+        _HeaderCard(
+          profile: p,
+          onRating: () => setState(() => _tab = AttorneyProfileTab.reviews),
         ),
-        const SizedBox(height: AppSpacing.lg),
+        const SizedBox(height: AppSpacing.md),
         _AboutSection(profile: p),
         const SizedBox(height: AppSpacing.md),
         _ChipRows(profile: p),
@@ -107,7 +107,7 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
           isFollowing: p.isFollowing,
           onShare: () => _share(t),
         ),
-        const SizedBox(height: AppSpacing.xl),
+        const SizedBox(height: AppSpacing.lg),
         _Tabs(
           selected: _tab,
           onChanged: (tab) => setState(() => _tab = tab),
@@ -133,7 +133,7 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
     // loading/error/empty ("New — no reviews") states.
     Widget? footer;
     var status = AppPaginationStatus.idle;
-    List<Review> items = const [];
+    var items = const <Review>[];
     if (!reviewsTab) {
       // docs/05: the attorney's posts as a grid (text posts as tiles).
       footer = ProfilePostsGrid(
@@ -219,7 +219,7 @@ class _VerificationBanner extends StatelessWidget {
         onTap: () => context.push(AppRoutes.verification),
         child: Row(
           children: [
-            const AppIconMedallion(icon: Icons.verified_user_outlined, size: AppSizes.rowMedallion, iconSize: AppSizes.iconSm),
+            const AppIconMedallion(icon: Icons.verified_user_outlined),
             const SizedBox(width: AppSpacing.md),
             Expanded(
               child: Column(
@@ -242,140 +242,90 @@ class _VerificationBanner extends StatelessWidget {
 }
 
 class _HeaderCard extends ConsumerWidget {
-  const _HeaderCard({required this.profile});
+  const _HeaderCard({required this.profile, required this.onRating});
 
   final PublicAttorneyProfile profile;
+  final VoidCallback onRating;
 
-  static const _band = AppSizes.stateMedallion - AppSpacing.md;
-  static const _avatar = AppSizes.stateMedallion;
+  static const _avatar = 88.0;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final t = ref.watch(translatorProvider);
     final formats = ref.watch(l10nFormatsProvider);
-
-    return AppCard(
-      elevated: true,
-      padding: EdgeInsets.zero,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          SizedBox(
-            height: _band + _avatar / 2,
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  top: 0,
-                  height: _band,
-                  child: ClipRRect(
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadii.card)),
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [colors.navy, Color.lerp(colors.navy, colors.goldLight, 0.12)!],
-                        ),
-                        border: Border(bottom: BorderSide(color: colors.gold, width: 1.5)),
-                      ),
-                      // Faint scales watermark (brand motif), decorative.
-                      child: Align(
-                        alignment: const Alignment(0.92, 0),
-                        child: ExcludeSemantics(
-                          child: Icon(
-                            Icons.balance_rounded,
-                            size: _band - AppSpacing.md,
-                            color: colors.gold.withValues(alpha: 0.18),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                Positioned(
-                  left: AppSpacing.lg,
-                  top: _band - _avatar / 2,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: colors.surface, width: AppSpacing.xs),
-                    ),
-                    child: ProfileAvatar(
-                      size: _avatar,
-                      url: profile.avatarUrl,
-                      initials: initialsOf(profile.firstName, profile.lastName, fallback: profile.username),
-                      heroTag: attorneyAvatarHeroTag(profile.username),
-                      semanticLabel: t.t('profile.avatar.label'),
-                    ),
-                  ),
-                ),
-              ],
+    final r = profile.rating;
+    return Row(
+      children: [
+        // Thin gold ring for verified attorneys (the brand accent).
+        Container(
+          padding: const EdgeInsets.all(3),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: profile.verifiedBadge
+                ? LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [colors.goldLight, colors.gold, colors.goldDark],
+                  )
+                : null,
+            color: profile.verifiedBadge ? null : colors.border,
+          ),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: colors.bg, width: 2),
+            ),
+            child: ProfileAvatar(
+              size: _avatar,
+              url: profile.avatarUrl,
+              initials: initialsOf(profile.firstName, profile.lastName, fallback: profile.username),
+              heroTag: attorneyAvatarHeroTag(profile.username),
+              semanticLabel: t.t('profile.avatar.label'),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.lg),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Flexible(
-                      child: Semantics(
-                        header: true,
-                        child: Text(
-                          '@${profile.username}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: typography.titleMedium.copyWith(color: colors.text),
-                        ),
-                      ),
-                    ),
-                    if (profile.verifiedBadge) ...[
-                      const SizedBox(width: AppSpacing.sm),
-                      VerifiedBadge(semanticLabel: t.t('profile.verified.label'), size: AppSizes.iconMd),
-                    ],
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.lg),
-                Row(
-                  children: [
-                    _Counter(value: formats.number(profile.counters.posts), label: t.t('profile.counters.posts')),
-                    _Divider(color: colors.border),
-                    _Counter(
-                      value: formats.number(profile.counters.followers),
-                      label: t.t('profile.counters.followers'),
-                      onTap: () => context.push(SocialRoutes.followers(profile.id)),
-                    ),
-                    _Divider(color: colors.border),
-                    _Counter(
-                      value: formats.number(profile.counters.following),
-                      label: t.t('profile.counters.following'),
-                      onTap: () => context.push(SocialRoutes.following(profile.id)),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+        ),
+        const SizedBox(width: AppSpacing.md),
+        Expanded(
+          child: Row(
+            children: [
+              _Counter(value: formats.number(profile.counters.posts), label: t.t('profile.counters.posts')),
+              _Counter(
+                value: formats.number(profile.counters.followers),
+                label: t.t('profile.counters.followers'),
+                onTap: () => context.push(SocialRoutes.followers(profile.id)),
+              ),
+              _Counter(
+                value: formats.number(profile.counters.following),
+                label: t.t('profile.counters.following'),
+                onTap: () => context.push(SocialRoutes.following(profile.id)),
+              ),
+              _Counter(
+                value: r.isNew ? '—' : r.average!.toStringAsFixed(1),
+                label: r.isNew ? t.t('profile.rating.newShort') : t.plural('profile.rating.count', r.count),
+                star: true,
+                onTap: onRating,
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
 
 class _Counter extends StatelessWidget {
-  const _Counter({required this.value, required this.label, this.onTap});
+  const _Counter({required this.value, required this.label, this.onTap, this.star = false});
 
   final String value;
   final String label;
 
-  /// Followers / following open their lists (docs/05 §6.2).
+  /// Followers / following open their lists (docs/05 §6.2); rating opens
+  /// the Reviews tab.
   final VoidCallback? onTap;
+
+  /// The rating counter: a gold star before the number.
+  final bool star;
 
   @override
   Widget build(BuildContext context) {
@@ -389,31 +339,41 @@ class _Counter extends StatelessWidget {
         excludeSemantics: true,
         child: AppPressable(
           onTap: tap ?? () {},
-          child: Column(
-          children: [
-            Text(value, style: typography.roleTitle.copyWith(color: colors.text)),
-            Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: typography.caption.copyWith(color: colors.textSecondary),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: AppSizes.touchTarget),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (star) ...[
+                      Icon(Icons.star_rounded, size: 16, color: colors.gold),
+                      const SizedBox(width: 2),
+                    ],
+                    Flexible(
+                      child: Text(
+                        value,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: typography.body.copyWith(color: colors.text, fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ],
+                ),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: typography.caption.copyWith(color: colors.textSecondary),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
         ),
       ),
     );
   }
-}
-
-class _Divider extends StatelessWidget {
-  const _Divider({required this.color});
-
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) =>
-      Container(width: 1, height: AppSpacing.xl + AppSpacing.sm, color: color);
 }
 
 class _AboutSection extends ConsumerWidget {
@@ -427,28 +387,36 @@ class _AboutSection extends ConsumerWidget {
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final t = ref.watch(translatorProvider);
     final bio = profile.bio?.trim();
+    final name = profile.fullName.isEmpty ? '@${profile.username}' : profile.fullName;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.xs),
-          decoration: BoxDecoration(
-            color: colors.navy,
-            borderRadius: BorderRadius.circular(AppRadii.pill),
-            border: Border.all(color: colors.gold),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.balance_rounded, size: AppSpacing.lg, color: colors.goldLight),
+        Row(
+          children: [
+            Flexible(
+              child: Semantics(
+                header: true,
+                child: Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: typography.body.copyWith(color: colors.text, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
+            if (profile.verifiedBadge) ...[
               const SizedBox(width: AppSpacing.xs),
-              Text(t.t('profile.attorneyChip'), style: typography.badge.copyWith(color: colors.goldLight)),
+              VerifiedBadge(semanticLabel: t.t('profile.verified.label')),
             ],
-          ),
+          ],
+        ),
+        Text(
+          '@${profile.username} · ${t.t('profile.attorneyChip')}',
+          style: typography.caption.copyWith(color: colors.textSecondary),
         ),
         if (bio != null && bio.isNotEmpty) ...[
-          const SizedBox(height: AppSpacing.md),
-          Text(bio, style: typography.body.copyWith(color: colors.text)),
+          const SizedBox(height: AppSpacing.sm),
+          Text(bio, style: typography.bodySmall.copyWith(color: colors.text, height: 1.4)),
         ],
       ],
     );
@@ -506,27 +474,32 @@ class _ChipRows extends ConsumerWidget {
     final groups = groupPractices(t, profile.practices, categories);
     final firm = profile.firmName?.trim();
 
-    Widget row(String label, IconData icon, List<Widget> chips) => Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.only(bottom: AppSpacing.xs),
-              child: StepLabel(icon: icon, label: label),
-            ),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              clipBehavior: Clip.none,
-              child: Row(
-                children: [
-                  for (var i = 0; i < chips.length; i++) ...[
-                    if (i > 0) const SizedBox(width: AppSpacing.sm),
-                    chips[i],
-                  ],
-                ],
+    // One compact line per section (owner redesign): a small gold icon
+    // (its label read by screen readers) + chips scrolling sideways.
+    Widget row(String label, IconData icon, List<Widget> chips) => Padding(
+          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+          child: Row(
+            children: [
+              Semantics(
+                label: label,
+                child: Icon(icon, size: AppSizes.iconSm, color: colors.goldDark),
               ),
-            ),
-            const SizedBox(height: AppSpacing.md),
-          ],
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      for (var i = 0; i < chips.length; i++) ...[
+                        if (i > 0) const SizedBox(width: AppSpacing.xs),
+                        chips[i],
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         );
 
     final languages = [
@@ -640,29 +613,49 @@ class _Actions extends ConsumerWidget {
       children: [
         Expanded(
           child: isSelf
-              ? AppButton(
+              ? _QuietButton(
                   label: t.t('profile.action.edit'),
-                  icon: Icons.edit_outlined,
-                  height: AppSizes.touchTarget,
-                  onPressed: () => context.push(AppRoutes.profileEdit),
+                  onTap: () => context.push(AppRoutes.profileEdit),
                 )
-              : FollowButton(
-                  attorneyId: attorneyId,
-                  initial: isFollowing,
-                  expanded: true,
-                ),
+              : FollowButton(attorneyId: attorneyId, initial: isFollowing, expanded: true),
         ),
-        const SizedBox(width: AppSpacing.md),
+        const SizedBox(width: AppSpacing.sm),
         Expanded(
-          child: AppButton(
-            label: t.t('profile.action.share'),
-            icon: Icons.ios_share_rounded,
-            variant: AppButtonVariant.secondary,
-            height: AppSizes.touchTarget,
-            onPressed: onShare,
-          ),
+          child: _QuietButton(label: t.t('profile.action.share'), onTap: onShare),
         ),
       ],
+    );
+  }
+}
+
+/// Instagram-style secondary button: soft fill, no icon, small type.
+class _QuietButton extends StatelessWidget {
+  const _QuietButton({required this.label, required this.onTap});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
+    return Semantics(
+      button: true,
+      label: label,
+      excludeSemantics: true,
+      child: AppPressable(
+        onTap: onTap,
+        child: Container(
+          height: AppSizes.touchTarget,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: BorderRadius.circular(AppRadii.button),
+            border: Border.all(color: colors.border),
+          ),
+          child: Text(label, style: typography.button.copyWith(fontSize: 14, color: colors.text)),
+        ),
+      ),
     );
   }
 }
@@ -676,39 +669,16 @@ class _Tabs extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final t = ref.watch(translatorProvider);
     final reduce = context.reduceMotion;
     final tabs = [
-      (AttorneyProfileTab.posts, t.t('profile.tab.posts'), Icons.grid_view_rounded),
-      (AttorneyProfileTab.reviews, t.t('profile.tab.reviews'), Icons.star_outline_rounded),
+      (AttorneyProfileTab.posts, t.t('profile.tab.posts'), Icons.grid_on_rounded),
+      (AttorneyProfileTab.reviews, t.t('profile.tab.reviews'), Icons.star_border_rounded),
     ];
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.xs),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(AppRadii.button),
-        border: Border.all(color: colors.border),
-      ),
+    return DecoratedBox(
+      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: colors.border))),
       child: Stack(
         children: [
-          Positioned.fill(
-            child: AnimatedAlign(
-              alignment: selected == AttorneyProfileTab.posts ? Alignment.centerLeft : Alignment.centerRight,
-              duration: reduce ? Duration.zero : AppMotion.stateChange,
-              curve: AppMotion.enterCurve,
-              child: FractionallySizedBox(
-                widthFactor: 0.5,
-                heightFactor: 1,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: colors.accent,
-                    borderRadius: BorderRadius.circular(AppRadii.field),
-                  ),
-                ),
-              ),
-            ),
-          ),
           Row(
             children: [
               for (final (tab, label, icon) in tabs)
@@ -723,29 +693,29 @@ class _Tabs extends ConsumerWidget {
                       key: ValueKey('profile-tab-${tab.name}'),
                       behavior: HitTestBehavior.opaque,
                       onTap: () => onChanged(tab),
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(minHeight: AppSizes.touchTarget),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(icon, size: AppSizes.iconSm, color: tab == selected ? colors.onAccent : colors.textSecondary),
-                            const SizedBox(width: AppSpacing.xs),
-                            Flexible(
-                              child: AnimatedDefaultTextStyle(
-                                duration: reduce ? Duration.zero : AppMotion.stateChange,
-                                style: typography.button.copyWith(
-                                  color: tab == selected ? colors.onAccent : colors.textSecondary,
-                                ),
-                                child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
-                              ),
-                            ),
-                          ],
+                      child: SizedBox(
+                        height: AppSizes.touchTarget,
+                        child: Icon(
+                          icon,
+                          size: AppSizes.iconMd,
+                          color: tab == selected ? colors.text : colors.textSecondary,
                         ),
                       ),
                     ),
                   ),
                 ),
             ],
+          ),
+          Positioned.fill(
+            child: AnimatedAlign(
+              alignment: selected == AttorneyProfileTab.posts ? Alignment.bottomLeft : Alignment.bottomRight,
+              duration: reduce ? Duration.zero : AppMotion.stateChange,
+              curve: AppMotion.enterCurve,
+              child: FractionallySizedBox(
+                widthFactor: 0.5,
+                child: Container(height: 2, color: colors.gold),
+              ),
+            ),
           ),
         ],
       ),

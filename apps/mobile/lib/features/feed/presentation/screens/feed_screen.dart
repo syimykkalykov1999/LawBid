@@ -39,6 +39,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
       backgroundColor: colors.bg,
       appBar: AppFeedHeader(
         logoSemanticLabel: t.t('brand.name'),
+        showLogo: false,
         trailing: const [ChatsIconButton()],
       ),
       body: !attorney

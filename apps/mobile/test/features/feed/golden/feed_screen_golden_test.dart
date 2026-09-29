@@ -28,7 +28,8 @@ void main() {
     });
   }
 
-  testWidgets('the feed-header logo never animates', (tester) async {
+  testWidgets('the feed header has no logo for now (owner request)',
+      (tester) async {
     await tester.pumpWidget(
       uxApp(
         const FeedScreen(),
@@ -37,10 +38,8 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    final logo = tester.widget<ScalesLogo>(find.byType(ScalesLogo));
-    expect(logo.animated, isFalse);
-    expect(logo.size, AppSizes.feedHeaderLogo);
-    expect(tester.hasRunningAnimations, isFalse);
+    expect(find.byType(ScalesLogo), findsNothing);
     expect(find.bySemanticsLabel('LawBid'), findsOneWidget);
   });
+
 }

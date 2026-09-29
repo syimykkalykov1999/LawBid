@@ -62,7 +62,7 @@ void main() {
   setUpAll(initializeDateFormatting);
 
   group('attorney profile (docs/03 §4.2)', () {
-    testWidgets('someone else\'s profile: header, blue check, gold rating card, chips, Follow + Share',
+    testWidgets('someone else\'s profile: header, blue check, rating counter, chips, Follow + Share',
         (tester) async {
       await _pumpScreen(
         tester,
@@ -70,12 +70,12 @@ void main() {
         user: clientMe(),
         overrides: profileOverrides(),
       );
-      expect(find.text('@jane.doe'), findsOneWidget);
+      expect(find.textContaining('@jane.doe'), findsOneWidget);
       expect(find.byType(VerifiedBadge), findsOneWidget);
       expect(find.text('Jane Doe'), findsOneWidget);
       expect(find.text('4.5'), findsOneWidget);
       expect(find.text('12 reviews'), findsOneWidget);
-      expect(find.text('Attorney'), findsWidgets);
+      expect(find.textContaining('Attorney'), findsWidgets);
       expect(find.textContaining('Family and immigration attorney'), findsOneWidget);
       expect(find.text('Doe & Partners LLP'), findsOneWidget);
       // Two picked leaves of one category are grouped; a single one isn't.
@@ -147,7 +147,7 @@ void main() {
       await _teardown(tester);
     });
 
-    testWidgets('"New — no reviews": empty stars, dash instead of the number, empty reviews tab',
+    testWidgets('"New — no reviews": dash instead of the number, empty reviews tab',
         (tester) async {
       await _pumpScreen(
         tester,
@@ -157,12 +157,12 @@ void main() {
           attorneys: FakeAttorneyRepo(profile: attorneyProfile(withReviews: false, verified: false)),
         ),
       );
-      expect(find.text('New — no reviews'), findsOneWidget);
+      expect(find.text('New'), findsOneWidget);
       expect(find.text('—'), findsOneWidget);
       // unverified → no blue check (docs/03 §6.3)
       expect(find.byType(VerifiedBadge), findsNothing);
-      // tap the rating card → Reviews tab
-      await tester.tap(find.byType(RatingCard));
+      // tap the rating counter → Reviews tab
+      await tester.tap(find.text('New'));
       await tester.pumpAndSettle();
       await tester.scrollUntilVisible(find.text('This attorney has no reviews yet.'), 300, scrollable: find.byType(Scrollable).first);
       expect(find.text('This attorney has no reviews yet.'), findsOneWidget);
@@ -224,7 +224,7 @@ void main() {
         ..profile = attorneyProfile();
       await tester.tap(find.text('Retry'));
       await tester.pumpAndSettle();
-      expect(find.text('@jane.doe'), findsOneWidget);
+      expect(find.textContaining('@jane.doe'), findsOneWidget);
       await _teardown(tester);
     });
 
@@ -639,7 +639,7 @@ void main() {
     router.go('/lawyer/jane.doe');
     await tester.pumpAndSettle();
     expect(find.byType(AttorneyProfileScreen), findsOneWidget);
-    expect(find.text('@jane.doe'), findsOneWidget);
+    expect(find.textContaining('@jane.doe'), findsOneWidget);
     await _teardown(tester);
   });
 }
