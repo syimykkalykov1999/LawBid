@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
+import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { caseNotFound } from '../domain/case-state-machine';
 
@@ -122,4 +123,41 @@ export class CaseAccessPolicy {
     if (!access) throw caseNotFound();
     return access;
   }
+
+  /**
+   * Attorney-only variant of assertCanView (docs/04 §4.3 stage 4.3
+   * acceptance): "адвокат без лицензии в штате кейса не видит кейс и
+   * получает CASE_NOT_AVAILABLE по прямому id". Still deny by default —
+   * this does not distinguish "no such case" from "not licensed/wrong
+   * practice" from "no bid/conversation on it", it only picks the error
+   * code docs/04 §15 documents for the attorney-facing feed/detail routes
+   * instead of the generic CASE_NOT_FOUND other call sites use.
+   */
+  async assertVisibleToAttorney(
+    attorneyId: string,
+    caseId: string,
+    db: Db = this.prisma,
+  ): Promise<
+    Extract<CaseAccess, { kind: 'attorney_participant' | 'attorney_prospect' }>
+  > {
+    const access = await this.decide(
+      { userId: attorneyId, role: 'attorney' },
+      caseId,
+      db,
+    );
+    if (!access) throw caseNotAvailable();
+    // decide() with role: 'attorney' never returns the 'owner' branch of
+    // the union (see the `if (viewer.role === 'client')` guard above it).
+    return access as Extract<
+      CaseAccess,
+      { kind: 'attorney_participant' | 'attorney_prospect' }
+    >;
+  }
+}
+
+export function caseNotAvailable(): NotFoundException {
+  return new NotFoundException({
+    code: ErrorCode.CASE_NOT_AVAILABLE,
+    message: 'This case is not available to you.',
+  });
 }
