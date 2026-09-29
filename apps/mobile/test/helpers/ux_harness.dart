@@ -52,6 +52,7 @@ List<Override> uxOverrides({
   FakeNetworkMonitor? monitor,
   FakeProbe? probe,
   FakeSocialRepository? social,
+  FakeSearchRepository? search,
   List<Override> extra = const [],
 }) =>
     [
@@ -60,7 +61,7 @@ List<Override> uxOverrides({
           .overrideWithValue(monitor ?? FakeNetworkMonitor()),
       reachabilityProbeProvider.overrideWithValue((probe ?? FakeProbe()).call),
       ...casesOverrides(),
-      ...socialOverrides(social),
+      ...socialOverrides(social, search),
       ...extra,
     ];
 

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:lawbid/core/design_system/theme/app_theme.dart';
+import 'package:lawbid/features/search/presentation/screens/search_screen.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
@@ -73,6 +74,41 @@ void main() {
     expect(find.text('Saul Goodman'), findsOneWidget);
     expect(find.text('2 likes'), findsOneWidget);
     expect(find.textContaining('#dui', findRichText: true), findsOneWidget);
+  });
+
+  testWidgets('search: one request per pause, nothing under 2 characters (§7.1)',
+      (tester) async {
+    final search = FakeSearchRepository();
+    await tester.pumpWidget(uxApp(
+      const SearchScreen(),
+      theme: AppTheme.light(),
+      overrides: uxOverrides(search: search),
+    ));
+    await tester.pump();
+    await tester.enterText(find.byType(TextField), 'a');
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(search.attorneyQueries, isEmpty);
+    await tester.enterText(find.byType(TextField), 'sa');
+    await tester.enterText(find.byType(TextField), 'sau');
+    await tester.enterText(find.byType(TextField), 'saul');
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(search.attorneyQueries, isEmpty);
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+    expect(search.attorneyQueries, ['saul']);
+    expect(find.text('No results'), findsOneWidget);
+  });
+
+  testWidgets('search tabs by role: a client has no Cases tab (§7.1)',
+      (tester) async {
+    await tester.pumpWidget(uxApp(
+      const SearchScreen(),
+      theme: AppTheme.light(),
+      overrides: uxOverrides(),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.text('Cases'), findsNothing);
+    expect(find.text('Topics'), findsOneWidget);
   });
 
   test('compact counters', () {

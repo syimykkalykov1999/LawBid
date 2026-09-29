@@ -1,8 +1,13 @@
 import 'dart:typed_data';
 
+import 'package:drift/native.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/features/cases/domain/case_models.dart';
+import 'package:lawbid/features/search/application/search_providers.dart';
+import 'package:lawbid/features/search/data/search_repository.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
+import 'package:lawbid/features/social/data/social_local_database.dart';
 import 'package:lawbid/features/social/data/social_repository.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
@@ -106,7 +111,47 @@ class FakeSocialRepository implements SocialRepository {
   dynamic noSuchMethod(Invocation invocation) => Future<void>.value();
 }
 
-List<Override> socialOverrides([FakeSocialRepository? repo]) => [
+/// In-memory [SearchRepository]: records every query it is asked.
+class FakeSearchRepository implements SearchRepository {
+  final attorneyQueries = <String>[];
+  List<AttorneyRow> attorneyResults = const [];
+  List<TagInfo> trendingTags = const [];
+
+  @override
+  Future<CursorPage<AttorneyRow>> attorneys(String q, SearchFilters f,
+      {String? cursor}) async {
+    attorneyQueries.add(q);
+    return CursorPage(items: attorneyResults);
+  }
+
+  @override
+  Future<CursorPage<FeedCase>> cases(String q, SearchFilters f,
+          {String? cursor}) async =>
+      const CursorPage(items: []);
+
+  @override
+  Future<CursorPage<Post>> posts(String q, {String? cursor}) async =>
+      const CursorPage(items: []);
+
+  @override
+  Future<List<TagInfo>> tags(String q) async => const [];
+
+  @override
+  Future<List<TagInfo>> trending() async => trendingTags;
+}
+
+List<Override> socialOverrides([
+  FakeSocialRepository? repo,
+  FakeSearchRepository? search,
+]) =>
+    [
       socialRepositoryProvider
           .overrideWithValue(repo ?? FakeSocialRepository()),
+      searchRepositoryProvider
+          .overrideWithValue(search ?? FakeSearchRepository()),
+      socialLocalDatabaseProvider.overrideWith((ref) {
+        final db = SocialLocalDatabase(NativeDatabase.memory());
+        ref.onDispose(db.close);
+        return db;
+      }),
     ];
