@@ -100,27 +100,32 @@ export class CaseContactsService {
     dto: CreateContactIssueDto,
   ): Promise<ContactIssueReportDto> {
     const disclosure = await this.disclosureFor(user, caseId);
-    const open = await this.prisma.contactIssueReport.findFirst({
-      where: { bid_id: disclosure.bid_id, status: 'open' },
-      select: { id: true },
-    });
-    if (open) {
-      throw new ConflictException({
-        code: ErrorCode.CONTACT_ISSUE_ALREADY_OPEN,
-        message: 'Your previous report on this case is still being reviewed.',
-        details: { reportId: open.id },
+    // Check-then-create under the bid row lock: concurrent taps can't open
+    // two reports for one bid (security review, file 04).
+    const created = await withTxRetry(this.prisma, async (tx) => {
+      await tx.$queryRaw`SELECT id FROM bids WHERE id = ${disclosure.bid_id}::UUID FOR UPDATE`;
+      const open = await tx.contactIssueReport.findFirst({
+        where: { bid_id: disclosure.bid_id, status: 'open' },
+        select: { id: true },
       });
-    }
-    const created = await this.prisma.contactIssueReport.create({
-      data: {
-        case_id: caseId,
-        bid_id: disclosure.bid_id,
-        attorney_id: user.sub,
-        client_id: disclosure.client_id,
-        issue_type: dto.issueType,
-        note: dto.note ?? null,
-        status: 'open',
-      },
+      if (open) {
+        throw new ConflictException({
+          code: ErrorCode.CONTACT_ISSUE_ALREADY_OPEN,
+          message: 'Your previous report on this case is still being reviewed.',
+          details: { reportId: open.id },
+        });
+      }
+      return tx.contactIssueReport.create({
+        data: {
+          case_id: caseId,
+          bid_id: disclosure.bid_id,
+          attorney_id: user.sub,
+          client_id: disclosure.client_id,
+          issue_type: dto.issueType,
+          note: dto.note ?? null,
+          status: 'open',
+        },
+      });
     });
     return toReportDto(created);
   }

@@ -2,6 +2,7 @@ import { DynamicModule, Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import { AuthEventService } from '../auth/services/auth-event.service';
 import { S3StorageService } from '../files/storage/s3-storage.service';
+import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import {
   CaseHistoryExportRunner,
   HISTORY_EXPORT_OPTIONS,
@@ -20,7 +21,10 @@ export class CaseHistoryModule {
       module: CaseHistoryModule,
       // api: reauth (ReauthVerifier/Guard) + AuthEventService from AuthModule;
       // worker: only the plain AuthEventService the service injects.
-      imports: options.mode === 'api' ? [AuthModule] : [],
+      imports:
+        options.mode === 'api'
+          ? [AuthModule, SubscriptionsModule]
+          : [SubscriptionsModule],
       controllers: options.mode === 'api' ? [CaseHistoryController] : [],
       providers: [
         { provide: HISTORY_EXPORT_OPTIONS, useValue: options },

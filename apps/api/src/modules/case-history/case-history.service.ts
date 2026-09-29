@@ -17,6 +17,7 @@ import {
   AuthEventService,
 } from '../auth/services/auth-event.service';
 import type { RequestMeta } from '../auth/services/session.service';
+import { SubscriptionAccessService } from '../subscriptions/subscription-access.service';
 import {
   HISTORY_PAGE_DEFAULT,
   type CaseHistoryDetailDto,
@@ -64,6 +65,7 @@ export class CaseHistoryService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly authEvents: AuthEventService,
+    private readonly subscriptions: SubscriptionAccessService,
   ) {}
 
   /** Cases a user may see in their history (deny by default). */
@@ -228,7 +230,9 @@ export class CaseHistoryService {
   }
 
   /** §12: the attorney sees the client's name only if contacts were
-   * disclosed to them on this case; otherwise null ("Client"). */
+   * disclosed to them on this case — and, like the contacts themselves
+   * (§8.3), only while the subscription is active; otherwise null
+   * ("Client"). */
   private async clientNameFor(
     user: RequestUser,
     kase: HistoryCase,
@@ -239,6 +243,7 @@ export class CaseHistoryService {
         select: { id: true },
       });
       if (!disclosed) return null;
+      if (!(await this.subscriptions.isActive(user.sub))) return null;
     }
     const client = await this.prisma.user.findFirst({
       where: withDeleted({ id: kase.client_id }),

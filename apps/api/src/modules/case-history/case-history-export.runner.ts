@@ -11,6 +11,7 @@ import { Queue, Worker, type Job } from 'bullmq';
 import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
 import { ErrorCode } from '../../common/errors/error-code.enum';
+import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { S3StorageService } from '../files/storage/s3-storage.service';
@@ -47,6 +48,9 @@ interface ExportJob {
 }
 
 const stateKey = (id: string) => `chx:${id}`;
+/** One export in flight per user (security review: no queue/S3 spam). */
+const activeKey = (userId: string) => `chx:active:${userId}`;
+const ACTIVE_TTL_SEC = 15 * 60;
 
 /**
  * docs/04 §12 "Скачать PDF": `POST /users/me/case-history/export` queues a
@@ -67,6 +71,7 @@ export class CaseHistoryExportRunner
     private readonly config: ConfigService,
     private readonly history: CaseHistoryService,
     private readonly storage: S3StorageService,
+    private readonly prisma: PrismaService,
     private readonly logger: PinoLogger,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {
@@ -98,6 +103,7 @@ export class CaseHistoryExportRunner
       );
       if (job.attemptsMade >= (job.opts.attempts ?? 1)) {
         void this.setState(exportId, { userId, status: 'failed', key: null });
+        void this.redis.del(activeKey(userId));
       }
     });
   }
@@ -105,6 +111,27 @@ export class CaseHistoryExportRunner
   async enqueue(user: RequestUser): Promise<CaseHistoryExportDto> {
     if (!this.queue) throw new Error('case history export queue not started');
     const exportId = randomUUID();
+    const claimed = await this.redis.set(
+      activeKey(user.sub),
+      exportId,
+      'EX',
+      ACTIVE_TTL_SEC,
+      'NX',
+    );
+    if (claimed !== 'OK') {
+      // Already preparing one: hand back that export instead of a new job.
+      const current = await this.redis.get(activeKey(user.sub));
+      const state = current ? await this.getState(current) : null;
+      if (current && state) {
+        return {
+          exportId: current,
+          status: state.status,
+          url: null,
+          expiresAt: null,
+        };
+      }
+      await this.redis.set(activeKey(user.sub), exportId, 'EX', ACTIVE_TTL_SEC);
+    }
     await this.setState(exportId, {
       userId: user.sub,
       status: 'queued',
@@ -140,6 +167,17 @@ export class CaseHistoryExportRunner
     if (state.status !== 'ready' || !state.key || !opts.withLink) {
       return { exportId, status: state.status, url: null, expiresAt: null };
     }
+    // A user suspended/deleted since the export started gets no link.
+    const owner = await this.prisma.user.findUnique({
+      where: { id: user.sub },
+      select: { status: true },
+    });
+    if (owner?.status !== 'active') {
+      throw new NotFoundException({
+        code: ErrorCode.NOT_FOUND,
+        message: 'Export not found.',
+      });
+    }
     const url = await this.storage.signedGetUrl(
       this.storage.bucket('documents'),
       state.key,
@@ -166,7 +204,9 @@ export class CaseHistoryExportRunner
       cases,
       truncated,
     });
-    const key = `exports/case-history/${data.userId}/${data.exportId}.pdf`;
+    // One object per user, overwritten by each export: nothing piles up
+    // in the bucket (security review, file 04).
+    const key = `exports/case-history/${data.userId}/latest.pdf`;
     await this.storage.put(
       this.storage.bucket('documents'),
       key,
@@ -178,6 +218,7 @@ export class CaseHistoryExportRunner
       status: 'ready',
       key,
     });
+    await this.redis.del(activeKey(data.userId));
     // TODO(docs/05 stage 5.x): push "PDF is ready" once file 05 adds a
     // notification type for it (docs/04 §12); until then the app polls
     // GET /users/me/case-history/export/:exportId.
