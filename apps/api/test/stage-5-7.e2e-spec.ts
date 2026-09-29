@@ -87,6 +87,10 @@ describe('Chats and realtime (e2e, docs/05 §8, stage 5.7)', () => {
         verification_status: 'verified',
       },
     });
+    // docs/06 §1.2: an active subscription (stage 6.7).
+    await prisma.subscription.create({
+      data: { user_id: attorney.id, status: 'active', price_cents: 39900 },
+    });
     const parent = await prisma.practiceArea.upsert({
       where: { code: 'chat_e2e' },
       create: {

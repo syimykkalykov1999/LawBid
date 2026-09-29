@@ -6,6 +6,7 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
+import { SubscriptionAccessService } from '../src/modules/subscriptions/subscription-access.service';
 
 /**
  * docs/04 §11 "Моё" / §15 support routes for the app (stages 4.9/4.10):
@@ -83,6 +84,10 @@ describe('Mine routes (e2e, docs/04 §11)', () => {
           verification_status:
             opts.verified === false ? 'unverified' : 'verified',
         },
+      });
+      // docs/06 §1.2: bids require an active subscription (stage 6.7).
+      await prisma.subscription.create({
+        data: { user_id: u.id, status: 'active', price_cents: 39900 },
       });
       await prisma.attorneyLicense.create({
         data: {
@@ -239,10 +244,12 @@ describe('Mine routes (e2e, docs/04 §11)', () => {
     ).find((w) => w.caseId === caseId);
     expect(row?.clientName).toBe('Dana Client');
 
-    await prisma.attorneyProfile.update({
+    // Subscription lapses (docs/06 §1.2).
+    await prisma.subscription.update({
       where: { user_id: winner.id },
-      data: { verification_status: 'suspended' },
+      data: { status: 'expired' },
     });
+    await app.get(SubscriptionAccessService).invalidate(winner.id);
     const locked = await get(winner.auth, '/users/me/work');
     expect(
       (
@@ -294,10 +301,12 @@ describe('Mine routes (e2e, docs/04 §11)', () => {
     const b = await open();
     expect(b.body.data.conversationId).toBe(a.body.data.conversationId);
 
-    await prisma.attorneyProfile.update({
+    // Subscription lapses (docs/06 §1.2).
+    await prisma.subscription.update({
       where: { user_id: attorney.id },
-      data: { verification_status: 'suspended' },
+      data: { status: 'expired' },
     });
+    await app.get(SubscriptionAccessService).invalidate(attorney.id);
     const denied = await open();
     // Still a participant (the chat exists) but the subscription lapsed.
     expect(denied.status).toBe(403);

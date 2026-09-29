@@ -17,6 +17,9 @@ import 'clients/files_client.dart';
 import 'clients/admin_cases_client.dart';
 import 'clients/admin_data_requests_client.dart';
 import 'clients/admin_config_client.dart';
+import 'clients/subscriptions_client.dart';
+import 'clients/admin_subscriptions_client.dart';
+import 'clients/bids_client.dart';
 import 'clients/users_client.dart';
 import 'clients/i18n_client.dart';
 import 'clients/admin_i18n_client.dart';
@@ -24,7 +27,6 @@ import 'clients/cases_client.dart';
 import 'clients/mine_client.dart';
 import 'clients/admin_contact_issues_client.dart';
 import 'clients/admin_case_disputes_client.dart';
-import 'clients/bids_client.dart';
 import 'clients/posts_client.dart';
 import 'clients/case_history_client.dart';
 import 'clients/admin_moderation_client.dart';
@@ -64,6 +66,9 @@ class LawbidApi {
   AdminCasesClient? _adminCases;
   AdminDataRequestsClient? _adminDataRequests;
   AdminConfigClient? _adminConfig;
+  SubscriptionsClient? _subscriptions;
+  AdminSubscriptionsClient? _adminSubscriptions;
+  BidsClient? _bids;
   UsersClient? _users;
   I18nClient? _i18n;
   AdminI18nClient? _adminI18n;
@@ -71,7 +76,6 @@ class LawbidApi {
   MineClient? _mine;
   AdminContactIssuesClient? _adminContactIssues;
   AdminCaseDisputesClient? _adminCaseDisputes;
-  BidsClient? _bids;
   PostsClient? _posts;
   CaseHistoryClient? _caseHistory;
   AdminModerationClient? _adminModeration;
@@ -123,6 +127,14 @@ class LawbidApi {
   AdminConfigClient get adminConfig =>
       _adminConfig ??= AdminConfigClient(_dio, baseUrl: _baseUrl);
 
+  SubscriptionsClient get subscriptions =>
+      _subscriptions ??= SubscriptionsClient(_dio, baseUrl: _baseUrl);
+
+  AdminSubscriptionsClient get adminSubscriptions =>
+      _adminSubscriptions ??= AdminSubscriptionsClient(_dio, baseUrl: _baseUrl);
+
+  BidsClient get bids => _bids ??= BidsClient(_dio, baseUrl: _baseUrl);
+
   UsersClient get users => _users ??= UsersClient(_dio, baseUrl: _baseUrl);
 
   I18nClient get i18n => _i18n ??= I18nClient(_dio, baseUrl: _baseUrl);
@@ -139,8 +151,6 @@ class LawbidApi {
 
   AdminCaseDisputesClient get adminCaseDisputes =>
       _adminCaseDisputes ??= AdminCaseDisputesClient(_dio, baseUrl: _baseUrl);
-
-  BidsClient get bids => _bids ??= BidsClient(_dio, baseUrl: _baseUrl);
 
   PostsClient get posts => _posts ??= PostsClient(_dio, baseUrl: _baseUrl);
 

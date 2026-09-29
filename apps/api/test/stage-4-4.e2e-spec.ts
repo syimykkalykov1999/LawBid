@@ -8,6 +8,7 @@ import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
 import { BidSubscriptionLapseJob } from '../src/jobs/handlers/bid-subscription-lapse.job';
 import { BidsService } from '../src/modules/bids/bids.service';
+import { SubscriptionAccessService } from '../src/modules/subscriptions/subscription-access.service';
 
 /**
  * docs/04_CASES_BIDS.md §16 stage 4.4 acceptance, against real
@@ -105,6 +106,10 @@ describe('Bids and negotiation (e2e, docs/04 §5–§6, stage 4.4)', () => {
           verification_status:
             opts.verified === false ? 'unverified' : 'verified',
         },
+      });
+      // docs/06 §1.2: bids require an active subscription (stage 6.7).
+      await prisma.subscription.create({
+        data: { user_id: u.id, status: 'active', price_cents: 39900 },
       });
       await prisma.attorneyLicense.create({
         data: {
@@ -281,8 +286,8 @@ describe('Bids and negotiation (e2e, docs/04 §5–§6, stage 4.4)', () => {
     // Grants "attorney_participant" access (docs/04 §9.2's conversation,
     // built directly here — chat is file 05) without needing `verified`,
     // so the eligibility gate (CaseAccessPolicy) passes while the
-    // subscription gate (SubscriptionAccessService, keyed off
-    // verification_status in today's stub) still fails.
+    // subscription gate (SubscriptionAccessService, docs/06 §1.2) still
+    // fails: the subscription is canceled.
     await prisma.conversation.create({
       data: {
         case_id: caseId,
@@ -291,10 +296,11 @@ describe('Bids and negotiation (e2e, docs/04 §5–§6, stage 4.4)', () => {
         status: 'pre_acceptance',
       },
     });
-    await prisma.attorneyProfile.update({
+    await prisma.subscription.update({
       where: { user_id: attorney.id },
-      data: { verification_status: 'suspended' },
+      data: { status: 'canceled' },
     });
+    await app.get(SubscriptionAccessService).invalidate(attorney.id);
 
     const res = await postBid(attorney.auth, caseId, bidBody());
     expect(res.status).toBe(403);
@@ -524,12 +530,12 @@ describe('Bids and negotiation (e2e, docs/04 §5–§6, stage 4.4)', () => {
     const bidId = (await postBid(attorney.auth, caseId, bidBody())).body.data
       .id as string;
 
-    // Simulate a lapse the way today's stub detects it (docs/06 stage 6.7
-    // TODO): verification_status leaves `verified`.
-    await prisma.attorneyProfile.update({
+    // docs/06 §1.2: the subscription lapses (expired after the grace period).
+    await prisma.subscription.update({
       where: { user_id: attorney.id },
-      data: { verification_status: 'unverified' },
+      data: { status: 'expired' },
     });
+    await app.get(SubscriptionAccessService).invalidate(attorney.id);
 
     const job = app.get(BidSubscriptionLapseJob);
     const result = await job.run();

@@ -35,7 +35,13 @@ describe('Stage 4.1 — state machines, journal, access policy (e2e)', () => {
   const bids = new BidStateMachine();
   const journal = new CaseJournalService(prisma);
   const policy = new CaseAccessPolicy(prisma);
-  const subscriptions = new SubscriptionAccessService(prisma);
+  // docs/06 stage 6.7: the gate reads `subscriptions` and caches in
+  // Redis; this suite only needs the direct (uncached) verdict.
+  const subscriptions = new SubscriptionAccessService(prisma, {
+    get: () => Promise.resolve(null),
+    set: () => Promise.resolve('OK'),
+    del: () => Promise.resolve(1),
+  } as never);
 
   let clientId: string;
   let otherClientId: string;
@@ -100,6 +106,10 @@ describe('Stage 4.1 — state machines, journal, access policy (e2e)', () => {
         username_lower: handle,
         verification_status: opts.verified === false ? 'pending' : 'verified',
       },
+    });
+    // docs/06 §1.2: an active subscription (stage 6.7).
+    await root.subscription.create({
+      data: { user_id: u.id, status: 'active', price_cents: 39900 },
     });
     for (const [state, status] of opts.licenses ?? [['NJ', 'verified']]) {
       await root.attorneyLicense.create({
@@ -571,11 +581,15 @@ describe('Stage 4.1 — state machines, journal, access policy (e2e)', () => {
       expect(bidId).toBeTruthy();
     });
 
-    it('SubscriptionAccessService stub: verified attorney is active', async () => {
-      expect(await subscriptions.isActive(await newAttorney({}))).toBe(true);
-      expect(
-        await subscriptions.isActive(await newAttorney({ verified: false })),
-      ).toBe(false);
+    it('SubscriptionAccessService (docs/06 §1.2): active row is active, canceled or missing is not', async () => {
+      const active = await newAttorney({});
+      expect(await subscriptions.isActive(active)).toBe(true);
+      const canceled = await newAttorney({});
+      await root.subscription.update({
+        where: { user_id: canceled },
+        data: { status: 'canceled' },
+      });
+      expect(await subscriptions.isActive(canceled)).toBe(false);
       expect(await subscriptions.isActive(clientId)).toBe(false);
     });
   });

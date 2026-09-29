@@ -487,6 +487,12 @@ export const envSchema = z
       blankToUndefined,
       z.string().min(8).optional(),
     ),
+    // docs/06 §1.4: where the Stripe Customer Portal returns to (a deep
+    // link of the app); defaults to APP_LINK_BASE_URL + /subscription.
+    STRIPE_PORTAL_RETURN_URL: z.preprocess(
+      blankToUndefined,
+      z.string().url().optional(),
+    ),
     // Shown in authenticator apps and in the admin panel's links.
     ADMIN_PANEL_URL: z.preprocess(
       blankToUndefined,

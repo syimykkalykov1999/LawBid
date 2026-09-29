@@ -81,6 +81,10 @@ describe('Notifications, push, badges (e2e, docs/05 §9-§10, stage 5.8)', () =>
           verification_status: 'verified',
         },
       });
+      // docs/06 §1.2: an active subscription (stage 6.7).
+      await prisma.subscription.create({
+        data: { user_id: u.id, status: 'active', price_cents: 39900 },
+      });
     }
     const t = tokens.signAccessToken({
       sub: u.id,

@@ -7,6 +7,7 @@ import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
 import { adminSession } from './support/admin-login';
+import { SubscriptionAccessService } from '../src/modules/subscriptions/subscription-access.service';
 
 /**
  * docs/04_CASES_BIDS.md §16 stage 4.5 acceptance (integration + concurrency),
@@ -93,6 +94,10 @@ describe('Bid acceptance and client contacts (e2e, docs/04 §7–§8, stage 4.5)
           verification_status:
             opts.verified === false ? 'unverified' : 'verified',
         },
+      });
+      // docs/06 §1.2: bids require an active subscription (stage 6.7).
+      await prisma.subscription.create({
+        data: { user_id: u.id, status: 'active', price_cents: 39900 },
       });
       await prisma.attorneyLicense.create({
         data: {
@@ -281,11 +286,12 @@ describe('Bid acceptance and client contacts (e2e, docs/04 §7–§8, stage 4.5)
     expect([403, 404]).toContain(denied.status);
     expect(JSON.stringify(denied.body)).not.toContain('Dana');
 
-    // Subscription lapses (today's stub: verification leaves `verified`).
-    await prisma.attorneyProfile.update({
+    // Subscription lapses (docs/06 §1.2).
+    await prisma.subscription.update({
       where: { user_id: winner.id },
-      data: { verification_status: 'suspended' },
+      data: { status: 'expired' },
     });
+    await app.get(SubscriptionAccessService).invalidate(winner.id);
     const locked = await api()
       .get(`/api/v1/cases/${caseId}/contacts`)
       .set(winner.auth);
@@ -293,10 +299,11 @@ describe('Bid acceptance and client contacts (e2e, docs/04 §7–§8, stage 4.5)
     expect(locked.body.error.code).toBe('SUBSCRIPTION_REQUIRED');
     expect(JSON.stringify(locked.body)).not.toContain('Dana');
 
-    await prisma.attorneyProfile.update({
+    await prisma.subscription.update({
       where: { user_id: winner.id },
-      data: { verification_status: 'verified' },
+      data: { status: 'active' },
     });
+    await app.get(SubscriptionAccessService).invalidate(winner.id);
     const again = await api()
       .get(`/api/v1/cases/${caseId}/contacts`)
       .set(winner.auth);

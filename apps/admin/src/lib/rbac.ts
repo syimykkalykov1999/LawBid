@@ -40,7 +40,7 @@ export const SECTIONS: readonly Section[] = [
   { href: '/users', label: 'Пользователи', roles: ['super_admin', 'moderator', 'support'] },
   { href: '/moderation', label: 'Модерация', roles: ['super_admin', 'moderator'] },
   { href: '/cases', label: 'Кейсы', roles: ['super_admin', 'support'] },
-  { href: '/subscriptions', label: 'Подписки и платежи', roles: ['super_admin', 'support', 'finance'], soon: true },
+  { href: '/subscriptions', label: 'Подписки и платежи', roles: ['super_admin', 'support', 'finance'] },
   { href: '/flags', label: 'Флаги функций', roles: ['super_admin'] },
   { href: '/config', label: 'Конфигурация', roles: ['super_admin'] },
   { href: '/i18n', label: 'Локализация', roles: ['super_admin'] },

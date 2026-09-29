@@ -1,0 +1,33 @@
+// coverage:ignore-file
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: type=lint, unused_import, invalid_annotation_target, unnecessary_import
+
+import 'package:json_annotation/json_annotation.dart';
+
+import 'subscription_dto.dart';
+
+part 'subscription_me_dto.g.dart';
+
+@JsonSerializable()
+class SubscriptionMeDto {
+  const SubscriptionMeDto({
+    required this.subscription,
+    required this.isActive,
+    required this.canStart,
+    required this.trialEligible,
+    required this.priceCents,
+  });
+
+  factory SubscriptionMeDto.fromJson(Map<String, Object?> json) =>
+      _$SubscriptionMeDtoFromJson(json);
+
+  final SubscriptionDto? subscription;
+  final bool isActive;
+
+  /// Verified attorney without a live subscription may start.
+  final bool canStart;
+  final bool trialEligible;
+  final int priceCents;
+
+  Map<String, Object?> toJson() => _$SubscriptionMeDtoToJson(this);
+}

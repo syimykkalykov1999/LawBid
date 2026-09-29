@@ -19,8 +19,9 @@ export interface BidSubscriptionLapseResult {
  * is the eventual path once file 06 ships real Stripe subscriptions and
  * fires this on its cancel/expiry webhook.
  *
- * Until then SubscriptionAccessService is a stub keyed only off
- * `attorney_profiles.verification_status` (TODO docs/06 stage 6.7), and a
+ * Since docs/06 stage 6.7 SubscriptionAccessService reads the real
+ * `subscriptions` row (webhooks withdraw bids on the transition); this job
+ * is the safety net for a missed webhook or an expired grace period, and a
  * lapse can happen with no webhook to call this at all — e.g. the nightly
  * license-expiry job (docs/03 §2.6) downgrading a profile to
  * `unverified`, or a verifier suspending an attorney. This hourly sweep is

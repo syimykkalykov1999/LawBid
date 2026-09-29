@@ -164,6 +164,20 @@ export enum ErrorCode {
   // 409: publishing a legal document version that is already current, or
   // a draft that has no content.
   LEGAL_DOCUMENT_INVALID_STATE = 'LEGAL_DOCUMENT_INVALID_STATE',
+  // Subscriptions / Stripe (docs/06 §1, stage 6.7)
+  // 503: STRIPE_SECRET_KEY / STRIPE_PRICE_ID are not configured.
+  PAYMENTS_NOT_CONFIGURED = 'PAYMENTS_NOT_CONFIGURED',
+  // 409: the attorney already has a trialing / active / past_due subscription.
+  SUBSCRIPTION_ALREADY_ACTIVE = 'SUBSCRIPTION_ALREADY_ACTIVE',
+  // 409: no trial for this attorney or card (§1.1); the app must confirm
+  // "будет списано $399 сейчас" and repeat with chargeNow = true.
+  SUBSCRIPTION_TRIAL_UNAVAILABLE = 'SUBSCRIPTION_TRIAL_UNAVAILABLE',
+  // 409: the SetupIntent is not succeeded / has no payment method yet.
+  SUBSCRIPTION_SETUP_INCOMPLETE = 'SUBSCRIPTION_SETUP_INCOMPLETE',
+  // 404: the attorney has no subscription.
+  SUBSCRIPTION_NOT_FOUND = 'SUBSCRIPTION_NOT_FOUND',
+  // 400: Stripe-Signature missing or invalid on POST /webhooks/stripe.
+  WEBHOOK_SIGNATURE_INVALID = 'WEBHOOK_SIGNATURE_INVALID',
 
   // Cases and bids (docs/04_CASES_BIDS.md §15, stage 4.1 state machines
   // and access policy).

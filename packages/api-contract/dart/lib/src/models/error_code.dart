@@ -152,6 +152,18 @@ enum ErrorCode {
   flagProviderKeysMissing('FLAG_PROVIDER_KEYS_MISSING'),
   @JsonValue('LEGAL_DOCUMENT_INVALID_STATE')
   legalDocumentInvalidState('LEGAL_DOCUMENT_INVALID_STATE'),
+  @JsonValue('PAYMENTS_NOT_CONFIGURED')
+  paymentsNotConfigured('PAYMENTS_NOT_CONFIGURED'),
+  @JsonValue('SUBSCRIPTION_ALREADY_ACTIVE')
+  subscriptionAlreadyActive('SUBSCRIPTION_ALREADY_ACTIVE'),
+  @JsonValue('SUBSCRIPTION_TRIAL_UNAVAILABLE')
+  subscriptionTrialUnavailable('SUBSCRIPTION_TRIAL_UNAVAILABLE'),
+  @JsonValue('SUBSCRIPTION_SETUP_INCOMPLETE')
+  subscriptionSetupIncomplete('SUBSCRIPTION_SETUP_INCOMPLETE'),
+  @JsonValue('SUBSCRIPTION_NOT_FOUND')
+  subscriptionNotFound('SUBSCRIPTION_NOT_FOUND'),
+  @JsonValue('WEBHOOK_SIGNATURE_INVALID')
+  webhookSignatureInvalid('WEBHOOK_SIGNATURE_INVALID'),
   @JsonValue('CASE_NOT_FOUND')
   caseNotFound('CASE_NOT_FOUND'),
   @JsonValue('CASE_NOT_AVAILABLE')

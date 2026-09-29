@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { useState } from 'react';
 import { ErrorNote, PageHeader } from '@/components/page-header';
 import { useReason } from '@/components/reason-dialog';
+import { SubscriptionCard } from '@/components/subscription-card';
 import { Button } from '@/components/ui/button';
 import { Badge, Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, Td, Th } from '@/components/ui/table';
@@ -262,6 +263,11 @@ export default function UserCardPage() {
             </tbody>
           </Table>
         </section>
+      ) : null}
+      {u.role === 'attorney' && (me?.role === 'super_admin' || me?.role === 'finance' || me?.role === 'support') ? (
+        <div className="mt-6 max-w-xl">
+          <SubscriptionCard userId={u.id} />
+        </div>
       ) : null}
       {u.role === 'attorney' ? (
         <section className="mt-6">

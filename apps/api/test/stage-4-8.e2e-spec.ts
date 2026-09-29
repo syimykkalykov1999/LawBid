@@ -96,6 +96,10 @@ describe('Case & bid notifications (e2e, docs/04 §13, stage 4.8)', () => {
             opts.verified === false ? 'unverified' : 'verified',
         },
       });
+      // docs/06 §1.2: bids require an active subscription (stage 6.7).
+      await prisma.subscription.create({
+        data: { user_id: u.id, status: 'active', price_cents: 39900 },
+      });
       await prisma.attorneyLicense.create({
         data: {
           attorney_id: u.id,
