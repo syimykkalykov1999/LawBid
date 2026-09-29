@@ -11,9 +11,10 @@ docs/05 §16 stage 5.5, §6.
   the id is an active, non-suspended attorney, so a client's follows are
   never listable by others.
 - `GET /users/me/following` — the caller's own follows (§6.2).
-- `GET /suggestions/attorneys` — verified attorneys of the viewer's state
-  by followers, pool cached in Redis per state for 10 minutes; followed and
-  self are filtered out per request.
+- `GET /suggestions/attorneys` — verified attorneys ranked by rating and
+  activity (posts in 30 days), the client's own state first; the pool is
+  cached in Redis per state for 10 minutes; followed and self are filtered
+  out per request.
 - Public attorney profile: `isFollowing`, counters overlay pending
   aggregator deltas.
 

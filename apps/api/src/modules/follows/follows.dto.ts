@@ -42,6 +42,12 @@ export class AttorneyListItemDto {
   @ApiProperty({ type: [String], description: 'Verified license state codes.' })
   states!: string[];
 
+  @ApiProperty({
+    type: [String],
+    description: 'i18n keys of the first practices (docs/05 §7.3).',
+  })
+  practiceI18nKeys!: string[];
+
   @ApiProperty({ description: 'The viewer follows this attorney.' })
   isFollowing!: boolean;
 }

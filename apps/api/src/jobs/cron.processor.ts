@@ -15,6 +15,7 @@ import {
 } from './handlers/case-lifecycle.jobs';
 import { CountersReconcileJob } from './handlers/counters-reconcile.job';
 import { FeedRecoJob } from '../modules/feed/feed-reco.job';
+import { TrendingTagsJob } from '../modules/search/trending-tags.job';
 
 /** Routes a `cron` queue job to its handler by job name. The return value
  * becomes the BullMQ job's `returnvalue` (visible in queue dashboards). */
@@ -34,6 +35,7 @@ export class CronProcessor {
     private readonly caseCompletionReminder: CaseCompletionReminderJob,
     private readonly countersReconcile: CountersReconcileJob,
     private readonly feedReco: FeedRecoJob,
+    private readonly trendingTags: TrendingTagsJob,
   ) {}
 
   async process(name: string): Promise<unknown> {
@@ -64,6 +66,8 @@ export class CronProcessor {
         return this.countersReconcile.run();
       case CRON_JOBS.feedReco:
         return this.feedReco.run();
+      case CRON_JOBS.trendingTags:
+        return this.trendingTags.run();
       default:
         // A job left over from an older/newer release: fail it visibly
         // rather than "succeed" doing nothing.

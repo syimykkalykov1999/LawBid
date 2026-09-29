@@ -15,6 +15,9 @@ AttorneyListItemDto _$AttorneyListItemDtoFromJson(Map<String, dynamic> json) =>
       states: (json['states'] as List<dynamic>)
           .map((e) => e as String)
           .toList(),
+      practiceI18nKeys: (json['practiceI18nKeys'] as List<dynamic>)
+          .map((e) => e as String)
+          .toList(),
       isFollowing: json['isFollowing'] as bool,
       firstName: json['firstName'] as String?,
       lastName: json['lastName'] as String?,
@@ -32,5 +35,6 @@ Map<String, dynamic> _$AttorneyListItemDtoToJson(
   'verifiedBadge': instance.verifiedBadge,
   'rating': instance.rating.toJson(),
   'states': instance.states,
+  'practiceI18nKeys': instance.practiceI18nKeys,
   'isFollowing': instance.isFollowing,
 };

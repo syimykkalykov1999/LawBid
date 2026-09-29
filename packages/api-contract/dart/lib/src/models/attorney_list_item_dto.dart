@@ -16,6 +16,7 @@ class AttorneyListItemDto {
     required this.verifiedBadge,
     required this.rating,
     required this.states,
+    required this.practiceI18nKeys,
     required this.isFollowing,
     this.firstName,
     this.lastName,
@@ -35,6 +36,9 @@ class AttorneyListItemDto {
 
   /// Verified license state codes.
   final List<String> states;
+
+  /// i18n keys of the first practices (docs/05 §7.3).
+  final List<String> practiceI18nKeys;
 
   /// The viewer follows this attorney.
   final bool isFollowing;

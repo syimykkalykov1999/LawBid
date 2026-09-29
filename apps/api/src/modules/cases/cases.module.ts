@@ -68,6 +68,6 @@ import { CasesFeedService } from './services/cases-feed.service';
     CaseContactsService,
     MineService,
   ],
-  exports: [CasesService, CaseStateMachine, CaseAccessPolicy],
+  exports: [CasesService, CaseStateMachine, CaseAccessPolicy, CasesFeedService],
 })
 export class CasesModule {}

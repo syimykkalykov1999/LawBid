@@ -22,6 +22,7 @@ import { FeedModule } from './modules/feed/feed.module';
 import { CommentsModule } from './modules/comments/comments.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { FollowsModule } from './modules/follows/follows.module';
+import { SearchModule } from './modules/search/search.module';
 import { BidsModule } from './modules/bids/bids.module';
 import { NegotiationsModule } from './modules/negotiations/negotiations.module';
 import { JournalModule } from './modules/journal/journal.module';
@@ -80,6 +81,13 @@ export const pinoHttpOptions: PinoHttpOptions = {
     ],
     censor: '[REDACTED]',
   },
+  // docs/05 §7.6: search text is never logged next to the caller.
+  serializers: {
+    req: (req: { url?: string }) =>
+      req.url?.includes('/search/')
+        ? { ...req, url: req.url.replace(/\?.*$/, '?[REDACTED]') }
+        : req,
+  },
   transport:
     process.env.NODE_ENV === 'development'
       ? { target: 'pino-pretty' }
@@ -123,6 +131,7 @@ const isDev =
     CommentsModule,
     ReportsModule,
     FollowsModule,
+    SearchModule,
     BidsModule,
     NegotiationsModule,
     JournalModule,

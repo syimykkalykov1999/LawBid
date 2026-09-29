@@ -19,6 +19,7 @@ import {
 } from './handlers/case-lifecycle.jobs';
 import { CountersReconcileJob } from './handlers/counters-reconcile.job';
 import { FeedRecoJob } from '../modules/feed/feed-reco.job';
+import { TrendingTagsJob } from '../modules/search/trending-tags.job';
 
 jest.mock('bullmq', () => {
   const queue = {
@@ -114,6 +115,7 @@ function processor() {
       completion as unknown as CaseCompletionReminderJob,
       countersRecon as unknown as CountersReconcileJob,
       { run: jest.fn() } as unknown as FeedRecoJob,
+      { run: jest.fn() } as unknown as TrendingTagsJob,
     ),
   };
 }
@@ -137,7 +139,7 @@ describe('JobsRunner', () => {
     });
     const upserts = mocked.__queue.upsertJobScheduler.mock.calls;
     expect(upserts).toHaveLength(CRON_SCHEDULES.length);
-    expect(upserts).toHaveLength(13);
+    expect(upserts).toHaveLength(14);
     const byName = Object.fromEntries(
       upserts.map((c: unknown[]) => [c[0], c[1]]),
     );

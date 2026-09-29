@@ -19,6 +19,10 @@ export interface VisibleCasesQueryInput {
   state?: string;
   cursor?: FeedCursor;
   limit: number;
+  /** docs/05 §7.4 search: full-text match on title + description
+   * (cases.search_tsv) and a publication window. Absent = the §4.2 feed. */
+  text?: string;
+  since?: Date;
 }
 
 /**
@@ -54,7 +58,13 @@ export interface VisibleCasesQueryInput {
 export function buildVisibleCasesSql(
   input: VisibleCasesQueryInput,
 ): Prisma.Sql {
-  const { attorneyId, practiceAreaId, state, cursor, limit } = input;
+  const { attorneyId, practiceAreaId, state, cursor, limit, text, since } =
+    input;
+  const searchFilter = Prisma.sql`${
+    text
+      ? Prisma.sql`AND c.search_tsv @@ plainto_tsquery('english', ${text})`
+      : Prisma.empty
+  } ${since ? Prisma.sql`AND c.created_at >= ${since}` : Prisma.empty}`;
 
   const primaryStateFilter = state
     ? Prisma.sql`AND c.primary_state_code = ${state}`
@@ -93,6 +103,7 @@ export function buildVisibleCasesSql(
         )
         ${primaryStateFilter}
         ${primaryPracticeFilter}
+        ${text || since ? searchFilter : Prisma.empty}
       UNION
       SELECT c.id, c.created_at FROM case_states cs
       JOIN cases c ON c.id = cs.case_id
@@ -113,6 +124,7 @@ export function buildVisibleCasesSql(
         )
         ${secondaryStateFilter}
         ${secondaryPracticeFilter}
+        ${text || since ? searchFilter : Prisma.empty}
     ) v
     WHERE TRUE
       ${cursorFilter}

@@ -23,6 +23,8 @@ const PAGE = 20;
 /** Suggestions pool per client state, rebuilt at most every 10 minutes. */
 const SUGGEST_POOL = 300;
 const SUGGEST_TTL_SEC = 10 * 60;
+/** §7.3 "первые практики" on a list row. */
+const LIST_PRACTICES = 3;
 
 /** A followable attorney: active, not suspended (docs/03 §6.1). */
 const LISTABLE_ATTORNEY = {
@@ -262,7 +264,9 @@ export class FollowsService {
     };
   }
 
-  private async present(
+  /** Attorney rows for any list (follows, suggestions, search), in [ids]
+   * order; suspended/inactive ids drop out. */
+  async present(
     ids: string[],
     viewerId: string,
   ): Promise<AttorneyListItemDto[]> {
@@ -285,6 +289,11 @@ export class FollowsService {
                 where: { license_status: 'verified' },
                 select: { state_code: true },
                 orderBy: { state_code: 'asc' },
+              },
+              practice_areas: {
+                select: { practice_area: { select: { i18n_key: true } } },
+                orderBy: { practice_area: { sort: 'asc' } },
+                take: LIST_PRACTICES,
               },
             },
           },
@@ -312,6 +321,7 @@ export class FollowsService {
           p.verification_status === 'verified' && p.licenses.length > 0,
         rating: { avg: Number(p.rating_avg), count: p.rating_count },
         states: p.licenses.map((l) => l.state_code),
+        practiceI18nKeys: p.practice_areas.map((x) => x.practice_area.i18n_key),
         isFollowing: following.has(id),
       });
     }

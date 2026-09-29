@@ -188,7 +188,7 @@ export class CasesFeedService {
     });
   }
 
-  private async isVerifiedAttorney(attorneyId: string): Promise<boolean> {
+  async isVerifiedAttorney(attorneyId: string): Promise<boolean> {
     const profile = await this.prisma.attorneyProfile.findUnique({
       where: { user_id: attorneyId },
       select: { verification_status: true },

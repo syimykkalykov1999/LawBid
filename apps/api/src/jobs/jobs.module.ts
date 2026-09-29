@@ -19,6 +19,7 @@ import {
 } from './handlers/case-lifecycle.jobs';
 import { CountersReconcileJob } from './handlers/counters-reconcile.job';
 import { FeedRecoJob } from '../modules/feed/feed-reco.job';
+import { TrendingTagsJob } from '../modules/search/trending-tags.job';
 import { CaseLifecycleModule } from '../modules/cases/lifecycle/case-lifecycle.module';
 import { BidsModule } from '../modules/bids/bids.module';
 import { SubscriptionsModule } from '../modules/subscriptions/subscriptions.module';
@@ -63,6 +64,7 @@ export class JobsModule {
         CaseCompletionReminderJob,
         CountersReconcileJob,
         FeedRecoJob,
+        TrendingTagsJob,
         CronProcessor,
         JobsRunner,
       ],
