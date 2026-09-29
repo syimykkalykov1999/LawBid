@@ -137,6 +137,20 @@ export enum ErrorCode {
   LICENSE_ALREADY_ADDED = 'LICENSE_ALREADY_ADDED',
   // 403: a suspended attorney can't create or change verification requests.
   ATTORNEY_SUSPENDED = 'ATTORNEY_SUSPENDED',
+  // Admin panel (docs/06 §2.1, stage 6.2)
+  // 400: sensitive view without X-Justification (10–500 chars).
+  JUSTIFICATION_REQUIRED = 'JUSTIFICATION_REQUIRED',
+  // 401: the pre-auth ticket (between email code and TOTP) is missing,
+  // expired, already used or burned after too many wrong codes.
+  ADMIN_TICKET_INVALID = 'ADMIN_TICKET_INVALID',
+  // 401: wrong authenticator code; details.remainingAttempts.
+  ADMIN_TOTP_INVALID = 'ADMIN_TOTP_INVALID',
+  // 401: unknown or already used recovery code.
+  ADMIN_RECOVERY_CODE_INVALID = 'ADMIN_RECOVERY_CODE_INVALID',
+  // 503: ADMIN_TOTP_ENC_KEY is not set on this deployment.
+  ADMIN_AUTH_NOT_CONFIGURED = 'ADMIN_AUTH_NOT_CONFIGURED',
+  // 409: an account with this email already exists.
+  ADMIN_EMAIL_TAKEN = 'ADMIN_EMAIL_TAKEN',
 
   // Cases and bids (docs/04_CASES_BIDS.md §15, stage 4.1 state machines
   // and access policy).

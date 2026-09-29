@@ -38,6 +38,8 @@ import { ReviewsModule } from './modules/reviews/reviews.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { DevModule } from './modules/dev/dev.module';
 import { FilesModule } from './modules/files/files.module';
+import { AdminAuthModule } from './modules/admin-auth/admin-auth.module';
+import { AdminModule } from './modules/admin/admin.module';
 import { CostGuardModule } from './common/cost-guard/cost-guard.module';
 import { JobsModule } from './jobs/jobs.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
@@ -123,6 +125,9 @@ const isDev =
     // Global: CostGuardService for every paid provider call.
     CostGuardModule,
     AuthModule,
+    // docs/06 stage 6.2: admin JWT, RBAC, dashboard/audit/admins.
+    AdminAuthModule,
+    AdminModule,
     UsersModule,
     I18nModule,
     CasesModule,

@@ -10,7 +10,7 @@ import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { withTxRetry } from '../../../prisma/tx-retry.util';
 import { AuditLogService } from '../../admin-access/audit-log.service';
-import type { AdminActor } from '../../admin-access/current-admin.decorator';
+import type { AdminActor } from '../../admin-auth/admin-auth.decorators';
 import type { RequestUser } from '../../auth/decorators/current-user.decorator';
 import { NotificationsService } from '../../notifications/notifications.service';
 import { SubscriptionAccessService } from '../../subscriptions/subscription-access.service';

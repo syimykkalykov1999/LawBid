@@ -1,0 +1,40 @@
+@import 'tailwindcss';
+
+/* LawBid brand: navy + gold (docs/01 design system), light UI for an
+   internal tool — long reading sessions, dense tables. */
+@theme {
+  --color-navy: #0a1a3f;
+  --color-navy-600: #12285e;
+  --color-gold: #c9a24a;
+  --color-gold-600: #a9852f;
+  --color-ink: #111827;
+  --color-muted: #6b7280;
+  --color-line: #e5e7eb;
+  --color-surface: #ffffff;
+  --color-canvas: #f6f7fa;
+  --color-danger: #b42318;
+  --color-success: #067647;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+}
+
+:root {
+  color-scheme: light;
+}
+
+html,
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--color-gold);
+  outline-offset: 2px;
+}

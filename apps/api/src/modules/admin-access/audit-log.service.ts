@@ -10,6 +10,8 @@ export interface AuditEntry {
   before?: Prisma.InputJsonValue | null;
   after?: Prisma.InputJsonValue | null;
   ip?: string | null;
+  // docs/06 §2.1: why sensitive data was viewed (X-Justification).
+  justification?: string | null;
 }
 
 /**
@@ -36,6 +38,7 @@ export class AuditLogService {
         before: entry.before ?? Prisma.DbNull,
         after: entry.after ?? Prisma.DbNull,
         ip: entry.ip ?? null,
+        justification: entry.justification ?? null,
       },
     });
   }

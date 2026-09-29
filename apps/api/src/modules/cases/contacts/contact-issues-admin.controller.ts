@@ -5,21 +5,19 @@ import {
   HttpStatus,
   Param,
   Post,
-  UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   ApiEnvelopeResponse,
   ApiErrors,
-  AUTHENTICATED_ERRORS,
 } from '../../../common/dto/api-docs.decorators';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
-import { AdminRoles } from '../../admin-access/admin-roles.decorator';
-import { AdminRolesGuard } from '../../admin-access/admin-roles.guard';
 import {
+  AdminEndpoint,
   CurrentAdmin,
+  SkipAutoAudit,
   type AdminActor,
-} from '../../admin-access/current-admin.decorator';
+} from '../../admin-auth/admin-auth.decorators';
 import { CaseContactsService } from './case-contacts.service';
 import {
   ContactIssueIdParamDto,
@@ -32,14 +30,12 @@ const E = ErrorCode;
 /**
  * docs/04 §8.4: support/moderation decides a "Не могу связаться" report.
  * The queue screen itself is docs/06 (admin panel); this is the decision
- * API it will call, guarded by the interim AdminRolesGuard (docs/06 §2.2:
- * support and moderators handle user reports; super_admin everything).
+ * API it will call (docs/06 §2.2 "Кейсы: споры, «Не могу связаться»":
+ * support and super_admin). The service writes the audit row.
  */
 @ApiTags('admin-contact-issues')
-@ApiBearerAuth()
-@ApiErrors(AUTHENTICATED_ERRORS)
-@AdminRoles('support', 'moderator', 'super_admin')
-@UseGuards(AdminRolesGuard)
+@AdminEndpoint('support', 'super_admin')
+@SkipAutoAudit()
 @Controller('admin/contact-issues')
 export class ContactIssuesAdminController {
   constructor(private readonly contacts: CaseContactsService) {}

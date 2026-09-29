@@ -1,11 +1,10 @@
 import { Module } from '@nestjs/common';
-import { AdminRolesGuard } from './admin-roles.guard';
 import { AuditLogService } from './audit-log.service';
 
-/** Interim admin RBAC + audit writer (see AdminRolesGuard). docs/06 stage
- * 6.2 replaces the guard with the admin-JWT AdminAuthGuard/@Roles. */
+/** Append-only audit_log writer shared by every admin-facing service.
+ * Guards/RBAC live in modules/admin-auth (docs/06 stage 6.2). */
 @Module({
-  providers: [AdminRolesGuard, AuditLogService],
-  exports: [AdminRolesGuard, AuditLogService],
+  providers: [AuditLogService],
+  exports: [AuditLogService],
 })
 export class AdminAccessModule {}

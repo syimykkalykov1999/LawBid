@@ -1,0 +1,51 @@
+# apps/admin (docs/06 §2, §7.2): types generated from the committed
+# openapi.json, then typecheck, lint and a production build. No deploy
+# here — §7.3 is a later stage.
+name: admin-ci
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "apps/admin/**"
+      - "packages/api-contract/openapi.json"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/admin-ci.yml"
+  pull_request:
+    branches: [main, master]
+    paths:
+      - "apps/admin/**"
+      - "packages/api-contract/openapi.json"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/admin-ci.yml"
+
+concurrency:
+  group: admin-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Generate API types
+        run: npm run generate --workspace apps/admin
+      - name: Typecheck
+        run: npx tsc --noEmit -p apps/admin/tsconfig.json
+      - name: Lint
+        run: npm run lint --workspace apps/admin
+      - name: Build
+        run: npm run build --workspace apps/admin
+        env:
+          API_BASE_URL: http://localhost:3000/api/v1

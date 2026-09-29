@@ -38,6 +38,12 @@ export function buildOpenApiDocument(app: INestApplication): OpenAPIObject {
     .setVersion('0.1.0')
     .addServer(OPENAPI_BASE_PATH)
     .addBearerAuth()
+    // docs/06 §2.1: the admin panel's JWT (aud = lawbid-admin), a separate
+    // scheme so generated clients don't send mobile tokens to /admin/*.
+    .addBearerAuth(
+      { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
+      'admin',
+    )
     .build();
   const document = SwaggerModule.createDocument(app, config, {
     ignoreGlobalPrefix: true,

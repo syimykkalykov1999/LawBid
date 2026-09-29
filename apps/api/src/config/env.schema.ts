@@ -459,6 +459,23 @@ export const envSchema = z
     REQUEST_TIMEOUT_MS: z.coerce.number().int().min(1000).default(30_000),
     // docs/06 §4.3 (stage 6.1): Sentry with PII scrubbing; off when unset.
     SENTRY_DSN: z.string().url().optional(),
+    // docs/06 §2.1 (stage 6.2): encrypts admin TOTP secrets at rest
+    // (admin_credentials.totp_secret_enc). Admin sign-in is 503 until set.
+    ADMIN_TOTP_ENC_KEY: z.preprocess(
+      blankToUndefined,
+      z.string().min(32).optional(),
+    ),
+    // Sign-in code requests per IP per hour (the office NAT shares one IP).
+    ADMIN_LOGIN_LIMIT_PER_IP_PER_HOUR: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(20),
+    // Shown in authenticator apps and in the admin panel's links.
+    ADMIN_PANEL_URL: z.preprocess(
+      blankToUndefined,
+      z.string().url().optional(),
+    ),
   })
   .superRefine((env, ctx) => {
     if (

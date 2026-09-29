@@ -7,21 +7,20 @@ import {
   Param,
   Post,
   Query,
-  UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   ApiEnvelopeResponse,
   ApiErrors,
-  AUTHENTICATED_ERRORS,
 } from '../../../common/dto/api-docs.decorators';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
-import { AdminRoles } from '../../admin-access/admin-roles.decorator';
-import { AdminRolesGuard } from '../../admin-access/admin-roles.guard';
 import {
+  AdminEndpoint,
   CurrentAdmin,
+  Justification,
+  SkipAutoAudit,
   type AdminActor,
-} from '../../admin-access/current-admin.decorator';
+} from '../../admin-auth/admin-auth.decorators';
 import {
   AdminAttorneyIdParamDto,
   AdminDocumentIdParamDto,
@@ -51,14 +50,13 @@ const REVIEW_ERRORS = {
 
 /**
  * Verifier admin API (docs/03 §2.5, stage 3.4). Only `verifier` and
- * `super_admin` (docs/06 §2.2) — AdminRolesGuard, deny by default. Every
- * decision and document view is written to audit_log.
+ * `super_admin` (docs/06 §2.2) — AdminAuthGuard, deny by default. Every
+ * decision and document view is written to audit_log by the service
+ * (before/after), so the generic auto-audit is off here.
  */
 @ApiTags('admin-verification')
-@ApiBearerAuth()
-@ApiErrors(AUTHENTICATED_ERRORS)
-@AdminRoles('verifier', 'super_admin')
-@UseGuards(AdminRolesGuard)
+@AdminEndpoint('verifier', 'super_admin')
+@SkipAutoAudit()
 @Controller('admin/verification')
 export class AdminVerificationController {
   constructor(private readonly admin: VerificationAdminService) {}
@@ -84,6 +82,7 @@ export class AdminVerificationController {
   }
 
   @Post('documents/:documentId/url')
+  @Justification()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Short-lived signed link to a document (audited view)',

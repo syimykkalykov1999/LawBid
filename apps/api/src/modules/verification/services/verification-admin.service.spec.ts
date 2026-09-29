@@ -1,6 +1,6 @@
 import { HttpException, HttpStatus } from '@nestjs/common';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
-import type { AdminActor } from '../../admin-access/current-admin.decorator';
+import type { AdminActor } from '../../admin-auth/admin-auth.decorators';
 import type { AuditLogService } from '../../admin-access/audit-log.service';
 import type { RateLimitService } from '../../auth/services/rate-limit.service';
 import type { FilesService } from '../../files/files.service';

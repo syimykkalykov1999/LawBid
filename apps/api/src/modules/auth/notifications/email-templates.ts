@@ -101,6 +101,28 @@ export function buildLoginOtpEmail(input: {
   return { to: input.email, subject: 'Your LawBid code', text, html };
 }
 
+/** Admin panel sign-in (docs/06 §2.1, POST /admin/auth/login/start):
+ * code only — the panel never gets a magic link. */
+export function buildAdminLoginCodeEmail(input: {
+  email: string;
+  code: string;
+  ttlMinutes: number;
+}): EmailMessage {
+  const text = [
+    `Your LawBid admin sign-in code: ${input.code}`,
+    `It expires in ${input.ttlMinutes} minutes.`,
+    '',
+    "If you didn't try to sign in to the admin panel, tell the super admin.",
+  ].join('\n');
+  const html = [
+    `<p>Your LawBid <b>admin</b> sign-in code:</p>`,
+    `<p style="font-size:24px;font-weight:bold;letter-spacing:4px">${escapeHtml(input.code)}</p>`,
+    `<p>It expires in ${input.ttlMinutes} minutes.</p>`,
+    `<p style="font-size:12px">If you didn't try to sign in to the admin panel, tell the super admin.</p>`,
+  ].join('');
+  return { to: input.email, subject: 'LawBid admin sign-in code', text, html };
+}
+
 /** Contact verification (POST /users/me/contacts/request): code only. */
 export function buildContactOtpEmail(input: {
   email: string;

@@ -44,10 +44,13 @@ abstract class AdminVerificationClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Short-lived signed link to a document (audited view)
+  /// Short-lived signed link to a document (audited view).
+  ///
+  /// [xJustification] - Why the data is being viewed (10–500 characters).
   @POST('/admin/verification/documents/{documentId}/url')
   Future<DocumentUrlEnvelope> getVerificationDocumentUrl({
     @Path('documentId') required String documentId,
+    @Header('X-Justification') required String xJustification,
     @Extras() Map<String, dynamic>? extras,
   });
 

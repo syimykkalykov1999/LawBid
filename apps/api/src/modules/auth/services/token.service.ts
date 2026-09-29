@@ -21,6 +21,28 @@ export interface ReauthTokenClaims {
   sid: string;
 }
 
+/** docs/06 §2.1 admin JWT (`aud = lawbid-admin`); `jti` is the Redis
+ * session id (AdminSessionService). */
+export interface AdminTokenClaims {
+  sub: string;
+  jti: string;
+  role: string;
+}
+
+/** Between the email code and the TOTP step: proves the email code was
+ * entered, grants nothing else. */
+export interface AdminTicketClaims {
+  sub: string;
+  jti: string;
+}
+
+const AUDIENCE = {
+  access: 'lawbid-app',
+  reauth: 'lawbid-reauth',
+  admin: 'lawbid-admin',
+  'admin-ticket': 'lawbid-admin-ticket',
+} as const;
+
 export class TokenVerifyExpiredError extends Error {}
 export class TokenVerifyInvalidError extends Error {}
 
@@ -116,6 +138,50 @@ export class TokenService {
     };
   }
 
+  signAdminToken(claims: AdminTokenClaims, ttlSeconds: number): string {
+    return this.jwt.sign(
+      { sub: claims.sub, role: claims.role, typ: 'admin' },
+      {
+        secret: this.activeSecret(),
+        keyid: this.activeKid,
+        algorithm: 'HS256',
+        expiresIn: ttlSeconds,
+        issuer: 'lawbid',
+        audience: 'lawbid-admin',
+        jwtid: claims.jti,
+      },
+    );
+  }
+
+  verifyAdminToken(token: string): AdminTokenClaims {
+    const claims = this.verifyWithKeyRotation(token, 'admin');
+    return {
+      sub: claims.sub as string,
+      jti: claims.jti as string,
+      role: claims.role as string,
+    };
+  }
+
+  signAdminTicket(claims: AdminTicketClaims, ttlSeconds: number): string {
+    return this.jwt.sign(
+      { sub: claims.sub, typ: 'admin-ticket' },
+      {
+        secret: this.activeSecret(),
+        keyid: this.activeKid,
+        algorithm: 'HS256',
+        expiresIn: ttlSeconds,
+        issuer: 'lawbid',
+        audience: 'lawbid-admin-ticket',
+        jwtid: claims.jti,
+      },
+    );
+  }
+
+  verifyAdminTicket(token: string): AdminTicketClaims {
+    const claims = this.verifyWithKeyRotation(token, 'admin-ticket');
+    return { sub: claims.sub as string, jti: claims.jti as string };
+  }
+
   /** Opaque 256-bit refresh token + the SHA-256 hex hash that gets stored (never the raw value). */
   generateRefreshToken(): { raw: string; hash: string } {
     const raw = randomBytes(32).toString('base64url');
@@ -147,7 +213,7 @@ export class TokenService {
 
   private verifyWithKeyRotation(
     token: string,
-    expectedTyp: 'access' | 'reauth',
+    expectedTyp: 'access' | 'reauth' | 'admin' | 'admin-ticket',
   ): Record<string, unknown> {
     const decoded = this.jwt.decode(token, { complete: true }) as {
       header?: { kid?: string };
@@ -158,7 +224,10 @@ export class TokenService {
       throw new TokenVerifyInvalidError('Unknown or missing key id');
     }
 
-    const audience = expectedTyp === 'access' ? 'lawbid-app' : 'lawbid-reauth';
+    // One audience per token type: a token of one kind never verifies as
+    // another (docs/06 §2.1 — mobile tokens are refused on /admin/* and
+    // vice versa by the audience check alone).
+    const audience = AUDIENCE[expectedTyp];
     try {
       const claims = this.jwt.verify<Record<string, unknown>>(token, {
         secret,

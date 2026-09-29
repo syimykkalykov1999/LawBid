@@ -6,6 +6,10 @@ import 'package:dio/dio.dart';
 
 import 'clients/config_client.dart';
 import 'clients/auth_client.dart';
+import 'clients/admin_auth_client.dart';
+import 'clients/admin_dashboard_client.dart';
+import 'clients/admin_audit_log_client.dart';
+import 'clients/admin_admins_client.dart';
 import 'clients/users_client.dart';
 import 'clients/files_client.dart';
 import 'clients/i18n_client.dart';
@@ -44,6 +48,10 @@ class LawbidApi {
 
   ConfigClient? _config;
   AuthClient? _auth;
+  AdminAuthClient? _adminAuth;
+  AdminDashboardClient? _adminDashboard;
+  AdminAuditLogClient? _adminAuditLog;
+  AdminAdminsClient? _adminAdmins;
   UsersClient? _users;
   FilesClient? _files;
   I18nClient? _i18n;
@@ -72,6 +80,18 @@ class LawbidApi {
   ConfigClient get config => _config ??= ConfigClient(_dio, baseUrl: _baseUrl);
 
   AuthClient get auth => _auth ??= AuthClient(_dio, baseUrl: _baseUrl);
+
+  AdminAuthClient get adminAuth =>
+      _adminAuth ??= AdminAuthClient(_dio, baseUrl: _baseUrl);
+
+  AdminDashboardClient get adminDashboard =>
+      _adminDashboard ??= AdminDashboardClient(_dio, baseUrl: _baseUrl);
+
+  AdminAuditLogClient get adminAuditLog =>
+      _adminAuditLog ??= AdminAuditLogClient(_dio, baseUrl: _baseUrl);
+
+  AdminAdminsClient get adminAdmins =>
+      _adminAdmins ??= AdminAdminsClient(_dio, baseUrl: _baseUrl);
 
   UsersClient get users => _users ??= UsersClient(_dio, baseUrl: _baseUrl);
 

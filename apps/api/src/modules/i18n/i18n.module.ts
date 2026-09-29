@@ -5,7 +5,6 @@ import { I18nLanguagesService } from './services/i18n-languages.service';
 import { I18nBundleService } from './services/i18n-bundle.service';
 import { I18nImportService } from './services/i18n-import.service';
 import { I18nExportService } from './services/i18n-export.service';
-import { AdminGuard } from './guards/admin.guard';
 
 /**
  * docs/01_FOUNDATION_AUTH.md §15, stage 1.6 ("Бэкенд: модуль i18n").
@@ -22,7 +21,6 @@ import { AdminGuard } from './guards/admin.guard';
     I18nBundleService,
     I18nImportService,
     I18nExportService,
-    AdminGuard,
   ],
 })
 export class I18nModule {}

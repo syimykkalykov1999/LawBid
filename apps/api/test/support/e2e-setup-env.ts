@@ -12,6 +12,7 @@ process.env.REDIS_URL = e2eRedisUrl();
 // asserts the per-IP limit (RateLimitService has unit coverage), so only
 // that budget is lifted; the per-identifier limit stays at its real value.
 process.env.OTP_RATE_LIMIT_PER_IP_PER_HOUR = '1000';
+process.env.ADMIN_LOGIN_LIMIT_PER_IP_PER_HOUR = '1000';
 
 // Cost guard (owner decision 2026-09-27): the suites send far more than
 // 30 SMS within a minute from one process. Only the per-minute velocity
@@ -34,4 +35,11 @@ const s3Defaults: Record<string, string> = {
 };
 for (const [key, value] of Object.entries(s3Defaults)) {
   if (!process.env[key]) process.env[key] = value;
+}
+
+// docs/06 stage 6.2: admin sign-in needs the TOTP secret encryption key;
+// a test-only value so the suites can enroll and verify authenticators.
+if (!process.env.ADMIN_TOTP_ENC_KEY) {
+  process.env.ADMIN_TOTP_ENC_KEY =
+    'e2e_admin_totp_enc_key_at_least_32_chars_long';
 }

@@ -17,6 +17,7 @@ import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { AppConfigService } from '../../feature-flags/services/app-config.service';
 import { checkSmsDestination } from '../dto/validators';
 import {
+  buildAdminLoginCodeEmail,
   buildContactOtpEmail,
   buildLoginOtpEmail,
 } from '../notifications/email-templates';
@@ -26,7 +27,7 @@ const SMS_ALLOWED_COUNTRIES_CONFIG_KEY = 'sms.allowed_country_codes';
 export type OtpChannel = 'phone' | 'email';
 /** Keeps a login OTP's Redis keys from colliding with a "verify new
  * contact" OTP for the same phone/email requested concurrently. */
-export type OtpPurpose = 'login' | 'contact';
+export type OtpPurpose = 'login' | 'contact' | 'admin';
 
 export type OtpVerifyResult = 'ok' | 'invalid' | 'expired' | 'locked';
 
@@ -167,7 +168,9 @@ export class OtpService {
               linkToken,
               appLinkBaseUrl: this.appLinkBaseUrl,
             })
-          : buildContactOtpEmail({ email, code, ttlMinutes }),
+          : purpose === 'admin'
+            ? buildAdminLoginCodeEmail({ email, code, ttlMinutes })
+            : buildContactOtpEmail({ email, code, ttlMinutes }),
       );
     }
   }

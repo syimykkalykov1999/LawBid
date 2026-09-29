@@ -8,6 +8,7 @@ import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import { TokenService } from '../src/modules/auth/services/token.service';
+import { adminSession } from './support/admin-login';
 import {
   CaseAutoArchiveJob,
   CaseAutoCloseJob,
@@ -329,20 +330,9 @@ describe('Case lifecycle and jobs (e2e, docs/04 §10, stage 4.6)', () => {
       where: { case_id: caseId },
     });
 
-    const admin = await prisma.user.create({ data: { role: 'admin' } });
-    await prisma.adminProfile.create({
-      data: { user_id: admin.id, admin_role: 'support' },
-    });
-    const adminAuth = {
-      Authorization: `Bearer ${tokens.signAccessToken({
-        sub: admin.id,
-        role: 'admin',
-        sid: randomUUID(),
-        verified: false,
-        subscriptionStatus: 'none',
-      })}`,
-    };
-    // A client can't use the admin route.
+    const adminAuth = (await adminSession(baseUrl, prisma, 'support')).auth;
+    // A client can't use the admin route (mobile tokens are refused on
+    // /admin/*: docs/06 stage 6.2).
     expect(
       (
         await post(client.auth, `/admin/case-disputes/${dispute.id}/resolve`, {
@@ -350,7 +340,7 @@ describe('Case lifecycle and jobs (e2e, docs/04 §10, stage 4.6)', () => {
           note: 'x',
         })
       ).status,
-    ).toBe(403);
+    ).toBe(401);
     const r = await post(
       adminAuth,
       `/admin/case-disputes/${dispute.id}/resolve`,

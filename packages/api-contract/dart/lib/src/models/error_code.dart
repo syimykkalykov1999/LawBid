@@ -104,6 +104,8 @@ enum ErrorCode {
   fileTypeNotAllowed('FILE_TYPE_NOT_ALLOWED'),
   @JsonValue('FILE_TOO_LARGE')
   fileTooLarge('FILE_TOO_LARGE'),
+  @JsonValue('PAYLOAD_TOO_LARGE')
+  payloadTooLarge('PAYLOAD_TOO_LARGE'),
   @JsonValue('FILE_CHECKSUM_MISMATCH')
   fileChecksumMismatch('FILE_CHECKSUM_MISMATCH'),
   @JsonValue('FILE_NOT_UPLOADED')
@@ -130,6 +132,18 @@ enum ErrorCode {
   licenseAlreadyAdded('LICENSE_ALREADY_ADDED'),
   @JsonValue('ATTORNEY_SUSPENDED')
   attorneySuspended('ATTORNEY_SUSPENDED'),
+  @JsonValue('JUSTIFICATION_REQUIRED')
+  justificationRequired('JUSTIFICATION_REQUIRED'),
+  @JsonValue('ADMIN_TICKET_INVALID')
+  adminTicketInvalid('ADMIN_TICKET_INVALID'),
+  @JsonValue('ADMIN_TOTP_INVALID')
+  adminTotpInvalid('ADMIN_TOTP_INVALID'),
+  @JsonValue('ADMIN_RECOVERY_CODE_INVALID')
+  adminRecoveryCodeInvalid('ADMIN_RECOVERY_CODE_INVALID'),
+  @JsonValue('ADMIN_AUTH_NOT_CONFIGURED')
+  adminAuthNotConfigured('ADMIN_AUTH_NOT_CONFIGURED'),
+  @JsonValue('ADMIN_EMAIL_TAKEN')
+  adminEmailTaken('ADMIN_EMAIL_TAKEN'),
   @JsonValue('CASE_NOT_FOUND')
   caseNotFound('CASE_NOT_FOUND'),
   @JsonValue('CASE_NOT_AVAILABLE')

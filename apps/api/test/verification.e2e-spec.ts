@@ -7,6 +7,7 @@ import type Redis from 'ioredis';
 import request from 'supertest';
 import type { AdminRole, FilePurpose, ScanStatus } from '@prisma/client';
 import { AppModule } from '../src/app.module';
+import { adminSession } from './support/admin-login';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import { FeatureFlagsService } from '../src/modules/feature-flags/services/feature-flags.service';
@@ -170,20 +171,13 @@ describe('Verification (e2e) — docs/03 stages 3.3–3.4', () => {
     return { auth, userId, username };
   }
 
+  // docs/06 stage 6.2: admins sign in through /admin/auth (email code +
+  // TOTP); a mobile token is refused on /admin/* whatever the role.
   async function admin(
     role: AdminRole | null,
   ): Promise<{ auth: Record<string, string>; userId: string }> {
-    const { auth, userId } = await signIn();
-    await prisma.user.update({
-      where: { id: userId },
-      data: { role: 'admin' },
-    });
-    if (role) {
-      await prisma.adminProfile.create({
-        data: { user_id: userId, admin_role: role },
-      });
-    }
-    return { auth, userId };
+    const s = await adminSession(baseUrl, prisma, role);
+    return { auth: s.auth, userId: s.userId };
   }
 
   async function file(
@@ -269,7 +263,9 @@ describe('Verification (e2e) — docs/03 stages 3.3–3.4', () => {
   const auditActions = async (adminId: string) =>
     (
       await prisma.auditLog.findMany({
-        where: { admin_id: adminId },
+        // Sign-in rows (admin.login, admin.totp_enrolled) are stage 6.2's;
+        // these assertions are about the verification actions only.
+        where: { admin_id: adminId, action: { startsWith: 'verification.' } },
         orderBy: { created_at: 'asc' },
       })
     ).map((r) => r.action);
@@ -500,7 +496,15 @@ describe('Verification (e2e) — docs/03 stages 3.3–3.4', () => {
       const bare = await admin(null);
       const moderator = await admin('moderator');
       const support = await admin('support');
-      for (const who of [a, bare, moderator, support]) {
+      // A mobile token (attorney) and no token at all (an admin without a
+      // profile can't even sign in) are 401; the wrong admin role is 403.
+      for (const who of [a, bare]) {
+        await api()
+          .get('/api/v1/admin/verification/requests')
+          .set(who.auth)
+          .expect(401);
+      }
+      for (const who of [moderator, support]) {
         const res = await api()
           .get('/api/v1/admin/verification/requests')
           .set(who.auth)
@@ -556,9 +560,15 @@ describe('Verification (e2e) — docs/03 stages 3.3–3.4', () => {
         .expect(409);
 
       // Document view → signed link + audit row.
+      // docs/06 §2.1: a document view needs a reason (X-Justification).
+      await api()
+        .post(`/api/v1/admin/verification/documents/${documents[0].id}/url`)
+        .set(verifier.auth)
+        .expect(400);
       const link = await api()
         .post(`/api/v1/admin/verification/documents/${documents[0].id}/url`)
         .set(verifier.auth)
+        .set('X-Justification', 'Checking the bar card against the license')
         .expect(200);
       expect((link.body as Body).data.url).toEqual(
         expect.stringContaining('X-Amz-Signature'),
@@ -605,6 +615,9 @@ describe('Verification (e2e) — docs/03 stages 3.3–3.4', () => {
         },
       });
       expect(view.target_id).toBe(documents[0].id);
+      expect(view.justification).toBe(
+        'Checking the bar card against the license',
+      );
 
       const notes = await prisma.notification.findMany({
         where: { user_id: a.userId, type: 'verification_update' },

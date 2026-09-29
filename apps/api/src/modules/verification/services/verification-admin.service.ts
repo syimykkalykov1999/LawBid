@@ -13,7 +13,7 @@ import {
 import { PrismaService } from '../../../prisma/prisma.service';
 import { withTxRetry } from '../../../prisma/tx-retry.util';
 import { AuditLogService } from '../../admin-access/audit-log.service';
-import type { AdminActor } from '../../admin-access/current-admin.decorator';
+import type { AdminActor } from '../../admin-auth/admin-auth.decorators';
 import { RateLimitService } from '../../auth/services/rate-limit.service';
 import { FilesService } from '../../files/files.service';
 import { NotificationsService } from '../../notifications/notifications.service';
@@ -71,7 +71,7 @@ const CARD_INCLUDE = {
 
 /**
  * Verifier API (docs/03 §2.5, stage 3.4). Access (verifier/super_admin)
- * is enforced by AdminRolesGuard on the controller. Every decision and
+ * is enforced by AdminAuthGuard on the controller. Every decision and
  * every document view writes an `audit_log` row in the same transaction
  * as the change; attorney-facing events emit `verification_update`
  * (§2.7) through NotificationsService.
@@ -258,6 +258,8 @@ export class VerificationAdminService {
         expiresAt: link.expiresAt,
       },
       ip: admin.ip,
+      // docs/06 §2.1: the reason given in X-Justification.
+      justification: admin.justification,
     });
     return link;
   }

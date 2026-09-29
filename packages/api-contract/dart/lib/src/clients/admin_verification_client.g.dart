@@ -95,13 +95,15 @@ class _AdminVerificationClient implements AdminVerificationClient {
   @override
   Future<DocumentUrlEnvelope> getVerificationDocumentUrl({
     required String documentId,
+    required String xJustification,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
     _extra.addAll(extras ?? <String, dynamic>{});
     final queryParameters = <String, dynamic>{};
     queryParameters.removeWhere((k, v) => v == null);
-    final _headers = <String, dynamic>{};
+    final _headers = <String, dynamic>{r'X-Justification': xJustification};
+    _headers.removeWhere((k, v) => v == null);
     const Map<String, dynamic>? _data = null;
     final _options = _setStreamType<DocumentUrlEnvelope>(
       Options(method: 'POST', headers: _headers, extra: _extra)

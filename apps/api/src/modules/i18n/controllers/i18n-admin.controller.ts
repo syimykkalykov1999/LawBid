@@ -7,13 +7,11 @@ import {
   Query,
   Res,
   UploadedFile,
-  UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import {
-  ApiBearerAuth,
   ApiBody,
   ApiConsumes,
   ApiProduces,
@@ -23,11 +21,10 @@ import {
 import {
   ApiEnvelopeResponse,
   ApiErrors,
-  AUTHENTICATED_ERRORS,
 } from '../../../common/dto/api-docs.decorators';
 import { I18nImportReportDto } from '../dto/i18n-responses.dto';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
-import { AdminGuard } from '../guards/admin.guard';
+import { AdminEndpoint } from '../../admin-auth/admin-auth.decorators';
 import { I18nImportQueryDto } from '../dto/import-query.dto';
 import { I18nImportService } from '../services/i18n-import.service';
 import { I18nExportService } from '../services/i18n-export.service';
@@ -41,19 +38,12 @@ const XLSX_MIME =
 
 /**
  * docs/01_FOUNDATION_AUTH.md §9.3: "POST /admin/i18n/import ... GET
- * /admin/i18n/export". Gated by AdminGuard on top of the global
- * JwtAuthGuard (no @Public() here — this controller is admin-only, see
- * AdminGuard's doc comment for why that's a route-level guard rather
- * than a full RolesGuard at this stage).
+ * /admin/i18n/export". docs/06 §2.2: localizations are super_admin only
+ * (AdminAuthGuard via @AdminEndpoint; imports are auto-audited).
  */
 @ApiTags('admin-i18n')
-@ApiBearerAuth()
-@ApiErrors({
-  ...AUTHENTICATED_ERRORS,
-  403: [ErrorCode.FORBIDDEN],
-})
+@AdminEndpoint('super_admin')
 @Controller('admin/i18n')
-@UseGuards(AdminGuard)
 export class I18nAdminController {
   constructor(
     private readonly importService: I18nImportService,

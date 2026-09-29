@@ -6,6 +6,7 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
+import { adminSession } from './support/admin-login';
 
 /**
  * docs/04_CASES_BIDS.md §16 stage 4.5 acceptance (integration + concurrency),
@@ -352,19 +353,7 @@ describe('Bid acceptance and client contacts (e2e, docs/04 §7–§8, stage 4.5)
       .send({ issueType: 'phone_invalid', note: 'Number is disconnected.' });
     expect(report.status).toBe(201);
 
-    const admin = await prisma.user.create({ data: { role: 'admin' } });
-    await prisma.adminProfile.create({
-      data: { user_id: admin.id, admin_role: 'support' },
-    });
-    const adminAuth = {
-      Authorization: `Bearer ${tokens.signAccessToken({
-        sub: admin.id,
-        role: 'admin',
-        sid: randomUUID(),
-        verified: false,
-        subscriptionStatus: 'none',
-      })}`,
-    };
+    const adminAuth = (await adminSession(baseUrl, prisma, 'support')).auth;
     const resolved = await api()
       .post(`/api/v1/admin/contact-issues/${report.body.data.id}/resolve`)
       .set(adminAuth)

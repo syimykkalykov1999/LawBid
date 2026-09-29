@@ -11,7 +11,7 @@ import {
   type ChatChange,
 } from '../../chat/chat-system.service';
 import { withTxRetry } from '../../../prisma/tx-retry.util';
-import type { AdminActor } from '../../admin-access/current-admin.decorator';
+import type { AdminActor } from '../../admin-auth/admin-auth.decorators';
 import { AuditLogService } from '../../admin-access/audit-log.service';
 import type { RequestUser } from '../../auth/decorators/current-user.decorator';
 import { BidStateMachine } from '../../bids/domain/bid-state-machine';
