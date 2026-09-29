@@ -40,6 +40,7 @@ class OptionPickerSheet extends ConsumerStatefulWidget {
   }) {
     return showAppBottomSheet<Set<String>>(
       context: context,
+      isScrollControlled: true,
       builder: (_) => OptionPickerSheet(
         title: title,
         options: options,
@@ -89,11 +90,14 @@ class _OptionPickerSheetState extends ConsumerState<OptionPickerSheet> {
                 (o.sublabel?.toLowerCase().contains(q) ?? false))
             .toList();
 
-    return SafeArea(
-      top: false,
-      child: ConstrainedBox(
-        constraints:
-            BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.85),
+    // Owner 2026-09-29: draggable all the way to the top.
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.7,
+      minChildSize: 0.4,
+      maxChildSize: 1,
+      builder: (context, scrollController) => SafeArea(
+        top: false,
         child: Padding(
           padding: EdgeInsets.fromLTRB(
             AppSpacing.screenSide,
@@ -102,7 +106,6 @@ class _OptionPickerSheetState extends ConsumerState<OptionPickerSheet> {
             AppSpacing.lg + MediaQuery.viewInsetsOf(context).bottom,
           ),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const AppSheetHandle(),
@@ -121,7 +124,7 @@ class _OptionPickerSheetState extends ConsumerState<OptionPickerSheet> {
                 onChanged: (v) => setState(() => _query = v),
               ),
               const SizedBox(height: AppSpacing.md),
-              Flexible(
+              Expanded(
                 child: filtered.isEmpty
                     ? Padding(
                         padding: const EdgeInsets.all(AppSpacing.xl),
@@ -133,7 +136,7 @@ class _OptionPickerSheetState extends ConsumerState<OptionPickerSheet> {
                         ),
                       )
                     : ListView.separated(
-                        shrinkWrap: true,
+                        controller: scrollController,
                         itemCount: filtered.length,
                         separatorBuilder: (_, __) =>
                             const SizedBox(height: AppSpacing.xs),

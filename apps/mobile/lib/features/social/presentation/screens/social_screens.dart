@@ -109,8 +109,8 @@ class _PostScreenState extends ConsumerState<PostScreen> {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final post = ref.watch(postProvider(widget.postId));
-    final deleted = ref.watch(
-        deletedPostsProvider.select((d) => d.contains(widget.postId)));
+    final deleted = ref
+        .watch(deletedPostsProvider.select((d) => d.contains(widget.postId)));
     final comments = ref.watch(commentsProvider(widget.postId));
     return Scaffold(
       backgroundColor: colors.bg,
@@ -329,10 +329,13 @@ class FollowListScreen extends ConsumerWidget {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final id = attorneyId;
-    final AsyncValue<PaginatedList<AttorneyRow>> value;
+    final AsyncValue<PaginatedList<PersonRow>> value;
     final PagedNotifierLike notifier;
     if (id == null) {
-      value = ref.watch(myFollowingProvider);
+      // My follows are attorneys only; shown through the same row type.
+      value = ref.watch(myFollowingProvider).whenData(
+            (l) => l.map(PersonRow.attorney),
+          );
       final n = ref.read(myFollowingProvider.notifier);
       notifier = (n.refresh, n.loadMore, n.retryLoadMore);
     } else {
@@ -351,11 +354,11 @@ class FollowListScreen extends ConsumerWidget {
             ? 'follow.followers'
             : 'follow.followingList')),
       ),
-      body: PagedListBody<AttorneyRow>(
+      body: PagedListBody<PersonRow>(
         value: value,
         t: t,
         itemKey: (r) => r.id,
-        itemBuilder: (context, r, _) => AttorneyTile(row: r),
+        itemBuilder: (context, r, _) => PersonTile(row: r),
         empty: AppEmptyState(
           icon: Icons.people_outline_rounded,
           message: t.t(kind == FollowListKind.followers
@@ -405,8 +408,7 @@ class SavedPostsList extends ConsumerWidget {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.hide_source_rounded,
-                      color: colors.textSecondary),
+                  Icon(Icons.hide_source_rounded, color: colors.textSecondary),
                   const SizedBox(width: AppSpacing.md),
                   Text(t.t('post.unavailable'),
                       style: type.body.copyWith(color: colors.textSecondary)),
@@ -463,8 +465,7 @@ class ProfilePostsGrid extends ConsumerWidget {
         ),
       ),
       data: (page) {
-        final posts =
-            page.items.where((p) => !deleted.contains(p.id)).toList();
+        final posts = page.items.where((p) => !deleted.contains(p.id)).toList();
         if (posts.isEmpty) {
           // The grid sits in the profile's scroll view: a bounded height.
           return SizedBox(

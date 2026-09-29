@@ -1,8 +1,16 @@
 # Changelog
 
+
 All notable changes to this project are documented here, per
 .cursorrules (each stage ends with a CHANGELOG update + commit on
 branch cursor/stage-X-Y-description).
+
+## Owner UI pass (2026-09-29, after phone testing) — OQ-026/027/028
+
+- **People search for both roles** (`GET /search/people`): attorneys AND clients by @username / first / last name, one ranked list; clients now have `@username`s (`client_profiles.username`, one namespace with attorneys via `UsernameRegistry`, lazy allocation for existing rows, editable in the client profile with the same cooldown/reserved/taken rules), a public mini-profile `GET /clients/:username` and appear in an attorney's followers list (`PersonItemDto`).
+- **Block system** (OQ-028): `user_blocks`, `PUT/DELETE /users/:id/block`, `GET /users/me/blocks`; guards in chat send, follow, People search; `isBlocked`/`hasBlockedMe` on public profiles; app: Block/Unblock in profile "⋯" and chat menu, Settings → Blocked users.
+- **In-app UI**: centered "LawBid" wordmark and lower feed header, hidden status bar in-app, segmented tabs (no tint/underline), rounded bottom nav, "@username" profile headers, Mine/Profile/Messages titles removed, search field on top with sections below, cases-feed filters over all states/practices with searchable full-height sheets, frameless header icon buttons, Telegram-style bubble alignment, Publish dimmed until consent, iOS swipe-back (`CupertinoPage`), quiet-hours toggle clear of the gesture bar.
+- Tests: `test/owner-people-search.e2e-spec.ts`, `test/owner-blocks.e2e-spec.ts`; stage-5-5 follower expectation updated (clients listed); mobile goldens regenerated.
 
 ## Stage 0 — 2026-09-21
 - Created `.cursorrules` at repo root (verbatim per docs/06_PRODUCTION.md §12).

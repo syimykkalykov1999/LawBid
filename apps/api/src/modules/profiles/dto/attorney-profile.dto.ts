@@ -283,4 +283,12 @@ export class PublicAttorneyProfileDto {
     description: 'The viewer follows this attorney (docs/05 §6.2).',
   })
   isFollowing!: boolean;
+
+  /** OQ-028: the viewer blocked this user. */
+  @ApiProperty()
+  isBlocked!: boolean;
+
+  /** OQ-028: this user blocked the viewer (no follow / message). */
+  @ApiProperty()
+  hasBlockedMe!: boolean;
 }

@@ -21,6 +21,7 @@ UpdateClientProfileDto _$UpdateClientProfileDtoFromJson(
           json['contactMethod'] as String,
         ),
   contactNote: json['contactNote'] as String?,
+  username: json['username'] as String?,
 );
 
 Map<String, dynamic> _$UpdateClientProfileDtoToJson(
@@ -32,4 +33,5 @@ Map<String, dynamic> _$UpdateClientProfileDtoToJson(
   'languages': ?instance.languages?.map((e) => e.toJson()).toList(),
   'contactMethod': ?instance.contactMethod?.toJson(),
   'contactNote': ?instance.contactNote,
+  'username': ?instance.username,
 };

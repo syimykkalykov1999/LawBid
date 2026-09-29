@@ -49,6 +49,22 @@ describe('Follows (e2e, docs/05 §6, stage 5.5)', () => {
 
   async function user(role: 'client' | 'attorney', verified = true) {
     const u = await prisma.user.create({ data: { role } });
+    if (role === 'client') {
+      // OQ-026: listable clients have a profile row with a username.
+      await prisma.state.upsert({
+        where: { code: 'NY' },
+        create: { code: 'NY', name: 'New York' },
+        update: {},
+      });
+      await prisma.clientProfile.create({
+        data: {
+          user_id: u.id,
+          state_code: 'NY',
+          username: `cli_${u.id.slice(0, 8)}`,
+          username_lower: `cli_${u.id.slice(0, 8)}`,
+        },
+      });
+    }
     if (role === 'attorney') {
       const username = `att_${u.id.slice(0, 8)}`;
       await prisma.attorneyProfile.create({
@@ -87,7 +103,7 @@ describe('Follows (e2e, docs/05 §6, stage 5.5)', () => {
     }
   });
 
-  it('followers list hides clients but the counter counts them', async () => {
+  it('followers list shows attorneys and clients (OQ-026); the counter counts both', async () => {
     const star = await user('attorney');
     const fanAttorney = await user('attorney');
     const fanClient = await user('client');
@@ -99,8 +115,15 @@ describe('Follows (e2e, docs/05 §6, stage 5.5)', () => {
     const list = await api()
       .get(`/api/v1/attorneys/${star.id}/followers`)
       .set(fanClient.auth);
-    const ids = (list.body.data as { id: string }[]).map((a) => a.id);
-    expect(ids).toEqual([fanAttorney.id]);
+    const rows = list.body.data as {
+      role: string;
+      attorney: { id: string } | null;
+      client: { id: string } | null;
+    }[];
+    expect(rows.map((r) => r.attorney?.id ?? r.client?.id).sort()).toEqual(
+      [fanAttorney.id, fanClient.id].sort(),
+    );
+    expect(rows.find((r) => r.client)?.role).toBe('client');
     const profile = await prisma.attorneyProfile.findUniqueOrThrow({
       where: { user_id: star.id },
     });

@@ -13,6 +13,8 @@ import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_cards.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_wizard_steps.dart';
+import 'package:lawbid/features/onboarding/domain/us_states.dart';
+import 'package:lawbid/features/onboarding/presentation/widgets/option_picker_sheet.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/screens/verification_required_screen.dart';
@@ -45,6 +47,9 @@ class _AttorneyCasesTabState extends ConsumerState<AttorneyCasesTab> {
           reason: VerificationGateReason.cases);
     }
     final practices = ref.watch(myPracticesProvider);
+    // Owner 2026-09-29: the filter offers every practice, not only the
+    // attorney's own; the tree loads alongside.
+    final tree = ref.watch(practiceTreeProvider);
     final profile = ref.watch(ownAttorneyProfileProvider);
     final formats = ref.watch(l10nFormatsProvider);
 
@@ -95,9 +100,13 @@ class _AttorneyCasesTabState extends ConsumerState<AttorneyCasesTab> {
     final filter = (practiceAreaId: _practiceId, state: _state);
     final value = ref.watch(caseFeedProvider(filter));
     final n = ref.read(caseFeedProvider(filter).notifier);
+    final allLeaves = [
+      for (final c in tree.value ?? const <PracticeCategory>[])
+        for (final l in c.children) l,
+    ];
     final practiceLabel = _practiceId == null
         ? t.t('cases.feed.allPractices')
-        : myPractices
+        : allLeaves
             .where((p) => p.id == _practiceId)
             .map((p) => CaseFormat.practice(t, p.i18nKey, p.nameEn))
             .firstOrNull;
@@ -119,7 +128,7 @@ class _AttorneyCasesTabState extends ConsumerState<AttorneyCasesTab> {
             leading: const Icon(Icons.balance_rounded, size: AppSpacing.lg),
             trailing:
                 const Icon(Icons.expand_more_rounded, size: AppSpacing.lg),
-            onTap: () => _pickPractice(t, myPractices),
+            onTap: () => _pickPractice(t, allLeaves),
           ),
           AppChip(
             label: _state == null
@@ -129,7 +138,7 @@ class _AttorneyCasesTabState extends ConsumerState<AttorneyCasesTab> {
             leading: const Icon(Icons.map_outlined, size: AppSpacing.lg),
             trailing:
                 const Icon(Icons.expand_more_rounded, size: AppSpacing.lg),
-            onTap: () => _pickState(t, licensed),
+            onTap: () => _pickState(t),
           ),
         ],
       ),
@@ -147,26 +156,34 @@ class _AttorneyCasesTabState extends ConsumerState<AttorneyCasesTab> {
     );
   }
 
-  Future<void> _pickPractice(
-      Translator t, List<SelectedPractice> options) async {
+  /// Owner 2026-09-29: every practice (searchable), "All" first.
+  Future<void> _pickPractice(Translator t, List<PracticeLeaf> leaves) async {
     final picked = await _pickOption(
       t,
       title: t.t('cases.feed.practiceFilter'),
       options: [
-        for (final p in options)
-          (p.id, CaseFormat.practice(t, p.i18nKey, p.nameEn)),
+        for (final p in leaves)
+          PickerOption(
+            value: p.id,
+            label: CaseFormat.practice(t, p.i18nKey, p.nameEn),
+          ),
       ],
       selected: _practiceId,
     );
-    if (picked != null)
+    if (picked != null) {
       setState(() => _practiceId = picked.isEmpty ? null : picked);
+    }
   }
 
-  Future<void> _pickState(Translator t, List<String> codes) async {
+  /// Owner 2026-09-29: every US state (searchable), "All" first.
+  Future<void> _pickState(Translator t) async {
     final picked = await _pickOption(
       t,
       title: t.t('cases.feed.stateFilter'),
-      options: [for (final c in codes) (c, stateName(c))],
+      options: [
+        for (final s in kUsStates)
+          PickerOption(value: s.code, label: s.name, sublabel: s.code),
+      ],
       selected: _state,
     );
     if (picked != null) setState(() => _state = picked.isEmpty ? null : picked);
@@ -176,64 +193,18 @@ class _AttorneyCasesTabState extends ConsumerState<AttorneyCasesTab> {
   Future<String?> _pickOption(
     Translator t, {
     required String title,
-    required List<(String, String)> options,
+    required List<PickerOption> options,
     required String? selected,
-  }) =>
-      showAppBottomSheet<String>(
-        context: context,
-        isScrollControlled: true,
-        builder: (context) {
-          final colors = Theme.of(context).extension<AppColorTokens>()!;
-          final typography =
-              Theme.of(context).extension<AppTypographyTokens>()!;
-          Widget row(String key, String label) => Semantics(
-                button: true,
-                selected: (selected ?? '') == key,
-                label: label,
-                excludeSemantics: true,
-                child: AppPressable(
-                  onTap: () => Navigator.of(context).pop(key),
-                  child: ConstrainedBox(
-                    constraints:
-                        const BoxConstraints(minHeight: AppSizes.hitTarget),
-                    child: Row(
-                      children: [
-                        Expanded(
-                            child: Text(label,
-                                style: typography.body
-                                    .copyWith(color: colors.text))),
-                        if ((selected ?? '') == key)
-                          Icon(Icons.check_rounded, color: colors.goldDark),
-                      ],
-                    ),
-                  ),
-                ),
-              );
-          return SafeArea(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                  maxHeight: MediaQuery.sizeOf(context).height * 0.75),
-              child: ListView(
-                shrinkWrap: true,
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.screenSide,
-                  AppSpacing.md,
-                  AppSpacing.screenSide,
-                  AppSpacing.lg,
-                ),
-                children: [
-                  const AppSheetHandle(),
-                  const SizedBox(height: AppSpacing.lg),
-                  Text(title,
-                      style:
-                          typography.titleMedium.copyWith(color: colors.text)),
-                  const SizedBox(height: AppSpacing.md),
-                  row('', t.t('cases.feed.all')),
-                  for (final (k, l) in options) row(k, l),
-                ],
-              ),
-            ),
-          );
-        },
-      );
+  }) async {
+    final result = await OptionPickerSheet.show(
+      context,
+      title: title,
+      options: [
+        PickerOption(value: '', label: t.t('cases.feed.all')),
+        ...options
+      ],
+      initial: {selected ?? ''},
+    );
+    return result?.firstOrNull;
+  }
 }

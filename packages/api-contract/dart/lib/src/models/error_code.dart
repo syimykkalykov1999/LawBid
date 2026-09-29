@@ -214,6 +214,8 @@ enum ErrorCode {
   featureDisabled('FEATURE_DISABLED'),
   @JsonValue('SEARCH_QUERY_TOO_SHORT')
   searchQueryTooShort('SEARCH_QUERY_TOO_SHORT'),
+  @JsonValue('USER_BLOCKED')
+  userBlocked('USER_BLOCKED'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

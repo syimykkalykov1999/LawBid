@@ -41,7 +41,8 @@ class AttorneyProfileBody extends ConsumerWidget {
         loading: () => const AttorneyProfileSkeleton(key: ValueKey('loading')),
         error: (error, _) {
           if (error is ApiException && error.code == ApiErrorCodes.notFound) {
-            return ProfileUnavailableState(key: const ValueKey('404'), onBack: onBack);
+            return ProfileUnavailableState(
+                key: const ValueKey('404'), onBack: onBack);
           }
           if (isOfflineError(error)) {
             return AppOfflineState(
@@ -115,7 +116,9 @@ class AttorneyProfileScreen extends ConsumerWidget {
       // Owner 2026-09-29: "@username" centered, like the own-profile tab.
       appBar: ProfileHandleBar(
         handle: username,
-        leading: AppBackButton(semanticLabel: t.t('common.back'), onPressed: () => _leave(context)),
+        leading: AppBackButton(
+            semanticLabel: t.t('common.back'),
+            onPressed: () => _leave(context)),
       ),
       body: SafeArea(
         top: false,

@@ -125,6 +125,14 @@ class FakeSearchRepository implements SearchRepository {
   }
 
   @override
+  Future<CursorPage<PersonRow>> people(String q, SearchFilters f,
+      {String? cursor}) async {
+    attorneyQueries.add(q);
+    return CursorPage(
+        items: attorneyResults.map(PersonRow.attorney).toList());
+  }
+
+  @override
   Future<CursorPage<FeedCase>> cases(String q, SearchFilters f,
           {String? cursor}) async =>
       const CursorPage(items: []);

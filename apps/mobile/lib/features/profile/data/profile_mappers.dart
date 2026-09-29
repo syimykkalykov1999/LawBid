@@ -4,11 +4,13 @@ import 'package:lawbid_api/lawbid_api.dart' as api;
 /// Generated `package:lawbid_api` DTOs → stage-3.9 domain models. Unknown
 /// enum values (`$unknown`, a newer server) degrade gracefully.
 abstract final class ProfileMappers {
-  static StateRef state(api.StateRefDto d) => StateRef(code: d.code, name: d.name);
+  static StateRef state(api.StateRefDto d) =>
+      StateRef(code: d.code, name: d.name);
 
   static RatingInfo rating(api.RatingDto d) {
     final count = d.count.toInt();
-    return RatingInfo(average: count == 0 ? null : d.avg.toDouble(), count: count);
+    return RatingInfo(
+        average: count == 0 ? null : d.avg.toDouble(), count: count);
   }
 
   static ProfileCounters counters(api.ProfileCountersDto d) => ProfileCounters(
@@ -17,7 +19,8 @@ abstract final class ProfileMappers {
         following: d.following.toInt(),
       );
 
-  static SelectedPractice selected(api.SelectedPracticeAreaDto d) => SelectedPractice(
+  static SelectedPractice selected(api.SelectedPracticeAreaDto d) =>
+      SelectedPractice(
         id: d.id,
         i18nKey: d.i18nKey,
         nameEn: d.nameEn,
@@ -26,7 +29,8 @@ abstract final class ProfileMappers {
         categoryCode: d.categoryCode,
       );
 
-  static PracticeCategory category(api.PracticeAreaCategoryDto d) => PracticeCategory(
+  static PracticeCategory category(api.PracticeAreaCategoryDto d) =>
+      PracticeCategory(
         id: d.id,
         i18nKey: d.i18nKey,
         nameEn: d.nameEn,
@@ -52,6 +56,8 @@ abstract final class ProfileMappers {
         counters: counters(d.counters),
         isSelf: d.isSelf,
         isFollowing: d.isFollowing,
+        isBlocked: d.isBlocked,
+        hasBlockedMe: d.hasBlockedMe,
         // The header avatar is small: prefer the 256 px square variant.
         avatarUrl: d.avatarUrl256 ?? d.avatarUrl,
       );
@@ -65,7 +71,8 @@ abstract final class ProfileMappers {
         _ => LicenseState.unknown,
       };
 
-  static OwnAttorneyProfile ownProfile(api.OwnAttorneyProfileDto d) => OwnAttorneyProfile(
+  static OwnAttorneyProfile ownProfile(api.OwnAttorneyProfileDto d) =>
+      OwnAttorneyProfile(
         id: d.id,
         username: d.username,
         firstName: d.firstName,
@@ -127,8 +134,27 @@ abstract final class ProfileMappers {
         editable: d.editable,
       );
 
-  static ClientProfileDetails client(api.ClientProfileDto d) => ClientProfileDetails(
+  static PublicClientProfile publicClient(api.PublicClientProfileDto d) =>
+      PublicClientProfile(
         id: d.id,
+        username: d.username,
+        firstName: d.firstName,
+        lastName: d.lastName,
+        avatarUrl: d.avatarUrl,
+        state: state(d.state),
+        memberSince: DateTime.tryParse(d.memberSince) ?? DateTime.now(),
+        isSelf: d.isSelf,
+        isBlocked: d.isBlocked,
+        hasBlockedMe: d.hasBlockedMe,
+      );
+
+  static ClientProfileDetails client(api.ClientProfileDto d) =>
+      ClientProfileDetails(
+        id: d.id,
+        username: d.username,
+        usernameNextChangeAt: d.usernameNextChangeAt == null
+            ? null
+            : DateTime.tryParse(d.usernameNextChangeAt!),
         firstName: d.firstName,
         lastName: d.lastName,
         state: state(d.state),

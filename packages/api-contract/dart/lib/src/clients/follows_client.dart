@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
 import '../models/attorney_list_item_list_envelope.dart';
+import '../models/person_item_list_envelope.dart';
 
 part 'follows_client.g.dart';
 
@@ -27,11 +28,11 @@ abstract class FollowsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Attorney followers — attorneys only (docs/05 §6.2).
+  /// Attorney followers — attorneys and clients (OQ-026).
   ///
   /// [cursor] - meta.nextCursor of the previous page.
   @GET('/attorneys/{id}/followers')
-  Future<AttorneyListItemListEnvelope> listFollowers({
+  Future<PersonItemListEnvelope> listFollowers({
     @Path('id') required String id,
     @Query('cursor') String? cursor,
     @Extras() Map<String, dynamic>? extras,

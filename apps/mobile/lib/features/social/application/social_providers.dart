@@ -108,10 +108,12 @@ class FeedNotifier extends PagedNotifier<Post> {
   void prepend(Post post) {
     final current = state.value;
     if (current == null) return;
-    state = AsyncData(PaginatedList(
-      items: [post, ...current.items.where((p) => p.id != post.id)],
-      nextCursor: current.nextCursor,
-    ),);
+    state = AsyncData(
+      PaginatedList(
+        items: [post, ...current.items.where((p) => p.id != post.id)],
+        nextCursor: current.nextCursor,
+      ),
+    );
   }
 }
 
@@ -174,8 +176,8 @@ class SavedPostsNotifier extends PagedNotifier<SavedPost> {
   Object idOf(SavedPost item) => item.postId;
 }
 
-final savedPostsProvider = AsyncNotifierProvider.autoDispose<
-    SavedPostsNotifier, PaginatedList<SavedPost>>(
+final savedPostsProvider = AsyncNotifierProvider.autoDispose<SavedPostsNotifier,
+    PaginatedList<SavedPost>>(
   SavedPostsNotifier.new,
   retry: _noRetry,
 );
@@ -202,19 +204,23 @@ class CommentsNotifier extends PagedNotifier<Comment> {
   void add(Comment c) {
     final current = state.value;
     if (current == null) return;
-    state = AsyncData(PaginatedList(
-      items: [c, ...current.items],
-      nextCursor: current.nextCursor,
-    ),);
+    state = AsyncData(
+      PaginatedList(
+        items: [c, ...current.items],
+        nextCursor: current.nextCursor,
+      ),
+    );
   }
 
   void replace(Comment c) {
     final current = state.value;
     if (current == null) return;
-    state = AsyncData(PaginatedList(
-      items: [for (final x in current.items) x.id == c.id ? c : x],
-      nextCursor: current.nextCursor,
-    ),);
+    state = AsyncData(
+      PaginatedList(
+        items: [for (final x in current.items) x.id == c.id ? c : x],
+        nextCursor: current.nextCursor,
+      ),
+    );
   }
 }
 
@@ -239,19 +245,23 @@ class RepliesNotifier extends PagedNotifier<Comment> {
   void add(Comment c) {
     final current = state.value;
     if (current == null) return;
-    state = AsyncData(PaginatedList(
-      items: [...current.items, c],
-      nextCursor: current.nextCursor,
-    ),);
+    state = AsyncData(
+      PaginatedList(
+        items: [...current.items, c],
+        nextCursor: current.nextCursor,
+      ),
+    );
   }
 
   void replace(Comment c) {
     final current = state.value;
     if (current == null) return;
-    state = AsyncData(PaginatedList(
-      items: [for (final x in current.items) x.id == c.id ? c : x],
-      nextCursor: current.nextCursor,
-    ),);
+    state = AsyncData(
+      PaginatedList(
+        items: [for (final x in current.items) x.id == c.id ? c : x],
+        nextCursor: current.nextCursor,
+      ),
+    );
   }
 }
 
@@ -267,25 +277,30 @@ enum FollowListKind { followers, following }
 
 typedef FollowListKey = ({String attorneyId, FollowListKind kind});
 
-class FollowListNotifier extends PagedNotifier<AttorneyRow> {
+class FollowListNotifier extends PagedNotifier<PersonRow> {
   FollowListNotifier(this.key);
 
   final FollowListKey key;
 
   @override
-  Future<CursorPage<AttorneyRow>> fetch(String? cursor) {
+  Future<CursorPage<PersonRow>> fetch(String? cursor) async {
     final repo = ref.read(socialRepositoryProvider);
-    return key.kind == FollowListKind.followers
-        ? repo.followers(key.attorneyId, cursor: cursor)
-        : repo.following(key.attorneyId, cursor: cursor);
+    if (key.kind == FollowListKind.followers) {
+      return repo.followers(key.attorneyId, cursor: cursor);
+    }
+    final page = await repo.following(key.attorneyId, cursor: cursor);
+    return CursorPage(
+      items: page.items.map(PersonRow.attorney).toList(),
+      nextCursor: page.nextCursor,
+    );
   }
 
   @override
-  Object idOf(AttorneyRow item) => item.id;
+  Object idOf(PersonRow item) => item.id;
 }
 
 final followListProvider = AsyncNotifierProvider.autoDispose
-    .family<FollowListNotifier, PaginatedList<AttorneyRow>, FollowListKey>(
+    .family<FollowListNotifier, PaginatedList<PersonRow>, FollowListKey>(
   FollowListNotifier.new,
   retry: _noRetry,
 );
@@ -339,10 +354,13 @@ class SocialActions {
   Future<Object?> toggleLike(Post post) => _guard('like:${post.id}', () async {
         final before = _latest(post);
         final liked = !before.likedByMe;
-        _ref.read(postOverridesProvider.notifier).put(before.copyWith(
-              likedByMe: liked,
-              likeCount: (before.likeCount + (liked ? 1 : -1)).clamp(0, 1 << 31),
-            ),);
+        _ref.read(postOverridesProvider.notifier).put(
+              before.copyWith(
+                likedByMe: liked,
+                likeCount:
+                    (before.likeCount + (liked ? 1 : -1)).clamp(0, 1 << 31),
+              ),
+            );
         try {
           await _repo.setLiked(post.id, liked: liked);
         } on Object {
@@ -377,10 +395,12 @@ class SocialActions {
   Future<Object?> editPost(Post post, String body) =>
       _guard('edit:${post.id}', () async {
         final updated = await _repo.updatePost(post.id, body);
-        _ref.read(postOverridesProvider.notifier).put(updated.copyWith(
-              likedByMe: _latest(post).likedByMe,
-              savedByMe: _latest(post).savedByMe,
-            ),);
+        _ref.read(postOverridesProvider.notifier).put(
+              updated.copyWith(
+                likedByMe: _latest(post).likedByMe,
+                savedByMe: _latest(post).savedByMe,
+              ),
+            );
       });
 
   Future<Object?> setFollowing(String attorneyId, bool following) =>
@@ -396,7 +416,10 @@ class SocialActions {
       });
 
   Future<Object?> report(
-          ReportTarget target, String id, ReportReason reason,) =>
+    ReportTarget target,
+    String id,
+    ReportReason reason,
+  ) =>
       _guard('report:$id', () => _repo.report(target, id, reason));
 
   Future<Object?> _guard(String key, Future<void> Function() run) async {
@@ -411,8 +434,10 @@ class SocialActions {
     }
   }
 
-  Future<String> uploadPhoto(Uint8List bytes,
-          {void Function(double)? onProgress,}) =>
+  Future<String> uploadPhoto(
+    Uint8List bytes, {
+    void Function(double)? onProgress,
+  }) =>
       _repo.uploadPostPhoto(bytes, onProgress: onProgress);
 }
 

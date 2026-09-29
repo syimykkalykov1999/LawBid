@@ -96,8 +96,7 @@ class AttorneyTile extends ConsumerWidget {
                           .join('  ·  '),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style:
-                          type.caption.copyWith(color: colors.textSecondary),
+                      style: type.caption.copyWith(color: colors.textSecondary),
                     ),
                 ],
               ),
@@ -111,6 +110,79 @@ class AttorneyTile extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// OQ-026: a client row in People search / followers — avatar, name,
+/// @username, state; opens the client mini-profile.
+class ClientTile extends ConsumerWidget {
+  const ClientTile({required this.row, super.key});
+
+  final ClientRow row;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    return AppPressable(
+      onTap: () => context.push(AppRoutes.client(row.username)),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.screenSide,
+          vertical: AppSpacing.md,
+        ),
+        child: Row(
+          children: [
+            GoldRingAvatar(
+              url: row.avatarUrl,
+              initials: row.displayName.substring(0, 1).toUpperCase(),
+              size: 52,
+              ring: false,
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    row.displayName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: type.body.copyWith(
+                      color: colors.text,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  Text(
+                    '@${row.username}',
+                    style: type.caption.copyWith(color: colors.textSecondary),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${t.t('person.client')} · ${row.stateCode}',
+                    style: type.caption.copyWith(color: colors.textSecondary),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Either role's row (People search, followers).
+class PersonTile extends StatelessWidget {
+  const PersonTile({required this.row, this.showFollow = true, super.key});
+
+  final PersonRow row;
+  final bool showFollow;
+
+  @override
+  Widget build(BuildContext context) => row.attorney != null
+      ? AttorneyTile(row: row.attorney!, showFollow: showFollow)
+      : ClientTile(row: row.client!);
 }
 
 /// "Подписаться" ⇄ "Вы подписаны": a gold pill that morphs into an
@@ -134,9 +206,9 @@ class FollowButton extends ConsumerWidget {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    final following = ref.watch(
-            followOverridesProvider.select((m) => m[attorneyId])) ??
-        initial;
+    final following =
+        ref.watch(followOverridesProvider.select((m) => m[attorneyId])) ??
+            initial;
     final duration =
         context.reduceMotion ? Duration.zero : AppMotion.stateChange;
     return Semantics(

@@ -35,8 +35,11 @@ abstract interface class SocialRepository {
   Future<CursorPage<Post>?> cachedFeed();
   Future<Post> post(String id);
   Future<CursorPage<Post>> attorneyPosts(String attorneyId, {String? cursor});
-  Future<CursorPage<Post>> tagPosts(String tag, TagSort sort,
-      {String? cursor,});
+  Future<CursorPage<Post>> tagPosts(
+    String tag,
+    TagSort sort, {
+    String? cursor,
+  });
   Future<Post> createPost(String body, List<String> mediaFileIds);
   Future<Post> updatePost(String id, String body);
   Future<void> deletePost(String id);
@@ -51,20 +54,32 @@ abstract interface class SocialRepository {
   Future<void> setCommentLiked(String commentId, {required bool liked});
 
   Future<void> setFollowing(String attorneyId, {required bool following});
-  Future<CursorPage<AttorneyRow>> followers(String attorneyId,
-      {String? cursor,});
-  Future<CursorPage<AttorneyRow>> following(String attorneyId,
-      {String? cursor,});
+
+  /// OQ-026: attorneys and clients who follow [attorneyId].
+  Future<CursorPage<PersonRow>> followers(
+    String attorneyId, {
+    String? cursor,
+  });
+  Future<CursorPage<AttorneyRow>> following(
+    String attorneyId, {
+    String? cursor,
+  });
   Future<CursorPage<AttorneyRow>> myFollowing({String? cursor});
   Future<CursorPage<AttorneyRow>> suggestions({String? cursor});
 
-  Future<void> report(ReportTarget target, String id, ReportReason reason,
-      {String? note,});
+  Future<void> report(
+    ReportTarget target,
+    String id,
+    ReportReason reason, {
+    String? note,
+  });
 
   /// Presign → upload → confirm → wait for a clean scan; returns the file
   /// id to attach to a post (docs/05 §3.2).
-  Future<String> uploadPostPhoto(Uint8List bytes,
-      {void Function(double progress)? onProgress,});
+  Future<String> uploadPostPhoto(
+    Uint8List bytes, {
+    void Function(double progress)? onProgress,
+  });
 }
 
 class ApiSocialRepository implements SocialRepository {
@@ -121,7 +136,8 @@ class ApiSocialRepository implements SocialRepository {
     if (json == null) return null;
     try {
       final env = api.PostListEnvelope.fromJson(
-          jsonDecode(json) as Map<String, dynamic>,);
+        jsonDecode(json) as Map<String, dynamic>,
+      );
       // Offline: no next page to load.
       return CursorPage(items: env.data.map(SocialMappers.post).toList());
     } on Object {
@@ -130,14 +146,17 @@ class ApiSocialRepository implements SocialRepository {
   }
 
   @override
-  Future<Post> post(String id) async =>
-      SocialMappers.post((await guardApiCall(() => _posts.getPost(id: id))).data);
+  Future<Post> post(String id) async => SocialMappers.post(
+      (await guardApiCall(() => _posts.getPost(id: id))).data);
 
   @override
-  Future<CursorPage<Post>> attorneyPosts(String attorneyId,
-      {String? cursor,}) async {
+  Future<CursorPage<Post>> attorneyPosts(
+    String attorneyId, {
+    String? cursor,
+  }) async {
     final env = await guardApiCall(
-        () => _posts.listAttorneyPosts(id: attorneyId, cursor: cursor),);
+      () => _posts.listAttorneyPosts(id: attorneyId, cursor: cursor),
+    );
     return CursorPage(
       items: env.data.map(SocialMappers.post).toList(),
       nextCursor: env.meta?.nextCursor,
@@ -145,13 +164,18 @@ class ApiSocialRepository implements SocialRepository {
   }
 
   @override
-  Future<CursorPage<Post>> tagPosts(String tag, TagSort sort,
-      {String? cursor,}) async {
-    final env = await guardApiCall(() => _search.tagPosts(
-          tag: tag,
-          sort: sort == TagSort.top ? api.Sort2.top : api.Sort2.valueNew,
-          cursor: cursor,
-        ),);
+  Future<CursorPage<Post>> tagPosts(
+    String tag,
+    TagSort sort, {
+    String? cursor,
+  }) async {
+    final env = await guardApiCall(
+      () => _search.tagPosts(
+        tag: tag,
+        sort: sort == TagSort.top ? api.Sort2.top : api.Sort2.valueNew,
+        cursor: cursor,
+      ),
+    );
     return CursorPage(
       items: env.data.map(SocialMappers.post).toList(),
       nextCursor: env.meta?.nextCursor,
@@ -160,20 +184,26 @@ class ApiSocialRepository implements SocialRepository {
 
   @override
   Future<Post> createPost(String body, List<String> mediaFileIds) async =>
-      SocialMappers.post((await guardApiCall(() => _posts.createPost(
-                body: api.CreatePostDto(
-                  body: body,
-                  mediaFileIds: mediaFileIds.isEmpty ? null : mediaFileIds,
-                ),
-                extras: _createsResource,
-              ),))
-          .data,);
+      SocialMappers.post(
+        (await guardApiCall(
+          () => _posts.createPost(
+            body: api.CreatePostDto(
+              body: body,
+              mediaFileIds: mediaFileIds.isEmpty ? null : mediaFileIds,
+            ),
+            extras: _createsResource,
+          ),
+        ))
+            .data,
+      );
 
   @override
-  Future<Post> updatePost(String id, String body) async =>
-      SocialMappers.post((await guardApiCall(() =>
-              _posts.updatePost(id: id, body: api.UpdatePostDto(body: body)),))
-          .data,);
+  Future<Post> updatePost(String id, String body) async => SocialMappers.post(
+        (await guardApiCall(
+          () => _posts.updatePost(id: id, body: api.UpdatePostDto(body: body)),
+        ))
+            .data,
+      );
 
   @override
   Future<void> deletePost(String id) =>
@@ -181,9 +211,8 @@ class ApiSocialRepository implements SocialRepository {
 
   @override
   Future<void> setLiked(String postId, {required bool liked}) => guardApiCall(
-        () => liked
-            ? _posts.likePost(id: postId)
-            : _posts.unlikePost(id: postId),
+        () =>
+            liked ? _posts.likePost(id: postId) : _posts.unlikePost(id: postId),
       );
 
   @override
@@ -197,17 +226,18 @@ class ApiSocialRepository implements SocialRepository {
 
   @override
   Future<CursorPage<SavedPost>> savedPosts({String? cursor}) async {
-    final env =
-        await guardApiCall(() => _posts.listSavedPosts(cursor: cursor));
+    final env = await guardApiCall(() => _posts.listSavedPosts(cursor: cursor));
     return CursorPage(
       items: env.data
-          .map((s) => SavedPost(
-                postId: s.postId,
-                savedAt: DateTime.parse(s.savedAt),
-                post: s.available && s.post != null
-                    ? SocialMappers.post(s.post!)
-                    : null,
-              ),)
+          .map(
+            (s) => SavedPost(
+              postId: s.postId,
+              savedAt: DateTime.parse(s.savedAt),
+              post: s.available && s.post != null
+                  ? SocialMappers.post(s.post!)
+                  : null,
+            ),
+          )
           .toList(),
       nextCursor: env.meta?.nextCursor,
     );
@@ -216,7 +246,8 @@ class ApiSocialRepository implements SocialRepository {
   @override
   Future<CursorPage<Comment>> comments(String postId, {String? cursor}) async {
     final env = await guardApiCall(
-        () => _comments.listComments(id: postId, cursor: cursor),);
+      () => _comments.listComments(id: postId, cursor: cursor),
+    );
     return CursorPage(
       items: env.data.map(SocialMappers.comment).toList(),
       nextCursor: env.meta?.nextCursor,
@@ -224,10 +255,13 @@ class ApiSocialRepository implements SocialRepository {
   }
 
   @override
-  Future<CursorPage<Comment>> replies(String commentId,
-      {String? cursor,}) async {
+  Future<CursorPage<Comment>> replies(
+    String commentId, {
+    String? cursor,
+  }) async {
     final env = await guardApiCall(
-        () => _comments.listReplies(id: commentId, cursor: cursor),);
+      () => _comments.listReplies(id: commentId, cursor: cursor),
+    );
     return CursorPage(
       items: env.data.map(SocialMappers.comment).toList(),
       nextCursor: env.meta?.nextCursor,
@@ -235,15 +269,24 @@ class ApiSocialRepository implements SocialRepository {
   }
 
   @override
-  Future<Comment> addComment(String postId, String body,
-          {String? parentId,}) async =>
-      SocialMappers.comment((await guardApiCall(() => _comments.createComment(
-                id: postId,
-                body: api.CreateCommentDto(
-                    body: body, parentCommentId: parentId,),
-                extras: _createsResource,
-              ),))
-          .data,);
+  Future<Comment> addComment(
+    String postId,
+    String body, {
+    String? parentId,
+  }) async =>
+      SocialMappers.comment(
+        (await guardApiCall(
+          () => _comments.createComment(
+            id: postId,
+            body: api.CreateCommentDto(
+              body: body,
+              parentCommentId: parentId,
+            ),
+            extras: _createsResource,
+          ),
+        ))
+            .data,
+      );
 
   @override
   Future<void> deleteComment(String commentId) =>
@@ -266,7 +309,8 @@ class ApiSocialRepository implements SocialRepository {
       );
 
   Future<CursorPage<AttorneyRow>> _rows(
-      Future<api.AttorneyListItemListEnvelope> Function() call,) async {
+    Future<api.AttorneyListItemListEnvelope> Function() call,
+  ) async {
     final env = await guardApiCall(call);
     return CursorPage(
       items: env.data.map(SocialMappers.attorney).toList(),
@@ -275,13 +319,24 @@ class ApiSocialRepository implements SocialRepository {
   }
 
   @override
-  Future<CursorPage<AttorneyRow>> followers(String attorneyId,
-          {String? cursor,}) =>
-      _rows(() => _follows.listFollowers(id: attorneyId, cursor: cursor));
+  Future<CursorPage<PersonRow>> followers(
+    String attorneyId, {
+    String? cursor,
+  }) async {
+    final env = await guardApiCall(
+      () => _follows.listFollowers(id: attorneyId, cursor: cursor),
+    );
+    return CursorPage(
+      items: env.data.map(SocialMappers.person).whereType<PersonRow>().toList(),
+      nextCursor: env.meta?.nextCursor,
+    );
+  }
 
   @override
-  Future<CursorPage<AttorneyRow>> following(String attorneyId,
-          {String? cursor,}) =>
+  Future<CursorPage<AttorneyRow>> following(
+    String attorneyId, {
+    String? cursor,
+  }) =>
       _rows(() => _follows.listFollowing(id: attorneyId, cursor: cursor));
 
   @override
@@ -293,43 +348,57 @@ class ApiSocialRepository implements SocialRepository {
       _rows(() => _follows.listSuggestedAttorneys(cursor: cursor));
 
   @override
-  Future<void> report(ReportTarget target, String id, ReportReason reason,
-          {String? note,}) =>
-      guardApiCall(() => _reports.createReport(
-            body: api.CreateReportDto(
-              targetType: switch (target) {
-                ReportTarget.post => api.ReportTargetType.post,
-                ReportTarget.comment => api.ReportTargetType.comment,
-                ReportTarget.message => api.ReportTargetType.message,
-                ReportTarget.user => api.ReportTargetType.user,
-              },
-              targetId: id,
-              reason: api.ReportReason.values.byName(reason.name),
-              note: note,
-            ),
-          ),);
+  Future<void> report(
+    ReportTarget target,
+    String id,
+    ReportReason reason, {
+    String? note,
+  }) =>
+      guardApiCall(
+        () => _reports.createReport(
+          body: api.CreateReportDto(
+            targetType: switch (target) {
+              ReportTarget.post => api.ReportTargetType.post,
+              ReportTarget.comment => api.ReportTargetType.comment,
+              ReportTarget.message => api.ReportTargetType.message,
+              ReportTarget.user => api.ReportTargetType.user,
+            },
+            targetId: id,
+            reason: api.ReportReason.values.byName(reason.name),
+            note: note,
+          ),
+        ),
+      );
 
   @override
-  Future<String> uploadPostPhoto(Uint8List bytes,
-      {void Function(double progress)? onProgress,}) async {
+  Future<String> uploadPostPhoto(
+    Uint8List bytes, {
+    void Function(double progress)? onProgress,
+  }) async {
     final mime = sniffImageMime(bytes);
     if (mime == null) {
       throw const ApiException(
-          code: ApiErrorCodes.fileTypeNotAllowed, message: 'type',);
+        code: ApiErrorCodes.fileTypeNotAllowed,
+        message: 'type',
+      );
     }
     if (bytes.length > kPostPhotoMaxBytes) {
       throw const ApiException(
-          code: ApiErrorCodes.fileTooLarge, message: 'size',);
+        code: ApiErrorCodes.fileTooLarge,
+        message: 'size',
+      );
     }
-    final target = (await guardApiCall(() => _files.presign(
-              body: api.PresignFileDto(
-                purpose: api.FilePurpose.postImage,
-                mime: mime,
-                sizeBytes: bytes.length,
-                sha256: sha256Hex(bytes),
-              ),
-              extras: _createsResource,
-            ),))
+    final target = (await guardApiCall(
+      () => _files.presign(
+        body: api.PresignFileDto(
+          purpose: api.FilePurpose.postImage,
+          mime: mime,
+          sizeBytes: bytes.length,
+          sha256: sha256Hex(bytes),
+        ),
+        extras: _createsResource,
+      ),
+    ))
         .data;
     final parts = mime.split('/');
     try {
@@ -357,20 +426,28 @@ class ApiSocialRepository implements SocialRepository {
         statusCode: e.response?.statusCode,
       );
     }
-    var outcome = _scan((await guardApiCall(
-            () => _files.confirm(id: target.fileId),))
-        .data
-        .scanStatus,);
+    var outcome = _scan(
+      (await guardApiCall(
+        () => _files.confirm(id: target.fileId),
+      ))
+          .data
+          .scanStatus,
+    );
     for (var i = 0; outcome == ScanOutcome.pending && i < _scanMaxPolls; i++) {
       await Future<void>.delayed(_scanPoll);
-      outcome = _scan((await guardApiCall(
-              () => _files.getFilesId(id: target.fileId),))
-          .data
-          .scanStatus,);
+      outcome = _scan(
+        (await guardApiCall(
+          () => _files.getFilesId(id: target.fileId),
+        ))
+            .data
+            .scanStatus,
+      );
     }
     if (outcome != ScanOutcome.clean) {
       throw const ApiException(
-          code: ApiErrorCodes.fileNotAttachable, message: 'scan',);
+        code: ApiErrorCodes.fileNotAttachable,
+        message: 'scan',
+      );
     }
     return target.fileId;
   }
@@ -396,8 +473,9 @@ abstract final class SocialMappers {
         ),
         body: d.body,
         media: [
-          for (final m in [...d.media]
-            ..sort((a, b) => a.position.compareTo(b.position)))
+          for (final m in [
+            ...d.media
+          ]..sort((a, b) => a.position.compareTo(b.position)))
             PostMedia(
               fileId: m.fileId,
               url: m.url,
@@ -438,6 +516,22 @@ abstract final class SocialMappers {
         isMine: d.isMine,
         createdAt: DateTime.parse(d.createdAt),
       );
+
+  static ClientRow client(api.ClientListItemDto d) => ClientRow(
+        id: d.id,
+        username: d.username,
+        firstName: d.firstName,
+        lastName: d.lastName,
+        avatarUrl: d.avatarUrl,
+        stateCode: d.stateCode,
+      );
+
+  /// null for a row of an unknown role (a newer server).
+  static PersonRow? person(api.PersonItemDto d) {
+    if (d.attorney != null) return PersonRow.attorney(attorney(d.attorney!));
+    if (d.client != null) return PersonRow.client(client(d.client!));
+    return null;
+  }
 
   static AttorneyRow attorney(api.AttorneyListItemDto d) => AttorneyRow(
         id: d.id,

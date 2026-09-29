@@ -122,6 +122,12 @@ class SettingsScreen extends ConsumerWidget {
             label: t.t('settings.legal'),
             onTap: () => context.push(AppRoutes.legalDoc('terms')),
           ),
+          // OQ-028: who I blocked, with Unblock.
+          AppListRow(
+            icon: Icons.block_flipped,
+            label: t.t('settings.blocked'),
+            onTap: () => context.push(AppRoutes.blockedUsers),
+          ),
           // file 01 §10.7 → docs/06 §5.2: the background ZIP/JSON export.
           AppListRow(
             icon: Icons.download_rounded,

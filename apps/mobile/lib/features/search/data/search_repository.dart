@@ -55,10 +55,24 @@ class SearchFilters {
 
 /// docs/05 §7 search API for the app. Throws [ApiException].
 abstract interface class SearchRepository {
-  Future<CursorPage<AttorneyRow>> attorneys(String q, SearchFilters f,
-      {String? cursor,});
-  Future<CursorPage<FeedCase>> cases(String q, SearchFilters f,
-      {String? cursor,});
+  Future<CursorPage<AttorneyRow>> attorneys(
+    String q,
+    SearchFilters f, {
+    String? cursor,
+  });
+
+  /// OQ-026: attorneys AND clients by @username / name; any filter set
+  /// narrows the list to attorneys.
+  Future<CursorPage<PersonRow>> people(
+    String q,
+    SearchFilters f, {
+    String? cursor,
+  });
+  Future<CursorPage<FeedCase>> cases(
+    String q,
+    SearchFilters f, {
+    String? cursor,
+  });
   Future<CursorPage<Post>> posts(String q, {String? cursor});
   Future<List<TagInfo>> tags(String q);
   Future<List<TagInfo>> trending();
@@ -70,16 +84,21 @@ class ApiSearchRepository implements SearchRepository {
   final api.SearchClient _search;
 
   @override
-  Future<CursorPage<AttorneyRow>> attorneys(String q, SearchFilters f,
-      {String? cursor,}) async {
-    final env = await guardApiCall(() => _search.attorneys(
-          q: q,
-          cursor: cursor,
-          practiceAreaId: f.practiceAreaId,
-          state: f.state,
-          minRating: f.minRating,
-          language: f.language,
-        ),);
+  Future<CursorPage<AttorneyRow>> attorneys(
+    String q,
+    SearchFilters f, {
+    String? cursor,
+  }) async {
+    final env = await guardApiCall(
+      () => _search.attorneys(
+        q: q,
+        cursor: cursor,
+        practiceAreaId: f.practiceAreaId,
+        state: f.state,
+        minRating: f.minRating,
+        language: f.language,
+      ),
+    );
     return CursorPage(
       items: env.data.map(SocialMappers.attorney).toList(),
       nextCursor: env.meta?.nextCursor,
@@ -87,20 +106,47 @@ class ApiSearchRepository implements SearchRepository {
   }
 
   @override
-  Future<CursorPage<FeedCase>> cases(String q, SearchFilters f,
-      {String? cursor,}) async {
-    final env = await guardApiCall(() => _search.cases(
-          q: q,
-          cursor: cursor,
-          practiceAreaId: f.practiceAreaId,
-          state: f.state,
-          period: switch (f.period) {
-            SearchPeriod.day => api.Period.value24h,
-            SearchPeriod.week => api.Period.value7d,
-            SearchPeriod.month => api.Period.value30d,
-            SearchPeriod.all => api.Period.all,
-          },
-        ),);
+  Future<CursorPage<PersonRow>> people(
+    String q,
+    SearchFilters f, {
+    String? cursor,
+  }) async {
+    final env = await guardApiCall(
+      () => _search.people(
+        q: q,
+        cursor: cursor,
+        practiceAreaId: f.practiceAreaId,
+        state: f.state,
+        minRating: f.minRating,
+        language: f.language,
+      ),
+    );
+    return CursorPage(
+      items: env.data.map(SocialMappers.person).whereType<PersonRow>().toList(),
+      nextCursor: env.meta?.nextCursor,
+    );
+  }
+
+  @override
+  Future<CursorPage<FeedCase>> cases(
+    String q,
+    SearchFilters f, {
+    String? cursor,
+  }) async {
+    final env = await guardApiCall(
+      () => _search.cases(
+        q: q,
+        cursor: cursor,
+        practiceAreaId: f.practiceAreaId,
+        state: f.state,
+        period: switch (f.period) {
+          SearchPeriod.day => api.Period.value24h,
+          SearchPeriod.week => api.Period.value7d,
+          SearchPeriod.month => api.Period.value30d,
+          SearchPeriod.all => api.Period.all,
+        },
+      ),
+    );
     return CursorPage(
       items: env.data.map(CasesMappers.feedCase).toList(),
       nextCursor: env.meta?.nextCursor,

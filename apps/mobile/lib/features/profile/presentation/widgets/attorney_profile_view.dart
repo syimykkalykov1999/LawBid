@@ -11,7 +11,12 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/language_catalog.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/features/blocks/presentation/block_actions.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
+import 'package:lawbid/features/social/domain/social_models.dart'
+    show ReportTarget;
+import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart'
+    show showReportSheet;
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_avatar.dart';
 import 'package:lawbid/features/profile/presentation/widgets/review_widgets.dart';
@@ -76,6 +81,38 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
     }
   }
 
+  /// "⋯" on someone else's profile: Block / Unblock, Report (OQ-028).
+  Future<void> _more(Translator t) async {
+    await showAppBottomSheet<void>(
+      context: context,
+      builder: (sheet) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const AppSheetHandle(),
+            BlockListRow(
+              userId: p.id,
+              displayName: p.fullName.isEmpty ? '@${p.username}' : p.fullName,
+              currentlyBlocked: p.isBlocked,
+              onChanged: () =>
+                  ref.invalidate(publicAttorneyProfileProvider(p.username)),
+            ),
+            AppListRow(
+              icon: Icons.flag_outlined,
+              label: t.t('post.menu.report'),
+              showChevron: false,
+              onTap: () {
+                Navigator.of(sheet).pop();
+                showReportSheet(context, ref, ReportTarget.user, p.id);
+              },
+            ),
+            const SizedBox(height: AppSpacing.md),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _share(Translator t) async {
     final host = ref.read(appEnvironmentProvider).deepLinkHost;
     await Clipboard.setData(
@@ -113,10 +150,18 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
         const SizedBox(height: AppSpacing.sm),
         // Instagram order: buttons right above the tabs — Follow |
         // Message | share icon (owner request).
+        if (!p.isSelf && (p.isBlocked || p.hasBlockedMe)) ...[
+          _BlockNotice(
+            text: t.t(p.isBlocked ? 'block.byYou' : 'block.blockedYou'),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+        ],
         _Actions(
           isSelf: p.isSelf,
           attorneyId: p.id,
           isFollowing: p.isFollowing,
+          blocked: p.isBlocked || p.hasBlockedMe,
+          onMore: p.isSelf ? null : () => _more(t),
           // Owner decision (OQ-014): "Написать" leads to the Chats screen;
           // chats themselves open from a case (docs/04 §9).
           onMessage: () => context.push(ChatRoutes.inbox),
@@ -711,6 +756,30 @@ class StepLabel extends StatelessWidget {
   }
 }
 
+/// Quiet banner above the buttons while a block is in effect (OQ-028).
+class _BlockNotice extends StatelessWidget {
+  const _BlockNotice({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
+    return Row(
+      children: [
+        Icon(Icons.block_flipped, size: AppSizes.iconSm, color: colors.danger),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: Text(text,
+              style:
+                  typography.bodySmall.copyWith(color: colors.textSecondary)),
+        ),
+      ],
+    );
+  }
+}
+
 class _Actions extends ConsumerWidget {
   const _Actions({
     required this.isSelf,
@@ -718,6 +787,8 @@ class _Actions extends ConsumerWidget {
     required this.isFollowing,
     required this.onMessage,
     required this.onShare,
+    this.blocked = false,
+    this.onMore,
   });
 
   final bool isSelf;
@@ -726,22 +797,31 @@ class _Actions extends ConsumerWidget {
   final VoidCallback onMessage;
   final VoidCallback onShare;
 
+  /// OQ-028: no Follow / Message while a block is in effect.
+  final bool blocked;
+
+  /// "⋯" sheet (Block / Report) on someone else's profile.
+  final VoidCallback? onMore;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translatorProvider);
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
     return Row(
       children: [
-        Expanded(
-          child: isSelf
-              ? _QuietButton(
-                  label: t.t('profile.action.edit'),
-                  onTap: () => context.push(AppRoutes.profileEdit),
-                )
-              : FollowButton(
-                  attorneyId: attorneyId, initial: isFollowing, expanded: true),
-        ),
-        if (!isSelf) ...[
+        if (!blocked)
+          Expanded(
+            child: isSelf
+                ? _QuietButton(
+                    label: t.t('profile.action.edit'),
+                    onTap: () => context.push(AppRoutes.profileEdit),
+                  )
+                : FollowButton(
+                    attorneyId: attorneyId,
+                    initial: isFollowing,
+                    expanded: true,
+                  ),
+          ),
+        if (!isSelf && !blocked) ...[
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: _QuietButton(
@@ -750,28 +830,59 @@ class _Actions extends ConsumerWidget {
             ),
           ),
         ],
-        const SizedBox(width: AppSpacing.sm),
-        // Share as a small icon square (Instagram-style), full tap target.
-        Semantics(
-          button: true,
-          label: t.t('profile.action.share'),
-          excludeSemantics: true,
-          child: AppPressable(
-            onTap: onShare,
-            child: Container(
-              width: AppSizes.touchTarget,
-              height: _QuietButton.height,
-              decoration: BoxDecoration(
-                color: colors.surface,
-                borderRadius: BorderRadius.circular(AppRadii.field),
-                border: Border.all(color: colors.border),
-              ),
-              child: Icon(Icons.ios_share_rounded,
-                  size: AppSizes.iconSm, color: colors.text),
-            ),
+        if (blocked) const Spacer(),
+        if (onMore != null) ...[
+          _IconSquare(
+            icon: Icons.more_horiz_rounded,
+            semanticLabel: t.t('chat.menu'),
+            onTap: onMore!,
           ),
+          const SizedBox(width: AppSpacing.sm),
+        ],
+        if (!blocked) const SizedBox(width: AppSpacing.sm),
+        // Share as a small icon square (Instagram-style), full tap target.
+        _IconSquare(
+          icon: Icons.ios_share_rounded,
+          semanticLabel: t.t('profile.action.share'),
+          onTap: onShare,
         ),
       ],
+    );
+  }
+}
+
+/// Small framed icon button of the action row (share, "⋯").
+class _IconSquare extends StatelessWidget {
+  const _IconSquare({
+    required this.icon,
+    required this.semanticLabel,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String semanticLabel;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    return Semantics(
+      button: true,
+      label: semanticLabel,
+      excludeSemantics: true,
+      child: AppPressable(
+        onTap: onTap,
+        child: Container(
+          width: AppSizes.touchTarget,
+          height: _QuietButton.height,
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: BorderRadius.circular(AppRadii.field),
+            border: Border.all(color: colors.border),
+          ),
+          child: Icon(icon, size: AppSizes.iconSm, color: colors.text),
+        ),
+      ),
     );
   }
 }

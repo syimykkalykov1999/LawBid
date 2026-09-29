@@ -71,8 +71,8 @@ class _NotificationSettingsScreenState
     final parts = (start ? q.start : q.end).split(':');
     final picked = await showTimePicker(
       context: context,
-      initialTime: TimeOfDay(
-          hour: int.parse(parts[0]), minute: int.parse(parts[1])),
+      initialTime:
+          TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1])),
     );
     if (picked == null || !mounted) return;
     final hhmm =
@@ -120,7 +120,14 @@ class _NotificationSettingsScreenState
           return AbsorbPointer(
             absorbing: _saving,
             child: ListView(
-              padding: const EdgeInsets.all(AppSpacing.screenSide),
+              // Bottom: the system gesture bar inset, so the last toggle
+              // (quiet hours) is never under it (owner 2026-09-29).
+              padding: EdgeInsets.fromLTRB(
+                AppSpacing.screenSide,
+                AppSpacing.screenSide,
+                AppSpacing.screenSide,
+                AppSpacing.screenSide + MediaQuery.paddingOf(context).bottom,
+              ),
               children: [
                 Text(t.t('notif.settings.categories'),
                     style: type.titleMedium.copyWith(color: colors.text)),
@@ -164,9 +171,8 @@ class _NotificationSettingsScreenState
                             title: Text(t.t('notif.settings.push')),
                             value: c.push,
                             activeTrackColor: colors.gold,
-                            onChanged: c.locked
-                                ? null
-                                : (v) => _toggle(s, c, push: v),
+                            onChanged:
+                                c.locked ? null : (v) => _toggle(s, c, push: v),
                           ),
                           SwitchListTile.adaptive(
                             contentPadding: EdgeInsets.zero,
@@ -228,8 +234,8 @@ class _NotificationSettingsScreenState
                   Padding(
                     padding: const EdgeInsets.only(top: AppSpacing.sm),
                     child: Text(q.timezone,
-                        style: type.caption
-                            .copyWith(color: colors.textSecondary)),
+                        style:
+                            type.caption.copyWith(color: colors.textSecondary)),
                   ),
               ],
             ),

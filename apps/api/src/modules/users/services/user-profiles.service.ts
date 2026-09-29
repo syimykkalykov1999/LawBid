@@ -7,7 +7,6 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { withTxRetry } from '../../../prisma/tx-retry.util';
-import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import {
   ATTORNEY_ONLY_FIELDS,
@@ -20,12 +19,8 @@ import {
   type OnboardingProfileDto,
 } from '../dto/onboarding-profile.dto';
 import { ISO_639_1_CODES } from '../iso-639-1';
-import {
-  pickUsernameFrom,
-  randomSuffixCandidates,
-  sequentialCandidates,
-  usernameBase,
-} from './username.util';
+import { CLIENT_USERNAME_FALLBACK, USERNAME_FALLBACK } from './username.util';
+import { UsernameRegistry } from './username-registry.service';
 import { startNameRecheckIfVerified } from './attorney-name-recheck';
 
 /** Digits reserved for a numeric suffix when reading taken usernames. */
@@ -37,6 +32,8 @@ import { startNameRecheckIfVerified } from './attorney-name-recheck';
 export const LICENSED_STATES_KEY = 'licensedStates';
 
 export interface ClientProfileView {
+  /** Owner 2026-09-29 (OQ-026): clients have @usernames too. */
+  username: string;
   stateCode: string;
   languages: string[];
   contactMethod: ContactMethod | null;
@@ -82,7 +79,7 @@ const USERNAME_ATTEMPTS = 5;
 export class UserProfilesService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly settings: AppSettingsService,
+    private readonly usernames: UsernameRegistry,
   ) {}
 
   async facts(
@@ -104,6 +101,7 @@ export class UserProfilesService {
         ...none,
         clientHasState: true,
         view: {
+          username: row.username ?? (await this.ensureClientUsername(userId)),
           stateCode: row.state_code,
           languages: row.preferred_languages,
           contactMethod: row.preferred_contact_method,
@@ -262,12 +260,24 @@ export class UserProfilesService {
             reason: 'required',
           });
         }
+        const user = await tx.user.findUniqueOrThrow({
+          where: { id: userId },
+          select: { first_name: true, last_name: true },
+        });
+        const username = await this.usernames.allocate(
+          tx,
+          user.first_name,
+          user.last_name,
+          CLIENT_USERNAME_FALLBACK,
+        );
         await tx.clientProfile.create({
           data: {
             preferred_languages: [],
             ...fields,
             user_id: userId,
             state_code: dto.stateCode,
+            username,
+            username_lower: username.toLowerCase(),
           },
         });
       }
@@ -275,16 +285,48 @@ export class UserProfilesService {
     });
   }
 
+  /**
+   * OQ-026: a client row created before usernames existed gets one the
+   * first time its profile is read (one write per legacy client). Retries
+   * on a unique-violation race like the attorney path.
+   */
+  async ensureClientUsername(userId: string): Promise<string> {
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        return await withTxRetry(this.prisma, async (tx) => {
+          const row = await tx.clientProfile.findUniqueOrThrow({
+            where: { user_id: userId },
+            select: {
+              username: true,
+              user: { select: { first_name: true, last_name: true } },
+            },
+          });
+          if (row.username) return row.username;
+          const username = await this.usernames.allocate(
+            tx,
+            row.user.first_name,
+            row.user.last_name,
+            CLIENT_USERNAME_FALLBACK,
+          );
+          await tx.clientProfile.update({
+            where: { user_id: userId },
+            data: { username, username_lower: username.toLowerCase() },
+          });
+          return username;
+        });
+      } catch (error) {
+        if (isUniqueViolation(error) && attempt < USERNAME_ATTEMPTS) continue;
+        throw error;
+      }
+    }
+  }
+
   private async saveAttorney(
     userId: string,
     dto: OnboardingProfileDto,
     extras: ProfileTxExtras,
   ): Promise<void> {
-    const reserved = new Set(
-      (await this.settings.stringList('profile.reserved_usernames')).map((r) =>
-        r.toLowerCase(),
-      ),
-    );
+    const reserved = await this.usernames.reserved();
     for (let attempt = 1; ; attempt += 1) {
       try {
         await withTxRetry(this.prisma, async (tx) => {
@@ -306,10 +348,11 @@ export class UserProfilesService {
               data: fields,
             });
           } else {
-            const username = await this.generateUsername(
+            const username = await this.usernames.allocate(
               tx,
               user.first_name,
               user.last_name,
+              USERNAME_FALLBACK,
               reserved,
             );
             await tx.attorneyProfile.create({
@@ -396,45 +439,6 @@ export class UserProfilesService {
         data,
       },
     });
-  }
-
-  private async generateUsername(
-    tx: Tx,
-    firstName: string | null,
-    lastName: string | null,
-    reserved: ReadonlySet<string>,
-  ): Promise<string> {
-    const base = usernameBase(firstName, lastName);
-    // Bounded reads at any scale (a hot name like "john.smith" can have
-    // thousands of holders): check a window of sequential candidates
-    // (base, base2 … base50) in one indexed IN query, then windows of
-    // random 5-digit suffixes. Never materializes the whole prefix set.
-    const windows: string[][] = [
-      [...sequentialCandidates(base, 50)],
-      ...[0, 1, 2].map(() => randomSuffixCandidates(base, 20)),
-    ];
-    for (const window of windows) {
-      const free = window.filter((c) => !reserved.has(c));
-      if (free.length === 0) continue;
-      const rows = await tx.attorneyProfile.findMany({
-        where: { username_lower: { in: free } },
-        select: { username_lower: true },
-      });
-      const picked = pickUsernameFrom(
-        free,
-        new Set(rows.map((r) => r.username_lower)),
-      );
-      if (picked) return picked;
-    }
-    // ~110 candidates all taken is practically impossible; answer
-    // "try again" rather than looping without bound.
-    throw new HttpException(
-      {
-        code: ErrorCode.INTERNAL_ERROR,
-        message: 'Could not allocate a username, please retry.',
-      },
-      HttpStatus.SERVICE_UNAVAILABLE,
-    );
   }
 
   private async assertStatesExist(codes: string[]): Promise<void> {

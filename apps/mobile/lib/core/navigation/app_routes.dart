@@ -66,6 +66,11 @@ abstract final class AppRoutes {
   static String lawyer(String username) =>
       '/lawyer/${Uri.encodeComponent(username)}';
 
+  /// Public client mini-profile (OQ-026), opened from People search,
+  /// followers and @mentions.
+  static String client(String username) =>
+      '/client/${Uri.encodeComponent(username)}';
+
   /// The verification wizard (docs/03 §8 steps 1–5), pushed from
   /// [verification].
   static const verificationWizard = '/verification/wizard';
@@ -110,6 +115,9 @@ abstract final class AppRoutes {
   static const caseHistory = '/profile/settings/case-history';
 
   /// Settings → «Скачать мои данные» (docs/06 §5.2).
+  /// Settings → Blocked users (OQ-028).
+  static const blockedUsers = '/profile/settings/blocked';
+
   static const dataExport = '/profile/settings/data-export';
   static const caseHistoryItemPattern = '/profile/settings/case-history/:id';
   static String caseHistoryItem(String id) =>

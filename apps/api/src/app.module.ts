@@ -22,6 +22,7 @@ import { FeedModule } from './modules/feed/feed.module';
 import { CommentsModule } from './modules/comments/comments.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { FollowsModule } from './modules/follows/follows.module';
+import { BlocksModule } from './modules/blocks/blocks.module';
 import { SearchModule } from './modules/search/search.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { NotificationsApiModule } from './modules/notifications/notifications-api.module';
@@ -159,6 +160,8 @@ const isDev =
     ReportsModule,
     FollowsModule,
     SearchModule,
+    // Owner 2026-09-29 (OQ-028): user blocks.
+    BlocksModule,
     // docs/05 §8 chats + §8.5 realtime (publisher global, gateway API-only).
     RealtimeModule,
     RealtimeGatewayModule,

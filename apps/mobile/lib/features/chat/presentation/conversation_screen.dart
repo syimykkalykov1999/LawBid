@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/features/blocks/application/blocks_providers.dart';
+import 'package:lawbid/features/blocks/presentation/block_actions.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -109,6 +111,20 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
               },
             ),
             if (c.counterpart.id != null)
+              // OQ-028: block / unblock the other party.
+              BlockListRow(
+                userId: c.counterpart.id!,
+                displayName: c.counterpart.displayName ??
+                    (c.counterpart.username == null
+                        ? ''
+                        : '@${c.counterpart.username}'),
+                currentlyBlocked: ref.read(blockedIdsProvider).value?.contains(
+                          c.counterpart.id,
+                        ) ??
+                    false,
+                onChanged: () {},
+              ),
+            if (c.counterpart.id != null)
               AppListRow(
                 icon: Icons.flag_outlined,
                 label: t.t('post.menu.report'),
@@ -132,7 +148,9 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final s = ref.watch(chatThreadProvider(widget.conversationId));
     final c = s.conversation;
-    ref.listen(chatThreadProvider(widget.conversationId).select((x) => x.messages.firstOrNull?.id),
+    ref.listen(
+        chatThreadProvider(widget.conversationId)
+            .select((x) => x.messages.firstOrNull?.id),
         (_, __) => _markRead());
     final attorney = ref.watch(currentUserRoleProvider) == UserRole.attorney;
     final subscriptionGate =
@@ -149,6 +167,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
         actions: [
           if (c != null)
             AppIconButton(
+              plain: true,
               icon: Icon(Icons.more_horiz_rounded, color: colors.text),
               semanticLabel: t.t('chat.menu'),
               onPressed: () => _menu(s),
@@ -166,7 +185,9 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                         icon: Icons.lock_outline_rounded,
                         text: t.t('chat.closed'),
                       ),
-                    Expanded(child: _MessageList(state: s, onMore: _thread.loadMore)),
+                    Expanded(
+                        child:
+                            _MessageList(state: s, onMore: _thread.loadMore)),
                     AnimatedSwitcher(
                       duration: context.reduceMotion
                           ? Duration.zero
@@ -225,7 +246,8 @@ class _Header extends ConsumerWidget {
             context.push(attorney
                 ? AppRoutes.caseDetail(caseId)
                 : AppRoutes.myCase(caseId));
-          } else if (c.counterpart.isAttorney && c.counterpart.username != null) {
+          } else if (c.counterpart.isAttorney &&
+              c.counterpart.username != null) {
             context.push(AppRoutes.lawyer(c.counterpart.username!));
           }
         },
@@ -299,7 +321,8 @@ class _MessageList extends ConsumerWidget {
         if (i == items.length) {
           if (state.loadMoreFailed) {
             return Center(
-              child: TextButton(onPressed: onMore, child: Text(t.t('error.retry'))),
+              child: TextButton(
+                  onPressed: onMore, child: Text(t.t('error.retry'))),
             );
           }
           // Ask for the older page after this frame (never during build).
@@ -320,9 +343,13 @@ class _MessageList extends ConsumerWidget {
         final m = items[i];
         final older = i + 1 < items.length ? items[i + 1] : null;
         final newDay = older == null ||
-            !DateUtils.isSameDay(older.createdAt.toLocal(), m.createdAt.toLocal());
+            !DateUtils.isSameDay(
+                older.createdAt.toLocal(), m.createdAt.toLocal());
         final seen = seenIndex >= 0 && i >= seenIndex && m.senderId == me;
         return Column(
+          // Stretch: a bubble sits at the right (mine) or left (theirs)
+          // edge like Telegram, never centered (owner 2026-09-29).
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (newDay) _DaySeparator(label: _dayLabel(t, f, m.createdAt)),
             if (m.kind == MessageKind.system)
@@ -454,16 +481,16 @@ class _Bubble extends ConsumerWidget {
           text: ' ${t.t('chat.masked')} ',
           style: TextStyle(
             fontStyle: FontStyle.italic,
-            backgroundColor: (mine ? colors.gold : colors.goldTint)
-                .withValues(alpha: 0.35),
+            backgroundColor:
+                (mine ? colors.gold : colors.goldTint).withValues(alpha: 0.35),
           ),
         ));
       }
     }
 
     final bubble = Container(
-      constraints: BoxConstraints(
-          maxWidth: MediaQuery.sizeOf(context).width * 0.78),
+      constraints:
+          BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * 0.78),
       padding: const EdgeInsets.fromLTRB(
           AppSpacing.md, AppSpacing.sm, AppSpacing.md, AppSpacing.xs),
       decoration: BoxDecoration(
@@ -490,8 +517,8 @@ class _Bubble extends ConsumerWidget {
             children: [
               Text(
                 f.time(m.createdAt),
-                style: type.caption.copyWith(
-                    color: fg.withValues(alpha: 0.7), fontSize: 11),
+                style: type.caption
+                    .copyWith(color: fg.withValues(alpha: 0.7), fontSize: 11),
               ),
               if (mine) ...[
                 const SizedBox(width: 4),
@@ -545,9 +572,8 @@ class _Bubble extends ConsumerWidget {
                 Text(t.t('chat.notSent'),
                     style: type.caption.copyWith(color: colors.danger)),
                 TextButton(
-                  onPressed: () => ref
-                      .read(chatThreadProvider(threadId).notifier)
-                      .retry(m),
+                  onPressed: () =>
+                      ref.read(chatThreadProvider(threadId).notifier).retry(m),
                   child: Text(t.t('error.retry')),
                 ),
                 TextButton(
@@ -668,8 +694,8 @@ class _Banner extends StatelessWidget {
           Icon(icon, size: AppSizes.iconSm, color: colors.goldDark),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
-            child: Text(text,
-                style: type.bodySmall.copyWith(color: colors.text)),
+            child:
+                Text(text, style: type.bodySmall.copyWith(color: colors.text)),
           ),
         ],
       ),
@@ -713,7 +739,8 @@ class _MaskingHintState extends ConsumerState<_MaskingHint> {
                 style: type.caption.copyWith(color: colors.text)),
           ),
           AppIconButton(
-            icon: Icon(Icons.close_rounded, size: 18, color: colors.textSecondary),
+            icon: Icon(Icons.close_rounded,
+                size: 18, color: colors.textSecondary),
             semanticLabel: t.t('common.close'),
             onPressed: () async {
               await prefs.setBool(_key, true);
@@ -785,8 +812,8 @@ class _Composer extends ConsumerWidget {
       child: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(
-              AppSpacing.screenSide, AppSpacing.sm, AppSpacing.sm, AppSpacing.sm),
+          padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide,
+              AppSpacing.sm, AppSpacing.sm, AppSpacing.sm),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
@@ -854,7 +881,8 @@ class _Composer extends ConsumerWidget {
                             color: enabled ? colors.gold : colors.border,
                           ),
                           child: Icon(Icons.arrow_upward_rounded,
-                              color: enabled ? colors.navy : colors.textSecondary),
+                              color:
+                                  enabled ? colors.navy : colors.textSecondary),
                         ),
                       ),
                     ),

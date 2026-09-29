@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -21,8 +23,11 @@ class ProfileEditScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isAttorney = ref.watch(currentUserControllerProvider.select((s) => s.user?.isAttorney ?? false));
-    return isAttorney ? const AttorneyProfileEditScreen() : const ClientProfileEditScreen();
+    final isAttorney = ref.watch(currentUserControllerProvider
+        .select((s) => s.user?.isAttorney ?? false));
+    return isAttorney
+        ? const AttorneyProfileEditScreen()
+        : const ClientProfileEditScreen();
   }
 }
 
@@ -42,7 +47,9 @@ class ClientProfileEditScreen extends ConsumerWidget {
       backgroundColor: colors.bg,
       appBar: AppTopBar(
         title: Text(t.t('profile.edit.title')),
-        leading: AppBackButton(semanticLabel: t.t('common.back'), onPressed: () => Navigator.of(context).maybePop()),
+        leading: AppBackButton(
+            semanticLabel: t.t('common.back'),
+            onPressed: () => Navigator.of(context).maybePop()),
       ),
       body: profile.when(
         loading: () => const ProfileEditSkeleton(),
@@ -58,7 +65,10 @@ class ClientProfileEditScreen extends ConsumerWidget {
                   onPressed: retry,
                 ),
               )
-            : AppErrorState(message: t.t('profile.error'), retryLabel: t.t('error.retry'), onRetry: retry),
+            : AppErrorState(
+                message: t.t('profile.error'),
+                retryLabel: t.t('error.retry'),
+                onRetry: retry),
         data: (p) => _ClientEditForm(profile: p),
       ),
     );
@@ -75,9 +85,15 @@ class _ClientEditForm extends ConsumerStatefulWidget {
 }
 
 class _ClientEditFormState extends ConsumerState<_ClientEditForm> {
-  late final _first = TextEditingController(text: widget.profile.firstName ?? '');
+  late final _first =
+      TextEditingController(text: widget.profile.firstName ?? '');
   late final _last = TextEditingController(text: widget.profile.lastName ?? '');
-  late final _note = TextEditingController(text: widget.profile.contactNote ?? '');
+  late final _note =
+      TextEditingController(text: widget.profile.contactNote ?? '');
+  late final _username = TextEditingController(text: widget.profile.username);
+  UsernameStatus _usernameStatus = UsernameStatus.unchanged;
+  Timer? _debounce;
+  int _checkSeq = 0;
   late String _state = widget.profile.state.code;
   late Set<String> _languages = widget.profile.languages.toSet();
   late ContactPreference? _method = widget.profile.contactMethod;
@@ -86,15 +102,60 @@ class _ClientEditFormState extends ConsumerState<_ClientEditForm> {
 
   @override
   void dispose() {
-    for (final c in [_first, _last, _note]) {
+    _debounce?.cancel();
+    for (final c in [_first, _last, _note, _username]) {
       c.dispose();
     }
     super.dispose();
   }
 
+  /// OQ-026: same rules and the same availability check as an attorney's
+  /// @username (one namespace for both roles).
+  void _onUsernameChanged(String value) {
+    _debounce?.cancel();
+    final u = value.trim();
+    if (u.toLowerCase() == widget.profile.username.toLowerCase()) {
+      setState(() => _usernameStatus = UsernameStatus.unchanged);
+      return;
+    }
+    if (!usernamePattern.hasMatch(u)) {
+      setState(() => _usernameStatus = UsernameStatus.invalid);
+      return;
+    }
+    setState(() => _usernameStatus = UsernameStatus.checking);
+    final seq = ++_checkSeq;
+    _debounce = Timer(const Duration(milliseconds: 450), () async {
+      try {
+        final r =
+            await ref.read(attorneyProfileRepositoryProvider).checkUsername(u);
+        if (!mounted || seq != _checkSeq) return;
+        setState(() {
+          _usernameStatus = r.available
+              ? UsernameStatus.available
+              : switch (r.issue) {
+                  UsernameIssue.reserved => UsernameStatus.reserved,
+                  UsernameIssue.taken => UsernameStatus.taken,
+                  _ => UsernameStatus.invalid,
+                };
+        });
+      } catch (_) {
+        if (mounted && seq == _checkSeq) {
+          setState(() => _usernameStatus = UsernameStatus.error);
+        }
+      }
+    });
+  }
+
   Future<void> _save(Translator t) async {
     setState(() => _attempted = true);
     if (_first.text.trim().isEmpty || _last.text.trim().isEmpty) return;
+    if (const {
+      UsernameStatus.invalid,
+      UsernameStatus.taken,
+      UsernameStatus.reserved
+    }.contains(_usernameStatus)) {
+      return;
+    }
     setState(() => _saving = true);
     try {
       final repo = ref.read(clientProfileRepositoryProvider);
@@ -102,6 +163,9 @@ class _ClientEditFormState extends ConsumerState<_ClientEditForm> {
         ClientProfilePatch(
           firstName: _first.text,
           lastName: _last.text,
+          username: _usernameStatus == UsernameStatus.unchanged
+              ? null
+              : _username.text.trim(),
           stateCode: _state,
           languages: _languages.toList(),
           contactNote: _note.text,
@@ -126,13 +190,53 @@ class _ClientEditFormState extends ConsumerState<_ClientEditForm> {
   Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
     String? required(TextEditingController c) =>
-        _attempted && c.text.trim().isEmpty ? t.t('onboarding.profile.error.required') : null;
+        _attempted && c.text.trim().isEmpty
+            ? t.t('onboarding.profile.error.required')
+            : null;
     String languageLabel(String code) =>
-        kLanguageCatalog.where((l) => l.code == code).map((l) => l.nativeName).firstOrNull ?? code;
+        kLanguageCatalog
+            .where((l) => l.code == code)
+            .map((l) => l.nativeName)
+            .firstOrNull ??
+        code;
+
+    final (String? usernameHelper, String? usernameError) =
+        switch (_usernameStatus) {
+      UsernameStatus.unchanged => (null, null),
+      UsernameStatus.checking => (t.t('profile.username.checking'), null),
+      UsernameStatus.available => (t.t('profile.username.available'), null),
+      UsernameStatus.taken => (null, t.t('error.api.USERNAME_TAKEN')),
+      UsernameStatus.reserved => (null, t.t('error.api.USERNAME_RESERVED')),
+      UsernameStatus.invalid => (null, t.t('profile.username.invalid')),
+      UsernameStatus.error => (t.t('profile.username.checkFailed'), null),
+    };
+    final nextChange = widget.profile.usernameNextChangeAt;
 
     final fields = <Widget>[
       AppCard(
-        child: AvatarPickerField(initials: initialsOf(widget.profile.firstName, widget.profile.lastName)),
+        child: AvatarPickerField(
+            initials:
+                initialsOf(widget.profile.firstName, widget.profile.lastName)),
+      ),
+      AppTextField(
+        controller: _username,
+        label: t.t('profile.username.label'),
+        enabled: nextChange == null || !nextChange.isAfter(DateTime.now()),
+        leading: Text('@',
+            style: Theme.of(context)
+                .extension<AppTypographyTokens>()!
+                .body
+                .copyWith(
+                    color: Theme.of(context)
+                        .extension<AppColorTokens>()!
+                        .textSecondary)),
+        helperText: usernameHelper,
+        errorText: usernameError,
+        inputFormatters: [
+          FilteringTextInputFormatter.allow(RegExp('[A-Za-z0-9._]')),
+          LengthLimitingTextInputFormatter(30),
+        ],
+        onChanged: _onUsernameChanged,
       ),
       AppTextField(
         controller: _first,
@@ -158,23 +262,33 @@ class _ClientEditFormState extends ConsumerState<_ClientEditForm> {
           final result = await OptionPickerSheet.show(
             context,
             title: t.t('onboarding.profile.state'),
-            options: [for (final s in kUsStates) PickerOption(value: s.code, label: s.name, sublabel: s.code)],
+            options: [
+              for (final s in kUsStates)
+                PickerOption(value: s.code, label: s.name, sublabel: s.code)
+            ],
             initial: {_state},
           );
-          if (result != null && result.isNotEmpty) setState(() => _state = result.first);
+          if (result != null && result.isNotEmpty)
+            setState(() => _state = result.first);
         },
       ),
       PickerField(
         label: t.t('onboarding.profile.languages'),
         placeholder: t.t('onboarding.profile.select'),
-        value: _languages.isEmpty ? null : _languages.map(languageLabel).join(', '),
+        value: _languages.isEmpty
+            ? null
+            : _languages.map(languageLabel).join(', '),
         onTap: () async {
           final result = await OptionPickerSheet.show(
             context,
             title: t.t('onboarding.profile.languages'),
             options: [
               for (final l in kLanguageCatalog)
-                PickerOption(value: l.code, label: l.nativeName, sublabel: l.englishName == l.nativeName ? null : l.englishName),
+                PickerOption(
+                    value: l.code,
+                    label: l.nativeName,
+                    sublabel:
+                        l.englishName == l.nativeName ? null : l.englishName),
             ],
             initial: _languages,
             multi: true,
@@ -199,7 +313,8 @@ class _ClientEditFormState extends ConsumerState<_ClientEditForm> {
       children: [
         Expanded(
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide, AppSpacing.sm, AppSpacing.screenSide, AppSpacing.xxl),
+            padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide,
+                AppSpacing.sm, AppSpacing.screenSide, AppSpacing.xxl),
             children: [
               for (var i = 0; i < fields.length; i++) ...[
                 if (i > 0) const SizedBox(height: AppSpacing.lg),
@@ -208,7 +323,10 @@ class _ClientEditFormState extends ConsumerState<_ClientEditForm> {
             ],
           ),
         ),
-        ProfileSaveBar(label: t.t('profile.edit.save'), loading: _saving, onPressed: () => _save(t)),
+        ProfileSaveBar(
+            label: t.t('profile.edit.save'),
+            loading: _saving,
+            onPressed: () => _save(t)),
       ],
     );
   }
@@ -216,7 +334,8 @@ class _ClientEditFormState extends ConsumerState<_ClientEditForm> {
 
 /// Preferred contact method chips (docs/01 §11 3A); tap again to clear.
 class ContactPreferenceChips extends ConsumerWidget {
-  const ContactPreferenceChips({required this.value, required this.onChanged, super.key});
+  const ContactPreferenceChips(
+      {required this.value, required this.onChanged, super.key});
 
   final ContactPreference? value;
   final ValueChanged<ContactPreference?> onChanged;
@@ -231,7 +350,8 @@ class ContactPreferenceChips extends ConsumerWidget {
       children: [
         Text(
           t.t('onboarding.profile.contactMethod'),
-          style: typography.bodySmall.copyWith(color: colors.text, fontWeight: FontWeight.w600),
+          style: typography.bodySmall
+              .copyWith(color: colors.text, fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: AppSpacing.sm),
         Wrap(

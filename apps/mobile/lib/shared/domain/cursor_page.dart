@@ -44,6 +44,14 @@ class PaginatedList<T> {
   /// retry instead of looping).
   bool get canLoadMore => hasMore && !isLoadingMore && loadMoreError == null;
 
+  /// Same page with every item converted (mixed-role lists, OQ-026).
+  PaginatedList<R> map<R>(R Function(T item) f) => PaginatedList(
+        items: items.map(f).toList(),
+        nextCursor: nextCursor,
+        isLoadingMore: isLoadingMore,
+        loadMoreError: loadMoreError,
+      );
+
   PaginatedList<T> loadingMore() => PaginatedList(
         items: items,
         nextCursor: nextCursor,

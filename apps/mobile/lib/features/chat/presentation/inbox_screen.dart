@@ -46,17 +46,17 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
           semanticLabel: t.t('common.back'),
           onPressed: () => Navigator.of(context).maybePop(),
         ),
-        title: Text(t.t('inbox.title')),
+        // Owner 2026-09-29: no "Messages" title; the tabs say it.
         actions: [
           if (_tab == InboxTab.notifications && badges.notifications > 0)
             TextButton(
-              onPressed: () => ref
-                  .read(notificationsProvider.notifier)
-                  .markRead(),
+              onPressed: () =>
+                  ref.read(notificationsProvider.notifier).markRead(),
               child: Text(t.t('notif.markAllRead')),
             ),
           if (_tab == InboxTab.notifications)
             AppIconButton(
+              plain: true,
               icon: Icon(Icons.tune_rounded, color: colors.text),
               semanticLabel: t.t('settings.notifications'),
               onPressed: () => context.push(ChatRoutes.notificationSettings),
@@ -297,7 +297,8 @@ class _ConversationRow extends ConsumerWidget {
                           overflow: TextOverflow.ellipsis,
                           style: type.body.copyWith(
                             color: colors.text,
-                            fontWeight: unread ? FontWeight.w700 : FontWeight.w600,
+                            fontWeight:
+                                unread ? FontWeight.w700 : FontWeight.w600,
                           ),
                         ),
                       ),
@@ -315,7 +316,8 @@ class _ConversationRow extends ConsumerWidget {
                         Text(
                           SocialFormat.ago(t, f, c.lastMessageAt!),
                           style: type.caption.copyWith(
-                            color: unread ? colors.goldDark : colors.textSecondary,
+                            color:
+                                unread ? colors.goldDark : colors.textSecondary,
                           ),
                         ),
                     ],
@@ -367,7 +369,8 @@ class _CaseChip extends StatelessWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 2),
+      padding:
+          const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 2),
       decoration: BoxDecoration(
         color: colors.goldTint,
         borderRadius: BorderRadius.circular(AppRadii.pill),
@@ -405,7 +408,8 @@ String counterpartName(Translator t, Conversation c) {
 }
 
 class CounterpartAvatar extends StatelessWidget {
-  const CounterpartAvatar({required this.counterpart, required this.size, super.key});
+  const CounterpartAvatar(
+      {required this.counterpart, required this.size, super.key});
 
   final Counterpart counterpart;
   final double size;

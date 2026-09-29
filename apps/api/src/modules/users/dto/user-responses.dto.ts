@@ -87,7 +87,10 @@ export class MeProfileDto {
   })
   contactNote?: string | null;
 
-  @ApiProperty({ required: false, description: 'Attorney only.' })
+  @ApiProperty({
+    required: false,
+    description: 'The @username (both roles since OQ-026).',
+  })
   username?: string;
 
   @ApiProperty({

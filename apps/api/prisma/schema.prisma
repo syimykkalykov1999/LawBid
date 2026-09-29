@@ -558,6 +558,9 @@ model User {
   comment_likes            CommentLike[]             @relation("CommentLiker")
   following                Follow[]                  @relation("Follower")
   followers                Follow[]                  @relation("Followee")
+  // Owner 2026-09-29 (OQ-028): user-level blocks, both roles.
+  blocks_made              UserBlock[]               @relation("Blocker")
+  blocked_by               UserBlock[]               @relation("Blocked")
   saved_items              SavedItem[]
   conversations_attorney   Conversation[]            @relation("ConversationAttorney")
   conversations_client     Conversation[]            @relation("ConversationClient")
@@ -920,6 +923,12 @@ model ClientProfile {
   preferred_contact_method ContactMethod?
   // ≤200 chars (§4.C), CHECK in the migration.
   preferred_contact_note   String?
+  // Owner decision 2026-09-29 (OQ-026): clients have @usernames too (same
+  // rules as attorneys, one namespace with attorney_profiles — enforced in
+  // UsernameRegistry). Nullable: legacy rows get one lazily on first read.
+  username                 String?
+  username_lower           String?        @unique
+  username_changed_at      DateTime?      @db.Timestamptz
   created_at               DateTime       @default(now()) @db.Timestamptz
   updated_at               DateTime       @updatedAt @db.Timestamptz
 
@@ -1453,6 +1462,22 @@ model Follow {
   @@id([follower_id, followee_id])
   @@index([followee_id, follower_id])
   @@map("follows")
+}
+
+/// Owner decision 2026-09-29 (OQ-028): any user may block any other.
+/// Effects (BlocksService): no messages either way, no follows (existing
+/// follows removed), hidden from each other's People search, profile
+/// flags. Cases/bids already in progress are untouched.
+model UserBlock {
+  blocker_id String   @db.Uuid
+  blocker    User     @relation("Blocker", fields: [blocker_id], references: [id], onDelete: Cascade)
+  blocked_id String   @db.Uuid
+  blocked    User     @relation("Blocked", fields: [blocked_id], references: [id], onDelete: Cascade)
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  @@id([blocker_id, blocked_id])
+  @@index([blocked_id])
+  @@map("user_blocks")
 }
 
 // Polymorphic item_id (post or case) — no FK by design.

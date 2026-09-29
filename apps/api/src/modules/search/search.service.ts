@@ -25,9 +25,14 @@ import {
   PostPresenter,
   VISIBLE_POST_WHERE,
 } from '../posts/post-presenter.service';
+import { BlocksService } from '../blocks/blocks.service';
+import { ClientProfilesService } from '../profiles/services/client-profiles.service';
 import type {
+  PeoplePage,
+  PersonItemDto,
   SearchAttorneysQueryDto,
   SearchCasesQueryDto,
+  SearchPeopleQueryDto,
   SearchPeriod,
   TagDto,
   TagSort,
@@ -120,8 +125,63 @@ export class SearchService {
     private readonly posts: PostPresenter,
     private readonly casesFeed: CasesFeedService,
     private readonly access: CaseAccessPolicy,
+    private readonly clients: ClientProfilesService,
+    private readonly blocks: BlocksService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {}
+
+  /**
+   * GET /search/people (OQ-026): attorneys and clients by @username and
+   * name in one ranked list. The shared ranked cache stores "role:id"
+   * tokens; each page is presented per role and re-merged in rank order.
+   */
+  async people(
+    user: RequestUser,
+    dto: SearchPeopleQueryDto,
+  ): Promise<PeoplePage> {
+    await this.limits.consume('search', user.sub);
+    const q = textQuery(dto.q);
+    const filters = {
+      practiceAreaId: dto.practiceAreaId,
+      state: dto.state?.toUpperCase(),
+      minRating: dto.minRating,
+      language: dto.language?.toLowerCase(),
+    };
+    const tokens = await this.ranked('pp', { q, ...filters }, async () =>
+      (await this.provider.searchPeople(q, filters, RANKED_MAX)).map(
+        (r) => `${r.role}:${r.id}`,
+      ),
+    );
+    const { slice: rawSlice, next } = this.pageOf(tokens, dto.cursor);
+    // OQ-028: the shared ranked list is viewer-agnostic; blocks (either
+    // direction) are applied per viewer when presenting.
+    const hidden = await this.blocks.hiddenIds(user.sub);
+    const slice = rawSlice.filter((t) => !hidden.has(t.split(':', 2)[1]));
+    const attorneyIds = slice
+      .filter((t) => t.startsWith('attorney:'))
+      .map((t) => t.slice('attorney:'.length));
+    const clientIds = slice
+      .filter((t) => t.startsWith('client:'))
+      .map((t) => t.slice('client:'.length));
+    const [attorneys, clients] = await Promise.all([
+      this.follows.present(attorneyIds, user.sub),
+      this.clients.presentMany(clientIds),
+    ]);
+    const byAttorney = new Map(attorneys.map((a) => [a.id, a]));
+    const byClient = new Map(clients.map((c) => [c.id, c]));
+    const items: PersonItemDto[] = [];
+    for (const token of slice) {
+      const [role, id] = token.split(':', 2) as ['attorney' | 'client', string];
+      if (role === 'attorney') {
+        const a = byAttorney.get(id);
+        if (a) items.push({ role, attorney: a, client: null });
+      } else {
+        const c = byClient.get(id);
+        if (c) items.push({ role, attorney: null, client: c });
+      }
+    }
+    return { items, nextCursor: next };
+  }
 
   async attorneys(
     user: RequestUser,

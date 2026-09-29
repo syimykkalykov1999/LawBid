@@ -13,6 +13,8 @@ part 'client_profile_dto.g.dart';
 class ClientProfileDto {
   const ClientProfileDto({
     required this.id,
+    required this.username,
+    required this.usernameNextChangeAt,
     required this.firstName,
     required this.lastName,
     required this.state,
@@ -25,6 +27,12 @@ class ClientProfileDto {
       _$ClientProfileDtoFromJson(json);
 
   final String id;
+
+  /// OQ-026: the client @username.
+  final String username;
+
+  /// When the username may change again (cooldown), else null.
+  final String? usernameNextChangeAt;
   final String? firstName;
   final String? lastName;
   final StateRefDto state;

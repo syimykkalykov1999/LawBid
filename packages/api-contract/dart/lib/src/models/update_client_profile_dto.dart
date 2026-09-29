@@ -18,6 +18,7 @@ class UpdateClientProfileDto {
     this.languages,
     this.contactMethod,
     this.contactNote,
+    this.username,
   });
 
   factory UpdateClientProfileDto.fromJson(Map<String, Object?> json) =>
@@ -33,6 +34,10 @@ class UpdateClientProfileDto {
   final List<UpdateClientProfileDtoLanguages>? languages;
   final UpdateClientProfileDtoContactMethod? contactMethod;
   final String? contactNote;
+
+  /// 3-30 latin letters, digits, `_` and `.`; not starting/ending with.
+  /// `.`/`_`; no `..`. Uniqueness is case-insensitive across both roles.
+  final String? username;
 
   Map<String, Object?> toJson() => _$UpdateClientProfileDtoToJson(this);
 }

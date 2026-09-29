@@ -35,7 +35,8 @@ abstract final class CurrentUserMapper {
       onboarding: OnboardingProgress(
         currentStep: OnboardingStepId.tryParse(dto.onboarding.currentStep),
         completedAt: dto.onboarding.completedAt,
-        data: onboardingData is Map<String, dynamic> ? onboardingData : const {},
+        data:
+            onboardingData is Map<String, dynamic> ? onboardingData : const {},
       ),
       missing: dto.missing
           .map((m) => m.json)
@@ -46,6 +47,7 @@ abstract final class CurrentUserMapper {
       clientProfile: role == UserRole.client && profile?.stateCode != null
           ? ClientProfile(
               stateCode: profile!.stateCode!,
+              username: profile.username,
               languages: profile.languages,
               contactMethod: profile.contactMethod?.json,
               contactNote: profile.contactNote,

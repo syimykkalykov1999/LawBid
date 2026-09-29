@@ -109,13 +109,14 @@ const _keys = <String, String>{
   ApiErrorCodes.messageTooLong: 'error.api.MESSAGE_TOO_LONG',
   ApiErrorCodes.featureDisabled: 'error.api.FEATURE_DISABLED',
   ApiErrorCodes.searchQueryTooShort: 'error.api.SEARCH_QUERY_TOO_SHORT',
+  ApiErrorCodes.userBlocked: 'error.api.USER_BLOCKED',
   ApiErrorCodes.bidAttorneyInactive: 'error.api.BID_ATTORNEY_INACTIVE',
   ApiErrorCodes.contactsLocked: 'error.api.CONTACTS_LOCKED',
   ApiErrorCodes.contactIssueAlreadyOpen: 'error.api.CONTACT_ISSUE_ALREADY_OPEN',
-  ApiErrorCodes.contactIssueInvalidState: 'error.api.CONTACT_ISSUE_INVALID_STATE',
+  ApiErrorCodes.contactIssueInvalidState:
+      'error.api.CONTACT_ISSUE_INVALID_STATE',
   ApiErrorCodes.bidAlreadyExists: 'error.api.BID_ALREADY_EXISTS',
-  ApiErrorCodes.caseContainsContactInfo:
-      'error.api.CASE_CONTAINS_CONTACT_INFO',
+  ApiErrorCodes.caseContainsContactInfo: 'error.api.CASE_CONTAINS_CONTACT_INFO',
   ApiErrorCodes.clientContactSharingConsentRequired:
       'error.api.CLIENT_CONTACT_SHARING_CONSENT_REQUIRED',
   ApiErrorCodes.paymentsNotConfigured: 'error.api.PAYMENTS_NOT_CONFIGURED',

@@ -131,6 +131,8 @@ class PublicAttorneyProfile {
     this.counters = const ProfileCounters(),
     this.avatarUrl,
     this.isFollowing = false,
+    this.isBlocked = false,
+    this.hasBlockedMe = false,
   });
 
   final String id;
@@ -152,12 +154,18 @@ class PublicAttorneyProfile {
   /// The viewer follows this attorney (docs/05 §6).
   final bool isFollowing;
 
+  /// OQ-028: the viewer blocked this user / this user blocked the viewer.
+  final bool isBlocked;
+  final bool hasBlockedMe;
+
   /// Signed link to the attorney photo (`avatarUrl256`, else the 1024 px
   /// `avatarUrl` of `GET /attorneys/:username`); null → initials.
   final String? avatarUrl;
 
-  String get fullName =>
-      [firstName, lastName].whereType<String>().where((s) => s.isNotEmpty).join(' ');
+  String get fullName => [firstName, lastName]
+      .whereType<String>()
+      .where((s) => s.isNotEmpty)
+      .join(' ');
 }
 
 /// `GET /attorneys/me/profile` — the editor's source (docs/03 §4.1).
@@ -226,7 +234,8 @@ enum UsernameIssue { invalid, reserved, taken }
 
 @immutable
 class UsernameCheck {
-  const UsernameCheck({required this.username, required this.available, this.issue});
+  const UsernameCheck(
+      {required this.username, required this.available, this.issue});
   final String username;
   final bool available;
   final UsernameIssue? issue;
@@ -287,7 +296,9 @@ class Review {
   bool get isEdited => editedAt != null;
 
   bool canEdit(DateTime now) =>
-      editable != false && editableUntil != null && now.isBefore(editableUntil!);
+      editable != false &&
+      editableUntil != null &&
+      now.isBefore(editableUntil!);
 }
 
 /// A page of a cursor-paginated list (`meta.nextCursor`).
@@ -298,7 +309,14 @@ class ReviewPage {
   final String? nextCursor;
 }
 
-enum ReviewReportReason { spam, abuse, misinformation, impersonation, inappropriate, other }
+enum ReviewReportReason {
+  spam,
+  abuse,
+  misinformation,
+  impersonation,
+  inappropriate,
+  other
+}
 
 /// Preferred contact method (docs/01 §11 3A); wire `in_app_chat` = chat.
 enum ContactPreference {
@@ -324,6 +342,8 @@ class ClientProfileDetails {
   const ClientProfileDetails({
     required this.id,
     required this.state,
+    this.username = '',
+    this.usernameNextChangeAt,
     this.firstName,
     this.lastName,
     this.languages = const [],
@@ -331,6 +351,12 @@ class ClientProfileDetails {
     this.contactNote,
   });
   final String id;
+
+  /// OQ-026: the client's @username.
+  final String username;
+
+  /// When the username may change again (cooldown), else null.
+  final DateTime? usernameNextChangeAt;
   final String? firstName;
   final String? lastName;
   final StateRef state;
@@ -338,8 +364,45 @@ class ClientProfileDetails {
   final ContactPreference? contactMethod;
   final String? contactNote;
 
-  String get fullName =>
-      [firstName, lastName].whereType<String>().where((s) => s.isNotEmpty).join(' ');
+  String get fullName => [firstName, lastName]
+      .whereType<String>()
+      .where((s) => s.isNotEmpty)
+      .join(' ');
+}
+
+/// `GET /clients/:username` — a client's public mini-profile (OQ-026):
+/// name, handle, avatar, state, member since. Never contacts.
+@immutable
+class PublicClientProfile {
+  const PublicClientProfile({
+    required this.id,
+    required this.username,
+    required this.state,
+    required this.memberSince,
+    required this.isSelf,
+    this.firstName,
+    this.lastName,
+    this.avatarUrl,
+    this.isBlocked = false,
+    this.hasBlockedMe = false,
+  });
+  final String id;
+  final String username;
+  final String? firstName;
+  final String? lastName;
+  final String? avatarUrl;
+  final StateRef state;
+  final DateTime memberSince;
+  final bool isSelf;
+
+  /// OQ-028 block flags (viewer → this user / this user → viewer).
+  final bool isBlocked;
+  final bool hasBlockedMe;
+
+  String get fullName => [firstName, lastName]
+      .whereType<String>()
+      .where((s) => s.isNotEmpty)
+      .join(' ');
 }
 
 /// Partial update for `PATCH /users/me/profile`; null = unchanged.
@@ -348,12 +411,14 @@ class ClientProfilePatch {
   const ClientProfilePatch({
     this.firstName,
     this.lastName,
+    this.username,
     this.stateCode,
     this.languages,
     this.contactMethod,
     this.contactNote,
   });
   final String? firstName;
+  final String? username;
   final String? lastName;
   final String? stateCode;
   final List<String>? languages;
@@ -369,5 +434,7 @@ String initialsOf(String? first, String? last, {String fallback = ''}) {
       .where((s) => s.isNotEmpty)
       .map((s) => s.substring(0, 1).toUpperCase())
       .join();
-  return parts.isEmpty ? fallback.substring(0, fallback.isEmpty ? 0 : 1).toUpperCase() : parts;
+  return parts.isEmpty
+      ? fallback.substring(0, fallback.isEmpty ? 0 : 1).toUpperCase()
+      : parts;
 }

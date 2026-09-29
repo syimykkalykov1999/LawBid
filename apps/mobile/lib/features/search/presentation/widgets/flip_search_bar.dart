@@ -23,6 +23,7 @@ class FlipSearchBar extends StatefulWidget {
     this.leading,
     this.trailing,
     this.showCancel = true,
+    this.height = 51,
     super.key,
   });
 
@@ -47,6 +48,9 @@ class FlipSearchBar extends StatefulWidget {
   /// Whether the "Cancel" text button slides in next to the field while
   /// focused. `false` when the caller has its own way to close.
   final bool showCancel;
+
+  /// Field height (48 px inside the border by default).
+  final double height;
 
   @override
   State<FlipSearchBar> createState() => _FlipSearchBarState();
@@ -121,8 +125,8 @@ class _FlipSearchBarState extends State<FlipSearchBar> {
     final field = AnimatedContainer(
       duration: d,
       curve: AppMotion.enterCurve,
-      // 48 px inside the (up to 1.5 px) border.
-      height: 51,
+      // 48 px inside the (up to 1.5 px) border by default.
+      height: widget.height,
       decoration: BoxDecoration(
         color: colors.surface,
         borderRadius: BorderRadius.circular(AppRadii.pill),
@@ -180,8 +184,8 @@ class _FlipSearchBarState extends State<FlipSearchBar> {
                           key: ValueKey(hint),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: type.body
-                              .copyWith(color: colors.textSecondary),
+                          style:
+                              type.body.copyWith(color: colors.textSecondary),
                         ),
                       ),
                     ),
@@ -212,8 +216,11 @@ class _FlipSearchBarState extends State<FlipSearchBar> {
             duration: d,
             curve: Curves.easeOutBack,
             child: AppIconButton(
-              icon: Icon(Icons.cancel_rounded,
-                  color: colors.textSecondary, size: 20,),
+              icon: Icon(
+                Icons.cancel_rounded,
+                color: colors.textSecondary,
+                size: 20,
+              ),
               semanticLabel: widget.clearLabel,
               onPressed: _empty
                   ? null
@@ -248,8 +255,7 @@ class _FlipSearchBarState extends State<FlipSearchBar> {
                   style: TextButton.styleFrom(
                     foregroundColor: colors.text,
                     minimumSize: const Size(0, AppSizes.touchTarget),
-                    padding:
-                        const EdgeInsets.only(left: AppSpacing.md),
+                    padding: const EdgeInsets.only(left: AppSpacing.md),
                   ),
                   child: Text(widget.cancelLabel),
                 )
@@ -262,9 +268,10 @@ class _FlipSearchBarState extends State<FlipSearchBar> {
   /// Split-flap: the outgoing phrase tips back over the top edge while
   /// the incoming one falls into place from below.
   Widget _flip(Widget child, Animation<double> animation) {
-    final incoming = child.key == ValueKey(widget.hints.isEmpty
-        ? ''
-        : widget.hints[_hint % widget.hints.length],);
+    final incoming = child.key ==
+        ValueKey(
+          widget.hints.isEmpty ? '' : widget.hints[_hint % widget.hints.length],
+        );
     return AnimatedBuilder(
       animation: animation,
       child: child,

@@ -77,10 +77,14 @@ class _LanguagePickerSheetState extends ConsumerState<LanguagePickerSheet> {
         mergeLanguageCatalog(ref.watch(activeLanguagesControllerProvider));
     final results = _filtered(catalog);
 
-    return SafeArea(
-      top: false,
-      child: SizedBox(
-        height: MediaQuery.of(context).size.height * 0.75,
+    // Owner 2026-09-29: the sheet can be dragged all the way to the top.
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.75,
+      minChildSize: 0.4,
+      maxChildSize: 1,
+      builder: (context, scrollController) => SafeArea(
+        top: false,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(
             AppSpacing.screenSide,
@@ -116,6 +120,7 @@ class _LanguagePickerSheetState extends ConsumerState<LanguagePickerSheet> {
                         message: t.t('lang.picker.empty'),
                       )
                     : ListView.separated(
+                        controller: scrollController,
                         itemCount: results.length,
                         separatorBuilder: (_, __) =>
                             const SizedBox(height: AppSpacing.sm),

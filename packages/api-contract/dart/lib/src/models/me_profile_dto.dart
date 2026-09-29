@@ -38,7 +38,7 @@ class MeProfileDto {
   /// Client only.
   final String? contactNote;
 
-  /// Attorney only.
+  /// The @username (both roles since OQ-026).
   final String? username;
 
   /// Attorney only.

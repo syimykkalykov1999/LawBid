@@ -91,7 +91,7 @@ const file05Ru = <String, String>{
   'follow.following': 'Вы подписаны',
   'follow.followers': 'Подписчики',
   'follow.followingList': 'Подписки',
-  'follow.followers.empty': 'Подписчиков-адвокатов пока нет',
+  'follow.followers.empty': 'Подписчиков пока нет',
   'follow.following.empty': 'Подписок пока нет',
   'suggestions.title': 'Рекомендуемые адвокаты',
 
@@ -131,7 +131,8 @@ const file05Ru = <String, String>{
   'search.period.month': 'За 30 дней',
   'search.period.all': 'Все',
   'search.empty.title': 'Ничего не нашлось',
-  'search.empty.message': 'По запросу «{query}» результатов нет. Попробуйте другие слова или фильтры.',
+  'search.empty.message':
+      'По запросу «{query}» результатов нет. Попробуйте другие слова или фильтры.',
   'search.recent': 'Недавние',
   'search.recent.clear': 'Очистить',
   'search.trending': 'Популярные темы',
@@ -143,7 +144,8 @@ const file05Ru = <String, String>{
   'inbox.open': 'Чаты и уведомления',
   'inbox.openWithCount': 'Чаты и уведомления, непрочитанных: {count}',
   'chat.empty.title': 'Чатов пока нет',
-  'chat.empty.client': 'Чаты появятся, когда адвокат напишет вам по кейсу или вы примете предложение',
+  'chat.empty.client':
+      'Чаты появятся, когда адвокат напишет вам по кейсу или вы примете предложение',
   'chat.empty.attorney': 'Откройте кейс и нажмите «Написать клиенту»',
   'chat.hiddenClient': 'Клиент по кейсу «{title}»',
   'chat.you': 'Вы',
@@ -170,7 +172,8 @@ const file05Ru = <String, String>{
   'chat.system.offer_accepted': 'Предложение принято, контакты открыты',
   'chat.system.no_agreement': 'Стороны не договорились',
   'chat.system.case_closed': 'Кейс закрыт',
-  'chat.system.accepted_by_other': 'Кейс принят другим адвокатом. Чат доступен только для чтения',
+  'chat.system.accepted_by_other':
+      'Кейс принят другим адвокатом. Чат доступен только для чтения',
   'notif.empty': 'Пока нет уведомлений',
   'notif.markAllRead': 'Прочитать все',
   'notif.unread': 'Не прочитано',
@@ -187,7 +190,8 @@ const file05Ru = <String, String>{
   'notif.settings.email': 'Email',
   'notif.settings.locked': 'Важные уведомления об аккаунте отключить нельзя',
   'notif.settings.quiet': 'Тихие часы',
-  'notif.settings.quietHint': 'В это время push придут позже (кроме входа с нового устройства).',
+  'notif.settings.quietHint':
+      'В это время push придут позже (кроме входа с нового устройства).',
   'notif.settings.quietOn': 'Включить тихие часы',
   'notif.settings.from': 'С',
   'notif.settings.to': 'До',
@@ -196,11 +200,14 @@ const file05Ru = <String, String>{
   'notif.list.offer_accepted': 'Ваше предложение приняли',
   'notif.list.bid_accepted': 'Клиент принял ваш бид',
   'notif.list.bid_rejected': 'Бид отклонён',
-  'notif.list.negotiation_failed': 'Переговоры по биду завершились без договорённости',
+  'notif.list.negotiation_failed':
+      'Переговоры по биду завершились без договорённости',
   'notif.list.case_updated': 'Кейс обновлён',
-  'notif.list.case_stale_prompt': 'Кейс ещё актуален? Подтвердите или закройте его',
+  'notif.list.case_stale_prompt':
+      'Кейс ещё актуален? Подтвердите или закройте его',
   'notif.list.case_archived': 'Кейс перенесён в архив',
-  'notif.list.completion_requested': 'Клиент отметил кейс выполненным — подтвердите',
+  'notif.list.completion_requested':
+      'Клиент отметил кейс выполненным — подтвердите',
   'notif.list.completion_reminder': 'Напоминание: подтвердите завершение кейса',
   'notif.list.case_closed': 'Кейс закрыт',
   'notif.list.contact_issue_update': 'Есть решение по обращению о контактах',
@@ -213,7 +220,8 @@ const file05Ru = <String, String>{
   'notif.list.post_comment': '{name} прокомментировал(-а) ваш пост',
   'notif.list.comment_reply': '{name} ответил(-а) на ваш комментарий',
   'notif.list.comment_like': '{name} отметил(-а) ваш комментарий',
-  'notif.list.comment_like.many': '{name} и ещё {others} отметили ваш комментарий',
+  'notif.list.comment_like.many':
+      '{name} и ещё {others} отметили ваш комментарий',
   'notif.list.verification_update': 'Статус верификации изменился',
   'notif.list.subscription_trial_ending': 'Пробный период скоро закончится',
   'notif.list.subscription_payment_failed': 'Не удалось оплатить подписку',
@@ -268,8 +276,7 @@ const file05En = <String, String>{
   'post.viewComments': 'View all comments ({count})',
   'post.open': 'Open post',
   'post.unavailable': 'Post unavailable',
-  'post.disclaimer':
-      'For information only; this is not legal advice',
+  'post.disclaimer': 'For information only; this is not legal advice',
   'post.delete.title': 'Delete this post?',
   'post.delete.message':
       'It will disappear from the feed, your profile and search. This can’t be undone.',
@@ -313,7 +320,7 @@ const file05En = <String, String>{
   'follow.following': 'Following',
   'follow.followers': 'Followers',
   'follow.followingList': 'Following',
-  'follow.followers.empty': 'No attorney followers yet',
+  'follow.followers.empty': 'No followers yet',
   'follow.following.empty': 'Not following anyone yet',
   'suggestions.title': 'Suggested attorneys',
 
@@ -353,7 +360,8 @@ const file05En = <String, String>{
   'search.period.month': 'Last 30 days',
   'search.period.all': 'Any time',
   'search.empty.title': 'No results',
-  'search.empty.message': 'Nothing matches “{query}”. Try other words or filters.',
+  'search.empty.message':
+      'Nothing matches “{query}”. Try other words or filters.',
   'search.recent': 'Recent',
   'search.recent.clear': 'Clear',
   'search.trending': 'Popular topics',
@@ -365,7 +373,8 @@ const file05En = <String, String>{
   'inbox.open': 'Chats and notifications',
   'inbox.openWithCount': 'Chats and notifications, {count} unread',
   'chat.empty.title': 'No chats yet',
-  'chat.empty.client': 'Chats appear when an attorney writes to you about a case or you accept an offer',
+  'chat.empty.client':
+      'Chats appear when an attorney writes to you about a case or you accept an offer',
   'chat.empty.attorney': 'Open a case and tap “Message the client”',
   'chat.hiddenClient': 'Client of “{title}”',
   'chat.you': 'You',
@@ -392,7 +401,8 @@ const file05En = <String, String>{
   'chat.system.offer_accepted': 'Offer accepted, contacts are shared',
   'chat.system.no_agreement': 'No agreement was reached',
   'chat.system.case_closed': 'Case closed',
-  'chat.system.accepted_by_other': 'Another attorney was chosen. This chat is read-only',
+  'chat.system.accepted_by_other':
+      'Another attorney was chosen. This chat is read-only',
   'notif.empty': 'No notifications yet',
   'notif.markAllRead': 'Mark all read',
   'notif.unread': 'Unread',
@@ -409,7 +419,8 @@ const file05En = <String, String>{
   'notif.settings.email': 'Email',
   'notif.settings.locked': 'Important account notices can’t be turned off',
   'notif.settings.quiet': 'Quiet hours',
-  'notif.settings.quietHint': 'Pushes arrive after this window (new-device sign-ins always come through).',
+  'notif.settings.quietHint':
+      'Pushes arrive after this window (new-device sign-ins always come through).',
   'notif.settings.quietOn': 'Use quiet hours',
   'notif.settings.from': 'From',
   'notif.settings.to': 'To',
@@ -420,25 +431,30 @@ const file05En = <String, String>{
   'notif.list.bid_rejected': 'Bid declined',
   'notif.list.negotiation_failed': 'The negotiation ended without agreement',
   'notif.list.case_updated': 'Case updated',
-  'notif.list.case_stale_prompt': 'Is your case still relevant? Confirm or close it',
+  'notif.list.case_stale_prompt':
+      'Is your case still relevant? Confirm or close it',
   'notif.list.case_archived': 'Case archived',
-  'notif.list.completion_requested': 'The client marked the case done — please confirm',
+  'notif.list.completion_requested':
+      'The client marked the case done — please confirm',
   'notif.list.completion_reminder': 'Reminder: confirm the case is completed',
   'notif.list.case_closed': 'Case closed',
   'notif.list.contact_issue_update': 'Your contact issue has a decision',
   'notif.list.review_requested': 'Rate your attorney',
   'notif.list.review_received': 'You have a new review',
   'notif.list.new_follower': '{name} started following you',
-  'notif.list.new_follower.many': '{name} and {others} others started following you',
+  'notif.list.new_follower.many':
+      '{name} and {others} others started following you',
   'notif.list.post_like': '{name} liked your post',
   'notif.list.post_like.many': '{name} and {others} others liked your post',
   'notif.list.post_comment': '{name} commented on your post',
   'notif.list.comment_reply': '{name} replied to your comment',
   'notif.list.comment_like': '{name} liked your comment',
-  'notif.list.comment_like.many': '{name} and {others} others liked your comment',
+  'notif.list.comment_like.many':
+      '{name} and {others} others liked your comment',
   'notif.list.verification_update': 'Your verification status changed',
   'notif.list.subscription_trial_ending': 'Your free trial ends soon',
-  'notif.list.subscription_payment_failed': 'We couldn’t charge your subscription',
+  'notif.list.subscription_payment_failed':
+      'We couldn’t charge your subscription',
   'notif.list.subscription_status': 'Your subscription status changed',
   'notif.list.moderation_notice': 'A message from moderation',
   'notif.list.security_new_device': 'New sign-in from another device',

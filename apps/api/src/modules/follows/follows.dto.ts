@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 import { RatingDto } from '../profiles/dto/attorney-profile.dto';
+import { ClientListItemDto } from '../profiles/dto/client-profile.dto';
 
 export class AttorneyIdParamDto {
   @ApiProperty({ format: 'uuid' })
@@ -54,5 +55,26 @@ export class AttorneyListItemDto {
 
 export interface AttorneyListPage {
   items: AttorneyListItemDto[];
+  nextCursor: string | null;
+}
+
+export const PERSON_ROLES = ['attorney', 'client'] as const;
+export type PersonRoleValue = (typeof PERSON_ROLES)[number];
+
+/** One person row (OQ-026: People search, attorney followers): exactly
+ * one of [attorney]/[client] is set, by [role]. */
+export class PersonItemDto {
+  @ApiProperty({ enum: PERSON_ROLES, enumName: 'PersonRole' })
+  role!: PersonRoleValue;
+
+  @ApiPropertyOptional({ type: AttorneyListItemDto, nullable: true })
+  attorney!: AttorneyListItemDto | null;
+
+  @ApiPropertyOptional({ type: ClientListItemDto, nullable: true })
+  client!: ClientListItemDto | null;
+}
+
+export interface PeoplePage {
+  items: PersonItemDto[];
   nextCursor: string | null;
 }

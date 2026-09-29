@@ -65,6 +65,14 @@ final practiceTreeProvider = FutureProvider<List<PracticeCategory>>(
 );
 
 /// `GET /attorneys/:username` (photo included, docs/03 §4.1).
+/// OQ-026: a client's public mini-profile by @username.
+final publicClientProfileProvider =
+    FutureProvider.autoDispose.family<PublicClientProfile, String>(
+  (ref, username) =>
+      ref.watch(clientProfileRepositoryProvider).fetchPublic(username),
+  retry: (_, __) => null,
+);
+
 final publicAttorneyProfileProvider =
     FutureProvider.autoDispose.family<PublicAttorneyProfile, String>(
   (ref, username) =>
@@ -86,7 +94,8 @@ final reviewSummaryProvider =
   retry: (_, __) => null,
 );
 
-final ownAttorneyProfileProvider = FutureProvider.autoDispose<OwnAttorneyProfile>(
+final ownAttorneyProfileProvider =
+    FutureProvider.autoDispose<OwnAttorneyProfile>(
   (ref) => ref.watch(attorneyProfileRepositoryProvider).fetchOwn(),
   retry: (_, __) => null,
 );
@@ -140,13 +149,14 @@ class ReviewsListController extends AsyncNotifier<ReviewsListState> {
   Future<ReviewsListState> build() => _firstPage();
 
   Future<ReviewsListState> _firstPage() async {
-    final page = await ref
-        .read(reviewsRepositoryProvider)
-        .list(attorneyId, rating: key.rating, oldest: key.sort == ReviewsSort.oldest);
+    final page = await ref.read(reviewsRepositoryProvider).list(attorneyId,
+        rating: key.rating, oldest: key.sort == ReviewsSort.oldest);
     return ReviewsListState(
       items: page.items,
       nextCursor: page.nextCursor,
-      status: page.nextCursor == null ? AppPaginationStatus.end : AppPaginationStatus.idle,
+      status: page.nextCursor == null
+          ? AppPaginationStatus.end
+          : AppPaginationStatus.idle,
     );
   }
 
@@ -164,19 +174,19 @@ class ReviewsListController extends AsyncNotifier<ReviewsListState> {
     }
     state = AsyncData(current.copyWith(status: AppPaginationStatus.loading));
     try {
-      final page = await ref
-          .read(reviewsRepositoryProvider)
-          .list(attorneyId,
-              cursor: current.nextCursor,
-              rating: key.rating,
-              oldest: key.sort == ReviewsSort.oldest);
+      final page = await ref.read(reviewsRepositoryProvider).list(attorneyId,
+          cursor: current.nextCursor,
+          rating: key.rating,
+          oldest: key.sort == ReviewsSort.oldest);
       if (!ref.mounted) return;
       state = AsyncData(
         current.copyWith(
           items: [...current.items, ...page.items],
           nextCursor: page.nextCursor,
           clearCursor: page.nextCursor == null,
-          status: page.nextCursor == null ? AppPaginationStatus.end : AppPaginationStatus.idle,
+          status: page.nextCursor == null
+              ? AppPaginationStatus.end
+              : AppPaginationStatus.idle,
         ),
       );
     } catch (_) {
@@ -213,5 +223,7 @@ String localizedName(Translator t, String i18nKey, String fallback) {
 /// "Family law").
 String humanizeCode(String code) {
   final words = code.split('.').first.replaceAll('_', ' ');
-  return words.isEmpty ? code : '${words[0].toUpperCase()}${words.substring(1)}';
+  return words.isEmpty
+      ? code
+      : '${words[0].toUpperCase()}${words.substring(1)}';
 }

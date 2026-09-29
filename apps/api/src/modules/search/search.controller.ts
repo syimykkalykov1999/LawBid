@@ -20,8 +20,11 @@ import {
 } from '../follows/follows.dto';
 import { PostDto, type PostPage } from '../posts/dto/posts.dto';
 import {
+  type PeoplePage,
+  PersonItemDto,
   SearchAttorneysQueryDto,
   SearchCasesQueryDto,
+  SearchPeopleQueryDto,
   SearchPostsQueryDto,
   SearchTagsQueryDto,
   TagDto,
@@ -50,6 +53,22 @@ export class SearchController {
     @Query() q: SearchAttorneysQueryDto,
   ): Promise<AttorneyListPage> {
     return this.search.attorneys(user, q);
+  }
+
+  @Get('search/people')
+  @ApiOperation({
+    summary: 'People: attorneys and clients by @username / name (OQ-026)',
+  })
+  @ApiEnvelopeResponse(PersonItemDto, { isArray: true })
+  @ApiErrors({
+    400: [ErrorCode.VALIDATION_ERROR, ErrorCode.SEARCH_QUERY_TOO_SHORT],
+    429: [ErrorCode.RATE_LIMITED],
+  })
+  people(
+    @CurrentUser() user: RequestUser,
+    @Query() q: SearchPeopleQueryDto,
+  ): Promise<PeoplePage> {
+    return this.search.people(user, q);
   }
 
   @Get('search/cases')

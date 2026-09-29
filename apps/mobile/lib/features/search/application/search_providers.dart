@@ -19,7 +19,8 @@ const kSearchMinChars = 2;
 
 /// The text as the server will read it (trimmed; '@'/'#' kept — the
 /// server strips them).
-String normalizeSearch(String raw) => raw.trim().replaceAll(RegExp(r'\s+'), ' ');
+String normalizeSearch(String raw) =>
+    raw.trim().replaceAll(RegExp(r'\s+'), ' ');
 
 typedef SearchKey = ({String q, SearchFilters filters});
 
@@ -40,6 +41,27 @@ class AttorneySearchNotifier extends PagedNotifier<AttorneyRow> {
 final attorneySearchProvider = AsyncNotifierProvider.autoDispose
     .family<AttorneySearchNotifier, PaginatedList<AttorneyRow>, SearchKey>(
   AttorneySearchNotifier.new,
+  retry: _noRetry,
+);
+
+/// OQ-026 People tab: attorneys and clients in one ranked list.
+class PeopleSearchNotifier extends PagedNotifier<PersonRow> {
+  PeopleSearchNotifier(this.key);
+
+  final SearchKey key;
+
+  @override
+  Future<CursorPage<PersonRow>> fetch(String? cursor) => ref
+      .read(searchRepositoryProvider)
+      .people(key.q, key.filters, cursor: cursor);
+
+  @override
+  Object idOf(PersonRow item) => item.id;
+}
+
+final peopleSearchProvider = AsyncNotifierProvider.autoDispose
+    .family<PeopleSearchNotifier, PaginatedList<PersonRow>, SearchKey>(
+  PeopleSearchNotifier.new,
   retry: _noRetry,
 );
 
@@ -82,7 +104,8 @@ final postSearchProvider = AsyncNotifierProvider.autoDispose
   retry: _noRetry,
 );
 
-final tagSearchProvider = FutureProvider.autoDispose.family<List<TagInfo>, String>(
+final tagSearchProvider =
+    FutureProvider.autoDispose.family<List<TagInfo>, String>(
   (ref, q) => ref.watch(searchRepositoryProvider).tags(q),
   retry: _noRetry,
 );

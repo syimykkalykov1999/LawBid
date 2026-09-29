@@ -250,4 +250,6 @@ export enum ErrorCode {
   FEATURE_DISABLED = 'FEATURE_DISABLED',
   // 400: search needs at least 2 characters (§7.1).
   SEARCH_QUERY_TOO_SHORT = 'SEARCH_QUERY_TOO_SHORT',
+  // 403: one of the two users blocked the other (OQ-028).
+  USER_BLOCKED = 'USER_BLOCKED',
 }

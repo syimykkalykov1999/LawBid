@@ -9,6 +9,8 @@ part of 'client_profile_dto.dart';
 ClientProfileDto _$ClientProfileDtoFromJson(Map<String, dynamic> json) =>
     ClientProfileDto(
       id: json['id'] as String,
+      username: json['username'] as String,
+      usernameNextChangeAt: json['usernameNextChangeAt'] as String?,
       firstName: json['firstName'] as String?,
       lastName: json['lastName'] as String?,
       state: StateRefDto.fromJson(json['state'] as Map<String, dynamic>),
@@ -24,6 +26,8 @@ ClientProfileDto _$ClientProfileDtoFromJson(Map<String, dynamic> json) =>
 Map<String, dynamic> _$ClientProfileDtoToJson(ClientProfileDto instance) =>
     <String, dynamic>{
       'id': instance.id,
+      'username': instance.username,
+      'usernameNextChangeAt': ?instance.usernameNextChangeAt,
       'firstName': ?instance.firstName,
       'lastName': ?instance.lastName,
       'state': instance.state.toJson(),

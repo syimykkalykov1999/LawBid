@@ -30,6 +30,8 @@ class PublicAttorneyProfileDto {
     required this.counters,
     required this.isSelf,
     required this.isFollowing,
+    required this.isBlocked,
+    required this.hasBlockedMe,
   });
 
   factory PublicAttorneyProfileDto.fromJson(Map<String, Object?> json) =>
@@ -63,6 +65,12 @@ class PublicAttorneyProfileDto {
 
   /// The viewer follows this attorney (docs/05 §6.2).
   final bool isFollowing;
+
+  /// OQ-028: the viewer blocked this user.
+  final bool isBlocked;
+
+  /// OQ-028: this user blocked the viewer (no follow / message).
+  final bool hasBlockedMe;
 
   Map<String, Object?> toJson() => _$PublicAttorneyProfileDtoToJson(this);
 }

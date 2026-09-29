@@ -60,6 +60,10 @@ export class SearchAttorneysQueryDto extends SearchTextQueryDto {
   language?: string;
 }
 
+/** GET /search/people (OQ-026): attorneys and clients, same filters as
+ * /search/attorneys (any filter set → attorneys only). */
+export class SearchPeopleQueryDto extends SearchAttorneysQueryDto {}
+
 /** GET /search/cases (docs/05 §7.4, attorneys only). */
 export class SearchCasesQueryDto extends SearchTextQueryDto {
   @ApiPropertyOptional({ format: 'uuid' })
@@ -116,3 +120,5 @@ export class TagDto {
   })
   postsCount!: number | null;
 }
+
+export { PersonItemDto, type PeoplePage } from '../follows/follows.dto';

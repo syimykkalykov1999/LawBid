@@ -34,12 +34,14 @@ import 'clients/feed_client.dart';
 import 'clients/comments_client.dart';
 import 'clients/reports_client.dart';
 import 'clients/follows_client.dart';
-import 'clients/search_client.dart';
-import 'clients/chat_client.dart';
-import 'clients/notifications_client.dart';
 import 'clients/practice_areas_client.dart';
 import 'clients/attorneys_client.dart';
 import 'clients/profiles_client.dart';
+import 'clients/clients_client.dart';
+import 'clients/blocks_client.dart';
+import 'clients/search_client.dart';
+import 'clients/chat_client.dart';
+import 'clients/notifications_client.dart';
 import 'clients/reviews_client.dart';
 
 /// LawBid API `v0.1.0`.
@@ -83,12 +85,14 @@ class LawbidApi {
   CommentsClient? _comments;
   ReportsClient? _reports;
   FollowsClient? _follows;
-  SearchClient? _search;
-  ChatClient? _chat;
-  NotificationsClient? _notifications;
   PracticeAreasClient? _practiceAreas;
   AttorneysClient? _attorneys;
   ProfilesClient? _profiles;
+  ClientsClient? _clients;
+  BlocksClient? _blocks;
+  SearchClient? _search;
+  ChatClient? _chat;
+  NotificationsClient? _notifications;
   ReviewsClient? _reviews;
 
   ConfigClient get config => _config ??= ConfigClient(_dio, baseUrl: _baseUrl);
@@ -171,13 +175,6 @@ class LawbidApi {
   FollowsClient get follows =>
       _follows ??= FollowsClient(_dio, baseUrl: _baseUrl);
 
-  SearchClient get search => _search ??= SearchClient(_dio, baseUrl: _baseUrl);
-
-  ChatClient get chat => _chat ??= ChatClient(_dio, baseUrl: _baseUrl);
-
-  NotificationsClient get notifications =>
-      _notifications ??= NotificationsClient(_dio, baseUrl: _baseUrl);
-
   PracticeAreasClient get practiceAreas =>
       _practiceAreas ??= PracticeAreasClient(_dio, baseUrl: _baseUrl);
 
@@ -186,6 +183,18 @@ class LawbidApi {
 
   ProfilesClient get profiles =>
       _profiles ??= ProfilesClient(_dio, baseUrl: _baseUrl);
+
+  ClientsClient get clients =>
+      _clients ??= ClientsClient(_dio, baseUrl: _baseUrl);
+
+  BlocksClient get blocks => _blocks ??= BlocksClient(_dio, baseUrl: _baseUrl);
+
+  SearchClient get search => _search ??= SearchClient(_dio, baseUrl: _baseUrl);
+
+  ChatClient get chat => _chat ??= ChatClient(_dio, baseUrl: _baseUrl);
+
+  NotificationsClient get notifications =>
+      _notifications ??= NotificationsClient(_dio, baseUrl: _baseUrl);
 
   ReviewsClient get reviews =>
       _reviews ??= ReviewsClient(_dio, baseUrl: _baseUrl);

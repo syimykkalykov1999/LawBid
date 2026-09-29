@@ -85,10 +85,7 @@ void main() {
       overrides: uxOverrides(search: search),
     ));
     await tester.pump();
-    // Owner 2026-09-29: the field opens from the magnifier in the tabs row.
-    expect(find.byType(TextField), findsNothing);
-    await tester.tap(find.byIcon(Icons.search_rounded));
-    await tester.pumpAndSettle();
+    // Owner 2026-09-29 (2nd pass): the big field sits at the top again.
     await tester.enterText(find.byType(TextField), 'a');
     await tester.pump(const Duration(milliseconds: 400));
     expect(search.attorneyQueries, isEmpty);

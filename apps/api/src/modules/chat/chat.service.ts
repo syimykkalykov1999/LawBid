@@ -15,6 +15,7 @@ import { UsageLimitsService } from '../../common/usage-limits/usage-limits.servi
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
+import { BlocksService } from '../blocks/blocks.service';
 import { maskContactInfo } from '../cases/domain/contact-detector';
 import { FilesService } from '../files/files.service';
 import { BadgesService, UNREAD_CAP } from '../notifications/badges.service';
@@ -80,6 +81,7 @@ export class ChatService {
     private readonly realtime: RealtimePublisher,
     private readonly notifications: NotificationsService,
     private readonly badges: BadgesService,
+    private readonly blocks: BlocksService,
   ) {}
 
   async list(
@@ -213,6 +215,11 @@ export class ChatService {
 
     await this.limits.consume('message', user.sub);
     if (conv.status === 'closed') throw closed();
+    // OQ-028: no messages either way while one side blocks the other.
+    await this.blocks.assertNotBlocked(
+      user.sub,
+      user.sub === conv.attorney_id ? conv.client_id : conv.attorney_id,
+    );
     if (
       user.sub === conv.attorney_id &&
       !(await this.subscriptions.isActive(user.sub))

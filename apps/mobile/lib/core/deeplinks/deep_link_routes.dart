@@ -2,6 +2,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/cases/presentation/screens/case_route_screens.dart';
 import '../../features/profile/presentation/screens/attorney_profile_screen.dart';
+import '../../features/profile/presentation/screens/client_public_profile_screen.dart';
 import '../../features/social/presentation/screens/social_screens.dart';
 import '../navigation/app_page_transitions.dart';
 
@@ -15,6 +16,9 @@ abstract final class DeepLinkRoutes {
   static const casePath = '/case/:id';
   static const lawyerPath = '/lawyer/:username';
   static const postPath = '/post/:id';
+
+  /// Not a published deep link; the in-app people/followers rows use it.
+  static const clientPath = '/client/:username';
 }
 
 List<RouteBase> deepLinkRoutes() => [
@@ -30,6 +34,14 @@ List<RouteBase> deepLinkRoutes() => [
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
           AttorneyProfileScreen(
+              username: state.pathParameters['username'] ?? ''),
+        ),
+      ),
+      GoRoute(
+        path: DeepLinkRoutes.clientPath,
+        pageBuilder: (context, state) => AppPageTransitions.push(
+          state,
+          ClientPublicProfileScreen(
               username: state.pathParameters['username'] ?? ''),
         ),
       ),

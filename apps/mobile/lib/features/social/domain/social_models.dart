@@ -273,3 +273,46 @@ enum ReportReason {
 }
 
 enum ReportTarget { post, comment, message, user }
+
+/// A client in People search / followers (OQ-026): name, handle, avatar,
+/// state — never contacts.
+@immutable
+class ClientRow {
+  const ClientRow({
+    required this.id,
+    required this.username,
+    required this.stateCode,
+    this.firstName,
+    this.lastName,
+    this.avatarUrl,
+  });
+
+  final String id;
+  final String username;
+  final String? firstName;
+  final String? lastName;
+  final String? avatarUrl;
+  final String stateCode;
+
+  String get displayName {
+    final name = [firstName, lastName].whereType<String>().join(' ').trim();
+    return name.isEmpty ? '@$username' : name;
+  }
+}
+
+/// One row of a mixed people list: exactly one of [attorney]/[client].
+@immutable
+class PersonRow {
+  const PersonRow.attorney(AttorneyRow row)
+      : attorney = row,
+        client = null;
+  const PersonRow.client(ClientRow row)
+      : attorney = null,
+        client = row;
+
+  final AttorneyRow? attorney;
+  final ClientRow? client;
+
+  String get id => attorney?.id ?? client!.id;
+  String get username => attorney?.username ?? client!.username;
+}

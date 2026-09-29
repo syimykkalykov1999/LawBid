@@ -8,7 +8,9 @@ import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// Resource-creating POSTs: IdempotencyInterceptor stamps an
 /// Idempotency-Key (review create is REQUIRED to carry one, docs/03 §7.2).
-const Map<String, dynamic> _createsResource = {RequestFlags.createsResource: true};
+const Map<String, dynamic> _createsResource = {
+  RequestFlags.createsResource: true
+};
 
 /// docs/03 §4 attorney profiles (`/attorneys/*`). Throws [ApiException].
 abstract interface class AttorneyProfileRepository {
@@ -57,6 +59,10 @@ abstract interface class ReviewsRepository {
 abstract interface class ClientProfileRepository {
   Future<ClientProfileDetails> fetch();
 
+  /// `GET /clients/:username` (OQ-026) — 404 `NOT_FOUND` for unknown or
+  /// inactive clients.
+  Future<PublicClientProfile> fetchPublic(String username);
+
   Future<ClientProfileDetails> update(ClientProfilePatch patch);
 
   /// `PATCH /users/me/contact-preferences`; a null [method] clears it.
@@ -74,7 +80,9 @@ class ApiAttorneyProfileRepository implements AttorneyProfileRepository {
   @override
   Future<PublicAttorneyProfile> fetchPublic(String username) async =>
       ProfileMappers.publicProfile(
-        (await guardApiCall(() => _client.getAttorneyProfile(username: username))).data,
+        (await guardApiCall(
+                () => _client.getAttorneyProfile(username: username)))
+            .data,
       );
 
   @override
@@ -95,13 +103,16 @@ class ApiAttorneyProfileRepository implements AttorneyProfileRepository {
           .toList(growable: false),
     );
     return ProfileMappers.ownProfile(
-      (await guardApiCall(() => _client.updateMyAttorneyProfile(body: body))).data,
+      (await guardApiCall(() => _client.updateMyAttorneyProfile(body: body)))
+          .data,
     );
   }
 
   @override
-  Future<UsernameCheck> checkUsername(String username) async => ProfileMappers.username(
-        (await guardApiCall(() => _client.checkUsernameAvailable(u: username))).data,
+  Future<UsernameCheck> checkUsername(String username) async =>
+      ProfileMappers.username(
+        (await guardApiCall(() => _client.checkUsernameAvailable(u: username)))
+            .data,
       );
 }
 
@@ -128,7 +139,8 @@ class ApiPracticesRepository implements PracticesRepository {
           .toList(growable: false);
 
   @override
-  Future<List<SelectedPractice>> replace(List<String> leafIds) async => (await guardApiCall(
+  Future<List<SelectedPractice>> replace(List<String> leafIds) async =>
+      (await guardApiCall(
         () => _attorneys.replaceMyPracticeAreas(
           body: api.ReplacePracticeAreasDto(practiceAreaIds: leafIds),
         ),
@@ -166,7 +178,8 @@ class ApiReviewsRepository implements ReviewsRepository {
 
   @override
   Future<ReviewSummary> summary(String attorneyId) async =>
-      ProfileMappers.summary((await guardApiCall(() => _client.summary(id: attorneyId))).data);
+      ProfileMappers.summary(
+          (await guardApiCall(() => _client.summary(id: attorneyId))).data);
 
   @override
   Future<Review?> ownForCase(String caseId) async {
@@ -181,7 +194,8 @@ class ApiReviewsRepository implements ReviewsRepository {
   }
 
   @override
-  Future<Review> create(String caseId, {required int rating, String? body}) async =>
+  Future<Review> create(String caseId,
+          {required int rating, String? body}) async =>
       ProfileMappers.ownReview(
         (await guardApiCall(
           () => _client.create(
@@ -194,7 +208,8 @@ class ApiReviewsRepository implements ReviewsRepository {
       );
 
   @override
-  Future<Review> update(String reviewId, {required int rating, String? body}) async =>
+  Future<Review> update(String reviewId,
+          {required int rating, String? body}) async =>
       ProfileMappers.ownReview(
         (await guardApiCall(
           () => _client.update(
@@ -206,10 +221,12 @@ class ApiReviewsRepository implements ReviewsRepository {
       );
 
   @override
-  Future<void> report(String reviewId, ReviewReportReason reason) => guardApiCall(
+  Future<void> report(String reviewId, ReviewReportReason reason) =>
+      guardApiCall(
         () => _client.report(
           id: reviewId,
-          body: api.ReportReviewDto(reason: api.ReportReason.fromJson(reason.name)),
+          body: api.ReportReviewDto(
+              reason: api.ReportReason.fromJson(reason.name)),
           extras: _createsResource,
         ),
       );
@@ -223,31 +240,44 @@ class ApiReviewsRepository implements ReviewsRepository {
 class ApiClientProfileRepository implements ClientProfileRepository {
   ApiClientProfileRepository(Dio dio)
       : _dio = dio,
-        _client = api.ProfilesClient(dio);
+        _client = api.ProfilesClient(dio),
+        _clients = api.ClientsClient(dio);
 
   final Dio _dio;
   final api.ProfilesClient _client;
+  final api.ClientsClient _clients;
 
   @override
-  Future<ClientProfileDetails> fetch() async =>
-      ProfileMappers.client((await guardApiCall(_client.getMyClientProfile)).data);
+  Future<ClientProfileDetails> fetch() async => ProfileMappers.client(
+      (await guardApiCall(_client.getMyClientProfile)).data);
+
+  @override
+  Future<PublicClientProfile> fetchPublic(String username) async =>
+      ProfileMappers.publicClient(
+        (await guardApiCall(
+                () => _clients.getClientProfile(username: username)))
+            .data,
+      );
 
   @override
   Future<ClientProfileDetails> update(ClientProfilePatch patch) async {
     final body = api.UpdateClientProfileDto(
       firstName: patch.firstName?.trim(),
       lastName: patch.lastName?.trim(),
+      username: patch.username?.trim(),
       stateCode: patch.stateCode,
       languages: patch.languages
           ?.map(api.UpdateClientProfileDtoLanguages.fromJson)
           .toList(growable: false),
       contactMethod: patch.contactMethod == null
           ? null
-          : api.UpdateClientProfileDtoContactMethod.fromJson(patch.contactMethod!.wire),
+          : api.UpdateClientProfileDtoContactMethod.fromJson(
+              patch.contactMethod!.wire),
       contactNote: patch.contactNote?.trim(),
     );
     return ProfileMappers.client(
-      (await guardApiCall(() => _client.updateMyClientProfile(body: body))).data,
+      (await guardApiCall(() => _client.updateMyClientProfile(body: body)))
+          .data,
     );
   }
 
@@ -266,7 +296,8 @@ class ApiClientProfileRepository implements ClientProfileRepository {
       ),
     );
     return guardApiCall(
-      () async => ProfileMappers.client(api.ClientProfileEnvelope.fromJson(response.data!).data),
+      () async => ProfileMappers.client(
+          api.ClientProfileEnvelope.fromJson(response.data!).data),
     );
   }
 }

@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { UsageLimitsModule } from '../../common/usage-limits/usage-limits.module';
+import { BlocksModule } from '../blocks/blocks.module';
 import { FilesModule } from '../files/files.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
@@ -10,6 +11,7 @@ import { ChatService } from './chat.service';
 @Module({
   imports: [
     UsageLimitsModule,
+    BlocksModule,
     FilesModule,
     SubscriptionsModule,
     NotificationsModule,

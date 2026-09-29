@@ -5,6 +5,7 @@ import { buildVisibleCasesSql } from '../cases/queries/cases-visible.sql';
 import type {
   AttorneySearchFilters,
   CaseSearchParams,
+  PersonRole,
   SearchProvider,
 } from './search.provider';
 
@@ -34,6 +35,35 @@ export class CockroachSearchProvider implements SearchProvider {
     f: AttorneySearchFilters,
     max: number,
   ): Promise<string[]> {
+    const rows = await this.people(q, f, max, false);
+    return rows.map((r) => r.id);
+  }
+
+  searchPeople(
+    q: string,
+    f: AttorneySearchFilters,
+    max: number,
+  ): Promise<{ id: string; role: PersonRole }[]> {
+    const filtered =
+      f.practiceAreaId !== undefined ||
+      f.state !== undefined ||
+      f.minRating !== undefined ||
+      f.language !== undefined;
+    return this.people(q, f, max, !filtered);
+  }
+
+  /**
+   * Attorneys (docs/05 §7.3 branches: @username, name, practice name,
+   * state) and — OQ-026, when [withClients] — clients (@username, name),
+   * ranked together: exact handle, handle prefix, trigram similarity,
+   * attorneys before clients, verified first, rating.
+   */
+  private async people(
+    q: string,
+    f: AttorneySearchFilters,
+    max: number,
+    withClients: boolean,
+  ): Promise<{ id: string; role: PersonRole }[]> {
     const prefix = `${escapeLike(q)}%`;
     const contains = `%${escapeLike(q)}%`;
     const filters = Prisma.sql`
@@ -53,7 +83,31 @@ export class CockroachSearchProvider implements SearchProvider {
       }
       ${f.minRating !== undefined ? Prisma.sql`AND a.rating_avg >= ${f.minRating}` : Prisma.empty}
       ${f.language ? Prisma.sql`AND a.languages @> ARRAY[${f.language}]::STRING[]` : Prisma.empty}`;
-    const rows = await this.prisma.$queryRaw<{ id: string }[]>`
+    const clients = withClients
+      ? Prisma.sql`
+        UNION ALL
+        SELECT u.id, 'client' AS role, c.username_lower AS uname,
+               u.full_name_lower AS fname, FALSE AS verified,
+               0::DECIMAL AS rating
+        FROM (
+          (SELECT user_id FROM client_profiles
+            WHERE username_lower IS NOT NULL
+              AND (username_lower LIKE ${prefix} OR username_lower % ${q})
+            LIMIT ${BRANCH_CAP})
+          UNION
+          (SELECT id AS user_id FROM users
+            WHERE full_name_lower IS NOT NULL AND role = 'client'
+              AND (full_name_lower % ${q} OR full_name_lower LIKE ${contains})
+            LIMIT ${BRANCH_CAP})
+        ) cc
+        JOIN users u ON u.id = cc.user_id AND u.role = 'client'
+          AND u.status = 'active' AND u.deleted_at IS NULL
+        JOIN client_profiles c ON c.user_id = u.id
+          AND c.username_lower IS NOT NULL`
+      : Prisma.empty;
+    const rows = await this.prisma.$queryRaw<
+      { id: string; role: PersonRole }[]
+    >`
       WITH cand AS (
         (SELECT user_id AS id FROM attorney_profiles
           WHERE username_lower IS NOT NULL
@@ -75,24 +129,33 @@ export class CockroachSearchProvider implements SearchProvider {
             AND l.license_status = 'verified'
           WHERE lower(s.name) LIKE ${prefix} OR lower(s.code) = ${q}
           LIMIT ${BRANCH_CAP})
+      ),
+      people AS (
+        SELECT u.id, 'attorney' AS role, a.username_lower AS uname,
+               u.full_name_lower AS fname,
+               (a.verification_status = 'verified') AS verified,
+               a.rating_avg AS rating
+        FROM cand
+        JOIN users u ON u.id = cand.id AND u.role = 'attorney'
+          AND u.status = 'active' AND u.deleted_at IS NULL
+        JOIN attorney_profiles a ON a.user_id = u.id
+          AND a.verification_status <> 'suspended'
+        WHERE TRUE ${filters}
+        ${clients}
       )
-      SELECT u.id::STRING AS id
-      FROM cand
-      JOIN users u ON u.id = cand.id AND u.role = 'attorney'
-        AND u.status = 'active' AND u.deleted_at IS NULL
-      JOIN attorney_profiles a ON a.user_id = u.id
-        AND a.verification_status <> 'suspended'
-      WHERE TRUE ${filters}
+      SELECT id::STRING AS id, role
+      FROM people
       ORDER BY
-        (a.username_lower = ${q}) DESC,
-        (a.username_lower LIKE ${prefix}) DESC,
-        GREATEST(similarity(a.username_lower, ${q}),
-                 similarity(COALESCE(u.full_name_lower, ''), ${q})) DESC,
-        (a.verification_status = 'verified') DESC,
-        a.rating_avg DESC,
-        u.id
+        (uname = ${q}) DESC,
+        (uname LIKE ${prefix}) DESC,
+        GREATEST(similarity(uname, ${q}),
+                 similarity(COALESCE(fname, ''), ${q})) DESC,
+        (role = 'attorney') DESC,
+        verified DESC,
+        rating DESC,
+        id
       LIMIT ${max}`;
-    return rows.map((r) => r.id);
+    return rows;
   }
 
   searchCases(

@@ -17,7 +17,14 @@ import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { CounterAggregator } from '../counters/counter-aggregator.service';
 import { FilesService } from '../files/files.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import type { AttorneyListItemDto, AttorneyListPage } from './follows.dto';
+import { BlocksService } from '../blocks/blocks.service';
+import { ClientProfilesService } from '../profiles/services/client-profiles.service';
+import type {
+  AttorneyListItemDto,
+  AttorneyListPage,
+  PeoplePage,
+  PersonItemDto,
+} from './follows.dto';
 
 const PAGE = 20;
 /** Suggestions pool per client state, rebuilt at most every 10 minutes. */
@@ -47,6 +54,8 @@ export class FollowsService {
     private readonly counters: CounterAggregator,
     private readonly notifications: NotificationsService,
     private readonly files: FilesService,
+    private readonly clients: ClientProfilesService,
+    private readonly blocks: BlocksService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {}
 
@@ -73,6 +82,8 @@ export class FollowsService {
     ) {
       throw notAllowed();
     }
+    // OQ-028: no follows across a block.
+    await this.blocks.assertNotBlocked(user.sub, attorneyId);
     await this.limits.consume('follow', user.sub);
     const { count } = await this.prisma.follow.createMany({
       data: [{ follower_id: user.sub, followee_id: attorneyId }],
@@ -107,13 +118,77 @@ export class FollowsService {
   }
 
   /** GET /attorneys/:id/followers — attorney followers only (§6.2). */
+  /** Owner 2026-09-29 (OQ-026): followers of an attorney are listed with
+   * both roles — attorneys as before, clients as mini rows (they now have
+   * usernames and a public mini-profile). */
   async followers(
     viewerId: string,
     attorneyId: string,
     cursor?: string,
-  ): Promise<AttorneyListPage> {
+  ): Promise<PeoplePage> {
     await this.assertPublicAttorney(attorneyId);
-    return this.pageOf(viewerId, cursor, 'followee', attorneyId);
+    const c = cursor ? decodeCursor(cursor) : undefined;
+    const rows = await this.prisma.follow.findMany({
+      where: {
+        followee_id: attorneyId,
+        follower: {
+          status: 'active',
+          deleted_at: null,
+          OR: [
+            { role: 'client' },
+            {
+              role: 'attorney',
+              attorney_profile: {
+                verification_status: { not: 'suspended' },
+              },
+            },
+          ],
+        },
+        ...(c
+          ? {
+              OR: [
+                { created_at: { lt: c.createdAt } },
+                { created_at: c.createdAt, follower_id: { lt: c.id } },
+              ],
+            }
+          : {}),
+      },
+      orderBy: [{ created_at: 'desc' }, { follower_id: 'desc' }],
+      take: PAGE + 1,
+      select: {
+        follower_id: true,
+        created_at: true,
+        follower: { select: { role: true } },
+      },
+    });
+    const page = rows.slice(0, PAGE);
+    const attorneyIds = page
+      .filter((r) => r.follower.role === 'attorney')
+      .map((r) => r.follower_id);
+    const clientIds = page
+      .filter((r) => r.follower.role === 'client')
+      .map((r) => r.follower_id);
+    const [attorneys, clients] = await Promise.all([
+      this.present(attorneyIds, viewerId),
+      this.clients.presentMany(clientIds),
+    ]);
+    const byAttorney = new Map(attorneys.map((a) => [a.id, a]));
+    const byClient = new Map(clients.map((x) => [x.id, x]));
+    const items: PersonItemDto[] = [];
+    for (const r of page) {
+      const a = byAttorney.get(r.follower_id);
+      const x = byClient.get(r.follower_id);
+      if (a) items.push({ role: 'attorney', attorney: a, client: null });
+      else if (x) items.push({ role: 'client', attorney: null, client: x });
+    }
+    const last = page[page.length - 1];
+    return {
+      items,
+      nextCursor:
+        rows.length > PAGE && last
+          ? encodeCursor({ createdAt: last.created_at, id: last.follower_id })
+          : null,
+    };
   }
 
   /** GET /attorneys/:id/following — public list of attorneys. */

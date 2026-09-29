@@ -268,6 +268,7 @@ class FakeClientRepo implements ClientProfileRepository {
   final prefs = <(ContactPreference?, String)>[];
   ClientProfileDetails profile = const ClientProfileDetails(
     id: 'cl-1',
+    username: 'anna.kowalski',
     firstName: 'Anna',
     lastName: 'Kowalski',
     state: StateRef(code: 'CA', name: 'California'),
@@ -283,6 +284,20 @@ class FakeClientRepo implements ClientProfileRepository {
 
   @override
   Future<ClientProfileDetails> update(ClientProfilePatch patch) async => profile;
+
+  @override
+  Future<PublicClientProfile> fetchPublic(String username) async {
+    if (error != null) throw error!;
+    return PublicClientProfile(
+      id: 'cl-2',
+      username: username,
+      firstName: 'Mini',
+      lastName: 'Client',
+      state: const StateRef(code: 'NY', name: 'New York'),
+      memberSince: kNow,
+      isSelf: false,
+    );
+  }
 
   @override
   Future<ClientProfileDetails> updateContactPreferences({required ContactPreference? method, required String note}) async {

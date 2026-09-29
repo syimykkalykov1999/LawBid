@@ -39,6 +39,7 @@ enum MissingRequirement {
 class ClientProfile {
   const ClientProfile({
     required this.stateCode,
+    this.username,
     this.languages = const [],
     this.contactMethod,
     this.contactNote,
@@ -46,11 +47,14 @@ class ClientProfile {
 
   factory ClientProfile.fromJson(Map<String, dynamic> json) => ClientProfile(
         stateCode: json['stateCode'] as String,
+        username: json['username'] as String?,
         languages: _stringList(json['languages']),
         contactMethod: json['contactMethod'] as String?,
         contactNote: json['contactNote'] as String?,
       );
 
+  /// OQ-026: clients have @usernames too (null only on very old caches).
+  final String? username;
   final String stateCode;
   final List<String> languages;
 

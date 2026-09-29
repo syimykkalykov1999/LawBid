@@ -11,10 +11,14 @@ export const USERNAME_MAX = 30;
 /** Base used when the name has no latin letters/digits at all. */
 export const USERNAME_FALLBACK = 'attorney';
 
+/** Base for a client without latin letters/digits in the name (OQ-026). */
+export const CLIENT_USERNAME_FALLBACK = 'client';
+
 /** "Jöhn  O'Neil", "Roe" → "john.oneil.roe"-style slug (≤ USERNAME_MAX). */
 export function usernameBase(
   firstName: string | null,
   lastName: string | null,
+  fallback: string = USERNAME_FALLBACK,
 ): string {
   const part = (s: string | null): string =>
     (s ?? '')
@@ -25,7 +29,7 @@ export function usernameBase(
       .replace(/^\.+|\.+$/g, '');
   let base = [part(firstName), part(lastName)].filter(Boolean).join('.');
   base = base.slice(0, USERNAME_MAX).replace(/\.+$/g, '');
-  if (base.length < USERNAME_MIN) base = USERNAME_FALLBACK;
+  if (base.length < USERNAME_MIN) base = fallback;
   return base;
 }
 

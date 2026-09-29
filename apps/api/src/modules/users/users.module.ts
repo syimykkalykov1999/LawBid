@@ -8,6 +8,7 @@ import { AccountDeletionService } from './services/account-deletion.service';
 import { OnboardingService } from './services/onboarding.service';
 import { UserProfilesService } from './services/user-profiles.service';
 import { AccountIdentifiersService } from './services/account-identifiers.service';
+import { UsernameRegistry } from './services/username-registry.service';
 
 /**
  * docs/01_FOUNDATION_AUTH.md §15 stage 1.4. Imports AuthModule for the
@@ -27,7 +28,8 @@ import { AccountIdentifiersService } from './services/account-identifiers.servic
     OnboardingService,
     UserProfilesService,
     AccountIdentifiersService,
+    UsernameRegistry,
   ],
-  exports: [OnboardingService, UserProfilesService],
+  exports: [OnboardingService, UserProfilesService, UsernameRegistry],
 })
 export class UsersModule {}

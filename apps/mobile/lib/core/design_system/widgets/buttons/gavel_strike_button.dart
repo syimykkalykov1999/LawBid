@@ -40,6 +40,7 @@ class GavelStrikeButton extends StatefulWidget {
     this.icon,
     this.isLoading = false,
     this.isEnabled = true,
+    this.dimWhenDisabled = false,
     this.height = 50,
   });
 
@@ -50,6 +51,9 @@ class GavelStrikeButton extends StatefulWidget {
   final IconData? icon;
   final bool isLoading;
   final bool isEnabled;
+
+  /// See [AppButton.dimWhenDisabled].
+  final bool dimWhenDisabled;
   final double height;
 
   @override
@@ -68,9 +72,10 @@ class _GavelStrikeButtonState extends State<GavelStrikeButton>
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(vsync: this, duration: AppMotion.gavelStrike)
-      ..addListener(_onTick)
-      ..addStatusListener(_onStatus);
+    _controller =
+        AnimationController(vsync: this, duration: AppMotion.gavelStrike)
+          ..addListener(_onTick)
+          ..addStatusListener(_onStatus);
   }
 
   void _onTick() {
@@ -102,10 +107,13 @@ class _GavelStrikeButtonState extends State<GavelStrikeButton>
   }
 
   void _handleTap() {
-    if (_isAnimating) return; // repeated taps during animation are ignored (file 07 §7.3)
-    if (widget.onPressed == null || !widget.isEnabled || widget.isLoading) return;
+    if (_isAnimating)
+      return; // repeated taps during animation are ignored (file 07 §7.3)
+    if (widget.onPressed == null || !widget.isEnabled || widget.isLoading)
+      return;
 
-    final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    final reduceMotion =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
     if (!widget.strike || reduceMotion) {
       widget.onPressed!.call();
       return;
@@ -149,6 +157,7 @@ class _GavelStrikeButtonState extends State<GavelStrikeButton>
       icon: widget.icon,
       isLoading: widget.isLoading,
       isEnabled: widget.isEnabled,
+      dimWhenDisabled: widget.dimWhenDisabled,
       height: widget.height,
       onTapDown: _handleTapDown,
       onPressed: _handleTap,
@@ -190,7 +199,8 @@ class _GavelStrikeOverlay extends StatelessWidget {
               return CustomPaint(
                 size: const Size(size, size),
                 painter: _GavelStrikePainter(
-                  progress: AppMotion.gavelStrikeCurve.transform(controller.value),
+                  progress:
+                      AppMotion.gavelStrikeCurve.transform(controller.value),
                   rawProgress: controller.value,
                   mirror: mirror,
                   colors: colors,
@@ -273,7 +283,8 @@ class _GavelStrikePainter extends CustomPainter {
     final pedestalOpacity = math.min(pedestalT, pedestalFadeOut);
     final pedestalDy = progress >= AppMotion.gavelHitProgress ? 2.0 : 0.0;
     if (pedestalOpacity > 0) {
-      final pedestalPaint = Paint()..color = colors.gold.withValues(alpha: pedestalOpacity);
+      final pedestalPaint = Paint()
+        ..color = colors.gold.withValues(alpha: pedestalOpacity);
       final pedestalRect = Rect.fromCenter(
         center: Offset(0, pedestalDy),
         width: 32,
@@ -318,9 +329,12 @@ class _GavelStrikePainter extends CustomPainter {
       canvas.scale(scaleX, scaleY);
 
       final gavelOpacity = opacity;
-      final handlePaint = Paint()..color = handleColor.withValues(alpha: gavelOpacity);
-      final headPaint = Paint()..color = headColor.withValues(alpha: gavelOpacity);
-      final stripePaint = Paint()..color = stripeColor.withValues(alpha: gavelOpacity);
+      final handlePaint = Paint()
+        ..color = handleColor.withValues(alpha: gavelOpacity);
+      final headPaint = Paint()
+        ..color = headColor.withValues(alpha: gavelOpacity);
+      final stripePaint = Paint()
+        ..color = stripeColor.withValues(alpha: gavelOpacity);
 
       // Handle: rect(22,22,64,8) radius 4.
       canvas.drawRRect(
@@ -350,7 +364,8 @@ class _GavelStrikePainter extends CustomPainter {
     // against the linear controller value, not the eased `progress`. ---
     const ringStartFraction = 300 / 620;
     const ringDurationFraction = 500 / 620;
-    final ringT = ((rawProgress - ringStartFraction) / ringDurationFraction).clamp(0.0, 1.0);
+    final ringT = ((rawProgress - ringStartFraction) / ringDurationFraction)
+        .clamp(0.0, 1.0);
     if (rawProgress >= ringStartFraction) {
       final ringScale = 0.4 + (6.5 - 0.4) * ringT;
       final ringOpacity = (0.9 - 0.9 * ringT).clamp(0.0, 1.0);
@@ -366,6 +381,7 @@ class _GavelStrikePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _GavelStrikePainter oldDelegate) {
-    return oldDelegate.rawProgress != rawProgress || oldDelegate.mirror != mirror;
+    return oldDelegate.rawProgress != rawProgress ||
+        oldDelegate.mirror != mirror;
   }
 }

@@ -27,6 +27,8 @@ export interface CaseSearchParams {
  * Every method returns ids only — access and presentation stay in
  * SearchService (cases always go through CaseAccessPolicy there).
  */
+export type PersonRole = 'attorney' | 'client';
+
 export interface SearchProvider {
   /** Ranked attorney ids (§7.3), at most [max]. */
   searchAttorneys(
@@ -34,6 +36,14 @@ export interface SearchProvider {
     filters: AttorneySearchFilters,
     max: number,
   ): Promise<string[]>;
+  /** OQ-026 People: attorneys AND clients by @username / name, ranked
+   * together, at most [max]. With any attorney filter set only attorneys
+   * qualify (clients have no practices/licenses/ratings). */
+  searchPeople(
+    q: string,
+    filters: AttorneySearchFilters,
+    max: number,
+  ): Promise<{ id: string; role: PersonRole }[]>;
   /** Case ids visible to the attorney by the §4.1 rules, newest first,
    * limit + 1 rows (the extra one signals a next page). */
   searchCases(

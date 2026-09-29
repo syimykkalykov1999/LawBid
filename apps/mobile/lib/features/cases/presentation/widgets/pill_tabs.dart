@@ -111,53 +111,26 @@ class _Segment extends StatelessWidget {
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: onTap,
-          child: AnimatedContainer(
-            duration: motion,
-            curve: AppMotion.enterCurve,
-            color: selected
-                ? colors.goldTint
-                : colors.goldTint.withValues(alpha: 0),
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.sm,
-                    vertical: AppSpacing.xs,
+          // Owner 2026-09-29 (2nd pass): no gold tint and no underline —
+          // the selected section is told apart by bold, darker text only.
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.sm,
+                vertical: AppSpacing.xs,
+              ),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: AnimatedDefaultTextStyle(
+                  duration: motion,
+                  style: typography.button.copyWith(
+                    color: selected ? colors.text : colors.textSecondary,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                   ),
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: AnimatedDefaultTextStyle(
-                      duration: motion,
-                      style: typography.button.copyWith(
-                        color: selected ? colors.text : colors.textSecondary,
-                        fontWeight:
-                            selected ? FontWeight.w700 : FontWeight.w500,
-                      ),
-                      textAlign: TextAlign.center,
-                      child: Text(label, textAlign: TextAlign.center),
-                    ),
-                  ),
+                  textAlign: TextAlign.center,
+                  child: Text(label, textAlign: TextAlign.center),
                 ),
-                Positioned(
-                  left: AppSpacing.md,
-                  right: AppSpacing.md,
-                  bottom: 0,
-                  child: AnimatedContainer(
-                    duration: motion,
-                    curve: AppMotion.enterCurve,
-                    height: 2,
-                    decoration: BoxDecoration(
-                      color: selected
-                          ? colors.gold
-                          : colors.gold.withValues(alpha: 0),
-                      borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(AppRadii.pill),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         ),

@@ -9,9 +9,7 @@ import 'package:lawbid/features/onboarding/application/current_user_controller.d
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/presentation/screens/attorney_profile_screen.dart';
 import 'package:lawbid/features/profile/presentation/widgets/attorney_profile_view.dart';
-import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/widgets/client_profile_view.dart';
-import 'package:lawbid/features/profile/presentation/widgets/profile_avatar.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_handle_bar.dart';
 
 /// Profile tab (docs/03 §8 «Профиль»): an attorney sees their own public
@@ -33,7 +31,8 @@ class ProfileScreen extends ConsumerWidget {
     if (user == null) {
       body = const AttorneyProfileSkeleton();
     } else if (user.isAttorney && username != null) {
-      body = AttorneyProfileBody(username: username, needsVerification: needsVerification);
+      body = AttorneyProfileBody(
+          username: username, needsVerification: needsVerification);
     } else if (user.isClient) {
       body = const ClientProfileView();
     } else {
@@ -47,19 +46,10 @@ class ProfileScreen extends ConsumerWidget {
     // a small avatar left, the gear right; no "Profile" word.
     return Scaffold(
       backgroundColor: colors.bg,
+      // Owner 2026-09-29 (2nd pass): no small avatar in the corner — the
+      // left slot stays empty, the handle stays centered.
       appBar: ProfileHandleBar(
-        handle: username,
-        leading: SizedBox.square(
-          dimension: AppSizes.touchTarget,
-          child: Center(
-            child: ProfileAvatar(
-              size: AppSizes.iconLg + AppSpacing.xs,
-              url: user?.avatarUrl,
-              initials: initialsOf(user?.firstName, user?.lastName),
-              semanticLabel: t.t('profile.avatar.label'),
-            ),
-          ),
-        ),
+        handle: username ?? user?.clientProfile?.username,
         actions: [
           Semantics(
             button: true,
@@ -69,7 +59,8 @@ class ProfileScreen extends ConsumerWidget {
               onTap: () => context.push(AppRoutes.profileSettings),
               child: SizedBox.square(
                 dimension: AppSizes.touchTarget,
-                child: Icon(Icons.settings_outlined, color: colors.text, size: AppSizes.iconMd),
+                child: Icon(Icons.settings_outlined,
+                    color: colors.text, size: AppSizes.iconMd),
               ),
             ),
           ),

@@ -85,49 +85,51 @@ class _ClientBody extends ConsumerWidget {
     final name = profile.fullName;
 
     final children = <Widget>[
-      AppCard(
-        elevated: true,
-        child: Row(
-          children: [
-            ProfileAvatar(
-              size: AppSizes.stateMedallion - AppSpacing.lg,
-              url: avatarUrl,
-              initials: initialsOf(profile.firstName, profile.lastName),
-              semanticLabel: t.t('profile.avatar.label'),
-            ),
-            const SizedBox(width: AppSpacing.lg),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Semantics(
-                    header: true,
-                    child: Text(
-                      name.isEmpty ? t.t('profile.client.noName') : name,
-                      style:
-                          typography.titleWelcome.copyWith(color: colors.text),
-                    ),
+      // Owner 2026-09-29: Instagram-like header, same as the attorney's —
+      // avatar left, name and state beside it, no card frame.
+      Row(
+        children: [
+          ProfileAvatar(
+            size: 88,
+            url: avatarUrl,
+            initials: initialsOf(profile.firstName, profile.lastName,
+                fallback: profile.username),
+            semanticLabel: t.t('profile.avatar.label'),
+          ),
+          const SizedBox(width: AppSpacing.lg),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Semantics(
+                  header: true,
+                  child: Text(
+                    name.isEmpty ? t.t('profile.client.noName') : name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: typography.body.copyWith(
+                        color: colors.text, fontWeight: FontWeight.w700),
                   ),
-                  const SizedBox(height: AppSpacing.xs),
-                  Row(
-                    children: [
-                      Icon(Icons.location_on_outlined,
-                          size: AppSpacing.lg, color: colors.goldStroke),
-                      const SizedBox(width: AppSpacing.xs),
-                      Flexible(
-                        child: Text(
-                          profile.state.name,
-                          style: typography.bodySmall
-                              .copyWith(color: colors.textSecondary),
-                        ),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Row(
+                  children: [
+                    Icon(Icons.location_on_outlined,
+                        size: AppSpacing.lg, color: colors.goldStroke),
+                    const SizedBox(width: AppSpacing.xs),
+                    Flexible(
+                      child: Text(
+                        profile.state.name,
+                        style: typography.bodySmall
+                            .copyWith(color: colors.textSecondary),
                       ),
-                    ],
-                  ),
-                ],
-              ),
+                    ),
+                  ],
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
       AppButton(
         label: t.t('profile.action.edit'),

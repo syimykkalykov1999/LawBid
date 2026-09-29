@@ -203,6 +203,9 @@ class _CreateCaseScreenState extends ConsumerState<CreateCaseScreen> {
                     strike: true,
                     isLoading: state.isSubmitting,
                     isEnabled: state.stepValid,
+                    // Owner 2026-09-29: visibly off until the consent box
+                    // is ticked, lights up once it is.
+                    dimWhenDisabled: true,
                     onPressed: _publish,
                   ),
                   AppButton(

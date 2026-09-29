@@ -77,12 +77,23 @@ describe('AttorneyProfilesService', () => {
       number: jest.fn(() => Promise.resolve(30)),
       stringList: jest.fn(() => Promise.resolve(['admin', 'LawBid'])),
     };
+    // OQ-026: uniqueness is answered by the shared registry (both roles).
+    const usernames = {
+      isTaken: jest.fn((_db: unknown, _lower: string, except?: string) =>
+        Promise.resolve(holder !== null && holder.user_id !== except),
+      ),
+    };
     const svc = new AttorneyProfilesService(
       prisma as unknown as PrismaService,
       settings as unknown as AppSettingsService,
       {} as PracticeAreasService,
       {} as FilesService,
       {} as never,
+      usernames as never,
+      {
+        relation: () =>
+          Promise.resolve({ isBlocked: false, hasBlockedMe: false }),
+      } as never,
     );
     // getOwn is covered by e2e; here only the write path matters.
     jest.spyOn(svc, 'getOwn').mockResolvedValue({} as never);
@@ -196,6 +207,11 @@ describe('AttorneyProfilesService', () => {
           ),
         } as unknown as FilesService,
         { pending: jest.fn(() => Promise.resolve(new Map())) } as never,
+        {} as never,
+        {
+          relation: () =>
+            Promise.resolve({ isBlocked: false, hasBlockedMe: false }),
+        } as never,
       );
     }
     const base = {

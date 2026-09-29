@@ -8,6 +8,7 @@ import 'package:retrofit/retrofit.dart';
 import '../models/attorney_list_item_list_envelope.dart';
 import '../models/case_feed_item_list_envelope.dart';
 import '../models/period.dart';
+import '../models/person_item_list_envelope.dart';
 import '../models/post_list_envelope.dart';
 import '../models/sort2.dart';
 import '../models/tag_list_envelope.dart';
@@ -25,6 +26,22 @@ abstract class SearchClient {
   /// [q] - Search text, at least 2 characters (§7.1).
   @GET('/search/attorneys')
   Future<AttorneyListItemListEnvelope> attorneys({
+    @Query('q') required String q,
+    @Query('cursor') String? cursor,
+    @Query('practiceAreaId') String? practiceAreaId,
+    @Query('state') String? state,
+    @Query('minRating') num? minRating,
+    @Query('language') String? language,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// People: attorneys and clients by @username / name (OQ-026).
+  ///
+  /// [cursor] - meta.nextCursor of the previous page.
+  ///
+  /// [q] - Search text, at least 2 characters (§7.1).
+  @GET('/search/people')
+  Future<PersonItemListEnvelope> people({
     @Query('q') required String q,
     @Query('cursor') String? cursor,
     @Query('practiceAreaId') String? practiceAreaId,

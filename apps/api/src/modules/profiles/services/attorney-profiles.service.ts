@@ -7,6 +7,8 @@ import { AppSettingsService } from '../../../common/app-settings/app-settings.se
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { startNameRecheckIfVerified } from '../../users/services/attorney-name-recheck';
 import { isValidUsername } from '../../users/services/username.util';
+import { UsernameRegistry } from '../../users/services/username-registry.service';
+import { BlocksService } from '../../blocks/blocks.service';
 import type {
   OwnAttorneyProfileDto,
   PublicAttorneyProfileDto,
@@ -66,6 +68,8 @@ export class AttorneyProfilesService {
     private readonly practices: PracticeAreasService,
     private readonly files: FilesService,
     private readonly counters: CounterAggregator,
+    private readonly usernames: UsernameRegistry,
+    private readonly blocks: BlocksService,
   ) {}
 
   async getOwn(
@@ -175,12 +179,12 @@ export class AttorneyProfilesService {
               'This username is reserved.',
             );
           }
-          if (lower !== current.username_lower) {
-            const holder = await tx.attorneyProfile.findUnique({
-              where: { username_lower: lower },
-              select: { user_id: true },
-            });
-            if (holder) throw usernameTaken();
+          // OQ-026: one namespace with client usernames.
+          if (
+            lower !== current.username_lower &&
+            (await this.usernames.isTaken(tx, lower, userId))
+          ) {
+            throw usernameTaken();
           }
           data.username = dto.username;
           data.username_lower = lower;
@@ -320,6 +324,7 @@ export class AttorneyProfilesService {
       },
       isSelf: row.user_id === viewerId,
       isFollowing: follow !== null,
+      ...(await this.blocks.relation(viewerId, row.user_id)),
     };
   }
 
@@ -345,11 +350,10 @@ export class AttorneyProfilesService {
     if (reserved.some((r) => r.toLowerCase() === lower)) {
       return result('reserved');
     }
-    const holder = await this.prisma.attorneyProfile.findUnique({
-      where: { username_lower: lower },
-      select: { user_id: true },
-    });
-    return result(holder && holder.user_id !== viewerId ? 'taken' : null);
+    // OQ-026: taken by anyone of either role (the caller's own handle is
+    // reported available).
+    const taken = await this.usernames.isTaken(this.prisma, lower, viewerId);
+    return result(taken ? 'taken' : null);
   }
 }
 

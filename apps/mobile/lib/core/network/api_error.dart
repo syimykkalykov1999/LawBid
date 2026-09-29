@@ -110,6 +110,7 @@ abstract final class ApiErrorCodes {
   static const messageTooLong = 'MESSAGE_TOO_LONG';
   static const featureDisabled = 'FEATURE_DISABLED';
   static const searchQueryTooShort = 'SEARCH_QUERY_TOO_SHORT';
+  static const userBlocked = 'USER_BLOCKED';
   static const bidAttorneyInactive = 'BID_ATTORNEY_INACTIVE';
   static const contactsLocked = 'CONTACTS_LOCKED';
   static const contactIssueAlreadyOpen = 'CONTACT_ISSUE_ALREADY_OPEN';
@@ -122,10 +123,8 @@ abstract final class ApiErrorCodes {
   // Subscription / Stripe (docs/06 §1, stage 6.7)
   static const paymentsNotConfigured = 'PAYMENTS_NOT_CONFIGURED';
   static const subscriptionAlreadyActive = 'SUBSCRIPTION_ALREADY_ACTIVE';
-  static const subscriptionTrialUnavailable =
-      'SUBSCRIPTION_TRIAL_UNAVAILABLE';
-  static const subscriptionSetupIncomplete =
-      'SUBSCRIPTION_SETUP_INCOMPLETE';
+  static const subscriptionTrialUnavailable = 'SUBSCRIPTION_TRIAL_UNAVAILABLE';
+  static const subscriptionSetupIncomplete = 'SUBSCRIPTION_SETUP_INCOMPLETE';
   static const subscriptionNotFound = 'SUBSCRIPTION_NOT_FOUND';
   static const webhookSignatureInvalid = 'WEBHOOK_SIGNATURE_INVALID';
   // Request limits, admin panel, moderation, flags, legal (docs/06)
@@ -223,6 +222,7 @@ abstract final class ApiErrorCodes {
     messageTooLong,
     featureDisabled,
     searchQueryTooShort,
+    userBlocked,
     bidAttorneyInactive,
     contactsLocked,
     contactIssueAlreadyOpen,

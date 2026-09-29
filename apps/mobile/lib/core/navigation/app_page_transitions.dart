@@ -1,3 +1,5 @@
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -9,11 +11,28 @@ import 'package:lawbid/core/design_system/design_system.dart';
 /// outgoing page dims back slightly. Exit is faster than enter. Under
 /// reduce-motion the transition is skipped entirely (instant swap).
 ///
+/// iOS / macOS (owner 2026-09-29): pushes use [CupertinoPage] so the
+/// platform's swipe-from-the-left-edge back gesture works everywhere — a
+/// `CustomTransitionPage` has no interactive pop. Android keeps the shared
+/// axis motion (its back gesture is system-level).
+///
 /// The welcome route deliberately keeps its plain `builder` (owner: the
 /// welcome screen is not part of this pass).
 abstract final class AppPageTransitions {
+  static bool get _cupertino => switch (defaultTargetPlatform) {
+        TargetPlatform.iOS || TargetPlatform.macOS => true,
+        _ => false,
+      };
+
   /// Standard push (forward navigation within a flow).
   static Page<void> push(GoRouterState state, Widget child) {
+    if (_cupertino) {
+      return CupertinoPage<void>(
+        key: state.pageKey,
+        name: state.name,
+        child: child,
+      );
+    }
     return CustomTransitionPage<void>(
       key: state.pageKey,
       name: state.name,
@@ -27,6 +46,14 @@ abstract final class AppPageTransitions {
   /// Full-screen modal (the "+" create flow, file 07 §3.4): rises from
   /// the bottom and fades in.
   static Page<void> modal(GoRouterState state, Widget child) {
+    if (_cupertino) {
+      return CupertinoPage<void>(
+        key: state.pageKey,
+        name: state.name,
+        fullscreenDialog: true,
+        child: child,
+      );
+    }
     return CustomTransitionPage<void>(
       key: state.pageKey,
       name: state.name,

@@ -34,6 +34,7 @@ import 'package:lawbid/features/profile/presentation/screens/practices_screen.da
 import 'package:lawbid/features/profile/presentation/screens/review_form_screen.dart';
 import 'package:lawbid/features/profile/presentation/screens/verification_required_screen.dart';
 import 'package:lawbid/features/profile/presentation/screens/profile_screen.dart';
+import 'package:lawbid/features/blocks/presentation/blocked_users_screen.dart';
 import 'package:lawbid/features/profile/presentation/screens/settings_screen.dart';
 import 'package:lawbid/features/settings/account/account_routes.dart';
 import 'package:lawbid/features/verification/presentation/screens/verification_status_screen.dart';
@@ -266,6 +267,12 @@ GoRouter appRouter(Ref ref) {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) =>
             AppPageTransitions.push(state, const DataExportScreen()),
+      ),
+      GoRoute(
+        path: AppRoutes.blockedUsers,
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            AppPageTransitions.push(state, const BlockedUsersScreen()),
       ),
       GoRoute(
         path: AppRoutes.caseHistoryItemPattern,

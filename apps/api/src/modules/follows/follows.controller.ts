@@ -24,6 +24,8 @@ import {
   AttorneyListItemDto,
   FollowsQueryDto,
   type AttorneyListPage,
+  type PeoplePage,
+  PersonItemDto,
 } from './follows.dto';
 import { FollowsService } from './follows.service';
 
@@ -64,14 +66,14 @@ export class FollowsController {
 
   @Get('attorneys/:id/followers')
   @ApiOperation({
-    summary: 'Attorney followers — attorneys only (docs/05 §6.2)',
+    summary: 'Attorney followers — attorneys and clients (OQ-026)',
   })
-  @ApiEnvelopeResponse(AttorneyListItemDto, { isArray: true })
+  @ApiEnvelopeResponse(PersonItemDto, { isArray: true })
   listFollowers(
     @CurrentUser() user: RequestUser,
     @Param() p: AttorneyIdParamDto,
     @Query() q: FollowsQueryDto,
-  ): Promise<AttorneyListPage> {
+  ): Promise<PeoplePage> {
     return this.follows.followers(user.sub, p.id, q.cursor);
   }
 

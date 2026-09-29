@@ -110,7 +110,8 @@ const file06Ru = <String, String>{
       'Ссылка действует 24 часа и придёт на {email}. Она также появится здесь.',
   'dataExport.linkNoEmail':
       'Ссылка действует 24 часа и появится здесь, когда архив будет готов.',
-  'dataExport.reauthNote': 'Подтверждение нужно, чтобы архив получили только вы.',
+  'dataExport.reauthNote':
+      'Подтверждение нужно, чтобы архив получили только вы.',
   'dataExport.request': 'Запросить выгрузку',
   'dataExport.requestAgain': 'Запросить снова',
   'dataExport.download': 'Скачать архив',
@@ -126,8 +127,10 @@ const file06Ru = <String, String>{
       'Собираем архив. Экран обновится сам; можно закрыть приложение — ссылка придёт на почту.',
   'dataExport.status.line.ready': 'Ссылка действует до {date}.',
   'dataExport.status.line.readyNoDate': 'Архив готов.',
-  'dataExport.status.line.failed': 'Не удалось собрать архив. Попробуйте ещё раз.',
-  'dataExport.status.line.expired': 'Срок ссылки истёк. Запросите выгрузку снова.',
+  'dataExport.status.line.failed':
+      'Не удалось собрать архив. Попробуйте ещё раз.',
+  'dataExport.status.line.expired':
+      'Срок ссылки истёк. Запросите выгрузку снова.',
   'notif.list.data_export_ready': 'Выгрузка данных готова',
   'notif.list.case_history_export_ready': 'PDF истории кейсов готов',
   // --- Коды ошибок (docs/06) ---
@@ -143,6 +146,22 @@ const file06Ru = <String, String>{
       'Текст не прошёл проверку. Уберите запрещённые слова или ссылки и попробуйте снова.',
   // Owner changes 2026-09-29 (search field behind the magnifier).
   'search.open': 'Поиск',
+  'person.client': 'Клиент',
+  'client.memberSince': 'В LawBid с {date}',
+  'client.profile.unavailable': 'Профиль недоступен',
+  // OQ-028 blocks.
+  'block.action': 'Заблокировать',
+  'block.unblock': 'Разблокировать',
+  'block.confirm.title': 'Заблокировать {name}?',
+  'block.confirm.body':
+      'Вы не сможете писать друг другу и подписываться, а также не будете находить друг друга в поиске. Разблокировать можно в любой момент.',
+  'block.done': 'Пользователь заблокирован',
+  'block.undone': 'Пользователь разблокирован',
+  'block.blockedYou': 'Этот пользователь ограничил общение с вами',
+  'block.byYou': 'Вы заблокировали этого пользователя',
+  'settings.blocked': 'Заблокированные',
+  'blocked.empty': 'Вы никого не заблокировали',
+  'error.api.USER_BLOCKED': 'Общение с этим пользователем недоступно.',
 };
 
 const file06En = <String, String>{
@@ -255,7 +274,8 @@ const file06En = <String, String>{
       'The link works for 24 hours and goes to {email}. It also appears here.',
   'dataExport.linkNoEmail':
       'The link works for 24 hours and appears here once the archive is ready.',
-  'dataExport.reauthNote': 'Confirmation makes sure only you receive the archive.',
+  'dataExport.reauthNote':
+      'Confirmation makes sure only you receive the archive.',
   'dataExport.request': 'Request export',
   'dataExport.requestAgain': 'Request again',
   'dataExport.download': 'Download archive',
@@ -272,7 +292,8 @@ const file06En = <String, String>{
   'dataExport.status.line.ready': 'The link works until {date}.',
   'dataExport.status.line.readyNoDate': 'The archive is ready.',
   'dataExport.status.line.failed': 'The archive could not be built. Try again.',
-  'dataExport.status.line.expired': 'The link has expired. Request the export again.',
+  'dataExport.status.line.expired':
+      'The link has expired. Request the export again.',
   'notif.list.data_export_ready': 'Your data export is ready',
   'notif.list.case_history_export_ready': 'Case history PDF is ready',
   // --- Error codes (docs/06) ---
@@ -289,4 +310,20 @@ const file06En = <String, String>{
       'The text did not pass review. Remove prohibited words or links and try again.',
   // Owner changes 2026-09-29 (search field behind the magnifier).
   'search.open': 'Search',
+  'person.client': 'Client',
+  'client.memberSince': 'On LawBid since {date}',
+  'client.profile.unavailable': 'Profile unavailable',
+  // OQ-028 blocks.
+  'block.action': 'Block',
+  'block.unblock': 'Unblock',
+  'block.confirm.title': 'Block {name}?',
+  'block.confirm.body':
+      'You will not be able to message or follow each other, and you will not find each other in search. You can unblock at any time.',
+  'block.done': 'User blocked',
+  'block.undone': 'User unblocked',
+  'block.blockedYou': 'This user has restricted contact with you',
+  'block.byYou': 'You blocked this user',
+  'settings.blocked': 'Blocked users',
+  'blocked.empty': 'You have not blocked anyone',
+  'error.api.USER_BLOCKED': 'You cannot interact with this user.',
 };

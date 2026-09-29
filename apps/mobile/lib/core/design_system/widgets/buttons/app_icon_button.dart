@@ -22,6 +22,7 @@ class AppIconButton extends StatefulWidget {
     required this.semanticLabel,
     this.onTapDown,
     this.isLoading = false,
+    this.plain = false,
   });
 
   final Widget icon;
@@ -29,6 +30,10 @@ class AppIconButton extends StatefulWidget {
   final String semanticLabel;
   final ValueChanged<TapDownDetails>? onTapDown;
   final bool isLoading;
+
+  /// Owner 2026-09-29: in-app header icons without the frame (no surface
+  /// fill, no border). Pre-app screens keep the framed default.
+  final bool plain;
 
   @override
   State<AppIconButton> createState() => _AppIconButtonState();
@@ -67,11 +72,13 @@ class _AppIconButtonState extends State<AppIconButton> {
             duration: AppMotion.pressScale,
             child: Container(
               constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
-              decoration: BoxDecoration(
-                color: colors.surface,
-                borderRadius: BorderRadius.circular(AppRadii.field),
-                border: Border.all(color: colors.border),
-              ),
+              decoration: widget.plain
+                  ? null
+                  : BoxDecoration(
+                      color: colors.surface,
+                      borderRadius: BorderRadius.circular(AppRadii.field),
+                      border: Border.all(color: colors.border),
+                    ),
               alignment: Alignment.center,
               child: widget.isLoading
                   ? SizedBox(

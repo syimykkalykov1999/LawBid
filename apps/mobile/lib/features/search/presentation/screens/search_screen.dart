@@ -50,44 +50,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   SearchFilters _attorneyFilters = const SearchFilters();
   SearchFilters _caseFilters = const SearchFilters();
 
-  /// Owner 2026-09-29: the field is hidden behind a magnifier button in
-  /// the tabs row; tapping it expands the field over the row.
-  bool _expanded = false;
-
-  void _expand() {
-    setState(() => _expanded = true);
-    // Focus after the field is in the tree.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && _expanded) _focus.requestFocus();
-    });
-  }
-
-  void _collapse() {
-    _timer?.cancel();
-    _focus.unfocus();
-    _controller.clear();
-    setState(() {
-      _expanded = false;
-      _query = '';
-    });
-  }
-
-  /// Magnifier inside the expanded field: submits a query, or closes the
-  /// field when there is nothing to search.
-  void _onMagnifier() {
-    if (_controller.text.trim().isEmpty) {
-      _collapse();
-      return;
-    }
-    _timer?.cancel();
-    final next = normalizeSearch(_controller.text);
-    if (next.length >= kSearchMinChars) {
-      setState(() => _query = next);
-      ref.read(recentSearchesProvider.notifier).remember(next);
-    }
-    _focus.unfocus();
-  }
-
   @override
   void initState() {
     super.initState();
@@ -101,6 +63,17 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     _controller.dispose();
     _focus.dispose();
     super.dispose();
+  }
+
+  /// Magnifier inside the field: submits the current text at once.
+  void _onMagnifier() {
+    _timer?.cancel();
+    final next = normalizeSearch(_controller.text);
+    if (next.length >= kSearchMinChars) {
+      setState(() => _query = next);
+      ref.read(recentSearchesProvider.notifier).remember(next);
+    }
+    _focus.unfocus();
   }
 
   /// One request per pause in typing, never per keystroke (§7.1).
@@ -128,10 +101,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       ..text = q
       ..selection = TextSelection.collapsed(offset: q.length);
     _timer?.cancel();
-    setState(() {
-      _expanded = true;
-      _query = normalizeSearch(q);
-    });
+    setState(() => _query = normalizeSearch(q));
   }
 
   Future<void> _openFilters(bool forCases) async {
@@ -155,11 +125,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final attorney = ref.watch(currentUserRoleProvider) == UserRole.attorney;
+    // OQ-026: People (attorneys and clients) for both roles.
     final tabs = [
-      (
-        SearchTab.attorneys,
-        t.t(attorney ? 'search.tab.people' : 'search.tab.attorneys'),
-      ),
+      (SearchTab.attorneys, t.t('search.tab.people')),
       if (attorney) (SearchTab.cases, t.t('search.tab.cases')),
       (SearchTab.posts, t.t('search.tab.posts')),
       (SearchTab.tags, t.t('search.tab.tags')),
@@ -167,16 +135,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     if (!tabs.any((x) => x.$1 == _tab)) _tab = SearchTab.attorneys;
     final filterable = _tab == SearchTab.attorneys || _tab == SearchTab.cases;
     final filters = _tab == SearchTab.cases ? _caseFilters : _attorneyFilters;
-    final motion = context.reduceMotion ? Duration.zero : AppMotion.stateChange;
 
     final tabsRow = PillTabs<SearchTab>(
       value: _tab,
       tabs: tabs,
-      padding: EdgeInsets.zero,
       onChanged: (v) => setState(() => _tab = v),
     );
 
-    // Filters button: inside the field at the left edge (owner
+    // Filters button inside the field at the left edge (owner
     // 2026-09-29). Dimmed on tabs that have no filters yet.
     final filterButton = Badge(
       isLabelVisible: filterable && filters.activeCount > 0,
@@ -184,6 +150,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       backgroundColor: colors.gold,
       textColor: colors.navy,
       child: AppIconButton(
+        plain: true,
         icon: Icon(
           Icons.tune_rounded,
           color: filterable ? colors.text : colors.textSecondary,
@@ -194,6 +161,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       ),
     );
 
+    // Owner 2026-09-29 (2nd pass): a big Instagram-like field at the top,
+    // the sections (People / Cases / Posts / Topics) right under it.
     final field = FlipSearchBar(
       controller: _controller,
       focusNode: _focus,
@@ -201,8 +170,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       cancelLabel: t.t('common.cancel'),
       clearLabel: t.t('search.clear'),
       showCancel: false,
+      height: AppSizes.searchField,
       leading: filterButton,
       trailing: AppIconButton(
+        plain: true,
         icon: Icon(Icons.search_rounded, color: colors.goldDark),
         semanticLabel: t.t('search.open'),
         onPressed: _onMagnifier,
@@ -216,119 +187,43 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       onSubmitted: (v) => ref.read(recentSearchesProvider.notifier).remember(v),
     );
 
-    return PopScope(
-      // Android back while the field is open closes the field first.
-      canPop: !_expanded,
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop && _expanded) _collapse();
-      },
-      child: Scaffold(
-        backgroundColor: colors.bg,
-        body: SafeArea(
-          bottom: false,
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.screenSide,
-                  AppSpacing.sm,
-                  AppSpacing.screenSide,
-                  AppSpacing.sm,
-                ),
-                child: AnimatedSwitcher(
-                  duration: motion,
-                  switchInCurve: AppMotion.enterCurve,
-                  switchOutCurve: AppMotion.enterCurve,
-                  layoutBuilder: (current, previous) => Stack(
-                    alignment: Alignment.centerRight,
-                    children: [...previous, if (current != null) current],
-                  ),
-                  transitionBuilder: (child, animation) => FadeTransition(
-                    opacity: animation,
-                    child: SizeTransition(
-                      sizeFactor: animation,
-                      axis: Axis.horizontal,
-                      axisAlignment: 1,
-                      child: child,
-                    ),
-                  ),
-                  child: _expanded
-                      ? KeyedSubtree(
-                          key: const ValueKey('field'),
-                          child: field,
-                        )
-                      : Row(
-                          key: const ValueKey('tabs'),
-                          children: [
-                            Expanded(child: tabsRow),
-                            const SizedBox(width: AppSpacing.sm),
-                            // 48 px hit box must fit inside the row's
-                            // clip: the row is 48 tall and leaves 2 px on
-                            // the right.
-                            SizedBox(
-                              height: AppSizes.hitTarget,
-                              child: Padding(
-                                padding: const EdgeInsets.only(
-                                  right: (AppSizes.hitTarget -
-                                          AppSizes.touchTarget) /
-                                      2,
-                                ),
-                                child: Center(
-                                  child: AppIconButton(
-                                    icon: Icon(
-                                      Icons.search_rounded,
-                                      color: colors.text,
-                                    ),
-                                    semanticLabel: t.t('search.open'),
-                                    onPressed: _expand,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                ),
+    return Scaffold(
+      backgroundColor: colors.bg,
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.screenSide,
+                AppSpacing.md,
+                AppSpacing.screenSide,
+                0,
               ),
-              // While searching, the result sections stay switchable
-              // under the field.
-              AnimatedSize(
-                duration: motion,
-                curve: AppMotion.enterCurve,
-                alignment: Alignment.topCenter,
-                child: _expanded && _query.isNotEmpty
-                    ? Padding(
-                        padding: const EdgeInsets.fromLTRB(
-                          AppSpacing.screenSide,
-                          0,
-                          AppSpacing.screenSide,
-                          AppSpacing.sm,
-                        ),
-                        child: tabsRow,
+              child: field,
+            ),
+            tabsRow,
+            Expanded(
+              child: AnimatedSwitcher(
+                duration: context.reduceMotion
+                    ? Duration.zero
+                    : AppMotion.stateChange,
+                child: _query.isEmpty
+                    ? _BeforeTyping(
+                        key: const ValueKey('idle'),
+                        onRecent: _useRecent,
                       )
-                    : const SizedBox(width: double.infinity),
-              ),
-              Expanded(
-                child: AnimatedSwitcher(
-                  duration: context.reduceMotion
-                      ? Duration.zero
-                      : AppMotion.stateChange,
-                  child: _query.isEmpty
-                      ? _BeforeTyping(
-                          key: const ValueKey('idle'),
-                          onRecent: _useRecent,
-                        )
-                      : KeyedSubtree(
-                          key: ValueKey('$_tab:$_query'),
-                          child: _Results(
-                            tab: _tab,
-                            query: _query,
-                            filters: filters,
-                          ),
+                    : KeyedSubtree(
+                        key: ValueKey('$_tab:$_query'),
+                        child: _Results(
+                          tab: _tab,
+                          query: _query,
+                          filters: filters,
                         ),
-                ),
+                      ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -358,12 +253,12 @@ class _Results extends ConsumerWidget {
     final key = (q: query, filters: filters);
     switch (tab) {
       case SearchTab.attorneys:
-        final n = ref.read(attorneySearchProvider(key).notifier);
-        return PagedListBody<AttorneyRow>(
-          value: ref.watch(attorneySearchProvider(key)),
+        final n = ref.read(peopleSearchProvider(key).notifier);
+        return PagedListBody<PersonRow>(
+          value: ref.watch(peopleSearchProvider(key)),
           t: t,
           itemKey: (r) => r.id,
-          itemBuilder: (context, r, _) => AttorneyTile(row: r),
+          itemBuilder: (context, r, _) => PersonTile(row: r),
           empty: nothing,
           onRefresh: n.refresh,
           onLoadMore: n.loadMore,

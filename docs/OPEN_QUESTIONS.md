@@ -472,3 +472,33 @@ shell only (pre-app screens unchanged):
 - Search: no permanent field; a magnifier at the right of the tabs row
   opens a full-width field over the row, with the Filters button inside on
   the left and the magnifier inside on the right (Android back closes it).
+
+## OQ-027 (addendum, owner 2026-09-29, 2nd pass)
+After testing the first pass on his phone the owner asked for: no avatar
+in the profile header's left slot; segmented tabs without the gold tint
+and underline (bold text only); the Search tab with a big field on top
+and the sections under it (the "magnifier reveals the field" variant is
+gone); the cases-feed filters over every US state and every practice
+(searchable sheets that drag up to the top), not only the attorney's own;
+in-app header icon buttons without frames (`AppIconButton(plain: true)`);
+the language sheet draggable to the top; "Publish" in the case wizard dim
+until the consent box is ticked; Telegram-style bubble alignment (mine
+right, theirs left); no "Messages" title in the inbox; the client's own
+profile laid out like the attorney's (avatar left, name/state beside it,
+"@username" centered on top); iOS swipe-back on every pushed screen
+(`CupertinoPage` on iOS/macOS, shared-axis motion stays on Android).
+Followers of an attorney now list clients too (they have profiles since
+OQ-026). The scales logo file stays in the repo but is not shown in-app.
+
+## OQ-028 — Block / unblock any user (owner, 2026-09-29)
+Not in docs/01–07. Owner: "кнопку заблокировать для всех пользователей и
+разблокировка, систему целиком для всех". Implemented: `user_blocks`
+(blocker, blocked), `PUT/DELETE /users/:id/block`, `GET /users/me/blocks`.
+While a block exists in either direction: no messages in any conversation
+between the two (403 USER_BLOCKED), no follows (existing follows removed
+at block time), both drop out of each other's People search, public
+profiles carry `isBlocked` / `hasBlockedMe` and the app hides Follow /
+Message. Cases and bids already in progress are NOT touched (business
+records, docs/04) — confirm with the owner whether an accepted case should
+also be paused by a block. App: "⋯ → Block/Unblock, Report" on attorney
+and client profiles and in the chat menu; Settings → "Blocked users".
