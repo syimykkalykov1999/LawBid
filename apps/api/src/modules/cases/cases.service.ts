@@ -660,7 +660,7 @@ export class CasesService {
     });
   }
 
-  private async toFullDto(kase: Case): Promise<CaseDto> {
+  async toFullDto(kase: Case): Promise<CaseDto> {
     const [practiceArea, states] = await Promise.all([
       this.practiceAreaOf(kase.practice_area_id),
       this.prisma.caseState.findMany({

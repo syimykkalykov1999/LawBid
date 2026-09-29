@@ -11,6 +11,13 @@ import { RatingReconcileJob } from './handlers/rating-reconcile.job';
 import { NotificationsModule } from '../modules/notifications/notifications.module';
 import { LicenseExpiryJob } from './handlers/license-expiry.job';
 import { BidSubscriptionLapseJob } from './handlers/bid-subscription-lapse.job';
+import {
+  CaseAutoArchiveJob,
+  CaseAutoCloseJob,
+  CaseCompletionReminderJob,
+  CaseStalePromptJob,
+} from './handlers/case-lifecycle.jobs';
+import { CasesModule } from '../modules/cases/cases.module';
 import { BidsModule } from '../modules/bids/bids.module';
 import { SubscriptionsModule } from '../modules/subscriptions/subscriptions.module';
 
@@ -29,7 +36,12 @@ export class JobsModule {
   static register(options: JobsModuleOptions): DynamicModule {
     return {
       module: JobsModule,
-      imports: [NotificationsModule, SubscriptionsModule, BidsModule],
+      imports: [
+        NotificationsModule,
+        SubscriptionsModule,
+        BidsModule,
+        CasesModule,
+      ],
       providers: [
         { provide: JOBS_OPTIONS, useValue: options },
         {
@@ -43,6 +55,10 @@ export class JobsModule {
         RatingReconcileJob,
         LicenseExpiryJob,
         BidSubscriptionLapseJob,
+        CaseStalePromptJob,
+        CaseAutoArchiveJob,
+        CaseAutoCloseJob,
+        CaseCompletionReminderJob,
         CronProcessor,
         JobsRunner,
       ],

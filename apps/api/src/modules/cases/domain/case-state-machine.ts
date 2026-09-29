@@ -49,7 +49,9 @@ export type CaseAction =
   // "Да, актуален".
   | 'client_edit'
   | 'client_keep_alive'
-  | 'client_delete';
+  | 'client_delete'
+  // §10.2 "Напоминание об актуальности" job: stale_prompt_sent_at = now().
+  | 'system_stale_prompt';
 
 export interface CaseTransitionRule {
   readonly from: readonly CaseStatus[];
@@ -100,6 +102,7 @@ export const CASE_TRANSITIONS: Readonly<
   client_keep_alive: { from: ['open'], to: null, event: 'updated' },
   // §3.5 / §10.1: deletion only from open and archived.
   client_delete: { from: ['open', 'archived'], to: null, event: 'deleted' },
+  system_stale_prompt: { from: ['open'], to: null, event: 'updated' },
 };
 
 export const CASE_ACTIONS = Object.keys(CASE_TRANSITIONS) as CaseAction[];
@@ -203,6 +206,10 @@ export function planCaseTransition(
       break;
     case 'client_keep_alive':
       data = { last_activity_at: now, stale_prompt_sent_at: null };
+      break;
+    case 'system_stale_prompt':
+      // Not client activity: last_activity_at stays as it is.
+      data = { stale_prompt_sent_at: now };
       break;
     case 'client_delete':
       data = { deleted_at: now };

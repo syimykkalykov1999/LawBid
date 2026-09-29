@@ -4,6 +4,7 @@ import { BidsModule } from '../bids/bids.module';
 import { FilesModule } from '../files/files.module';
 import { JournalModule } from '../journal/journal.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { ReviewsModule } from '../reviews/reviews.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { UsersModule } from '../users/users.module';
 import { CaseBidsController } from './case-bids/case-bids.controller';
@@ -15,6 +16,9 @@ import { CaseContactsController } from './contacts/case-contacts.controller';
 import { CaseContactsService } from './contacts/case-contacts.service';
 import { ContactIssuesAdminController } from './contacts/contact-issues-admin.controller';
 import { CaseStateMachine } from './domain/case-state-machine';
+import { CaseDisputesAdminController } from './lifecycle/case-disputes-admin.controller';
+import { CaseLifecycleController } from './lifecycle/case-lifecycle.controller';
+import { CaseLifecycleService } from './lifecycle/case-lifecycle.service';
 import { CaseAccessPolicy } from './policies/case-access.policy';
 import { CaseViewTrackingService } from './services/case-view-tracking.service';
 import { CasesFeedService } from './services/cases-feed.service';
@@ -24,7 +28,8 @@ import { CasesFeedService } from './services/cases-feed.service';
  * machine and access policy, plus the stage 4.3 attorney
  * feed/detail/view-tracking/save controller. Stage 4.5 adds the client's
  * bid list (`case-bids/`, §5.2) and client contacts + "Не могу связаться"
- * (`contacts/`, §8), incl. the support decision endpoint. */
+ * (`contacts/`, §8), incl. the support decision endpoint. Stage 4.6: the
+ * lifecycle (`lifecycle/`, §10) — completion, dispute, admin decision. */
 @Module({
   imports: [
     UsersModule,
@@ -36,6 +41,8 @@ import { CasesFeedService } from './services/cases-feed.service';
     FilesModule,
     SubscriptionsModule,
     AdminAccessModule,
+    // Stage 4.6: review request when a case closes (docs/03 §7.3).
+    ReviewsModule,
   ],
   controllers: [
     CasesController,
@@ -43,6 +50,8 @@ import { CasesFeedService } from './services/cases-feed.service';
     CaseBidsController,
     CaseContactsController,
     ContactIssuesAdminController,
+    CaseLifecycleController,
+    CaseDisputesAdminController,
   ],
   providers: [
     CasesService,
@@ -52,7 +61,13 @@ import { CasesFeedService } from './services/cases-feed.service';
     CaseViewTrackingService,
     CaseBidsService,
     CaseContactsService,
+    CaseLifecycleService,
   ],
-  exports: [CasesService, CaseStateMachine, CaseAccessPolicy],
+  exports: [
+    CasesService,
+    CaseStateMachine,
+    CaseAccessPolicy,
+    CaseLifecycleService,
+  ],
 })
 export class CasesModule {}

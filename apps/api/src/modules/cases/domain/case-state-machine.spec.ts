@@ -40,6 +40,7 @@ const ALLOWED: [CaseStatus, CaseAction, CaseStatus, string][] = [
   // from open or archived.
   ['open', 'client_edit', 'open', 'updated'],
   ['open', 'client_keep_alive', 'open', 'updated'],
+  ['open', 'system_stale_prompt', 'open', 'updated'],
   ['open', 'client_delete', 'open', 'deleted'],
   ['archived', 'client_delete', 'archived', 'deleted'],
 ];
@@ -64,9 +65,9 @@ describe('CaseStateMachine (docs/04 §10.1)', () => {
     CASE_ACTIONS.map((a) => [s, a] as const),
   );
 
-  it('covers every status × action pair (6 × 13)', () => {
-    expect(CASE_ACTIONS).toHaveLength(13);
-    expect(pairs).toHaveLength(78);
+  it('covers every status × action pair (6 × 14)', () => {
+    expect(CASE_ACTIONS).toHaveLength(14);
+    expect(pairs).toHaveLength(84);
   });
 
   it.each(pairs)('%s + %s', (from, action) => {

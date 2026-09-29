@@ -11,6 +11,12 @@ import type { ReviewReminderJob } from './handlers/review-reminder.job';
 import type { RatingReconcileJob } from './handlers/rating-reconcile.job';
 import type { LicenseExpiryJob } from './handlers/license-expiry.job';
 import type { BidSubscriptionLapseJob } from './handlers/bid-subscription-lapse.job';
+import {
+  CaseAutoArchiveJob,
+  CaseAutoCloseJob,
+  CaseCompletionReminderJob,
+  CaseStalePromptJob,
+} from './handlers/case-lifecycle.jobs';
 
 jest.mock('bullmq', () => {
   const queue = {
@@ -69,7 +75,18 @@ function processor() {
       Promise.resolve({ attorneysChecked: 5, bidsWithdrawn: 1 }),
     ),
   };
+  const caseJob = () => ({
+    run: jest.fn(() => Promise.resolve({ processed: 1, ran: true })),
+  });
+  const stale = caseJob();
+  const archive = caseJob();
+  const autoClose = caseJob();
+  const completion = caseJob();
   return {
+    stale,
+    archive,
+    autoClose,
+    completion,
     sessions,
     otp,
     disposable,
@@ -85,6 +102,10 @@ function processor() {
       reconcile as unknown as RatingReconcileJob,
       licenses as unknown as LicenseExpiryJob,
       bidLapse as unknown as BidSubscriptionLapseJob,
+      stale as unknown as CaseStalePromptJob,
+      archive as unknown as CaseAutoArchiveJob,
+      autoClose as unknown as CaseAutoCloseJob,
+      completion as unknown as CaseCompletionReminderJob,
     ),
   };
 }
@@ -108,7 +129,7 @@ describe('JobsRunner', () => {
     });
     const upserts = mocked.__queue.upsertJobScheduler.mock.calls;
     expect(upserts).toHaveLength(CRON_SCHEDULES.length);
-    expect(upserts).toHaveLength(7);
+    expect(upserts).toHaveLength(11);
     const byName = Object.fromEntries(
       upserts.map((c: unknown[]) => [c[0], c[1]]),
     );
@@ -260,6 +281,18 @@ describe('CronProcessor', () => {
       p.processor.process(CRON_JOBS.bidSubscriptionLapse),
     ).resolves.toEqual({ attorneysChecked: 5, bidsWithdrawn: 1 });
     expect(p.bidLapse.run).toHaveBeenCalledTimes(1);
+    for (const [name, job] of [
+      [CRON_JOBS.caseStalePrompt, p.stale],
+      [CRON_JOBS.caseAutoArchive, p.archive],
+      [CRON_JOBS.caseAutoClose, p.autoClose],
+      [CRON_JOBS.caseCompletionReminder, p.completion],
+    ] as const) {
+      await expect(p.processor.process(name)).resolves.toEqual({
+        processed: 1,
+        ran: true,
+      });
+      expect(job.run).toHaveBeenCalledTimes(1);
+    }
   });
 
   it('fails unknown job names instead of silently succeeding', async () => {

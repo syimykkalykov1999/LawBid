@@ -15,6 +15,7 @@ import '../models/client_contacts_envelope.dart';
 import '../models/contact_issue_report_envelope.dart';
 import '../models/create_case_dto.dart';
 import '../models/create_contact_issue_dto.dart';
+import '../models/dispute_case_dto.dart';
 import '../models/filter.dart';
 import '../models/saved_item_dto.dart';
 import '../models/sort.dart';
@@ -148,6 +149,28 @@ abstract class CasesClient {
   Future<ContactIssueReportEnvelope> reportContactIssue({
     @Path('id') required String id,
     @Body() required CreateContactIssueDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Client "Done": in_progress → pending_completion (docs/04 §10.1)
+  @POST('/cases/{id}/complete')
+  Future<CaseEnvelope> completeCase({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Attorney confirms completion: → closed (docs/04 §10.1)
+  @POST('/cases/{id}/confirm-completion')
+  Future<CaseEnvelope> confirmCaseCompletion({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Attorney disputes completion: → disputed (docs/04 §10.1)
+  @POST('/cases/{id}/dispute')
+  Future<CaseEnvelope> disputeCase({
+    @Path('id') required String id,
+    @Body() required DisputeCaseDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 }

@@ -7,6 +7,12 @@ import { ReviewReminderJob } from './handlers/review-reminder.job';
 import { RatingReconcileJob } from './handlers/rating-reconcile.job';
 import { LicenseExpiryJob } from './handlers/license-expiry.job';
 import { BidSubscriptionLapseJob } from './handlers/bid-subscription-lapse.job';
+import {
+  CaseAutoArchiveJob,
+  CaseAutoCloseJob,
+  CaseCompletionReminderJob,
+  CaseStalePromptJob,
+} from './handlers/case-lifecycle.jobs';
 
 /** Routes a `cron` queue job to its handler by job name. The return value
  * becomes the BullMQ job's `returnvalue` (visible in queue dashboards). */
@@ -20,6 +26,10 @@ export class CronProcessor {
     private readonly ratingReconcile: RatingReconcileJob,
     private readonly licenseExpiry: LicenseExpiryJob,
     private readonly bidSubscriptionLapse: BidSubscriptionLapseJob,
+    private readonly caseStalePrompt: CaseStalePromptJob,
+    private readonly caseAutoArchive: CaseAutoArchiveJob,
+    private readonly caseAutoClose: CaseAutoCloseJob,
+    private readonly caseCompletionReminder: CaseCompletionReminderJob,
   ) {}
 
   async process(name: string): Promise<unknown> {
@@ -38,6 +48,14 @@ export class CronProcessor {
         return this.licenseExpiry.run();
       case CRON_JOBS.bidSubscriptionLapse:
         return this.bidSubscriptionLapse.run();
+      case CRON_JOBS.caseStalePrompt:
+        return this.caseStalePrompt.run();
+      case CRON_JOBS.caseAutoArchive:
+        return this.caseAutoArchive.run();
+      case CRON_JOBS.caseAutoClose:
+        return this.caseAutoClose.run();
+      case CRON_JOBS.caseCompletionReminder:
+        return this.caseCompletionReminder.run();
       default:
         // A job left over from an older/newer release: fail it visibly
         // rather than "succeed" doing nothing.

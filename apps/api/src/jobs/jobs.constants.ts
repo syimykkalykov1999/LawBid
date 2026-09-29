@@ -22,6 +22,11 @@ export const CRON_JOBS = {
   /** docs/04 §2 (stage 4.4): safety-net withdrawal of an attorney's active
    * bids when SubscriptionAccessService.isActive() goes false. */
   bidSubscriptionLapse: 'bids.subscription-lapse',
+  /** docs/04 §10.2 (stage 4.6): hourly case lifecycle jobs. */
+  caseStalePrompt: 'cases.stale-prompt',
+  caseAutoArchive: 'cases.auto-archive',
+  caseAutoClose: 'cases.auto-close',
+  caseCompletionReminder: 'cases.completion-reminder',
 } as const;
 
 export type CronJobName = (typeof CRON_JOBS)[keyof typeof CRON_JOBS];
@@ -47,6 +52,11 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   // Hourly safety net (docs/04 §2, stage 4.4): usually a no-op once file
   // 06's subscription webhook calls withdrawActiveBidsForAttorney directly.
   { name: CRON_JOBS.bidSubscriptionLapse, pattern: '20 * * * *' },
+  // docs/04 §10.2 "каждый час", staggered within the hour.
+  { name: CRON_JOBS.caseStalePrompt, pattern: '5 * * * *' },
+  { name: CRON_JOBS.caseAutoArchive, pattern: '25 * * * *' },
+  { name: CRON_JOBS.caseAutoClose, pattern: '35 * * * *' },
+  { name: CRON_JOBS.caseCompletionReminder, pattern: '45 * * * *' },
 ];
 
 export const DISPOSABLE_DOMAINS_FETCHER = Symbol('DISPOSABLE_DOMAINS_FETCHER');
