@@ -13,7 +13,7 @@ class QuietHoursDto {
   factory QuietHoursDto.fromJson(Map<String, Object?> json) =>
       _$QuietHoursDtoFromJson(json);
 
-  /// null clears the quiet hours.
+  /// Absent or null clears the quiet hours.
   final String? start;
   final String? end;
   final String? timezone;

@@ -6,7 +6,6 @@ import {
   IsUUID,
   MaxLength,
   MinLength,
-  ValidateIf,
 } from 'class-validator';
 
 /** docs/05 §8.2: text only, up to 2000 characters. */
@@ -78,9 +77,10 @@ export class MuteConversationDto {
     nullable: true,
     description: 'ISO time; null unmutes.',
   })
-  @ValidateIf((_, v) => v !== null)
+  // Absent or null = unmute (generated clients drop null fields).
+  @IsOptional()
   @IsISO8601()
-  until!: string | null;
+  until?: string | null;
 }
 
 export class MessageDto {

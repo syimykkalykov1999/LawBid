@@ -137,26 +137,26 @@ export class QuietHoursDto {
     type: String,
     nullable: true,
     example: '22:00',
-    description: 'null clears the quiet hours.',
+    description: 'Absent or null clears the quiet hours.',
   })
-  @ValidateIf((o: QuietHoursDto) => o.start !== null)
+  @ValidateIf((o: QuietHoursDto) => o.start != null)
   @Matches(HHMM)
-  start!: string | null;
+  start?: string | null;
 
   @ApiPropertyOptional({ type: String, nullable: true, example: '07:00' })
-  @ValidateIf((o: QuietHoursDto) => o.start !== null)
+  @ValidateIf((o: QuietHoursDto) => o.start != null)
   @Matches(HHMM)
-  end!: string | null;
+  end?: string | null;
 
   @ApiPropertyOptional({
     type: String,
     nullable: true,
     example: 'America/New_York',
   })
-  @ValidateIf((o: QuietHoursDto) => o.start !== null)
+  @ValidateIf((o: QuietHoursDto) => o.start != null)
   @IsString()
   @MaxLength(64)
-  timezone!: string | null;
+  timezone?: string | null;
 }
 
 export class NotificationSettingsDto {

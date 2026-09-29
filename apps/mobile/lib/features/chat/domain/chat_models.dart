@@ -1,0 +1,114 @@
+import 'dart:math';
+
+import 'package:flutter/foundation.dart';
+
+enum ConversationStatus { preAcceptance, active, closed }
+
+/// The other side of a chat (docs/05 §8.1): an attorney always by public
+/// profile; a client hidden ("Клиент по кейсу «…»") until contacts unlock.
+@immutable
+class Counterpart {
+  const Counterpart({
+    required this.isAttorney,
+    required this.verified,
+    this.id,
+    this.displayName,
+    this.username,
+    this.avatarUrl,
+  });
+
+  final bool isAttorney;
+  final String? id;
+  final String? displayName;
+  final String? username;
+  final String? avatarUrl;
+  final bool verified;
+
+  /// A client before contacts are unlocked.
+  bool get hidden => !isAttorney && displayName == null;
+}
+
+@immutable
+class Conversation {
+  const Conversation({
+    required this.id,
+    required this.caseId,
+    required this.caseTitle,
+    required this.status,
+    required this.contactsUnlocked,
+    required this.counterpart,
+    required this.unreadCount,
+    required this.updatedAt,
+    this.lastMessage,
+    this.lastMessageAt,
+    this.mutedUntil,
+    this.counterpartLastReadId,
+  });
+
+  final String id;
+  final String caseId;
+  final String caseTitle;
+  final ConversationStatus status;
+  final bool contactsUnlocked;
+  final Counterpart counterpart;
+  final ChatMessage? lastMessage;
+  final DateTime? lastMessageAt;
+  final int unreadCount;
+  final DateTime? mutedUntil;
+  final String? counterpartLastReadId;
+  final DateTime updatedAt;
+
+  bool get muted => mutedUntil != null && mutedUntil!.isAfter(DateTime.now());
+  bool get closed => status == ConversationStatus.closed;
+}
+
+enum MessageKind { text, system }
+
+/// Where an own message is in its life (§8.2 "отправляется / отправлено /
+/// прочитано"); server messages are [sent].
+enum DeliveryState { sending, failed, sent }
+
+@immutable
+class ChatMessage {
+  const ChatMessage({
+    required this.id,
+    required this.conversationId,
+    required this.kind,
+    required this.body,
+    required this.createdAt,
+    this.senderId,
+    this.contactMasked = false,
+    this.clientMessageId,
+    this.delivery = DeliveryState.sent,
+    this.failedCode,
+  });
+
+  /// Server id, or `local:<clientMessageId>` while in the outbox.
+  final String id;
+  final String conversationId;
+  final String? senderId;
+  final MessageKind kind;
+
+  /// body_display; for system messages a key (offer_accepted …).
+  final String body;
+  final bool contactMasked;
+  final String? clientMessageId;
+  final DateTime createdAt;
+  final DeliveryState delivery;
+  final String? failedCode;
+
+  bool get isLocal => id.startsWith('local:');
+}
+
+/// UUID v4 for clientMessageId (idempotency key of a message, §8.4).
+String newClientMessageId() {
+  final r = Random.secure();
+  final b = List<int>.generate(16, (_) => r.nextInt(256));
+  b[6] = (b[6] & 0x0f) | 0x40;
+  b[8] = (b[8] & 0x3f) | 0x80;
+  String hex(int from, int to) => b
+      .sublist(from, to)
+      .map((x) => x.toRadixString(16).padLeft(2, '0'))
+      .join();
+  return '${hex(0, 4)}-${hex(4, 6)}-${hex(6, 8)}-${hex(8, 10)}-${hex(10, 16)}';
+}

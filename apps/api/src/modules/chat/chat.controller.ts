@@ -121,6 +121,6 @@ export class ChatController {
     @Param() p: ConversationIdParamDto,
     @Body() dto: MuteConversationDto,
   ): Promise<ConversationDto> {
-    return this.chat.mute(user, p.id, dto.until);
+    return this.chat.mute(user, p.id, dto.until ?? null);
   }
 }

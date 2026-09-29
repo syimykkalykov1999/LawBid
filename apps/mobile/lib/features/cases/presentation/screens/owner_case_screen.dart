@@ -17,6 +17,7 @@ import 'package:lawbid/features/cases/presentation/widgets/case_header.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_wizard_steps.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
+import 'package:lawbid/features/chat/chat_routes.dart';
 
 /// docs/04 §11.1 — the client's case: description, status actions, the
 /// accepted attorney, and the bids (§5.2) with sorting.
@@ -290,7 +291,10 @@ class _OwnerCaseBody extends ConsumerWidget {
             DetailSection(
               title: t.t('cases.owner.attorneyAtWork'),
               child: _AcceptedAttorneyCard(
-                  bid: c.acceptedBid!, t: t, formats: formats),
+                  bid: c.acceptedBid!,
+                  t: t,
+                  formats: formats,
+                  conversationId: c.conversationId),
             ),
           DetailSection(
             title: t.t('cases.detail.description'),
@@ -443,11 +447,18 @@ class _BidsList extends ConsumerWidget {
 }
 
 class _AcceptedAttorneyCard extends StatelessWidget {
-  const _AcceptedAttorneyCard(
-      {required this.bid, required this.t, required this.formats});
+  const _AcceptedAttorneyCard({
+    required this.bid,
+    required this.t,
+    required this.formats,
+    required this.conversationId,
+  });
 
   final CaseBid bid;
   final Translator t;
+
+  /// docs/04 §9 / docs/05 §8: the chat opened by the acceptance.
+  final String? conversationId;
   final L10nFormats formats;
 
   @override
@@ -490,8 +501,9 @@ class _AcceptedAttorneyCard extends StatelessWidget {
               label: t.t('cases.chat.open'),
               icon: Icons.chat_bubble_outline_rounded,
               height: AppSizes.touchTarget,
-              // TODO(docs/05): open the case chat screen.
-              onPressed: () => showAppSnackBar(context, t.t('cases.chat.soon')),
+              onPressed: conversationId == null
+                  ? () => showAppSnackBar(context, t.t('cases.chat.soon'))
+                  : () => context.push(ChatRoutes.conversation(conversationId!)),
             ),
           ),
         ],

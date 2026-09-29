@@ -20191,7 +20191,7 @@
             "type": "string",
             "nullable": true,
             "example": "22:00",
-            "description": "null clears the quiet hours."
+            "description": "Absent or null clears the quiet hours."
           },
           "end": {
             "type": "string",

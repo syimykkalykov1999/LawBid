@@ -42,6 +42,7 @@ import 'package:lawbid/features/verification/presentation/screens/verification_w
 import 'package:lawbid/features/search/presentation/screens/search_screen.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:lawbid/features/social/social_routes.dart';
+import 'package:lawbid/features/chat/chat_routes.dart';
 
 part 'app_router.g.dart';
 
@@ -281,6 +282,8 @@ GoRouter appRouter(Ref ref) {
       ...deepLinkRoutes(),
       // docs/05 feed: tag pages, follower lists.
       ...socialRoutes(_rootNavigatorKey),
+      // docs/05 chats, notifications, notification settings.
+      ...chatRoutes(_rootNavigatorKey),
     ],
   );
 }

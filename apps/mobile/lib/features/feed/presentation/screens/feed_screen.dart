@@ -8,6 +8,7 @@ import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
+import 'package:lawbid/features/chat/presentation/chats_icon_button.dart';
 
 /// Feed tab (docs/01 §3.1, docs/05 §2). Header per docs/07 §10: the small
 /// static ScalesLogo on the left; the right side ([AppFeedHeader.trailing])
@@ -36,7 +37,10 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
     final attorney = ref.watch(currentUserRoleProvider) == UserRole.attorney;
     return Scaffold(
       backgroundColor: colors.bg,
-      appBar: AppFeedHeader(logoSemanticLabel: t.t('brand.name')),
+      appBar: AppFeedHeader(
+        logoSemanticLabel: t.t('brand.name'),
+        trailing: const [ChatsIconButton()],
+      ),
       body: !attorney
           ? const PostsFeedView()
           : Column(

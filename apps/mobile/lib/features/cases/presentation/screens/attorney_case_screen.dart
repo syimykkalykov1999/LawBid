@@ -18,6 +18,7 @@ import 'package:lawbid/features/cases/presentation/widgets/case_header.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_wizard_steps.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
+import 'package:lawbid/features/chat/chat_routes.dart';
 
 /// Opens the subscription call-to-action when the server answers
 /// SUBSCRIPTION_REQUIRED (docs/04 §2); true when it handled [e].
@@ -77,9 +78,8 @@ class _AttorneyCaseScreenState extends ConsumerState<AttorneyCaseScreen> {
     setState(() => _messaging = true);
     final t = ref.read(translatorProvider);
     try {
-      await ref.read(caseActionsProvider).openConversation(c.id);
-      // TODO(docs/05): navigate to the conversation screen.
-      if (mounted) showAppSnackBar(context, t.t('cases.chat.created'));
+      final conv = await ref.read(caseActionsProvider).openConversation(c.id);
+      if (mounted) await context.push(ChatRoutes.conversation(conv.id));
     } on Object catch (e) {
       if (mounted && !routeSubscriptionError(context, e)) {
         showAppSnackBar(context, errorText(t, e));

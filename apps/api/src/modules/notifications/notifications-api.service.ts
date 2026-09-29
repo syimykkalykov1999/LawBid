@@ -166,7 +166,7 @@ export class NotificationsApiService {
     userId: string,
     dto: QuietHoursDto,
   ): Promise<NotificationSettingsDto> {
-    if (dto.start === null) {
+    if (dto.start == null) {
       await this.prisma.notificationQuietHours.deleteMany({
         where: { user_id: userId },
       });

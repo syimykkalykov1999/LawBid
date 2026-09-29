@@ -18,6 +18,9 @@ import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_header.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
+import 'package:lawbid/features/cases/presentation/screens/attorney_case_screen.dart'
+    show routeSubscriptionError;
+import 'package:lawbid/features/chat/chat_routes.dart';
 
 /// docs/04 §8 + §11.2 "В работе": the case, the client's contacts (locked
 /// behind the subscription, §8.3), "Не могу связаться" (§8.4) and, in
@@ -33,6 +36,24 @@ class WorkCaseScreen extends ConsumerStatefulWidget {
 
 class _WorkCaseScreenState extends ConsumerState<WorkCaseScreen> {
   bool _busy = false;
+  bool _opening = false;
+
+  /// docs/05 §8: the case chat (the acceptance created it; this returns it).
+  Future<void> _openChat(Translator t) async {
+    if (_opening) return;
+    setState(() => _opening = true);
+    try {
+      final conv =
+          await ref.read(caseActionsProvider).openConversation(widget.caseId);
+      if (mounted) await context.push(ChatRoutes.conversation(conv.id));
+    } on Object catch (e) {
+      if (mounted && !routeSubscriptionError(context, e)) {
+        showAppSnackBar(context, errorText(t, e));
+      }
+    } finally {
+      if (mounted) setState(() => _opening = false);
+    }
+  }
 
   Future<void> _refresh() async {
     ref
@@ -187,7 +208,12 @@ class _WorkCaseScreenState extends ConsumerState<WorkCaseScreen> {
               ],
               DetailSection(
                 title: t.t('cases.contacts.title'),
-                child: _ContactsBlock(caseId: c.id, t: t, formats: formats),
+                child: _ContactsBlock(
+                  caseId: c.id,
+                  t: t,
+                  formats: formats,
+                  onOpenChat: () => _openChat(t),
+                ),
               ),
               if (c.ownBidId != null)
                 DetailSection(
@@ -267,10 +293,15 @@ class _TermsLine extends ConsumerWidget {
 
 /// §8.1 contacts with Call / SMS / Email / Chat; §8.3 locked state.
 class _ContactsBlock extends ConsumerWidget {
-  const _ContactsBlock(
-      {required this.caseId, required this.t, required this.formats});
+  const _ContactsBlock({
+    required this.caseId,
+    required this.t,
+    required this.formats,
+    required this.onOpenChat,
+  });
 
   final String caseId;
+  final VoidCallback onOpenChat;
   final Translator t;
   final L10nFormats formats;
 
@@ -368,9 +399,7 @@ class _ContactsBlock extends ConsumerWidget {
                     child: _ContactAction(
                       icon: Icons.chat_bubble_outline_rounded,
                       label: t.t('cases.chat.open'),
-                      // TODO(docs/05): open the case chat.
-                      onTap: () =>
-                          showAppSnackBar(context, t.t('cases.chat.soon')),
+                      onTap: onOpenChat,
                     ),
                   ),
                 ],

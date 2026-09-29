@@ -8,6 +8,10 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/shell/bottom_nav_config.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
+import 'package:lawbid/features/chat/application/chat_providers.dart';
+import 'package:lawbid/features/chat/application/realtime_providers.dart';
+import 'package:lawbid/features/notifications/application/notifications_providers.dart';
+import 'package:lawbid/features/notifications/application/push_service.dart';
 
 /// Shell scaffold for the 4 `StatefulShellRoute.indexedStack` branches
 /// (Лента/Поиск/Моё/Профиль), hosting [AppBottomNav]. The "+" tab is not a
@@ -28,6 +32,14 @@ class MainShell extends ConsumerWidget {
     final role = ref.watch(currentUserRoleProvider);
     final translator = ref.watch(translatorProvider);
     final tabs = tabsForRole(role, translator);
+    // docs/05 §8.5 / §9.5 / §10: while the signed-in app is on screen keep
+    // the realtime socket, the offline outbox, the badges and push alive.
+    ref
+      ..watch(realtimeClientProvider)
+      ..watch(badgesProvider)
+      ..watch(outboxSenderProvider);
+    ref.read(pushServiceProvider).start();
+    ref.read(outboxSenderProvider).drain();
 
     return Scaffold(
       body:
