@@ -141,6 +141,12 @@ export enum ErrorCode {
   // 404: no such case, or the caller may not see it (deny by default —
   // CaseAccessPolicy never reveals that a hidden case exists).
   CASE_NOT_FOUND = 'CASE_NOT_FOUND',
+  // 404: attorney-facing variant of the same deny-by-default decision
+  // (docs/04 §4.1, §15 "нет лицензии/практики"; stage 4.3 acceptance:
+  // hitting an ineligible case's id directly gets this, not
+  // CASE_NOT_FOUND). Used by CaseAccessPolicy.assertVisibleToAttorney —
+  // still opaque about whether the case exists at all.
+  CASE_NOT_AVAILABLE = 'CASE_NOT_AVAILABLE',
   // 409: the case's status does not allow this action (§10.1).
   CASE_INVALID_STATE = 'CASE_INVALID_STATE',
   // 409: the bid's status does not allow this action (§6.3).

@@ -3282,6 +3282,135 @@
         "tags": [
           "cases"
         ]
+      },
+      "get": {
+        "operationId": "listCaseFeed",
+        "parameters": [
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "meta.nextCursor of the previous page.",
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "practiceAreaId",
+            "required": false,
+            "in": "query",
+            "description": "Leaf practice area id.",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "required": false,
+            "in": "query",
+            "description": "Two-letter state code.",
+            "schema": {
+              "minLength": 2,
+              "maxLength": 2,
+              "example": "NJ",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseFeedItemListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Attorney case feed (docs/04 §4.2)",
+        "tags": [
+          "cases"
+        ]
       }
     },
     "/cases/{id}": {
@@ -3511,6 +3640,91 @@
           }
         ],
         "summary": "Soft-delete a case (client, open/archived only, docs/04 §3.5)",
+        "tags": [
+          "cases"
+        ]
+      },
+      "get": {
+        "operationId": "getCaseDetail",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseDetailForAttorneyEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CASE_NOT_AVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Case detail for an attorney (docs/04 §4.3, no client field)",
         "tags": [
           "cases"
         ]
@@ -3955,6 +4169,284 @@
           }
         ],
         "summary": "\"My cases\" tabs (client, docs/04 §11.1)",
+        "tags": [
+          "cases"
+        ]
+      }
+    },
+    "/cases/{id}/view": {
+      "post": {
+        "operationId": "recordCaseView",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CASE_NOT_AVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Record a view, deduplicated per (attorney, case) (docs/04 §4.3)",
+        "tags": [
+          "cases"
+        ]
+      }
+    },
+    "/saved-items": {
+      "post": {
+        "operationId": "saveItem",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SavedItemDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CASE_NOT_AVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Not implemented: NOT_IMPLEMENTED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Save a case (docs/04 §4.3 \"Сохранить\", §11.2)",
+        "tags": [
+          "cases"
+        ]
+      },
+      "delete": {
+        "operationId": "unsaveItem",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SavedItemDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Not implemented: NOT_IMPLEMENTED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Unsave a case",
         "tags": [
           "cases"
         ]
@@ -8651,6 +9143,7 @@
           "LICENSE_ALREADY_ADDED",
           "ATTORNEY_SUSPENDED",
           "CASE_NOT_FOUND",
+          "CASE_NOT_AVAILABLE",
           "CASE_INVALID_STATE",
           "BID_INVALID_STATE",
           "BID_NOT_YOUR_TURN",
@@ -10884,6 +11377,284 @@
         },
         "required": [
           "data"
+        ]
+      },
+      "CasePracticeAreaDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string",
+            "example": "traffic_tickets.speeding"
+          },
+          "i18nKey": {
+            "type": "string",
+            "example": "practice.traffic_tickets.speeding"
+          },
+          "nameEn": {
+            "type": "string"
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "categoryCode": {
+            "type": "string",
+            "example": "traffic_tickets"
+          },
+          "categoryI18nKey": {
+            "type": "string",
+            "example": "practice.traffic_tickets"
+          },
+          "categoryNameEn": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "i18nKey",
+          "nameEn",
+          "categoryId",
+          "categoryCode",
+          "categoryI18nKey",
+          "categoryNameEn"
+        ]
+      },
+      "CaseBudgetDto": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BudgetMode"
+              }
+            ]
+          },
+          "amountCents": {
+            "type": "integer",
+            "nullable": true
+          }
+        },
+        "required": [
+          "mode"
+        ]
+      },
+      "CaseFeedItemDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "practiceArea": {
+            "$ref": "#/components/schemas/CasePracticeAreaDto"
+          },
+          "primaryStateCode": {
+            "type": "string",
+            "example": "NJ"
+          },
+          "additionalStateCodes": {
+            "example": [
+              "NY"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "city": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CaseStatus"
+              }
+            ]
+          },
+          "budget": {
+            "$ref": "#/components/schemas/CaseBudgetDto"
+          },
+          "viewCount": {
+            "type": "integer"
+          },
+          "bidsCount": {
+            "type": "integer"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "isNew": {
+            "type": "boolean",
+            "description": "Younger than CASE_NEW_BADGE_HOURS (§4.2)."
+          },
+          "hasOwnBid": {
+            "type": "boolean",
+            "description": "\"Вы сделали бид\" (§4.2/§4.3)."
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "practiceArea",
+          "primaryStateCode",
+          "additionalStateCodes",
+          "status",
+          "budget",
+          "viewCount",
+          "bidsCount",
+          "createdAt",
+          "isNew",
+          "hasOwnBid"
+        ]
+      },
+      "CaseFeedItemListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CaseFeedItemDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "CaseDetailForAttorneyDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "practiceArea": {
+            "$ref": "#/components/schemas/CasePracticeAreaDto"
+          },
+          "primaryStateCode": {
+            "type": "string",
+            "example": "NJ"
+          },
+          "additionalStateCodes": {
+            "example": [
+              "NY"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "city": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CaseStatus"
+              }
+            ]
+          },
+          "budget": {
+            "$ref": "#/components/schemas/CaseBudgetDto"
+          },
+          "viewCount": {
+            "type": "integer"
+          },
+          "bidsCount": {
+            "type": "integer"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "isNew": {
+            "type": "boolean",
+            "description": "Younger than CASE_NEW_BADGE_HOURS (§4.2)."
+          },
+          "hasOwnBid": {
+            "type": "boolean",
+            "description": "\"Вы сделали бид\" (§4.2/§4.3)."
+          },
+          "description": {
+            "type": "string"
+          },
+          "isSaved": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "practiceArea",
+          "primaryStateCode",
+          "additionalStateCodes",
+          "status",
+          "budget",
+          "viewCount",
+          "bidsCount",
+          "createdAt",
+          "isNew",
+          "hasOwnBid",
+          "description",
+          "isSaved"
+        ]
+      },
+      "CaseDetailForAttorneyEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CaseDetailForAttorneyDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "SavedItemType": {
+        "type": "string",
+        "enum": [
+          "post",
+          "case"
+        ]
+      },
+      "SavedItemDto": {
+        "type": "object",
+        "properties": {
+          "itemType": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SavedItemType"
+              }
+            ]
+          },
+          "itemId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "itemType",
+          "itemId"
         ]
       },
       "BidStatus": {

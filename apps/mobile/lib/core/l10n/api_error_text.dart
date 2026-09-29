@@ -99,6 +99,7 @@ const _keys = <String, String>{
   ApiErrorCodes.bidMaxRoundsReached: 'error.api.BID_MAX_ROUNDS_REACHED',
   ApiErrorCodes.bidCounterNotAllowed: 'error.api.BID_COUNTER_NOT_ALLOWED',
   ApiErrorCodes.subscriptionRequired: 'error.api.SUBSCRIPTION_REQUIRED',
+  ApiErrorCodes.caseNotAvailable: 'error.api.CASE_NOT_AVAILABLE',
   ApiErrorCodes.bidAlreadyExists: 'error.api.BID_ALREADY_EXISTS',
   ApiErrorCodes.caseContainsContactInfo:
       'error.api.CASE_CONTAINS_CONTACT_INFO',

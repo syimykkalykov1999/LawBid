@@ -6,10 +6,13 @@ import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
 import '../models/case_deleted_envelope.dart';
+import '../models/case_detail_for_attorney_envelope.dart';
 import '../models/case_envelope.dart';
+import '../models/case_feed_item_list_envelope.dart';
 import '../models/case_summary_list_envelope.dart';
 import '../models/create_case_dto.dart';
 import '../models/filter.dart';
+import '../models/saved_item_dto.dart';
 import '../models/update_case_dto.dart';
 
 part 'cases_client.g.dart';
@@ -25,6 +28,22 @@ abstract class CasesClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
+  /// Attorney case feed (docs/04 §4.2).
+  ///
+  /// [cursor] - meta.nextCursor of the previous page.
+  ///
+  /// [practiceAreaId] - Leaf practice area id.
+  ///
+  /// [state] - Two-letter state code.
+  @GET('/cases')
+  Future<CaseFeedItemListEnvelope> listCaseFeed({
+    @Query('limit') int? limit = 20,
+    @Query('cursor') String? cursor,
+    @Query('practiceAreaId') String? practiceAreaId,
+    @Query('state') String? state,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
   /// Edit an open case (client, docs/04 §3.5)
   @PATCH('/cases/{id}')
   Future<CaseEnvelope> updateCase({
@@ -36,6 +55,13 @@ abstract class CasesClient {
   /// Soft-delete a case (client, open/archived only, docs/04 §3.5)
   @DELETE('/cases/{id}')
   Future<CaseDeletedEnvelope> deleteCase({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Case detail for an attorney (docs/04 §4.3, no client field)
+  @GET('/cases/{id}')
+  Future<CaseDetailForAttorneyEnvelope> getCaseDetail({
     @Path('id') required String id,
     @Extras() Map<String, dynamic>? extras,
   });
@@ -69,6 +95,27 @@ abstract class CasesClient {
     @Query('cursor') String? cursor,
     @Query('filter') Filter? filter = Filter.active,
     @Query('limit') int? limit = 20,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Record a view, deduplicated per (attorney, case) (docs/04 §4.3)
+  @POST('/cases/{id}/view')
+  Future<void> recordCaseView({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Save a case (docs/04 §4.3 "Сохранить", §11.2)
+  @POST('/saved-items')
+  Future<void> saveItem({
+    @Body() required SavedItemDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Unsave a case
+  @DELETE('/saved-items')
+  Future<void> unsaveItem({
+    @Body() required SavedItemDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 }

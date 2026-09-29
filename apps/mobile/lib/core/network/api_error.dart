@@ -100,6 +100,7 @@ abstract final class ApiErrorCodes {
   static const bidCounterNotAllowed = 'BID_COUNTER_NOT_ALLOWED';
   // Bids and negotiation (docs/04 §5–§6, stage 4.4)
   static const subscriptionRequired = 'SUBSCRIPTION_REQUIRED';
+  static const caseNotAvailable = 'CASE_NOT_AVAILABLE';
   static const bidAlreadyExists = 'BID_ALREADY_EXISTS';
   // Case creation and management (docs/04 §3, stage 4.2)
   static const caseContainsContactInfo = 'CASE_CONTAINS_CONTACT_INFO';
@@ -177,6 +178,7 @@ abstract final class ApiErrorCodes {
     bidMaxRoundsReached,
     bidCounterNotAllowed,
     subscriptionRequired,
+    caseNotAvailable,
     bidAlreadyExists,
     caseContainsContactInfo,
     clientContactSharingConsentRequired,

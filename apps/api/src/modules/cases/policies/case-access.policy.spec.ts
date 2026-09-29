@@ -109,6 +109,28 @@ describe('CaseAccessPolicy (deny by default)', () => {
     });
   });
 
+  it('assertVisibleToAttorney turns a denial into CASE_NOT_AVAILABLE (stage 4.3)', async () => {
+    const { policy } = fakeDb({
+      attorneyRow: { participant: false, visible: false },
+    });
+    await expect(
+      policy.assertVisibleToAttorney('att-1', 'c1'),
+    ).rejects.toMatchObject({
+      status: 404,
+      response: { code: ErrorCode.CASE_NOT_AVAILABLE },
+    });
+  });
+
+  it('assertVisibleToAttorney returns the access on a visible/participant case', async () => {
+    const { policy } = fakeDb({
+      attorneyRow: { participant: false, visible: true },
+    });
+    expect(await policy.assertVisibleToAttorney('att-1', 'c1')).toEqual({
+      kind: 'attorney_prospect',
+      clientIdentityVisible: false,
+    });
+  });
+
   it('uses the given transaction client', async () => {
     const { policy } = fakeDb({});
     const tx = fakeDb({ caseRow: { client_id: 'client-1' } }).db;

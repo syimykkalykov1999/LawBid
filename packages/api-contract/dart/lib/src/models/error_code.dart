@@ -132,6 +132,8 @@ enum ErrorCode {
   attorneySuspended('ATTORNEY_SUSPENDED'),
   @JsonValue('CASE_NOT_FOUND')
   caseNotFound('CASE_NOT_FOUND'),
+  @JsonValue('CASE_NOT_AVAILABLE')
+  caseNotAvailable('CASE_NOT_AVAILABLE'),
   @JsonValue('CASE_INVALID_STATE')
   caseInvalidState('CASE_INVALID_STATE'),
   @JsonValue('BID_INVALID_STATE')
