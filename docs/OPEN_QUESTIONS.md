@@ -415,3 +415,12 @@ non-null `prev_hash` is reported as a break (a recent row was deleted).
 Decision taken (no check-in requested): the 4-year threshold is a
 constant next to `JOURNAL_RETENTION_YEARS`; confirm or change before
 launch (docs/06 §5.3).
+
+## OQ-023 — Admin panel hosting (stage 6.10)
+docs/06 §6.1 lists CloudFront "для медиа и админки", but the admin built
+in stage 6.2 keeps the admin JWT in an httpOnly cookie and proxies every
+API call server-side (docs/06 §2.1 security), so it is not a static site.
+Decision taken: a third ECS Fargate service `admin` (Next.js standalone
+image, `apps/admin/Dockerfile`) behind the same ALB on `admin.<domain>`;
+CloudFront stays for media. Revisit only if the owner wants a static
+admin (would require moving the token to the browser).

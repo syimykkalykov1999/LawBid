@@ -1,0 +1,6 @@
+# terraform init -backend-config=backend.hcl   (copy this file, fill in)
+bucket         = "lawbid-staging-tfstate"
+key            = "staging/terraform.tfstate"
+region         = "us-east-1"
+dynamodb_table = "lawbid-staging-tflock"
+encrypt        = true

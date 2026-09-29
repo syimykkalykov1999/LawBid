@@ -27,6 +27,9 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  // docs/06 §6.1: the admin runs as its own ECS service from a standalone
+  // server bundle (apps/admin/Dockerfile).
+  output: 'standalone',
   async headers() {
     return [{ source: '/(.*)', headers: securityHeaders }];
   },
