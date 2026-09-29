@@ -46,6 +46,30 @@ const CASE_SELECT = {
 
 type HistoryCase = Prisma.CaseGetPayload<{ select: typeof CASE_SELECT }>;
 
+function toEvent(r: {
+  id: string;
+  event_type: string;
+  created_at: Date;
+  actor_role: string | null;
+  payload: Prisma.JsonValue;
+}): CaseHistoryEventDto {
+  const p = (r.payload ?? {}) as Record<string, unknown>;
+  const role = r.actor_role;
+  return {
+    id: r.id,
+    eventType: r.event_type,
+    createdAt: r.created_at.toISOString(),
+    actorRole:
+      role === 'client' || role === 'attorney' || role === 'admin'
+        ? role
+        : 'system',
+    amountCents: num(p.amountCents),
+    feeType: str(p.feeType) as FeeType | null,
+    roundNo: num(p.roundNo),
+    reason: str(p.reason),
+  };
+}
+
 function num(v: unknown): number | null {
   return typeof v === 'number' ? v : null;
 }
@@ -140,7 +164,9 @@ export class CaseHistoryService {
     return { ...this.toItem(user, kase), clientName, events };
   }
 
-  /** Every case + timeline for the PDF export (bounded by the caller). */
+  /** Every case + timeline for the PDF export (bounded by the caller).
+   * Batched: one query each for cases, journal rows, disclosures and
+   * client names — not per case (load review, file 04). */
   async collectForExport(
     user: RequestUser,
     maxCases: number,
@@ -151,15 +177,70 @@ export class CaseHistoryService {
       take: maxCases + 1,
       select: CASE_SELECT,
     });
-    const cases: CaseHistoryDetailDto[] = [];
-    for (const kase of rows.slice(0, maxCases)) {
-      cases.push({
-        ...this.toItem(user, kase),
-        clientName: await this.clientNameFor(user, kase),
-        events: await this.events(user, kase.id),
-      });
+    const page = rows.slice(0, maxCases);
+    const ids = page.map((c) => c.id);
+    const attorney = user.role === 'attorney';
+    const [journal, disclosed, active] = await Promise.all([
+      this.prisma.caseJournal.findMany({
+        where: {
+          case_id: { in: ids },
+          ...(attorney
+            ? { OR: [{ attorney_id: null }, { attorney_id: user.sub }] }
+            : {}),
+        },
+        orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+        select: {
+          id: true,
+          case_id: true,
+          event_type: true,
+          created_at: true,
+          actor_role: true,
+          payload: true,
+        },
+      }),
+      attorney
+        ? this.prisma.contactDisclosure.findMany({
+            where: { case_id: { in: ids }, attorney_id: user.sub },
+            select: { case_id: true },
+          })
+        : Promise.resolve([]),
+      attorney ? this.subscriptions.isActive(user.sub) : Promise.resolve(true),
+    ]);
+    const disclosedIds = new Set(disclosed.map((d) => d.case_id));
+    const nameCaseIds = attorney
+      ? active
+        ? page.filter((c) => disclosedIds.has(c.id))
+        : []
+      : page;
+    const clients = await this.prisma.user.findMany({
+      where: withDeleted({
+        id: { in: [...new Set(nameCaseIds.map((c) => c.client_id))] },
+      }),
+      select: { id: true, first_name: true, last_name: true },
+    });
+    const nameOf = new Map(
+      clients.map((u) => [
+        u.id,
+        [u.first_name, u.last_name].filter(Boolean).join(' ') || null,
+      ]),
+    );
+    const eventsByCase = new Map<string, CaseHistoryEventDto[]>();
+    for (const r of journal) {
+      const list = eventsByCase.get(r.case_id) ?? [];
+      list.push(toEvent(r));
+      eventsByCase.set(r.case_id, list);
     }
-    return { cases, truncated: rows.length > maxCases };
+    const canName = new Set(nameCaseIds.map((c) => c.id));
+    return {
+      cases: page.map((kase) => ({
+        ...this.toItem(user, kase),
+        clientName: canName.has(kase.id)
+          ? (nameOf.get(kase.client_id) ?? null)
+          : null,
+        events: eventsByCase.get(kase.id) ?? [],
+      })),
+      truncated: rows.length > maxCases,
+    };
   }
 
   private toItem(user: RequestUser, c: HistoryCase): CaseHistoryItemDto {
@@ -210,23 +291,7 @@ export class CaseHistoryService {
         payload: true,
       },
     });
-    return rows.map((r) => {
-      const p = (r.payload ?? {}) as Record<string, unknown>;
-      const role = r.actor_role;
-      return {
-        id: r.id,
-        eventType: r.event_type,
-        createdAt: r.created_at.toISOString(),
-        actorRole:
-          role === 'client' || role === 'attorney' || role === 'admin'
-            ? role
-            : 'system',
-        amountCents: num(p.amountCents),
-        feeType: str(p.feeType) as FeeType | null,
-        roundNo: num(p.roundNo),
-        reason: str(p.reason),
-      };
-    });
+    return rows.map(toEvent);
   }
 
   /** §12: the attorney sees the client's name only if contacts were

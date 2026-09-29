@@ -8,6 +8,7 @@ import { Prisma } from '@prisma/client';
 import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { withJobLock } from '../../../jobs/handlers/job-lock';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
 
 const SEEN_KEY = (caseId: string): string => `cv:seen:${caseId}`;
@@ -19,6 +20,16 @@ const FLUSH_BATCH = 500;
  * new viewer. Open cases are archived after 30 + 14 idle days (§10.2), so
  * the window outlives any case that can still be in the feed. */
 const SEEN_TTL_SECONDS = 60 * 24 * 3600;
+
+/** First view of a pair: SADD + EXPIRE + HINCRBY in one atomic call, so
+ * a crash can't leave a set without TTL or lose the counted view. */
+const RECORD_VIEW = `
+if redis.call('SADD', KEYS[1], ARGV[1]) == 1 then
+  redis.call('EXPIRE', KEYS[1], ARGV[2])
+  redis.call('HINCRBY', KEYS[2], ARGV[3], 1)
+  return 1
+end
+return 0`;
 
 /** Atomic (single Lua call, so no race with a concurrent HINCRBY on the
  * same fields): read a batch of pending deltas and clear them in one
@@ -80,15 +91,16 @@ export class CaseViewTrackingService
    * pair. Returns whether it counted (mostly for tests). Caller must have
    * already checked visibility (CaseAccessPolicy) — this does not. */
   async recordView(attorneyId: string, caseId: string): Promise<boolean> {
-    const key = SEEN_KEY(caseId);
-    const added = await this.redis.sadd(key, attorneyId);
-    if (added !== 1) return false;
-    await this.redis
-      .multi()
-      .expire(key, SEEN_TTL_SECONDS)
-      .hincrby(PENDING_KEY, caseId, 1)
-      .exec();
-    return true;
+    const added = await this.redis.eval(
+      RECORD_VIEW,
+      2,
+      SEEN_KEY(caseId),
+      PENDING_KEY,
+      attorneyId,
+      SEEN_TTL_SECONDS,
+      caseId,
+    );
+    return added === 1;
   }
 
   /** Batch worker (docs/04 §4.3): drains `cv:pending` and applies every
@@ -97,6 +109,18 @@ export class CaseViewTrackingService
    * drained at most once per call, and a delta already applied is gone
    * from the hash). */
   async flushPending(): Promise<{ casesUpdated: number }> {
+    // One flusher across all API pods (fewer writes contending with the
+    // accept transaction's row locks) — load review, file 04.
+    const result = await withJobLock(
+      this.redis,
+      'cases.view-flush',
+      FLUSH_INTERVAL_MS,
+      () => this.flushNow(),
+    );
+    return result ?? { casesUpdated: 0 };
+  }
+
+  private async flushNow(): Promise<{ casesUpdated: number }> {
     let casesUpdated = 0;
     let cursor = '0';
     do {

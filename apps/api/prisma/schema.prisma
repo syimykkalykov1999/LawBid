@@ -1155,6 +1155,8 @@ model Bid {
   @@unique([case_id, attorney_id])
   @@index([case_id, status])
   @@index([attorney_id, status, updated_at(sort: Desc)])
+  // docs/04 §11.2 "Мои биды" finished filter (migration file04_scale_indexes).
+  @@index([attorney_id, updated_at(sort: Desc), id(sort: Desc)], map: "bids_attorney_updated_idx")
   @@map("bids")
 }
 

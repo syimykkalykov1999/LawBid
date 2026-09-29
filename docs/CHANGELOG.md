@@ -4740,3 +4740,21 @@ Tests: flutter test 591/591 (new: draft rules, wizard publish/consent and
 contact-info error, bid actions by turn, empty states); analyze 0
 errors/warnings. Fixed along the way: empty-state sliver crash
 (LayoutBuilder intrinsic), drift row class name clash.
+
+## File 04 review fixes (subagent review: security, load, Flutter) — 2026-09-28
+
+- Security: case-history client name also gated by an active subscription
+  (§8.3); one case-history export per user in flight (Redis claim) and one
+  S3 object per user (`latest.pdf`), link re-checks the user is active;
+  "Не могу связаться" check-then-create under the bid row lock.
+- Load: §10.2 jobs skip-and-log a failing case instead of aborting the run;
+  stale-prompt / auto-archive walk new partial indexes (archive keyed by
+  `stale_prompt_sent_at`); completion reminder relies on the Redis claim
+  (no notifications scan). View counter: SADD+EXPIRE+HINCRBY in one Lua
+  call; flush runs on one pod at a time. History PDF export batched (4
+  queries instead of ~3 per case). Saved cases: one visibility query per
+  page (`CaseAccessPolicy.visibleCaseIds`). "В работе" reads from the
+  attorney's accepted bids. Migration `file04_scale_indexes` (OQ-011 #5).
+- Not changed (by design): the accept transaction appends journal rows one
+  by one — the hash chain is sequential by definition; losing bids per case
+  are few.

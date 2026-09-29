@@ -113,6 +113,46 @@ export class CaseAccessPolicy {
     return null;
   }
 
+  /** Batched decide() for attorney lists (saved cases): the ids among
+   * [caseIds] the attorney may currently see — participant or §5.4
+   * prospect — in one query instead of one per row (load review). */
+  async visibleCaseIds(
+    attorneyId: string,
+    caseIds: string[],
+    db: Db = this.prisma,
+  ): Promise<Set<string>> {
+    if (caseIds.length === 0) return new Set();
+    const a = attorneyId;
+    const rows = await db.$queryRaw<{ id: string }[]>`
+      SELECT c.id::STRING AS id
+      FROM cases c
+      JOIN practice_areas pa ON pa.id = c.practice_area_id
+      WHERE c.id = ANY(${caseIds}::UUID[]) AND c.deleted_at IS NULL
+        AND (
+          EXISTS (SELECT 1 FROM bids b
+                  WHERE b.case_id = c.id AND b.attorney_id = ${a}::UUID)
+          OR EXISTS (SELECT 1 FROM conversations v
+                     WHERE v.case_id = c.id AND v.attorney_id = ${a}::UUID)
+          OR (c.status = 'open'
+              AND EXISTS (SELECT 1 FROM attorney_profiles p
+                          WHERE p.user_id = ${a}::UUID
+                            AND p.verification_status = 'verified')
+              AND EXISTS (SELECT 1 FROM case_states cs
+                          JOIN attorney_licenses l ON l.state_code = cs.state_code
+                          WHERE cs.case_id = c.id AND l.attorney_id = ${a}::UUID
+                            AND l.license_status = 'verified')
+              AND EXISTS (SELECT 1 FROM attorney_practice_areas ap
+                          WHERE ap.attorney_id = ${a}::UUID
+                            AND (ap.practice_area_id = c.practice_area_id
+                                 OR (pa.code = ${NOT_SURE_OR_OTHER_CODE}
+                                     AND ap.practice_area_id IN (
+                                       SELECT id FROM practice_areas
+                                       WHERE code IN (${GENERAL_PRACTICE_CODES[0]},
+                                                      ${GENERAL_PRACTICE_CODES[1]}))))))
+        )`;
+    return new Set(rows.map((r) => r.id));
+  }
+
   /** decide() or CASE_NOT_FOUND (404). */
   async assertCanView(
     viewer: CaseViewer,

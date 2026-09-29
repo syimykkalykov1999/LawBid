@@ -164,64 +164,73 @@ export class MineService {
   ): Promise<Page<WorkItemDto>> {
     if (user.role !== 'attorney') throw forbidden('Attorneys only.');
     const c = cursor ? decodeCursor(cursor) : undefined;
-    const [rows, active] = await Promise.all([
-      this.prisma.case.findMany({
+    // From the attorney's accepted bids — index bids(attorney_id, status,
+    // updated_at) — rather than scanning cases (load review, file 04).
+    const [bids, active] = await Promise.all([
+      this.prisma.bid.findMany({
         where: {
-          status: { in: WORK_STATUSES[filter] },
-          accepted_bid: { attorney_id: user.sub },
+          attorney_id: user.sub,
+          status: 'accepted',
+          accepted_for_case: { status: { in: WORK_STATUSES[filter] } },
           ...(c
             ? {
                 OR: [
-                  { created_at: { lt: c.createdAt } },
-                  { created_at: c.createdAt, id: { lt: c.id } },
+                  { updated_at: { lt: c.createdAt } },
+                  { updated_at: c.createdAt, id: { lt: c.id } },
                 ],
               }
             : {}),
         },
-        orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+        orderBy: [{ updated_at: 'desc' }, { id: 'desc' }],
         take: limit + 1,
         select: {
           id: true,
-          title: true,
-          status: true,
-          created_at: true,
-          auto_close_at: true,
-          closed_at: true,
-          client: { select: { first_name: true, last_name: true } },
-          accepted_bid: {
+          fee_type: true,
+          amount_cents: true,
+          decided_at: true,
+          updated_at: true,
+          accepted_for_case: {
             select: {
               id: true,
-              fee_type: true,
-              amount_cents: true,
-              decided_at: true,
+              title: true,
+              status: true,
+              auto_close_at: true,
+              closed_at: true,
+              client: { select: { first_name: true, last_name: true } },
             },
           },
         },
       }),
       this.subscriptions.isActive(user.sub),
     ]);
-    const page = rows.slice(0, limit);
+    const page = bids.slice(0, limit);
     const last = page[page.length - 1];
     return {
-      items: page.map((k) => ({
-        caseId: k.id,
-        bidId: k.accepted_bid!.id,
-        title: k.title,
-        status: k.status,
-        clientName: active
-          ? [k.client.first_name, k.client.last_name]
-              .filter(Boolean)
-              .join(' ') || null
-          : null,
-        feeType: k.accepted_bid!.fee_type,
-        amountCents: k.accepted_bid!.amount_cents,
-        autoCloseAt: k.auto_close_at?.toISOString() ?? null,
-        acceptedAt: k.accepted_bid!.decided_at?.toISOString() ?? null,
-        closedAt: k.closed_at?.toISOString() ?? null,
-      })),
+      items: page.flatMap((b) => {
+        const k = b.accepted_for_case;
+        if (!k) return [];
+        return [
+          {
+            caseId: k.id,
+            bidId: b.id,
+            title: k.title,
+            status: k.status,
+            clientName: active
+              ? [k.client.first_name, k.client.last_name]
+                  .filter(Boolean)
+                  .join(' ') || null
+              : null,
+            feeType: b.fee_type,
+            amountCents: b.amount_cents,
+            autoCloseAt: k.auto_close_at?.toISOString() ?? null,
+            acceptedAt: b.decided_at?.toISOString() ?? null,
+            closedAt: k.closed_at?.toISOString() ?? null,
+          },
+        ];
+      }),
       nextCursor:
-        rows.length > limit && last
-          ? encodeCursor({ createdAt: last.created_at, id: last.id })
+        bids.length > limit && last
+          ? encodeCursor({ createdAt: last.updated_at, id: last.id })
           : null,
     };
   }
@@ -252,16 +261,10 @@ export class MineService {
     });
     const page = rows.slice(0, limit);
     const ids = page.map((r) => r.item_id);
-    const visible = new Set<string>();
-    if (user.role === 'attorney') {
-      for (const id of ids) {
-        const d = await this.access.decide(
-          { userId: user.sub, role: 'attorney' },
-          id,
-        );
-        if (d) visible.add(id);
-      }
-    }
+    const visible =
+      user.role === 'attorney'
+        ? await this.access.visibleCaseIds(user.sub, ids)
+        : new Set<string>();
     const [cards, titles] = await Promise.all([
       user.role === 'attorney' ? this.feed.hydrate([...visible], user.sub) : [],
       this.prisma.case.findMany({

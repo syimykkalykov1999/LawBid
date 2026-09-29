@@ -36,25 +36,43 @@ interface KeyRow {
 
 /**
  * Walks due case ids in keyset order (`at`, `id`) in batches of
- * CASE_JOB_BATCH so a case whose action returns false (raced) or throws
- * can't make the job loop, and each query stays on the §10.2 partial
- * indexes. `act` re-checks the due condition under the row lock.
+ * CASE_JOB_BATCH on the §10.2 partial indexes. `act` re-checks the due
+ * condition under the row lock and returns false when a case is no longer
+ * due. A case whose action throws is logged and skipped — it can never
+ * stop the run or starve the cases after it (load review, file 04).
  */
 async function walk(
   fetch: (after: KeyRow) => Promise<KeyRow[]>,
   act: (id: string) => Promise<boolean>,
+  onError: (id: string, error: unknown) => void,
 ): Promise<number> {
   let cursor: KeyRow = { id: ZERO_UUID, at: new Date(0) };
   let processed = 0;
   for (;;) {
     const rows = await fetch(cursor);
     for (const row of rows) {
-      if (await act(row.id)) processed += 1;
+      try {
+        if (await act(row.id)) processed += 1;
+      } catch (error) {
+        onError(row.id, error);
+      }
     }
     const last = rows[rows.length - 1];
     if (rows.length < CASE_JOB_BATCH || !last) return processed;
     cursor = last;
   }
+}
+
+function logFailure(logger: PinoLogger, job: string) {
+  return (caseId: string, error: unknown) =>
+    logger.error(
+      {
+        job,
+        caseId,
+        err: error instanceof Error ? error.message : String(error),
+      },
+      'case job step failed; skipped',
+    );
 }
 
 /** §10.2 "Напоминание об актуальности" (hourly). */
@@ -79,7 +97,8 @@ export class CaseStalePromptJob {
         walk(
           (after) =>
             this.prisma.$queryRaw<KeyRow[]>(Prisma.sql`
-              SELECT id::STRING AS id, last_activity_at AS at FROM cases
+              SELECT id::STRING AS id, last_activity_at AS at
+              FROM cases@cases_open_unprompted_idx
               WHERE status = 'open' AND deleted_at IS NULL
                 AND stale_prompt_sent_at IS NULL
                 AND last_activity_at < ${inactiveBefore}
@@ -87,6 +106,7 @@ export class CaseStalePromptJob {
               ORDER BY last_activity_at, id
               LIMIT ${CASE_JOB_BATCH}`),
           (id) => this.lifecycle.sendStalePrompt(id, now, inactiveBefore),
+          logFailure(this.logger, 'cases.stale-prompt'),
         ),
     );
     this.logger.info({ processed }, 'case stale prompts');
@@ -118,14 +138,17 @@ export class CaseAutoArchiveJob {
         walk(
           (after) =>
             this.prisma.$queryRaw<KeyRow[]>(Prisma.sql`
-              SELECT id::STRING AS id, last_activity_at AS at FROM cases
+              SELECT id::STRING AS id, stale_prompt_sent_at AS at
+              FROM cases@cases_open_prompted_idx
               WHERE status = 'open' AND deleted_at IS NULL
+                AND stale_prompt_sent_at IS NOT NULL
                 AND stale_prompt_sent_at < ${promptedBefore}
                 AND last_activity_at <= stale_prompt_sent_at
-                AND (last_activity_at, id) > (${after.at}, ${after.id}::UUID)
-              ORDER BY last_activity_at, id
+                AND (stale_prompt_sent_at, id) > (${after.at}, ${after.id}::UUID)
+              ORDER BY stale_prompt_sent_at, id
               LIMIT ${CASE_JOB_BATCH}`),
           (id) => this.lifecycle.autoArchive(id, now, promptedBefore),
+          logFailure(this.logger, 'cases.auto-archive'),
         ),
     );
     this.logger.info({ processed }, 'cases auto-archived');
@@ -161,6 +184,7 @@ export class CaseAutoCloseJob {
               ORDER BY auto_close_at, id
               LIMIT ${CASE_JOB_BATCH}`),
           (id) => this.lifecycle.autoClose(id, now),
+          logFailure(this.logger, 'cases.auto-close'),
         ),
     );
     this.logger.info({ processed }, 'cases auto-closed');
@@ -175,9 +199,8 @@ interface ReminderRow extends KeyRow {
 /**
  * §10.2 "Напоминание адвокату" (hourly): pending_completion with ≤ 24 h
  * left and no reminder yet → `completion_reminder` to the accepted
- * attorney. "No reminder yet" is read from the notifications table (no
- * extra column: stage 4.1 owns file 04's only migration); overlapping
- * emits are closed by an atomic Redis claim, as in the review reminder.
+ * attorney, at most once: an atomic Redis claim per case whose TTL (48 h)
+ * outlives the 24 h window (no notifications scan per case — load review).
  */
 @Injectable()
 export class CaseCompletionReminderJob {
@@ -211,29 +234,31 @@ export class CaseCompletionReminderJob {
               AND c.auto_close_at > ${now}
               AND c.auto_close_at <= ${until}
               AND (c.auto_close_at, c.id) > (${cursor.at}, ${cursor.id}::UUID)
-              AND NOT EXISTS (
-                SELECT 1 FROM notifications AS n
-                WHERE n.user_id = b.attorney_id
-                  AND n.type = 'completion_reminder'
-                  AND n.payload->>'caseId' = c.id::STRING)
             ORDER BY c.auto_close_at, c.id
             LIMIT ${CASE_JOB_BATCH}`);
           for (const row of rows) {
-            const emitted = await emitOnce(
-              this.redis,
-              `reminder:completion:${row.id}`,
-              claimTtlSec,
-              () =>
-                this.notifications.emit({
-                  type: 'completion_reminder',
-                  recipientId: row.attorney_id,
-                  payload: {
-                    caseId: row.id,
-                    autoCloseAt: row.at.toISOString(),
-                  },
-                }),
-            );
-            if (emitted) sent += 1;
+            try {
+              const emitted = await emitOnce(
+                this.redis,
+                `reminder:completion:${row.id}`,
+                claimTtlSec,
+                () =>
+                  this.notifications.emit({
+                    type: 'completion_reminder',
+                    recipientId: row.attorney_id,
+                    payload: {
+                      caseId: row.id,
+                      autoCloseAt: row.at.toISOString(),
+                    },
+                  }),
+              );
+              if (emitted) sent += 1;
+            } catch (error) {
+              logFailure(this.logger, 'cases.completion-reminder')(
+                row.id,
+                error,
+              );
+            }
           }
           const last = rows[rows.length - 1];
           if (rows.length < CASE_JOB_BATCH || !last) return sent;
