@@ -18,6 +18,7 @@ import { PushModule } from './modules/notifications/push/push.module';
 import { CountersModule } from './modules/counters/counters.module';
 import { ModerationModule } from './modules/moderation/moderation.module';
 import { PostsModule } from './modules/posts/posts.module';
+import { FeedModule } from './modules/feed/feed.module';
 import { BidsModule } from './modules/bids/bids.module';
 import { NegotiationsModule } from './modules/negotiations/negotiations.module';
 import { JournalModule } from './modules/journal/journal.module';
@@ -115,6 +116,7 @@ const isDev =
     ModerationModule,
     // docs/05 §3 (stage 5.2).
     PostsModule,
+    FeedModule,
     BidsModule,
     NegotiationsModule,
     JournalModule,

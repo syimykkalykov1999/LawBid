@@ -16,6 +16,7 @@ export 'clients/admin_case_disputes_client.dart';
 export 'clients/bids_client.dart';
 export 'clients/case_history_client.dart';
 export 'clients/posts_client.dart';
+export 'clients/feed_client.dart';
 export 'clients/verification_client.dart';
 export 'clients/admin_verification_client.dart';
 export 'clients/practice_areas_client.dart';

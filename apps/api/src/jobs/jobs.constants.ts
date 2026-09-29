@@ -29,6 +29,8 @@ export const CRON_JOBS = {
   caseCompletionReminder: 'cases.completion-reminder',
   /** docs/05 stage 5.1: nightly counters reconcile. */
   countersReconcile: 'counters.reconcile',
+  /** docs/05 §2.2.2: recommendations every 10 minutes. */
+  feedReco: 'feed.reco',
 } as const;
 
 export type CronJobName = (typeof CRON_JOBS)[keyof typeof CRON_JOBS];
@@ -60,6 +62,7 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.caseAutoClose, pattern: '35 * * * *' },
   { name: CRON_JOBS.caseCompletionReminder, pattern: '45 * * * *' },
   { name: CRON_JOBS.countersReconcile, pattern: '50 4 * * *' },
+  { name: CRON_JOBS.feedReco, pattern: '*/10 * * * *' },
 ];
 
 export const DISPOSABLE_DOMAINS_FETCHER = Symbol('DISPOSABLE_DOMAINS_FETCHER');

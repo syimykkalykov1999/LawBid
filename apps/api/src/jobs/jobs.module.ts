@@ -18,6 +18,7 @@ import {
   CaseStalePromptJob,
 } from './handlers/case-lifecycle.jobs';
 import { CountersReconcileJob } from './handlers/counters-reconcile.job';
+import { FeedRecoJob } from '../modules/feed/feed-reco.job';
 import { CaseLifecycleModule } from '../modules/cases/lifecycle/case-lifecycle.module';
 import { BidsModule } from '../modules/bids/bids.module';
 import { SubscriptionsModule } from '../modules/subscriptions/subscriptions.module';
@@ -61,6 +62,7 @@ export class JobsModule {
         CaseAutoCloseJob,
         CaseCompletionReminderJob,
         CountersReconcileJob,
+        FeedRecoJob,
         CronProcessor,
         JobsRunner,
       ],
