@@ -1,3 +1,4 @@
+import { CasePhotosService } from './services/case-photos.service';
 import {
   BadRequestException,
   ConflictException,
@@ -194,6 +195,7 @@ export class CasesService {
     private readonly journal: CaseJournalService,
     private readonly notifications: NotificationsService,
     private readonly chat: ChatSystemMessages,
+    private readonly photos: CasePhotosService,
   ) {}
 
   /** POST /cases (§3.1–§3.4). */
@@ -221,6 +223,10 @@ export class CasesService {
     await this.assertValidStateCodes(states.map((s) => s.stateCode));
     const practiceArea = await this.assertLeafPracticeArea(dto.practiceAreaId);
     const budgetCents = budgetCentsOf(dto.budgetMode, dto.budgetAmountDollars);
+
+    // OQ-031: 0-9 of the author's own clean case photos.
+    const photoIds = dto.photoFileIds ?? [];
+    await this.photos.assertAttachable(user.sub, photoIds);
 
     const consentGranted = await this.hasContactSharingConsent(user.sub);
     if (!consentGranted && dto.clientContactSharingConsent !== true) {
@@ -254,6 +260,7 @@ export class CasesService {
           is_primary: s.isPrimary,
         })),
       });
+      await this.photos.attach(tx, kase.id, photoIds);
       await this.journal.append(tx, {
         caseId: kase.id,
         clientId: user.sub,

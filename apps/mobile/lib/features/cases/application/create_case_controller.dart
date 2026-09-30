@@ -9,11 +9,35 @@ import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/domain/case_draft.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
+import 'package:lawbid/features/social/application/social_providers.dart';
 
 /// Number of wizard steps (docs/04 §3.1).
 const int kCaseWizardSteps = 5;
 
 @immutable
+/// OQ-031: a photo picked in the wizard, uploaded right away.
+@immutable
+class CasePhotoUpload {
+  const CasePhotoUpload({
+    required this.key,
+    required this.bytes,
+    this.fileId,
+    this.failed = false,
+  });
+
+  final int key;
+  final Uint8List bytes;
+
+  /// Set once the upload passed the antivirus scan.
+  final String? fileId;
+  final bool failed;
+
+  bool get uploading => fileId == null && !failed;
+}
+
+/// OQ-031: photos per case.
+const kCaseMaxPhotos = 9;
+
 class CreateCaseState {
   const CreateCaseState({
     required this.draft,
@@ -24,7 +48,13 @@ class CreateCaseState {
     this.isSubmitting = false,
     this.error,
     this.publishedCaseId,
+    this.photos = const [],
   });
+
+  /// OQ-031: 0–9 photos (seen by the owner and the accepted attorney).
+  final List<CasePhotoUpload> photos;
+
+  bool get photosUploading => photos.any((p) => p.uploading);
 
   final CaseDraft draft;
   final bool loaded;
@@ -43,7 +73,7 @@ class CreateCaseState {
 
   bool get stepValid => switch (draft.step) {
         0 => draft.practiceValid,
-        1 => draft.titleValid && draft.descriptionValid,
+        1 => draft.titleValid && draft.descriptionValid && !photosUploading,
         2 => draft.placeValid,
         3 => draft.budgetValid,
         _ => !needsConsent || consentChecked,
@@ -59,8 +89,10 @@ class CreateCaseState {
     ApiException? error,
     bool clearError = false,
     String? publishedCaseId,
+    List<CasePhotoUpload>? photos,
   }) =>
       CreateCaseState(
+        photos: photos ?? this.photos,
         draft: draft ?? this.draft,
         loaded: loaded ?? this.loaded,
         restoredDraft: restoredDraft ?? this.restoredDraft,
@@ -112,6 +144,48 @@ class CreateCaseController extends Notifier<CreateCaseState> {
     _scheduleSave();
   }
 
+  int _photoKey = 0;
+
+  /// OQ-031: add picked photos (up to [kCaseMaxPhotos]) and upload each.
+  void addPhotos(List<Uint8List> picked) {
+    final left = kCaseMaxPhotos - state.photos.length;
+    for (final bytes in picked.take(left)) {
+      final item = CasePhotoUpload(key: _photoKey++, bytes: bytes);
+      state = state.copyWith(photos: [...state.photos, item]);
+      unawaited(_upload(item));
+    }
+  }
+
+  Future<void> _upload(CasePhotoUpload item) async {
+    CasePhotoUpload done;
+    try {
+      final id = await ref
+          .read(socialActionsProvider)
+          .uploadPhoto(item.bytes, casePhoto: true);
+      done = CasePhotoUpload(key: item.key, bytes: item.bytes, fileId: id);
+    } on Object {
+      done = CasePhotoUpload(key: item.key, bytes: item.bytes, failed: true);
+    }
+    if (!ref.mounted) return;
+    state = state.copyWith(photos: [
+      for (final p in state.photos) p.key == item.key ? done : p,
+    ]);
+  }
+
+  void removePhoto(int key) => state = state.copyWith(
+        photos: [for (final p in state.photos) if (p.key != key) p],
+      );
+
+  void retryPhoto(int key) {
+    final p = state.photos.where((x) => x.key == key).firstOrNull;
+    if (p == null || !p.failed) return;
+    final again = CasePhotoUpload(key: p.key, bytes: p.bytes);
+    state = state.copyWith(photos: [
+      for (final x in state.photos) x.key == key ? again : x,
+    ]);
+    unawaited(_upload(again));
+  }
+
   void setConsent({required bool value}) =>
       state = state.copyWith(consentChecked: value, clearError: true);
 
@@ -157,6 +231,10 @@ class CreateCaseController extends Notifier<CreateCaseState> {
       final id = await ref.read(casesRepositoryProvider).createCase(
             state.draft,
             contactSharingConsent: state.needsConsent && state.consentChecked,
+            photoFileIds: [
+              for (final p in state.photos)
+                if (p.fileId != null) p.fileId!,
+            ],
           );
       await ref.read(localKvStoreProvider).setString(_consentKey, '1');
       await ref.read(casesLocalDatabaseProvider).deleteDraft(_ownerId);

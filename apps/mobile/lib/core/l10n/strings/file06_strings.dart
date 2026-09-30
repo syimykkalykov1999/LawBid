@@ -170,6 +170,14 @@ const file06Ru = <String, String>{
   'profile.nameMismatch.body':
       'Имя отличается от имени в проверенных документах. Всё работает как обычно. Верните прежнее имя или подтвердите новое документом.',
   'profile.nameMismatch.action': 'Подтвердить новое имя',
+  // OQ-031 case photos.
+  'cases.photos.title': 'Фото',
+  'cases.photos.privacy':
+      'Необязательно, до 9 фото. Их увидит только адвокат, чей бид вы примете.',
+  'cases.photos.add': 'Добавить фото',
+  'cases.photos.remove': 'Убрать фото',
+  'cases.photos.locked':
+      'Фото к кейсу: {count}. Откроются после того, как клиент примет ваш бид.',
 };
 
 const file06En = <String, String>{
@@ -342,4 +350,12 @@ const file06En = <String, String>{
   'profile.nameMismatch.body':
       'Your name differs from the one on your verified documents. Everything keeps working. Change it back or confirm the new name with a document.',
   'profile.nameMismatch.action': 'Confirm new name',
+  // OQ-031 case photos.
+  'cases.photos.title': 'Photos',
+  'cases.photos.privacy':
+      'Optional, up to 9 photos. Only the attorney whose bid you accept will see them.',
+  'cases.photos.add': 'Add photo',
+  'cases.photos.remove': 'Remove photo',
+  'cases.photos.locked':
+      'Photos attached: {count}. They open once the client accepts your bid.',
 };

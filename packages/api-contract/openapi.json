@@ -23931,7 +23931,8 @@
           "verification_document",
           "verification_selfie",
           "post_video",
-          "data_export"
+          "data_export",
+          "case_photo"
         ]
       },
       "PresignFileDto": {
@@ -27235,6 +27236,16 @@
               }
             ]
           },
+          "photoFileIds": {
+            "description": "Clean case_photo file ids (0-9), display order.",
+            "uniqueItems": true,
+            "maxItems": 9,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
           "budgetAmountDollars": {
             "type": "integer",
             "minimum": 1,
@@ -27582,6 +27593,27 @@
           "data"
         ]
       },
+      "CasePhotoDto": {
+        "type": "object",
+        "properties": {
+          "fileId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "url": {
+            "type": "string"
+          },
+          "previewUrl": {
+            "type": "string",
+            "description": "320 px preview."
+          }
+        },
+        "required": [
+          "fileId",
+          "url",
+          "previewUrl"
+        ]
+      },
       "CaseDetailForAttorneyDto": {
         "type": "object",
         "properties": {
@@ -27650,6 +27682,17 @@
             "type": "string",
             "nullable": true,
             "description": "The attorney's own bid on this case (§4.3: shown instead of \"Сделать бид\")."
+          },
+          "photos": {
+            "description": "OQ-031: photos — only when THIS attorney's bid was accepted.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CasePhotoDto"
+            }
+          },
+          "photosCount": {
+            "type": "number",
+            "description": "OQ-031: how many photos the case has (shown to every attorney)."
           }
         },
         "required": [
@@ -27666,7 +27709,9 @@
           "isNew",
           "hasOwnBid",
           "description",
-          "isSaved"
+          "isSaved",
+          "photos",
+          "photosCount"
         ]
       },
       "CaseDetailForAttorneyEnvelope": {
@@ -28249,6 +28294,13 @@
             "type": "string",
             "nullable": true,
             "description": "Chat with the accepted attorney (docs/05)."
+          },
+          "photos": {
+            "description": "OQ-031: the case photos (owner always sees them).",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CasePhotoDto"
+            }
           }
         },
         "required": [
@@ -28263,7 +28315,8 @@
           "viewCount",
           "bidsCount",
           "createdAt",
-          "lastActivityAt"
+          "lastActivityAt",
+          "photos"
         ]
       },
       "OwnerCaseDetailEnvelope": {

@@ -54,7 +54,8 @@ class _PublishRepo extends FakeCasesRepository {
   final ApiException? error;
   bool? consent;
   @override
-  Future<String> createCase(CaseDraft draft, {required bool contactSharingConsent}) async {
+  Future<String> createCase(CaseDraft draft,
+      {required bool contactSharingConsent, List<String> photoFileIds = const []}) async {
     consent = contactSharingConsent;
     if (error != null) throw error!;
     return 'new-case';

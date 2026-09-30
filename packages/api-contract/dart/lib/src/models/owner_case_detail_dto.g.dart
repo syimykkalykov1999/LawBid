@@ -24,6 +24,9 @@ OwnerCaseDetailDto _$OwnerCaseDetailDtoFromJson(Map<String, dynamic> json) =>
       bidsCount: (json['bidsCount'] as num).toInt(),
       createdAt: json['createdAt'] as String,
       lastActivityAt: json['lastActivityAt'] as String,
+      photos: (json['photos'] as List<dynamic>)
+          .map((e) => CasePhotoDto.fromJson(e as Map<String, dynamic>))
+          .toList(),
       city: json['city'] as String?,
       budgetCents: (json['budgetCents'] as num?)?.toInt(),
       archivedAt: json['archivedAt'] as String?,
@@ -64,4 +67,5 @@ Map<String, dynamic> _$OwnerCaseDetailDtoToJson(OwnerCaseDetailDto instance) =>
       'deletedAt': ?instance.deletedAt,
       'acceptedBid': ?instance.acceptedBid?.toJson(),
       'conversationId': ?instance.conversationId,
+      'photos': instance.photos.map((e) => e.toJson()).toList(),
     };

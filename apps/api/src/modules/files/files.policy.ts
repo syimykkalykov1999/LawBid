@@ -47,6 +47,12 @@ export const PURPOSE_RULES: Record<FilePurpose, PurposeRule> = {
     sizeSetting: 'files.max_size_mb',
     bucket: 'media',
   },
+  // OQ-031: private (documents bucket, short signed links, never the CDN).
+  case_photo: {
+    mimes: IMAGES,
+    sizeSetting: 'files.max_size_mb',
+    bucket: 'documents',
+  },
   verification_document: {
     mimes: [...IMAGES, FILE_MIME.pdf],
     sizeSetting: 'files.max_size_mb',

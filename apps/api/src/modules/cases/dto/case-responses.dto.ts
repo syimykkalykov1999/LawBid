@@ -24,6 +24,18 @@ export class CaseStateDto {
 }
 
 /** The client-owner's view of one of their own cases (docs/04 §11.1). */
+/** OQ-031: a case photo — short-lived signed links. */
+export class CasePhotoDto {
+  @ApiProperty({ format: 'uuid' })
+  fileId!: string;
+
+  @ApiProperty()
+  url!: string;
+
+  @ApiProperty({ description: '320 px preview.' })
+  previewUrl!: string;
+}
+
 export class CaseDto {
   @ApiProperty({ format: 'uuid' })
   id!: string;

@@ -11,6 +11,7 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/cases/application/create_case_controller.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_photos.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_wizard_steps.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
 
@@ -75,7 +76,12 @@ class _CreateCaseScreenState extends ConsumerState<CreateCaseScreen> {
     final Widget step = switch (d.step) {
       0 => PracticeStep(draft: d, onChange: _c.update),
       1 =>
-        EssenceStep(draft: d, onChange: _c.update, contactError: contactError),
+        EssenceStep(
+          draft: d,
+          onChange: _c.update,
+          contactError: contactError,
+          footer: const CasePhotosPicker(),
+        ),
       2 => PlaceStep(draft: d, onChange: _c.update),
       3 => BudgetStep(draft: d, onChange: _c.update),
       _ => _ReviewStep(state: state, t: t, formats: formats),

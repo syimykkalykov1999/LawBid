@@ -1,3 +1,4 @@
+import { CasePhotosService } from '../services/case-photos.service';
 import {
   ConflictException,
   ForbiddenException,
@@ -79,6 +80,7 @@ export class MineService {
     private readonly feed: CasesFeedService,
     private readonly access: CaseAccessPolicy,
     private readonly subscriptions: SubscriptionAccessService,
+    private readonly photos: CasePhotosService,
   ) {}
 
   /** GET /users/me/cases/:id (owner only; deleted cases are 404). */
@@ -89,7 +91,7 @@ export class MineService {
     if (user.role !== 'client') throw caseNotFound();
     const kase = await this.prisma.case.findUnique({ where: { id: caseId } });
     if (!kase || kase.client_id !== user.sub) throw caseNotFound();
-    const [dto, acceptedBid, conversation] = await Promise.all([
+    const [dto, acceptedBid, conversation, media] = await Promise.all([
       this.cases.toFullDto(kase),
       this.caseBids.acceptedFor(kase.accepted_bid_id),
       kase.accepted_bid_id
@@ -98,8 +100,14 @@ export class MineService {
             select: { id: true },
           })
         : null,
+      this.photos.forViewer(caseId, user.sub),
     ]);
-    return { ...dto, acceptedBid, conversationId: conversation?.id ?? null };
+    return {
+      ...dto,
+      acceptedBid,
+      conversationId: conversation?.id ?? null,
+      photos: media.photos,
+    };
   }
 
   /** GET /users/me/bids?filter= — newest activity first (index

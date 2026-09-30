@@ -5,6 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'case_budget_dto.dart';
+import 'case_photo_dto.dart';
 import 'case_practice_area_dto.dart';
 import 'case_status.dart';
 
@@ -27,6 +28,8 @@ class CaseDetailForAttorneyDto {
     required this.hasOwnBid,
     required this.description,
     required this.isSaved,
+    required this.photos,
+    required this.photosCount,
     this.city,
     this.ownBidId,
   });
@@ -56,6 +59,12 @@ class CaseDetailForAttorneyDto {
 
   /// The attorney's own bid on this case (§4.3: shown instead of "Сделать бид").
   final String? ownBidId;
+
+  /// OQ-031: photos — only when THIS attorney's bid was accepted.
+  final List<CasePhotoDto> photos;
+
+  /// OQ-031: how many photos the case has (shown to every attorney).
+  final num photosCount;
 
   Map<String, Object?> toJson() => _$CaseDetailForAttorneyDtoToJson(this);
 }

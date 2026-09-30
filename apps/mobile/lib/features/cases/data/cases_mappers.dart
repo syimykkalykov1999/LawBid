@@ -60,7 +60,11 @@ abstract final class CasesMappers {
         closedAt: _dateOrNull(c.closedAt),
         acceptedBid: c.acceptedBid == null ? null : listedBid(c.acceptedBid!),
         conversationId: c.conversationId,
+        photos: c.photos.map(casePhoto).toList(growable: false),
       );
+
+  static CasePhoto casePhoto(api.CasePhotoDto p) =>
+      CasePhoto(fileId: p.fileId, url: p.url, previewUrl: p.previewUrl);
 
   static BidAttorney attorney(api.BidAttorneySummaryDto a) => BidAttorney(
         id: a.id,
@@ -155,6 +159,8 @@ abstract final class CasesMappers {
         description: c.description,
         isSaved: c.isSaved,
         ownBidId: c.ownBidId,
+        photos: c.photos.map(casePhoto).toList(growable: false),
+        photosCount: c.photosCount.toInt(),
       );
 
   static MyBid myBid(api.MyBidItemDto b) => MyBid(

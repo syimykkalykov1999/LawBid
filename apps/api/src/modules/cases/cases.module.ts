@@ -1,3 +1,4 @@
+import { CasePhotosService } from './services/case-photos.service';
 import { ChatSystemModule } from '../chat/chat-system.module';
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
@@ -65,6 +66,8 @@ import { CasesFeedService } from './services/cases-feed.service';
   ],
   providers: [
     CasesService,
+    // OQ-031: case photos.
+    CasePhotosService,
     CaseStateMachine,
     CaseAccessPolicy,
     CasesFeedService,

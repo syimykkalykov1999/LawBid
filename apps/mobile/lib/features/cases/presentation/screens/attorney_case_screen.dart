@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_photos.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -207,6 +208,16 @@ class _Body extends ConsumerWidget {
           child: Text(c.description ?? '',
               style: typography.body.copyWith(color: colors.text)),
         ),
+        // OQ-031: photos once this attorney's bid is accepted; before
+        // that only a note that the case has photos.
+        if (c.photosCount > 0)
+          DetailSection(
+            title: t.t('cases.photos.title'),
+            child: CasePhotosStrip(
+              photos: c.photos,
+              hiddenCount: c.photosCount,
+            ),
+          ),
         DetailSection(
           title: t.t('cases.detail.details'),
           child: FactsCard(

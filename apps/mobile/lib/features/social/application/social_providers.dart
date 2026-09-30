@@ -437,8 +437,10 @@ class SocialActions {
   Future<String> uploadPhoto(
     Uint8List bytes, {
     void Function(double)? onProgress,
+    bool casePhoto = false,
   }) =>
-      _repo.uploadPostPhoto(bytes, onProgress: onProgress);
+      _repo.uploadPostPhoto(bytes,
+          onProgress: onProgress, casePhoto: casePhoto);
 }
 
 final socialActionsProvider = Provider<SocialActions>(SocialActions.new);

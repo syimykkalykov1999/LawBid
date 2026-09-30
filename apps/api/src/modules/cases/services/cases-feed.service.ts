@@ -1,4 +1,5 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { CasePhotosService } from './case-photos.service';
+import { ForbiddenException, Injectable, Optional } from '@nestjs/common';
 import type { Case, PracticeArea } from '@prisma/client';
 import {
   decodeCursor,
@@ -51,6 +52,7 @@ export class CasesFeedService {
     private readonly access: CaseAccessPolicy,
     private readonly viewTracking: CaseViewTrackingService,
     private readonly posts: PostEngagementService,
+    @Optional() private readonly photos?: CasePhotosService,
   ) {}
 
   /** GET /cases (docs/04 §4.2). Empty page, not an error, for a caller
@@ -127,11 +129,15 @@ export class CasesFeedService {
         select: { id: true },
       }),
     ]);
+    const media = this.photos
+      ? await this.photos.forViewer(caseId, attorneyId)
+      : { photos: [], photosCount: 0 };
     return {
       ...item,
       description: row.description,
       isSaved: !!saved,
       ownBidId: ownBid?.id ?? null,
+      ...media,
     };
   }
 

@@ -17,6 +17,9 @@ CreateCaseDto _$CreateCaseDtoFromJson(Map<String, dynamic> json) =>
           ?.map((e) => e as String)
           .toList(),
       city: json['city'] as String?,
+      photoFileIds: (json['photoFileIds'] as List<dynamic>?)
+          ?.map((e) => e as String)
+          .toList(),
       budgetAmountDollars: (json['budgetAmountDollars'] as num?)?.toInt(),
       clientContactSharingConsent: json['clientContactSharingConsent'] as bool?,
     );
@@ -30,6 +33,7 @@ Map<String, dynamic> _$CreateCaseDtoToJson(CreateCaseDto instance) =>
       'additionalStateCodes': ?instance.additionalStateCodes,
       'city': ?instance.city,
       'budgetMode': instance.budgetMode.toJson(),
+      'photoFileIds': ?instance.photoFileIds,
       'budgetAmountDollars': ?instance.budgetAmountDollars,
       'clientContactSharingConsent': ?instance.clientContactSharingConsent,
     };

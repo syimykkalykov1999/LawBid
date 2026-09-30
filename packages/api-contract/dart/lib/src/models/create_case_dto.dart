@@ -18,6 +18,7 @@ class CreateCaseDto {
     required this.budgetMode,
     this.additionalStateCodes,
     this.city,
+    this.photoFileIds,
     this.budgetAmountDollars,
     this.clientContactSharingConsent,
   });
@@ -35,6 +36,9 @@ class CreateCaseDto {
   final List<String>? additionalStateCodes;
   final String? city;
   final BudgetMode budgetMode;
+
+  /// Clean case_photo file ids (0-9), display order.
+  final List<String>? photoFileIds;
 
   /// Required (and only meaningful) when budgetMode = amount.
   final int? budgetAmountDollars;

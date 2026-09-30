@@ -18,6 +18,8 @@ enum FilePurpose {
   postVideo('post_video'),
   @JsonValue('data_export')
   dataExport('data_export'),
+  @JsonValue('case_photo')
+  casePhoto('case_photo'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

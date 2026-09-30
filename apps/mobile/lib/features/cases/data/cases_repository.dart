@@ -37,7 +37,8 @@ class BidInput {
 abstract interface class CasesRepository {
   // --- client ---
   Future<String> createCase(CaseDraft draft,
-      {required bool contactSharingConsent});
+      {required bool contactSharingConsent,
+      List<String> photoFileIds = const []});
 
   /// §3.5 edit: only changed fields are sent — practice area and states
   /// only when they changed (the server refuses those once bids exist).
@@ -105,6 +106,7 @@ class ApiCasesRepository implements CasesRepository {
   Future<String> createCase(
     CaseDraft draft, {
     required bool contactSharingConsent,
+    List<String> photoFileIds = const [],
   }) async {
     final env = await guardApiCall(
       () => _cases.createCase(
@@ -121,6 +123,7 @@ class ApiCasesRepository implements CasesRepository {
           budgetAmountDollars:
               draft.budgetIsAmount ? draft.budgetDollars : null,
           clientContactSharingConsent: contactSharingConsent ? true : null,
+          photoFileIds: photoFileIds.isEmpty ? null : photoFileIds,
         ),
         extras: _createsResource,
       ),

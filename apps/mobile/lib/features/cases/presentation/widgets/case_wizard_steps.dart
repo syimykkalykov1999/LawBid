@@ -367,11 +367,15 @@ class EssenceStep extends ConsumerStatefulWidget {
     required this.draft,
     required this.onChange,
     this.contactError,
+    this.footer,
     super.key,
   });
 
   final CaseDraft draft;
   final DraftChange onChange;
+
+  /// OQ-031: the create wizard puts the photo picker here.
+  final Widget? footer;
 
   /// CASE_CONTAINS_CONTACT_INFO text from the last publish attempt.
   final String? contactError;
@@ -448,6 +452,10 @@ class _EssenceStepState extends ConsumerState<EssenceStep> {
             widget.onChange((x) => x.copyWith(description: v));
           },
         ),
+        if (widget.footer != null) ...[
+          const SizedBox(height: AppSpacing.lg),
+          widget.footer!,
+        ],
       ],
     );
   }

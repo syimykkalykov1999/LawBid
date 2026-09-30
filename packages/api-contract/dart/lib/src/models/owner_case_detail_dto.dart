@@ -6,6 +6,7 @@ import 'package:json_annotation/json_annotation.dart';
 
 import 'budget_mode.dart';
 import 'case_bid_item_dto.dart';
+import 'case_photo_dto.dart';
 import 'case_state_dto.dart';
 import 'case_status.dart';
 import 'practice_area_ref_dto.dart';
@@ -27,6 +28,7 @@ class OwnerCaseDetailDto {
     required this.bidsCount,
     required this.createdAt,
     required this.lastActivityAt,
+    required this.photos,
     this.city,
     this.budgetCents,
     this.archivedAt,
@@ -66,6 +68,9 @@ class OwnerCaseDetailDto {
 
   /// Chat with the accepted attorney (docs/05).
   final String? conversationId;
+
+  /// OQ-031: the case photos (owner always sees them).
+  final List<CasePhotoDto> photos;
 
   Map<String, Object?> toJson() => _$OwnerCaseDetailDtoToJson(this);
 }

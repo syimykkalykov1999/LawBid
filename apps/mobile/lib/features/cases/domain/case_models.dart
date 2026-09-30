@@ -92,6 +92,20 @@ class CaseSummary {
 
 /// The owner's full case (docs/04 §11.1) incl. "Адвокат в работе".
 @immutable
+/// OQ-031: a case photo — short-lived signed links.
+@immutable
+class CasePhoto {
+  const CasePhoto({
+    required this.fileId,
+    required this.url,
+    required this.previewUrl,
+  });
+
+  final String fileId;
+  final String url;
+  final String previewUrl;
+}
+
 class OwnerCase {
   const OwnerCase({
     required this.id,
@@ -113,7 +127,11 @@ class OwnerCase {
     this.closedAt,
     this.acceptedBid,
     this.conversationId,
+    this.photos = const [],
   });
+
+  /// OQ-031: the case photos (the owner always sees them).
+  final List<CasePhoto> photos;
 
   final String id;
   final String title;
@@ -264,6 +282,8 @@ class FeedCase {
     this.description,
     this.isSaved = false,
     this.ownBidId,
+    this.photos = const [],
+    this.photosCount = 0,
   });
 
   final String id;
@@ -279,6 +299,11 @@ class FeedCase {
   final DateTime createdAt;
   final bool isNew;
   final bool hasOwnBid;
+  /// OQ-031: photos — only once this attorney's bid was accepted.
+  final List<CasePhoto> photos;
+
+  /// OQ-031: how many photos the case has (every attorney sees this).
+  final int photosCount;
   final String? description;
   final bool isSaved;
 

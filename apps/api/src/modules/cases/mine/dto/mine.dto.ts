@@ -14,7 +14,7 @@ import {
 import { BidDto, BidOfferDto } from '../../../bids/dto/bid-responses.dto';
 import { CaseBidItemDto } from '../../case-bids/dto/case-bids.dto';
 import { CaseFeedItemDto } from '../../dto/cases-feed.dto';
-import { CaseDto } from '../../dto/case-responses.dto';
+import { CaseDto, CasePhotoDto } from '../../dto/case-responses.dto';
 
 export const MINE_PAGE_DEFAULT = 20;
 export const MINE_PAGE_MAX = 50;
@@ -172,6 +172,10 @@ export class OwnerCaseDetailDto extends CaseDto {
     description: 'Chat with the accepted attorney (docs/05).',
   })
   conversationId!: string | null;
+
+  /** OQ-031: the case photos (owner always sees them). */
+  @ApiProperty({ type: [CasePhotoDto] })
+  photos!: CasePhotoDto[];
 }
 
 export class CaseConversationDto {

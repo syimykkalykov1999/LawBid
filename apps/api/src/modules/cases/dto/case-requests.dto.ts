@@ -56,6 +56,9 @@ export class CaseIdParamDto {
  * the client hasn't granted that consent before (§3.1 step 5 — the app
  * shows the checkbox only for a client's first case, but the gate itself
  * is "not yet granted", not "first case"). */
+/** OQ-031: photos per case. */
+export const MAX_CASE_PHOTOS = 9;
+
 export class CreateCaseDto {
   @ApiProperty({ format: 'uuid', description: 'A leaf (specialization).' })
   @IsUUID('all')
@@ -102,6 +105,20 @@ export class CreateCaseDto {
   @ApiProperty({ enum: BudgetMode, enumName: 'BudgetMode' })
   @IsEnum(BudgetMode)
   budgetMode!: BudgetMode;
+
+  /** Owner 2026-09-30 (OQ-031): 0–9 clean `case_photo` file ids, in
+   * display order. Seen only by the owner and the accepted attorney. */
+  @ApiPropertyOptional({
+    type: [String],
+    maxItems: MAX_CASE_PHOTOS,
+    description: 'Clean case_photo file ids (0-9), display order.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(MAX_CASE_PHOTOS)
+  @ArrayUnique()
+  @IsUUID('all', { each: true })
+  photoFileIds?: string[];
 
   @ApiPropertyOptional({
     type: 'integer',

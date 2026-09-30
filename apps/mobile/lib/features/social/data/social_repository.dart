@@ -79,6 +79,7 @@ abstract interface class SocialRepository {
   Future<String> uploadPostPhoto(
     Uint8List bytes, {
     void Function(double progress)? onProgress,
+    bool casePhoto = false,
   });
 }
 
@@ -374,6 +375,8 @@ class ApiSocialRepository implements SocialRepository {
   Future<String> uploadPostPhoto(
     Uint8List bytes, {
     void Function(double progress)? onProgress,
+    // OQ-031: the same pipeline for private case photos.
+    bool casePhoto = false,
   }) async {
     final mime = sniffImageMime(bytes);
     if (mime == null) {
@@ -391,7 +394,9 @@ class ApiSocialRepository implements SocialRepository {
     final target = (await guardApiCall(
       () => _files.presign(
         body: api.PresignFileDto(
-          purpose: api.FilePurpose.postImage,
+          purpose: casePhoto
+              ? api.FilePurpose.casePhoto
+              : api.FilePurpose.postImage,
           mime: mime,
           sizeBytes: bytes.length,
           sha256: sha256Hex(bytes),

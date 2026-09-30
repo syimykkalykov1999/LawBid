@@ -536,3 +536,12 @@ the blue check; a different name sets `name_mismatch` and hides the check
 everywhere (profile, posts, comments, bids, chats, lists) while the account,
 cases, bids, chats and subscription keep working. Changing the name back
 restores the check. Nothing reaches the admin queue.
+
+## OQ-031 — Case photos (owner, 2026-09-30)
+Not in docs/04. Owner: a client may attach up to 9 photos to a case; only
+the attorney whose bid the client accepted sees them. Implemented: file
+purpose `case_photo` (private documents bucket, antivirus scan, 320/1080
+variants, short signed links — never the public CDN), `case_photos` table,
+`photoFileIds` (0-9) on `POST /cases`, `photos` on the owner case detail,
+`photos` + `photosCount` on the attorney case detail (photos only for the
+accepted attorney; others see "N photos — open after acceptance").

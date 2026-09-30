@@ -275,6 +275,7 @@ export 'models/case_practice_area_dto.dart';
 export 'models/case_budget_dto.dart';
 export 'models/case_feed_item_dto.dart';
 export 'models/case_feed_item_list_envelope.dart';
+export 'models/case_photo_dto.dart';
 export 'models/case_detail_for_attorney_dto.dart';
 export 'models/case_detail_for_attorney_envelope.dart';
 export 'models/saved_item_type.dart';

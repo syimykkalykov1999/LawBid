@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_photos.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -231,6 +232,15 @@ class _WorkCaseScreenState extends ConsumerState<WorkCaseScreen> {
                       .copyWith(color: colors.text),
                 ),
               ),
+              // OQ-031: the accepted attorney sees the case photos.
+              if (c.photosCount > 0)
+                DetailSection(
+                  title: t.t('cases.photos.title'),
+                  child: CasePhotosStrip(
+                    photos: c.photos,
+                    hiddenCount: c.photosCount,
+                  ),
+                ),
             ],
           ),
         ),

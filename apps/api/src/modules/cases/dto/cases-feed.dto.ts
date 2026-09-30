@@ -1,3 +1,4 @@
+import { CasePhotoDto } from './case-responses.dto';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { BudgetMode, CaseStatus, SavedItemType } from '@prisma/client';
 import { Type } from 'class-transformer';
@@ -180,6 +181,14 @@ export class CaseDetailForAttorneyDto extends CaseFeedItemDto {
       'The attorney\'s own bid on this case (§4.3: shown instead of "Сделать бид").',
   })
   ownBidId!: string | null;
+
+  /** OQ-031: photos — only when THIS attorney's bid was accepted. */
+  @ApiProperty({ type: [CasePhotoDto] })
+  photos!: CasePhotoDto[];
+
+  /** OQ-031: how many photos the case has (shown to every attorney). */
+  @ApiProperty()
+  photosCount!: number;
 }
 
 export interface CaseFeedPage {
