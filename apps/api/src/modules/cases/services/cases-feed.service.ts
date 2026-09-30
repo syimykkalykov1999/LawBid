@@ -45,6 +45,9 @@ function forbidden(message: string): ForbiddenException {
  * and negotiation (§5, §6) are stage 4.4; client-side case management
  * (§3.5, `GET /users/me/cases`) is stage 4.2 (CasesController).
  */
+/** Feed card description preview length (owner 2026-09-30). */
+const FEED_EXCERPT_MAX = 180;
+
 @Injectable()
 export class CasesFeedService {
   constructor(
@@ -228,6 +231,11 @@ export class CasesFeedService {
       items.push({
         id: c.id,
         title: c.title,
+        // Owner 2026-09-30: a short preview for the feed card.
+        excerpt:
+          c.description.length > FEED_EXCERPT_MAX
+            ? `${c.description.slice(0, FEED_EXCERPT_MAX).trimEnd()}…`
+            : c.description,
         practiceArea: {
           id: leaf.id,
           code: leaf.code,

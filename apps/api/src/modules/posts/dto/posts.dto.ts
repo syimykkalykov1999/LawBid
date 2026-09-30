@@ -103,6 +103,10 @@ export class PostAuthorDto {
 
   @ApiProperty({ description: 'Blue check (docs/03 §6.3).' })
   verifiedBadge!: boolean;
+
+  /** Owner 2026-09-30: the viewer follows this author (card Follow). */
+  @ApiProperty()
+  isFollowing!: boolean;
 }
 
 export class PostMediaDto {

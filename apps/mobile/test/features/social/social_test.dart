@@ -72,7 +72,8 @@ void main() {
     ));
     await tester.pumpAndSettle();
     expect(find.text('Saul Goodman'), findsOneWidget);
-    expect(find.text('2 likes'), findsOneWidget);
+    // Owner 2026-09-30 card: the like count sits next to the heart.
+    expect(find.text('2'), findsOneWidget);
     expect(find.textContaining('#dui', findRichText: true), findsOneWidget);
   });
 

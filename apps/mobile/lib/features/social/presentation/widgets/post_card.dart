@@ -1,6 +1,10 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart'
+    show FollowButton;
+import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -9,7 +13,6 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
-import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
@@ -65,96 +68,362 @@ class PostCard extends ConsumerWidget {
         ],
       ),
       clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _AuthorRow(post: p),
-          if (p.media.isNotEmpty)
-            PostMediaCarousel(
-              media: p.media,
-              semanticLabel: t.t('post.media.label'),
-              onDoubleTap: () => run(() => actions.like(p)),
-            )
-          else
-            _TextPanel(body: p.body),
-          _ActionsBar(post: p, run: run),
-          if (p.likeCount > 0)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.xs),
-              child: Text(
-                t.plural('post.likes', p.likeCount),
-                style: Theme.of(context)
-                    .extension<AppTypographyTokens>()!
-                    .bodySmall
-                    .copyWith(
+      child: inDetail
+          ? _detail(context, ref, p, t, colors, actions, run)
+          : _feed(context, p, t, colors, run),
+    );
+  }
+
+  /// Owner 2026-09-30 design (feed): author with Follow, topic chips,
+  /// time, bold title, 4 lines of text + "Read more", the photo, actions.
+  Widget _feed(
+    BuildContext context,
+    Post p,
+    Translator t,
+    AppColorTokens colors,
+    Future<void> Function(Future<Object?> Function()) run,
+  ) {
+    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
+    final (title, rest) = _split(p.body);
+    void open() => context.push(SocialRoutes.post(p.id));
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _AuthorRow(post: p),
+        if (p.tags.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+                AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.sm),
+            child: _TopicChips(tags: p.tags),
+          ),
+        _TimeLine(post: p),
+        AppPressable(
+          onTap: open,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: typography.titleMedium.copyWith(
+                    fontFamily: typography.body.fontFamily,
+                    color: colors.text,
+                    fontWeight: FontWeight.w700,
+                    height: 1.25,
+                  ),
+                ),
+                if (rest.isNotEmpty) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  Text(
+                    rest,
+                    maxLines: 4,
+                    overflow: TextOverflow.ellipsis,
+                    style: typography.body.copyWith(
                       color: colors.text,
-                      fontWeight: FontWeight.w600,
-                    ),
-              ),
-            ),
-          if (p.media.isNotEmpty && p.body.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.xs),
-              child: PostBodyText(
-                body: p.body,
-                expanded: inDetail,
-              ),
-            ),
-          if (p.pendingReview)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.lg, AppSpacing.xs, AppSpacing.lg, 0),
-              child: Row(
-                children: [
-                  Icon(Icons.hourglass_top_rounded,
-                      size: 14, color: colors.textSecondary),
-                  const SizedBox(width: AppSpacing.xs),
-                  Flexible(
-                    child: Text(
-                      t.t('post.pending_review'),
-                      style: Theme.of(context)
-                          .extension<AppTypographyTokens>()!
-                          .caption
-                          .copyWith(color: colors.textSecondary),
+                      height: 1.45,
                     ),
                   ),
+                  const SizedBox(height: AppSpacing.sm),
+                  Row(
+                    children: [
+                      Text(
+                        t.t('post.readMore'),
+                        style: typography.body.copyWith(
+                          color: colors.goldDark,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Icon(Icons.chevron_right_rounded,
+                          size: 20, color: colors.goldDark),
+                    ],
+                  ),
                 ],
+              ],
+            ),
+          ),
+        ),
+        if (p.media.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+                AppSpacing.lg, AppSpacing.md, AppSpacing.lg, 0),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(AppRadii.card - 2),
+              child: PostMediaCarousel(
+                media: p.media,
+                semanticLabel: t.t('post.media.label'),
+                onDoubleTap: () => run(() => ProviderScope.containerOf(context)
+                    .read(socialActionsProvider)
+                    .like(p)),
               ),
             ),
-          if (p.editedAt != null)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+          ),
+        _ActionsBar(post: p, run: run),
+        const SizedBox(height: AppSpacing.xs),
+      ],
+    );
+  }
+
+  /// "Title" = the first line (or sentence) of the post, the rest below.
+  static (String, String) _split(String body) {
+    final text = body.trim();
+    final nl = text.indexOf('\n');
+    if (nl > 0 && nl <= 120) {
+      return (text.substring(0, nl).trim(), text.substring(nl + 1).trim());
+    }
+    final dot = text.indexOf(RegExp(r'[.!?](\s|$)'));
+    if (dot > 0 && dot <= 100) {
+      return (
+        text.substring(0, dot + 1).trim(),
+        text.substring(dot + 1).trim(),
+      );
+    }
+    return (text, '');
+  }
+
+  /// Owner 2026-09-30 design, open post: author, topics, title, full text,
+  /// photos, then the actions.
+  Widget _detail(
+    BuildContext context,
+    WidgetRef ref,
+    Post p,
+    Translator t,
+    AppColorTokens colors,
+    SocialActions actions,
+    Future<void> Function(Future<Object?> Function()) run,
+  ) {
+    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
+    final (title, rest) = _split(p.body);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _AuthorRow(post: p),
+        if (p.tags.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+                AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.md),
+            child: _TopicChips(tags: p.tags),
+          ),
+        _TimeLine(post: p),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+          child: Text(
+            title,
+            style: typography.titleLarge.copyWith(
+              fontFamily: typography.body.fontFamily,
+              color: colors.text,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        if (rest.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+                AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, 0),
+            child: PostBodyText(body: rest, expanded: true),
+          ),
+        const SizedBox(height: AppSpacing.md),
+        if (p.media.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(AppRadii.card - 2),
+              child: PostMediaCarousel(
+                media: p.media,
+                semanticLabel: t.t('post.media.label'),
+                onDoubleTap: () => run(() => actions.like(p)),
+              ),
+            ),
+          ),
+        _ActionsBar(post: p, run: run),
+        if (p.likeCount > 0)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+                AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.xs),
+            child: Text(
+              t.plural('post.likes', p.likeCount),
+              style: Theme.of(context)
+                  .extension<AppTypographyTokens>()!
+                  .bodySmall
+                  .copyWith(
+                    color: colors.text,
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+          ),
+        if (p.pendingReview)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+                AppSpacing.lg, AppSpacing.xs, AppSpacing.lg, 0),
+            child: Row(
+              children: [
+                Icon(Icons.hourglass_top_rounded,
+                    size: 14, color: colors.textSecondary),
+                const SizedBox(width: AppSpacing.xs),
+                Flexible(
+                  child: Text(
+                    t.t('post.pending_review'),
+                    style: Theme.of(context)
+                        .extension<AppTypographyTokens>()!
+                        .caption
+                        .copyWith(color: colors.textSecondary),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        if (p.editedAt != null)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+            child: Text(
+              t.t('post.edited'),
+              style: Theme.of(context)
+                  .extension<AppTypographyTokens>()!
+                  .caption
+                  .copyWith(color: colors.textSecondary),
+            ),
+          ),
+        if (!inDetail && p.commentCount > 0)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: () => context.push(SocialRoutes.post(p.id)),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+                foregroundColor: colors.textSecondary,
+              ),
               child: Text(
-                t.t('post.edited'),
-                style: Theme.of(context)
-                    .extension<AppTypographyTokens>()!
-                    .caption
-                    .copyWith(color: colors.textSecondary),
+                t.t('post.viewComments', {
+                  'count': SocialFormat.count(
+                      ref.watch(l10nFormatsProvider), p.commentCount)
+                }),
               ),
             ),
-          if (!inDetail && p.commentCount > 0)
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton(
-                onPressed: () => context.push(SocialRoutes.post(p.id)),
-                style: TextButton.styleFrom(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-                  foregroundColor: colors.textSecondary,
-                ),
-                child: Text(
-                  t.t('post.viewComments', {
-                    'count': SocialFormat.count(
-                        ref.watch(l10nFormatsProvider), p.commentCount)
-                  }),
-                ),
-              ),
-            ),
-          const SizedBox(height: AppSpacing.md),
+          ),
+        const SizedBox(height: AppSpacing.md),
+      ],
+    );
+  }
+}
+
+/// "2 hours ago · Public" under the chips (owner design).
+class _TimeLine extends ConsumerWidget {
+  const _TimeLine({required this.post});
+
+  final Post post;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final f = ref.watch(l10nFormatsProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+          AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.sm),
+      child: Row(
+        children: [
+          Text(SocialFormat.ago(t, f, post.createdAt),
+              style: type.caption.copyWith(color: colors.textSecondary)),
+          const SizedBox(width: AppSpacing.md),
+          Icon(Icons.public_rounded, size: 14, color: colors.textSecondary),
+          const SizedBox(width: AppSpacing.xs),
+          Text(t.t('post.public'),
+              style: type.caption.copyWith(color: colors.textSecondary)),
         ],
       ),
+    );
+  }
+}
+
+/// Practice category a hashtag stands for (the client topic slider and
+/// the main chip icon use the same map).
+String? topicCategory(String tag) => switch (tag.toLowerCase()) {
+      'immigration' || 'greencard' || 'visa' || 'asylum' => 'immigration',
+      'familylaw' || 'divorce' || 'custody' || 'childcustody' => 'family_law',
+      'traffic' ||
+      'trafficticket' ||
+      'speeding' ||
+      'tickets' =>
+        'traffic_tickets',
+      'dui' || 'dwi' => 'dui_and_dwi',
+      'criminaldefense' || 'criminal' => 'criminal_defense',
+      'personalinjury' || 'injury' || 'caraccident' => 'personal_injury',
+      'realestate' => 'real_estate',
+      'employment' || 'workplace' => 'employment_and_labor',
+      'bankruptcy' || 'debt' => 'bankruptcy_and_debt',
+      _ => null,
+    };
+
+/// "greencard" → "Green Card"; unknown tags get a capital letter.
+String topicLabel(String tag) {
+  const known = {
+    'familylaw': 'Family Law',
+    'trafficticket': 'Traffic Ticket',
+    'greencard': 'Green Card',
+    'personalinjury': 'Personal Injury',
+    'criminaldefense': 'Criminal Defense',
+    'dui': 'DUI',
+    'realestate': 'Real Estate',
+    'childcustody': 'Child Custody',
+    'caraccident': 'Car Accident',
+  };
+  final k = known[tag.toLowerCase()];
+  if (k != null) return k;
+  return tag.isEmpty ? tag : tag[0].toUpperCase() + tag.substring(1);
+}
+
+/// Topic chips: the first tag gold, up to two more quiet (owner design).
+class _TopicChips extends StatelessWidget {
+  const _TopicChips({required this.tags});
+
+  final List<String> tags;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
+    // Owner 2026-09-30 design: the main topic is a filled navy pill with
+    // an icon, the others quiet grey pills. Tap → the topic page.
+    Widget chip(String tag, {required bool main}) => AppPressable(
+          onTap: () => context.push(SocialRoutes.tag(tag)),
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md, vertical: AppSpacing.xs + 2),
+            decoration: BoxDecoration(
+              color: main
+                  ? colors.navy
+                  : colors.textSecondary.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(AppRadii.pill),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (main) ...[
+                  Icon(practiceGlyph(topicCategory(tag)),
+                      size: 15, color: colors.goldLight),
+                  const SizedBox(width: AppSpacing.xs),
+                ],
+                Text(
+                  topicLabel(tag),
+                  style: typography.caption.copyWith(
+                    color: main ? Colors.white : colors.textSecondary,
+                    fontWeight: main ? FontWeight.w600 : FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+    return Wrap(
+      spacing: AppSpacing.sm,
+      runSpacing: AppSpacing.xs,
+      children: [
+        for (var i = 0; i < tags.length && i < 4; i++)
+          chip(tags[i], main: i == 0),
+      ],
     );
   }
 }
@@ -167,7 +436,6 @@ class _AuthorRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translatorProvider);
-    final f = ref.watch(l10nFormatsProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final a = post.author;
@@ -215,7 +483,9 @@ class _AuthorRow extends ConsumerWidget {
                             ],
                           ),
                           Text(
-                            '@${a.username} · ${SocialFormat.ago(t, f, post.createdAt)}',
+                            a.verified
+                                ? t.t('post.licensedAttorney')
+                                : '@${a.username}',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: type.caption
@@ -229,6 +499,11 @@ class _AuthorRow extends ConsumerWidget {
               ),
             ),
           ),
+          // Owner 2026-09-30: a working Follow on the card.
+          if (!post.isMine) ...[
+            FollowButton(attorneyId: a.id, initial: a.isFollowing),
+            const SizedBox(width: AppSpacing.xs),
+          ],
           AppIconButton(
             icon: const Icon(Icons.more_horiz_rounded),
             semanticLabel: t.t('post.menu'),
@@ -304,48 +579,6 @@ class GoldRingAvatar extends StatelessWidget {
   }
 }
 
-/// A text-only post: the text on a soft gold-tinted panel with a large
-/// serif quote mark (§2.4 "текстовые карточки").
-class _TextPanel extends StatelessWidget {
-  const _TextPanel({required this.body});
-
-  final String body;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-      padding: const EdgeInsets.fromLTRB(
-          AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.lg),
-      decoration: BoxDecoration(
-        color: colors.goldTint,
-        borderRadius: BorderRadius.circular(AppRadii.card),
-        border: Border(left: BorderSide(color: colors.gold, width: 3)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ExcludeSemantics(
-            child: Text(
-              '“',
-              style: type.titleLarge.copyWith(
-                color: colors.gold,
-                height: 0.8,
-                fontSize: type.titleLarge.fontSize! * 1.6,
-              ),
-            ),
-          ),
-          PostBodyText(body: body, large: true),
-        ],
-      ),
-    );
-  }
-}
-
-/// Post text: collapsed to 3 lines with "ещё" (§2.4), #tags open the tag
-/// page, @mentions are highlighted.
 class PostBodyText extends ConsumerStatefulWidget {
   const PostBodyText({
     required this.body,
@@ -642,6 +875,8 @@ class _ActionsBar extends ConsumerWidget {
             label: t.t(post.likedByMe ? 'post.unlike' : 'post.like'),
             onTap: () => run(() => actions.toggleLike(post)),
           ),
+          // Owner 2026-09-30 design: counts next to the icons.
+          if (post.likeCount > 0) _Count(post.likeCount),
           BounceIcon(
             active: false,
             activeIcon: Icons.mode_comment_outlined,
@@ -649,6 +884,7 @@ class _ActionsBar extends ConsumerWidget {
             label: t.t('post.comments'),
             onTap: () => context.push(SocialRoutes.post(post.id)),
           ),
+          if (post.commentCount > 0) _Count(post.commentCount),
           BounceIcon(
             active: false,
             activeIcon: Icons.send_outlined,
@@ -666,6 +902,26 @@ class _ActionsBar extends ConsumerWidget {
             onTap: () => run(() => actions.toggleSave(post)),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _Count extends ConsumerWidget {
+  const _Count(this.value);
+
+  final int value;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final f = ref.watch(l10nFormatsProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    return Padding(
+      padding: const EdgeInsets.only(right: AppSpacing.sm),
+      child: Text(
+        SocialFormat.count(f, value),
+        style: type.body.copyWith(color: colors.text, fontWeight: FontWeight.w500),
       ),
     );
   }

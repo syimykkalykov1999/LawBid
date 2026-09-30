@@ -10,6 +10,7 @@ CaseFeedItemDto _$CaseFeedItemDtoFromJson(Map<String, dynamic> json) =>
     CaseFeedItemDto(
       id: json['id'] as String,
       title: json['title'] as String,
+      excerpt: json['excerpt'] as String,
       practiceArea: CasePracticeAreaDto.fromJson(
         json['practiceArea'] as Map<String, dynamic>,
       ),
@@ -31,6 +32,7 @@ Map<String, dynamic> _$CaseFeedItemDtoToJson(CaseFeedItemDto instance) =>
     <String, dynamic>{
       'id': instance.id,
       'title': instance.title,
+      'excerpt': instance.excerpt,
       'practiceArea': instance.practiceArea.toJson(),
       'primaryStateCode': instance.primaryStateCode,
       'additionalStateCodes': instance.additionalStateCodes,

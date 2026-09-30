@@ -17,6 +17,7 @@ PublicClientProfileDto _$PublicClientProfileDtoFromJson(
   state: StateRefDto.fromJson(json['state'] as Map<String, dynamic>),
   memberSince: json['memberSince'] as String,
   isSelf: json['isSelf'] as bool,
+  verifiedBadge: json['verifiedBadge'] as bool,
   isBlocked: json['isBlocked'] as bool,
   hasBlockedMe: json['hasBlockedMe'] as bool,
 );
@@ -32,6 +33,7 @@ Map<String, dynamic> _$PublicClientProfileDtoToJson(
   'state': instance.state.toJson(),
   'memberSince': instance.memberSince,
   'isSelf': instance.isSelf,
+  'verifiedBadge': instance.verifiedBadge,
   'isBlocked': instance.isBlocked,
   'hasBlockedMe': instance.hasBlockedMe,
 };

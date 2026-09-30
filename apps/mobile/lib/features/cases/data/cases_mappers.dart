@@ -21,6 +21,7 @@ abstract final class CasesMappers {
         nameEn: p.nameEn,
         categoryI18nKey: p.categoryI18nKey,
         categoryNameEn: p.categoryNameEn,
+        categoryCode: p.categoryCode,
       );
 
   static CaseSummary summary(api.CaseSummaryDto c) => CaseSummary(
@@ -127,6 +128,7 @@ abstract final class CasesMappers {
   static FeedCase feedCase(api.CaseFeedItemDto c) => FeedCase(
         id: c.id,
         title: c.title,
+        excerpt: c.excerpt,
         practice: feedPractice(c.practiceArea),
         primaryStateCode: c.primaryStateCode,
         additionalStateCodes: c.additionalStateCodes,
@@ -144,6 +146,7 @@ abstract final class CasesMappers {
   static FeedCase attorneyCase(api.CaseDetailForAttorneyDto c) => FeedCase(
         id: c.id,
         title: c.title,
+        excerpt: c.excerpt,
         practice: feedPractice(c.practiceArea),
         primaryStateCode: c.primaryStateCode,
         additionalStateCodes: c.additionalStateCodes,

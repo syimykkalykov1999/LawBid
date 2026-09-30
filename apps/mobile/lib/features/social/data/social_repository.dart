@@ -475,6 +475,7 @@ abstract final class SocialMappers {
           lastName: d.author.lastName,
           avatarUrl: d.author.avatarUrl,
           verified: d.author.verifiedBadge,
+          isFollowing: d.author.isFollowing,
         ),
         body: d.body,
         media: [
@@ -529,6 +530,7 @@ abstract final class SocialMappers {
         lastName: d.lastName,
         avatarUrl: d.avatarUrl,
         stateCode: d.stateCode,
+        verified: d.verifiedBadge,
       );
 
   /// null for a row of an unknown role (a newer server).

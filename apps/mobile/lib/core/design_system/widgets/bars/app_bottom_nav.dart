@@ -71,12 +71,15 @@ class AppBottomNav extends StatelessWidget {
     final stateDuration =
         context.reduceMotion ? Duration.zero : AppMotion.stateChange;
 
-    // UI modernization pass (2026-09-27): the selected tab gets a gold-
-    // tinted pill behind its icon that animates in, plus a light selection
-    // haptic on tap. Hit area is the whole Expanded column (>= 48 tall).
+    // Owner 2026-09-30: a floating pill bar (smaller, soft shadow, inset
+    // from the screen edges); the selected tab is a tinted rounded block
+    // behind BOTH icon and label. Haptic on tap; hit area = whole tab.
     Widget buildTab(AppTabConfig tab, int index) {
       final selected = index == currentIndex;
-      final color = selected ? colors.accent : colors.textSecondary;
+      // Label contrast (WCAG 4.5:1) on the tinted block: the selected
+      // label uses the text colour, the icon carries the gold accent.
+      final color = selected ? colors.text : colors.textSecondary;
+      final iconColor = selected ? colors.goldDark : colors.textSecondary;
       return Expanded(
         child: Semantics(
           button: true,
@@ -89,53 +92,47 @@ class AppBottomNav extends StatelessWidget {
               if (!selected) HapticFeedback.selectionClick();
               onTabSelected(index);
             },
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(minHeight: 48),
+            child: AnimatedContainer(
+              duration: stateDuration,
+              curve: AppMotion.enterCurve,
+              margin: const EdgeInsets.symmetric(
+                horizontal: 2,
+                vertical: AppSpacing.xs + 1,
+              ),
+              decoration: BoxDecoration(
+                color: selected
+                    ? colors.goldTint
+                    : colors.goldTint.withValues(alpha: 0),
+                borderRadius: BorderRadius.circular(AppRadii.pill),
+              ),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  AnimatedContainer(
+                  AnimatedSwitcher(
                     duration: stateDuration,
-                    curve: AppMotion.enterCurve,
-                    width: AppSizes.navIndicatorWidth,
-                    height: AppSizes.navIndicatorHeight,
-                    decoration: BoxDecoration(
-                      color: selected
-                          ? colors.goldTint
-                          : colors.goldTint.withValues(alpha: 0),
-                      borderRadius: BorderRadius.circular(AppRadii.pill),
+                    transitionBuilder: (child, animation) => ScaleTransition(
+                      scale:
+                          Tween<double>(begin: 0.85, end: 1).animate(animation),
+                      child: FadeTransition(opacity: animation, child: child),
                     ),
-                    alignment: Alignment.center,
-                    child: AnimatedSwitcher(
-                      duration: stateDuration,
-                      transitionBuilder: (child, animation) => ScaleTransition(
-                        scale: Tween<double>(begin: 0.85, end: 1)
-                            .animate(animation),
-                        child: FadeTransition(opacity: animation, child: child),
-                      ),
-                      child: Icon(
-                        selected ? tab.activeIcon : tab.icon,
-                        key: ValueKey<bool>(selected),
-                        size: AppSizes.iconMd,
-                        color: color,
-                      ),
+                    child: Icon(
+                      selected ? tab.activeIcon : tab.icon,
+                      key: ValueKey<bool>(selected),
+                      size: AppSizes.iconMd - 2,
+                      color: iconColor,
                     ),
                   ),
-                  // 6 (was 2): keeps the label's own box clear of the
-                  // selection pill, so the pill tint never sits behind the
-                  // text (p12 leaf-1.6 contrast pass, docs/01 §8.4).
-                  const SizedBox(height: AppSpacing.sm - 2),
+                  const SizedBox(height: 2),
                   AnimatedDefaultTextStyle(
                     duration: stateDuration,
                     style: typography.caption.copyWith(
                       color: color,
-                      fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                      fontSize: 11,
+                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                     ),
-                    // Tab labels grow with the system text size only up
-                    // to 1.35x (the platform convention for tab bars —
-                    // iOS shows the large-content viewer instead): the
-                    // 58px bar must never clip at 200% (docs/01 §8.4).
+                    // Tab labels grow with the system text size only up to
+                    // 1.35x (platform convention for tab bars, docs/01 §8.4).
                     child: MediaQuery.withClampedTextScaling(
                       maxScaleFactor: AppSizes.navLabelMaxTextScale,
                       child: Text(
@@ -153,37 +150,33 @@ class AppBottomNav extends StatelessWidget {
       );
     }
 
-    // Owner 2026-09-29: slightly rounded top corners. Flutter cannot
-    // combine a one-sided Border with a radius, so the hairline along the
-    // top edge and around the two corners is stroked by _TopOutlinePainter.
-    const topRadius = BorderRadius.vertical(
-      top: Radius.circular(AppSizes.bottomNavRadius),
-    );
-    return CustomPaint(
-      foregroundPainter: _TopOutlinePainter(
-        color: colors.border,
-        radius: AppSizes.bottomNavRadius,
-      ),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: colors.bg,
-          borderRadius: topRadius,
-          boxShadow: [
-            BoxShadow(
-              color: colors.shadow,
-              blurRadius: AppSizes.cardShadowBlur,
-            ),
-          ],
+    return SafeArea(
+      top: false,
+      minimum: const EdgeInsets.only(bottom: AppSpacing.sm),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.md,
+          AppSpacing.xs,
+          AppSpacing.md,
+          0,
         ),
-        child: SafeArea(
-          top: false,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: BorderRadius.circular(AppRadii.pill),
+            border: Border.all(color: colors.border),
+            boxShadow: [
+              BoxShadow(
+                color: colors.shadow,
+                blurRadius: 18,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
           child: SizedBox(
-            height: 58,
-            // Side inset keeps the outer tabs clear of the rounded corners
-            // and the hairline border (also what the a11y contrast check
-            // samples inside each tab's rect).
+            height: 60,
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
               child: Row(
                 children: [
                   buildTab(left[0], 0),
@@ -196,23 +189,28 @@ class AppBottomNav extends StatelessWidget {
                       child: AppPressable(
                         onTap: onCreatePressed,
                         child: Container(
-                          width: AppSizes.touchTarget,
-                          height: AppSizes.touchTarget,
+                          width: 42,
+                          height: 42,
+                          margin: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.xs),
                           decoration: BoxDecoration(
-                            color: colors.accent,
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [colors.goldLight, colors.gold],
+                            ),
                             shape: BoxShape.circle,
-                            border: Border.all(color: colors.gold, width: 1.5),
                             boxShadow: [
                               BoxShadow(
-                                color: colors.shadow,
-                                blurRadius: AppSizes.cardShadowOffsetY,
-                                offset: const Offset(0, 2),
+                                color: colors.gold.withValues(alpha: 0.35),
+                                blurRadius: 10,
+                                offset: const Offset(0, 3),
                               ),
                             ],
                           ),
                           alignment: Alignment.center,
-                          child:
-                              Icon(Icons.add, color: colors.onAccent, size: 26),
+                          child: Icon(Icons.add_rounded,
+                              color: colors.navy, size: 24),
                         ),
                       ),
                     ),
@@ -227,35 +225,4 @@ class AppBottomNav extends StatelessWidget {
       ),
     );
   }
-}
-
-/// Hairline along the nav's top edge, following the two rounded corners
-/// and down the sides — no line along the bottom (screen edge).
-class _TopOutlinePainter extends CustomPainter {
-  const _TopOutlinePainter({required this.color, required this.radius});
-
-  final Color color;
-  final double radius;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
-    const inset = 0.5;
-    final r = radius;
-    final path = Path()
-      ..moveTo(inset, size.height)
-      ..lineTo(inset, r)
-      ..arcToPoint(Offset(r, inset), radius: Radius.circular(r))
-      ..lineTo(size.width - r, inset)
-      ..arcToPoint(Offset(size.width - inset, r), radius: Radius.circular(r))
-      ..lineTo(size.width - inset, size.height);
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(_TopOutlinePainter old) =>
-      old.color != color || old.radius != radius;
 }

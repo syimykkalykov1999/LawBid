@@ -545,3 +545,22 @@ variants, short signed links — never the public CDN), `case_photos` table,
 `photoFileIds` (0-9) on `POST /cases`, `photos` on the owner case detail,
 `photos` + `photosCount` on the attorney case detail (photos only for the
 accepted attorney; others see "N photos — open after acceptance").
+
+## OQ-029 (final, owner 2026-09-30): phone-based confirmation
+Owner: the account and the blue check rest on the confirmed phone number;
+attorneys and clients change name, @username, states, languages,
+practices and firms freely, the check never disappears and admins never
+re-check. Attorneys keep the one-time license verification before their
+first check (docs/03 — the badge still means "license verified" to
+clients). Clients get a blue check for a confirmed phone. The automatic
+"different name hides the check" rule and "Confirm new name" are removed.
+
+## OQ-032 — Feed and card redesign (owner, 2026-09-30)
+Floating pill bottom bar; client feed header: scales mark left, "LawBid"
+centred, chats right, topic slider (hashtag topics) under it; attorney
+header: "LawBid" left, Posts | Cases centred, chats right. Post card:
+author + working Follow, topic chips (main one navy), time, bold title
+(first line), 4 lines + "Read more", rounded photo, like/comment counts,
+share, save. Case card: practice chip, place chip, title, 180-char
+excerpt, budget, views, bids, practice artwork dissolving on the right
+(bundled photos per category, icon fallback).

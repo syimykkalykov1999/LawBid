@@ -144,14 +144,22 @@ class ClientTile extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    row.displayName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: type.body.copyWith(
-                      color: colors.text,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          row.displayName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: type.body.copyWith(
+                              color: colors.text, fontWeight: FontWeight.w600,),
+                        ),
+                      ),
+                      if (row.verified) ...[
+                        const SizedBox(width: AppSpacing.xs),
+                        VerifiedCheck(label: t.t('post.verified'), size: 15),
+                      ],
+                    ],
                   ),
                   Text(
                     '@${row.username}',

@@ -181,15 +181,26 @@ class _Body extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Semantics(
-                    header: true,
-                    child: Text(
-                      name,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style:
-                          typography.titleMedium.copyWith(color: colors.text),
-                    ),
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Semantics(
+                          header: true,
+                          child: Text(
+                            name,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: typography.titleMedium
+                                .copyWith(color: colors.text),
+                          ),
+                        ),
+                      ),
+                      if (profile.verified) ...[
+                        const SizedBox(width: AppSpacing.xs),
+                        VerifiedBadge(
+                            semanticLabel: t.t('profile.verified.label')),
+                      ],
+                    ],
                   ),
                   const SizedBox(height: AppSpacing.xs),
                   Text(

@@ -10,6 +10,7 @@ class PostAuthor {
     this.firstName,
     this.lastName,
     this.avatarUrl,
+    this.isFollowing = false,
   });
 
   final String id;
@@ -18,6 +19,9 @@ class PostAuthor {
   final String? lastName;
   final String? avatarUrl;
   final bool verified;
+
+  /// Owner 2026-09-30: the viewer follows this author (card Follow button).
+  final bool isFollowing;
 
   String get displayName {
     final name = [firstName, lastName].whereType<String>().join(' ').trim();
@@ -285,6 +289,7 @@ class ClientRow {
     this.firstName,
     this.lastName,
     this.avatarUrl,
+    this.verified = false,
   });
 
   final String id;
@@ -293,6 +298,9 @@ class ClientRow {
   final String? lastName;
   final String? avatarUrl;
   final String stateCode;
+
+  /// OQ-029 final: blue check for a confirmed phone number.
+  final bool verified;
 
   String get displayName {
     final name = [firstName, lastName].whereType<String>().join(' ').trim();

@@ -178,6 +178,12 @@ const file06Ru = <String, String>{
   'cases.photos.remove': 'Убрать фото',
   'cases.photos.locked':
       'Фото к кейсу: {count}. Откроются после того, как клиент примет ваш бид.',
+  // Owner 2026-09-30 post card and feed header.
+  'post.readMore': 'Читать дальше',
+  'post.public': 'Публично',
+  'post.licensedAttorney': 'Лицензированный адвокат',
+  'feed.topics.all': 'Все',
+  'feed.tagline': 'Юридическая помощь. Реальные люди.',
 };
 
 const file06En = <String, String>{
@@ -358,4 +364,10 @@ const file06En = <String, String>{
   'cases.photos.remove': 'Remove photo',
   'cases.photos.locked':
       'Photos attached: {count}. They open once the client accepts your bid.',
+  // Owner 2026-09-30 post card and feed header.
+  'post.readMore': 'Read more',
+  'post.public': 'Public',
+  'post.licensedAttorney': 'Licensed Attorney',
+  'feed.topics.all': 'All',
+  'feed.tagline': 'Legal help. Real people.',
 };

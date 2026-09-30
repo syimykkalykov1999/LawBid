@@ -149,6 +149,7 @@ abstract final class ProfileMappers {
         isSelf: d.isSelf,
         isBlocked: d.isBlocked,
         hasBlockedMe: d.hasBlockedMe,
+        verified: d.verifiedBadge,
       );
 
   static ClientProfileDetails client(api.ClientProfileDto d) =>

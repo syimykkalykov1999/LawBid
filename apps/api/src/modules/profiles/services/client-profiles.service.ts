@@ -192,6 +192,7 @@ export class ClientProfilesService {
         first_name: true,
         last_name: true,
         avatar_file_id: true,
+        phone_verified_at: true,
         client_profile: { select: { username: true, state_code: true } },
       },
     });
@@ -213,6 +214,7 @@ export class ClientProfilesService {
           ? (avatars.get(u.avatar_file_id)?.url256 ?? null)
           : null,
         stateCode: p.state_code,
+        verifiedBadge: u.phone_verified_at !== null,
       });
     }
     return out;
@@ -240,6 +242,7 @@ export class ClientProfilesService {
             last_name: true,
             avatar_file_id: true,
             created_at: true,
+            phone_verified_at: true,
           },
         },
       },
@@ -264,6 +267,7 @@ export class ClientProfilesService {
       state: { code: row.state.code, name: row.state.name },
       memberSince: row.user.created_at.toISOString().slice(0, 10),
       isSelf: row.user_id === viewerId,
+      verifiedBadge: row.user.phone_verified_at !== null,
       ...(await this.blocks.relation(viewerId, row.user_id)),
     };
   }

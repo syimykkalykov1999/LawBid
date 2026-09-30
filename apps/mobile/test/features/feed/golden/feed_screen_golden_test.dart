@@ -28,7 +28,7 @@ void main() {
     });
   }
 
-  testWidgets('the feed header has no logo for now (owner request)',
+  testWidgets('client feed header: scales mark left, wordmark centred (owner 2026-09-30)',
       (tester) async {
     await tester.pumpWidget(
       uxApp(
@@ -38,7 +38,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.byType(ScalesLogo), findsNothing);
+    expect(find.byType(ScalesLogo), findsOneWidget);
     expect(find.bySemanticsLabel('LawBid'), findsOneWidget);
   });
 

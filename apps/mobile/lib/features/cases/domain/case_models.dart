@@ -39,6 +39,7 @@ class PracticeRef {
     required this.nameEn,
     this.categoryI18nKey,
     this.categoryNameEn,
+    this.categoryCode,
   });
 
   final String id;
@@ -47,6 +48,12 @@ class PracticeRef {
   final String nameEn;
   final String? categoryI18nKey;
   final String? categoryNameEn;
+
+  /// The top-level category code (e.g. `family_law`) — picks the card art.
+  /// Falls back to the leaf code's first segment.
+  final String? categoryCode;
+
+  String get artCode => categoryCode ?? code.split('.').first;
 }
 
 /// docs/04 §3.2 budget: whole-case amount in cents or "Clarify later".
@@ -280,6 +287,7 @@ class FeedCase {
     required this.isNew,
     required this.hasOwnBid,
     this.description,
+    this.excerpt = '',
     this.isSaved = false,
     this.ownBidId,
     this.photos = const [],
@@ -305,6 +313,9 @@ class FeedCase {
   /// OQ-031: how many photos the case has (every attorney sees this).
   final int photosCount;
   final String? description;
+
+  /// Owner 2026-09-30: short description preview for the feed card.
+  final String excerpt;
   final bool isSaved;
 
   /// The attorney's own bid (detail only, §4.3).

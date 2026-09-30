@@ -34,49 +34,64 @@ export class PostPresenter {
     if (posts.length === 0) return [];
     const ids = posts.map((p) => p.id);
     const authorIds = [...new Set(posts.map((p) => p.author_id))];
-    const [authors, media, likes, saves, tags, pLike, pComment, pSave] =
-      await Promise.all([
-        this.prisma.user.findMany({
-          where: { id: { in: authorIds } },
-          select: {
-            id: true,
-            first_name: true,
-            last_name: true,
-            avatar_file_id: true,
-            attorney_profile: {
-              select: {
-                username: true,
-                verification_status: true,
-                name_mismatch: true,
-                licenses: {
-                  where: { license_status: 'verified' },
-                  select: { id: true },
-                  take: 1,
-                },
+    const [
+      authors,
+      media,
+      likes,
+      saves,
+      tags,
+      pLike,
+      pComment,
+      pSave,
+      follows,
+    ] = await Promise.all([
+      this.prisma.user.findMany({
+        where: { id: { in: authorIds } },
+        select: {
+          id: true,
+          first_name: true,
+          last_name: true,
+          avatar_file_id: true,
+          attorney_profile: {
+            select: {
+              username: true,
+              verification_status: true,
+              name_mismatch: true,
+              licenses: {
+                where: { license_status: 'verified' },
+                select: { id: true },
+                take: 1,
               },
             },
           },
-        }),
-        this.prisma.postMedia.findMany({
-          where: { post_id: { in: ids }, media_type: 'image' },
-          orderBy: { position: 'asc' },
-        }),
-        this.prisma.postLike.findMany({
-          where: { post_id: { in: ids }, user_id: viewerId },
-          select: { post_id: true },
-        }),
-        this.prisma.savedItem.findMany({
-          where: { user_id: viewerId, item_type: 'post', item_id: { in: ids } },
-          select: { item_id: true },
-        }),
-        this.prisma.postTag.findMany({
-          where: { post_id: { in: ids } },
-          select: { post_id: true, tag: { select: { tag_lower: true } } },
-        }),
-        this.counters.pending('post', 'like_count', ids),
-        this.counters.pending('post', 'comment_count', ids),
-        this.counters.pending('post', 'save_count', ids),
-      ]);
+        },
+      }),
+      this.prisma.postMedia.findMany({
+        where: { post_id: { in: ids }, media_type: 'image' },
+        orderBy: { position: 'asc' },
+      }),
+      this.prisma.postLike.findMany({
+        where: { post_id: { in: ids }, user_id: viewerId },
+        select: { post_id: true },
+      }),
+      this.prisma.savedItem.findMany({
+        where: { user_id: viewerId, item_type: 'post', item_id: { in: ids } },
+        select: { item_id: true },
+      }),
+      this.prisma.postTag.findMany({
+        where: { post_id: { in: ids } },
+        select: { post_id: true, tag: { select: { tag_lower: true } } },
+      }),
+      this.counters.pending('post', 'like_count', ids),
+      this.counters.pending('post', 'comment_count', ids),
+      this.counters.pending('post', 'save_count', ids),
+      // Owner 2026-09-30: the card's Follow button needs the state.
+      this.prisma.follow.findMany({
+        where: { follower_id: viewerId, followee_id: { in: authorIds } },
+        select: { followee_id: true },
+      }),
+    ]);
+    const followed = new Set(follows.map((f) => f.followee_id));
     const urls = await this.files.postImageUrls(media.map((m) => m.file_id));
     const files = await this.files.avatarUrlsMany(
       authors.map((a) => a.avatar_file_id),
@@ -118,6 +133,7 @@ export class PostPresenter {
             prof?.verification_status === 'verified' &&
             !prof.name_mismatch &&
             (prof.licenses.length ?? 0) > 0,
+          isFollowing: followed.has(p.author_id),
         },
         body: p.body,
         media: (mediaByPost.get(p.id) ?? []).flatMap((m) => {

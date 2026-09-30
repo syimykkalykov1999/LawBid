@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
@@ -197,9 +198,13 @@ class FeedCaseCard extends StatelessWidget {
       item.additionalStateCodes.length,
     );
     final budget = CaseFormat.budget(t, formats, item.budget);
-    return _CaseCardShell(
-      onTap: onTap,
-      semanticLabel: [
+    final radius = BorderRadius.circular(AppRadii.card + 2);
+
+    // Owner 2026-09-30 design: chips, bold title and a short excerpt on the
+    // left, the practice artwork dissolving into the card on the right.
+    return Semantics(
+      button: true,
+      label: [
         category,
         if (item.isNew) t.t('cases.card.new'),
         item.title,
@@ -208,73 +213,220 @@ class FeedCaseCard extends StatelessWidget {
         t.t('cases.card.bidsCount', {'count': '${item.bidsCount}'}),
         if (item.hasOwnBid) t.t('cases.card.youBid'),
       ].join(', '),
-      header: CategoryBand(
-        label: category,
-        isNew: item.isNew,
-        newLabel: t.t('cases.card.new'),
+      excludeSemantics: true,
+      child: AppPressable(
+        onTap: onTap,
+        child: Container(
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: radius,
+            border: Border.all(
+              color: item.isNew
+                  ? colors.gold.withValues(alpha: 0.55)
+                  : colors.border,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: colors.shadow,
+                blurRadius: AppSizes.cardShadowBlur,
+                offset: const Offset(0, AppSizes.cardShadowOffsetY),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: radius,
+            child: Stack(
+              children: [
+                Positioned(
+                  top: 0,
+                  bottom: 0,
+                  right: 0,
+                  width: 190,
+                  child: PracticeArt(
+                    categoryCode: item.practice.artCode,
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(AppSpacing.lg),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: _GoldChip(
+                              icon: practiceGlyph(item.practice.artCode),
+                              label: category,
+                            ),
+                          ),
+                          const SizedBox(width: AppSpacing.sm),
+                          _PlainChip(
+                            icon: Icons.place_outlined,
+                            label: place,
+                          ),
+                          const Spacer(),
+                          if (item.isNew)
+                            Text(
+                              t.t('cases.card.new'),
+                              style: typography.caption.copyWith(
+                                color: colors.goldDark,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      Padding(
+                        padding: const EdgeInsets.only(right: 56),
+                        child: Text(
+                          item.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: typography.titleMedium.copyWith(
+                            fontFamily: typography.body.fontFamily,
+                            color: colors.text,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      if (item.excerpt.isNotEmpty) ...[
+                        const SizedBox(height: AppSpacing.xs),
+                        Padding(
+                          padding: const EdgeInsets.only(right: 72),
+                          child: Text(
+                            item.excerpt,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: typography.bodySmall.copyWith(
+                              color: colors.textSecondary,
+                              height: 1.35,
+                            ),
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: AppSpacing.md),
+                      Row(
+                        children: [
+                          Icon(Icons.payments_outlined,
+                              size: AppSizes.iconSm, color: colors.goldDark),
+                          const SizedBox(width: AppSpacing.xs),
+                          Expanded(
+                            child: Text(
+                              budget,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: typography.body.copyWith(
+                                color: colors.text,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          _IconStat(
+                              icon: Icons.visibility_outlined,
+                              value: formats.number(item.viewCount)),
+                          const SizedBox(width: AppSpacing.md),
+                          _IconStat(
+                              icon: Icons.gavel_rounded,
+                              value: formats.number(item.bidsCount)),
+                        ],
+                      ),
+                      if (item.hasOwnBid || item.status != CaseStatus.open) ...[
+                        const SizedBox(height: AppSpacing.sm),
+                        Wrap(
+                          spacing: AppSpacing.sm,
+                          runSpacing: AppSpacing.sm,
+                          children: [
+                            if (item.status != CaseStatus.open)
+                              CaseStatusPill(status: item.status, t: t),
+                            if (item.hasOwnBid)
+                              StatusPill(
+                                label: t.t('cases.card.youBid'),
+                                tone: StatusTone.gold,
+                              ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    );
+  }
+}
+
+/// Gold-outlined chip with an icon (practice area).
+class _GoldChip extends StatelessWidget {
+  const _GoldChip({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
+    return Container(
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm + 2, vertical: AppSpacing.xs + 1),
+      decoration: BoxDecoration(
+        color: colors.goldTint,
+        borderRadius: BorderRadius.circular(AppRadii.pill),
+        border: Border.all(color: colors.gold.withValues(alpha: 0.7)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
+          Icon(icon, size: 15, color: colors.goldDark),
+          const SizedBox(width: AppSpacing.xs),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: typography.caption.copyWith(
+                color: colors.text,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Quiet chip with an icon (state / place).
+class _PlainChip extends StatelessWidget {
+  const _PlainChip({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
+    return Container(
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm + 2, vertical: AppSpacing.xs + 1),
+      decoration: BoxDecoration(
+        color: colors.surface.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(AppRadii.pill),
+        border: Border.all(color: colors.border),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: colors.textSecondary),
+          const SizedBox(width: AppSpacing.xs),
           Text(
-            item.title,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: typography.roleTitle.copyWith(color: colors.text),
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          Row(
-            children: [
-              Icon(Icons.place_outlined,
-                  size: AppSpacing.lg, color: colors.textSecondary),
-              const SizedBox(width: AppSpacing.xs),
-              Expanded(
-                child: Text(
-                  place,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: typography.bodySmall
-                      .copyWith(color: colors.textSecondary),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      t.t('cases.card.budget'),
-                      style: typography.caption
-                          .copyWith(color: colors.textSecondary),
-                    ),
-                    MoneyText(budget),
-                  ],
-                ),
-              ),
-              _IconStat(
-                  icon: Icons.visibility_outlined,
-                  value: formats.number(item.viewCount)),
-              const SizedBox(width: AppSpacing.md),
-              _IconStat(
-                  icon: Icons.gavel_rounded,
-                  value: formats.number(item.bidsCount)),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Wrap(
-            spacing: AppSpacing.sm,
-            runSpacing: AppSpacing.sm,
-            children: [
-              CaseStatusPill(status: item.status, t: t),
-              if (item.hasOwnBid)
-                StatusPill(
-                    label: t.t('cases.card.youBid'), tone: StatusTone.gold),
-            ],
+            label,
+            maxLines: 1,
+            style: typography.caption.copyWith(color: colors.textSecondary),
           ),
         ],
       ),

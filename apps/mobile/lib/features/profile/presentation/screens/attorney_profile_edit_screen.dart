@@ -215,7 +215,6 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
     final formats = ref.watch(l10nFormatsProvider);
     final now = ref.watch(clockProvider)();
     final usernameLocked = p.usernameLocked(now);
-    final nameChangeNeedsRecheck = p.verification.isVerified;
 
     String? required(TextEditingController c) =>
         _attempted && c.text.trim().isEmpty ? t.t('onboarding.profile.error.required') : null;
@@ -239,32 +238,6 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
         kLanguageCatalog.where((l) => l.code == code).map((l) => l.nativeName).firstOrNull ?? code;
 
     final fields = <Widget>[
-      // OQ-029: the name differs from the verified one — the check is
-      // hidden; one tap starts "confirm new name" (ID + selfie).
-      if (p.nameMismatch)
-        AppCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(t.t('profile.nameMismatch.title'),
-                  style: Theme.of(context).extension<AppTypographyTokens>()!.body.copyWith(
-                        color: Theme.of(context).extension<AppColorTokens>()!.text,
-                        fontWeight: FontWeight.w700,
-                      )),
-              const SizedBox(height: AppSpacing.xs),
-              Text(t.t('profile.nameMismatch.body'),
-                  style: Theme.of(context).extension<AppTypographyTokens>()!.bodySmall.copyWith(
-                        color: Theme.of(context).extension<AppColorTokens>()!.textSecondary,
-                      )),
-              const SizedBox(height: AppSpacing.md),
-              AppButton(
-                label: t.t('profile.nameMismatch.action'),
-                height: AppSizes.touchTarget,
-                onPressed: () => context.push(AppRoutes.verificationWizard),
-              ),
-            ],
-          ),
-        ),
       AppCard(
         child: AvatarPickerField(
           initials: initialsOf(p.firstName, p.lastName, fallback: p.username),
@@ -285,7 +258,6 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
         errorText: required(_last),
         textCapitalization: TextCapitalization.words,
         inputFormatters: [LengthLimitingTextInputFormatter(kAttorneyNameMax)],
-        helperText: nameChangeNeedsRecheck ? t.t('profile.edit.nameRecheck') : null,
         onChanged: (_) => setState(() {}),
       ),
       AppTextField(

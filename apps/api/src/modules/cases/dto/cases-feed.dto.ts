@@ -130,6 +130,10 @@ export class CaseFeedItemDto {
   @ApiProperty()
   title!: string;
 
+  /** Owner 2026-09-30: first ~180 characters of the description. */
+  @ApiProperty()
+  excerpt!: string;
+
   @ApiProperty({ type: CasePracticeAreaDto })
   practiceArea!: CasePracticeAreaDto;
 

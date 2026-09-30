@@ -19,6 +19,7 @@ class PublicClientProfileDto {
     required this.state,
     required this.memberSince,
     required this.isSelf,
+    required this.verifiedBadge,
     required this.isBlocked,
     required this.hasBlockedMe,
   });
@@ -36,6 +37,9 @@ class PublicClientProfileDto {
   /// ISO date of registration (YYYY-MM-DD).
   final String memberSince;
   final bool isSelf;
+
+  /// OQ-029 final: blue check = the client confirmed a phone number.
+  final bool verifiedBadge;
 
   /// OQ-028: the viewer blocked this user.
   final bool isBlocked;

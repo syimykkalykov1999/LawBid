@@ -14,6 +14,7 @@ ClientListItemDto _$ClientListItemDtoFromJson(Map<String, dynamic> json) =>
       lastName: json['lastName'] as String?,
       avatarUrl: json['avatarUrl'] as String?,
       stateCode: json['stateCode'] as String,
+      verifiedBadge: json['verifiedBadge'] as bool,
     );
 
 Map<String, dynamic> _$ClientListItemDtoToJson(ClientListItemDto instance) =>
@@ -24,4 +25,5 @@ Map<String, dynamic> _$ClientListItemDtoToJson(ClientListItemDto instance) =>
       'lastName': ?instance.lastName,
       'avatarUrl': ?instance.avatarUrl,
       'stateCode': instance.stateCode,
+      'verifiedBadge': instance.verifiedBadge,
     };

@@ -78,6 +78,36 @@ class PostsFeedView extends ConsumerWidget {
   }
 }
 
+/// Owner 2026-09-30: the feed filtered by one topic (hashtag), newest
+/// first — what a topic in the clients' slider shows.
+class TopicPostsView extends ConsumerWidget {
+  const TopicPostsView({required this.tag, super.key});
+
+  final String tag;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final key = (tag: tag, sort: TagSort.fresh);
+    final notifier = ref.read(tagPostsProvider(key).notifier);
+    return PagedListBody<Post>(
+      value: _withoutDeleted(
+          ref.watch(tagPostsProvider(key)), ref.watch(deletedPostsProvider)),
+      t: t,
+      skeleton: const PostListSkeleton(),
+      itemKey: (p) => p.id,
+      itemBuilder: (context, p, _) => PostCard(post: p),
+      empty: AppEmptyState(
+        icon: Icons.tag_rounded,
+        message: t.t('tag.empty'),
+      ),
+      onRefresh: notifier.refresh,
+      onLoadMore: notifier.loadMore,
+      onRetryMore: notifier.retryLoadMore,
+    );
+  }
+}
+
 /// docs/05 §3.5 post screen: the post, the disclaimer, comments with
 /// replies and the composer.
 class PostScreen extends ConsumerStatefulWidget {

@@ -12,6 +12,7 @@ class PostAuthorDto {
     required this.id,
     required this.username,
     required this.verifiedBadge,
+    required this.isFollowing,
     this.firstName,
     this.lastName,
     this.avatarUrl,
@@ -30,6 +31,9 @@ class PostAuthorDto {
 
   /// Blue check (docs/03 §6.3).
   final bool verifiedBadge;
+
+  /// Owner 2026-09-30: the viewer follows this author (card Follow).
+  final bool isFollowing;
 
   Map<String, Object?> toJson() => _$PostAuthorDtoToJson(this);
 }

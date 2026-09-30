@@ -21,7 +21,17 @@ class AppFeedHeader extends StatelessWidget implements PreferredSizeWidget {
     super.key,
     this.trailing = const [],
     this.showLogo = true,
+    this.leading,
+    this.center,
   });
+
+  /// Owner 2026-09-30: left slot (clients: the scales mark; attorneys:
+  /// the wordmark).
+  final Widget? leading;
+
+  /// Owner 2026-09-30: replaces the centered wordmark (attorneys: the
+  /// Posts / Cases switch).
+  final Widget? center;
 
   /// `false` keeps only the screen-reader name of the header.
   final bool showLogo;
@@ -52,46 +62,61 @@ class AppFeedHeader extends StatelessWidget implements PreferredSizeWidget {
         color: colors.bg,
         border: Border(bottom: BorderSide(color: colors.border)),
       ),
-      child: Row(
-        children: [
-          // Left slot: empty for now (owner: "пока ничего"), but as wide
-          // as the trailing icons so the wordmark is centered.
-          const SizedBox(width: AppSizes.touchTarget),
-          Expanded(
-            child: Center(
-              child: Semantics(
-                header: true,
-                label: logoSemanticLabel,
-                excludeSemantics: true,
-                child: showLogo
-                    ? MediaQuery.withClampedTextScaling(
-                        maxScaleFactor: 1.3,
-                        child: Text(
-                          logoSemanticLabel,
-                          maxLines: 1,
-                          style: TextStyle(
-                            fontFamily: AppFontFamilies.serif,
-                            fontSize: AppSizes.feedWordmark,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 0.4,
-                            height: 1,
-                            color: colors.text,
-                          ),
-                        ),
-                      )
-                    : const SizedBox.shrink(),
-              ),
+      child: center != null
+          ? Row(
+              children: [
+                if (leading != null) ...[
+                  leading!,
+                  const SizedBox(width: AppSpacing.md),
+                ],
+                Expanded(child: center!),
+                const SizedBox(width: AppSpacing.sm),
+                ...trailing,
+              ],
+            )
+          : Row(
+              children: [
+                // Left slot, as wide as the trailing icons so the wordmark is
+                // centered.
+                SizedBox(
+                  width: AppSizes.touchTarget,
+                  child: Center(child: leading),
+                ),
+                Expanded(
+                  child: Center(
+                    child: Semantics(
+                      header: true,
+                      label: logoSemanticLabel,
+                      excludeSemantics: true,
+                      child: showLogo
+                          ? MediaQuery.withClampedTextScaling(
+                              maxScaleFactor: 1.3,
+                              child: Text(
+                                logoSemanticLabel,
+                                maxLines: 1,
+                                style: TextStyle(
+                                  fontFamily: AppFontFamilies.serif,
+                                  fontSize: AppSizes.feedWordmark,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 0.4,
+                                  height: 1,
+                                  color: colors.text,
+                                ),
+                              ),
+                            )
+                          : const SizedBox.shrink(),
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  width: AppSizes.touchTarget,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: trailing,
+                  ),
+                ),
+              ],
             ),
-          ),
-          SizedBox(
-            width: AppSizes.touchTarget,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: trailing,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

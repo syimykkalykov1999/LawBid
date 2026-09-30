@@ -80,37 +80,18 @@ export function namesClose(verified: PersonName, after: PersonName): boolean {
 }
 
 /**
- * Owner decision 2026-09-30 (OQ-029): a name change NEVER blocks an
- * attorney (no `pending`, no verification gate, no admin queue). Instead,
- * compared with the name the attorney was verified under, a big change sets
- * `name_mismatch` and the blue check hides itself everywhere; changing the
- * name back (or close to it) brings the check back. Returns true when the
- * check got hidden by this change.
+ * Owner decision 2026-09-30, final (OQ-029): the account and the blue check
+ * rest on the confirmed phone number (and, for attorneys, the one-time
+ * license verification). Name, @username, states, languages, practices and
+ * firms can change freely — nothing is hidden, nothing is re-checked, no
+ * admin involvement. Kept as a no-op so the call sites stay in place.
  */
-export async function startNameRecheckIfVerified(
-  tx: Tx,
-  userId: string,
+export function startNameRecheckIfVerified(
+  _tx: Tx,
+  _userId: string,
   before: PersonName,
   after: PersonName,
 ): Promise<boolean> {
-  if (!nameChanged(before, after)) return false;
-  const row = await tx.attorneyProfile.findUnique({
-    where: { user_id: userId },
-    select: { verified_first_name: true, verified_last_name: true },
-  });
-  if (
-    !row ||
-    (row.verified_first_name === null && row.verified_last_name === null)
-  ) {
-    return false;
-  }
-  const mismatch = !namesClose(
-    { first_name: row.verified_first_name, last_name: row.verified_last_name },
-    after,
-  );
-  await tx.attorneyProfile.update({
-    where: { user_id: userId },
-    data: { name_mismatch: mismatch },
-  });
-  return mismatch;
+  void nameChanged(before, after);
+  return Promise.resolve(false);
 }

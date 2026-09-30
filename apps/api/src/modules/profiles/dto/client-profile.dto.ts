@@ -96,6 +96,10 @@ export class ClientListItemDto {
 
   @ApiProperty({ example: 'NY' })
   stateCode!: string;
+
+  /** OQ-029 final: blue check = the client confirmed a phone number. */
+  @ApiProperty()
+  verifiedBadge!: boolean;
 }
 
 /** GET /clients/:username — the public client mini-profile (OQ-026). */
@@ -123,6 +127,10 @@ export class PublicClientProfileDto {
 
   @ApiProperty()
   isSelf!: boolean;
+
+  /** OQ-029 final: blue check = the client confirmed a phone number. */
+  @ApiProperty()
+  verifiedBadge!: boolean;
 
   /** OQ-028: the viewer blocked this user. */
   @ApiProperty()

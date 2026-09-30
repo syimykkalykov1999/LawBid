@@ -403,6 +403,7 @@ class PublicClientProfile {
     this.avatarUrl,
     this.isBlocked = false,
     this.hasBlockedMe = false,
+    this.verified = false,
   });
   final String id;
   final String username;
@@ -410,6 +411,9 @@ class PublicClientProfile {
   final String? lastName;
   final String? avatarUrl;
   final StateRef state;
+
+  /// OQ-029 final: blue check for a confirmed phone number.
+  final bool verified;
   final DateTime memberSince;
   final bool isSelf;
 

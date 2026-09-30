@@ -27512,6 +27512,10 @@
           "title": {
             "type": "string"
           },
+          "excerpt": {
+            "type": "string",
+            "description": "Owner 2026-09-30: first ~180 characters of the description."
+          },
           "practiceArea": {
             "$ref": "#/components/schemas/CasePracticeAreaDto"
           },
@@ -27564,6 +27568,7 @@
         "required": [
           "id",
           "title",
+          "excerpt",
           "practiceArea",
           "primaryStateCode",
           "additionalStateCodes",
@@ -27623,6 +27628,10 @@
           },
           "title": {
             "type": "string"
+          },
+          "excerpt": {
+            "type": "string",
+            "description": "Owner 2026-09-30: first ~180 characters of the description."
           },
           "practiceArea": {
             "$ref": "#/components/schemas/CasePracticeAreaDto"
@@ -27698,6 +27707,7 @@
         "required": [
           "id",
           "title",
+          "excerpt",
           "practiceArea",
           "primaryStateCode",
           "additionalStateCodes",
@@ -28682,12 +28692,17 @@
           "verifiedBadge": {
             "type": "boolean",
             "description": "Blue check (docs/03 §6.3)."
+          },
+          "isFollowing": {
+            "type": "boolean",
+            "description": "Owner 2026-09-30: the viewer follows this author (card Follow)."
           }
         },
         "required": [
           "id",
           "username",
-          "verifiedBadge"
+          "verifiedBadge",
+          "isFollowing"
         ]
       },
       "PostMediaDto": {
@@ -29958,6 +29973,10 @@
           "stateCode": {
             "type": "string",
             "example": "NY"
+          },
+          "verifiedBadge": {
+            "type": "boolean",
+            "description": "OQ-029 final: blue check = the client confirmed a phone number."
           }
         },
         "required": [
@@ -29966,7 +29985,8 @@
           "firstName",
           "lastName",
           "avatarUrl",
-          "stateCode"
+          "stateCode",
+          "verifiedBadge"
         ]
       },
       "PersonItemDto": {
@@ -31115,6 +31135,10 @@
           "isSelf": {
             "type": "boolean"
           },
+          "verifiedBadge": {
+            "type": "boolean",
+            "description": "OQ-029 final: blue check = the client confirmed a phone number."
+          },
           "isBlocked": {
             "type": "boolean",
             "description": "OQ-028: the viewer blocked this user."
@@ -31133,6 +31157,7 @@
           "state",
           "memberSince",
           "isSelf",
+          "verifiedBadge",
           "isBlocked",
           "hasBlockedMe"
         ]

@@ -16,6 +16,7 @@ class CaseDetailForAttorneyDto {
   const CaseDetailForAttorneyDto({
     required this.id,
     required this.title,
+    required this.excerpt,
     required this.practiceArea,
     required this.primaryStateCode,
     required this.additionalStateCodes,
@@ -39,6 +40,9 @@ class CaseDetailForAttorneyDto {
 
   final String id;
   final String title;
+
+  /// Owner 2026-09-30: first ~180 characters of the description.
+  final String excerpt;
   final CasePracticeAreaDto practiceArea;
   final String primaryStateCode;
   final List<String> additionalStateCodes;
