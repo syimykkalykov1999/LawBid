@@ -382,11 +382,19 @@ class _TimeLine extends ConsumerWidget {
                 overflow: TextOverflow.ellipsis,
                 style: type.caption.copyWith(color: colors.textSecondary)),
           ),
-          const SizedBox(width: AppSpacing.md),
-          Icon(Icons.public_rounded, size: 14, color: colors.textSecondary),
-          const SizedBox(width: AppSpacing.xs),
-          Text(t.t('post.public'),
-              style: type.caption.copyWith(color: colors.textSecondary)),
+          const SizedBox(width: AppSpacing.sm),
+          // Next to Save only the globe (with its label for screen
+          // readers) so the time is never cut.
+          Semantics(
+            label: t.t('post.public'),
+            child: Icon(Icons.public_rounded,
+                size: 14, color: colors.textSecondary),
+          ),
+          if (!inline) ...[
+            const SizedBox(width: AppSpacing.xs),
+            Text(t.t('post.public'),
+                style: type.caption.copyWith(color: colors.textSecondary)),
+          ],
         ],
       ),
     );
@@ -428,6 +436,9 @@ String topicLabel(String tag) {
   };
   final k = known[tag.toLowerCase()];
   if (k != null) return k;
+  // A practice topic tag (OQ-034): its category's name.
+  final cat = categoryForTopicTag(tag);
+  if (cat != null) return kPracticeCategoryNamesEn[cat] ?? tag;
   return tag.isEmpty ? tag : tag[0].toUpperCase() + tag.substring(1);
 }
 
