@@ -107,10 +107,13 @@ class _FiltersSheetState extends ConsumerState<_FiltersSheet> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title,
-                  style: type.bodySmall.copyWith(
-                      color: colors.textSecondary,
-                      fontWeight: FontWeight.w600,),),
+              Text(
+                title,
+                style: type.bodySmall.copyWith(
+                  color: colors.textSecondary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
               const SizedBox(height: AppSpacing.sm),
               child,
             ],
@@ -127,8 +130,12 @@ class _FiltersSheetState extends ConsumerState<_FiltersSheet> {
 
     return SafeArea(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide,
-            AppSpacing.md, AppSpacing.screenSide, AppSpacing.lg,),
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.screenSide,
+          AppSpacing.md,
+          AppSpacing.screenSide,
+          AppSpacing.lg,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -137,8 +144,10 @@ class _FiltersSheetState extends ConsumerState<_FiltersSheet> {
             Row(
               children: [
                 Expanded(
-                  child: Text(t.t('search.filters'),
-                      style: type.titleMedium.copyWith(color: colors.text),),
+                  child: Text(
+                    t.t('search.filters'),
+                    style: type.titleMedium.copyWith(color: colors.text),
+                  ),
                 ),
                 TextButton(
                   onPressed: () => setState(() {
@@ -169,7 +178,9 @@ class _FiltersSheetState extends ConsumerState<_FiltersSheet> {
               Align(
                 alignment: Alignment.centerLeft,
                 child: pickerChip(
-                  _state == null ? t.t('search.filter.any') : stateName(_state!),
+                  _state == null
+                      ? t.t('search.filter.any')
+                      : stateName(_state!),
                   _state != null,
                   () async {
                     final code = await pickState(context, t);
@@ -225,14 +236,16 @@ class _FiltersSheetState extends ConsumerState<_FiltersSheet> {
             const SizedBox(height: AppSpacing.xl),
             AppButton(
               label: t.t('search.filter.apply'),
-              onPressed: () => Navigator.of(context).pop(SearchFilters(
-                practiceAreaId: _practiceId,
-                practiceLabel: _practiceLabel,
-                state: _state,
-                minRating: widget.forCases ? null : _minRating,
-                language: widget.forCases ? null : _language,
-                period: widget.forCases ? _period : SearchPeriod.all,
-              ),),
+              onPressed: () => Navigator.of(context).pop(
+                SearchFilters(
+                  practiceAreaId: _practiceId,
+                  practiceLabel: _practiceLabel,
+                  state: _state,
+                  minRating: widget.forCases ? null : _minRating,
+                  language: widget.forCases ? null : _language,
+                  period: widget.forCases ? _period : SearchPeriod.all,
+                ),
+              ),
             ),
           ],
         ),

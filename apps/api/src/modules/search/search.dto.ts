@@ -133,10 +133,13 @@ export class TagDto {
 
 export { PersonItemDto, type PeoplePage } from '../follows/follows.dto';
 
-/** GET /search/latest-posts (OQ-034): newest posts by licensed state. */
+/** GET /search/latest-posts (OQ-034): newest posts, optionally only of
+ * attorneys licensed in a state (the Search tab's "explore" grid uses it
+ * without a state). */
 export class LatestPostsQueryDto extends CursorQueryDto {
-  @ApiProperty({ example: 'IL' })
+  @ApiPropertyOptional({ example: 'IL' })
+  @IsOptional()
   @IsString()
   @Length(2, 2)
-  state!: string;
+  state?: string;
 }

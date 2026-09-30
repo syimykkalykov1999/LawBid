@@ -11563,7 +11563,7 @@
             "in": "query",
             "description": "Practice category code: cases of any of its leaves (owner 2026-09-30, OQ-034 topic slider).",
             "schema": {
-              "pattern": "^[a-z_]{2,64}$",
+              "pattern": "^[a-z0-9_]{2,64}$",
               "example": "family_law",
               "type": "string"
             }
@@ -19572,7 +19572,7 @@
           },
           {
             "name": "state",
-            "required": true,
+            "required": false,
             "in": "query",
             "schema": {
               "minLength": 2,

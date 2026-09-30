@@ -609,3 +609,20 @@ Decided by the owner from phone review (replaces parts of OQ-032):
   docs/PHOTO_CREDITS.md); a CDL case shows a truck.
 - Header logos (feed, own profile) are the animated scales, swinging for
   6 s after they appear and easing to rest.
+
+## OQ-035 — Search tab redesign (owner, 2026-09-30)
+
+- Top: the search field; tabs People / Cases / Posts / Topics.
+- People: a list of accounts (attorneys and clients) by name or @username.
+- Cases: attorneys search open cases they can see (clients' cases); a
+  client's tab is "My cases" (their own) — other clients' cases are
+  private. Shown as an Instagram-like 2-column grid of tiles that say
+  what they are ("Case · <practice>", title, budget · state).
+- Posts: the same grid ("Post · <topic>", title, author); photo = the
+  post's own or our practice photo.
+- Topics: explained ("post hashtags by area of law"), each with our practice
+  photo, name, #tag and post count; practices matching the text come first.
+- Before typing, every tab shows recent searches, "Based on your search"
+  (that tab's results for the latest search) and explore content
+  (suggested people / cases for you / fresh posts / popular and all topics).
+- API: `GET /search/latest-posts` state is optional now.

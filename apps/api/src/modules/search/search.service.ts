@@ -285,7 +285,7 @@ export class SearchService {
    * state — the feed's "All" topic with a state chosen. */
   async latestPosts(
     user: RequestUser,
-    state: string,
+    state: string | undefined,
     cursor?: string,
   ): Promise<PostPage> {
     const c = cursor ? decodeCursor(cursor) : undefined;

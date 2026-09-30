@@ -73,8 +73,8 @@ abstract interface class SocialRepository {
     String? state,
   });
 
-  /// OQ-034: newest posts of attorneys licensed in [state].
-  Future<CursorPage<Post>> latestPosts(String state, {String? cursor});
+  /// OQ-034: newest posts (of attorneys licensed in [state] when given).
+  Future<CursorPage<Post>> latestPosts(String? state, {String? cursor});
   Future<Post> createPost(String body, List<String> mediaFileIds);
   Future<Post> updatePost(String id, String body);
   Future<void> deletePost(String id);
@@ -223,7 +223,7 @@ class ApiSocialRepository implements SocialRepository {
   }
 
   @override
-  Future<CursorPage<Post>> latestPosts(String state, {String? cursor}) async {
+  Future<CursorPage<Post>> latestPosts(String? state, {String? cursor}) async {
     final env = await guardApiCall(
       () => _search.latestPosts(state: state, cursor: cursor),
     );

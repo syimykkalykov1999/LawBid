@@ -110,8 +110,8 @@ abstract class SearchClient {
   /// [cursor] - meta.nextCursor of the previous page.
   @GET('/search/latest-posts')
   Future<PostListEnvelope> latestPosts({
-    @Query('state') required String state,
     @Query('cursor') String? cursor,
+    @Query('state') String? state,
     @Extras() Map<String, dynamic>? extras,
   });
 }

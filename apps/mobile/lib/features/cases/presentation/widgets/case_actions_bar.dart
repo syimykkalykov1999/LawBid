@@ -92,11 +92,12 @@ class _CaseActionsBarState extends ConsumerState<CaseActionsBar> {
             label: t.t('post.share'),
             onTap: _share,
           ),
-          const Spacer(),
-          Flexible(
+          // Owner 2026-09-30: the time and Save sit at the right edge.
+          Expanded(
             child: Text(
               SocialFormat.ago(t, f, widget.item.createdAt),
               maxLines: 1,
+              textAlign: TextAlign.right,
               overflow: TextOverflow.ellipsis,
               style: type.caption.copyWith(color: colors.textSecondary),
             ),

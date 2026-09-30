@@ -401,6 +401,10 @@ class _TimeLine extends ConsumerWidget {
   }
 }
 
+/// The post's bold first line and the rest (the feed card's split), for
+/// other views such as the Search grid.
+(String, String) splitPostBody(String body) => PostCard._split(body);
+
 /// Practice category a hashtag stands for (the client topic slider and
 /// the main chip icon use the same map).
 String? topicCategory(String tag) => switch (tag.toLowerCase()) {
@@ -1007,8 +1011,15 @@ class _ActionsBar extends ConsumerWidget {
             label: t.t('post.share'),
             onTap: () => sharePost(context, ref, post),
           ),
-          const Spacer(),
-          if (showTime) Flexible(child: _TimeLine(post: post, inline: true)),
+          // Owner 2026-09-30: the time and Save sit at the right edge.
+          Expanded(
+            child: showTime
+                ? Align(
+                    alignment: Alignment.centerRight,
+                    child: _TimeLine(post: post, inline: true),
+                  )
+                : const SizedBox.shrink(),
+          ),
           BounceIcon(
             active: post.savedByMe,
             activeIcon: Icons.bookmark_rounded,

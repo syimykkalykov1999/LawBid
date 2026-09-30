@@ -2,28 +2,28 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
-import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
-import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
-import 'package:lawbid/features/cases/presentation/widgets/case_cards.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
+import 'package:lawbid/features/cases/application/cases_providers.dart';
+import 'package:lawbid/features/feed/application/feed_topics.dart';
+import 'package:lawbid/features/feed/presentation/widgets/topic_filter_bar.dart'
+    show topicName;
+import 'package:lawbid/features/search/presentation/widgets/search_tiles.dart';
+import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/search/application/search_providers.dart';
 import 'package:lawbid/features/search/data/search_repository.dart';
 import 'package:lawbid/features/search/presentation/widgets/flip_search_bar.dart';
 import 'package:lawbid/features/search/presentation/widgets/search_filters_sheet.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
-import 'package:lawbid/features/social/presentation/screens/social_screens.dart';
 import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
-import 'package:lawbid/features/social/social_routes.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 
 enum SearchTab { attorneys, cases, posts, tags }
@@ -128,7 +128,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     // OQ-026: People (attorneys and clients) for both roles.
     final tabs = [
       (SearchTab.attorneys, t.t('search.tab.people')),
-      if (attorney) (SearchTab.cases, t.t('search.tab.cases')),
+      // Attorneys search open cases; a client searches their own cases
+      // (other clients' cases are private).
+      (
+        SearchTab.cases,
+        t.t(attorney ? 'search.tab.cases' : 'search.tab.myCases'),
+      ),
       (SearchTab.posts, t.t('search.tab.posts')),
       (SearchTab.tags, t.t('search.tab.tags')),
     ];
@@ -210,7 +215,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     : AppMotion.stateChange,
                 child: _query.isEmpty
                     ? _BeforeTyping(
-                        key: const ValueKey('idle'),
+                        key: ValueKey('idle:$_tab'),
+                        tab: _tab,
                         onRecent: _useRecent,
                       )
                     : KeyedSubtree(
@@ -244,7 +250,7 @@ class _Results extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translatorProvider);
-    final formats = ref.watch(l10nFormatsProvider);
+    final attorney = ref.watch(currentUserRoleProvider) == UserRole.attorney;
     final nothing = AppEmptyState(
       icon: Icons.search_off_rounded,
       title: t.t('search.empty.title'),
@@ -264,209 +270,338 @@ class _Results extends ConsumerWidget {
           onLoadMore: n.loadMore,
           onRetryMore: n.retryLoadMore,
         );
+      case SearchTab.cases when !attorney:
+        return _MyCasesGrid(query: query, empty: nothing);
       case SearchTab.cases:
         final n = ref.read(caseSearchProvider(key).notifier);
-        return PagedListBody<FeedCase>(
+        return PagedTileGrid<FeedCase>(
           value: ref.watch(caseSearchProvider(key)),
-          t: t,
-          itemKey: (c) => c.id,
-          itemBuilder: (context, c, _) => FeedCaseCard(
-            item: c,
-            t: t,
-            formats: formats,
-            onTap: () => context.push(AppRoutes.caseDetail(c.id)),
-          ),
+          itemBuilder: (c) => SearchCaseTile(item: c),
           empty: nothing,
           onRefresh: n.refresh,
           onLoadMore: n.loadMore,
-          onRetryMore: n.retryLoadMore,
         );
       case SearchTab.posts:
         final n = ref.read(postSearchProvider(query).notifier);
-        return PagedListBody<Post>(
+        return PagedTileGrid<Post>(
           value: ref.watch(postSearchProvider(query)),
-          t: t,
-          skeleton: const PostListSkeleton(),
-          itemKey: (p) => p.id,
-          itemBuilder: (context, p, _) => PostCard(post: p),
+          itemBuilder: (p) => SearchPostTile(post: p),
           empty: nothing,
           onRefresh: n.refresh,
           onLoadMore: n.loadMore,
-          onRetryMore: n.retryLoadMore,
         );
       case SearchTab.tags:
+        // Practices whose name matches come first, then hashtags.
+        final lower = query.toLowerCase().replaceAll('#', '');
+        final practices = [
+          for (final c in kPracticeCategoryCodes)
+            if ((kPracticeCategoryNamesEn[c] ?? c)
+                    .toLowerCase()
+                    .contains(lower) ||
+                topicTagFor(c).contains(lower))
+              c,
+        ];
         return AsyncDetailBody<List<TagInfo>>(
           value: ref.watch(tagSearchProvider(query)),
           t: t,
           onRetry: () => ref.invalidate(tagSearchProvider(query)),
-          builder: (tags) => tags.isEmpty
+          builder: (tags) => tags.isEmpty && practices.isEmpty
               ? nothing
-              : ListView.builder(
+              : ListView(
                   padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-                  itemCount: tags.length,
-                  itemBuilder: (context, i) => _TagRow(tag: tags[i]),
+                  children: [
+                    for (final c in practices) _PracticeTopicRow(code: c),
+                    for (final tag in tags)
+                      if (!practices.contains(categoryForTopicTag(tag.tag)))
+                        _TagTopicRow(tag: tag),
+                  ],
                 ),
         );
     }
   }
 }
 
-class _TagRow extends StatelessWidget {
-  const _TagRow({required this.tag});
+/// A practice as a topic: our photo, its name, "#tag".
+class _PracticeTopicRow extends ConsumerWidget {
+  const _PracticeTopicRow({required this.code});
 
-  final TagInfo tag;
+  final String code;
 
   @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    return AppPressable(
-      onTap: () => context.push(SocialRoutes.tag(tag.tag)),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.screenSide,
-          vertical: AppSpacing.md,
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: colors.goldTint,
-                border: Border.all(color: colors.goldStroke),
-              ),
-              child: Icon(Icons.tag_rounded, color: colors.goldDark),
-            ),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(
-              child: Text(
-                '#${tag.tag}',
-                style: type.body.copyWith(
-                  color: colors.text,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            Icon(Icons.chevron_right_rounded, color: colors.textSecondary),
-          ],
-        ),
-      ),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    return TopicRow(
+      tag: topicTagFor(code),
+      categoryCode: code,
+      title: topicName(ref, code),
+      subtitle: t.t('search.topics.practiceSub', {'tag': topicTagFor(code)}),
     );
   }
 }
 
-/// §7.2 before typing: recent searches (clearable), popular topics,
-/// suggested attorneys.
-class _BeforeTyping extends ConsumerWidget {
-  const _BeforeTyping({required this.onRecent, super.key});
+/// Any hashtag: its practice photo when it maps to one, and the count.
+class _TagTopicRow extends ConsumerWidget {
+  const _TagTopicRow({required this.tag});
 
-  final ValueChanged<String> onRecent;
+  final TagInfo tag;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translatorProvider);
     final f = ref.watch(l10nFormatsProvider);
+    final cat = topicCategory(tag.tag);
+    final count = tag.postsCount;
+    return TopicRow(
+      tag: tag.tag,
+      categoryCode: cat,
+      title: cat == null ? '#${tag.tag}' : topicName(ref, cat),
+      subtitle: count == null
+          ? '#${tag.tag}'
+          : '#${tag.tag} · ${t.t('search.topics.posts', {
+                  'count': SocialFormat.count(f, count)
+                })}',
+    );
+  }
+}
+
+/// Owner 2026-09-30: before typing, every tab shows the recent searches,
+/// "Based on your search «…»" (this tab's results for the latest one) and
+/// its own explore content — people, a grid of cases or posts, topics.
+class _BeforeTyping extends ConsumerWidget {
+  const _BeforeTyping({required this.tab, required this.onRecent, super.key});
+
+  final SearchTab tab;
+  final ValueChanged<String> onRecent;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final recent = ref.watch(recentSearchesProvider).value ?? const [];
-    final trending = ref.watch(trendingTagsProvider);
+    final last = recent.isEmpty ? null : recent.first;
+    final attorney = ref.watch(currentUserRoleProvider) == UserRole.attorney;
 
     Widget title(String text, {Widget? trailing}) => Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.screenSide,
-            AppSpacing.lg,
-            AppSpacing.sm,
-            AppSpacing.sm,
-          ),
+          padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide,
+              AppSpacing.lg, AppSpacing.sm, AppSpacing.sm),
           child: Row(
             children: [
               Expanded(
-                child: Text(
-                  text,
-                  style: type.titleMedium.copyWith(color: colors.text),
-                ),
+                child: Text(text,
+                    style: type.titleMedium.copyWith(color: colors.text)),
               ),
               if (trailing != null) trailing,
             ],
           ),
         );
 
-    return RefreshIndicator(
-      color: colors.gold,
-      onRefresh: () async => ref.invalidate(trendingTagsProvider),
-      child: ListView(
-        padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
-        children: [
-          if (recent.isNotEmpty) ...[
-            title(
-              t.t('search.recent'),
-              trailing: TextButton(
-                onPressed: () =>
-                    ref.read(recentSearchesProvider.notifier).clear(),
-                child: Text(t.t('search.recent.clear')),
-              ),
-            ),
-            Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: AppSpacing.screenSide),
-              child: Wrap(
-                spacing: AppSpacing.sm,
-                runSpacing: AppSpacing.sm,
+    SliverPadding grid<T>(List<T> items, Widget Function(T) build) =>
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+          sliver: SliverGrid.builder(
+            gridDelegate: kSearchGridDelegate,
+            itemCount: items.length,
+            itemBuilder: (context, i) => build(items[i]),
+          ),
+        );
+
+    final lastKey =
+        last == null ? null : (q: last, filters: const SearchFilters());
+
+    // "Based on your search" for this tab.
+    final List<Widget> basedOn = switch (tab) {
+      _ when last == null => const [],
+      SearchTab.attorneys => [
+          for (final r
+              in (ref.watch(peopleSearchProvider(lastKey!)).value?.items ??
+                      const <PersonRow>[])
+                  .take(3))
+            SliverToBoxAdapter(child: PersonTile(row: r)),
+        ],
+      SearchTab.cases when !attorney => [
+          grid<CaseSummary>(
+            _myCases(ref, last).take(4).toList(),
+            (c) => SearchMyCaseTile(item: c),
+          ),
+        ],
+      SearchTab.cases => [
+          grid<FeedCase>(
+            (ref.watch(caseSearchProvider(lastKey!)).value?.items ??
+                    const <FeedCase>[])
+                .take(4)
+                .toList(),
+            (c) => SearchCaseTile(item: c),
+          ),
+        ],
+      SearchTab.posts => [
+          grid<Post>(
+            (ref.watch(postSearchProvider(last)).value?.items ?? const <Post>[])
+                .take(4)
+                .toList(),
+            (p) => SearchPostTile(post: p),
+          ),
+        ],
+      SearchTab.tags => [
+          for (final tag
+              in (ref.watch(tagSearchProvider(last)).value ?? const <TagInfo>[])
+                  .take(3))
+            SliverToBoxAdapter(child: _TagTopicRow(tag: tag)),
+        ],
+    };
+
+    final List<Widget> explore = switch (tab) {
+      SearchTab.attorneys => [
+          const SliverToBoxAdapter(child: SuggestedAttorneys(limit: 8)),
+        ],
+      SearchTab.cases when !attorney => [
+          SliverToBoxAdapter(child: title(t.t('search.tab.myCases'))),
+          grid<CaseSummary>(
+            _myCases(ref, ''),
+            (c) => SearchMyCaseTile(item: c),
+          ),
+        ],
+      SearchTab.cases => [
+          SliverToBoxAdapter(child: title(t.t('search.section.cases'))),
+          grid<FeedCase>(
+            ref
+                    .watch(
+                        caseFeedProvider((practiceCategory: null, state: null)))
+                    .value
+                    ?.items ??
+                const <FeedCase>[],
+            (c) => SearchCaseTile(item: c),
+          ),
+        ],
+      SearchTab.posts => [
+          SliverToBoxAdapter(child: title(t.t('search.section.posts'))),
+          grid<Post>(
+            ref.watch(latestPostsProvider('')).value?.items ?? const <Post>[],
+            (p) => SearchPostTile(post: p),
+          ),
+        ],
+      SearchTab.tags => [
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide,
+                  AppSpacing.md, AppSpacing.screenSide, 0),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  for (final q in recent)
-                    AppChip(
-                      label: q,
-                      leading: const Icon(Icons.history_rounded,
-                          size: AppSpacing.lg),
-                      onTap: () => onRecent(q),
-                    ),
+                  Icon(Icons.info_outline_rounded,
+                      size: AppSizes.iconSm, color: colors.goldDark),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Text(t.t('search.topics.explain'),
+                        style: type.bodySmall
+                            .copyWith(color: colors.textSecondary)),
+                  ),
                 ],
               ),
             ),
-          ],
-          ...switch (trending) {
+          ),
+          ...switch (ref.watch(trendingTagsProvider)) {
             AsyncData(:final value) when value.isNotEmpty => [
-                title(t.t('search.trending')),
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.screenSide,
-                  ),
-                  child: Wrap(
-                    spacing: AppSpacing.sm,
-                    runSpacing: AppSpacing.sm,
-                    children: staggeredEntrance([
-                      for (final tag in value)
-                        AppChip(
-                          label: tag.postsCount == null
-                              ? '#${tag.tag}'
-                              : '#${tag.tag} · ${SocialFormat.count(f, tag.postsCount!)}',
-                          leading: Icon(
-                            Icons.local_fire_department_rounded,
-                            size: AppSpacing.lg,
-                            color: colors.gold,
-                          ),
-                          onTap: () => context.push(SocialRoutes.tag(tag.tag)),
-                        ),
-                    ]),
-                  ),
-                ),
-              ],
-            AsyncError(:final error) when isOfflineError(error) => [
-                Padding(
-                  padding: const EdgeInsets.all(AppSpacing.screenSide),
-                  child: Text(
-                    t.t('offline.message'),
-                    style: type.bodySmall.copyWith(color: colors.textSecondary),
-                  ),
-                ),
+                SliverToBoxAdapter(child: title(t.t('search.trending'))),
+                for (final tag in value.take(8))
+                  SliverToBoxAdapter(child: _TagTopicRow(tag: tag)),
               ],
             _ => const <Widget>[],
           },
-          const SuggestedAttorneys(),
+          SliverToBoxAdapter(child: title(t.t('search.topics.practices'))),
+          for (final c in kPracticeCategoryCodes)
+            SliverToBoxAdapter(child: _PracticeTopicRow(code: c)),
+        ],
+    };
+
+    return RefreshIndicator(
+      color: colors.gold,
+      onRefresh: () async {
+        ref
+          ..invalidate(trendingTagsProvider)
+          ..invalidate(latestPostsProvider(''))
+          ..invalidate(suggestionsProvider);
+      },
+      child: CustomScrollView(
+        slivers: [
+          if (recent.isNotEmpty) ...[
+            SliverToBoxAdapter(
+              child: title(
+                t.t('search.recent'),
+                trailing: TextButton(
+                  onPressed: () =>
+                      ref.read(recentSearchesProvider.notifier).clear(),
+                  child: Text(t.t('search.recent.clear')),
+                ),
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: SizedBox(
+                height: 44,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.screenSide),
+                  itemCount: recent.length,
+                  separatorBuilder: (_, __) =>
+                      const SizedBox(width: AppSpacing.sm),
+                  itemBuilder: (context, i) => AppChip(
+                    label: recent[i],
+                    leading:
+                        const Icon(Icons.history_rounded, size: AppSpacing.lg),
+                    onTap: () => onRecent(recent[i]),
+                  ),
+                ),
+              ),
+            ),
+          ],
+          if (basedOn.isNotEmpty) ...[
+            SliverToBoxAdapter(
+              child: title(t.t('search.section.basedOn', {'q': last!})),
+            ),
+            ...basedOn,
+          ],
+          ...explore,
+          const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.xxl)),
         ],
       ),
+    );
+  }
+}
+
+/// A client's own cases (active, closed, archived) matching [query] by
+/// title or practice; '' = all.
+List<CaseSummary> _myCases(WidgetRef ref, String query) {
+  final q = query.toLowerCase();
+  final all = [
+    for (final f in MyCasesFilter.values)
+      ...?ref.watch(myCasesProvider(f)).value?.items,
+  ];
+  if (q.isEmpty) return all;
+  return [
+    for (final c in all)
+      if (c.title.toLowerCase().contains(q) ||
+          c.practice.nameEn.toLowerCase().contains(q) ||
+          (c.practice.categoryNameEn ?? '').toLowerCase().contains(q))
+        c,
+  ];
+}
+
+class _MyCasesGrid extends ConsumerWidget {
+  const _MyCasesGrid({required this.query, required this.empty});
+
+  final String query;
+  final Widget empty;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final items = _myCases(ref, query);
+    if (items.isEmpty) return empty;
+    return GridView.builder(
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      gridDelegate: kSearchGridDelegate,
+      itemCount: items.length,
+      itemBuilder: (context, i) => SearchMyCaseTile(item: items[i]),
     );
   }
 }

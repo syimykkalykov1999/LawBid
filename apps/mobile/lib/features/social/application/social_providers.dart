@@ -168,7 +168,8 @@ final tagPostsProvider = AsyncNotifierProvider.autoDispose
   retry: _noRetry,
 );
 
-/// OQ-034: the feed's "All" topic with a state chosen.
+/// OQ-034: the feed's "All" topic with a state chosen; '' = every state
+/// (the Search tab's posts grid).
 class LatestPostsNotifier extends PagedNotifier<Post> {
   LatestPostsNotifier(this.stateCode);
 
@@ -177,7 +178,7 @@ class LatestPostsNotifier extends PagedNotifier<Post> {
   @override
   Future<CursorPage<Post>> fetch(String? cursor) => ref
       .read(socialRepositoryProvider)
-      .latestPosts(stateCode, cursor: cursor);
+      .latestPosts(stateCode.isEmpty ? null : stateCode, cursor: cursor);
 
   @override
   Object idOf(Post item) => item.id;

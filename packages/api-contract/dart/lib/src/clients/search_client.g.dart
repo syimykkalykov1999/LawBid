@@ -285,15 +285,15 @@ class _SearchClient implements SearchClient {
 
   @override
   Future<PostListEnvelope> latestPosts({
-    required String state,
     String? cursor,
+    String? state,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
     _extra.addAll(extras ?? <String, dynamic>{});
     final queryParameters = <String, dynamic>{
-      r'state': state,
       r'cursor': cursor,
+      r'state': state,
     };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};
