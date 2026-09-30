@@ -134,6 +134,7 @@ flutter:
   assets:
     - assets/fonts/OFL-SourceSerif4.txt
     - assets/fonts/OFL-Inter.txt
+    - assets/practice_art/
 
   fonts:
     - family: Source Serif 4

@@ -5,6 +5,11 @@ All notable changes to this project are documented here, per
 .cursorrules (each stage ends with a CHANGELOG update + commit on
 branch cursor/stage-X-Y-description).
 
+## Owner pass 4 (2026-09-30) — practice art + demo content
+
+- Mobile: bundled practice photo art (`assets/practice_art/`) for family law, immigration, criminal defense, traffic tickets and DUI; other categories keep the gold glyph fallback until photos are supplied.
+- API: `scripts/seed-demo.mjs` (dev only, idempotent) — demo verified attorneys with photo posts and demo clients with cases (incl. Illinois traffic cases), published through the real OTP / files / posts / cases API.
+
 ## Owner pass 3 (2026-09-30) — OQ-029/030
 
 - Name/username changes no longer reset a verified attorney (OQ-029); several firms per attorney (`firm_names`, `firms`, OQ-030); "Add a state (license)" from Edit; tap anywhere hides the keyboard; frameless in-app icon buttons by default (welcome keeps frames); profile header: counters beside the avatar, name under it, no "★ · New" line.

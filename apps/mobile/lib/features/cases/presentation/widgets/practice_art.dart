@@ -42,7 +42,13 @@ IconData practiceGlyph(String? categoryCode) => switch (categoryCode) {
 
 /// Bundled photo art per category (owner-supplied / licensed images).
 /// Keep in sync with `assets/practice_art/` and pubspec.
-const Set<String> kPracticeArtAssets = {};
+const Set<String> kPracticeArtAssets = {
+  'family_law',
+  'immigration',
+  'criminal_defense',
+  'traffic_tickets',
+  'dui_and_dwi',
+};
 
 /// The art layer: fills its box, fades to transparent towards the left.
 class PracticeArt extends StatelessWidget {
