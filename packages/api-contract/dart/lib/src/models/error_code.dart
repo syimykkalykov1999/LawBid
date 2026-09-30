@@ -224,6 +224,12 @@ enum ErrorCode {
   callInProgress('CALL_IN_PROGRESS'),
   @JsonValue('CALL_STATE_CONFLICT')
   callStateConflict('CALL_STATE_CONFLICT'),
+  @JsonValue('DIRECT_CHAT_NOT_ALLOWED')
+  directChatNotAllowed('DIRECT_CHAT_NOT_ALLOWED'),
+  @JsonValue('MESSAGE_REQUEST_DECLINED')
+  messageRequestDeclined('MESSAGE_REQUEST_DECLINED'),
+  @JsonValue('MESSAGE_REQUEST_LIMIT')
+  messageRequestLimit('MESSAGE_REQUEST_LIMIT'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

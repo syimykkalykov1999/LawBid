@@ -51,6 +51,16 @@ export class ConversationsQueryDto {
   @IsOptional()
   @IsISO8601()
   updatedSince?: string;
+
+  @ApiPropertyOptional({
+    enum: ['primary', 'requests'],
+    enumName: 'ConversationFolder',
+    default: 'primary',
+    description: 'OQ-043: "requests" = message requests sent to me.',
+  })
+  @IsOptional()
+  @IsIn(['primary', 'requests'])
+  folder?: 'primary' | 'requests';
 }
 
 export class MessagesQueryDto {
@@ -288,6 +298,34 @@ export class ConversationDto {
 
   @ApiProperty()
   updatedAt!: Date;
+
+  @ApiProperty({
+    enum: ['case', 'direct'],
+    enumName: 'ConversationKind',
+    description: 'OQ-043: a case chat or a direct chat from a profile.',
+  })
+  kind!: 'case' | 'direct';
+
+  @ApiProperty({
+    enum: ['none', 'pending', 'accepted', 'declined'],
+    enumName: 'MessageRequestStatus',
+  })
+  requestStatus!: 'none' | 'pending' | 'accepted' | 'declined';
+
+  @ApiProperty({ description: 'The viewer sent this message request.' })
+  requestedByMe!: boolean;
+}
+
+/** POST /conversations/direct (OQ-043). */
+export class StartDirectChatDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID('all')
+  userId!: string;
+}
+
+export class RequestsCountDto {
+  @ApiProperty({ type: 'integer' })
+  count!: number;
 }
 
 export class ReadResultDto {

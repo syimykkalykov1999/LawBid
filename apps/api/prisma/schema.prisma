@@ -348,6 +348,17 @@ enum ConversationStatus {
   @@map("conversation_status")
 }
 
+/// OQ-043: a direct chat started from a profile waits in the recipient's
+/// "Requests" until accepted (case chats: none).
+enum MessageRequestStatus {
+  none
+  pending
+  accepted
+  declined
+
+  @@map("message_request_status")
+}
+
 /// OQ-041: life of an in-app audio call.
 enum CallStatus {
   ringing
@@ -599,6 +610,7 @@ model User {
   conversation_memberships ConversationParticipant[]
   messages_sent            Message[]                 @relation("MessageSender")
   calls_made               Call[]                    @relation("CallCaller")
+  chat_requests_sent       Conversation[]            @relation("ConversationRequester")
   calls_received           Call[]                    @relation("CallCallee")
   notifications            Notification[]
   notification_settings    NotificationSetting[]
@@ -1579,26 +1591,30 @@ model SavedItem {
 }
 
 model Conversation {
-  id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id                String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   // Nullable since 2026-09-28 (migration applied, then the owner kept
   // chats case-only per docs/04 §9 — no code writes NULL today; partial UQ
   // (attorney_id, client_id) WHERE case_id IS NULL is raw SQL).
-  case_id           String?            @db.Uuid
-  case              Case?              @relation(fields: [case_id], references: [id], onDelete: Restrict)
-  attorney_id       String             @db.Uuid
-  attorney          User               @relation("ConversationAttorney", fields: [attorney_id], references: [id], onDelete: Restrict)
-  client_id         String             @db.Uuid
-  client            User               @relation("ConversationClient", fields: [client_id], references: [id], onDelete: Restrict)
-  bid_id            String?            @db.Uuid
-  bid               Bid?               @relation(fields: [bid_id], references: [id], onDelete: Restrict)
-  status            ConversationStatus @default(pre_acceptance)
-  contacts_unlocked Boolean            @default(false)
-  last_message_at   DateTime?          @db.Timestamptz
+  case_id           String?              @db.Uuid
+  case              Case?                @relation(fields: [case_id], references: [id], onDelete: Restrict)
+  attorney_id       String               @db.Uuid
+  attorney          User                 @relation("ConversationAttorney", fields: [attorney_id], references: [id], onDelete: Restrict)
+  client_id         String               @db.Uuid
+  client            User                 @relation("ConversationClient", fields: [client_id], references: [id], onDelete: Restrict)
+  bid_id            String?              @db.Uuid
+  bid               Bid?                 @relation(fields: [bid_id], references: [id], onDelete: Restrict)
+  status            ConversationStatus   @default(pre_acceptance)
+  contacts_unlocked Boolean              @default(false)
+  // OQ-043: direct chats (case_id NULL) start as a request of `requested_by`.
+  request_status    MessageRequestStatus @default(none)
+  requested_by      String?              @db.Uuid
+  requester         User?                @relation("ConversationRequester", fields: [requested_by], references: [id], onDelete: Restrict)
+  last_message_at   DateTime?            @db.Timestamptz
   // Bare uuid: an FK here would make conversations <-> messages a cycle
   // on every insert; it's a denormalized pointer for the chat list.
-  last_message_id   String?            @db.Uuid
-  created_at        DateTime           @default(now()) @db.Timestamptz
-  updated_at        DateTime           @updatedAt @db.Timestamptz
+  last_message_id   String?              @db.Uuid
+  created_at        DateTime             @default(now()) @db.Timestamptz
+  updated_at        DateTime             @updatedAt @db.Timestamptz
 
   participants ConversationParticipant[]
   messages     Message[]

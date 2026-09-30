@@ -35,6 +35,8 @@ import {
 const CONVERSATIONS_PAGE = 20;
 const MESSAGES_PAGE = 30;
 const CATCH_UP_MAX = 100;
+/** OQ-043: messages a requester may send before acceptance. */
+export const DIRECT_REQUEST_MAX_MESSAGES = 3;
 
 function notFound(): NotFoundException {
   return new NotFoundException({
@@ -89,12 +91,28 @@ export class ChatService {
     user: RequestUser,
     cursor?: string,
     updatedSince?: string,
+    folder: 'primary' | 'requests' = 'primary',
   ): Promise<ConversationPage> {
     if (!this.sideOf(user)) return { items: [], nextCursor: null };
     const c = cursor ? decodeCursor(cursor) : undefined;
     const rows = await this.prisma.conversation.findMany({
       where: {
-        OR: [{ client_id: user.sub }, { attorney_id: user.sub }],
+        AND: [
+          { OR: [{ client_id: user.sub }, { attorney_id: user.sub }] },
+          // OQ-043: requests sent to me wait in "Requests"; everything
+          // else (case chats, accepted chats, my own requests) is primary.
+          folder === 'requests'
+            ? {
+                request_status: 'pending',
+                requested_by: { not: user.sub },
+              }
+            : {
+                OR: [
+                  { request_status: { in: ['none', 'accepted'] } },
+                  { requested_by: user.sub },
+                ],
+              },
+        ],
         // A chat appears in the list once it has a message (§8.1).
         last_message_at: { not: null },
         ...(updatedSince
@@ -234,6 +252,38 @@ export class ChatService {
 
     await this.limits.consume('message', user.sub);
     if (conv.status === 'closed') throw closed();
+    // OQ-043: a message request — the recipient's reply accepts it; the
+    // requester may send up to 3 messages until then; a declined request
+    // takes no more.
+    let requestFirst = false;
+    if (conv.request_status === 'pending') {
+      if (conv.requested_by === user.sub) {
+        const sent = await this.prisma.message.count({
+          where: { conversation_id: id, sender_id: user.sub, deleted_at: null },
+        });
+        if (sent >= DIRECT_REQUEST_MAX_MESSAGES) {
+          throw new ConflictException({
+            code: ErrorCode.MESSAGE_REQUEST_LIMIT,
+            message: 'Wait until your message request is accepted.',
+          });
+        }
+        requestFirst = sent === 0;
+      } else {
+        await this.prisma.conversation.update({
+          where: { id },
+          data: { request_status: 'accepted' },
+        });
+        conv.request_status = 'accepted';
+      }
+    } else if (
+      conv.request_status === 'declined' &&
+      conv.requested_by === user.sub
+    ) {
+      throw new ForbiddenException({
+        code: ErrorCode.MESSAGE_REQUEST_DECLINED,
+        message: 'This person does not accept your messages.',
+      });
+    }
     // OQ-028: no messages either way while one side blocks the other.
     await this.blocks.assertNotBlocked(
       user.sub,
@@ -337,13 +387,18 @@ export class ChatService {
       message: this.toMessage(message, other, conv, urls),
     });
     // §8.4: badge + push to the recipient (the dispatcher skips it while
-    // the chat is open on their device or muted).
-    await this.badges.messageArrived(other);
-    await this.notifications.emit({
-      type: 'new_message',
-      recipientId: other,
-      payload: { conversationId: id, messageId: message.id },
-    });
+    // the chat is open on their device or muted). OQ-043: a pending
+    // request pings once (its first message) and never bumps the badge.
+    const pendingRequest =
+      conv.request_status === 'pending' && conv.requested_by === user.sub;
+    if (!pendingRequest) await this.badges.messageArrived(other);
+    if (!pendingRequest || requestFirst) {
+      await this.notifications.emit({
+        type: 'new_message',
+        recipientId: other,
+        payload: { conversationId: id, messageId: message.id },
+      });
+    }
     return this.toMessage(message, user.sub, undefined, urls);
   }
 
@@ -399,6 +454,115 @@ export class ChatService {
       });
     }
     if (unreadFor) await this.badges.messageArrived(unreadFor);
+  }
+
+  /**
+   * POST /conversations/direct (OQ-043): the "Message" button on a
+   * profile — the one direct chat of this attorney/client pair, created
+   * as a request of the caller if new. Hidden from lists until its first
+   * message.
+   */
+  async startDirect(
+    user: RequestUser,
+    otherUserId: string,
+  ): Promise<ConversationDto> {
+    const other = await this.prisma.user.findFirst({
+      where: { id: otherUserId, deleted_at: null, status: 'active' },
+      select: { id: true, role: true },
+    });
+    if (!other) {
+      throw new NotFoundException({
+        code: ErrorCode.NOT_FOUND,
+        message: 'User not found.',
+      });
+    }
+    const pair =
+      user.role === 'attorney' && other.role === 'client'
+        ? { attorney_id: user.sub, client_id: other.id }
+        : user.role === 'client' && other.role === 'attorney'
+          ? { attorney_id: other.id, client_id: user.sub }
+          : null;
+    if (!pair) {
+      throw new ConflictException({
+        code: ErrorCode.DIRECT_CHAT_NOT_ALLOWED,
+        message: 'Direct chats are between an attorney and a client.',
+      });
+    }
+    await this.blocks.assertNotBlocked(user.sub, other.id);
+    const existing = await this.prisma.conversation.findFirst({
+      where: { ...pair, case_id: null },
+    });
+    if (existing) return this.get(user, existing.id);
+    let conv: Conversation;
+    try {
+      conv = await this.prisma.conversation.create({
+        data: {
+          ...pair,
+          status: 'active',
+          contacts_unlocked: false,
+          request_status: 'pending',
+          requested_by: user.sub,
+          participants: {
+            create: [
+              { user_id: pair.attorney_id },
+              { user_id: pair.client_id },
+            ],
+          },
+        },
+      });
+    } catch (error) {
+      // A double tap: the other request created it first.
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        const again = await this.prisma.conversation.findFirstOrThrow({
+          where: { ...pair, case_id: null },
+        });
+        return this.get(user, again.id);
+      }
+      throw error;
+    }
+    const [dto] = await this.present([conv], user.sub);
+    return dto;
+  }
+
+  /** GET /conversations/requests/count (OQ-043): requests waiting for me. */
+  async requestsCount(user: RequestUser): Promise<{ count: number }> {
+    const count = await this.prisma.conversation.count({
+      where: {
+        OR: [{ client_id: user.sub }, { attorney_id: user.sub }],
+        request_status: 'pending',
+        requested_by: { not: user.sub },
+        last_message_at: { not: null },
+      },
+    });
+    return { count };
+  }
+
+  /** POST /conversations/:id/request/accept | decline (OQ-043). */
+  async answerRequest(
+    user: RequestUser,
+    id: string,
+    accept: boolean,
+  ): Promise<ConversationDto> {
+    const conv = await this.load(user, id);
+    if (conv.request_status !== 'pending' || conv.requested_by === user.sub) {
+      const [dto] = await this.present([conv], user.sub);
+      return dto;
+    }
+    const updated = await this.prisma.conversation.update({
+      where: { id },
+      data: { request_status: accept ? 'accepted' : 'declined' },
+    });
+    if (accept && conv.requested_by) {
+      this.realtime.toUsers([conv.requested_by], 'conversation:update', {
+        conversationId: id,
+      });
+    }
+    await this.badges.chatsChanged(user.sub);
+    const [dto] = await this.present([updated], user.sub);
+    return dto;
   }
 
   /** POST /conversations/:id/read (§8.4): only ever moves forward. */
@@ -519,12 +683,13 @@ export class ChatService {
     viewerId: string,
     conv?: Pick<
       Conversation,
-      'attorney_id' | 'client_id' | 'contacts_unlocked'
+      'attorney_id' | 'client_id' | 'contacts_unlocked' | 'case_id'
     >,
     voiceUrls?: Map<string, string>,
   ): MessageDto {
     const hideSender =
       conv !== undefined &&
+      conv.case_id !== null &&
       viewerId === conv.attorney_id &&
       !conv.contacts_unlocked &&
       m.sender_id === conv.client_id;
@@ -591,6 +756,7 @@ export class ChatService {
                 name_mismatch: true,
               },
             },
+            client_profile: { select: { username: true } },
           },
         }),
         this.prisma.message.findMany({
@@ -646,7 +812,12 @@ export class ChatService {
       // docs/04 §9: an attorney sees "Клиент по кейсу «…»" (no name, no
       // photo) until contacts are unlocked; a client always sees the
       // attorney's public identity.
-      const hidden = otherIsClient && !c.contacts_unlocked;
+      // OQ-043: in a direct chat both sides are public profiles.
+      const hidden =
+        otherIsClient && !c.contacts_unlocked && c.case_id !== null;
+      // No "Seen" for the requester until the request is accepted.
+      const seenHidden =
+        c.request_status === 'pending' && c.requested_by === viewerId;
       const last = c.last_message_id ? messageOf.get(c.last_message_id) : null;
       out.push({
         id: c.id,
@@ -661,7 +832,9 @@ export class ChatService {
             hidden || !other
               ? null
               : fullName(other.first_name, other.last_name),
-          username: other?.attorney_profile?.username ?? null,
+          username:
+            other?.attorney_profile?.username ??
+            (hidden ? null : (other?.client_profile?.username ?? null)),
           avatarUrl:
             hidden || !other
               ? null
@@ -676,8 +849,12 @@ export class ChatService {
         lastMessageAt: c.last_message_at,
         unreadCount: unreadOf.get(c.id) ?? 0,
         mutedUntil: partOf.get(`${c.id}:${viewerId}`)?.muted_until ?? null,
-        counterpartLastReadMessageId:
-          partOf.get(`${c.id}:${otherId}`)?.last_read_message_id ?? null,
+        counterpartLastReadMessageId: seenHidden
+          ? null
+          : (partOf.get(`${c.id}:${otherId}`)?.last_read_message_id ?? null),
+        kind: c.case_id ? 'case' : 'direct',
+        requestStatus: c.request_status,
+        requestedByMe: c.requested_by === viewerId,
         updatedAt: c.updated_at,
       });
     }

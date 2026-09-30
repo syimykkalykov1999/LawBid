@@ -20370,6 +20370,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "folder",
+            "required": false,
+            "in": "query",
+            "description": "OQ-043: \"requests\" = message requests sent to me.",
+            "schema": {
+              "$ref": "#/components/schemas/ConversationFolder"
+            }
           }
         ],
         "responses": {
@@ -20440,6 +20449,354 @@
           }
         ],
         "summary": "My conversations, newest first (§8.1)",
+        "tags": [
+          "chat"
+        ]
+      }
+    },
+    "/conversations/requests/count": {
+      "get": {
+        "operationId": "requestsCount",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestsCountEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Message requests waiting for me (OQ-043)",
+        "tags": [
+          "chat"
+        ]
+      }
+    },
+    "/conversations/direct": {
+      "post": {
+        "operationId": "startDirectChat",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartDirectChatDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: USER_BLOCKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: DIRECT_CHAT_NOT_ALLOWED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Open the direct chat with a person (\"Message\" on a profile)",
+        "tags": [
+          "chat"
+        ]
+      }
+    },
+    "/conversations/{id}/request/accept": {
+      "post": {
+        "operationId": "acceptMessageRequest",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CONVERSATION_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Accept a message request (OQ-043)",
+        "tags": [
+          "chat"
+        ]
+      }
+    },
+    "/conversations/{id}/request/decline": {
+      "post": {
+        "operationId": "declineMessageRequest",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CONVERSATION_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delete a message request (OQ-043)",
         "tags": [
           "chat"
         ]
@@ -20703,7 +21060,7 @@
             }
           },
           "403": {
-            "description": "Forbidden: SUBSCRIPTION_REQUIRED",
+            "description": "Forbidden: SUBSCRIPTION_REQUIRED, MESSAGE_REQUEST_DECLINED",
             "content": {
               "application/json": {
                 "schema": {
@@ -20723,7 +21080,7 @@
             }
           },
           "409": {
-            "description": "Conflict: CONVERSATION_CLOSED",
+            "description": "Conflict: CONVERSATION_CLOSED, MESSAGE_REQUEST_LIMIT",
             "content": {
               "application/json": {
                 "schema": {
@@ -23108,7 +23465,10 @@
           "CALL_NOT_FOUND",
           "CALL_NOT_ALLOWED",
           "CALL_IN_PROGRESS",
-          "CALL_STATE_CONFLICT"
+          "CALL_STATE_CONFLICT",
+          "DIRECT_CHAT_NOT_ALLOWED",
+          "MESSAGE_REQUEST_DECLINED",
+          "MESSAGE_REQUEST_LIMIT"
         ]
       },
       "ErrorBodyDto": {
@@ -33878,6 +34238,23 @@
           "createdAt"
         ]
       },
+      "ConversationKind": {
+        "type": "string",
+        "enum": [
+          "case",
+          "direct"
+        ],
+        "description": "OQ-043: a case chat or a direct chat from a profile."
+      },
+      "MessageRequestStatus": {
+        "type": "string",
+        "enum": [
+          "none",
+          "pending",
+          "accepted",
+          "declined"
+        ]
+      },
       "ConversationDto": {
         "type": "object",
         "properties": {
@@ -33940,6 +34317,25 @@
           "updatedAt": {
             "format": "date-time",
             "type": "string"
+          },
+          "kind": {
+            "description": "OQ-043: a case chat or a direct chat from a profile.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ConversationKind"
+              }
+            ]
+          },
+          "requestStatus": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MessageRequestStatus"
+              }
+            ]
+          },
+          "requestedByMe": {
+            "type": "boolean",
+            "description": "The viewer sent this message request."
           }
         },
         "required": [
@@ -33948,7 +34344,17 @@
           "contactsUnlocked",
           "counterpart",
           "unreadCount",
-          "updatedAt"
+          "updatedAt",
+          "kind",
+          "requestStatus",
+          "requestedByMe"
+        ]
+      },
+      "ConversationFolder": {
+        "type": "string",
+        "enum": [
+          "primary",
+          "requests"
         ]
       },
       "ConversationListEnvelope": {
@@ -33966,6 +34372,43 @@
         },
         "required": [
           "data"
+        ]
+      },
+      "RequestsCountDto": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "count"
+        ]
+      },
+      "RequestsCountEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/RequestsCountDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "StartDirectChatDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "userId"
         ]
       },
       "ConversationEnvelope": {

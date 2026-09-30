@@ -260,4 +260,10 @@ export enum ErrorCode {
   CALL_IN_PROGRESS = 'CALL_IN_PROGRESS',
   // 409: the call already ended / was answered elsewhere (OQ-041).
   CALL_STATE_CONFLICT = 'CALL_STATE_CONFLICT',
+  // 409: direct chats are between an attorney and a client (OQ-043).
+  DIRECT_CHAT_NOT_ALLOWED = 'DIRECT_CHAT_NOT_ALLOWED',
+  // 403: the recipient declined this message request (OQ-043).
+  MESSAGE_REQUEST_DECLINED = 'MESSAGE_REQUEST_DECLINED',
+  // 409: up to 3 messages until the request is accepted (OQ-043).
+  MESSAGE_REQUEST_LIMIT = 'MESSAGE_REQUEST_LIMIT',
 }

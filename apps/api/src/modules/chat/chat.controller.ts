@@ -29,7 +29,9 @@ import {
   MuteConversationDto,
   ReadConversationDto,
   ReadResultDto,
+  RequestsCountDto,
   SendMessageDto,
+  StartDirectChatDto,
   type ConversationPage,
   type MessagePage,
 } from './chat.dto';
@@ -51,7 +53,56 @@ export class ChatController {
     @CurrentUser() user: RequestUser,
     @Query() q: ConversationsQueryDto,
   ): Promise<ConversationPage> {
-    return this.chat.list(user, q.cursor, q.updatedSince);
+    return this.chat.list(user, q.cursor, q.updatedSince, q.folder);
+  }
+
+  @Get('requests/count')
+  @ApiOperation({ summary: 'Message requests waiting for me (OQ-043)' })
+  @ApiEnvelopeResponse(RequestsCountDto)
+  requestsCount(@CurrentUser() user: RequestUser): Promise<{ count: number }> {
+    return this.chat.requestsCount(user);
+  }
+
+  @Post('direct')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Open the direct chat with a person ("Message" on a profile)',
+  })
+  @ApiEnvelopeResponse(ConversationDto)
+  @ApiErrors({
+    403: [ErrorCode.USER_BLOCKED],
+    404: [ErrorCode.NOT_FOUND],
+    409: [ErrorCode.DIRECT_CHAT_NOT_ALLOWED],
+  })
+  startDirectChat(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: StartDirectChatDto,
+  ): Promise<ConversationDto> {
+    return this.chat.startDirect(user, dto.userId);
+  }
+
+  @Post(':id/request/accept')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Accept a message request (OQ-043)' })
+  @ApiEnvelopeResponse(ConversationDto)
+  @ApiErrors({ 404: [ErrorCode.CONVERSATION_NOT_FOUND] })
+  acceptMessageRequest(
+    @CurrentUser() user: RequestUser,
+    @Param() p: ConversationIdParamDto,
+  ): Promise<ConversationDto> {
+    return this.chat.answerRequest(user, p.id, true);
+  }
+
+  @Post(':id/request/decline')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Delete a message request (OQ-043)' })
+  @ApiEnvelopeResponse(ConversationDto)
+  @ApiErrors({ 404: [ErrorCode.CONVERSATION_NOT_FOUND] })
+  declineMessageRequest(
+    @CurrentUser() user: RequestUser,
+    @Param() p: ConversationIdParamDto,
+  ): Promise<ConversationDto> {
+    return this.chat.answerRequest(user, p.id, false);
   }
 
   @Get(':id')
@@ -85,9 +136,9 @@ export class ChatController {
   @ApiEnvelopeResponse(MessageDto, { status: 201 })
   @ApiErrors({
     400: [ErrorCode.VALIDATION_ERROR, ErrorCode.MESSAGE_TOO_LONG],
-    403: [ErrorCode.SUBSCRIPTION_REQUIRED],
+    403: [ErrorCode.SUBSCRIPTION_REQUIRED, ErrorCode.MESSAGE_REQUEST_DECLINED],
     404: [ErrorCode.CONVERSATION_NOT_FOUND],
-    409: [ErrorCode.CONVERSATION_CLOSED],
+    409: [ErrorCode.CONVERSATION_CLOSED, ErrorCode.MESSAGE_REQUEST_LIMIT],
     429: [ErrorCode.RATE_LIMITED],
   })
   sendMessage(

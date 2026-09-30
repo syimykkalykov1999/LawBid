@@ -6,7 +6,9 @@ import 'package:json_annotation/json_annotation.dart';
 
 import 'conversation_counterpart_dto.dart';
 import 'conversation_dto_status.dart';
+import 'conversation_kind.dart';
 import 'message_dto.dart';
+import 'message_request_status.dart';
 
 part 'conversation_dto.g.dart';
 
@@ -19,6 +21,9 @@ class ConversationDto {
     required this.counterpart,
     required this.unreadCount,
     required this.updatedAt,
+    required this.kind,
+    required this.requestStatus,
+    required this.requestedByMe,
     this.caseId,
     this.caseTitle,
     this.lastMessage,
@@ -46,6 +51,13 @@ class ConversationDto {
   /// For "Seen" on own messages (§8.2).
   final String? counterpartLastReadMessageId;
   final DateTime updatedAt;
+
+  /// OQ-043: a case chat or a direct chat from a profile.
+  final ConversationKind kind;
+  final MessageRequestStatus requestStatus;
+
+  /// The viewer sent this message request.
+  final bool requestedByMe;
 
   Map<String, Object?> toJson() => _$ConversationDtoToJson(this);
 }
