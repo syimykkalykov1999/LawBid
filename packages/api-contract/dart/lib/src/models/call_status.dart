@@ -5,22 +5,30 @@
 import 'package:json_annotation/json_annotation.dart';
 
 @JsonEnum()
-enum MessageDtoType {
-  @JsonValue('text')
-  text('text'),
-  @JsonValue('system')
-  system('system'),
-  @JsonValue('voice')
-  voice('voice'),
-  @JsonValue('call')
-  call('call'),
+enum CallStatus {
+  @JsonValue('ringing')
+  ringing('ringing'),
+  @JsonValue('active')
+  active('active'),
+  @JsonValue('ended')
+  ended('ended'),
+  @JsonValue('missed')
+  missed('missed'),
+  @JsonValue('declined')
+  declined('declined'),
+  @JsonValue('busy')
+  busy('busy'),
+  @JsonValue('canceled')
+  canceled('canceled'),
+  @JsonValue('failed')
+  failed('failed'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);
 
-  const MessageDtoType(this.json);
+  const CallStatus(this.json);
 
-  factory MessageDtoType.fromJson(String json) =>
+  factory CallStatus.fromJson(String json) =>
       values.firstWhere((e) => e.json == json, orElse: () => $unknown);
 
   final String? json;
@@ -39,6 +47,6 @@ enum MessageDtoType {
   String toString() => json?.toString() ?? super.toString();
 
   /// Returns all defined enum values excluding the $unknown value.
-  static List<MessageDtoType> get $valuesDefined =>
+  static List<CallStatus> get $valuesDefined =>
       values.where((value) => value != $unknown).toList();
 }

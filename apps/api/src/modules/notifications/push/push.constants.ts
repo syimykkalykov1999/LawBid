@@ -50,7 +50,15 @@ export interface MessageJobData {
   deferred?: boolean;
 }
 
-export type PushJobData = NotificationJobData | MessageJobData;
+/** OQ-041: ring the callee's devices (push-only, never stored). */
+export interface CallJobData {
+  kind: 'call';
+  recipientId: string;
+  callId: string;
+  deferred?: boolean;
+}
+
+export type PushJobData = NotificationJobData | MessageJobData | CallJobData;
 
 export interface PushMessage {
   userId: string;
@@ -60,6 +68,10 @@ export interface PushMessage {
   data: Record<string, string>;
   /** iOS app icon number = badge total (docs/05 §10). */
   badge?: number;
+  /** OQ-041: an incoming call — Android gets a data-only high-priority
+   * message (the app shows the full-screen ringing UI itself); iOS a
+   * time-sensitive alert. */
+  call?: boolean;
 }
 
 /** Delivery to the user's devices (FCM when configured, else a log).

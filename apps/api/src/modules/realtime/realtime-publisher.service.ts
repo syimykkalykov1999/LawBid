@@ -17,6 +17,10 @@ export type RealtimeEvent =
   | 'message:read'
   // OQ-040: the recipient played a voice note.
   | 'message:listened'
+  // OQ-041 calls: ringing, answered (stop ringing elsewhere), ended.
+  | 'call:incoming'
+  | 'call:accepted'
+  | 'call:ended'
   | 'conversation:update'
   | 'notification:new'
   | 'badge:update';

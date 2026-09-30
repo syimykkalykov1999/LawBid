@@ -4,23 +4,22 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+/// hangup (default); no_answer = the caller gave up ringing; failed = the connection could not be set up.
 @JsonEnum()
-enum MessageDtoType {
-  @JsonValue('text')
-  text('text'),
-  @JsonValue('system')
-  system('system'),
-  @JsonValue('voice')
-  voice('voice'),
-  @JsonValue('call')
-  call('call'),
+enum CallEndReason {
+  @JsonValue('hangup')
+  hangup('hangup'),
+  @JsonValue('no_answer')
+  noAnswer('no_answer'),
+  @JsonValue('failed')
+  failed('failed'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);
 
-  const MessageDtoType(this.json);
+  const CallEndReason(this.json);
 
-  factory MessageDtoType.fromJson(String json) =>
+  factory CallEndReason.fromJson(String json) =>
       values.firstWhere((e) => e.json == json, orElse: () => $unknown);
 
   final String? json;
@@ -39,6 +38,6 @@ enum MessageDtoType {
   String toString() => json?.toString() ?? super.toString();
 
   /// Returns all defined enum values excluding the $unknown value.
-  static List<MessageDtoType> get $valuesDefined =>
+  static List<CallEndReason> get $valuesDefined =>
       values.where((value) => value != $unknown).toList();
 }

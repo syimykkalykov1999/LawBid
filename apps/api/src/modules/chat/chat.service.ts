@@ -24,6 +24,7 @@ import { RealtimePublisher } from '../realtime/realtime-publisher.service';
 import { SubscriptionAccessService } from '../subscriptions/subscription-access.service';
 import {
   MESSAGE_MAX_CHARS,
+  type CallLogDto,
   type ConversationDto,
   type ConversationPage,
   type MessageDto,
@@ -382,6 +383,24 @@ export class ChatService {
     return this.toMessage(row, user.sub, conv, await this.voiceUrls([row]));
   }
 
+  /**
+   * OQ-041: a message written by the server on someone's behalf (a call
+   * in the chat log) — to both members over realtime, like a sent one.
+   * [unreadFor] also gets a badge bump (a missed call).
+   */
+  async announce(m: Message, unreadFor?: string): Promise<void> {
+    const conv = await this.prisma.conversation.findUnique({
+      where: { id: m.conversation_id },
+    });
+    if (!conv) return;
+    for (const uid of [conv.client_id, conv.attorney_id]) {
+      this.realtime.toUsers([uid], 'message:new', {
+        message: this.toMessage(m, uid, conv),
+      });
+    }
+    if (unreadFor) await this.badges.messageArrived(unreadFor);
+  }
+
   /** POST /conversations/:id/read (§8.4): only ever moves forward. */
   async read(
     user: RequestUser,
@@ -521,6 +540,13 @@ export class ChatService {
               durationMs: m.duration_ms ?? 0,
               waveform: m.waveform,
               listened: m.listened_at !== null,
+            }
+          : null,
+      call:
+        m.type === 'call'
+          ? {
+              outcome: m.body_display as CallLogDto['outcome'],
+              durationSec: Math.round((m.duration_ms ?? 0) / 1000),
             }
           : null,
       body: m.body_display,

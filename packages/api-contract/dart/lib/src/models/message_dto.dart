@@ -4,6 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'call_log_dto.dart';
 import 'message_dto_type.dart';
 import 'voice_note_dto.dart';
 
@@ -20,6 +21,7 @@ class MessageDto {
     required this.createdAt,
     this.senderId,
     this.voice,
+    this.call,
     this.clientMessageId,
   });
 
@@ -31,6 +33,7 @@ class MessageDto {
   final String? senderId;
   final MessageDtoType type;
   final VoiceNoteDto? voice;
+  final CallLogDto? call;
 
   /// body_display; for type=system a key (offer_accepted, no_agreement, case_closed, accepted_by_other) the app localizes.
   final String body;

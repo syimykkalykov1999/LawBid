@@ -43,6 +43,7 @@ import 'clients/clients_client.dart';
 import 'clients/blocks_client.dart';
 import 'clients/search_client.dart';
 import 'clients/chat_client.dart';
+import 'clients/calls_client.dart';
 import 'clients/notifications_client.dart';
 import 'clients/reviews_client.dart';
 
@@ -96,6 +97,7 @@ class LawbidApi {
   BlocksClient? _blocks;
   SearchClient? _search;
   ChatClient? _chat;
+  CallsClient? _calls;
   NotificationsClient? _notifications;
   ReviewsClient? _reviews;
 
@@ -202,6 +204,8 @@ class LawbidApi {
   SearchClient get search => _search ??= SearchClient(_dio, baseUrl: _baseUrl);
 
   ChatClient get chat => _chat ??= ChatClient(_dio, baseUrl: _baseUrl);
+
+  CallsClient get calls => _calls ??= CallsClient(_dio, baseUrl: _baseUrl);
 
   NotificationsClient get notifications =>
       _notifications ??= NotificationsClient(_dio, baseUrl: _baseUrl);

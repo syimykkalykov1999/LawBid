@@ -89,6 +89,30 @@ export class PushQueueService
     }
   }
 
+  /** OQ-041: ring now (no delay, one quick retry; a late ring is
+   * useless — the dispatcher drops it once the call stopped ringing). */
+  async enqueueCall(data: { recipientId: string; callId: string }) {
+    if (!this.queue) return;
+    try {
+      await this.queue.add(
+        PUSH_JOB,
+        { kind: 'call', ...data },
+        {
+          attempts: 2,
+          backoff: { type: 'fixed', delay: 1_000 },
+          removeOnComplete: { count: 1000 },
+          removeOnFail: { count: 1000 },
+          jobId: `c-${data.callId}`,
+        },
+      );
+    } catch (error) {
+      this.logger.warn(
+        { callId: data.callId, err: errMsg(error) },
+        'push enqueue failed',
+      );
+    }
+  }
+
   /** Re-queue after the recipient's quiet hours. */
   async defer(data: PushJobData, until: Date, jobId: string): Promise<void> {
     if (!this.queue) return;

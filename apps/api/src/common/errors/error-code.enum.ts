@@ -252,4 +252,12 @@ export enum ErrorCode {
   SEARCH_QUERY_TOO_SHORT = 'SEARCH_QUERY_TOO_SHORT',
   // 403: one of the two users blocked the other (OQ-028).
   USER_BLOCKED = 'USER_BLOCKED',
+  // 404: no such call, or the caller is not one of its two members (OQ-041).
+  CALL_NOT_FOUND = 'CALL_NOT_FOUND',
+  // 409: calls open once the bid is accepted (contacts unlocked) (OQ-041).
+  CALL_NOT_ALLOWED = 'CALL_NOT_ALLOWED',
+  // 409: the caller is already in another call (OQ-041).
+  CALL_IN_PROGRESS = 'CALL_IN_PROGRESS',
+  // 409: the call already ended / was answered elsewhere (OQ-041).
+  CALL_STATE_CONFLICT = 'CALL_STATE_CONFLICT',
 }

@@ -348,11 +348,27 @@ enum ConversationStatus {
   @@map("conversation_status")
 }
 
+/// OQ-041: life of an in-app audio call.
+enum CallStatus {
+  ringing
+  active
+  ended
+  missed
+  declined
+  busy
+  canceled
+  failed
+
+  @@map("call_status")
+}
+
 enum MessageType {
   text
   system
   // OQ-040: an audio note (messages.file_id, duration_ms, waveform).
   voice
+  // OQ-041: a call in the chat log (body = outcome, duration_ms).
+  call
 
   @@map("message_type")
 }
@@ -393,6 +409,8 @@ enum NotificationType {
   case_history_export_ready
   // Owner 2026-09-30 (OQ-034): someone commented under the client's case.
   case_comment
+  // OQ-041: a call nobody answered.
+  missed_call
 
   @@map("notification_type")
 }
@@ -578,6 +596,8 @@ model User {
   conversations_client     Conversation[]            @relation("ConversationClient")
   conversation_memberships ConversationParticipant[]
   messages_sent            Message[]                 @relation("MessageSender")
+  calls_made               Call[]                    @relation("CallCaller")
+  calls_received           Call[]                    @relation("CallCallee")
   notifications            Notification[]
   notification_settings    NotificationSetting[]
   quiet_hours              NotificationQuietHours?
@@ -1580,6 +1600,7 @@ model Conversation {
 
   participants ConversationParticipant[]
   messages     Message[]
+  calls        Call[]
 
   @@unique([case_id, attorney_id])
   @@index([client_id, last_message_at(sort: Desc)])
@@ -1600,6 +1621,31 @@ model ConversationParticipant {
   @@id([conversation_id, user_id])
   @@index([user_id])
   @@map("conversation_participants")
+}
+
+/// OQ-041 (owner 2026-09-30): an in-app audio call between the two chat
+/// members (WebRTC; the server relays signaling, never the audio).
+model Call {
+  id              String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversation_id String       @db.Uuid
+  conversation    Conversation @relation(fields: [conversation_id], references: [id], onDelete: Restrict)
+  caller_id       String       @db.Uuid
+  caller          User         @relation("CallCaller", fields: [caller_id], references: [id], onDelete: Restrict)
+  callee_id       String       @db.Uuid
+  callee          User         @relation("CallCallee", fields: [callee_id], references: [id], onDelete: Restrict)
+  status          CallStatus   @default(ringing)
+  answered_at     DateTime?    @db.Timestamptz
+  ended_at        DateTime?    @db.Timestamptz
+  duration_sec    Int?
+  end_reason      String?
+  created_at      DateTime     @default(now()) @db.Timestamptz
+  updated_at      DateTime     @updatedAt @db.Timestamptz
+
+  @@index([callee_id, status])
+  @@index([caller_id, status])
+  @@index([conversation_id, created_at])
+  @@index([status, created_at])
+  @@map("calls")
 }
 
 model Message {

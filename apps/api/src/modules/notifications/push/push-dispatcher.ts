@@ -27,6 +27,7 @@ import {
   PUSH_QUEUE,
   PUSH_SENDER,
   type MessageJobData,
+  type CallJobData,
   type NotificationJobData,
   type PushJobData,
   type PushSender,
@@ -105,9 +106,55 @@ export class PushDispatcher
 
   /** Returns what happened (tests, dashboards). */
   async dispatch(data: PushJobData, jobId: string): Promise<DispatchResult> {
+    if (data.kind === 'call') return this.dispatchCall(data);
     return data.kind === 'message'
       ? this.dispatchMessage(data, jobId)
       : this.dispatchNotification(data, jobId);
+  }
+
+  /** OQ-041: ring the callee while the call is still ringing. Calls ring
+   * through quiet hours and chat mute, like a phone; only a blocked,
+   * inactive or opted-out ("messages" off) recipient is skipped. */
+  private async dispatchCall(data: CallJobData): Promise<DispatchResult> {
+    const call = await this.prisma.call.findUnique({
+      where: { id: data.callId },
+      select: {
+        status: true,
+        conversation_id: true,
+        callee: { select: { status: true, ui_language: true } },
+        caller: {
+          select: { first_name: true, last_name: true },
+        },
+      },
+    });
+    if (!call || call.callee.status !== 'active') return 'no_user';
+    if (call.status !== 'ringing') return 'no_push';
+    if (!(await this.pushAllowed(data.recipientId, 'messages'))) {
+      return 'disabled';
+    }
+    const name =
+      [call.caller.first_name, call.caller.last_name]
+        .filter(Boolean)
+        .join(' ') || 'LawBid';
+    await this.sender.send(
+      {
+        userId: data.recipientId,
+        title: name,
+        body:
+          call.callee.ui_language === 'ru'
+            ? '📞 Входящий звонок'
+            : '📞 Incoming call',
+        data: {
+          type: 'incoming_call',
+          callId: data.callId,
+          conversationId: call.conversation_id,
+          callerName: name,
+        },
+        call: true,
+      },
+      `c:${data.callId}`,
+    );
+    return 'sent';
   }
 
   private async dispatchNotification(

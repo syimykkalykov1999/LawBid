@@ -47,6 +47,8 @@ export const CRON_JOBS = {
   opsQueueMetrics: 'ops.queue-metrics',
   /** docs/06 §8: business counters for the Grafana dashboard. */
   opsBusinessMetrics: 'ops.business-metrics',
+  /** OQ-041: unanswered calls → missed, abandoned ones → ended. */
+  callsSweep: 'calls.sweep',
 } as const;
 
 export type CronJobName = (typeof CRON_JOBS)[keyof typeof CRON_JOBS];
@@ -87,6 +89,7 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.exportsCleanup, pattern: '10 3 * * *' },
   { name: CRON_JOBS.opsQueueMetrics, pattern: '* * * * *' },
   { name: CRON_JOBS.opsBusinessMetrics, pattern: '*/10 * * * *' },
+  { name: CRON_JOBS.callsSweep, pattern: '* * * * *' },
 ];
 
 export const DISPOSABLE_DOMAINS_FETCHER = Symbol('DISPOSABLE_DOMAINS_FETCHER');

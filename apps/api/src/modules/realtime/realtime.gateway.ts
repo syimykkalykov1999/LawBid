@@ -32,6 +32,8 @@ const UUID_RE =
 const VIEW_TTL_SEC = 3600;
 /** At most one typing event per socket per this window. */
 const TYPING_MIN_GAP_MS = 1000;
+/** OQ-041: one signaling payload (SDP / ICE candidate) at most. */
+const SIGNAL_MAX_BYTES = 64 * 1024;
 /** How often a live socket re-checks the session blacklist. */
 const REVOCATION_CHECK_MS = 45_000;
 
@@ -260,6 +262,45 @@ export class RealtimeGateway
     socket
       .to(conversationRoom(id))
       .emit('typing', { conversationId: id, typing });
+  }
+
+  /**
+   * OQ-041: WebRTC signaling for an in-app call — an SDP offer/answer or
+   * an ICE candidate goes to the other member of a live (ringing/active)
+   * call only. Never stored; the audio itself never touches the server.
+   */
+  @SubscribeMessage('call:signal')
+  async callSignal(
+    @ConnectedSocket() socket: Socket,
+    @MessageBody() body: { callId?: unknown; data?: unknown },
+  ): Promise<{ ok: boolean }> {
+    const uid = state(socket)?.user?.sub;
+    const callId =
+      typeof body?.callId === 'string' && UUID_RE.test(body.callId)
+        ? body.callId
+        : null;
+    const data = body?.data;
+    if (!uid || !callId || typeof data !== 'object' || data === null) {
+      return { ok: false };
+    }
+    // SDP is a few KB; anything larger is not signaling.
+    if (JSON.stringify(data).length > SIGNAL_MAX_BYTES) return { ok: false };
+    const call = await this.prisma.call.findUnique({
+      where: { id: callId },
+      select: { caller_id: true, callee_id: true, status: true },
+    });
+    if (!call || (call.status !== 'ringing' && call.status !== 'active')) {
+      return { ok: false };
+    }
+    const peer =
+      call.caller_id === uid
+        ? call.callee_id
+        : call.callee_id === uid
+          ? call.caller_id
+          : null;
+    if (!peer) return { ok: false };
+    this.nsp?.to(userRoom(peer)).emit('call:signal', { callId, data });
+    return { ok: true };
   }
 
   private conversationIdOf(body: { conversationId?: unknown }): string | null {

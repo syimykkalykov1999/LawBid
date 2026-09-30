@@ -166,6 +166,18 @@ export class VoiceNoteDto {
   listened!: boolean;
 }
 
+/** OQ-041: a call in the chat log; senderId is the caller. */
+export class CallLogDto {
+  @ApiProperty({
+    enum: ['ended', 'missed', 'declined', 'busy', 'canceled', 'failed'],
+    enumName: 'CallOutcome',
+  })
+  outcome!: 'ended' | 'missed' | 'declined' | 'busy' | 'canceled' | 'failed';
+
+  @ApiProperty({ type: 'integer', description: 'Talk time; 0 if unanswered.' })
+  durationSec!: number;
+}
+
 export class MessageDto {
   @ApiProperty({ format: 'uuid' })
   id!: string;
@@ -176,11 +188,14 @@ export class MessageDto {
   @ApiPropertyOptional({ type: String, nullable: true, format: 'uuid' })
   senderId!: string | null;
 
-  @ApiProperty({ enum: ['text', 'system', 'voice'] })
-  type!: 'text' | 'system' | 'voice';
+  @ApiProperty({ enum: ['text', 'system', 'voice', 'call'] })
+  type!: 'text' | 'system' | 'voice' | 'call';
 
   @ApiPropertyOptional({ type: () => VoiceNoteDto, nullable: true })
   voice!: VoiceNoteDto | null;
+
+  @ApiPropertyOptional({ type: () => CallLogDto, nullable: true })
+  call!: CallLogDto | null;
 
   @ApiProperty({
     description:

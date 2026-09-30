@@ -6,6 +6,7 @@ import { CronProcessor } from './cron.processor';
 import { CRON_JOBS, CRON_QUEUE, CRON_SCHEDULES } from './jobs.constants';
 import type { SessionsCleanupJob } from './handlers/sessions-cleanup.job';
 import type { OtpCleanupJob } from './handlers/otp-cleanup.job';
+import type { CallsService } from '../modules/calls/calls.service';
 import type { DisposableDomainsRefreshJob } from './disposable-domains/disposable-domains-refresh.job';
 import type { ReviewReminderJob } from './handlers/review-reminder.job';
 import type { RatingReconcileJob } from './handlers/rating-reconcile.job';
@@ -131,6 +132,7 @@ function processor() {
         queueDepths: jest.fn(),
         businessCounters: jest.fn(),
       } as unknown as OpsMetricsJob,
+      { sweep: jest.fn(() => Promise.resolve(0)) } as unknown as CallsService,
     ),
   };
 }
@@ -154,7 +156,8 @@ describe('JobsRunner', () => {
     });
     const upserts = mocked.__queue.upsertJobScheduler.mock.calls;
     expect(upserts).toHaveLength(CRON_SCHEDULES.length);
-    expect(upserts).toHaveLength(21);
+    // OQ-041: + calls.sweep every minute.
+    expect(upserts).toHaveLength(22);
     const byName = Object.fromEntries(
       upserts.map((c: unknown[]) => [c[0], c[1]]),
     );

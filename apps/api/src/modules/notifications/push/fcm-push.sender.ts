@@ -73,13 +73,31 @@ export class FcmPushSender implements PushSender {
           body: JSON.stringify({
             message: {
               token: device,
-              notification: { title: message.title, body: message.body },
-              data: message.data,
-              android: { priority: 'high' },
+              // OQ-041: Android rings from a data-only message (the app
+              // draws the full-screen call UI); iOS gets a time-sensitive
+              // alert.
+              ...(message.call
+                ? {}
+                : {
+                    notification: { title: message.title, body: message.body },
+                  }),
+              data: message.call
+                ? { ...message.data, title: message.title, body: message.body }
+                : message.data,
+              android: message.call
+                ? { priority: 'high', ttl: '45s' }
+                : { priority: 'high' },
               apns: {
+                ...(message.call ? { headers: { 'apns-priority': '10' } } : {}),
                 payload: {
                   aps: {
                     sound: 'default',
+                    ...(message.call
+                      ? {
+                          alert: { title: message.title, body: message.body },
+                          'interruption-level': 'time-sensitive',
+                        }
+                      : {}),
                     ...(message.badge !== undefined
                       ? { badge: message.badge }
                       : {}),

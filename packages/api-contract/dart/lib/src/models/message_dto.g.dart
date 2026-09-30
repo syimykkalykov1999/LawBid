@@ -17,6 +17,9 @@ MessageDto _$MessageDtoFromJson(Map<String, dynamic> json) => MessageDto(
   voice: json['voice'] == null
       ? null
       : VoiceNoteDto.fromJson(json['voice'] as Map<String, dynamic>),
+  call: json['call'] == null
+      ? null
+      : CallLogDto.fromJson(json['call'] as Map<String, dynamic>),
   clientMessageId: json['clientMessageId'] as String?,
 );
 
@@ -27,6 +30,7 @@ Map<String, dynamic> _$MessageDtoToJson(MessageDto instance) =>
       'senderId': ?instance.senderId,
       'type': instance.type.toJson(),
       'voice': ?instance.voice?.toJson(),
+      'call': ?instance.call?.toJson(),
       'body': instance.body,
       'contactMasked': instance.contactMasked,
       'clientMessageId': ?instance.clientMessageId,

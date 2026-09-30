@@ -216,6 +216,14 @@ enum ErrorCode {
   searchQueryTooShort('SEARCH_QUERY_TOO_SHORT'),
   @JsonValue('USER_BLOCKED')
   userBlocked('USER_BLOCKED'),
+  @JsonValue('CALL_NOT_FOUND')
+  callNotFound('CALL_NOT_FOUND'),
+  @JsonValue('CALL_NOT_ALLOWED')
+  callNotAllowed('CALL_NOT_ALLOWED'),
+  @JsonValue('CALL_IN_PROGRESS')
+  callInProgress('CALL_IN_PROGRESS'),
+  @JsonValue('CALL_STATE_CONFLICT')
+  callStateConflict('CALL_STATE_CONFLICT'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

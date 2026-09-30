@@ -5,22 +5,18 @@
 import 'package:json_annotation/json_annotation.dart';
 
 @JsonEnum()
-enum MessageDtoType {
-  @JsonValue('text')
-  text('text'),
-  @JsonValue('system')
-  system('system'),
-  @JsonValue('voice')
-  voice('voice'),
-  @JsonValue('call')
-  call('call'),
+enum CallPeerDtoKind {
+  @JsonValue('attorney')
+  attorney('attorney'),
+  @JsonValue('client')
+  client('client'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);
 
-  const MessageDtoType(this.json);
+  const CallPeerDtoKind(this.json);
 
-  factory MessageDtoType.fromJson(String json) =>
+  factory CallPeerDtoKind.fromJson(String json) =>
       values.firstWhere((e) => e.json == json, orElse: () => $unknown);
 
   final String? json;
@@ -39,6 +35,6 @@ enum MessageDtoType {
   String toString() => json?.toString() ?? super.toString();
 
   /// Returns all defined enum values excluding the $unknown value.
-  static List<MessageDtoType> get $valuesDefined =>
+  static List<CallPeerDtoKind> get $valuesDefined =>
       values.where((value) => value != $unknown).toList();
 }
