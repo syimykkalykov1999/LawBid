@@ -37,9 +37,12 @@ void main() {
         overrides: uxOverrides(),
       ),
     );
-    await tester.pumpAndSettle();
+    // The header scales animate forever (owner 2026-09-30), so no settle.
+    await tester.pump(const Duration(seconds: 1));
     expect(find.byType(ScalesLogo), findsOneWidget);
     expect(find.bySemanticsLabel('LawBid'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(seconds: 30));
   });
 
 }

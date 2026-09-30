@@ -152,7 +152,9 @@ class ClientTile extends ConsumerWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: type.body.copyWith(
-                              color: colors.text, fontWeight: FontWeight.w600,),
+                            color: colors.text,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                       if (row.verified) ...[

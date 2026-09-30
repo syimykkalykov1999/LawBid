@@ -8,6 +8,7 @@ branch cursor/stage-X-Y-description).
 ## Owner pass 4 (2026-09-30) — practice art + demo content
 
 - Mobile: bundled practice photo art (`assets/practice_art/`) for family law, immigration, criminal defense, traffic tickets and DUI; other categories keep the gold glyph fallback until photos are supplied.
+- Mobile: feed header shows the animated scales (welcome-screen logo, header size) instead of the text wordmark; feed post photos are a 2:1 band so a whole card fits one screen (the opened post keeps the original ratio); case art can be keyed by a leaf practice (e.g. CDL) before its category.
 - API: `scripts/seed-demo.mjs` (dev only, idempotent) — demo verified attorneys with photo posts and demo clients with cases (incl. Illinois traffic cases), published through the real OTP / files / posts / cases API.
 
 ## Owner pass 3 (2026-09-30) — OQ-029/030

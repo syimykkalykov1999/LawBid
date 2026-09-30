@@ -21,7 +21,8 @@ class CasePhotosPicker extends ConsumerWidget {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    final photos = ref.watch(createCaseControllerProvider.select((s) => s.photos));
+    final photos =
+        ref.watch(createCaseControllerProvider.select((s) => s.photos));
     final c = ref.read(createCaseControllerProvider.notifier);
 
     Future<void> pick() async {
@@ -82,7 +83,8 @@ class CasePhotosPicker extends ConsumerWidget {
                       Center(
                         child: AppIconButton(
                           plain: false,
-                          icon: Icon(Icons.refresh_rounded, color: colors.danger),
+                          icon:
+                              Icon(Icons.refresh_rounded, color: colors.danger),
                           semanticLabel: t.t('error.retry'),
                           onPressed: () => c.retryPhoto(p.key),
                         ),
@@ -156,7 +158,8 @@ class CasePhotosStrip extends ConsumerWidget {
     if (photos.isEmpty) {
       return Row(
         children: [
-          Icon(Icons.lock_outline_rounded, size: AppSizes.iconSm, color: colors.goldDark),
+          Icon(Icons.lock_outline_rounded,
+              size: AppSizes.iconSm, color: colors.goldDark),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Text(

@@ -154,6 +154,7 @@ class PostCard extends ConsumerWidget {
               child: PostMediaCarousel(
                 media: p.media,
                 semanticLabel: t.t('post.media.label'),
+                compact: true,
                 onDoubleTap: () => run(() => ProviderScope.containerOf(context)
                     .read(socialActionsProvider)
                     .like(p)),
@@ -692,12 +693,18 @@ class PostMediaCarousel extends StatefulWidget {
     required this.media,
     required this.onDoubleTap,
     required this.semanticLabel,
+    this.compact = false,
     super.key,
   });
 
   final List<PostMedia> media;
   final VoidCallback onDoubleTap;
   final String semanticLabel;
+
+  /// Owner 2026-09-30: in the feed a whole card must fit on one screen, so
+  /// the photo is a wide 2:1 band (cropped); the opened post keeps the
+  /// photo's own aspect ratio.
+  final bool compact;
 
   @override
   State<PostMediaCarousel> createState() => _PostMediaCarouselState();
@@ -731,7 +738,7 @@ class _PostMediaCarouselState extends State<PostMediaCarousel>
     return Semantics(
       label: widget.semanticLabel,
       child: AspectRatio(
-        aspectRatio: media.first.aspectRatio,
+        aspectRatio: widget.compact ? 2 : media.first.aspectRatio,
         child: GestureDetector(
           onDoubleTap: _doubleTap,
           child: Stack(
@@ -921,7 +928,8 @@ class _Count extends ConsumerWidget {
       padding: const EdgeInsets.only(right: AppSpacing.sm),
       child: Text(
         SocialFormat.count(f, value),
-        style: type.body.copyWith(color: colors.text, fontWeight: FontWeight.w500),
+        style:
+            type.body.copyWith(color: colors.text, fontWeight: FontWeight.w500),
       ),
     );
   }

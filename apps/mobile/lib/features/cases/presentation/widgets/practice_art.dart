@@ -40,8 +40,9 @@ IconData practiceGlyph(String? categoryCode) => switch (categoryCode) {
       _ => Icons.balance_rounded,
     };
 
-/// Bundled photo art per category (owner-supplied / licensed images).
-/// Keep in sync with `assets/practice_art/` and pubspec.
+/// Bundled photo art (owner-supplied / licensed images), keyed by a leaf
+/// practice code (`traffic_tickets.cdl_violations`) or a category code
+/// (`family_law`); the leaf wins. Keep in sync with `assets/practice_art/`.
 const Set<String> kPracticeArtAssets = {
   'family_law',
   'immigration',
@@ -54,11 +55,16 @@ const Set<String> kPracticeArtAssets = {
 class PracticeArt extends StatelessWidget {
   const PracticeArt({
     required this.categoryCode,
+    this.practiceCode,
     this.imageUrl,
     super.key,
   });
 
   final String? categoryCode;
+
+  /// The leaf practice (owner 2026-09-30: a CDL case shows a truck, not
+  /// the generic traffic art).
+  final String? practiceCode;
 
   /// A network image (e.g. a post's first photo) wins over the category art.
   final String? imageUrl;
@@ -67,9 +73,10 @@ class PracticeArt extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final dark = Theme.of(context).brightness == Brightness.dark;
-    final asset = categoryCode != null && kPracticeArtAssets.contains(categoryCode)
-        ? 'assets/practice_art/$categoryCode.jpg'
-        : null;
+    final artKey = [practiceCode, categoryCode].firstWhere(
+        (c) => c != null && kPracticeArtAssets.contains(c),
+        orElse: () => null);
+    final asset = artKey == null ? null : 'assets/practice_art/$artKey.jpg';
 
     Widget fallback() => Stack(
           fit: StackFit.expand,

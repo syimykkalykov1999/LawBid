@@ -102,7 +102,9 @@ class _CommentTileState extends ConsumerState<CommentTile> {
                   );
                   if (!ok || !mounted) return;
                   try {
-                    await ref.read(socialRepositoryProvider).deleteComment(_c.id);
+                    await ref
+                        .read(socialRepositoryProvider)
+                        .deleteComment(_c.id);
                     if (!mounted) return;
                     ref.invalidate(commentsProvider(_c.postId));
                     if (_c.parentId != null) {
@@ -140,7 +142,8 @@ class _CommentTileState extends ConsumerState<CommentTile> {
     final avatarSize = widget.isReply ? 28.0 : 36.0;
     return Padding(
       padding: EdgeInsets.only(
-        left: widget.isReply ? AppSpacing.screenSide + 44 : AppSpacing.screenSide,
+        left:
+            widget.isReply ? AppSpacing.screenSide + 44 : AppSpacing.screenSide,
         right: AppSpacing.md,
         top: AppSpacing.sm,
         bottom: AppSpacing.sm,
@@ -253,16 +256,15 @@ class _CommentTileState extends ConsumerState<CommentTile> {
                     if (_c.likeCount > 0)
                       Text(
                         SocialFormat.count(f, _c.likeCount),
-                        style: type.caption
-                            .copyWith(color: colors.textSecondary),
+                        style:
+                            type.caption.copyWith(color: colors.textSecondary),
                       ),
                   ],
                 ),
               ],
             ),
           ),
-          if (_showReplies)
-            _Replies(commentId: _c.id, onReply: widget.onReply),
+          if (_showReplies) _Replies(commentId: _c.id, onReply: widget.onReply),
         ],
       ),
     );

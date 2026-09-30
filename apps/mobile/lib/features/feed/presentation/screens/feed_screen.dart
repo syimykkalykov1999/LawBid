@@ -48,7 +48,15 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
     final header = attorney
         ? AppFeedHeader(
             logoSemanticLabel: t.t('brand.name'),
-            leading: const _Wordmark(size: 22),
+            // Owner 2026-09-30: the animated scales from the welcome
+            // screen, header-sized, instead of the text wordmark.
+            leading: ExcludeSemantics(
+              child: ScalesLogo(
+                size: 44,
+                animated: true,
+                semanticLabel: t.t('brand.name'),
+              ),
+            ),
             center: PillTabs<_FeedTab>(
               value: _tab,
               padding: EdgeInsets.zero,
@@ -65,7 +73,8 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
             // Decorative: the header itself is announced as "LawBid".
             leading: ExcludeSemantics(
               child: ScalesLogo(
-                size: 34,
+                size: 40,
+                animated: true,
                 semanticLabel: t.t('brand.name'),
               ),
             ),
@@ -99,30 +108,6 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                 ),
               ],
             ),
-    );
-  }
-}
-
-/// The text wordmark used in the attorney header.
-class _Wordmark extends StatelessWidget {
-  const _Wordmark({required this.size});
-
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    return ExcludeSemantics(
-      child: Text(
-        'LawBid',
-        style: TextStyle(
-          fontFamily: AppFontFamilies.serif,
-          fontSize: size,
-          fontWeight: FontWeight.w700,
-          color: colors.text,
-          height: 1,
-        ),
-      ),
     );
   }
 }
@@ -163,9 +148,8 @@ class _TopicSlider extends ConsumerWidget {
         child: AppPressable(
           onTap: () => onChanged(tag),
           child: AnimatedContainer(
-            duration: context.reduceMotion
-                ? Duration.zero
-                : AppMotion.stateChange,
+            duration:
+                context.reduceMotion ? Duration.zero : AppMotion.stateChange,
             padding: const EdgeInsets.symmetric(
                 horizontal: AppSpacing.md, vertical: AppSpacing.sm),
             decoration: BoxDecoration(
@@ -180,8 +164,7 @@ class _TopicSlider extends ConsumerWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(icon,
-                    size: 18,
-                    color: selected ? colors.goldLight : colors.text),
+                    size: 18, color: selected ? colors.goldLight : colors.text),
                 const SizedBox(width: AppSpacing.xs + 2),
                 Text(
                   label,

@@ -4,8 +4,7 @@ import 'package:lawbid/core/l10n/translator.dart';
 /// Relative time for posts, comments and notifications ("2 ч назад"):
 /// minutes and hours for today, days for a week, then the date.
 abstract final class SocialFormat {
-  static String ago(Translator t, L10nFormats f, DateTime at,
-      {DateTime? now}) {
+  static String ago(Translator t, L10nFormats f, DateTime at, {DateTime? now}) {
     final diff = (now ?? DateTime.now()).difference(at);
     if (diff.inMinutes < 1) return t.t('time.justNow');
     if (diff.inHours < 1) {
@@ -19,7 +18,8 @@ abstract final class SocialFormat {
   /// 1 234 / 12.5K / 3.4M — compact counters under posts.
   static String count(L10nFormats f, int n) {
     if (n < 10000) return f.number(n);
-    if (n < 1000000) return '${(n / 1000).toStringAsFixed(n < 100000 ? 1 : 0)}K';
+    if (n < 1000000)
+      return '${(n / 1000).toStringAsFixed(n < 100000 ? 1 : 0)}K';
     return '${(n / 1000000).toStringAsFixed(1)}M';
   }
 

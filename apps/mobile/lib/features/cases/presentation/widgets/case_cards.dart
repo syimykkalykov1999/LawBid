@@ -244,6 +244,7 @@ class FeedCaseCard extends StatelessWidget {
                   width: 190,
                   child: PracticeArt(
                     categoryCode: item.practice.artCode,
+                    practiceCode: item.practice.code,
                   ),
                 ),
                 Padding(

@@ -71,8 +71,11 @@ Future<void> showPostMenu(BuildContext context, WidgetRef ref, Post post) {
                   final error =
                       await ref.read(socialActionsProvider).deletePost(post);
                   if (context.mounted) {
-                    showAppSnackBar(context,
-                        error == null ? t.t('post.deleted') : errorText(t, error));
+                    showAppSnackBar(
+                        context,
+                        error == null
+                            ? t.t('post.deleted')
+                            : errorText(t, error));
                   }
                 },
               ),
@@ -142,8 +145,11 @@ Future<void> showReportSheet(
                         .read(socialActionsProvider)
                         .report(target, id, reason);
                     if (context.mounted) {
-                      showAppSnackBar(context,
-                          error == null ? t.t('report.sent') : errorText(t, error));
+                      showAppSnackBar(
+                          context,
+                          error == null
+                              ? t.t('report.sent')
+                              : errorText(t, error));
                     }
                   },
                 ),
@@ -156,8 +162,7 @@ Future<void> showReportSheet(
 }
 
 /// "Редактировать текст" (§3.3): text only, photos stay.
-Future<void> showEditPostSheet(
-    BuildContext context, WidgetRef ref, Post post) {
+Future<void> showEditPostSheet(BuildContext context, WidgetRef ref, Post post) {
   return showAppBottomSheet<void>(
     context: context,
     isScrollControlled: true,
@@ -257,8 +262,8 @@ class PostTextField extends ConsumerWidget {
           maxLines: 10,
           maxLength: kPostMaxChars,
           maxLengthEnforcement: MaxLengthEnforcement.enforced,
-          buildCounter: (_, {required currentLength,
-                  required isFocused, maxLength}) =>
+          buildCounter: (_,
+                  {required currentLength, required isFocused, maxLength}) =>
               null,
           style: type.body.copyWith(color: colors.text),
           decoration: InputDecoration(
