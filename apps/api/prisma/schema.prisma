@@ -411,6 +411,8 @@ enum NotificationType {
   case_comment
   // OQ-041: a call nobody answered.
   missed_call
+  // OQ-042: someone @mentioned you in a post or a comment.
+  mention
 
   @@map("notification_type")
 }

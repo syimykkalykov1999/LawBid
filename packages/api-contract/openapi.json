@@ -30826,6 +30826,38 @@
           "mediumUrl"
         ]
       },
+      "MentionKind": {
+        "type": "string",
+        "enum": [
+          "attorney",
+          "client"
+        ]
+      },
+      "MentionDto": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string",
+            "description": "As written in the text, lowercase."
+          },
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MentionKind"
+              }
+            ]
+          }
+        },
+        "required": [
+          "username",
+          "userId",
+          "kind"
+        ]
+      },
       "ContentStatus": {
         "type": "string",
         "enum": [
@@ -30858,6 +30890,13 @@
             "type": "array",
             "items": {
               "type": "string"
+            }
+          },
+          "mentions": {
+            "description": "OQ-042: people @mentioned in the text.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MentionDto"
             }
           },
           "status": {
@@ -30904,6 +30943,7 @@
           "body",
           "media",
           "tags",
+          "mentions",
           "status",
           "likeCount",
           "commentCount",
@@ -31814,6 +31854,13 @@
           "body": {
             "type": "string"
           },
+          "mentions": {
+            "description": "OQ-042: people @mentioned in the text.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MentionDto"
+            }
+          },
           "likeCount": {
             "type": "integer"
           },
@@ -31839,6 +31886,7 @@
           "postId",
           "author",
           "body",
+          "mentions",
           "likeCount",
           "replyCount",
           "likedByMe",

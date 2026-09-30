@@ -5,6 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'content_status.dart';
+import 'mention_dto.dart';
 import 'post_author_dto.dart';
 import 'post_media_dto.dart';
 
@@ -18,6 +19,7 @@ class PostDto {
     required this.body,
     required this.media,
     required this.tags,
+    required this.mentions,
     required this.status,
     required this.likeCount,
     required this.commentCount,
@@ -40,6 +42,9 @@ class PostDto {
 
   /// Hashtags without #, lowercase.
   final List<String> tags;
+
+  /// OQ-042: people @mentioned in the text.
+  final List<MentionDto> mentions;
   final ContentStatus status;
   final int likeCount;
   final int commentCount;

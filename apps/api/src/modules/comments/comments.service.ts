@@ -11,6 +11,7 @@ import {
   encodeCursor,
 } from '../../common/pagination/cursor.util';
 import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
+import { MentionsService } from '../mentions/mentions.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { CounterAggregator } from '../counters/counter-aggregator.service';
@@ -62,6 +63,7 @@ export class CommentsService {
     private readonly files: FilesService,
     @Inject(CONTENT_MODERATION_HOOK)
     private readonly moderation: ContentModerationHook,
+    private readonly mentions: MentionsService,
   ) {}
 
   async create(
@@ -123,6 +125,15 @@ export class CommentsService {
       await this.counters.bump('post', postId, 'comment_count', 1);
       if (parent)
         await this.counters.bump('comment', parent.id, 'reply_count', 1);
+      // OQ-042: people @mentioned in the comment (the post author already
+      // gets post_comment; a replied-to person gets comment_reply).
+      await this.mentions.notify({
+        actorId: userId,
+        text: created.body,
+        postId,
+        commentId: created.id,
+        skip: [post.author_id, ...(replyTo ? [replyTo.author_id] : [])],
+      });
       if (post.author_id !== userId) {
         await this.notifications.emit({
           type: 'post_comment',
@@ -341,6 +352,7 @@ export class CommentsService {
       ]),
     );
     const liked = new Set(likes.map((l) => l.comment_id));
+    const mentioned = await this.mentions.resolve(rows.map((r) => r.body));
     return rows.map((r) => {
       const a = byId.get(r.author_id);
       const attorney = a?.role === 'attorney' && a.attorney_profile;
@@ -375,6 +387,7 @@ export class CommentsService {
               verifiedBadge: false,
             },
         body: r.body,
+        mentions: this.mentions.pick(r.body, mentioned),
         likeCount: Math.max(0, r.like_count + (pLikes.get(r.id) ?? 0)),
         replyCount: Math.max(0, r.reply_count + (pReplies.get(r.id) ?? 0)),
         likedByMe: liked.has(r.id),

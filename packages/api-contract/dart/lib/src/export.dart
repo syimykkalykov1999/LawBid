@@ -313,6 +313,8 @@ export 'models/case_conversation_dto.dart';
 export 'models/case_conversation_envelope.dart';
 export 'models/post_author_dto.dart';
 export 'models/post_media_dto.dart';
+export 'models/mention_kind.dart';
+export 'models/mention_dto.dart';
 export 'models/content_status.dart';
 export 'models/post_dto.dart';
 export 'models/create_post_dto.dart';

@@ -11,6 +11,9 @@ CommentDto _$CommentDtoFromJson(Map<String, dynamic> json) => CommentDto(
   postId: json['postId'] as String,
   author: CommentAuthorDto.fromJson(json['author'] as Map<String, dynamic>),
   body: json['body'] as String,
+  mentions: (json['mentions'] as List<dynamic>)
+      .map((e) => MentionDto.fromJson(e as Map<String, dynamic>))
+      .toList(),
   likeCount: (json['likeCount'] as num).toInt(),
   replyCount: (json['replyCount'] as num).toInt(),
   likedByMe: json['likedByMe'] as bool,
@@ -27,6 +30,7 @@ Map<String, dynamic> _$CommentDtoToJson(CommentDto instance) =>
       'parentCommentId': ?instance.parentCommentId,
       'author': instance.author.toJson(),
       'body': instance.body,
+      'mentions': instance.mentions.map((e) => e.toJson()).toList(),
       'likeCount': instance.likeCount,
       'replyCount': instance.replyCount,
       'likedByMe': instance.likedByMe,

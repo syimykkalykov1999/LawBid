@@ -5,6 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'comment_author_dto.dart';
+import 'mention_dto.dart';
 
 part 'comment_dto.g.dart';
 
@@ -15,6 +16,7 @@ class CommentDto {
     required this.postId,
     required this.author,
     required this.body,
+    required this.mentions,
     required this.likeCount,
     required this.replyCount,
     required this.likedByMe,
@@ -32,6 +34,9 @@ class CommentDto {
   final String? parentCommentId;
   final CommentAuthorDto author;
   final String body;
+
+  /// OQ-042: people @mentioned in the text.
+  final List<MentionDto> mentions;
   final int likeCount;
   final int replyCount;
   final bool likedByMe;

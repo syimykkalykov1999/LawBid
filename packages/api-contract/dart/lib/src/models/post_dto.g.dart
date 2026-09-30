@@ -14,6 +14,9 @@ PostDto _$PostDtoFromJson(Map<String, dynamic> json) => PostDto(
       .map((e) => PostMediaDto.fromJson(e as Map<String, dynamic>))
       .toList(),
   tags: (json['tags'] as List<dynamic>).map((e) => e as String).toList(),
+  mentions: (json['mentions'] as List<dynamic>)
+      .map((e) => MentionDto.fromJson(e as Map<String, dynamic>))
+      .toList(),
   status: ContentStatus.fromJson(json['status'] as String),
   likeCount: (json['likeCount'] as num).toInt(),
   commentCount: (json['commentCount'] as num).toInt(),
@@ -32,6 +35,7 @@ Map<String, dynamic> _$PostDtoToJson(PostDto instance) => <String, dynamic>{
   'body': instance.body,
   'media': instance.media.map((e) => e.toJson()).toList(),
   'tags': instance.tags,
+  'mentions': instance.mentions.map((e) => e.toJson()).toList(),
   'status': instance.status.toJson(),
   'likeCount': instance.likeCount,
   'commentCount': instance.commentCount,

@@ -1,3 +1,4 @@
+import { MentionDto } from '../mentions/mention.dto';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import {
@@ -92,6 +93,13 @@ export class CommentDto {
 
   @ApiProperty()
   body!: string;
+
+  @ApiProperty({
+    type: () => MentionDto,
+    isArray: true,
+    description: 'OQ-042: people @mentioned in the text.',
+  })
+  mentions!: MentionDto[];
 
   @ApiProperty({ type: 'integer' })
   likeCount!: number;

@@ -1,3 +1,4 @@
+import { MentionDto } from '../../mentions/mention.dto';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ContentStatus } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
@@ -155,6 +156,13 @@ export class PostDto {
     description: 'Hashtags without #, lowercase.',
   })
   tags!: string[];
+
+  @ApiProperty({
+    type: () => MentionDto,
+    isArray: true,
+    description: 'OQ-042: people @mentioned in the text.',
+  })
+  mentions!: MentionDto[];
 
   @ApiProperty({ enum: ContentStatus, enumName: 'ContentStatus' })
   status!: ContentStatus;

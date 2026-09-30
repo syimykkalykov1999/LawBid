@@ -13,6 +13,7 @@ import {
   encodeCursor,
 } from '../../common/pagination/cursor.util';
 import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
+import { MentionsService } from '../mentions/mentions.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
@@ -53,6 +54,7 @@ export class PostsService {
     private readonly limits: UsageLimitsService,
     private readonly counters: CounterAggregator,
     private readonly presenter: PostPresenter,
+    private readonly mentions: MentionsService,
     @Inject(CONTENT_MODERATION_HOOK)
     private readonly moderation: ContentModerationHook,
   ) {}
@@ -110,6 +112,12 @@ export class PostsService {
         'posts_count',
         1,
       );
+      // OQ-042: tell the people @mentioned in the caption.
+      await this.mentions.notify({
+        actorId: user.sub,
+        text: post.body,
+        postId: post.id,
+      });
     }
     return (await this.presenter.present([post], user.sub))[0];
   }
@@ -135,6 +143,15 @@ export class PostsService {
       await this.writeTags(tx, id, extractHashtags(body));
       return updated;
     });
+    if (post.status === 'published') {
+      // OQ-042: only people newly mentioned by the edit.
+      await this.mentions.notify({
+        actorId: user.sub,
+        text: post.body,
+        previousText: current.body,
+        postId: id,
+      });
+    }
     if (current.status === 'published' && post.status !== 'published') {
       await this.counters.bump(
         profileEntity(user.role),

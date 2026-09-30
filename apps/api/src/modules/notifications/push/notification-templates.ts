@@ -171,6 +171,15 @@ export const NOTIFICATION_TEMPLATES: Partial<
     en: { title: 'New comment', body: 'Someone commented on your post.' },
     ru: { title: 'Новый комментарий', body: 'Ваш пост прокомментировали.' },
   },
+  // OQ-042.
+  mention: {
+    group: 'social',
+    en: {
+      title: 'You were mentioned',
+      body: 'Someone mentioned you in LawBid.',
+    },
+    ru: { title: 'Вас отметили', body: 'Вас отметили в LawBid.' },
+  },
   // OQ-041.
   missed_call: {
     group: 'messages',

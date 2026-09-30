@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { Post, Prisma } from '@prisma/client';
+import { MentionsService } from '../mentions/mentions.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CounterAggregator } from '../counters/counter-aggregator.service';
 import { FilesService } from '../files/files.service';
@@ -32,6 +33,7 @@ export class PostPresenter {
     private readonly prisma: PrismaService,
     private readonly files: FilesService,
     private readonly counters: CounterAggregator,
+    private readonly mentions: MentionsService,
   ) {}
 
   async present(posts: Post[], viewerId: string): Promise<PostDto[]> {
@@ -127,6 +129,7 @@ export class PostPresenter {
       mediaByPost.set(m.post_id, list);
     }
     const clamp = (n: number) => Math.max(0, n);
+    const mentioned = await this.mentions.resolve(posts.map((p) => p.body));
     return posts.map((p) => {
       const a = authorById.get(p.author_id);
       const prof = a?.attorney_profile;
@@ -165,6 +168,7 @@ export class PostPresenter {
             : [];
         }),
         tags: tagsByPost.get(p.id) ?? [],
+        mentions: this.mentions.pick(p.body, mentioned),
         status: p.status,
         likeCount: clamp(p.like_count + (pLike.get(p.id) ?? 0)),
         commentCount: clamp(p.comment_count + (pComment.get(p.id) ?? 0)),

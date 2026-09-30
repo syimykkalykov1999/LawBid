@@ -28,6 +28,7 @@ import { BlocksModule } from './modules/blocks/blocks.module';
 import { SearchModule } from './modules/search/search.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { CallsModule } from './modules/calls/calls.module';
+import { MentionsModule } from './modules/mentions/mentions.module';
 import { NotificationsApiModule } from './modules/notifications/notifications-api.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
 import { RealtimeGatewayModule } from './modules/realtime/realtime-gateway.module';
@@ -172,6 +173,7 @@ const isDev =
     RealtimeGatewayModule,
     ChatModule,
     CallsModule,
+    MentionsModule,
     // docs/05 §9-§10 notifications REST, badges, push tokens.
     NotificationsApiModule,
     BidsModule,
