@@ -142,7 +142,7 @@ class PagedListBody<T> extends ConsumerWidget {
           key: const ValueKey('data'),
           items: value.items,
           padding: edgeToEdge
-              ? const EdgeInsets.fromLTRB(0, AppSpacing.sm, 0, AppSpacing.xxl)
+              ? EdgeInsets.zero
               : const EdgeInsets.fromLTRB(AppSpacing.screenSide, AppSpacing.sm,
                   AppSpacing.screenSide, AppSpacing.xxl),
           itemKey: itemKey,
@@ -162,13 +162,14 @@ class PagedListBody<T> extends ConsumerWidget {
           onLoadMore: onLoadMore,
           onRetry: onRetryMore,
           onRefresh: pull,
-          itemSpacing: AppSpacing.md,
+          // Edge-to-edge feeds: cards touch (hairline borders only).
+          itemSpacing: edgeToEdge ? 0 : AppSpacing.md,
           header: header == null
               ? null
               : Padding(
                   padding: EdgeInsets.fromLTRB(
                     edgeToEdge ? AppSpacing.screenSide : 0,
-                    0,
+                    edgeToEdge ? AppSpacing.sm : 0,
                     edgeToEdge ? AppSpacing.screenSide : 0,
                     AppSpacing.md,
                   ),

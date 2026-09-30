@@ -578,3 +578,10 @@ Decided by the owner from phone review (replaces parts of OQ-032):
 - The topic slider is shown to attorneys too (Posts tab); the two case
   filters share the row evenly. The "⋯" menu of a profile sits in the top
   bar, opposite the @username.
+- Topic slider: a filter button left of "All" opens a searchable
+  multi-select of all 42 practice categories; the slider shows only the
+  chosen ones (kept on the device). Each category's topic is a hashtag.
+- Feed cards touch each other and fill the space from the slider to the
+  nav bar; 3 lines of text, then "Read more"; the time and "Public" sit
+  left of Save so the photo gets more room. Header logo and chats sit
+  closer to the screen edges; the slider starts at the left edge.

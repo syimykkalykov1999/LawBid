@@ -10,8 +10,10 @@ import 'package:lawbid/features/social/presentation/screens/social_screens.dart'
 import 'package:lawbid/shared/domain/user_role.dart';
 import 'package:lawbid/features/chat/presentation/chats_icon_button.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
-import 'package:lawbid/features/social/presentation/widgets/post_card.dart'
-    show topicCategory, topicLabel;
+import 'package:lawbid/features/feed/application/feed_topics.dart';
+import 'package:lawbid/features/onboarding/presentation/widgets/option_picker_sheet.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
+import 'package:lawbid/features/profile/application/profile_providers.dart';
 
 /// Feed tab (docs/01 §3.1, docs/05 §2). Header per docs/07 §10: the small
 /// static ScalesLogo on the left; the right side ([AppFeedHeader.trailing])
@@ -124,31 +126,52 @@ class _TopicFeed extends StatelessWidget {
       );
 }
 
-/// Owner 2026-09-30: the practice-topic slider above the feed.
-/// Each topic is a hashtag; "All" is the regular feed.
-const kFeedTopics = <String>[
-  'immigration',
-  'familylaw',
-  'trafficticket',
-  'criminaldefense',
-  'dui',
-  'personalinjury',
-  'realestate',
-  'employment',
-  'bankruptcy',
-];
+/// A category's display name: the localized practice tree when loaded,
+/// otherwise the English seed name.
+String _topicName(WidgetRef ref, String code) {
+  final t = ref.read(translatorProvider);
+  final tree = ref.watch(practiceTreeProvider).value;
+  final cat = tree?.where((c) => c.i18nKey == 'practice.$code').firstOrNull;
+  if (cat != null) return CaseFormat.practice(t, cat.i18nKey, cat.nameEn);
+  return kPracticeCategoryNamesEn[code] ?? code;
+}
 
+/// Owner 2026-09-30: the practice-topic slider above the feed. The filter
+/// button on the left lets each user choose which practices it shows
+/// (several at once, kept on the device); "All" is the regular feed.
 class _TopicSlider extends ConsumerWidget {
   const _TopicSlider({required this.value, required this.onChanged});
 
   final String? value;
   final ValueChanged<String?> onChanged;
 
+  Future<void> _pick(BuildContext context, WidgetRef ref) async {
+    final t = ref.read(translatorProvider);
+    final picked = await OptionPickerSheet.show(
+      context,
+      title: t.t('feed.topics.pick'),
+      multi: true,
+      initial: ref.read(feedTopicsProvider).toSet(),
+      options: [
+        for (final c in kPracticeCategoryCodes)
+          PickerOption(value: c, label: _topicName(ref, c)),
+      ],
+    );
+    if (picked == null) return;
+    ref.read(feedTopicsProvider.notifier).set(picked);
+    // The open topic was removed from the slider: back to "All".
+    final open = value;
+    if (open != null && !picked.contains(categoryForTopicTag(open))) {
+      onChanged(null);
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final topics = ref.watch(feedTopicsProvider);
 
     Widget chip(String? tag, String label, IconData icon) {
       final selected = value == tag;
@@ -196,13 +219,34 @@ class _TopicSlider extends ConsumerWidget {
       height: 60,
       child: ListView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.screenSide, vertical: AppSpacing.sm),
+        // Owner 2026-09-30: starts at the left edge, like the header logo.
+        padding: const EdgeInsets.fromLTRB(
+            AppSpacing.sm, AppSpacing.sm, AppSpacing.sm, AppSpacing.sm),
         children: [
+          Semantics(
+            button: true,
+            label: t.t('feed.topics.pick'),
+            excludeSemantics: true,
+            child: AppPressable(
+              onTap: () => _pick(context, ref),
+              child: Container(
+                width: 44,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: colors.surface,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: colors.border),
+                ),
+                child:
+                    Icon(Icons.tune_rounded, size: 20, color: colors.goldDark),
+              ),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
           chip(null, t.t('feed.topics.all'), Icons.grid_view_rounded),
-          for (final tag in kFeedTopics) ...[
+          for (final c in topics) ...[
             const SizedBox(width: AppSpacing.sm),
-            chip(tag, topicLabel(tag), practiceGlyph(topicCategory(tag))),
+            chip(topicTagFor(c), _topicName(ref, c), practiceGlyph(c)),
           ],
         ],
       ),

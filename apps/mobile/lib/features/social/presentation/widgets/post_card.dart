@@ -7,6 +7,7 @@ import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart'
     show FollowButton;
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
+import 'package:lawbid/features/feed/application/feed_topics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -23,10 +24,9 @@ import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/social/social_routes.dart';
 
 /// Owner 2026-09-30: a feed card fills the list viewport down to the nav
-/// bar (minus the list's top padding and the gap to the next card); never
+/// bar with no gaps between cards (edge-to-edge list); never
 /// shorter than a readable minimum on tiny screens.
-double feedCardHeight(double viewport) =>
-    math.max(440, viewport - AppSpacing.sm - AppSpacing.md);
+double feedCardHeight(double viewport) => math.max(440, viewport);
 
 /// docs/05 §2.4 post card, top to bottom: author row (avatar, name,
 /// @username + check, time, "⋯"), photos (carousel with a page indicator,
@@ -140,7 +140,6 @@ class PostCard extends ConsumerWidget {
                 AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.sm),
             child: _TopicChips(tags: p.tags),
           ),
-        _TimeLine(post: p),
         AppPressable(
           onTap: open,
           child: Padding(
@@ -163,7 +162,7 @@ class PostCard extends ConsumerWidget {
                   const SizedBox(height: AppSpacing.sm),
                   Text(
                     rest,
-                    maxLines: 4,
+                    maxLines: 3,
                     overflow: TextOverflow.ellipsis,
                     style: typography.body.copyWith(
                       color: colors.text,
@@ -197,7 +196,8 @@ class PostCard extends ConsumerWidget {
             aspectRatio: 2,
             child: AppPressable(onTap: open, child: picture),
           ),
-        _ActionsBar(post: p, run: run),
+        // Owner 2026-09-30: time and "Public" sit next to Save.
+        _ActionsBar(post: p, run: run, showTime: true),
         const SizedBox(height: AppSpacing.xs),
       ],
     );
@@ -347,9 +347,12 @@ class PostCard extends ConsumerWidget {
 
 /// "2 hours ago · Public" under the chips (owner design).
 class _TimeLine extends ConsumerWidget {
-  const _TimeLine({required this.post});
+  const _TimeLine({required this.post, this.inline = false});
 
   final Post post;
+
+  /// In the actions row (no side padding, shrinks with ellipsis).
+  final bool inline;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -358,12 +361,19 @@ class _TimeLine extends ConsumerWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
-          AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.sm),
+      padding: inline
+          ? const EdgeInsets.only(right: AppSpacing.xs)
+          : const EdgeInsets.fromLTRB(
+              AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.sm),
       child: Row(
+        mainAxisSize: inline ? MainAxisSize.min : MainAxisSize.max,
         children: [
-          Text(SocialFormat.ago(t, f, post.createdAt),
-              style: type.caption.copyWith(color: colors.textSecondary)),
+          Flexible(
+            child: Text(SocialFormat.ago(t, f, post.createdAt),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: type.caption.copyWith(color: colors.textSecondary)),
+          ),
           const SizedBox(width: AppSpacing.md),
           Icon(Icons.public_rounded, size: 14, color: colors.textSecondary),
           const SizedBox(width: AppSpacing.xs),
@@ -391,7 +401,8 @@ String? topicCategory(String tag) => switch (tag.toLowerCase()) {
       'realestate' => 'real_estate',
       'employment' || 'workplace' => 'employment_and_labor',
       'bankruptcy' || 'debt' => 'bankruptcy_and_debt',
-      _ => null,
+      // Every other practice's topic tag (owner 2026-09-30).
+      _ => categoryForTopicTag(tag),
     };
 
 /// "greencard" → "Green Card"; unknown tags get a capital letter.
@@ -903,10 +914,17 @@ class _Dots extends StatelessWidget {
 }
 
 class _ActionsBar extends ConsumerWidget {
-  const _ActionsBar({required this.post, required this.run});
+  const _ActionsBar({
+    required this.post,
+    required this.run,
+    this.showTime = false,
+  });
 
   final Post post;
   final Future<void> Function(Future<Object?> Function()) run;
+
+  /// Feed card: "56 min ago · Public" left of the Save button.
+  final bool showTime;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -943,6 +961,7 @@ class _ActionsBar extends ConsumerWidget {
             onTap: () => sharePost(context, ref, post),
           ),
           const Spacer(),
+          if (showTime) Flexible(child: _TimeLine(post: post, inline: true)),
           BounceIcon(
             active: post.savedByMe,
             activeIcon: Icons.bookmark_rounded,

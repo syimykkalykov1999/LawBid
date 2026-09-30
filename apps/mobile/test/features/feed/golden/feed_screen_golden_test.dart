@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:golden_toolkit/golden_toolkit.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/features/feed/presentation/screens/feed_screen.dart';
+import 'package:lawbid/features/profile/application/profile_providers.dart';
 
 import '../../../helpers/ux_harness.dart';
 
@@ -19,7 +20,11 @@ void main() {
         wrapper: (child) => uxApp(
           child,
           theme: entry.value,
-          overrides: uxOverrides(),
+          overrides: [
+            ...uxOverrides(),
+            // The topic slider reads practice names; no network in tests.
+            practiceTreeProvider.overrideWith((ref) async => const []),
+          ],
           disableAnimations: true,
         ),
         surfaceSize: const Size(390, 844),
@@ -34,7 +39,11 @@ void main() {
       uxApp(
         const FeedScreen(),
         theme: AppTheme.light(),
-        overrides: uxOverrides(),
+        overrides: [
+            ...uxOverrides(),
+            // The topic slider reads practice names; no network in tests.
+            practiceTreeProvider.overrideWith((ref) async => const []),
+          ],
       ),
     );
     // The header scales animate forever (owner 2026-09-30), so no settle.

@@ -183,6 +183,7 @@ const file06Ru = <String, String>{
   'post.public': 'Публично',
   'post.licensedAttorney': 'Лицензированный адвокат',
   'feed.topics.all': 'Все',
+  'feed.topics.pick': 'Выберите темы',
   'feed.tagline': 'Юридическая помощь. Реальные люди.',
 };
 
@@ -369,5 +370,6 @@ const file06En = <String, String>{
   'post.public': 'Public',
   'post.licensedAttorney': 'Licensed Attorney',
   'feed.topics.all': 'All',
+  'feed.topics.pick': 'Choose topics',
   'feed.tagline': 'Legal help. Real people.',
 };
