@@ -19,6 +19,7 @@ class MeProfileDto {
     this.username,
     this.bio,
     this.firmName,
+    this.firms,
     this.licensedStates,
     this.verificationStatus,
   });
@@ -46,6 +47,9 @@ class MeProfileDto {
 
   /// Attorney only.
   final String? firmName;
+
+  /// Attorney only (OQ-030): all firms, first = firmName.
+  final List<String>? firms;
 
   /// Attorney only: USPS codes of licensed states.
   final List<String>? licensedStates;

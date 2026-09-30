@@ -162,6 +162,10 @@ const file06Ru = <String, String>{
   'settings.blocked': 'Заблокированные',
   'blocked.empty': 'Вы никого не заблокировали',
   'error.api.USER_BLOCKED': 'Общение с этим пользователем недоступно.',
+  // OQ-030 firms / states in Edit.
+  'profile.edit.firms.helper': 'До {max} фирм. Введите название и нажмите «+».',
+  'profile.edit.firms.add': 'Добавить фирму',
+  'profile.edit.addState': 'Добавить штат (лицензию)',
 };
 
 const file06En = <String, String>{
@@ -326,4 +330,8 @@ const file06En = <String, String>{
   'settings.blocked': 'Blocked users',
   'blocked.empty': 'You have not blocked anyone',
   'error.api.USER_BLOCKED': 'You cannot interact with this user.',
+  // OQ-030 firms / states in Edit.
+  'profile.edit.firms.helper': 'Up to {max} firms. Type a name and tap "+".',
+  'profile.edit.firms.add': 'Add firm',
+  'profile.edit.addState': 'Add a state (license)',
 };

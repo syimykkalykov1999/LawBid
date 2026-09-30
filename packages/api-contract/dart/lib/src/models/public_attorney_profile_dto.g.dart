@@ -15,6 +15,7 @@ PublicAttorneyProfileDto _$PublicAttorneyProfileDtoFromJson(
   lastName: json['lastName'] as String?,
   bio: json['bio'] as String?,
   firmName: json['firmName'] as String?,
+  firms: (json['firms'] as List<dynamic>).map((e) => e as String).toList(),
   avatarUrl: json['avatarUrl'] as String?,
   avatarUrl256: json['avatarUrl256'] as String?,
   languages: (json['languages'] as List<dynamic>)
@@ -46,6 +47,7 @@ Map<String, dynamic> _$PublicAttorneyProfileDtoToJson(
   'lastName': ?instance.lastName,
   'bio': ?instance.bio,
   'firmName': ?instance.firmName,
+  'firms': instance.firms,
   'avatarUrl': ?instance.avatarUrl,
   'avatarUrl256': ?instance.avatarUrl256,
   'languages': instance.languages,

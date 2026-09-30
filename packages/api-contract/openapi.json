@@ -26115,6 +26115,13 @@
             "nullable": true,
             "description": "Attorney only."
           },
+          "firms": {
+            "description": "Attorney only (OQ-030): all firms, first = firmName.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "licensedStates": {
             "description": "Attorney only: USPS codes of licensed states.",
             "type": "array",
@@ -30139,6 +30146,13 @@
             "type": "string",
             "nullable": true
           },
+          "firms": {
+            "description": "OQ-030: all firms (the first equals firmName).",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "languages": {
             "description": "ISO 639-1 codes.",
             "type": "array",
@@ -30188,6 +30202,7 @@
           "lastName",
           "bio",
           "firmName",
+          "firms",
           "languages",
           "verificationStatus",
           "verifiedBadge",
@@ -30215,6 +30230,15 @@
       "UpdateAttorneyProfileDto": {
         "type": "object",
         "properties": {
+          "firms": {
+            "description": "Owner 2026-09-30 (OQ-030): several firms (≤ 5, each ≤ 80 chars);\nreplaces the list. `firmName` mirrors the first one.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 80,
+              "minLength": 1
+            }
+          },
           "firstName": {
             "type": "string",
             "minLength": 1,
@@ -30579,6 +30603,13 @@
             "type": "string",
             "nullable": true
           },
+          "firms": {
+            "description": "OQ-030: all firms (the first equals firmName).",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "avatarUrl": {
             "type": "string",
             "nullable": true,
@@ -30642,6 +30673,7 @@
           "lastName",
           "bio",
           "firmName",
+          "firms",
           "avatarUrl",
           "avatarUrl256",
           "languages",

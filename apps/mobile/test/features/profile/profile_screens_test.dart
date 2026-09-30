@@ -73,8 +73,8 @@ void main() {
       expect(find.textContaining('@jane.doe'), findsOneWidget);
       expect(find.byType(VerifiedBadge), findsOneWidget);
       expect(find.text('Jane Doe'), findsOneWidget);
-      expect(find.text('4.5'), findsOneWidget);
-      expect(find.text('12 reviews'), findsOneWidget);
+      // Owner 2026-09-30: the "★ 4.5 · 12 reviews" line under the avatar is
+      // gone; the rating lives on the Reviews tab.
       // Owner 2026-09-29: the "@username · Attorney" caption is gone; the
       // handle is the centered title (asserted above).
       expect(find.textContaining('Family and immigration attorney'), findsOneWidget);
@@ -118,6 +118,7 @@ void main() {
             'lastName': 'Doe',
             'bio': null,
             'firmName': null,
+            'firms': <Object?>[],
             'avatarUrl': main,
             'avatarUrl256': small,
             'languages': ['en'],
@@ -161,12 +162,12 @@ void main() {
           attorneys: FakeAttorneyRepo(profile: attorneyProfile(withReviews: false, verified: false)),
         ),
       );
-      expect(find.text('New'), findsOneWidget);
-      expect(find.text('—'), findsOneWidget);
+      // Owner 2026-09-30: no "★ — · New" line under the avatar any more.
+      expect(find.text('—'), findsNothing);
       // unverified → no blue check (docs/03 §6.3)
       expect(find.byType(VerifiedBadge), findsNothing);
-      // tap the rating counter → Reviews tab
-      await tester.tap(find.text('New'));
+      // the Reviews tab (star icon) shows the empty state
+      await tester.tap(find.bySemanticsLabel('Reviews'));
       await tester.pumpAndSettle();
       await tester.scrollUntilVisible(find.text('This attorney has no reviews yet.'), 300, scrollable: find.byType(Scrollable).first);
       expect(find.text('This attorney has no reviews yet.'), findsOneWidget);

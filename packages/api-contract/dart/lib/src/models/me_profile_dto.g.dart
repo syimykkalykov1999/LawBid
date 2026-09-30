@@ -18,6 +18,7 @@ MeProfileDto _$MeProfileDtoFromJson(Map<String, dynamic> json) => MeProfileDto(
   username: json['username'] as String?,
   bio: json['bio'] as String?,
   firmName: json['firmName'] as String?,
+  firms: (json['firms'] as List<dynamic>?)?.map((e) => e as String).toList(),
   licensedStates: (json['licensedStates'] as List<dynamic>?)
       ?.map((e) => e as String)
       .toList(),
@@ -35,6 +36,7 @@ Map<String, dynamic> _$MeProfileDtoToJson(MeProfileDto instance) =>
       'username': ?instance.username,
       'bio': ?instance.bio,
       'firmName': ?instance.firmName,
+      'firms': ?instance.firms,
       'licensedStates': ?instance.licensedStates,
       'verificationStatus': ?instance.verificationStatus?.toJson(),
     };

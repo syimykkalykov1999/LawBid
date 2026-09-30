@@ -97,6 +97,7 @@ class ApiAttorneyProfileRepository implements AttorneyProfileRepository {
       lastName: patch.lastName?.trim(),
       bio: patch.bio?.trim(),
       firmName: patch.firmName?.trim(),
+      firms: patch.firms,
       username: patch.username?.trim(),
       languages: patch.languages
           ?.map(api.UpdateAttorneyProfileDtoLanguages.fromJson)

@@ -175,6 +175,7 @@ class WelcomeScreen extends ConsumerWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   AppIconButton(
+                    plain: false,
                     icon: Icon(isDark
                         ? Icons.dark_mode_outlined
                         : Icons.light_mode_outlined),
@@ -187,6 +188,7 @@ class WelcomeScreen extends ConsumerWidget {
                     },
                   ),
                   AppIconButton(
+                    plain: false,
                     icon: const Icon(Icons.language),
                     semanticLabel: t.t('lang.toggle.label'),
                     onPressed: () => LanguagePickerSheet.show(context),

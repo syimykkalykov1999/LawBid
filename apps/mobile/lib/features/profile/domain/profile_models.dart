@@ -125,6 +125,7 @@ class PublicAttorneyProfile {
     this.lastName,
     this.bio,
     this.firmName,
+    this.firms = const [],
     this.languages = const [],
     this.licensedStates = const [],
     this.practices = const [],
@@ -141,6 +142,9 @@ class PublicAttorneyProfile {
   final String? lastName;
   final String? bio;
   final String? firmName;
+
+  /// OQ-030: all firms (the first equals [firmName]).
+  final List<String> firms;
   final List<String> languages;
 
   /// Blue check (docs/03 §6.3), decided by the server.
@@ -180,6 +184,7 @@ class OwnAttorneyProfile {
     this.lastName,
     this.bio,
     this.firmName,
+    this.firms = const [],
     this.languages = const [],
     this.usernameNextChangeAt,
     this.licenses = const [],
@@ -191,6 +196,9 @@ class OwnAttorneyProfile {
   final String? lastName;
   final String? bio;
   final String? firmName;
+
+  /// OQ-030: all firms (the first equals [firmName]).
+  final List<String> firms;
   final List<String> languages;
   final AttorneyVerification verification;
   final bool verifiedBadge;
@@ -211,6 +219,7 @@ class AttorneyProfilePatch {
     this.lastName,
     this.bio,
     this.firmName,
+    this.firms,
     this.languages,
     this.username,
   });
@@ -218,6 +227,9 @@ class AttorneyProfilePatch {
   final String? lastName;
   final String? bio;
   final String? firmName;
+
+  /// OQ-030: the full firm list (replaces it).
+  final List<String>? firms;
   final List<String>? languages;
   final String? username;
 
@@ -226,6 +238,7 @@ class AttorneyProfilePatch {
       lastName == null &&
       bio == null &&
       firmName == null &&
+      firms == null &&
       languages == null &&
       username == null;
 }

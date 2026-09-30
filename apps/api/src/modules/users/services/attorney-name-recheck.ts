@@ -11,15 +11,6 @@ export interface PersonName {
  * (admin_note; docs/03 §10 adds no dedicated column). */
 export const NAME_RECHECK_NOTE_PREFIX = 'name_change_recheck';
 
-/** Request statuses that count as "the attorney already has an open
- * request" (docs/03 §2.3: one at a time). */
-const OPEN_REQUEST_STATUSES = [
-  'draft',
-  'submitted',
-  'in_review',
-  'needs_more_info',
-] as const;
-
 export function nameChanged(before: PersonName, after: PersonName): boolean {
   return (
     (before.first_name ?? '') !== (after.first_name ?? '') ||
@@ -39,36 +30,22 @@ export function nameChanged(before: PersonName, after: PersonName): boolean {
  * documents on file. Licenses keep their status. Returns true when the
  * re-check was started.
  */
-export async function startNameRecheckIfVerified(
-  tx: Tx,
-  userId: string,
+/**
+ * Owner decision 2026-09-30 (OQ-029): a name change NEVER resets a verified
+ * attorney's status — the owner found the docs/03 §4.1 re-check wrong ("the
+ * attorney bought a subscription, fixed a typo in the name a month later and
+ * was locked out"). Kept as a no-op so call sites and the verifier-queue
+ * filter (NAME_RECHECK_NOTE_PREFIX) stay in place; admins still see the
+ * current name next to the documents in the admin panel.
+ */
+export function startNameRecheckIfVerified(
+  _tx: Tx,
+  _userId: string,
   before: PersonName,
   after: PersonName,
   now: Date = new Date(),
 ): Promise<boolean> {
-  if (!nameChanged(before, after)) return false;
-  const { count } = await tx.attorneyProfile.updateMany({
-    where: { user_id: userId, verification_status: 'verified' },
-    data: { verification_status: 'pending' },
-  });
-  if (count === 0) return false;
-  const open = await tx.verificationRequest.findFirst({
-    where: { attorney_id: userId, status: { in: [...OPEN_REQUEST_STATUSES] } },
-    select: { id: true },
-  });
-  if (!open) {
-    await tx.verificationRequest.create({
-      data: {
-        attorney_id: userId,
-        status: 'submitted',
-        submitted_at: now,
-        admin_note: `${NAME_RECHECK_NOTE_PREFIX}: "${fullName(before)}" -> "${fullName(after)}"`,
-      },
-    });
-  }
-  return true;
-}
-
-function fullName(n: PersonName): string {
-  return [n.first_name, n.last_name].filter(Boolean).join(' ');
+  void nameChanged(before, after);
+  void now;
+  return Promise.resolve(false);
 }

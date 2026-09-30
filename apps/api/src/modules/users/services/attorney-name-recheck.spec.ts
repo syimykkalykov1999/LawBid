@@ -44,26 +44,12 @@ describe('attorney name re-check (docs/03 §4.1)', () => {
     expect(t.attorneyProfile.updateMany).not.toHaveBeenCalled();
   });
 
-  it('verified attorney: profile -> pending and a submitted request is queued', async () => {
+  it('OQ-029: a verified attorney keeps the status after a name change (no re-check)', async () => {
     const t = tx({ verifiedRows: 1, openRequest: false });
-    expect(await run(t, { ...before, last_name: 'Lee' })).toBe(true);
-    expect(t.attorneyProfile.updateMany).toHaveBeenCalledWith({
-      where: { user_id: 'u1', verification_status: 'verified' },
-      data: { verification_status: 'pending' },
-    });
-    expect(t.verificationRequest.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        attorney_id: 'u1',
-        status: 'submitted',
-        admin_note: `${NAME_RECHECK_NOTE_PREFIX}: "Anna Kim" -> "Anna Lee"`,
-      }) as unknown,
-    });
-  });
-
-  it('does not open a second request when one is already open', async () => {
-    const t = tx({ verifiedRows: 1, openRequest: true });
-    expect(await run(t, { ...before, last_name: 'Lee' })).toBe(true);
+    expect(await run(t, { ...before, last_name: 'Lee' })).toBe(false);
+    expect(t.attorneyProfile.updateMany).not.toHaveBeenCalled();
     expect(t.verificationRequest.create).not.toHaveBeenCalled();
+    expect(NAME_RECHECK_NOTE_PREFIX).toBe('name_change_recheck');
   });
 
   it('not verified (unverified/pending/suspended): no re-check', async () => {

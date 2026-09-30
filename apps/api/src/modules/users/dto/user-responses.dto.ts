@@ -112,6 +112,13 @@ export class MeProfileDto {
   @ApiProperty({
     required: false,
     type: [String],
+    description: 'Attorney only (OQ-030): all firms, first = firmName.',
+  })
+  firms?: string[];
+
+  @ApiProperty({
+    required: false,
+    type: [String],
     description: 'Attorney only: USPS codes of licensed states.',
   })
   licensedStates?: string[];

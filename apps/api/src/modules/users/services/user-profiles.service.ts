@@ -44,6 +44,8 @@ export interface AttorneyProfileView {
   username: string;
   bio: string | null;
   firmName: string | null;
+  /** OQ-030: all firms (first = firmName). */
+  firms: string[];
   languages: string[];
   licensedStates: string[];
   verificationStatus: VerificationStatus;
@@ -122,6 +124,12 @@ export class UserProfilesService {
               username: row.username,
               bio: row.bio,
               firmName: row.firm_name,
+              firms:
+                row.firm_names.length > 0
+                  ? row.firm_names
+                  : row.firm_name
+                    ? [row.firm_name]
+                    : [],
               languages: row.languages,
               licensedStates,
               verificationStatus: row.verification_status,
@@ -339,6 +347,7 @@ export class UserProfilesService {
             ...(dto.bio !== undefined && { bio: dto.bio || null }),
             ...(dto.firmName !== undefined && {
               firm_name: dto.firmName || null,
+              firm_names: dto.firmName ? [dto.firmName] : [],
             }),
             ...(dto.languages !== undefined && { languages: dto.languages }),
           };

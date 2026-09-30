@@ -5,6 +5,10 @@ All notable changes to this project are documented here, per
 .cursorrules (each stage ends with a CHANGELOG update + commit on
 branch cursor/stage-X-Y-description).
 
+## Owner pass 3 (2026-09-30) — OQ-029/030
+
+- Name/username changes no longer reset a verified attorney (OQ-029); several firms per attorney (`firm_names`, `firms`, OQ-030); "Add a state (license)" from Edit; tap anywhere hides the keyboard; frameless in-app icon buttons by default (welcome keeps frames); profile header: counters beside the avatar, name under it, no "★ · New" line.
+
 ## Owner UI pass (2026-09-29, after phone testing) — OQ-026/027/028
 
 - **People search for both roles** (`GET /search/people`): attorneys AND clients by @username / first / last name, one ranked list; clients now have `@username`s (`client_profiles.username`, one namespace with attorneys via `UsernameRegistry`, lazy allocation for existing rows, editable in the client profile with the same cooldown/reserved/taken rules), a public mini-profile `GET /clients/:username` and appear in an attorney's followers list (`PersonItemDto`).

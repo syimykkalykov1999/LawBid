@@ -502,3 +502,24 @@ Message. Cases and bids already in progress are NOT touched (business
 records, docs/04) — confirm with the owner whether an accepted case should
 also be paused by a block. App: "⋯ → Block/Unblock, Report" on attorney
 and client profiles and in the chat menu; Settings → "Blocked users".
+
+## OQ-029 — Name / username changes never reset verification (owner, 2026-09-30)
+docs/03 §4.1 sent a verified attorney's profile back to `pending` after a
+name change (so the name matches the documents). Owner 2026-09-30: this is
+wrong — an attorney with a paid subscription fixed a typo and was locked
+behind the verification gate ("подтвердить документы"). Decision: a name or
+@username change keeps `verified`; `startNameRecheckIfVerified` is a no-op.
+Admins still see the current name next to the documents in the admin panel;
+a manual re-check stays possible there. The subscription was never touched
+by the old rule — only the gate was shown.
+
+## OQ-030 — Several firms per attorney; states through licenses (owner, 2026-09-30)
+Owner: an attorney must list several states, languages, practices and
+firms in Edit. Languages and practices were already multi (practices up to
+500 leaves, `PUT /attorneys/me/practice-areas`; the 403 the owner saw came
+from the OQ-029 `pending` status). Firms: `attorney_profiles.firm_names`
+(≤ 5), `firms` in the profile DTOs, `firm_name` mirrors the first entry.
+States remain licenses (bar number + verifier check per state, docs/03):
+Edit → "Add a state (license)" opens the verification wizard for an extra
+license while the profile stays verified; the feed matches on verified
+licenses only.

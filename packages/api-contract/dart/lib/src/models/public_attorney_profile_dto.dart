@@ -20,6 +20,7 @@ class PublicAttorneyProfileDto {
     required this.lastName,
     required this.bio,
     required this.firmName,
+    required this.firms,
     required this.avatarUrl,
     required this.avatarUrl256,
     required this.languages,
@@ -43,6 +44,9 @@ class PublicAttorneyProfileDto {
   final String? lastName;
   final String? bio;
   final String? firmName;
+
+  /// OQ-030: all firms (the first equals firmName).
+  final List<String> firms;
 
   /// Short-lived signed link to the attorney photo (1024 px JPEG); null when none.
   final String? avatarUrl;

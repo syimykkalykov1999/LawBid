@@ -22,7 +22,7 @@ class AppIconButton extends StatefulWidget {
     required this.semanticLabel,
     this.onTapDown,
     this.isLoading = false,
-    this.plain = false,
+    this.plain = true,
   });
 
   final Widget icon;
@@ -31,8 +31,9 @@ class AppIconButton extends StatefulWidget {
   final ValueChanged<TapDownDetails>? onTapDown;
   final bool isLoading;
 
-  /// Owner 2026-09-29: in-app header icons without the frame (no surface
-  /// fill, no border). Pre-app screens keep the framed default.
+  /// Owner 2026-09-29/30: in-app icons have no frame (no surface fill,
+  /// no border) — the default. The pre-app welcome screen passes `false`
+  /// to keep its framed squares (docs/07 §4, owner: pre-app unchanged).
   final bool plain;
 
   @override

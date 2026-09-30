@@ -20,6 +20,7 @@ class OwnAttorneyProfileDto {
     required this.lastName,
     required this.bio,
     required this.firmName,
+    required this.firms,
     required this.languages,
     required this.verificationStatus,
     required this.verifiedBadge,
@@ -39,6 +40,9 @@ class OwnAttorneyProfileDto {
   final String? lastName;
   final String? bio;
   final String? firmName;
+
+  /// OQ-030: all firms (the first equals firmName).
+  final List<String> firms;
 
   /// ISO 639-1 codes.
   final List<String> languages;

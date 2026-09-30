@@ -15,6 +15,7 @@ OwnAttorneyProfileDto _$OwnAttorneyProfileDtoFromJson(
   lastName: json['lastName'] as String?,
   bio: json['bio'] as String?,
   firmName: json['firmName'] as String?,
+  firms: (json['firms'] as List<dynamic>).map((e) => e as String).toList(),
   languages: (json['languages'] as List<dynamic>)
       .map((e) => e as String)
       .toList(),
@@ -46,6 +47,7 @@ Map<String, dynamic> _$OwnAttorneyProfileDtoToJson(
   'lastName': ?instance.lastName,
   'bio': ?instance.bio,
   'firmName': ?instance.firmName,
+  'firms': instance.firms,
   'languages': instance.languages,
   'verificationStatus': instance.verificationStatus.toJson(),
   'verifiedBadge': instance.verifiedBadge,

@@ -141,10 +141,7 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
         // row, icon tabs (owner request 2026-09-28).
         _HeaderCard(profile: p),
         const SizedBox(height: AppSpacing.md),
-        _AboutSection(
-          profile: p,
-          onRating: () => setState(() => _tab = AttorneyProfileTab.reviews),
-        ),
+        _AboutSection(profile: p),
         const SizedBox(height: AppSpacing.md),
         _ChipRows(profile: p),
         const SizedBox(height: AppSpacing.sm),
@@ -343,68 +340,46 @@ class _HeaderCard extends ConsumerWidget {
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final t = ref.watch(translatorProvider);
     final formats = ref.watch(l10nFormatsProvider);
-    return Row(
-      children: [
-        // Thin gold ring for verified attorneys (the brand accent).
-        Container(
-          padding: const EdgeInsets.all(3),
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: profile.verifiedBadge
-                ? LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [colors.goldLight, colors.gold, colors.goldDark],
-                  )
-                : null,
-            color: profile.verifiedBadge ? null : colors.border,
-          ),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: colors.bg, width: 2),
-            ),
-            child: ProfileAvatar(
-              size: _avatar,
-              url: profile.avatarUrl,
-              initials: initialsOf(profile.firstName, profile.lastName,
-                  fallback: profile.username),
-              heroTag: attorneyAvatarHeroTag(profile.username),
-              semanticLabel: t.t('profile.avatar.label'),
-            ),
-          ),
+    final avatar = Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: profile.verifiedBadge
+            ? LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [colors.goldLight, colors.gold, colors.goldDark],
+              )
+            : null,
+        color: profile.verifiedBadge ? null : colors.border,
+      ),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(color: colors.bg, width: 2),
         ),
-        const SizedBox(width: AppSpacing.md),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Owner 2026-09-29 (Instagram layout): the name sits next to
-              // the avatar, above the counters.
-              Row(
-                children: [
-                  Flexible(
-                    child: Semantics(
-                      header: true,
-                      child: Text(
-                        profile.fullName.isEmpty
-                            ? '@${profile.username}'
-                            : profile.fullName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: typography.body.copyWith(
-                            color: colors.text, fontWeight: FontWeight.w700),
-                      ),
-                    ),
-                  ),
-                  if (profile.verifiedBadge) ...[
-                    const SizedBox(width: AppSpacing.xs),
-                    VerifiedBadge(semanticLabel: t.t('profile.verified.label')),
-                  ],
-                ],
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              Row(
+        child: ProfileAvatar(
+          size: _avatar,
+          url: profile.avatarUrl,
+          initials: initialsOf(profile.firstName, profile.lastName,
+              fallback: profile.username),
+          heroTag: attorneyAvatarHeroTag(profile.username),
+          semanticLabel: t.t('profile.avatar.label'),
+        ),
+      ),
+    );
+    // Owner 2026-09-30 (Instagram layout): avatar left with the counters
+    // beside it; the name on its own line under the avatar, flush with
+    // the left edge where the post grid starts.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            avatar,
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Row(
                 children: [
                   _Counter(
                       value: formats.number(profile.counters.posts),
@@ -423,8 +398,31 @@ class _HeaderCard extends ConsumerWidget {
                   ),
                 ],
               ),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Row(
+          children: [
+            Flexible(
+              child: Semantics(
+                header: true,
+                child: Text(
+                  profile.fullName.isEmpty
+                      ? '@${profile.username}'
+                      : profile.fullName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: typography.body.copyWith(
+                      color: colors.text, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
+            if (profile.verifiedBadge) ...[
+              const SizedBox(width: AppSpacing.xs),
+              VerifiedBadge(semanticLabel: t.t('profile.verified.label')),
             ],
-          ),
+          ],
         ),
       ],
     );
@@ -500,60 +498,23 @@ class _Counter extends StatelessWidget {
 }
 
 class _AboutSection extends ConsumerWidget {
-  const _AboutSection({required this.profile, required this.onRating});
+  const _AboutSection({required this.profile});
 
   final PublicAttorneyProfile profile;
-  final VoidCallback onRating;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    final t = ref.watch(translatorProvider);
     final bio = profile.bio?.trim();
-    final r = profile.rating;
     // Owner 2026-09-29: the name moved next to the avatar (_HeaderCard)
     // and the "@username · Attorney" caption is gone — the handle is the
     // screen's centered title (ProfileHandleBar).
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Rating as a quiet line (not a badge on the photo, not a card):
-        // "★ 4.5 · 12 reviews", tap → Reviews.
-        Semantics(
-          button: true,
-          label: t.t('profile.tab.reviews'),
-          child: AppPressable(
-            onTap: onRating,
-            child: Row(
-              children: [
-                Icon(Icons.star_rounded, size: 16, color: colors.gold),
-                const SizedBox(width: 3),
-                Text(
-                  r.isNew ? '—' : r.average!.toStringAsFixed(1),
-                  style: typography.bodySmall.copyWith(
-                      color: colors.text, fontWeight: FontWeight.w700),
-                ),
-                Text(' · ',
-                    style: typography.bodySmall
-                        .copyWith(color: colors.textSecondary)),
-                Flexible(
-                  child: Text(
-                    r.isNew
-                        ? t.t('profile.rating.newShort')
-                        : t.plural('profile.rating.count', r.count),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: typography.bodySmall
-                        .copyWith(color: colors.textSecondary),
-                  ),
-                ),
-                Icon(Icons.chevron_right_rounded,
-                    size: 16, color: colors.textSecondary),
-              ],
-            ),
-          ),
-        ),
+        // Owner 2026-09-30: the "★ — · New" line is gone; ratings live on
+        // the Reviews tab.
         if (bio != null && bio.isNotEmpty) ...[
           const SizedBox(height: AppSpacing.sm),
           Text(bio,
@@ -618,7 +579,9 @@ class _ChipRows extends ConsumerWidget {
     final tree = ref.watch(practiceTreeProvider).value ?? const [];
     final categories = {for (final c in tree) c.id: c};
     final groups = groupPractices(t, profile.practices, categories);
-    final firm = profile.firmName?.trim();
+    final firms = profile.firms.isNotEmpty
+        ? profile.firms
+        : [if ((profile.firmName ?? '').trim().isNotEmpty) profile.firmName!];
 
     // One compact line per section (owner redesign): a small gold icon
     // (its label read by screen readers) + chips scrolling sideways.
@@ -661,9 +624,9 @@ class _ChipRows extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (firm != null && firm.isNotEmpty)
+        if (firms.isNotEmpty)
           row(t.t('profile.section.firm'), Icons.apartment_rounded,
-              [AppChip(label: firm)]),
+              [for (final f in firms) AppChip(label: f)]),
         if (groups.isNotEmpty)
           row(t.t('profile.section.practices'), Icons.gavel_rounded, [
             for (final g in groups)

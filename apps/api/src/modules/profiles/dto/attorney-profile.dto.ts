@@ -23,9 +23,16 @@ import { SelectedPracticeAreaDto } from './practice-areas.dto';
 /** docs/03 §4.1: first/last name 1-50, firm up to 80. */
 export const ATTORNEY_NAME_MAX = 50;
 export const ATTORNEY_FIRM_MAX = 80;
+export const ATTORNEY_FIRMS_MAX = 5;
 
 const trim = ({ value }: { value: unknown }): unknown =>
   typeof value === 'string' ? value.trim() : value;
+const trimList = ({ value }: { value: unknown }): unknown =>
+  Array.isArray(value)
+    ? (value as unknown[])
+        .map((v) => (typeof v === 'string' ? v.trim() : v))
+        .filter((v) => v !== '')
+    : value;
 const lowerList = ({ value }: { value: unknown }): unknown =>
   Array.isArray(value)
     ? (value as unknown[]).map((v) =>
@@ -59,6 +66,17 @@ export class UpdateAttorneyProfileDto {
   @IsString()
   @MaxLength(ATTORNEY_FIRM_MAX)
   firmName?: string;
+
+  /** Owner 2026-09-30 (OQ-030): several firms (≤ 5, each ≤ 80 chars);
+   * replaces the list. `firmName` mirrors the first one. */
+  @ApiProperty({ required: false, type: [String] })
+  @IsOptional()
+  @Transform(trimList)
+  @IsArray()
+  @ArrayMaxSize(ATTORNEY_FIRMS_MAX)
+  @IsString({ each: true })
+  @Length(1, ATTORNEY_FIRM_MAX, { each: true })
+  firms?: string[];
 
   @IsOptional()
   @Transform(lowerList)
@@ -185,6 +203,10 @@ export class OwnAttorneyProfileDto {
   @ApiProperty({ type: String, nullable: true })
   firmName!: string | null;
 
+  /** OQ-030: all firms (the first equals firmName). */
+  @ApiProperty({ type: [String] })
+  firms!: string[];
+
   @ApiProperty({ type: [String], description: 'ISO 639-1 codes.' })
   languages!: string[];
 
@@ -239,6 +261,10 @@ export class PublicAttorneyProfileDto {
 
   @ApiProperty({ type: String, nullable: true })
   firmName!: string | null;
+
+  /** OQ-030: all firms (the first equals firmName). */
+  @ApiProperty({ type: [String] })
+  firms!: string[];
 
   @ApiProperty({
     type: String,

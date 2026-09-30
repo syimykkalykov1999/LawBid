@@ -115,6 +115,8 @@ class _GavelStrikeIconButtonState extends State<GavelStrikeIconButton>
   @override
   Widget build(BuildContext context) {
     return AppIconButton(
+      // Welcome screen social buttons keep the framed look (file 07 §4).
+      plain: false,
       icon: widget.icon,
       semanticLabel: widget.semanticLabel,
       isLoading: widget.isLoading,

@@ -33,10 +33,17 @@ class LawBidApp extends ConsumerWidget {
       // prompt — see core/app_update/app_update_gate.dart. Inside it, the
       // global offline banner (docs/01 §8.3, p12 leaf-1.6), active only on
       // in-app routes — see core/connectivity/offline_banner_host.dart.
-      builder: (context, child) => AppUpdateGate(
-        child: child == null
-            ? null
-            : RouterOfflineBannerHost(router: router, child: child),
+      // Owner 2026-09-30: a tap on empty space anywhere hides the keyboard
+      // (Instagram/YouTube behaviour). Translucent: buttons and fields
+      // still get their own taps first.
+      builder: (context, child) => GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+        child: AppUpdateGate(
+          child: child == null
+              ? null
+              : RouterOfflineBannerHost(router: router, child: child),
+        ),
       ),
     );
   }

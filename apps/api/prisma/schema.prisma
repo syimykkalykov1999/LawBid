@@ -946,6 +946,8 @@ model AttorneyProfile {
   // ≤300 chars (§4.C / §6.1), CHECK in the migration.
   bio                 String?
   firm_name           String?
+  // Owner 2026-09-30 (OQ-030): several firms; firm_name mirrors the first.
+  firm_names          String[]           @default([])
   languages           String[]
   verification_status VerificationStatus @default(unverified)
   verified_at         DateTime?          @db.Timestamptz

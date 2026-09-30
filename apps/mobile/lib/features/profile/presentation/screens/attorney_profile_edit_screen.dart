@@ -24,6 +24,9 @@ const kAttorneyNameMax = 50;
 const kAttorneyBioMax = 300;
 const kAttorneyFirmMax = 80;
 
+/// OQ-030: firms per attorney profile.
+const kAttorneyFirmsMax = 5;
+
 /// docs/03 §4.1 @username: 3–30 latin letters, digits, `_` and `.`; not
 /// starting/ending with `.`/`_`; no `..`. Reserved words and uniqueness are
 /// the server's call (`GET /attorneys/username-available`).
@@ -85,7 +88,12 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
   late final _last = TextEditingController(text: widget.profile.lastName ?? '');
   late final _username = TextEditingController(text: widget.profile.username);
   late final _bio = TextEditingController(text: widget.profile.bio ?? '');
-  late final _firm = TextEditingController(text: widget.profile.firmName ?? '');
+  late final _firm = TextEditingController();
+  late List<String> _firms = [
+    ...(widget.profile.firms.isNotEmpty
+        ? widget.profile.firms
+        : [if ((widget.profile.firmName ?? '').trim().isNotEmpty) widget.profile.firmName!]),
+  ];
   late Set<String> _languages = widget.profile.languages.toSet();
   UsernameStatus _usernameStatus = UsernameStatus.unchanged;
   Timer? _debounce;
@@ -136,6 +144,25 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
     });
   }
 
+  List<String> get _originalFirms => p.firms.isNotEmpty
+      ? p.firms
+      : [if ((p.firmName ?? '').trim().isNotEmpty) p.firmName!];
+
+  bool get _firmsChanged =>
+      _firms.length != _originalFirms.length ||
+      !_firms.asMap().entries.every((e) => _originalFirms[e.key] == e.value);
+
+  /// OQ-030: add the typed firm to the list (≤ 5, no duplicates).
+  void _addFirm() {
+    final v = _firm.text.trim();
+    if (v.isEmpty || _firms.length >= kAttorneyFirmsMax) return;
+    if (_firms.any((f) => f.toLowerCase() == v.toLowerCase())) return;
+    setState(() {
+      _firms = [..._firms, v];
+      _firm.clear();
+    });
+  }
+
   String? _changed(TextEditingController c, String? original) {
     final v = c.text.trim();
     return v == (original ?? '').trim() ? null : v;
@@ -154,7 +181,7 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
       firstName: _changed(_first, p.firstName),
       lastName: _changed(_last, p.lastName),
       bio: _changed(_bio, p.bio),
-      firmName: _changed(_firm, p.firmName),
+      firms: _firmsChanged ? _firms : null,
       languages: languagesChanged ? _languages.toList() : null,
       username: _usernameStatus == UsernameStatus.unchanged ? null : _username.text.trim(),
     );
@@ -257,12 +284,54 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
         maxLength: kAttorneyBioMax,
         textCapitalization: TextCapitalization.sentences,
       ),
-      AppTextField(
-        controller: _firm,
-        label: t.t('onboarding.profile.firm'),
-        helperText: t.t('common.optional'),
-        maxLength: kAttorneyFirmMax,
-        textCapitalization: TextCapitalization.words,
+      // Owner 2026-09-30 (OQ-030): several firms — chips + an add field.
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (_firms.isNotEmpty) ...[
+            Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.sm,
+              children: [
+                for (final f in _firms)
+                  AppChip(
+                    label: f,
+                    trailing: const Icon(Icons.close_rounded, size: AppSizes.iconSm),
+                    onTap: () => setState(() => _firms = [..._firms]..remove(f)),
+                  ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+          ],
+          if (_firms.length < kAttorneyFirmsMax)
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: AppTextField(
+                    controller: _firm,
+                    label: t.t('onboarding.profile.firm'),
+                    helperText: t.t('profile.edit.firms.helper', {'max': '$kAttorneyFirmsMax'}),
+                    maxLength: kAttorneyFirmMax,
+                    textCapitalization: TextCapitalization.words,
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (_) => _addFirm(),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Padding(
+                  // Align the button with the field (label sits above it).
+                  padding: const EdgeInsets.only(top: AppSpacing.lg + AppSpacing.xs),
+                  child: AppIconButton(
+                    plain: false,
+                    icon: const Icon(Icons.add_rounded),
+                    semanticLabel: t.t('profile.edit.firms.add'),
+                    onPressed: _addFirm,
+                  ),
+                ),
+              ],
+            ),
+        ],
       ),
       PickerField(
         label: t.t('onboarding.profile.languages'),
@@ -292,7 +361,14 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
           ),
         ],
       ),
-      if (p.licenses.isNotEmpty) _Licenses(licenses: p.licenses, t: t),
+      // Owner 2026-09-30: states are licenses — add one through the
+      // verification wizard (bar number + check per state, docs/03); the
+      // profile stays verified meanwhile.
+      _Licenses(
+        licenses: p.licenses,
+        t: t,
+        onAddState: () => context.push(AppRoutes.verificationWizard),
+      ),
     ];
 
     return Column(
@@ -315,10 +391,11 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
 }
 
 class _Licenses extends StatelessWidget {
-  const _Licenses({required this.licenses, required this.t});
+  const _Licenses({required this.licenses, required this.t, required this.onAddState});
 
   final List<AttorneyLicense> licenses;
   final Translator t;
+  final VoidCallback onAddState;
 
   @override
   Widget build(BuildContext context) {
@@ -327,6 +404,11 @@ class _Licenses extends StatelessWidget {
     return AppListSection(
       title: t.t('profile.edit.section.licenses'),
       children: [
+        AppListRow(
+          icon: Icons.add_location_alt_outlined,
+          label: t.t('profile.edit.addState'),
+          onTap: onAddState,
+        ),
         for (final l in licenses)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.md),

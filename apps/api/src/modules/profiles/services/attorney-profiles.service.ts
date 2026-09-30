@@ -21,6 +21,15 @@ import { notFound, requireOwnAttorney } from './profile-access';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+/** OQ-030: the firm list, falling back to the legacy single column. */
+function firmsOf(row: {
+  firm_name: string | null;
+  firm_names?: string[];
+}): string[] {
+  if (row.firm_names && row.firm_names.length > 0) return row.firm_names;
+  return row.firm_name ? [row.firm_name] : [];
+}
+
 /** When a username changed at [changedAt] may change again, or null if
  * it may change now (never changed = the onboarding-generated one). */
 export function nextUsernameChangeAt(
@@ -96,6 +105,7 @@ export class AttorneyProfilesService {
       lastName: row.user.last_name,
       bio: row.bio,
       firmName: row.firm_name,
+      firms: firmsOf(row),
       languages: row.languages,
       verificationStatus: row.verification_status,
       verifiedBadge:
@@ -151,8 +161,15 @@ export class AttorneyProfilesService {
 
         const data: Prisma.AttorneyProfileUpdateInput = {
           ...(dto.bio !== undefined && { bio: dto.bio || null }),
-          ...(dto.firmName !== undefined && {
-            firm_name: dto.firmName || null,
+          ...(dto.firmName !== undefined &&
+            dto.firms === undefined && {
+              firm_name: dto.firmName || null,
+              firm_names: dto.firmName ? [dto.firmName] : [],
+            }),
+          // OQ-030: the list wins; firm_name mirrors the first entry.
+          ...(dto.firms !== undefined && {
+            firm_names: dto.firms,
+            firm_name: dto.firms[0] ?? null,
           }),
           ...(dto.languages !== undefined && { languages: dto.languages }),
         };
@@ -246,6 +263,7 @@ export class AttorneyProfilesService {
         username: true,
         bio: true,
         firm_name: true,
+        firm_names: true,
         languages: true,
         verification_status: true,
         rating_avg: true,
@@ -309,6 +327,7 @@ export class AttorneyProfilesService {
       lastName: row.user.last_name,
       bio: row.bio,
       firmName: row.firm_name,
+      firms: firmsOf(row),
       avatarUrl: avatar.url,
       avatarUrl256: avatar.url256,
       languages: row.languages,

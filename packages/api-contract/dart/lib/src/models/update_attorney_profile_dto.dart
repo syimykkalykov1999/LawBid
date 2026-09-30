@@ -11,6 +11,7 @@ part 'update_attorney_profile_dto.g.dart';
 @JsonSerializable()
 class UpdateAttorneyProfileDto {
   const UpdateAttorneyProfileDto({
+    this.firms,
     this.firstName,
     this.lastName,
     this.bio,
@@ -22,6 +23,9 @@ class UpdateAttorneyProfileDto {
   factory UpdateAttorneyProfileDto.fromJson(Map<String, Object?> json) =>
       _$UpdateAttorneyProfileDtoFromJson(json);
 
+  /// Owner 2026-09-30 (OQ-030): several firms (≤ 5, each ≤ 80 chars);.
+  /// replaces the list. `firmName` mirrors the first one.
+  final List<String>? firms;
   final String? firstName;
   final String? lastName;
   final String? bio;
