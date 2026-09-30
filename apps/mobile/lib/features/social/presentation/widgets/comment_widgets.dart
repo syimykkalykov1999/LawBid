@@ -13,6 +13,7 @@ import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/data/social_repository.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
+import 'package:lawbid/features/social/presentation/widgets/mention_suggestions.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
@@ -209,9 +210,13 @@ class _CommentTileState extends ConsumerState<CommentTile> {
                         ],
                       ),
                       const SizedBox(height: 2),
-                      Text(_c.body,
-                          style: type.bodySmall
-                              .copyWith(color: colors.text, height: 1.4)),
+                      // OQ-042: #tags and @mentions are tappable.
+                      PostBodyText(
+                        body: _c.body,
+                        expanded: true,
+                        mentions: _c.mentions,
+                        height: 1.4,
+                      ),
                       Row(
                         children: [
                           TextButton(
@@ -433,6 +438,12 @@ class _CommentComposerState extends ConsumerState<CommentComposer> {
                   ],
                 ),
               ),
+            // OQ-042: "@…" suggests people to mention.
+            Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: AppSpacing.screenSide),
+              child: MentionSuggestions(controller: _text),
+            ),
             Padding(
               padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide,
                   AppSpacing.sm, AppSpacing.sm, AppSpacing.sm),

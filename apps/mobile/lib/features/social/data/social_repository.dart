@@ -619,6 +619,7 @@ abstract final class SocialMappers {
             ),
         ],
         tags: d.tags,
+        mentions: [for (final m in d.mentions) SocialMappers.mention(m)],
         likeCount: d.likeCount,
         commentCount: d.commentCount,
         shareCount: d.shareCount.toInt(),
@@ -649,6 +650,14 @@ abstract final class SocialMappers {
         canDelete: d.canDelete,
         isMine: d.isMine,
         createdAt: DateTime.parse(d.createdAt),
+        mentions: [for (final m in d.mentions) mention(m)],
+      );
+
+  /// OQ-042.
+  static Mention mention(api.MentionDto m) => Mention(
+        username: m.username,
+        userId: m.userId,
+        isAttorney: m.kind == api.MentionKind.attorney,
       );
 
   /// OQ-034: a comment under a case, ids prefixed (see kCaseThreadPrefix).

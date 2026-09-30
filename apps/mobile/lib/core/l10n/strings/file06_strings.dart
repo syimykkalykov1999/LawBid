@@ -2,6 +2,9 @@
 // merged into StaticTranslatorRu/En like file05_strings.dart.
 
 const file06Ru = <String, String>{
+  // --- OQ-042: отметки @username ---
+  'notif.list.mention': '{name} отметил(-а) вас',
+  'notif.list.mention.many': '{name} и ещё {others} отметили вас',
   // --- OQ-041: звонки в приложении ---
   'call.button': 'Позвонить',
   'call.status.calling': 'Вызов…',
@@ -306,6 +309,9 @@ const file06Ru = <String, String>{
 };
 
 const file06En = <String, String>{
+  // --- OQ-042: @mentions ---
+  'notif.list.mention': '{name} mentioned you',
+  'notif.list.mention.many': '{name} and {others} more mentioned you',
   // --- OQ-041: in-app calls ---
   'call.button': 'Call',
   'call.status.calling': 'Calling…',

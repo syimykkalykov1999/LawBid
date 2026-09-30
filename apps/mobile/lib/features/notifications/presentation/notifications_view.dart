@@ -64,7 +64,11 @@ String? notificationRoute({
     // OQ-034: comments under a case carry caseId instead of postId.
     case 'case_comment':
       return caseId == null ? null : AppRoutes.caseComments(caseId);
-    case 'post_like' || 'post_comment' || 'comment_reply' || 'comment_like':
+    case 'post_like' ||
+          'post_comment' ||
+          'comment_reply' ||
+          'comment_like' ||
+          'mention':
       if (postId == null && caseId != null) {
         return AppRoutes.caseComments(caseId);
       }
@@ -91,8 +95,8 @@ String notificationText(Translator t, AppNotification n) {
   final name = n.actor?.displayName ?? '';
   final others = n.aggregateCount - 1;
   if (others > 0) {
-    return t.t('notif.list.${n.type}.many',
-        {'name': name, 'others': '$others'});
+    return t
+        .t('notif.list.${n.type}.many', {'name': name, 'others': '$others'});
   }
   return t.t('notif.list.${n.type}', {'name': name});
 }
@@ -106,6 +110,8 @@ IconData _icon(AppNotification n) => switch (n.type) {
       'new_follower' => Icons.person_add_alt_1_rounded,
       // OQ-041.
       'missed_call' => Icons.phone_missed_rounded,
+      // OQ-042.
+      'mention' => Icons.alternate_email_rounded,
       'review_requested' || 'review_received' => Icons.star_rounded,
       'security_new_device' => Icons.devices_rounded,
       'verification_update' => Icons.verified_rounded,
@@ -237,7 +243,8 @@ class _NotificationRow extends ConsumerWidget {
           decoration: BoxDecoration(
             color: n.unread ? colors.goldTint : colors.surface,
             borderRadius: BorderRadius.circular(AppRadii.card),
-            border: Border.all(color: n.unread ? colors.goldStroke : colors.border),
+            border:
+                Border.all(color: n.unread ? colors.goldStroke : colors.border),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -268,7 +275,8 @@ class _NotificationRow extends ConsumerWidget {
                     Text(text,
                         style: type.bodySmall.copyWith(
                           color: colors.text,
-                          fontWeight: n.unread ? FontWeight.w600 : FontWeight.w400,
+                          fontWeight:
+                              n.unread ? FontWeight.w600 : FontWeight.w400,
                         )),
                     const SizedBox(height: 2),
                     Text(SocialFormat.ago(t, f, n.createdAt),

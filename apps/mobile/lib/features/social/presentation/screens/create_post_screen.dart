@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/features/social/presentation/widgets/mention_suggestions.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/data/social_repository.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
@@ -72,11 +73,11 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
     });
     try {
       final id = await ref.read(socialActionsProvider).uploadPhoto(
-            photo.bytes,
-            onProgress: (p) {
-              if (mounted) setState(() => photo.progress = p);
-            },
-          );
+        photo.bytes,
+        onProgress: (p) {
+          if (mounted) setState(() => photo.progress = p);
+        },
+      );
       if (mounted) setState(() => photo.fileId = id);
     } on Object catch (e) {
       if (mounted) setState(() => photo.error = e);
@@ -94,9 +95,9 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
     setState(() => _publishing = true);
     try {
       final post = await ref.read(socialRepositoryProvider).createPost(
-            _text.text.trim(),
-            [for (final p in _photos) p.fileId!],
-          );
+        _text.text.trim(),
+        [for (final p in _photos) p.fileId!],
+      );
       if (!mounted) return;
       ref.read(feedProvider.notifier).prepend(post);
       HapticFeedback.mediumImpact();
@@ -137,6 +138,8 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                     autofocus: true,
                     hint: t.t('post.create.hint'),
                   ),
+                  // OQ-042: "@…" suggests people to mention.
+                  MentionSuggestions(controller: _text),
                   const SizedBox(height: AppSpacing.lg),
                   Row(
                     children: [
@@ -144,8 +147,8 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                       const Spacer(),
                       Text(
                         '${_photos.length} / $kPostMaxPhotos',
-                        style: type.caption
-                            .copyWith(color: colors.textSecondary),
+                        style:
+                            type.caption.copyWith(color: colors.textSecondary),
                       ),
                     ],
                   ),
@@ -190,8 +193,8 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                       padding: const EdgeInsets.only(top: AppSpacing.xs),
                       child: Text(
                         t.t('post.create.reorderHint'),
-                        style: type.caption
-                            .copyWith(color: colors.textSecondary),
+                        style:
+                            type.caption.copyWith(color: colors.textSecondary),
                       ),
                     ),
                   const SizedBox(height: AppSpacing.xl),
@@ -299,8 +302,8 @@ class _PhotoTile extends StatelessWidget {
                 color: colors.navy.withValues(alpha: 0.6),
                 child: Center(
                   child: AppIconButton(
-                    icon: const Icon(Icons.refresh_rounded,
-                        color: Colors.white),
+                    icon:
+                        const Icon(Icons.refresh_rounded, color: Colors.white),
                     semanticLabel: retryLabel,
                     onPressed: onRetry,
                   ),

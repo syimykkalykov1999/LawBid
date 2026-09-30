@@ -725,3 +725,14 @@ the phone network), audio only.
   VoIP key (PushKit) — owner step at App Store setup.
 - Verified on the emulator: outgoing, incoming, accept, decline, end,
   chat log. Two-way audio needs two real phones (emulator has no audio).
+
+## OQ-042 — @username mentions in posts and comments (owner, 2026-09-29/30)
+
+Like Instagram: typing "@" in a post or a comment suggests people
+(attorneys and clients, by @username or name); a mention is gold and
+opens the profile; the mentioned person gets a "mentioned you"
+notification once (an edit notifies only newly added people; nobody for
+their own mention; not across a block; no duplicate when they already get
+a comment/reply notification). The API returns `mentions` on posts and
+comments (real people only). Owner decisions the same day: attorneys do
+not publish cases; the case city stays visible as before.

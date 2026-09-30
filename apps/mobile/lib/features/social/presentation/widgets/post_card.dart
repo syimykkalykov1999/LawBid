@@ -252,8 +252,11 @@ class PostCard extends ConsumerWidget {
         _TimeLine(post: p),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-          child: Text(
-            title,
+          // OQ-042: @mentions / #tags tappable in the title line too.
+          child: PostBodyText(
+            body: title,
+            expanded: true,
+            mentions: p.mentions,
             style: typography.titleLarge.copyWith(
               fontFamily: typography.body.fontFamily,
               color: colors.text,
@@ -265,7 +268,8 @@ class PostCard extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.fromLTRB(
                 AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, 0),
-            child: PostBodyText(body: rest, expanded: true),
+            child:
+                PostBodyText(body: rest, expanded: true, mentions: p.mentions),
           ),
         const SizedBox(height: AppSpacing.md),
         if (p.media.isNotEmpty)
@@ -665,10 +669,20 @@ class PostBodyText extends ConsumerStatefulWidget {
     required this.body,
     this.expanded = false,
     this.large = false,
+    this.mentions = const [],
+    this.height = 1.45,
+    this.style,
     super.key,
   });
 
+  /// Overrides the text style (the post's title line).
+  final TextStyle? style;
+
   final String body;
+
+  /// OQ-042: real people among the @handles — tappable, open the profile.
+  final List<Mention> mentions;
+  final double height;
   final bool expanded;
   final bool large;
 
@@ -677,7 +691,8 @@ class PostBodyText extends ConsumerStatefulWidget {
 }
 
 class _PostBodyTextState extends ConsumerState<PostBodyText> {
-  static final _token = RegExp(r'([#@][\p{L}\p{N}_]+)', unicode: true);
+  static final _token =
+      RegExp(r'(#[\p{L}\p{N}_]+|@[A-Za-z0-9._]+)', unicode: true);
   late bool _expanded = widget.expanded;
   final _recognizers = <TapGestureRecognizer>[];
 
@@ -712,10 +727,31 @@ class _PostBodyTextState extends ConsumerState<PostBodyText> {
           recognizer: r,
         ));
       } else {
-        spans.add(TextSpan(
-          text: token,
-          style: TextStyle(color: colors.text, fontWeight: FontWeight.w600),
-        ));
+        // "@anna." at the end of a sentence: the dot is not the name.
+        final trimmed = token.replaceFirst(RegExp(r'\.+$'), '');
+        final tail = token.substring(trimmed.length);
+        final handle = trimmed.substring(1).toLowerCase();
+        final who =
+            widget.mentions.where((x) => x.username == handle).firstOrNull;
+        if (who == null) {
+          spans.add(TextSpan(
+            text: trimmed,
+            style: TextStyle(color: colors.text, fontWeight: FontWeight.w600),
+          ));
+        } else {
+          final r = TapGestureRecognizer()
+            ..onTap = () => context.push(who.isAttorney
+                ? AppRoutes.lawyer(who.username)
+                : AppRoutes.client(who.username));
+          _recognizers.add(r);
+          spans.add(TextSpan(
+            text: trimmed,
+            style:
+                TextStyle(color: colors.goldDark, fontWeight: FontWeight.w700),
+            recognizer: r,
+          ));
+        }
+        if (tail.isNotEmpty) spans.add(TextSpan(text: tail));
       }
       last = m.end;
     }
@@ -730,8 +766,9 @@ class _PostBodyTextState extends ConsumerState<PostBodyText> {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    final style = (widget.large ? type.body : type.bodySmall)
-        .copyWith(color: colors.text, height: 1.45);
+    final style = widget.style ??
+        (widget.large ? type.body : type.bodySmall)
+            .copyWith(color: colors.text, height: widget.height);
     final text = Text.rich(
       TextSpan(children: _spans(colors), style: style),
       maxLines: _expanded ? null : 3,

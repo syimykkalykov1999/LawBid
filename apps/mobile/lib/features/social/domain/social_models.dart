@@ -71,6 +71,21 @@ class PostMedia {
   }
 }
 
+/// OQ-042: a real person @mentioned in a post or comment.
+@immutable
+class Mention {
+  const Mention({
+    required this.username,
+    required this.userId,
+    required this.isAttorney,
+  });
+
+  /// Lowercase, as in the text after "@".
+  final String username;
+  final String userId;
+  final bool isAttorney;
+}
+
 @immutable
 class Post {
   const Post({
@@ -88,10 +103,14 @@ class Post {
     this.editedAt,
     this.status = 'published',
     this.shareCount = 0,
+    this.mentions = const [],
   });
 
   /// OQ-037: completed shares.
   final int shareCount;
+
+  /// OQ-042: people @mentioned in [body] (links to their profiles).
+  final List<Mention> mentions;
 
   final String id;
   final PostAuthor author;
@@ -137,6 +156,7 @@ class Post {
         editedAt: editedAt ?? this.editedAt,
         status: status,
         shareCount: shareCount ?? this.shareCount,
+        mentions: mentions,
       );
 }
 
@@ -179,11 +199,15 @@ class Comment {
     required this.isMine,
     required this.createdAt,
     this.parentId,
+    this.mentions = const [],
   });
 
   final String id;
   final String postId;
   final String? parentId;
+
+  /// OQ-042: people @mentioned in [body].
+  final List<Mention> mentions;
   final CommentAuthor author;
   final String body;
   final int likeCount;
@@ -206,6 +230,7 @@ class Comment {
         canDelete: canDelete,
         isMine: isMine,
         createdAt: createdAt,
+        mentions: mentions,
       );
 }
 
