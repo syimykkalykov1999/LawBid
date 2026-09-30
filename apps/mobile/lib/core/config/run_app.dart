@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../app.dart';
+import '../../features/calls/application/call_controller.dart';
+import '../../features/calls/application/callkit_bridge.dart';
 import '../app_update/app_version.dart';
 import '../deeplinks/deep_link_controller.dart';
 import '../l10n/l10n_providers.dart';
@@ -26,10 +28,15 @@ Future<void> runLawBid(AppFlavor flavor) async {
   // Real installed version for X-App-Version (docs/01_FOUNDATION_AUTH.md
   // §7) — before any request, including the splash's /config/bootstrap.
   // Local platform call, no network.
-  final (prefs, _) = await (SharedPreferences.getInstance(), AppVersion.load()).wait;
+  final (prefs, _) =
+      await (SharedPreferences.getInstance(), AppVersion.load()).wait;
 
   final container = ProviderContainer(
-    overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+    overrides: [
+      sharedPreferencesProvider.overrideWithValue(prefs),
+      // OQ-041: calls ring through the phone's own call screen.
+      systemCallUiProvider.overrideWithValue(const CallkitSystemUi()),
+    ],
   );
 
   // L10n cache bootstrap (docs/01_FOUNDATION_AUTH.md §9.4: "читает кэш из
@@ -49,5 +56,6 @@ Future<void> runLawBid(AppFlavor flavor) async {
   // screen (stage 1.7 mobile, docs/01_FOUNDATION_AUTH.md §10.2 A; see
   // AppStartupController). AppRouterGuard holds every route at `/splash`
   // until it finishes, so there is no first-redirect race.
-  runApp(UncontrolledProviderScope(container: container, child: const LawBidApp()));
+  runApp(UncontrolledProviderScope(
+      container: container, child: const LawBidApp()));
 }

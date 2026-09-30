@@ -212,12 +212,19 @@ abstract final class ChatMappers {
         kind: switch (d.type) {
           api.MessageDtoType.system => MessageKind.system,
           api.MessageDtoType.voice => MessageKind.voice,
+          api.MessageDtoType.call => MessageKind.call,
           _ => MessageKind.text,
         },
         body: d.body,
         contactMasked: d.contactMasked,
         clientMessageId: d.clientMessageId,
         createdAt: d.createdAt,
+        callLog: d.call == null
+            ? null
+            : CallLog(
+                outcome: d.call!.outcome.json ?? 'ended',
+                durationSec: d.call!.durationSec.toInt(),
+              ),
         voice: d.voice == null
             ? null
             : VoiceNote(

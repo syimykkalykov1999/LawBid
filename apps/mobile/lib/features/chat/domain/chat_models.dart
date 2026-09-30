@@ -64,7 +64,17 @@ class Conversation {
   bool get closed => status == ConversationStatus.closed;
 }
 
-enum MessageKind { text, system, voice }
+enum MessageKind { text, system, voice, call }
+
+/// OQ-041: a call in the chat log (the sender placed it).
+@immutable
+class CallLog {
+  const CallLog({required this.outcome, required this.durationSec});
+
+  /// ended · missed · declined · busy · canceled · failed
+  final String outcome;
+  final int durationSec;
+}
 
 /// OQ-040: the audio of a voice message, like Telegram's.
 @immutable
@@ -117,6 +127,7 @@ class ChatMessage {
     this.delivery = DeliveryState.sent,
     this.failedCode,
     this.voice,
+    this.callLog,
   });
 
   /// Server id, or `local:<clientMessageId>` while in the outbox.
@@ -135,6 +146,9 @@ class ChatMessage {
 
   /// Set for [MessageKind.voice].
   final VoiceNote? voice;
+
+  /// Set for [MessageKind.call].
+  final CallLog? callLog;
 
   bool get isLocal => id.startsWith('local:');
 
@@ -155,6 +169,7 @@ class ChatMessage {
         delivery: delivery ?? this.delivery,
         failedCode: failedCode ?? this.failedCode,
         voice: voice ?? this.voice,
+        callLog: callLog,
       );
 }
 

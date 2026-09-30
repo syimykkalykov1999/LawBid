@@ -304,7 +304,7 @@ export class CallsService {
           payload: {
             callId: call.id,
             conversationId: call.conversation_id,
-            callerId: call.caller_id,
+            actorId: call.caller_id,
           },
         });
       }

@@ -9,6 +9,8 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
+import 'package:lawbid/features/calls/presentation/call_log_entry.dart'
+    show callLogKey;
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
 import 'package:lawbid/features/notifications/presentation/notifications_view.dart';
@@ -220,8 +222,12 @@ class CountPill extends StatelessWidget {
 
 /// A chat's last-message preview: localized system messages and masked
 /// contacts (§8.2, §8.3).
-String messagePreview(Translator t, ChatMessage m) {
+String messagePreview(Translator t, ChatMessage m, {String? me}) {
   if (m.kind == MessageKind.system) return t.t('chat.system.${m.body}');
+  // OQ-041: "📞 Missed call".
+  if (m.kind == MessageKind.call && m.callLog != null) {
+    return '📞 ${t.t(callLogKey(m.callLog!.outcome, outgoing: m.senderId != null && m.senderId == me))}';
+  }
   // OQ-040: "🎤 Voice message 0:12".
   if (m.kind == MessageKind.voice) {
     final ms = m.voice?.durationMs ?? 0;
@@ -337,7 +343,7 @@ class _ConversationRow extends ConsumerWidget {
                           last == null
                               ? ''
                               : '${last.senderId == me ? '${t.t('chat.you')}: ' : ''}'
-                                  '${messagePreview(t, last)}',
+                                  '${messagePreview(t, last, me: me)}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: type.bodySmall.copyWith(

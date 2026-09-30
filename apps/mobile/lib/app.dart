@@ -7,6 +7,7 @@ import 'core/connectivity/offline_banner_host.dart';
 import 'core/design_system/design_system.dart';
 import 'core/navigation/app_router.dart';
 import 'core/theme/preferences_sync.dart';
+import 'features/calls/presentation/call_host.dart';
 
 class LawBidApp extends ConsumerWidget {
   const LawBidApp({super.key});
@@ -17,7 +18,8 @@ class LawBidApp extends ConsumerWidget {
     // the account's values after login (core/theme/preferences_sync.dart).
     ref.listen(preferencesSyncProvider, (_, __) {});
     final router = ref.watch(appRouterProvider);
-    final themeMode = ref.watch(themeModeControllerProvider).value ?? ThemeMode.system;
+    final themeMode =
+        ref.watch(themeModeControllerProvider).value ?? ThemeMode.system;
 
     return MaterialApp.router(
       // "LawBid Dev" / "LawBid Staging" / "LawBid" (task switcher).
@@ -42,7 +44,11 @@ class LawBidApp extends ConsumerWidget {
         child: AppUpdateGate(
           child: child == null
               ? null
-              : RouterOfflineBannerHost(router: router, child: child),
+              // OQ-041: the call screen pops over any route.
+              : CallHost(
+                  router: router,
+                  child: RouterOfflineBannerHost(router: router, child: child),
+                ),
         ),
       ),
     );

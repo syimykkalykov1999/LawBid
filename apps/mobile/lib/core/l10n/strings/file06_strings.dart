@@ -2,6 +2,39 @@
 // merged into StaticTranslatorRu/En like file05_strings.dart.
 
 const file06Ru = <String, String>{
+  // --- OQ-041: звонки в приложении ---
+  'call.button': 'Позвонить',
+  'call.status.calling': 'Вызов…',
+  'call.status.incoming': 'Входящий звонок',
+  'call.status.connecting': 'Соединение…',
+  'call.status.ended': 'Звонок завершён',
+  'call.status.missed': 'Нет ответа',
+  'call.status.declined': 'Звонок отклонён',
+  'call.status.busy': 'Абонент занят',
+  'call.status.canceled': 'Звонок отменён',
+  'call.status.failed': 'Не удалось соединить',
+  'call.accept': 'Ответить',
+  'call.decline': 'Отклонить',
+  'call.end': 'Завершить',
+  'call.mute': 'Микрофон',
+  'call.speaker': 'Динамик',
+  'call.audioOnly': 'Аудиозвонок LawBid',
+  'call.notAllowed':
+      'Звонки откроются после того, как клиент примет бид.',
+  'call.subscription':
+      'Для звонков у адвоката должна быть активная подписка.',
+  'call.inProgress': 'Вы уже в звонке.',
+  'call.log.outgoing': 'Исходящий звонок',
+  'call.log.incoming': 'Входящий звонок',
+  'call.log.missed': 'Пропущенный звонок',
+  'call.log.noAnswer': 'Нет ответа',
+  'call.log.declined': 'Звонок отклонён',
+  'call.log.busy': 'Занято',
+  'call.log.canceled': 'Отменённый звонок',
+  'call.log.failed': 'Звонок не удался',
+  'call.log.callBack': 'Перезвонить',
+  'notif.list.missed_call': 'Пропущенный звонок от {name}',
+  'notif.list.missed_call.many': 'Пропущенные звонки: {name} и ещё {others}',
   // --- OQ-040: голосовые сообщения ---
   'chat.voice.label': 'Голосовое сообщение',
   'chat.voice.record': 'Удерживайте, чтобы записать голосовое',
@@ -273,6 +306,38 @@ const file06Ru = <String, String>{
 };
 
 const file06En = <String, String>{
+  // --- OQ-041: in-app calls ---
+  'call.button': 'Call',
+  'call.status.calling': 'Calling…',
+  'call.status.incoming': 'Incoming call',
+  'call.status.connecting': 'Connecting…',
+  'call.status.ended': 'Call ended',
+  'call.status.missed': 'No answer',
+  'call.status.declined': 'Call declined',
+  'call.status.busy': 'Busy',
+  'call.status.canceled': 'Call canceled',
+  'call.status.failed': "Couldn't connect",
+  'call.accept': 'Accept',
+  'call.decline': 'Decline',
+  'call.end': 'End',
+  'call.mute': 'Mute',
+  'call.speaker': 'Speaker',
+  'call.audioOnly': 'LawBid audio call',
+  'call.notAllowed': 'Calls open once the client accepts the bid.',
+  'call.subscription':
+      'The attorney needs an active subscription for calls.',
+  'call.inProgress': "You're already in a call.",
+  'call.log.outgoing': 'Outgoing call',
+  'call.log.incoming': 'Incoming call',
+  'call.log.missed': 'Missed call',
+  'call.log.noAnswer': 'No answer',
+  'call.log.declined': 'Declined call',
+  'call.log.busy': 'Busy',
+  'call.log.canceled': 'Canceled call',
+  'call.log.failed': 'Call failed',
+  'call.log.callBack': 'Call back',
+  'notif.list.missed_call': 'Missed call from {name}',
+  'notif.list.missed_call.many': 'Missed calls: {name} and {others} more',
   // --- OQ-040: voice messages ---
   'chat.voice.label': 'Voice message',
   'chat.voice.record': 'Hold to record a voice message',

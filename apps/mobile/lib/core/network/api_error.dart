@@ -111,6 +111,11 @@ abstract final class ApiErrorCodes {
   static const featureDisabled = 'FEATURE_DISABLED';
   static const searchQueryTooShort = 'SEARCH_QUERY_TOO_SHORT';
   static const userBlocked = 'USER_BLOCKED';
+  // OQ-041 in-app calls.
+  static const callNotFound = 'CALL_NOT_FOUND';
+  static const callNotAllowed = 'CALL_NOT_ALLOWED';
+  static const callInProgress = 'CALL_IN_PROGRESS';
+  static const callStateConflict = 'CALL_STATE_CONFLICT';
   static const bidAttorneyInactive = 'BID_ATTORNEY_INACTIVE';
   static const contactsLocked = 'CONTACTS_LOCKED';
   static const contactIssueAlreadyOpen = 'CONTACT_ISSUE_ALREADY_OPEN';
@@ -223,6 +228,10 @@ abstract final class ApiErrorCodes {
     featureDisabled,
     searchQueryTooShort,
     userBlocked,
+    callNotFound,
+    callNotAllowed,
+    callInProgress,
+    callStateConflict,
     bidAttorneyInactive,
     contactsLocked,
     contactIssueAlreadyOpen,

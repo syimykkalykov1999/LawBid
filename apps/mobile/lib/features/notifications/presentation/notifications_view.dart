@@ -33,7 +33,7 @@ String? notificationRoute({
   final bidId = s('bidId');
   final postId = s('postId');
   switch (type) {
-    case 'new_message':
+    case 'new_message' || 'missed_call' || 'incoming_call':
       final c = s('conversationId');
       return c == null ? ChatRoutes.inbox : ChatRoutes.conversation(c);
     case 'bid_received' ||
@@ -104,6 +104,8 @@ IconData _icon(AppNotification n) => switch (n.type) {
       'case_comment' =>
         Icons.mode_comment_rounded,
       'new_follower' => Icons.person_add_alt_1_rounded,
+      // OQ-041.
+      'missed_call' => Icons.phone_missed_rounded,
       'review_requested' || 'review_received' => Icons.star_rounded,
       'security_new_device' => Icons.devices_rounded,
       'verification_update' => Icons.verified_rounded,

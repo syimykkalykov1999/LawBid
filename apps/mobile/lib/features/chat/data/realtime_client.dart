@@ -41,6 +41,11 @@ class RealtimeClient {
     'message:read',
     // OQ-040: the other side played a voice note.
     'message:listened',
+    // OQ-041: in-app calls.
+    'call:incoming',
+    'call:accepted',
+    'call:ended',
+    'call:signal',
     'typing',
     'notification:new',
     'badge:update',
@@ -144,6 +149,20 @@ class RealtimeClient {
     if (!connected) return;
     _socket!.emit(active ? 'typing:start' : 'typing:stop',
         {'conversationId': conversationId});
+  }
+
+  /// OQ-041: WebRTC signaling (offer / answer / ICE) to the other member
+  /// of a live call; false when the socket is down or the server refused.
+  Future<bool> callSignal(String callId, Map<String, Object?> data) {
+    final s = _socket;
+    if (s == null || !s.connected) return Future.value(false);
+    final done = Completer<bool>();
+    s.emitWithAck('call:signal', {'callId': callId, 'data': data},
+        ack: (Object? r) {
+      if (!done.isCompleted) done.complete(r is Map && r['ok'] == true);
+    });
+    return done.future.timeout(const Duration(seconds: 5),
+        onTimeout: () => false);
   }
 
   void dispose() {

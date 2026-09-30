@@ -16,6 +16,9 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
+import 'package:lawbid/features/calls/application/call_controller.dart';
+import 'package:lawbid/features/calls/domain/call_models.dart';
+import 'package:lawbid/features/calls/presentation/call_log_entry.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/application/voice_player.dart';
 import 'package:lawbid/features/chat/application/voice_recorder.dart';
@@ -86,6 +89,28 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
     _text.clear();
     _thread.typing(false);
     await _thread.send(text);
+  }
+
+  /// OQ-041: calls open once the bid is accepted (contacts unlocked).
+  void _call(Conversation c) {
+    final t = ref.read(translatorProvider);
+    if (!c.contactsUnlocked) {
+      showAppSnackBar(context, t.t('call.notAllowed'));
+      return;
+    }
+    HapticFeedback.mediumImpact();
+    ref.read(callControllerProvider.notifier).call(
+          c.id,
+          peer: c.counterpart.id == null
+              ? null
+              : CallPeer(
+                  id: c.counterpart.id!,
+                  isAttorney: c.counterpart.isAttorney,
+                  displayName: c.counterpart.displayName,
+                  username: c.counterpart.username,
+                  avatarUrl: c.counterpart.avatarUrl,
+                ),
+        );
   }
 
   Future<void> _menu(ChatThreadState s) async {
@@ -169,6 +194,17 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
         ),
         title: c == null ? null : _Header(conversation: c),
         actions: [
+          // OQ-041: an in-app audio call (after acceptance).
+          if (c != null && !c.closed)
+            AppIconButton(
+              plain: true,
+              icon: Icon(
+                Icons.call_outlined,
+                color: c.contactsUnlocked ? colors.text : colors.textSecondary,
+              ),
+              semanticLabel: t.t('call.button'),
+              onPressed: () => _call(c),
+            ),
           if (c != null)
             AppIconButton(
               plain: true,
@@ -363,6 +399,12 @@ class _MessageList extends ConsumerWidget {
             if (newDay) _DaySeparator(label: _dayLabel(t, f, m.createdAt)),
             if (m.kind == MessageKind.system)
               _SystemMessage(text: t.t('chat.system.${m.body}'))
+            else if (m.kind == MessageKind.call && m.callLog != null)
+              CallLogEntry(
+                message: m,
+                mine: m.senderId == me,
+                conversation: state.conversation,
+              )
             else
               _Bubble(
                 message: m,

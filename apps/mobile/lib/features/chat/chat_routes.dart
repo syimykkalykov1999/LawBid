@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:lawbid/core/navigation/app_page_transitions.dart';
+import 'package:lawbid/features/calls/presentation/call_screen.dart';
 import 'package:lawbid/features/chat/presentation/conversation_screen.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
 import 'package:lawbid/features/notifications/presentation/notification_settings_screen.dart';
@@ -13,10 +14,12 @@ abstract final class ChatRoutes {
   static String inboxTab(InboxTab tab) => '/inbox?tab=${tab.name}';
 
   static const conversationPattern = '/chat/:id';
-  static String conversation(String id) =>
-      '/chat/${Uri.encodeComponent(id)}';
+  static String conversation(String id) => '/chat/${Uri.encodeComponent(id)}';
 
   static const notificationSettings = '/profile/settings/notifications';
+
+  /// OQ-041: the full-screen call.
+  static const call = '/call';
 }
 
 List<RouteBase> chatRoutes(GlobalKey<NavigatorState> root) => [
@@ -39,6 +42,12 @@ List<RouteBase> chatRoutes(GlobalKey<NavigatorState> root) => [
           state,
           ConversationScreen(conversationId: state.pathParameters['id'] ?? ''),
         ),
+      ),
+      GoRoute(
+        path: ChatRoutes.call,
+        parentNavigatorKey: root,
+        pageBuilder: (context, state) =>
+            AppPageTransitions.modal(state, const CallScreen()),
       ),
       GoRoute(
         path: ChatRoutes.notificationSettings,

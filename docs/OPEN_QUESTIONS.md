@@ -701,3 +701,27 @@ Differs from docs/05 §8.2 ("text only"): chats take voice messages.
   "🎤 Voice message"; reports show moderators a link to listen; data export
   lists notes; account deletion removes the audio.
 - The app downloads a note once and plays it from the cache.
+
+## OQ-041 — In-app audio calls, no video (owner, 2026-09-30)
+
+Not in the ТЗ. Two chat members call each other inside the app (not over
+the phone network), audio only.
+- Decision: calls open once the bid is accepted (contacts unlocked) —
+  before that a call would bypass the contact masking of docs/04 §8.3.
+  Same rules as messages: blocks, closed chats, the attorney's active
+  subscription. One call at a time; the other side busy → "Busy".
+- Flow: ring (realtime + push) → accept / decline → WebRTC audio
+  (echo cancellation, earpiece/speaker, mute) → hang up. Unanswered 45 s
+  (app) / 60 s (server sweep) → missed; missed calls notify the callee.
+  Every call lands in the chat log (outgoing / incoming with talk time,
+  missed, declined, busy, failed) with "call back".
+- Server relays signaling only (`call:signal`); audio goes device to
+  device or through TURN (coturn, short-lived HMAC logins, STUN by
+  Google). `calls` table, `missed_call` notification.
+- Background / locked screen: Android rings from a data-only FCM push
+  through the system call screen (flutter_callkit_incoming); iOS gets a
+  time-sensitive push. Needs the Firebase keys (docs/KEYS_SETUP.md);
+  true iOS CallKit ringing on a locked phone additionally needs an APNs
+  VoIP key (PushKit) — owner step at App Store setup.
+- Verified on the emulator: outgoing, incoming, accept, decline, end,
+  chat log. Two-way audio needs two real phones (emulator has no audio).

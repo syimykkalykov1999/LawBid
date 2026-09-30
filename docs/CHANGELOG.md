@@ -9,6 +9,7 @@ branch cursor/stage-X-Y-description).
 
 - Client profile counters sized like the attorney's; rating moved into the Reviews tab with the 5→1 distribution, star filter and date sort (`GET /clients/:id/reviews/summary`, `?rating&sort`).
 - Voice messages in chats (OQ-040): migration `20260930160000_owner_chat_voice`, `chat_voice` files, send/listened API, push text, moderation link, export and deletion; app recorder (hold, slide to cancel, lock), player with waveform, seek and speed; e2e `owner-chat-voice`.
+- In-app audio calls (OQ-041): `calls` API, signaling relay, TURN (coturn), missed-call notifications, call log in chats; app call screen, CallKit incoming UI, push ringing; e2e `owner-calls`, unit tests for the call state machine.
 - `docs/REMAINING.md`: what is left after checking every owner request against the code.
 
 ## Owner pass 6 (2026-09-30) — OQ-035…039
