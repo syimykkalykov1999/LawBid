@@ -211,7 +211,7 @@ class ApiSocialRepository implements SocialRepository {
     final env = await guardApiCall(
       () => _search.tagPosts(
         tag: tag,
-        sort: sort == TagSort.top ? api.Sort2.top : api.Sort2.valueNew,
+        sort: sort == TagSort.top ? api.Sort3.top : api.Sort3.valueNew,
         cursor: cursor,
         state: state,
       ),

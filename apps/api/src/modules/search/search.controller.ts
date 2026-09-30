@@ -98,7 +98,7 @@ export class SearchController {
     @CurrentUser() user: RequestUser,
     @Query() q: SearchPostsQueryDto,
   ): Promise<PostPage> {
-    return this.search.postsByText(user, q.q, q.cursor);
+    return this.search.postsByText(user, q.q, q.cursor, q);
   }
 
   @Get('search/tags')

@@ -5,20 +5,18 @@
 import 'package:json_annotation/json_annotation.dart';
 
 @JsonEnum()
-enum Sort3 {
-  @JsonValue('top')
-  top('top'),
-
-  /// The name has been replaced because it contains a keyword. Original name: `new`.
-  @JsonValue('new')
-  valueNew('new'),
+enum Role2 {
+  @JsonValue('attorney')
+  attorney('attorney'),
+  @JsonValue('client')
+  client('client'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);
 
-  const Sort3(this.json);
+  const Role2(this.json);
 
-  factory Sort3.fromJson(String json) =>
+  factory Role2.fromJson(String json) =>
       values.firstWhere((e) => e.json == json, orElse: () => $unknown);
 
   final String? json;
@@ -37,6 +35,6 @@ enum Sort3 {
   String toString() => json?.toString() ?? super.toString();
 
   /// Returns all defined enum values excluding the $unknown value.
-  static List<Sort3> get $valuesDefined =>
+  static List<Role2> get $valuesDefined =>
       values.where((value) => value != $unknown).toList();
 }

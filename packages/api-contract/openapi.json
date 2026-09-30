@@ -18962,6 +18962,27 @@
               "example": "en",
               "type": "string"
             }
+          },
+          {
+            "name": "role",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "attorney",
+                "client"
+              ]
+            }
+          },
+          {
+            "name": "verifiedOnly",
+            "required": false,
+            "in": "query",
+            "description": "Only people with the check mark (verified).",
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -19095,6 +19116,54 @@
                 "all"
               ]
             }
+          },
+          {
+            "name": "practiceCategory",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "pattern": "^[a-z0-9_]{2,64}$",
+              "example": "family_law",
+              "type": "string"
+            }
+          },
+          {
+            "name": "budgetMin",
+            "required": false,
+            "in": "query",
+            "description": "Whole dollars.",
+            "schema": {
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          {
+            "name": "budgetMax",
+            "required": false,
+            "in": "query",
+            "description": "Whole dollars.",
+            "schema": {
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          {
+            "name": "budgetUnknown",
+            "required": false,
+            "in": "query",
+            "description": "Only cases with \"clarify later\".",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "noBids",
+            "required": false,
+            "in": "query",
+            "description": "Only cases nobody has bid on yet.",
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -19202,6 +19271,66 @@
             "schema": {
               "maxLength": 100,
               "type": "string"
+            }
+          },
+          {
+            "name": "tag",
+            "required": false,
+            "in": "query",
+            "description": "Only posts with this hashtag (topic).",
+            "schema": {
+              "pattern": "^[\\p{L}\\p{N}_]{1,30}$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "required": false,
+            "in": "query",
+            "description": "Only posts of attorneys licensed in this state.",
+            "schema": {
+              "minLength": 2,
+              "maxLength": 2,
+              "example": "IL",
+              "type": "string"
+            }
+          },
+          {
+            "name": "period",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "all",
+              "type": "string",
+              "enum": [
+                "24h",
+                "7d",
+                "30d",
+                "all"
+              ]
+            }
+          },
+          {
+            "name": "withPhotos",
+            "required": false,
+            "in": "query",
+            "description": "Only posts with photos.",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "relevance",
+              "type": "string",
+              "enum": [
+                "relevance",
+                "newest",
+                "popular"
+              ]
             }
           }
         ],

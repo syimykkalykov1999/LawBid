@@ -18,6 +18,8 @@ export interface VisibleCasesQueryInput {
   practiceAreaId?: string;
   /** Owner 2026-09-30 (OQ-034): any leaf of this category code. */
   practiceCategory?: string;
+  /** OQ-036: more `AND c.…` conditions (Search filters), both branches. */
+  extra?: Prisma.Sql;
   state?: string;
   cursor?: FeedCursor;
   limit: number;
@@ -69,7 +71,9 @@ export function buildVisibleCasesSql(
     limit,
     text,
     since,
+    extra,
   } = input;
+  const extraFilter = extra ?? Prisma.empty;
   // Narrows (never widens) the per-branch practice match to the leaves of
   // one category.
   const categoryFilter = practiceCategory
@@ -122,6 +126,7 @@ export function buildVisibleCasesSql(
         ${primaryStateFilter}
         ${primaryPracticeFilter}
         ${categoryFilter}
+        ${extraFilter}
         ${text || since ? searchFilter : Prisma.empty}
       UNION
       SELECT c.id, c.created_at FROM case_states cs
@@ -144,6 +149,7 @@ export function buildVisibleCasesSql(
         ${secondaryStateFilter}
         ${secondaryPracticeFilter}
         ${categoryFilter}
+        ${extraFilter}
         ${text || since ? searchFilter : Prisma.empty}
     ) v
     WHERE TRUE

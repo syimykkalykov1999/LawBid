@@ -86,20 +86,21 @@ final caseSearchProvider = AsyncNotifierProvider.autoDispose
 );
 
 class PostSearchNotifier extends PagedNotifier<Post> {
-  PostSearchNotifier(this.q);
+  PostSearchNotifier(this.key);
 
-  final String q;
+  final SearchKey key;
 
   @override
-  Future<CursorPage<Post>> fetch(String? cursor) =>
-      ref.read(searchRepositoryProvider).posts(q, cursor: cursor);
+  Future<CursorPage<Post>> fetch(String? cursor) => ref
+      .read(searchRepositoryProvider)
+      .posts(key.q, cursor: cursor, filters: key.filters);
 
   @override
   Object idOf(Post item) => item.id;
 }
 
 final postSearchProvider = AsyncNotifierProvider.autoDispose
-    .family<PostSearchNotifier, PaginatedList<Post>, String>(
+    .family<PostSearchNotifier, PaginatedList<Post>, SearchKey>(
   PostSearchNotifier.new,
   retry: _noRetry,
 );

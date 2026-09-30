@@ -4,6 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { buildVisibleCasesSql } from '../cases/queries/cases-visible.sql';
 import type {
   AttorneySearchFilters,
+  PostSearchFilters,
   CaseSearchParams,
   PersonRole,
   SearchProvider,
@@ -44,12 +45,13 @@ export class CockroachSearchProvider implements SearchProvider {
     f: AttorneySearchFilters,
     max: number,
   ): Promise<{ id: string; role: PersonRole }[]> {
-    const filtered =
+    // Attorney-only filters leave clients out; state also fits clients.
+    const attorneyOnly =
       f.practiceAreaId !== undefined ||
-      f.state !== undefined ||
       f.minRating !== undefined ||
-      f.language !== undefined;
-    return this.people(q, f, max, !filtered);
+      f.language !== undefined ||
+      f.role === 'attorney';
+    return this.people(q, f, max, !attorneyOnly);
   }
 
   /**
@@ -82,7 +84,13 @@ export class CockroachSearchProvider implements SearchProvider {
           : Prisma.empty
       }
       ${f.minRating !== undefined ? Prisma.sql`AND a.rating_avg >= ${f.minRating}` : Prisma.empty}
-      ${f.language ? Prisma.sql`AND a.languages @> ARRAY[${f.language}]::STRING[]` : Prisma.empty}`;
+      ${f.language ? Prisma.sql`AND a.languages @> ARRAY[${f.language}]::STRING[]` : Prisma.empty}
+      ${f.verifiedOnly ? Prisma.sql`AND a.verification_status = 'verified'` : Prisma.empty}
+      ${f.role === 'client' ? Prisma.sql`AND FALSE` : Prisma.empty}`;
+    // Clients: state of residence; the check mark = verified phone (OQ-029).
+    const clientFilters = Prisma.sql`
+      ${f.state ? Prisma.sql`AND c.state_code = ${f.state}` : Prisma.empty}
+      ${f.verifiedOnly ? Prisma.sql`AND u.phone_verified_at IS NOT NULL` : Prisma.empty}`;
     const clients = withClients
       ? Prisma.sql`
         UNION ALL
@@ -103,7 +111,8 @@ export class CockroachSearchProvider implements SearchProvider {
         JOIN users u ON u.id = cc.user_id AND u.role = 'client'
           AND u.status = 'active' AND u.deleted_at IS NULL
         JOIN client_profiles c ON c.user_id = u.id
-          AND c.username_lower IS NOT NULL`
+          AND c.username_lower IS NOT NULL
+        WHERE TRUE ${clientFilters}`
       : Prisma.empty;
     const rows = await this.prisma.$queryRaw<
       { id: string; role: PersonRole }[]
@@ -171,16 +180,39 @@ export class CockroachSearchProvider implements SearchProvider {
         limit: p.limit + 1,
         text: q,
         since: p.since,
+        practiceCategory: p.practiceCategory,
+        extra: Prisma.sql`
+          ${p.budgetMinCents !== undefined ? Prisma.sql`AND c.budget_cents >= ${p.budgetMinCents}` : Prisma.empty}
+          ${p.budgetMaxCents !== undefined ? Prisma.sql`AND c.budget_cents <= ${p.budgetMaxCents}` : Prisma.empty}
+          ${p.budgetUnknown ? Prisma.sql`AND c.budget_mode = 'clarify_later'` : Prisma.empty}
+          ${p.noBids ? Prisma.sql`AND c.bids_count = 0` : Prisma.empty}`,
       }),
     );
   }
 
-  async searchPosts(q: string, max: number): Promise<string[]> {
+  async searchPosts(
+    q: string,
+    max: number,
+    f: PostSearchFilters = {},
+  ): Promise<string[]> {
+    const where = Prisma.sql`
+      ${f.tag ? Prisma.sql`AND EXISTS (SELECT 1 FROM post_tags pt JOIN tags t ON t.id = pt.tag_id WHERE pt.post_id = p.id AND t.tag_lower = ${f.tag})` : Prisma.empty}
+      ${f.state ? Prisma.sql`AND EXISTS (SELECT 1 FROM attorney_licenses l WHERE l.attorney_id = p.author_id AND l.state_code = ${f.state} AND l.license_status = 'verified')` : Prisma.empty}
+      ${f.since ? Prisma.sql`AND p.created_at >= ${f.since}` : Prisma.empty}
+      ${f.withPhotos ? Prisma.sql`AND EXISTS (SELECT 1 FROM post_media pm WHERE pm.post_id = p.id)` : Prisma.empty}`;
+    const order =
+      f.sort === 'newest'
+        ? Prisma.sql`m.created_at DESC, m.id DESC`
+        : f.sort === 'popular'
+          ? Prisma.sql`p.like_count + p.comment_count DESC, m.created_at DESC, m.id DESC`
+          : Prisma.sql`ts_rank(m.search_tsv, plainto_tsquery('english', ${q})) DESC,
+               m.created_at DESC, m.id DESC`;
     const rows = await this.prisma.$queryRaw<{ id: string }[]>`
       WITH m AS (
         SELECT p.id, p.created_at, p.search_tsv FROM posts p
         WHERE p.search_tsv @@ plainto_tsquery('english', ${q})
           AND p.status = 'published' AND p.deleted_at IS NULL
+          ${where}
         ORDER BY p.created_at DESC
         LIMIT ${POST_CANDIDATES}
       )
@@ -189,8 +221,7 @@ export class CockroachSearchProvider implements SearchProvider {
       JOIN users u ON u.id = p.author_id AND u.status = 'active'
       JOIN attorney_profiles a ON a.user_id = p.author_id
         AND a.verification_status <> 'suspended'
-      ORDER BY ts_rank(m.search_tsv, plainto_tsquery('english', ${q})) DESC,
-               m.created_at DESC, m.id DESC
+      ORDER BY ${order}
       LIMIT ${max}`;
     return rows.map((r) => r.id);
   }

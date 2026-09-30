@@ -1,12 +1,15 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsIn,
+  IsInt,
   IsNumber,
   IsOptional,
   IsString,
   IsUUID,
   Length,
+  Matches,
   Max,
   MaxLength,
   Min,
@@ -60,9 +63,29 @@ export class SearchAttorneysQueryDto extends SearchTextQueryDto {
   language?: string;
 }
 
-/** GET /search/people (OQ-026): attorneys and clients, same filters as
- * /search/attorneys (any filter set → attorneys only). */
-export class SearchPeopleQueryDto extends SearchAttorneysQueryDto {}
+/** GET /search/people (OQ-026): attorneys and clients. Practice, rating
+ * and language are attorney-only filters (set → attorneys only); state
+ * matches an attorney's license or a client's state (OQ-036). */
+export class SearchPeopleQueryDto extends SearchAttorneysQueryDto {
+  @ApiPropertyOptional({ enum: ['attorney', 'client'] })
+  @IsOptional()
+  @IsIn(['attorney', 'client'])
+  role?: 'attorney' | 'client';
+
+  @ApiPropertyOptional({
+    description: 'Only people with the check mark (verified).',
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === true || value === 'true'
+      ? true
+      : value === false || value === 'false'
+        ? false
+        : value,
+  )
+  @IsBoolean()
+  verifiedOnly?: boolean;
+}
 
 /** GET /search/cases (docs/05 §7.4, attorneys only). */
 export class SearchCasesQueryDto extends SearchTextQueryDto {
@@ -81,10 +104,95 @@ export class SearchCasesQueryDto extends SearchTextQueryDto {
   @IsOptional()
   @IsIn(SEARCH_PERIODS)
   period?: SearchPeriod;
+
+  // OQ-036: the Cases filter of the Search tab.
+  @ApiPropertyOptional({ example: 'family_law' })
+  @IsOptional()
+  @IsString()
+  @Matches(/^[a-z0-9_]{2,64}$/)
+  practiceCategory?: string;
+
+  @ApiPropertyOptional({ minimum: 0, description: 'Whole dollars.' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  budgetMin?: number;
+
+  @ApiPropertyOptional({ minimum: 0, description: 'Whole dollars.' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  budgetMax?: number;
+
+  @ApiPropertyOptional({ description: 'Only cases with "clarify later".' })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === true || value === 'true'
+      ? true
+      : value === false || value === 'false'
+        ? false
+        : value,
+  )
+  @IsBoolean()
+  budgetUnknown?: boolean;
+
+  @ApiPropertyOptional({ description: 'Only cases nobody has bid on yet.' })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === true || value === 'true'
+      ? true
+      : value === false || value === 'false'
+        ? false
+        : value,
+  )
+  @IsBoolean()
+  noBids?: boolean;
 }
 
-/** GET /search/posts (docs/05 §7.5). */
-export class SearchPostsQueryDto extends SearchTextQueryDto {}
+export const POST_SORTS = ['relevance', 'newest', 'popular'] as const;
+export type PostSort = (typeof POST_SORTS)[number];
+
+/** GET /search/posts (docs/05 §7.5; filters OQ-036). */
+export class SearchPostsQueryDto extends SearchTextQueryDto {
+  @ApiPropertyOptional({ description: 'Only posts with this hashtag (topic).' })
+  @IsOptional()
+  @IsString()
+  @Matches(/^[\p{L}\p{N}_]{1,30}$/u)
+  tag?: string;
+
+  @ApiPropertyOptional({
+    example: 'IL',
+    description: 'Only posts of attorneys licensed in this state.',
+  })
+  @IsOptional()
+  @IsString()
+  @Length(2, 2)
+  state?: string;
+
+  @ApiPropertyOptional({ enum: SEARCH_PERIODS, default: 'all' })
+  @IsOptional()
+  @IsIn(SEARCH_PERIODS)
+  period?: SearchPeriod;
+
+  @ApiPropertyOptional({ description: 'Only posts with photos.' })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === true || value === 'true'
+      ? true
+      : value === false || value === 'false'
+        ? false
+        : value,
+  )
+  @IsBoolean()
+  withPhotos?: boolean;
+
+  @ApiPropertyOptional({ enum: POST_SORTS, default: 'relevance' })
+  @IsOptional()
+  @IsIn(POST_SORTS)
+  sort?: PostSort;
+}
 
 /** GET /search/tags (docs/05 §7.5). */
 export class SearchTagsQueryDto {

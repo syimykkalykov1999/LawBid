@@ -72,6 +72,8 @@ class _SearchClient implements SearchClient {
     String? state,
     num? minRating,
     String? language,
+    Role2? role,
+    bool? verifiedOnly,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
@@ -83,6 +85,8 @@ class _SearchClient implements SearchClient {
       r'state': state,
       r'minRating': minRating,
       r'language': language,
+      r'role': role?.toJson(),
+      r'verifiedOnly': verifiedOnly,
     };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};
@@ -115,6 +119,11 @@ class _SearchClient implements SearchClient {
     String? cursor,
     String? practiceAreaId,
     String? state,
+    String? practiceCategory,
+    num? budgetMin,
+    num? budgetMax,
+    bool? budgetUnknown,
+    bool? noBids,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
@@ -125,6 +134,11 @@ class _SearchClient implements SearchClient {
       r'cursor': cursor,
       r'practiceAreaId': practiceAreaId,
       r'state': state,
+      r'practiceCategory': practiceCategory,
+      r'budgetMin': budgetMin,
+      r'budgetMax': budgetMax,
+      r'budgetUnknown': budgetUnknown,
+      r'noBids': noBids,
     };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};
@@ -153,12 +167,25 @@ class _SearchClient implements SearchClient {
   @override
   Future<PostListEnvelope> posts({
     required String q,
+    Period? period = Period.all,
+    Sort2? sort = Sort2.relevance,
     String? cursor,
+    String? tag,
+    String? state,
+    bool? withPhotos,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
     _extra.addAll(extras ?? <String, dynamic>{});
-    final queryParameters = <String, dynamic>{r'q': q, r'cursor': cursor};
+    final queryParameters = <String, dynamic>{
+      r'q': q,
+      r'period': period?.toJson(),
+      r'sort': sort?.toJson(),
+      r'cursor': cursor,
+      r'tag': tag,
+      r'state': state,
+      r'withPhotos': withPhotos,
+    };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};
     const Map<String, dynamic>? _data = null;
@@ -247,7 +274,7 @@ class _SearchClient implements SearchClient {
   @override
   Future<PostListEnvelope> tagPosts({
     required String tag,
-    Sort2? sort = Sort2.top,
+    Sort3? sort = Sort3.top,
     String? cursor,
     String? state,
     Map<String, dynamic>? extras,

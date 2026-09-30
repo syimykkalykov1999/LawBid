@@ -11,7 +11,7 @@ import '../models/report_review_dto.dart';
 import '../models/review_envelope.dart';
 import '../models/review_report_envelope.dart';
 import '../models/review_summary_envelope.dart';
-import '../models/sort3.dart';
+import '../models/sort4.dart';
 import '../models/update_review_dto.dart';
 
 part 'reviews_client.g.dart';
@@ -55,7 +55,7 @@ abstract class ReviewsClient {
   @GET('/attorneys/{id}/reviews')
   Future<PublicReviewListEnvelope> list({
     @Path('id') required String id,
-    @Query('sort') Sort3? sort = Sort3.newest,
+    @Query('sort') Sort4? sort = Sort4.newest,
     @Query('limit') int? limit = 20,
     @Query('rating') int? rating,
     @Query('cursor') String? cursor,

@@ -168,7 +168,7 @@ class ApiReviewsRepository implements ReviewsRepository {
         limit: pageSize,
         cursor: cursor,
         rating: rating,
-        sort: oldest ? api.Sort3.oldest : api.Sort3.newest,
+        sort: oldest ? api.Sort4.oldest : api.Sort4.newest,
       ),
     );
     return ReviewPage(

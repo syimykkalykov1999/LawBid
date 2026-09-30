@@ -37,6 +37,7 @@ import type {
   SearchPeriod,
   TagDto,
   TagSort,
+  SearchPostsQueryDto,
 } from './search.dto';
 import {
   SEARCH_PROVIDER,
@@ -147,6 +148,8 @@ export class SearchService {
       state: dto.state?.toUpperCase(),
       minRating: dto.minRating,
       language: dto.language?.toLowerCase(),
+      role: dto.role,
+      verifiedOnly: dto.verifiedOnly,
     };
     const tokens = await this.ranked('pp', { q, ...filters }, async () =>
       (await this.provider.searchPeople(q, filters, RANKED_MAX)).map(
@@ -229,6 +232,13 @@ export class SearchService {
       since: span ? new Date(Date.now() - span) : undefined,
       cursor: dto.cursor ? decodeCursor(dto.cursor) : undefined,
       limit: PAGE,
+      practiceCategory: dto.practiceCategory,
+      budgetMinCents:
+        dto.budgetMin === undefined ? undefined : dto.budgetMin * 100,
+      budgetMaxCents:
+        dto.budgetMax === undefined ? undefined : dto.budgetMax * 100,
+      budgetUnknown: dto.budgetUnknown,
+      noBids: dto.noBids,
     });
     const page = rows.slice(0, PAGE);
     // §7.6: the provider's rows still pass the single access check.
@@ -253,11 +263,22 @@ export class SearchService {
     user: RequestUser,
     rawQ: string,
     cursor?: string,
+    dto?: SearchPostsQueryDto,
   ): Promise<PostPage> {
     await this.limits.consume('search', user.sub);
     const q = textQuery(rawQ);
-    const ids = await this.ranked('p', { q }, () =>
-      this.provider.searchPosts(q, RANKED_MAX),
+    const span = PERIOD_MS[dto?.period ?? 'all'];
+    const filters = {
+      tag: dto?.tag?.toLowerCase(),
+      state: dto?.state?.toUpperCase(),
+      since: span ? new Date(Date.now() - span) : undefined,
+      withPhotos: dto?.withPhotos,
+      sort: dto?.sort,
+    };
+    const ids = await this.ranked(
+      'p',
+      { q, ...filters, since: dto?.period ?? 'all' },
+      () => this.provider.searchPosts(q, RANKED_MAX, filters),
     );
     const { slice, next } = this.pageOf(ids, cursor);
     return {

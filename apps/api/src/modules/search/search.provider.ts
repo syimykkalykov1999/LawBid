@@ -9,6 +9,9 @@ export interface AttorneySearchFilters {
   state?: string;
   minRating?: number;
   language?: string;
+  /** OQ-036 People filters. */
+  role?: 'attorney' | 'client';
+  verifiedOnly?: boolean;
 }
 
 export interface CaseSearchParams {
@@ -18,6 +21,21 @@ export interface CaseSearchParams {
   since?: Date;
   cursor?: CreatedAtCursor;
   limit: number;
+  /** OQ-036 Cases filters. */
+  practiceCategory?: string;
+  budgetMinCents?: number;
+  budgetMaxCents?: number;
+  budgetUnknown?: boolean;
+  noBids?: boolean;
+}
+
+/** OQ-036 Posts filters. */
+export interface PostSearchFilters {
+  tag?: string;
+  state?: string;
+  since?: Date;
+  withPhotos?: boolean;
+  sort?: 'relevance' | 'newest' | 'popular';
 }
 
 /**
@@ -51,7 +69,11 @@ export interface SearchProvider {
     params: CaseSearchParams,
   ): Promise<{ id: string; created_at: Date }[]>;
   /** Published post ids by relevance, then date, at most [max]. */
-  searchPosts(q: string, max: number): Promise<string[]>;
+  searchPosts(
+    q: string,
+    max: number,
+    filters?: PostSearchFilters,
+  ): Promise<string[]>;
   /** Hashtags (lowercase, without '#') starting with [prefix]. */
   searchTags(prefix: string, limit: number): Promise<string[]>;
 }

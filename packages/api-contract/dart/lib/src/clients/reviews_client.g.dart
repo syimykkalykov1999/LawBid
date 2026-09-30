@@ -123,7 +123,7 @@ class _ReviewsClient implements ReviewsClient {
   @override
   Future<PublicReviewListEnvelope> list({
     required String id,
-    Sort3? sort = Sort3.newest,
+    Sort4? sort = Sort4.newest,
     int? limit = 20,
     int? rating,
     String? cursor,

@@ -139,7 +139,11 @@ class FakeSearchRepository implements SearchRepository {
       const CursorPage(items: []);
 
   @override
-  Future<CursorPage<Post>> posts(String q, {String? cursor}) async =>
+  Future<CursorPage<Post>> posts(
+    String q, {
+    String? cursor,
+    SearchFilters filters = const SearchFilters(),
+  }) async =>
       const CursorPage(items: []);
 
   @override

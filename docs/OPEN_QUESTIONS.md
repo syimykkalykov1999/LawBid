@@ -626,3 +626,18 @@ Decided by the owner from phone review (replaces parts of OQ-032):
   (that tab's results for the latest search) and explore content
   (suggested people / cases for you / fresh posts / popular and all topics).
 - API: `GET /search/latest-posts` state is optional now.
+
+## OQ-036 — Search filters per tab (owner, 2026-09-30)
+
+The filter button in the Search field opens the open tab's own filters:
+- People: who (everyone / attorneys / clients), state (attorney licence or
+  client's state), practice area, minimum rating, language, verified only.
+- Cases (attorney): practice area (category), state, posted, budget range,
+  "clarify later" only, no bids yet. My cases (client): status, practice.
+- Posts: topic (area of law → its hashtag), author's licensed state,
+  posted, sort (best match / newest / popular), with photos only.
+- Topics: show all / areas of law / hashtags; sort popular / A–Z.
+The filters also shape each tab's suggestions before typing.
+API: `/search/people?role&verifiedOnly`, `/search/cases?practiceCategory&
+budgetMin&budgetMax&budgetUnknown&noBids`, `/search/posts?tag&state&period&
+withPhotos&sort`; e2e `owner-search-filters`.

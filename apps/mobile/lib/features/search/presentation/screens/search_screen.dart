@@ -47,8 +47,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   Timer? _timer;
   String _query = '';
   SearchTab _tab = SearchTab.attorneys;
-  SearchFilters _attorneyFilters = const SearchFilters();
-  SearchFilters _caseFilters = const SearchFilters();
+
+  /// OQ-036: every tab keeps its own filters.
+  final Map<SearchTab, SearchFilters> _filters = {};
 
   @override
   void initState() {
@@ -104,20 +105,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     setState(() => _query = normalizeSearch(q));
   }
 
-  Future<void> _openFilters(bool forCases) async {
+  Future<void> _openFilters(SearchFilterKind kind) async {
     final picked = await showSearchFilters(
       context,
-      initial: forCases ? _caseFilters : _attorneyFilters,
-      forCases: forCases,
+      initial: _filters[_tab] ?? const SearchFilters(),
+      kind: kind,
     );
     if (picked == null || !mounted) return;
-    setState(() {
-      if (forCases) {
-        _caseFilters = picked;
-      } else {
-        _attorneyFilters = picked;
-      }
-    });
+    setState(() => _filters[_tab] = picked);
   }
 
   @override
@@ -138,8 +133,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       (SearchTab.tags, t.t('search.tab.tags')),
     ];
     if (!tabs.any((x) => x.$1 == _tab)) _tab = SearchTab.attorneys;
-    final filterable = _tab == SearchTab.attorneys || _tab == SearchTab.cases;
-    final filters = _tab == SearchTab.cases ? _caseFilters : _attorneyFilters;
+    final filters = _filters[_tab] ?? const SearchFilters();
+    final kind = switch (_tab) {
+      SearchTab.attorneys => SearchFilterKind.people,
+      SearchTab.cases =>
+        attorney ? SearchFilterKind.cases : SearchFilterKind.myCases,
+      SearchTab.posts => SearchFilterKind.posts,
+      SearchTab.tags => SearchFilterKind.topics,
+    };
 
     final tabsRow = PillTabs<SearchTab>(
       value: _tab,
@@ -150,19 +151,15 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     // Filters button inside the field at the left edge (owner
     // 2026-09-29). Dimmed on tabs that have no filters yet.
     final filterButton = Badge(
-      isLabelVisible: filterable && filters.activeCount > 0,
+      isLabelVisible: filters.activeCount > 0,
       label: Text('${filters.activeCount}'),
       backgroundColor: colors.gold,
       textColor: colors.navy,
       child: AppIconButton(
         plain: true,
-        icon: Icon(
-          Icons.tune_rounded,
-          color: filterable ? colors.text : colors.textSecondary,
-        ),
+        icon: Icon(Icons.tune_rounded, color: colors.text),
         semanticLabel: t.t('search.filters'),
-        onPressed:
-            filterable ? () => _openFilters(_tab == SearchTab.cases) : null,
+        onPressed: () => _openFilters(kind),
       ),
     );
 
@@ -215,12 +212,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     : AppMotion.stateChange,
                 child: _query.isEmpty
                     ? _BeforeTyping(
-                        key: ValueKey('idle:$_tab'),
+                        key: ValueKey('idle:$_tab:${filters.hashCode}'),
                         tab: _tab,
+                        filters: filters,
                         onRecent: _useRecent,
                       )
                     : KeyedSubtree(
-                        key: ValueKey('$_tab:$_query'),
+                        key: ValueKey('$_tab:$_query:${filters.hashCode}'),
                         child: _Results(
                           tab: _tab,
                           query: _query,
@@ -271,7 +269,7 @@ class _Results extends ConsumerWidget {
           onRetryMore: n.retryLoadMore,
         );
       case SearchTab.cases when !attorney:
-        return _MyCasesGrid(query: query, empty: nothing);
+        return _MyCasesGrid(query: query, filters: filters, empty: nothing);
       case SearchTab.cases:
         final n = ref.read(caseSearchProvider(key).notifier);
         return PagedTileGrid<FeedCase>(
@@ -282,9 +280,9 @@ class _Results extends ConsumerWidget {
           onLoadMore: n.loadMore,
         );
       case SearchTab.posts:
-        final n = ref.read(postSearchProvider(query).notifier);
+        final n = ref.read(postSearchProvider(key).notifier);
         return PagedTileGrid<Post>(
-          value: ref.watch(postSearchProvider(query)),
+          value: ref.watch(postSearchProvider(key)),
           itemBuilder: (p) => SearchPostTile(post: p),
           empty: nothing,
           onRefresh: n.refresh,
@@ -293,14 +291,16 @@ class _Results extends ConsumerWidget {
       case SearchTab.tags:
         // Practices whose name matches come first, then hashtags.
         final lower = query.toLowerCase().replaceAll('#', '');
-        final practices = [
-          for (final c in kPracticeCategoryCodes)
-            if ((kPracticeCategoryNamesEn[c] ?? c)
-                    .toLowerCase()
-                    .contains(lower) ||
-                topicTagFor(c).contains(lower))
-              c,
-        ];
+        final practices = filters.topicKind == TopicKind.hashtags
+            ? const <String>[]
+            : _sortedPractices(ref, filters, [
+                for (final c in kPracticeCategoryCodes)
+                  if ((kPracticeCategoryNamesEn[c] ?? c)
+                          .toLowerCase()
+                          .contains(lower) ||
+                      topicTagFor(c).contains(lower))
+                    c,
+              ]);
         return AsyncDetailBody<List<TagInfo>>(
           value: ref.watch(tagSearchProvider(query)),
           t: t,
@@ -311,9 +311,10 @@ class _Results extends ConsumerWidget {
                   padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
                   children: [
                     for (final c in practices) _PracticeTopicRow(code: c),
-                    for (final tag in tags)
-                      if (!practices.contains(categoryForTopicTag(tag.tag)))
-                        _TagTopicRow(tag: tag),
+                    if (filters.topicKind != TopicKind.practices)
+                      for (final tag in _sortedTags(filters, tags))
+                        if (!practices.contains(categoryForTopicTag(tag.tag)))
+                          _TagTopicRow(tag: tag),
                   ],
                 ),
         );
@@ -368,9 +369,17 @@ class _TagTopicRow extends ConsumerWidget {
 /// "Based on your search «…»" (this tab's results for the latest one) and
 /// its own explore content — people, a grid of cases or posts, topics.
 class _BeforeTyping extends ConsumerWidget {
-  const _BeforeTyping({required this.tab, required this.onRecent, super.key});
+  const _BeforeTyping({
+    required this.tab,
+    required this.filters,
+    required this.onRecent,
+    super.key,
+  });
 
   final SearchTab tab;
+
+  /// OQ-036: this tab's filters also shape its suggestions.
+  final SearchFilters filters;
   final ValueChanged<String> onRecent;
 
   @override
@@ -406,8 +415,7 @@ class _BeforeTyping extends ConsumerWidget {
           ),
         );
 
-    final lastKey =
-        last == null ? null : (q: last, filters: const SearchFilters());
+    final lastKey = last == null ? null : (q: last, filters: filters);
 
     // "Based on your search" for this tab.
     final List<Widget> basedOn = switch (tab) {
@@ -421,7 +429,7 @@ class _BeforeTyping extends ConsumerWidget {
         ],
       SearchTab.cases when !attorney => [
           grid<CaseSummary>(
-            _myCases(ref, last).take(4).toList(),
+            _myCases(ref, last, filters).take(4).toList(),
             (c) => SearchMyCaseTile(item: c),
           ),
         ],
@@ -436,7 +444,8 @@ class _BeforeTyping extends ConsumerWidget {
         ],
       SearchTab.posts => [
           grid<Post>(
-            (ref.watch(postSearchProvider(last)).value?.items ?? const <Post>[])
+            (ref.watch(postSearchProvider(lastKey!)).value?.items ??
+                    const <Post>[])
                 .take(4)
                 .toList(),
             (p) => SearchPostTile(post: p),
@@ -457,26 +466,31 @@ class _BeforeTyping extends ConsumerWidget {
       SearchTab.cases when !attorney => [
           SliverToBoxAdapter(child: title(t.t('search.tab.myCases'))),
           grid<CaseSummary>(
-            _myCases(ref, ''),
+            _myCases(ref, '', filters),
             (c) => SearchMyCaseTile(item: c),
           ),
         ],
       SearchTab.cases => [
           SliverToBoxAdapter(child: title(t.t('search.section.cases'))),
           grid<FeedCase>(
-            ref
-                    .watch(
-                        caseFeedProvider((practiceCategory: null, state: null)))
-                    .value
-                    ?.items ??
-                const <FeedCase>[],
+            _filterCases(
+              ref
+                      .watch(caseFeedProvider((
+                        practiceCategory: filters.practiceCategory,
+                        state: filters.state,
+                      )))
+                      .value
+                      ?.items ??
+                  const <FeedCase>[],
+              filters,
+            ),
             (c) => SearchCaseTile(item: c),
           ),
         ],
       SearchTab.posts => [
           SliverToBoxAdapter(child: title(t.t('search.section.posts'))),
           grid<Post>(
-            ref.watch(latestPostsProvider('')).value?.items ?? const <Post>[],
+            _explorePosts(ref, filters),
             (p) => SearchPostTile(post: p),
           ),
         ],
@@ -500,17 +514,21 @@ class _BeforeTyping extends ConsumerWidget {
               ),
             ),
           ),
-          ...switch (ref.watch(trendingTagsProvider)) {
-            AsyncData(:final value) when value.isNotEmpty => [
-                SliverToBoxAdapter(child: title(t.t('search.trending'))),
-                for (final tag in value.take(8))
-                  SliverToBoxAdapter(child: _TagTopicRow(tag: tag)),
-              ],
-            _ => const <Widget>[],
-          },
-          SliverToBoxAdapter(child: title(t.t('search.topics.practices'))),
-          for (final c in kPracticeCategoryCodes)
-            SliverToBoxAdapter(child: _PracticeTopicRow(code: c)),
+          if (filters.topicKind != TopicKind.practices)
+            ...switch (ref.watch(trendingTagsProvider)) {
+              AsyncData(:final value) when value.isNotEmpty => [
+                  SliverToBoxAdapter(child: title(t.t('search.trending'))),
+                  for (final tag in _sortedTags(filters, value).take(8))
+                    SliverToBoxAdapter(child: _TagTopicRow(tag: tag)),
+                ],
+              _ => const <Widget>[],
+            },
+          if (filters.topicKind != TopicKind.hashtags) ...[
+            SliverToBoxAdapter(child: title(t.t('search.topics.practices'))),
+            for (final c
+                in _sortedPractices(ref, filters, kPracticeCategoryCodes))
+              SliverToBoxAdapter(child: _PracticeTopicRow(code: c)),
+          ],
         ],
     };
 
@@ -569,33 +587,98 @@ class _BeforeTyping extends ConsumerWidget {
   }
 }
 
-/// A client's own cases (active, closed, archived) matching [query] by
-/// title or practice; '' = all.
-List<CaseSummary> _myCases(WidgetRef ref, String query) {
+/// A client's own cases matching [query] (title or practice) and the
+/// "My cases" filters (status, practice area); '' = all.
+List<CaseSummary> _myCases(WidgetRef ref, String query, SearchFilters f) {
   final q = query.toLowerCase();
+  final statuses =
+      f.caseStatus == null ? MyCasesFilter.values : [f.caseStatus!];
   final all = [
-    for (final f in MyCasesFilter.values)
-      ...?ref.watch(myCasesProvider(f)).value?.items,
+    for (final s in statuses) ...?ref.watch(myCasesProvider(s)).value?.items,
   ];
-  if (q.isEmpty) return all;
   return [
     for (final c in all)
-      if (c.title.toLowerCase().contains(q) ||
-          c.practice.nameEn.toLowerCase().contains(q) ||
-          (c.practice.categoryNameEn ?? '').toLowerCase().contains(q))
+      if ((q.isEmpty ||
+              c.title.toLowerCase().contains(q) ||
+              c.practice.nameEn.toLowerCase().contains(q) ||
+              (c.practice.categoryNameEn ?? '').toLowerCase().contains(q)) &&
+          (f.practiceCategory == null ||
+              c.practice.artCode == f.practiceCategory))
         c,
   ];
 }
 
+/// The Cases filters the feed query does not cover (explore grid).
+List<FeedCase> _filterCases(List<FeedCase> items, SearchFilters f) => [
+      for (final c in items)
+        if ((!f.noBids || c.bidsCount == 0) &&
+            (!f.budgetUnknown || c.budget.amountCents == null) &&
+            (f.budgetMin == null ||
+                (c.budget.amountCents ?? -1) >= f.budgetMin! * 100) &&
+            (f.budgetMax == null ||
+                (c.budget.amountCents != null &&
+                    c.budget.amountCents! <= f.budgetMax! * 100)))
+          c,
+    ];
+
+/// The Posts explore grid under the Posts filters (topic, author's state,
+/// photos only, sort).
+List<Post> _explorePosts(WidgetRef ref, SearchFilters f) {
+  final cat = f.practiceCategory;
+  final base = cat != null
+      ? ref
+              .watch(tagPostsProvider((
+                tag: topicTagFor(cat),
+                sort: f.postSort == PostSort.popular
+                    ? TagSort.top
+                    : TagSort.fresh,
+                state: f.state,
+              )))
+              .value
+              ?.items ??
+          const <Post>[]
+      : ref.watch(latestPostsProvider(f.state ?? '')).value?.items ??
+          const <Post>[];
+  final items = [
+    for (final p in base)
+      if (!f.withPhotos || p.media.isNotEmpty) p,
+  ];
+  if (f.postSort == PostSort.popular && cat == null) {
+    items.sort((a, b) =>
+        (b.likeCount + b.commentCount).compareTo(a.likeCount + a.commentCount));
+  }
+  return items;
+}
+
+List<String> _sortedPractices(
+  WidgetRef ref,
+  SearchFilters f,
+  List<String> codes,
+) {
+  if (f.topicSort != TopicSort.az) return codes;
+  return [...codes]
+    ..sort((a, b) => topicName(ref, a).compareTo(topicName(ref, b)));
+}
+
+List<TagInfo> _sortedTags(SearchFilters f, List<TagInfo> tags) {
+  if (f.topicSort != TopicSort.az) return tags;
+  return [...tags]..sort((a, b) => a.tag.compareTo(b.tag));
+}
+
 class _MyCasesGrid extends ConsumerWidget {
-  const _MyCasesGrid({required this.query, required this.empty});
+  const _MyCasesGrid({
+    required this.query,
+    required this.filters,
+    required this.empty,
+  });
 
   final String query;
+  final SearchFilters filters;
   final Widget empty;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final items = _myCases(ref, query);
+    final items = _myCases(ref, query, filters);
     if (items.isEmpty) return empty;
     return GridView.builder(
       padding: const EdgeInsets.all(AppSpacing.sm),

@@ -61,6 +61,8 @@ function fakeDeps(opts: {
     },
     savedItem: {
       findFirst: jest.fn().mockResolvedValue(opts.savedItem ?? null),
+      // OQ-034: feed items carry isSaved.
+      findMany: jest.fn().mockResolvedValue([]),
       upsert: jest.fn().mockResolvedValue({}),
       deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
     },

@@ -6,12 +6,12 @@ import 'package:json_annotation/json_annotation.dart';
 
 @JsonEnum()
 enum Sort2 {
-  @JsonValue('top')
-  top('top'),
-
-  /// The name has been replaced because it contains a keyword. Original name: `new`.
-  @JsonValue('new')
-  valueNew('new'),
+  @JsonValue('relevance')
+  relevance('relevance'),
+  @JsonValue('newest')
+  newest('newest'),
+  @JsonValue('popular')
+  popular('popular'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);
