@@ -523,3 +523,7 @@ States remain licenses (bar number + verifier check per state, docs/03):
 Edit → "Add a state (license)" opens the verification wizard for an extra
 license while the profile stays verified; the feed matches on verified
 licenses only.
+
+## OQ-027 (addendum 2, owner 2026-09-30)
+Status bar: the owner reversed the hidden status bar — clock, network and
+battery stay visible in-app (`SystemUiMode.edgeToEdge` in MainShell).

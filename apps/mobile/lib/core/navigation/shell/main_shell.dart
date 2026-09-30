@@ -37,19 +37,9 @@ class _MainShellState extends ConsumerState<MainShell> {
   @override
   void initState() {
     super.initState();
-    // Owner 2026-09-29 (OQ-027): the system status bar (clock/battery)
-    // is hidden while the signed-in shell is on screen, for both roles.
-    // Pre-app screens (welcome/sign-in) are outside the shell and keep it.
-    SystemChrome.setEnabledSystemUIMode(
-      SystemUiMode.manual,
-      overlays: const [SystemUiOverlay.bottom],
-    );
-  }
-
-  @override
-  void dispose() {
+    // Owner 2026-09-30 (reverses the 2026-09-29 decision): the system
+    // status bar (clock, network, battery) stays visible in-app too.
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-    super.dispose();
   }
 
   @override
