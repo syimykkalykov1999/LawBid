@@ -249,6 +249,7 @@ class _SearchClient implements SearchClient {
     required String tag,
     Sort2? sort = Sort2.top,
     String? cursor,
+    String? state,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
@@ -256,6 +257,7 @@ class _SearchClient implements SearchClient {
     final queryParameters = <String, dynamic>{
       r'sort': sort?.toJson(),
       r'cursor': cursor,
+      r'state': state,
     };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};
@@ -265,6 +267,42 @@ class _SearchClient implements SearchClient {
           .compose(
             _dio.options,
             '/tags/${tag}/posts',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late PostListEnvelope _value;
+    try {
+      _value = PostListEnvelope.fromJson(_result.data!);
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
+  @override
+  Future<PostListEnvelope> latestPosts({
+    required String state,
+    String? cursor,
+    Map<String, dynamic>? extras,
+  }) async {
+    final _extra = <String, dynamic>{};
+    _extra.addAll(extras ?? <String, dynamic>{});
+    final queryParameters = <String, dynamic>{
+      r'state': state,
+      r'cursor': cursor,
+    };
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{};
+    const Map<String, dynamic>? _data = null;
+    final _options = _setStreamType<PostListEnvelope>(
+      Options(method: 'GET', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/search/latest-posts',
             queryParameters: queryParameters,
             data: _data,
           )

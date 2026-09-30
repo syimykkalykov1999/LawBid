@@ -29,7 +29,13 @@ class ScalesLogo extends StatefulWidget {
     this.strokeColor,
     this.semanticLabel = 'LawBid',
     this.standExtension = 0,
+    this.runFor,
   });
+
+  /// Owner 2026-09-30: header logos swing for this long after appearing,
+  /// easing to rest (level beam) at the end; null = swing forever (the
+  /// welcome screen). A finite run also lets the app settle.
+  final Duration? runFor;
 
   /// Width of the widget; height follows the 300x212 design aspect ratio,
   /// plus [standExtension].
@@ -69,7 +75,10 @@ class _ScalesLogoState extends State<ScalesLogo>
       // "не запускается при включённом системном «уменьшить движение»"),
       // not merely render frozen, so starting it is deferred to
       // `_syncTicking()`.
-      _controller = AnimationController(vsync: this, duration: const Duration(days: 1));
+      _controller = AnimationController(
+        vsync: this,
+        duration: widget.runFor ?? const Duration(days: 1),
+      );
     }
   }
 
@@ -81,7 +90,13 @@ class _ScalesLogoState extends State<ScalesLogo>
     final controller = _controller;
     if (controller == null) return;
     if (_shouldRun) {
-      if (!controller.isAnimating) controller.repeat();
+      if (widget.runFor != null) {
+        if (!controller.isAnimating && !controller.isCompleted) {
+          controller.forward();
+        }
+      } else if (!controller.isAnimating) {
+        controller.repeat();
+      }
     } else {
       if (controller.isAnimating) controller.stop();
     }
@@ -143,10 +158,18 @@ class _ScalesLogoState extends State<ScalesLogo>
     final height = widget.size * (212 + widget.standExtension) / 300;
 
     Widget paint(double tSeconds) {
+      // A finite run fades the swing out over its last 1.5 s.
+      final run = widget.runFor;
+      final amplitude = run == null
+          ? 1.0
+          : ((run.inMicroseconds / Duration.microsecondsPerSecond - tSeconds) /
+                  1.5)
+              .clamp(0.0, 1.0);
       return CustomPaint(
         size: Size(widget.size, height),
         painter: _ScalesPainter(
           tSeconds: _shouldRun ? tSeconds : 0,
+          amplitude: _shouldRun ? amplitude : 1,
           scale: widget.size / 300,
           colors: colors,
           strokeColorOverride: widget.strokeColor,
@@ -176,6 +199,7 @@ class _ScalesLogoState extends State<ScalesLogo>
 class _ScalesPainter extends CustomPainter {
   _ScalesPainter({
     required this.tSeconds,
+    this.amplitude = 1,
     required this.scale,
     required this.colors,
     this.strokeColorOverride,
@@ -183,6 +207,9 @@ class _ScalesPainter extends CustomPainter {
   });
 
   final double tSeconds;
+
+  /// 0..1 multiplier of the swing (a finite run eases to rest).
+  final double amplitude;
   final double scale;
   final AppColorTokens colors;
   final Color? strokeColorOverride;
@@ -190,7 +217,8 @@ class _ScalesPainter extends CustomPainter {
 
   /// angle(t) = 5.5*sin(1.35t) + 1.6*sin(2.9t + 1), degrees (file 07 §5.2).
   double get _angleDeg =>
-      5.5 * math.sin(1.35 * tSeconds) + 1.6 * math.sin(2.9 * tSeconds + 1);
+      amplitude *
+      (5.5 * math.sin(1.35 * tSeconds) + 1.6 * math.sin(2.9 * tSeconds + 1));
 
   static const _pivot = Offset(150, 44);
   static const _leftOrigin = Offset(50, 44);
@@ -337,6 +365,7 @@ class _ScalesPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _ScalesPainter oldDelegate) {
     return oldDelegate.tSeconds != tSeconds ||
+        oldDelegate.amplitude != amplitude ||
         oldDelegate.colors != colors ||
         oldDelegate.standExtension != standExtension;
   }

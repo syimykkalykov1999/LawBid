@@ -48,8 +48,18 @@ class ProfileScreen extends ConsumerWidget {
       backgroundColor: colors.bg,
       // Owner 2026-09-29 (2nd pass): no small avatar in the corner — the
       // left slot stays empty, the handle stays centered.
+      // Owner 2026-09-30: the animated scales (welcome-screen logo) on the
+      // left, the handle centered, settings on the right.
       appBar: ProfileHandleBar(
         handle: username ?? user?.clientProfile?.username,
+        leading: ExcludeSemantics(
+          child: ScalesLogo(
+            size: 40,
+            animated: true,
+            runFor: const Duration(seconds: 6),
+            semanticLabel: t.t('brand.name'),
+          ),
+        ),
         actions: [
           Semantics(
             button: true,

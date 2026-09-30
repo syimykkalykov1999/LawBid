@@ -22,7 +22,10 @@ export class CasePhotosService {
   /** 404/409 for files that are not the author's clean case photos. */
   async assertAttachable(userId: string, fileIds: string[]): Promise<void> {
     for (const id of fileIds) {
-      await this.files.assertAttachable(userId, id, ['case_photo']);
+      await this.files.assertAttachable(userId, id, [
+        'case_photo',
+        'case_attachment',
+      ]);
     }
   }
 

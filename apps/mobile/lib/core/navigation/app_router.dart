@@ -1,3 +1,4 @@
+import 'package:lawbid/features/cases/presentation/screens/case_comments_screen.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/screens/bid_detail_screen.dart';
 import 'package:lawbid/features/cases/presentation/screens/bid_form_screen.dart';
@@ -232,6 +233,14 @@ GoRouter appRouter(Ref ref) {
             bidId: state.pathParameters['id'] ?? '',
             listed: state.extra is CaseBid ? state.extra! as CaseBid : null,
           ),
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.caseCommentsPattern,
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => AppPageTransitions.push(
+          state,
+          CaseCommentsScreen(caseId: state.pathParameters['id'] ?? ''),
         ),
       ),
       GoRoute(

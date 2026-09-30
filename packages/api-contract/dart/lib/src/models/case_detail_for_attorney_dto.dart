@@ -27,8 +27,9 @@ class CaseDetailForAttorneyDto {
     required this.createdAt,
     required this.isNew,
     required this.hasOwnBid,
-    required this.description,
+    required this.commentCount,
     required this.isSaved,
+    required this.description,
     required this.photos,
     required this.photosCount,
     this.city,
@@ -58,8 +59,13 @@ class CaseDetailForAttorneyDto {
 
   /// "Вы сделали бид" (§4.2/§4.3).
   final bool hasOwnBid;
-  final String description;
+
+  /// Owner 2026-09-30 (OQ-034): the case card works like a post card.
+  final int commentCount;
+
+  /// In the viewer's saved items.
   final bool isSaved;
+  final String description;
 
   /// The attorney's own bid on this case (§4.3: shown instead of "Сделать бид").
   final String? ownBidId;

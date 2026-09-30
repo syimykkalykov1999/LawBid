@@ -42,7 +42,13 @@ import {
 } from '../auth/decorators/current-user.decorator';
 
 /** docs/05 §12.1 targets reported from file 05 screens. */
-const REPORTABLE: ReportTargetType[] = ['post', 'comment', 'message', 'user'];
+const REPORTABLE: ReportTargetType[] = [
+  'post',
+  'comment',
+  'case_comment',
+  'message',
+  'user',
+];
 
 export class CreateReportDto {
   @ApiProperty({ enum: REPORTABLE, enumName: 'ReportTargetType' })

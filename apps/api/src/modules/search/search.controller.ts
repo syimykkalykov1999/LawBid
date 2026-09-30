@@ -30,6 +30,7 @@ import {
   TagDto,
   TagParamDto,
   TagPostsQueryDto,
+  LatestPostsQueryDto,
 } from './search.dto';
 import { SearchService } from './search.service';
 
@@ -130,6 +131,25 @@ export class SearchController {
     @Param() p: TagParamDto,
     @Query() q: TagPostsQueryDto,
   ): Promise<PostPage> {
-    return this.search.tagPosts(user, p.tag, q.sort ?? 'top', q.cursor);
+    return this.search.tagPosts(
+      user,
+      p.tag,
+      q.sort ?? 'top',
+      q.cursor,
+      q.state,
+    );
+  }
+
+  @Get('search/latest-posts')
+  @ApiOperation({
+    summary: 'Newest posts of attorneys licensed in a state (OQ-034)',
+  })
+  @ApiEnvelopeResponse(PostDto, { isArray: true })
+  @ApiErrors({ 400: [ErrorCode.VALIDATION_ERROR] })
+  latestPosts(
+    @CurrentUser() user: RequestUser,
+    @Query() q: LatestPostsQueryDto,
+  ): Promise<PostPage> {
+    return this.search.latestPosts(user, q.state, q.cursor);
   }
 }

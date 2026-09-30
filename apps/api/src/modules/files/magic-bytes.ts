@@ -28,7 +28,21 @@ export function detectMime(buf: Uint8Array): FileMime | null {
     return FILE_MIME.pdf;
   }
   if (isHeic(b)) return FILE_MIME.heic;
+  if (isDocx(b)) return FILE_MIME.docx;
   return null;
+}
+
+/** OOXML Word document: a ZIP (local file header "PK\x03\x04") whose
+ * entries include the Word part. Checked on the leading bytes only — a
+ * .docx written by Word/Pages/Google Docs lists "[Content_Types].xml" and
+ * "word/" within its first entries. */
+function isDocx(b: Buffer): boolean {
+  if (b.length < 30) return false;
+  if (!(b[0] === 0x50 && b[1] === 0x4b && b[2] === 0x03 && b[3] === 0x04)) {
+    return false;
+  }
+  const head = b.subarray(0, Math.min(b.length, 64 * 1024)).toString('latin1');
+  return head.includes('[Content_Types].xml') && head.includes('word/');
 }
 
 function isHeic(b: Buffer): boolean {

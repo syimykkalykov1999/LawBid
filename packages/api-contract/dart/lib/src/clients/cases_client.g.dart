@@ -59,6 +59,7 @@ class _CasesClient implements CasesClient {
     String? cursor,
     String? practiceAreaId,
     String? state,
+    String? practiceCategory,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
@@ -68,6 +69,7 @@ class _CasesClient implements CasesClient {
       r'cursor': cursor,
       r'practiceAreaId': practiceAreaId,
       r'state': state,
+      r'practiceCategory': practiceCategory,
     };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};

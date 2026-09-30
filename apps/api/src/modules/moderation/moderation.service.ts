@@ -107,6 +107,35 @@ export class ModerationService {
             }
           : null;
       }
+      case 'case_comment': {
+        const c = await db.caseComment.findUnique({
+          // Soft-deleted rows stay resolvable (the queue shows them as removed).
+          where: withDeleted({ id }),
+          select: {
+            author_id: true,
+            body: true,
+            status: true,
+            deleted_at: true,
+            created_at: true,
+            case_id: true,
+            parent_comment_id: true,
+          },
+        });
+        return c
+          ? {
+              type,
+              id,
+              authorId: c.author_id,
+              status: c.deleted_at ? 'removed' : c.status,
+              text: c.body,
+              context: {
+                caseId: c.case_id,
+                parentCommentId: c.parent_comment_id,
+              },
+              createdAt: c.created_at,
+            }
+          : null;
+      }
       case 'message': {
         const m = await db.message.findUnique({
           // Soft-deleted rows stay resolvable (the queue shows them as removed).
@@ -262,6 +291,38 @@ export class ModerationService {
           if (parentId) {
             after.push(() =>
               this.counters.bump('comment', parentId, 'reply_count', delta),
+            );
+          }
+        }
+        return target.status;
+      }
+      case 'case_comment': {
+        if (target.status === 'removed' && action !== 'restore') return null;
+        await tx.caseComment.update({
+          where: { id: target.id },
+          data: {
+            status: next,
+            ...(action === 'restore' ? { deleted_at: null } : {}),
+          },
+        });
+        const delta =
+          target.status === 'published' ? -1 : next === 'published' ? 1 : 0;
+        if (delta) {
+          const caseId = target.context.caseId;
+          const parentId = target.context.parentCommentId;
+          if (caseId) {
+            after.push(() =>
+              this.counters.bump('case', caseId, 'comment_count', delta),
+            );
+          }
+          if (parentId) {
+            after.push(() =>
+              this.counters.bump(
+                'case_comment',
+                parentId,
+                'reply_count',
+                delta,
+              ),
             );
           }
         }

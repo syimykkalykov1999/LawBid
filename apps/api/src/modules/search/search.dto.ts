@@ -107,6 +107,16 @@ export class TagPostsQueryDto extends CursorQueryDto {
   @IsOptional()
   @IsIn(TAG_SORTS)
   sort?: TagSort;
+
+  @ApiPropertyOptional({
+    example: 'IL',
+    description:
+      'Only posts of attorneys licensed in this state (newest first).',
+  })
+  @IsOptional()
+  @IsString()
+  @Length(2, 2)
+  state?: string;
 }
 
 export class TagDto {
@@ -122,3 +132,11 @@ export class TagDto {
 }
 
 export { PersonItemDto, type PeoplePage } from '../follows/follows.dto';
+
+/** GET /search/latest-posts (OQ-034): newest posts by licensed state. */
+export class LatestPostsQueryDto extends CursorQueryDto {
+  @ApiProperty({ example: 'IL' })
+  @IsString()
+  @Length(2, 2)
+  state!: string;
+}

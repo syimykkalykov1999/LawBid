@@ -94,10 +94,23 @@ abstract class SearchClient {
   /// Posts of a hashtag, top or new (docs/05 §7.5).
   ///
   /// [cursor] - meta.nextCursor of the previous page.
+  ///
+  /// [state] - Only posts of attorneys licensed in this state (newest first).
   @GET('/tags/{tag}/posts')
   Future<PostListEnvelope> tagPosts({
     @Path('tag') required String tag,
     @Query('sort') Sort2? sort = Sort2.top,
+    @Query('cursor') String? cursor,
+    @Query('state') String? state,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Newest posts of attorneys licensed in a state (OQ-034).
+  ///
+  /// [cursor] - meta.nextCursor of the previous page.
+  @GET('/search/latest-posts')
+  Future<PostListEnvelope> latestPosts({
+    @Query('state') required String state,
     @Query('cursor') String? cursor,
     @Extras() Map<String, dynamic>? extras,
   });

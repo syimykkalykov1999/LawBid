@@ -29,6 +29,17 @@ export const COUNTERS = {
     key: 'id',
     fields: ['like_count', 'reply_count'],
   },
+  // Owner 2026-09-30 (OQ-034): comments under cases.
+  case: {
+    table: 'cases',
+    key: 'id',
+    fields: ['comment_count'],
+  },
+  case_comment: {
+    table: 'case_comments',
+    key: 'id',
+    fields: ['like_count', 'reply_count'],
+  },
   attorney: {
     table: 'attorney_profiles',
     key: 'user_id',
@@ -236,6 +247,21 @@ export class CounterAggregator
         UPDATE comments AS c SET
           like_count = (SELECT count(*) FROM comment_likes l WHERE l.comment_id = c.id),
           reply_count = (SELECT count(*) FROM comments r
+                         WHERE r.parent_comment_id = c.id AND r.deleted_at IS NULL
+                           AND r.status = 'published')
+        WHERE c.id = ANY(${ids}::UUID[])`;
+    } else if (entity === 'case') {
+      await this.prisma.$executeRaw`
+        UPDATE cases AS k SET
+          comment_count = (SELECT count(*) FROM case_comments c
+                           WHERE c.case_id = k.id AND c.deleted_at IS NULL
+                             AND c.status = 'published')
+        WHERE k.id = ANY(${ids}::UUID[])`;
+    } else if (entity === 'case_comment') {
+      await this.prisma.$executeRaw`
+        UPDATE case_comments AS c SET
+          like_count = (SELECT count(*) FROM case_comment_likes l WHERE l.comment_id = c.id),
+          reply_count = (SELECT count(*) FROM case_comments r
                          WHERE r.parent_comment_id = c.id AND r.deleted_at IS NULL
                            AND r.status = 'published')
         WHERE c.id = ANY(${ids}::UUID[])`;

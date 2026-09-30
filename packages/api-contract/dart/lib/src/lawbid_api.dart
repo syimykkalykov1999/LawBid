@@ -32,6 +32,7 @@ import 'clients/case_history_client.dart';
 import 'clients/admin_moderation_client.dart';
 import 'clients/feed_client.dart';
 import 'clients/comments_client.dart';
+import 'clients/case_comments_client.dart';
 import 'clients/reports_client.dart';
 import 'clients/follows_client.dart';
 import 'clients/practice_areas_client.dart';
@@ -83,6 +84,7 @@ class LawbidApi {
   AdminModerationClient? _adminModeration;
   FeedClient? _feed;
   CommentsClient? _comments;
+  CaseCommentsClient? _caseComments;
   ReportsClient? _reports;
   FollowsClient? _follows;
   PracticeAreasClient? _practiceAreas;
@@ -168,6 +170,9 @@ class LawbidApi {
 
   CommentsClient get comments =>
       _comments ??= CommentsClient(_dio, baseUrl: _baseUrl);
+
+  CaseCommentsClient get caseComments =>
+      _caseComments ??= CaseCommentsClient(_dio, baseUrl: _baseUrl);
 
   ReportsClient get reports =>
       _reports ??= ReportsClient(_dio, baseUrl: _baseUrl);

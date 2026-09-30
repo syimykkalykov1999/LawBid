@@ -25,6 +25,8 @@ CaseFeedItemDto _$CaseFeedItemDtoFromJson(Map<String, dynamic> json) =>
       createdAt: DateTime.parse(json['createdAt'] as String),
       isNew: json['isNew'] as bool,
       hasOwnBid: json['hasOwnBid'] as bool,
+      commentCount: (json['commentCount'] as num).toInt(),
+      isSaved: json['isSaved'] as bool,
       city: json['city'] as String?,
     );
 
@@ -44,4 +46,6 @@ Map<String, dynamic> _$CaseFeedItemDtoToJson(CaseFeedItemDto instance) =>
       'createdAt': instance.createdAt.toIso8601String(),
       'isNew': instance.isNew,
       'hasOwnBid': instance.hasOwnBid,
+      'commentCount': instance.commentCount,
+      'isSaved': instance.isSaved,
     };

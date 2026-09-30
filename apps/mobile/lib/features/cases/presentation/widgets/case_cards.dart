@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_actions_bar.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
@@ -301,7 +302,7 @@ class FeedCaseCard extends StatelessWidget {
                         const SizedBox(height: AppSpacing.sm),
                         Text(
                           item.excerpt,
-                          maxLines: 4,
+                          maxLines: 3,
                           overflow: TextOverflow.ellipsis,
                           style: typography.body.copyWith(
                             color: colors.text,
@@ -362,6 +363,8 @@ class FeedCaseCard extends StatelessWidget {
                     practiceCode: item.practice.code,
                   ),
                 ),
+                // OQ-034: comments, share, time, Save — like a post.
+                CaseActionsBar(item: item),
               ],
             ),
           ),

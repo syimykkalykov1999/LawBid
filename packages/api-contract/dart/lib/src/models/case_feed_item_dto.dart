@@ -26,6 +26,8 @@ class CaseFeedItemDto {
     required this.createdAt,
     required this.isNew,
     required this.hasOwnBid,
+    required this.commentCount,
+    required this.isSaved,
     this.city,
   });
 
@@ -52,6 +54,12 @@ class CaseFeedItemDto {
 
   /// "Вы сделали бид" (§4.2/§4.3).
   final bool hasOwnBid;
+
+  /// Owner 2026-09-30 (OQ-034): the case card works like a post card.
+  final int commentCount;
+
+  /// In the viewer's saved items.
+  final bool isSaved;
 
   Map<String, Object?> toJson() => _$CaseFeedItemDtoToJson(this);
 }

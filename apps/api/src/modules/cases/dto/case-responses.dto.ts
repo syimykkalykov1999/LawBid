@@ -32,8 +32,18 @@ export class CasePhotoDto {
   @ApiProperty()
   url!: string;
 
-  @ApiProperty({ description: '320 px preview.' })
+  @ApiProperty({
+    description: '320 px preview (the file itself for documents).',
+  })
   previewUrl!: string;
+
+  @ApiProperty({
+    description: 'image/* or a document (application/pdf, Word) — OQ-034.',
+  })
+  mime!: string;
+
+  @ApiProperty({ type: 'integer' })
+  sizeBytes!: number;
 }
 
 export class CaseDto {

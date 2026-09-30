@@ -31,6 +31,7 @@ import {
   UPLOAD_INTENT_TTL_SEC,
   variantKey,
   type FileMime,
+  isImageMime,
 } from './files.policy';
 import type {
   FileDto,
@@ -407,35 +408,54 @@ export class FilesService {
    * bucket — never the CDN), in [fileIds] order. The caller decides who
    * may see them (case owner / accepted attorney).
    */
-  async casePhotoUrls(
-    fileIds: string[],
-  ): Promise<{ fileId: string; url: string; previewUrl: string }[]> {
+  async casePhotoUrls(fileIds: string[]): Promise<
+    {
+      fileId: string;
+      url: string;
+      previewUrl: string;
+      mime: string;
+      sizeBytes: number;
+    }[]
+  > {
     if (fileIds.length === 0 || !this.storage.configured) return [];
     const files = await this.prisma.file.findMany({
       where: {
         id: { in: fileIds },
-        purpose: 'case_photo',
+        // OQ-034: documents (PDF, Word) sit next to the photos.
+        purpose: { in: ['case_photo', 'case_attachment'] },
         scan_status: 'clean',
         deleted_at: null,
       },
     });
     const byId = new Map(files.map((f) => [f.id, f]));
-    const out: { fileId: string; url: string; previewUrl: string }[] = [];
+    const out: {
+      fileId: string;
+      url: string;
+      previewUrl: string;
+      mime: string;
+      sizeBytes: number;
+    }[] = [];
     for (const id of fileIds) {
       const f = byId.get(id);
       if (!f) continue;
+      const url = await this.storage.signedGetUrl(
+        f.s3_bucket,
+        f.s3_key,
+        MEDIA_SIGNED_URL_TTL_SEC,
+      );
       out.push({
         fileId: f.id,
-        url: await this.storage.signedGetUrl(
-          f.s3_bucket,
-          f.s3_key,
-          MEDIA_SIGNED_URL_TTL_SEC,
-        ),
-        previewUrl: await this.storage.signedGetUrl(
-          f.s3_bucket,
-          variantKey(f.s3_key, 320),
-          MEDIA_SIGNED_URL_TTL_SEC,
-        ),
+        url,
+        // Documents have no image preview: the app shows a file tile.
+        previewUrl: isImageMime(f.mime)
+          ? await this.storage.signedGetUrl(
+              f.s3_bucket,
+              variantKey(f.s3_key, 320),
+              MEDIA_SIGNED_URL_TTL_SEC,
+            )
+          : url,
+        mime: f.mime,
+        sizeBytes: Number(f.size_bytes),
       });
     }
     return out;

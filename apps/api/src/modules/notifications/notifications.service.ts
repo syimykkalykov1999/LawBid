@@ -31,6 +31,7 @@ export const NOTIFICATION_CATEGORY: Record<
   new_follower: 'social',
   post_like: 'social',
   post_comment: 'social',
+  case_comment: 'bids',
   comment_reply: 'social',
   comment_like: 'social',
   verification_update: 'system',

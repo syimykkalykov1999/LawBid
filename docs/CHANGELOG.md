@@ -5,6 +5,12 @@ All notable changes to this project are documented here, per
 .cursorrules (each stage ends with a CHANGELOG update + commit on
 branch cursor/stage-X-Y-description).
 
+## Owner pass 5 (2026-09-30) — OQ-034
+
+- API: case comments module (`/cases/:id/comments`, `/case-comments/:id/*`), migration `20260930130000_owner_case_comments_attachments`, counters/moderation/reports/notifications/export wired; case feed `practiceCategory` filter, `commentCount`/`isSaved` on feed items; post state filter and `/search/latest-posts`; `case_attachment` files (PDF, DOCX); e2e `owner-case-comments`.
+- Mobile: shared topic + state filter for posts and cases; case cards with comments/share/time/save; case comments screen; documents in the case wizard and detail; photo gallery; whole post photos over blur; animated scales in feed and profile headers; 43 practice photos.
+- Dev: `scripts/seed-demo-all.mjs` — a post and a case in every practice.
+
 ## Owner pass 4 (2026-09-30) — practice art + demo content
 
 - Mobile: bundled practice photo art (`assets/practice_art/`) for family law, immigration, criminal defense, traffic tickets and DUI; other categories keep the gold glyph fallback until photos are supplied.

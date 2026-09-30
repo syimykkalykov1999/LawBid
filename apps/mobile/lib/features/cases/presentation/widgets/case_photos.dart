@@ -2,7 +2,9 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -40,6 +42,23 @@ class CasePhotosPicker extends ConsumerWidget {
       c.addPhotos(bytes);
     }
 
+    // OQ-034: PDF / Word documents next to the photos.
+    Future<void> pickFiles() async {
+      final left = kCaseMaxPhotos - photos.length;
+      if (left <= 0) return;
+      final result = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: const ['pdf', 'docx'],
+        allowMultiple: true,
+        withData: true,
+      );
+      final files = [
+        for (final f in result?.files ?? const <PlatformFile>[])
+          if (f.bytes != null) (bytes: f.bytes!, name: f.name),
+      ];
+      c.addFiles(files.take(left).toList());
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -70,7 +89,9 @@ class CasePhotosPicker extends ConsumerWidget {
                   children: [
                     ClipRRect(
                       borderRadius: BorderRadius.circular(AppRadii.field),
-                      child: Image.memory(p.bytes, fit: BoxFit.cover),
+                      child: p.isDocument
+                          ? _DocTile(name: p.name!)
+                          : Image.memory(p.bytes, fit: BoxFit.cover),
                     ),
                     if (p.uploading)
                       const Center(
@@ -131,6 +152,25 @@ class CasePhotosPicker extends ConsumerWidget {
                   ),
                 ),
               ),
+            if (photos.length < kCaseMaxPhotos)
+              Semantics(
+                button: true,
+                label: t.t('cases.files.add'),
+                child: AppPressable(
+                  onTap: pickFiles,
+                  child: Container(
+                    width: _tile,
+                    height: _tile,
+                    decoration: BoxDecoration(
+                      color: colors.goldTint,
+                      borderRadius: BorderRadius.circular(AppRadii.field),
+                      border: Border.all(color: colors.goldStroke),
+                    ),
+                    child:
+                        Icon(Icons.note_add_outlined, color: colors.goldDark),
+                  ),
+                ),
+              ),
           ],
         ),
       ],
@@ -176,34 +216,95 @@ class CasePhotosStrip extends ConsumerWidget {
         scrollDirection: Axis.horizontal,
         itemCount: photos.length,
         separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.sm),
-        itemBuilder: (context, i) => AppPressable(
-          onTap: () => showDialog<void>(
-            context: context,
-            builder: (_) => Dialog(
-              insetPadding: const EdgeInsets.all(AppSpacing.md),
-              backgroundColor: Colors.black,
-              child: InteractiveViewer(
-                child: Image.network(photos[i].url, fit: BoxFit.contain),
+        itemBuilder: (context, i) {
+          final p = photos[i];
+          // OQ-034: documents open in the system viewer.
+          if (!p.isImage) {
+            final pdf = p.mime == 'application/pdf';
+            return AppPressable(
+              onTap: () => openCaseDocument(p.url),
+              child: Semantics(
+                button: true,
+                label: t.t('cases.files.open'),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(AppRadii.field),
+                  child: SizedBox.square(
+                    dimension: 112,
+                    child: _DocTile(
+                      name: '${t.t('cases.files.document')} ${i + 1}'
+                          '${pdf ? '.pdf' : '.docx'}',
+                    ),
+                  ),
+                ),
               ),
+            );
+          }
+          final images = [
+            for (final x in photos)
+              if (x.isImage) x.url,
+          ];
+          return AppPressable(
+            onTap: () => showPhotoGallery(
+              context,
+              urls: images,
+              initial: images.indexOf(p.url),
+              closeLabel: t.t('common.close'),
             ),
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(AppRadii.field),
-            child: Image.network(
-              photos[i].previewUrl,
-              width: 112,
-              height: 112,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Image.network(
-                photos[i].url,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(AppRadii.field),
+              child: Image.network(
+                p.previewUrl,
                 width: 112,
                 height: 112,
                 fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Image.network(
+                  p.url,
+                  width: 112,
+                  height: 112,
+                  fit: BoxFit.cover,
+                ),
               ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }
 }
+
+/// OQ-034: a document tile (PDF / Word) with its name.
+class _DocTile extends StatelessWidget {
+  const _DocTile({required this.name});
+
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final pdf = name.toLowerCase().endsWith('.pdf');
+    return Container(
+      color: colors.surface,
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(pdf ? Icons.picture_as_pdf_rounded : Icons.description_rounded,
+              size: 36, color: colors.goldDark),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            name,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: type.caption.copyWith(color: colors.text),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Opens a case document (PDF / Word) in the system viewer.
+Future<void> openCaseDocument(String url) =>
+    launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);

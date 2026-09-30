@@ -18,6 +18,7 @@ const trim = ({ value }: { value: unknown }) =>
 export const REPORT_TARGET_TYPES = [
   'post',
   'comment',
+  'case_comment',
   'message',
   'user',
   'case',

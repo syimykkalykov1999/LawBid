@@ -55,6 +55,8 @@ export class DataExportService {
       postLikes,
       commentLikes,
       messages,
+      caseComments,
+      caseCommentLikes,
     ] = await Promise.all([
       p.user.findUnique({
         where: { id: userId },
@@ -111,6 +113,9 @@ export class DataExportService {
         },
         orderBy: { created_at: 'asc' },
       }),
+      // OQ-034: comments under cases.
+      p.caseComment.findMany({ where: { author_id: userId } }),
+      p.caseCommentLike.findMany({ where: { user_id: userId } }),
     ]);
     return {
       'profile.json': { user, clientProfile, attorneyProfile },
@@ -119,8 +124,12 @@ export class DataExportService {
       'cases.json': cases,
       'bids.json': bids,
       'posts.json': posts,
-      'comments.json': comments,
-      'likes.json': { posts: postLikes, comments: commentLikes },
+      'comments.json': { posts: comments, cases: caseComments },
+      'likes.json': {
+        posts: postLikes,
+        comments: commentLikes,
+        caseComments: caseCommentLikes,
+      },
       'messages.json': messages,
     };
   }

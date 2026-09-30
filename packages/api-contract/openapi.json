@@ -11556,6 +11556,17 @@
               "example": "NJ",
               "type": "string"
             }
+          },
+          {
+            "name": "practiceCategory",
+            "required": false,
+            "in": "query",
+            "description": "Practice category code: cases of any of its leaves (owner 2026-09-30, OQ-034 topic slider).",
+            "schema": {
+              "pattern": "^[a-z_]{2,64}$",
+              "example": "family_law",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -15414,6 +15425,7 @@
               "enum": [
                 "post",
                 "comment",
+                "case_comment",
                 "message",
                 "user",
                 "case",
@@ -15539,6 +15551,7 @@
               "enum": [
                 "post",
                 "comment",
+                "case_comment",
                 "message",
                 "user",
                 "case",
@@ -15662,6 +15675,7 @@
               "enum": [
                 "post",
                 "comment",
+                "case_comment",
                 "message",
                 "user",
                 "case",
@@ -16431,6 +16445,550 @@
         "summary": "Remove a comment like (idempotent)",
         "tags": [
           "comments"
+        ]
+      }
+    },
+    "/cases/{id}/comments": {
+      "get": {
+        "operationId": "listCaseComments",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "meta.nextCursor of the previous page.",
+            "schema": {
+              "maxLength": 300,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseCommentListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CASE_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Top-level comments of a case, newest first",
+        "tags": [
+          "case-comments"
+        ]
+      },
+      "post": {
+        "operationId": "createCaseComment",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCommentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseCommentEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR, CASE_CONTAINS_CONTACT_INFO",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CASE_NOT_FOUND, COMMENT_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error: CONTENT_BLOCKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Comment on a case or reply",
+        "tags": [
+          "case-comments"
+        ]
+      }
+    },
+    "/case-comments/{id}/replies": {
+      "get": {
+        "operationId": "listCaseCommentReplies",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "meta.nextCursor of the previous page.",
+            "schema": {
+              "maxLength": 300,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseCommentListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: COMMENT_NOT_FOUND, CASE_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Replies of a case comment",
+        "tags": [
+          "case-comments"
+        ]
+      }
+    },
+    "/case-comments/{id}": {
+      "delete": {
+        "operationId": "deleteCaseComment",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommentDeletedEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: COMMENT_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delete own comment or one under own case",
+        "tags": [
+          "case-comments"
+        ]
+      }
+    },
+    "/case-comments/{id}/like": {
+      "post": {
+        "operationId": "likeCaseComment",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: COMMENT_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Like a case comment (idempotent)",
+        "tags": [
+          "case-comments"
+        ]
+      },
+      "delete": {
+        "operationId": "unlikeCaseComment",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Remove a case comment like (idempotent)",
+        "tags": [
+          "case-comments"
         ]
       }
     },
@@ -18911,6 +19469,18 @@
                 "new"
               ]
             }
+          },
+          {
+            "name": "state",
+            "required": false,
+            "in": "query",
+            "description": "Only posts of attorneys licensed in this state (newest first).",
+            "schema": {
+              "minLength": 2,
+              "maxLength": 2,
+              "example": "IL",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -18981,6 +19551,105 @@
           }
         ],
         "summary": "Posts of a hashtag, top or new (docs/05 §7.5)",
+        "tags": [
+          "search"
+        ]
+      }
+    },
+    "/search/latest-posts": {
+      "get": {
+        "operationId": "latestPosts",
+        "parameters": [
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "meta.nextCursor of the previous page.",
+            "schema": {
+              "maxLength": 300,
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "minLength": 2,
+              "maxLength": 2,
+              "example": "IL",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Newest posts of attorneys licensed in a state (OQ-034)",
         "tags": [
           "search"
         ]
@@ -23932,7 +24601,8 @@
           "verification_selfie",
           "post_video",
           "data_export",
-          "case_photo"
+          "case_photo",
+          "case_attachment"
         ]
       },
       "PresignFileDto": {
@@ -23948,7 +24618,7 @@
           "mime": {
             "type": "string",
             "example": "image/jpeg",
-            "description": "One of: image/jpeg, image/png, image/heic, application/pdf (allowed set depends on purpose)."
+            "description": "One of: image/jpeg, image/png, image/heic, application/pdf, application/vnd.openxmlformats-officedocument.wordprocessingml.document (allowed set depends on purpose)."
           },
           "sizeBytes": {
             "type": "number",
@@ -27563,6 +28233,14 @@
           "hasOwnBid": {
             "type": "boolean",
             "description": "\"Вы сделали бид\" (§4.2/§4.3)."
+          },
+          "commentCount": {
+            "type": "integer",
+            "description": "Owner 2026-09-30 (OQ-034): the case card works like a post card."
+          },
+          "isSaved": {
+            "type": "boolean",
+            "description": "In the viewer's saved items."
           }
         },
         "required": [
@@ -27578,7 +28256,9 @@
           "bidsCount",
           "createdAt",
           "isNew",
-          "hasOwnBid"
+          "hasOwnBid",
+          "commentCount",
+          "isSaved"
         ]
       },
       "CaseFeedItemListEnvelope": {
@@ -27610,13 +28290,22 @@
           },
           "previewUrl": {
             "type": "string",
-            "description": "320 px preview."
+            "description": "320 px preview (the file itself for documents)."
+          },
+          "mime": {
+            "type": "string",
+            "description": "image/* or a document (application/pdf, Word) — OQ-034."
+          },
+          "sizeBytes": {
+            "type": "integer"
           }
         },
         "required": [
           "fileId",
           "url",
-          "previewUrl"
+          "previewUrl",
+          "mime",
+          "sizeBytes"
         ]
       },
       "CaseDetailForAttorneyDto": {
@@ -27681,11 +28370,16 @@
             "type": "boolean",
             "description": "\"Вы сделали бид\" (§4.2/§4.3)."
           },
-          "description": {
-            "type": "string"
+          "commentCount": {
+            "type": "integer",
+            "description": "Owner 2026-09-30 (OQ-034): the case card works like a post card."
           },
           "isSaved": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "In the viewer's saved items."
+          },
+          "description": {
+            "type": "string"
           },
           "ownBidId": {
             "type": "string",
@@ -27718,8 +28412,9 @@
           "createdAt",
           "isNew",
           "hasOwnBid",
-          "description",
+          "commentCount",
           "isSaved",
+          "description",
           "photos",
           "photosCount"
         ]
@@ -28838,7 +29533,7 @@
           },
           "mediaFileIds": {
             "uniqueItems": true,
-            "maxItems": 10,
+            "maxItems": 9,
             "description": "Clean post_image file ids, in display order.",
             "type": "array",
             "items": {
@@ -29319,6 +30014,7 @@
             "enum": [
               "post",
               "comment",
+              "case_comment",
               "message",
               "user",
               "case",
@@ -29483,6 +30179,7 @@
             "enum": [
               "post",
               "comment",
+              "case_comment",
               "message",
               "user",
               "case",
@@ -29585,6 +30282,7 @@
             "enum": [
               "post",
               "comment",
+              "case_comment",
               "message",
               "user",
               "case",
@@ -29832,11 +30530,103 @@
           "data"
         ]
       },
+      "CaseCommentDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "caseId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "parentCommentId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "author": {
+            "$ref": "#/components/schemas/CommentAuthorDto"
+          },
+          "byCaseOwner": {
+            "type": "boolean",
+            "description": "Written by the client who owns the case."
+          },
+          "body": {
+            "type": "string"
+          },
+          "likeCount": {
+            "type": "integer"
+          },
+          "replyCount": {
+            "type": "integer"
+          },
+          "likedByMe": {
+            "type": "boolean"
+          },
+          "canDelete": {
+            "type": "boolean",
+            "description": "Own comment, or any comment on own case."
+          },
+          "isMine": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "caseId",
+          "author",
+          "byCaseOwner",
+          "body",
+          "likeCount",
+          "replyCount",
+          "likedByMe",
+          "canDelete",
+          "isMine",
+          "createdAt"
+        ]
+      },
+      "CaseCommentListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CaseCommentDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "CaseCommentEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CaseCommentDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
       "ReportTargetType": {
         "type": "string",
         "enum": [
           "post",
           "comment",
+          "case_comment",
           "message",
           "user"
         ]

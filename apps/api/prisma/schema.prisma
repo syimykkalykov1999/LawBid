@@ -108,6 +108,8 @@ enum FilePurpose {
   data_export
   // Owner 2026-09-30 (OQ-031): case photos, private bucket.
   case_photo
+  // Owner 2026-09-30 (OQ-034): case documents (PDF, Word), private bucket.
+  case_attachment
 
   @@map("file_purpose")
 }
@@ -385,6 +387,8 @@ enum NotificationType {
   data_export_ready
   // docs/04 §12: the case-history PDF is ready (download from the app).
   case_history_export_ready
+  // Owner 2026-09-30 (OQ-034): someone commented under the client's case.
+  case_comment
 
   @@map("notification_type")
 }
@@ -427,6 +431,8 @@ enum ReportTargetType {
   message
   case
   review
+  // Owner 2026-09-30 (OQ-034): comments under cases.
+  case_comment
 
   @@map("report_target_type")
 }
@@ -584,6 +590,8 @@ model User {
   audit_entries            AuditLog[]                @relation("AuditAdmin")
   data_requests_handled    DataAccessRequest[]       @relation("DataRequestHandler")
   data_access_entries      DataAccessLog[]           @relation("DataAccessAdmin")
+  case_comments            CaseComment[]             @relation("CaseCommentAuthor")
+  case_comment_likes       CaseCommentLike[]         @relation("CaseCommentLiker")
 
   // Trigram GIN on full_name_lower is a *partial* index (raw SQL): Prisma's
   // CockroachDB connector can't declare gin_trgm_ops, and ignores partial
@@ -620,7 +628,7 @@ model File {
   verification_documents VerificationDocument[]
   data_export_jobs       DataExportJob[]
 
-  post_media PostMedia[]
+  post_media  PostMedia[]
   case_photos CasePhoto[]
 
   @@index([owner_user_id])
@@ -1111,6 +1119,9 @@ model Case {
   accepted_bid          Bid?                     @relation("CaseAcceptedBid", fields: [accepted_bid_id], references: [id], onDelete: Restrict)
   view_count            Int                      @default(0)
   bids_count            Int                      @default(0)
+  // Owner 2026-09-30 (OQ-034): published comments under the case.
+  comment_count         Int                      @default(0)
+  comments              CaseComment[]
   last_activity_at      DateTime                 @default(now()) @db.Timestamptz
   stale_prompt_sent_at  DateTime?                @db.Timestamptz
   archived_at           DateTime?                @db.Timestamptz
@@ -1875,4 +1886,43 @@ model DataExportJob {
   @@index([user_id, created_at(sort: Desc)])
   @@index([status, expires_at])
   @@map("data_export_jobs")
+}
+
+// Owner 2026-09-30 (OQ-034): comments under a case, like post comments —
+// one reply level, likes, soft delete, moderation. Written by attorneys
+// who can see the case and by its client; contacts are refused.
+model CaseComment {
+  id                String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  case_id           String        @db.Uuid
+  case              Case          @relation(fields: [case_id], references: [id], onDelete: Restrict)
+  author_id         String        @db.Uuid
+  author            User          @relation("CaseCommentAuthor", fields: [author_id], references: [id], onDelete: Restrict)
+  parent_comment_id String?       @db.Uuid
+  parent            CaseComment?  @relation("CaseCommentReplies", fields: [parent_comment_id], references: [id], onDelete: Restrict)
+  replies           CaseComment[] @relation("CaseCommentReplies")
+  // ≤1000 chars, CHECK in the migration.
+  body              String
+  status            ContentStatus @default(published)
+  like_count        Int           @default(0)
+  reply_count       Int           @default(0)
+  deleted_at        DateTime?     @db.Timestamptz
+  created_at        DateTime      @default(now()) @db.Timestamptz
+  updated_at        DateTime      @updatedAt @db.Timestamptz
+
+  likes CaseCommentLike[]
+
+  @@index([case_id, created_at])
+  @@index([parent_comment_id, created_at])
+  @@map("case_comments")
+}
+
+model CaseCommentLike {
+  comment_id String      @db.Uuid
+  comment    CaseComment @relation(fields: [comment_id], references: [id], onDelete: Cascade)
+  user_id    String      @db.Uuid
+  user       User        @relation("CaseCommentLiker", fields: [user_id], references: [id], onDelete: Cascade)
+  created_at DateTime    @default(now()) @db.Timestamptz
+
+  @@id([comment_id, user_id])
+  @@map("case_comment_likes")
 }

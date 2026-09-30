@@ -102,6 +102,11 @@ abstract final class AppRoutes {
 
   /// Bid form (docs/04 §5.1).
   static const placeBidPattern = '/case/:id/bid';
+
+  /// OQ-034: comments under a case (owner and attorneys who see it).
+  static const caseCommentsPattern = '/case/:id/comments';
+  static String caseComments(String id) =>
+      '/case/${Uri.encodeComponent(id)}/comments';
   static String placeBid(String id) => '/case/${Uri.encodeComponent(id)}/bid';
 
   /// "В работе" case: contacts, completion (docs/04 §8, §11.2).

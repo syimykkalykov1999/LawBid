@@ -12,6 +12,7 @@ import {
   Max,
   MaxLength,
   Min,
+  Matches,
 } from 'class-validator';
 
 /** docs/04 §4.2: attorney "Cases" tab is a cursor-paginated list. */
@@ -66,6 +67,16 @@ export class ListCasesFeedQueryDto {
   @IsString()
   @Length(2, 2)
   state?: string;
+
+  @ApiPropertyOptional({
+    example: 'family_law',
+    description:
+      'Practice category code: cases of any of its leaves (owner 2026-09-30, OQ-034 topic slider).',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(/^[a-z0-9_]{2,64}$/)
+  practiceCategory?: string;
 }
 
 /** POST/DELETE /saved-items (docs/04 §4.3, §11.2, §15). Only itemType
@@ -166,6 +177,13 @@ export class CaseFeedItemDto {
 
   @ApiProperty({ description: '"Вы сделали бид" (§4.2/§4.3).' })
   hasOwnBid!: boolean;
+
+  /** Owner 2026-09-30 (OQ-034): the case card works like a post card. */
+  @ApiProperty({ type: 'integer' })
+  commentCount!: number;
+
+  @ApiProperty({ description: "In the viewer's saved items." })
+  isSaved!: boolean;
 }
 
 /** GET /cases/:id for an attorney (docs/04 §4.3): the feed item plus the
@@ -174,9 +192,6 @@ export class CaseFeedItemDto {
 export class CaseDetailForAttorneyDto extends CaseFeedItemDto {
   @ApiProperty()
   description!: string;
-
-  @ApiProperty()
-  isSaved!: boolean;
 
   @ApiPropertyOptional({
     type: String,

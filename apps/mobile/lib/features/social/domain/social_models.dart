@@ -141,7 +141,11 @@ class CommentAuthor {
     this.attorneyId,
     this.username,
     this.avatarUrl,
+    this.isCaseOwner = false,
   });
+
+  /// OQ-034: the client who owns the case (shown as "Case owner").
+  final bool isCaseOwner;
 
   final bool isAttorney;
   final String? attorneyId;

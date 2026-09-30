@@ -26,8 +26,9 @@ CaseDetailForAttorneyDto _$CaseDetailForAttorneyDtoFromJson(
   createdAt: DateTime.parse(json['createdAt'] as String),
   isNew: json['isNew'] as bool,
   hasOwnBid: json['hasOwnBid'] as bool,
-  description: json['description'] as String,
+  commentCount: (json['commentCount'] as num).toInt(),
   isSaved: json['isSaved'] as bool,
+  description: json['description'] as String,
   photos: (json['photos'] as List<dynamic>)
       .map((e) => CasePhotoDto.fromJson(e as Map<String, dynamic>))
       .toList(),
@@ -53,8 +54,9 @@ Map<String, dynamic> _$CaseDetailForAttorneyDtoToJson(
   'createdAt': instance.createdAt.toIso8601String(),
   'isNew': instance.isNew,
   'hasOwnBid': instance.hasOwnBid,
-  'description': instance.description,
+  'commentCount': instance.commentCount,
   'isSaved': instance.isSaved,
+  'description': instance.description,
   'ownBidId': ?instance.ownBidId,
   'photos': instance.photos.map((e) => e.toJson()).toList(),
   'photosCount': instance.photosCount,

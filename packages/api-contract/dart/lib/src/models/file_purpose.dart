@@ -20,6 +20,8 @@ enum FilePurpose {
   dataExport('data_export'),
   @JsonValue('case_photo')
   casePhoto('case_photo'),
+  @JsonValue('case_attachment')
+  caseAttachment('case_attachment'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

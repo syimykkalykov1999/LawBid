@@ -67,7 +67,7 @@ export class ImageProcessor {
     avatar: boolean;
     postImage?: boolean;
   }): Promise<ProcessedFile> {
-    if (input.mime === FILE_MIME.pdf) {
+    if (input.mime === FILE_MIME.pdf || input.mime === FILE_MIME.docx) {
       return { main: null, variants: new Map(), width: null, height: null };
     }
     const source =

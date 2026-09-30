@@ -23,6 +23,7 @@ export 'widgets/buttons/gavel_strike_button.dart';
 export 'widgets/display/app_avatar.dart';
 export 'widgets/display/app_card.dart';
 export 'widgets/display/app_chip.dart';
+export 'widgets/display/photo_gallery.dart';
 export 'widgets/display/app_content_card.dart';
 export 'widgets/display/app_icon_medallion.dart';
 export 'widgets/display/app_list_row.dart';

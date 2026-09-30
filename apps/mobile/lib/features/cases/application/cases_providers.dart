@@ -100,7 +100,9 @@ final bidProvider = FutureProvider.autoDispose.family<CaseBid, String>(
 
 // --- Attorney: "Кейсы" tab (docs/04 §4.2) -----------------------------------
 
-typedef FeedFilter = ({String? practiceAreaId, String? state});
+/// Owner 2026-09-30 (OQ-034): the case feed is filtered like the post feed
+/// — a practice category from the topic slider and a state.
+typedef FeedFilter = ({String? practiceCategory, String? state});
 
 class FeedNotifier extends PagedNotifier<FeedCase> {
   FeedNotifier(this.filter);
@@ -111,7 +113,7 @@ class FeedNotifier extends PagedNotifier<FeedCase> {
   Future<CursorPage<FeedCase>> fetch(String? cursor) =>
       ref.read(casesRepositoryProvider).feed(
             cursor: cursor,
-            practiceAreaId: filter.practiceAreaId,
+            practiceCategory: filter.practiceCategory,
             state: filter.state,
           );
 

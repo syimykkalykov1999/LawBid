@@ -86,8 +86,7 @@ class _AttorneyCaseScreenState extends ConsumerState<AttorneyCaseScreen> {
       final conv = await ref.read(caseActionsProvider).openConversation(c.id);
       if (mounted) await context.push(ChatRoutes.conversation(conv.id));
     } on Object catch (e) {
-      if (mounted &&
-          !routeSubscriptionError(context, e, reason: 'chat')) {
+      if (mounted && !routeSubscriptionError(context, e, reason: 'chat')) {
         showAppSnackBar(context, errorText(t, e));
       }
     } finally {
@@ -218,6 +217,13 @@ class _Body extends ConsumerWidget {
               hiddenCount: c.photosCount,
             ),
           ),
+        // OQ-034: questions and answers under the case.
+        AppListRow(
+          icon: Icons.mode_comment_outlined,
+          label: t.t('cases.comments.title'),
+          trailingText: c.commentCount > 0 ? '${c.commentCount}' : null,
+          onTap: () => context.push(AppRoutes.caseComments(c.id)),
+        ),
         DetailSection(
           title: t.t('cases.detail.details'),
           child: FactsCard(

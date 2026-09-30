@@ -99,6 +99,7 @@ class CaseSummary {
 
 /// The owner's full case (docs/04 §11.1) incl. "Адвокат в работе".
 @immutable
+
 /// OQ-031: a case photo — short-lived signed links.
 @immutable
 class CasePhoto {
@@ -106,11 +107,19 @@ class CasePhoto {
     required this.fileId,
     required this.url,
     required this.previewUrl,
+    this.mime = 'image/jpeg',
+    this.sizeBytes = 0,
   });
 
   final String fileId;
   final String url;
   final String previewUrl;
+
+  /// OQ-034: photos and documents (PDF, Word) share the list.
+  final String mime;
+  final int sizeBytes;
+
+  bool get isImage => mime.startsWith('image/');
 }
 
 class OwnerCase {
@@ -292,7 +301,11 @@ class FeedCase {
     this.ownBidId,
     this.photos = const [],
     this.photosCount = 0,
+    this.commentCount = 0,
   });
+
+  /// OQ-034: comments under the case.
+  final int commentCount;
 
   final String id;
   final String title;
@@ -307,6 +320,7 @@ class FeedCase {
   final DateTime createdAt;
   final bool isNew;
   final bool hasOwnBid;
+
   /// OQ-031: photos — only once this attorney's bid was accepted.
   final List<CasePhoto> photos;
 
@@ -338,6 +352,10 @@ class FeedCase {
         description: description,
         isSaved: isSaved ?? this.isSaved,
         ownBidId: ownBidId,
+        excerpt: excerpt,
+        photos: photos,
+        photosCount: photosCount,
+        commentCount: commentCount,
       );
 }
 

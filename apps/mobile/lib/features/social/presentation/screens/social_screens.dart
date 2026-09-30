@@ -82,17 +82,53 @@ class PostsFeedView extends ConsumerWidget {
   }
 }
 
-/// Owner 2026-09-30: the feed filtered by one topic (hashtag), newest
-/// first — what a topic in the clients' slider shows.
-class TopicPostsView extends ConsumerWidget {
-  const TopicPostsView({required this.tag, super.key});
+/// OQ-034: "All" topics with a state chosen — newest posts of attorneys
+/// licensed in that state.
+class LatestPostsView extends ConsumerWidget {
+  const LatestPostsView({required this.stateCode, super.key});
 
-  final String tag;
+  final String stateCode;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translatorProvider);
-    final key = (tag: tag, sort: TagSort.fresh);
+    final notifier = ref.read(latestPostsProvider(stateCode).notifier);
+    return LayoutBuilder(builder: (context, box) {
+      final height = feedCardHeight(box.maxHeight);
+      return PagedListBody<Post>(
+        value: _withoutDeleted(ref.watch(latestPostsProvider(stateCode)),
+            ref.watch(deletedPostsProvider)),
+        t: t,
+        edgeToEdge: true,
+        skeleton: const PostListSkeleton(),
+        itemKey: (p) => p.id,
+        itemBuilder: (context, p, _) => PostCard(post: p, feedHeight: height),
+        empty: AppEmptyState(
+          icon: Icons.map_outlined,
+          message: t.t('feed.state.empty'),
+        ),
+        onRefresh: notifier.refresh,
+        onLoadMore: notifier.loadMore,
+        onRetryMore: notifier.retryLoadMore,
+      );
+    });
+  }
+}
+
+/// Owner 2026-09-30: the feed filtered by one topic (hashtag), newest
+/// first — what a topic in the clients' slider shows.
+class TopicPostsView extends ConsumerWidget {
+  const TopicPostsView({required this.tag, this.stateCode, super.key});
+
+  final String tag;
+
+  /// OQ-034: only attorneys licensed in this state.
+  final String? stateCode;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final key = (tag: tag, sort: TagSort.fresh, state: stateCode);
     final notifier = ref.read(tagPostsProvider(key).notifier);
     return LayoutBuilder(builder: (context, box) {
       final height = feedCardHeight(box.maxHeight);
@@ -193,7 +229,8 @@ class _PostScreenState extends ConsumerState<PostScreen> {
                               ),
                             ),
                           ),
-                          ..._commentSlivers(context, comments),
+                          ...commentThreadSlivers(
+                              context, ref, widget.postId, comments, _reply),
                         ],
                       ),
                     ),
@@ -209,83 +246,89 @@ class _PostScreenState extends ConsumerState<PostScreen> {
             ),
     );
   }
+}
 
-  List<Widget> _commentSlivers(
-      BuildContext context, AsyncValue<PaginatedList<Comment>> value) {
-    final t = ref.read(translatorProvider);
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    final notifier = ref.read(commentsProvider(widget.postId).notifier);
-    return switch (value) {
-      AsyncData(:final value) when value.items.isEmpty => [
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(AppSpacing.xxl),
-              child: Text(
-                t.t('comment.empty'),
-                textAlign: TextAlign.center,
-                style: type.body.copyWith(color: colors.textSecondary),
-              ),
+/// Comments of a thread (a post, or a case — OQ-034) as slivers: empty
+/// text, list with paging, retry, skeleton.
+List<Widget> commentThreadSlivers(
+  BuildContext context,
+  WidgetRef ref,
+  String threadId,
+  AsyncValue<PaginatedList<Comment>> value,
+  void Function(ReplyTarget) onReply,
+) {
+  final t = ref.read(translatorProvider);
+  final colors = Theme.of(context).extension<AppColorTokens>()!;
+  final type = Theme.of(context).extension<AppTypographyTokens>()!;
+  final notifier = ref.read(commentsProvider(threadId).notifier);
+  return switch (value) {
+    AsyncData(:final value) when value.items.isEmpty => [
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.xxl),
+            child: Text(
+              t.t('comment.empty'),
+              textAlign: TextAlign.center,
+              style: type.body.copyWith(color: colors.textSecondary),
             ),
           ),
-        ],
-      AsyncData(:final value) => [
-          SliverList.builder(
-            itemCount: value.items.length + 1,
-            itemBuilder: (context, i) {
-              if (i == value.items.length) {
-                if (value.loadMoreError != null) {
-                  return TextButton(
-                    onPressed: notifier.retryLoadMore,
-                    child: Text(t.t('error.retry')),
-                  );
-                }
-                if (value.canLoadMore) {
-                  notifier.loadMore();
-                  return const Padding(
-                    padding: EdgeInsets.all(AppSpacing.lg),
-                    child: Center(
-                      child: SizedBox.square(
-                        dimension: AppSizes.footerSpinner,
-                        child: CircularProgressIndicator(
-                            strokeWidth: AppSizes.footerSpinnerStroke),
-                      ),
-                    ),
-                  );
-                }
-                return const SizedBox(height: AppSpacing.xl);
+        ),
+      ],
+    AsyncData(:final value) => [
+        SliverList.builder(
+          itemCount: value.items.length + 1,
+          itemBuilder: (context, i) {
+            if (i == value.items.length) {
+              if (value.loadMoreError != null) {
+                return TextButton(
+                  onPressed: notifier.retryLoadMore,
+                  child: Text(t.t('error.retry')),
+                );
               }
-              final c = value.items[i];
-              return CommentTile(
-                  key: ValueKey(c.id), comment: c, onReply: _reply);
-            },
-          ),
-        ],
-      AsyncError() => [
-          SliverToBoxAdapter(
-            child: Center(
-              child: TextButton(
-                onPressed: () =>
-                    ref.invalidate(commentsProvider(widget.postId)),
-                child: Text(t.t('error.retry')),
-              ),
+              if (value.canLoadMore) {
+                notifier.loadMore();
+                return const Padding(
+                  padding: EdgeInsets.all(AppSpacing.lg),
+                  child: Center(
+                    child: SizedBox.square(
+                      dimension: AppSizes.footerSpinner,
+                      child: CircularProgressIndicator(
+                          strokeWidth: AppSizes.footerSpinnerStroke),
+                    ),
+                  ),
+                );
+              }
+              return const SizedBox(height: AppSpacing.xl);
+            }
+            final c = value.items[i];
+            return CommentTile(
+                key: ValueKey(c.id), comment: c, onReply: onReply);
+          },
+        ),
+      ],
+    AsyncError() => [
+        SliverToBoxAdapter(
+          child: Center(
+            child: TextButton(
+              onPressed: () => ref.invalidate(commentsProvider(threadId)),
+              child: Text(t.t('error.retry')),
             ),
           ),
-        ],
-      _ => [
-          const SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsets.all(AppSpacing.screenSide),
-              child: Column(children: [
-                AppSkeleton(height: 44),
-                SizedBox(height: AppSpacing.md),
-                AppSkeleton(height: 44),
-              ]),
-            ),
+        ),
+      ],
+    _ => [
+        const SliverToBoxAdapter(
+          child: Padding(
+            padding: EdgeInsets.all(AppSpacing.screenSide),
+            child: Column(children: [
+              AppSkeleton(height: 44),
+              SizedBox(height: AppSpacing.md),
+              AppSkeleton(height: 44),
+            ]),
           ),
-        ],
-    };
-  }
+        ),
+      ],
+  };
 }
 
 /// docs/05 §7.5 topic page `#tag`: "Топ" and "Новые".
@@ -305,7 +348,7 @@ class _TagScreenState extends ConsumerState<TagScreen> {
   Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final key = (tag: widget.tag, sort: _sort);
+    final key = (tag: widget.tag, sort: _sort, state: null);
     final value = _withoutDeleted(
         ref.watch(tagPostsProvider(key)), ref.watch(deletedPostsProvider));
     final notifier = ref.read(tagPostsProvider(key).notifier);

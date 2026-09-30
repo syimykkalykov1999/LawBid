@@ -179,7 +179,15 @@ class _CommentTileState extends ConsumerState<CommentTile> {
                         children: [
                           Flexible(
                             child: Text(
-                              a.displayName,
+                              // OQ-034: the client is anonymous under a
+                              // case — "Case owner" / "Client".
+                              a.isCaseOwner
+                                  ? t.t('cases.comments.owner')
+                                  : a.isAttorney
+                                      ? a.displayName
+                                      : (isCaseRef(_c.id)
+                                          ? t.t('person.client')
+                                          : a.displayName),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: type.bodySmall.copyWith(
@@ -368,8 +376,11 @@ class _CommentComposerState extends ConsumerState<CommentComposer> {
         ref.invalidate(repliesProvider(reply.parentId));
         ref.invalidate(commentsProvider(widget.postId));
       }
-      final post = ref.read(postOverridesProvider)[widget.postId] ??
-          ref.read(postProvider(widget.postId)).value;
+      // Case threads (OQ-034) have no post to bump.
+      final post = isCaseRef(widget.postId)
+          ? null
+          : ref.read(postOverridesProvider)[widget.postId] ??
+              ref.read(postProvider(widget.postId)).value;
       if (post != null) {
         ref
             .read(postOverridesProvider.notifier)

@@ -15,6 +15,7 @@ import 'package:lawbid/features/social/application/social_providers.dart';
 const int kCaseWizardSteps = 5;
 
 @immutable
+
 /// OQ-031: a photo picked in the wizard, uploaded right away.
 @immutable
 class CasePhotoUpload {
@@ -23,10 +24,15 @@ class CasePhotoUpload {
     required this.bytes,
     this.fileId,
     this.failed = false,
+    this.name,
   });
 
   final int key;
   final Uint8List bytes;
+
+  /// OQ-034: set for a document (PDF / Word) — shown as a file tile.
+  final String? name;
+  bool get isDocument => name != null;
 
   /// Set once the upload passed the antivirus scan.
   final String? fileId;
@@ -147,10 +153,16 @@ class CreateCaseController extends Notifier<CreateCaseState> {
   int _photoKey = 0;
 
   /// OQ-031: add picked photos (up to [kCaseMaxPhotos]) and upload each.
-  void addPhotos(List<Uint8List> picked) {
+  void addPhotos(List<Uint8List> picked) => addFiles([
+        for (final b in picked) (bytes: b, name: null),
+      ]);
+
+  /// OQ-034: photos and documents share the 9 slots.
+  void addFiles(List<({Uint8List bytes, String? name})> picked) {
     final left = kCaseMaxPhotos - state.photos.length;
-    for (final bytes in picked.take(left)) {
-      final item = CasePhotoUpload(key: _photoKey++, bytes: bytes);
+    for (final f in picked.take(left)) {
+      final item =
+          CasePhotoUpload(key: _photoKey++, bytes: f.bytes, name: f.name);
       state = state.copyWith(photos: [...state.photos, item]);
       unawaited(_upload(item));
     }
@@ -162,9 +174,11 @@ class CreateCaseController extends Notifier<CreateCaseState> {
       final id = await ref
           .read(socialActionsProvider)
           .uploadPhoto(item.bytes, casePhoto: true);
-      done = CasePhotoUpload(key: item.key, bytes: item.bytes, fileId: id);
+      done = CasePhotoUpload(
+          key: item.key, bytes: item.bytes, fileId: id, name: item.name);
     } on Object {
-      done = CasePhotoUpload(key: item.key, bytes: item.bytes, failed: true);
+      done = CasePhotoUpload(
+          key: item.key, bytes: item.bytes, failed: true, name: item.name);
     }
     if (!ref.mounted) return;
     state = state.copyWith(photos: [
@@ -173,13 +187,16 @@ class CreateCaseController extends Notifier<CreateCaseState> {
   }
 
   void removePhoto(int key) => state = state.copyWith(
-        photos: [for (final p in state.photos) if (p.key != key) p],
+        photos: [
+          for (final p in state.photos)
+            if (p.key != key) p
+        ],
       );
 
   void retryPhoto(int key) {
     final p = state.photos.where((x) => x.key == key).firstOrNull;
     if (p == null || !p.failed) return;
-    final again = CasePhotoUpload(key: p.key, bytes: p.bytes);
+    final again = CasePhotoUpload(key: p.key, bytes: p.bytes, name: p.name);
     state = state.copyWith(photos: [
       for (final x in state.photos) x.key == key ? again : x,
     ]);
@@ -229,13 +246,13 @@ class CreateCaseController extends Notifier<CreateCaseState> {
     state = state.copyWith(isSubmitting: true, clearError: true);
     try {
       final id = await ref.read(casesRepositoryProvider).createCase(
-            state.draft,
-            contactSharingConsent: state.needsConsent && state.consentChecked,
-            photoFileIds: [
-              for (final p in state.photos)
-                if (p.fileId != null) p.fileId!,
-            ],
-          );
+        state.draft,
+        contactSharingConsent: state.needsConsent && state.consentChecked,
+        photoFileIds: [
+          for (final p in state.photos)
+            if (p.fileId != null) p.fileId!,
+        ],
+      );
       await ref.read(localKvStoreProvider).setString(_consentKey, '1');
       await ref.read(casesLocalDatabaseProvider).deleteDraft(_ownerId);
       ref.invalidate(myCasesProvider);

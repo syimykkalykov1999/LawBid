@@ -4,6 +4,7 @@ import {
   Inject,
   Injectable,
 } from '@nestjs/common';
+import type { Prisma } from '@prisma/client';
 import { createHash } from 'node:crypto';
 import type Redis from 'ioredis';
 import { ErrorCode } from '../../common/errors/error-code.enum';
@@ -280,11 +281,47 @@ export class SearchService {
   }
 
   /** GET /tags/:tag/posts — "Топ" by the §2.2.2 score, "Новые" by date. */
+  /** Owner 2026-09-30 (OQ-034): newest posts of attorneys licensed in a
+   * state — the feed's "All" topic with a state chosen. */
+  async latestPosts(
+    user: RequestUser,
+    state: string,
+    cursor?: string,
+  ): Promise<PostPage> {
+    const c = cursor ? decodeCursor(cursor) : undefined;
+    const rows = await this.prisma.post.findMany({
+      where: {
+        ...VISIBLE_POST_WHERE,
+        ...authorStateWhere(state),
+        ...(c
+          ? {
+              OR: [
+                { created_at: { lt: c.createdAt } },
+                { created_at: c.createdAt, id: { lt: c.id } },
+              ],
+            }
+          : {}),
+      },
+      orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+      take: PAGE + 1,
+    });
+    const page = rows.slice(0, PAGE);
+    const last = page[page.length - 1];
+    return {
+      items: await this.posts.present(page, user.sub),
+      nextCursor:
+        rows.length > PAGE && last
+          ? encodeCursor({ createdAt: last.created_at, id: last.id })
+          : null,
+    };
+  }
+
   async tagPosts(
     user: RequestUser,
     rawTag: string,
     sort: TagSort,
     cursor?: string,
+    state?: string,
   ): Promise<PostPage> {
     const tagLower = normalizeQuery(rawTag);
     const tag = tagLower
@@ -294,12 +331,14 @@ export class SearchService {
         })
       : null;
     if (!tag) return { items: [], nextCursor: null };
-    if (sort === 'new') {
+    // Owner 2026-09-30 (OQ-034): a state filter always lists newest first.
+    if (sort === 'new' || state) {
       const c = cursor ? decodeCursor(cursor) : undefined;
       const rows = await this.prisma.post.findMany({
         where: {
           ...VISIBLE_POST_WHERE,
           tags: { some: { tag_id: tag.id } },
+          ...authorStateWhere(state),
           ...(c
             ? {
                 OR: [
@@ -409,4 +448,18 @@ export class SearchService {
       viewerId,
     );
   }
+}
+
+/** Posts whose author holds a verified license in [state] (none = any). */
+function authorStateWhere(state?: string): Prisma.PostWhereInput {
+  if (!state) return {};
+  return {
+    author: {
+      attorney_profile: {
+        licenses: {
+          some: { state_code: state.toUpperCase(), license_status: 'verified' },
+        },
+      },
+    },
+  };
 }

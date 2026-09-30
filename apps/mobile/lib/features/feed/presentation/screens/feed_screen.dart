@@ -9,11 +9,8 @@ import 'package:lawbid/features/onboarding/application/current_user_controller.d
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 import 'package:lawbid/features/chat/presentation/chats_icon_button.dart';
-import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 import 'package:lawbid/features/feed/application/feed_topics.dart';
-import 'package:lawbid/features/onboarding/presentation/widgets/option_picker_sheet.dart';
-import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
-import 'package:lawbid/features/profile/application/profile_providers.dart';
+import 'package:lawbid/features/feed/presentation/widgets/topic_filter_bar.dart';
 
 /// Feed tab (docs/01 §3.1, docs/05 §2). Header per docs/07 §10: the small
 /// static ScalesLogo on the left; the right side ([AppFeedHeader.trailing])
@@ -35,9 +32,6 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
   // keeps each tab's scroll position (IndexedStack keeps both alive).
   _FeedTab _tab = _FeedTab.posts;
 
-  /// Client topic slider (owner 2026-09-30): null = all posts.
-  String? _topic;
-
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
@@ -56,6 +50,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
               child: ScalesLogo(
                 size: 44,
                 animated: true,
+                runFor: const Duration(seconds: 6),
                 semanticLabel: t.t('brand.name'),
               ),
             ),
@@ -77,6 +72,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
               child: ScalesLogo(
                 size: 40,
                 animated: true,
+                runFor: const Duration(seconds: 6),
                 semanticLabel: t.t('brand.name'),
               ),
             ),
@@ -91,165 +87,52 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
               index: _tab.index,
               children: [
                 // Owner 2026-09-30: the topic slider for every role.
-                _TopicFeed(
-                  topic: _topic,
-                  onChanged: (v) => setState(() => _topic = v),
-                ),
+                const _TopicFeed(),
                 const AttorneyCasesTab(),
               ],
             )
-          : _TopicFeed(
-              topic: _topic,
-              onChanged: (v) => setState(() => _topic = v),
-            ),
+          : const _TopicFeed(),
     );
   }
 }
 
-/// The topic slider above the post stream ("All" = the regular feed).
-class _TopicFeed extends StatelessWidget {
-  const _TopicFeed({required this.topic, required this.onChanged});
-
-  final String? topic;
-  final ValueChanged<String?> onChanged;
+/// The topic slider above the post stream ("All" = the regular feed; a
+/// state narrows to attorneys licensed there — OQ-034).
+class _TopicFeed extends StatefulWidget {
+  const _TopicFeed();
 
   @override
-  Widget build(BuildContext context) => Column(
-        children: [
-          _TopicSlider(value: topic, onChanged: onChanged),
-          Expanded(
-            child: topic == null
-                ? const PostsFeedView()
-                : TopicPostsView(key: ValueKey(topic), tag: topic!),
-          ),
-        ],
-      );
+  State<_TopicFeed> createState() => _TopicFeedState();
 }
 
-/// A category's display name: the localized practice tree when loaded,
-/// otherwise the English seed name.
-String _topicName(WidgetRef ref, String code) {
-  final t = ref.read(translatorProvider);
-  final tree = ref.watch(practiceTreeProvider).value;
-  final cat = tree?.where((c) => c.i18nKey == 'practice.$code').firstOrNull;
-  if (cat != null) return CaseFormat.practice(t, cat.i18nKey, cat.nameEn);
-  return kPracticeCategoryNamesEn[code] ?? code;
-}
-
-/// Owner 2026-09-30: the practice-topic slider above the feed. The filter
-/// button on the left lets each user choose which practices it shows
-/// (several at once, kept on the device); "All" is the regular feed.
-class _TopicSlider extends ConsumerWidget {
-  const _TopicSlider({required this.value, required this.onChanged});
-
-  final String? value;
-  final ValueChanged<String?> onChanged;
-
-  Future<void> _pick(BuildContext context, WidgetRef ref) async {
-    final t = ref.read(translatorProvider);
-    final picked = await OptionPickerSheet.show(
-      context,
-      title: t.t('feed.topics.pick'),
-      multi: true,
-      initial: ref.read(feedTopicsProvider).toSet(),
-      options: [
-        for (final c in kPracticeCategoryCodes)
-          PickerOption(value: c, label: _topicName(ref, c)),
-      ],
-    );
-    if (picked == null) return;
-    ref.read(feedTopicsProvider.notifier).set(picked);
-    // The open topic was removed from the slider: back to "All".
-    final open = value;
-    if (open != null && !picked.contains(categoryForTopicTag(open))) {
-      onChanged(null);
-    }
-  }
+class _TopicFeedState extends State<_TopicFeed> {
+  String? _category;
+  String? _state;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final t = ref.watch(translatorProvider);
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    final topics = ref.watch(feedTopicsProvider);
-
-    Widget chip(String? tag, String label, IconData icon) {
-      final selected = value == tag;
-      return Semantics(
-        button: true,
-        selected: selected,
-        label: label,
-        excludeSemantics: true,
-        child: AppPressable(
-          onTap: () => onChanged(tag),
-          child: AnimatedContainer(
-            duration:
-                context.reduceMotion ? Duration.zero : AppMotion.stateChange,
-            padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.md, vertical: AppSpacing.sm),
-            decoration: BoxDecoration(
-              color: selected ? colors.navy : colors.surface,
-              borderRadius: BorderRadius.circular(AppRadii.pill),
-              border: Border.all(
-                color: selected ? colors.gold : colors.border,
-                width: selected ? 1.5 : 1,
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon,
-                    size: 18, color: selected ? colors.goldLight : colors.text),
-                const SizedBox(width: AppSpacing.xs + 2),
-                Text(
-                  label,
-                  style: type.bodySmall.copyWith(
-                    color: selected ? Colors.white : colors.text,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
+  Widget build(BuildContext context) {
+    final category = _category;
+    final state = _state;
+    return Column(
+      children: [
+        TopicFilterBar(
+          category: category,
+          onCategory: (v) => setState(() => _category = v),
+          stateCode: state,
+          onState: (v) => setState(() => _state = v),
         ),
-      );
-    }
-
-    return SizedBox(
-      height: 60,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        // Owner 2026-09-30: starts at the left edge, like the header logo.
-        padding: const EdgeInsets.fromLTRB(
-            AppSpacing.sm, AppSpacing.sm, AppSpacing.sm, AppSpacing.sm),
-        children: [
-          Semantics(
-            button: true,
-            label: t.t('feed.topics.pick'),
-            excludeSemantics: true,
-            child: AppPressable(
-              onTap: () => _pick(context, ref),
-              child: Container(
-                width: 44,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: colors.surface,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: colors.border),
-                ),
-                child:
-                    Icon(Icons.tune_rounded, size: 20, color: colors.goldDark),
-              ),
-            ),
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          chip(null, t.t('feed.topics.all'), Icons.grid_view_rounded),
-          for (final c in topics) ...[
-            const SizedBox(width: AppSpacing.sm),
-            chip(topicTagFor(c), _topicName(ref, c), practiceGlyph(c)),
-          ],
-        ],
-      ),
+        Expanded(
+          child: category != null
+              ? TopicPostsView(
+                  key: ValueKey('$category|$state'),
+                  tag: topicTagFor(category),
+                  stateCode: state,
+                )
+              : state != null
+                  ? LatestPostsView(key: ValueKey(state), stateCode: state)
+                  : const PostsFeedView(),
+        ),
+      ],
     );
   }
 }

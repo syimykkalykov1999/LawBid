@@ -10,6 +10,8 @@ enum TargetType {
   post('post'),
   @JsonValue('comment')
   comment('comment'),
+  @JsonValue('case_comment')
+  caseComment('case_comment'),
   @JsonValue('message')
   message('message'),
   @JsonValue('user')

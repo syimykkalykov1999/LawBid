@@ -12,6 +12,8 @@ class CasePhotoDto {
     required this.fileId,
     required this.url,
     required this.previewUrl,
+    required this.mime,
+    required this.sizeBytes,
   });
 
   factory CasePhotoDto.fromJson(Map<String, Object?> json) =>
@@ -20,8 +22,12 @@ class CasePhotoDto {
   final String fileId;
   final String url;
 
-  /// 320 px preview.
+  /// 320 px preview (the file itself for documents).
   final String previewUrl;
+
+  /// image/* or a document (application/pdf, Word) — OQ-034.
+  final String mime;
+  final int sizeBytes;
 
   Map<String, Object?> toJson() => _$CasePhotoDtoToJson(this);
 }

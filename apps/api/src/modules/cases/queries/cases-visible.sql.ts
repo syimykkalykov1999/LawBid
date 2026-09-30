@@ -16,6 +16,8 @@ export interface VisibleCasesQueryInput {
   attorneyId: string;
   /** docs/04 §4.2 filters — narrow further, never widen. */
   practiceAreaId?: string;
+  /** Owner 2026-09-30 (OQ-034): any leaf of this category code. */
+  practiceCategory?: string;
   state?: string;
   cursor?: FeedCursor;
   limit: number;
@@ -58,8 +60,24 @@ export interface VisibleCasesQueryInput {
 export function buildVisibleCasesSql(
   input: VisibleCasesQueryInput,
 ): Prisma.Sql {
-  const { attorneyId, practiceAreaId, state, cursor, limit, text, since } =
-    input;
+  const {
+    attorneyId,
+    practiceAreaId,
+    practiceCategory,
+    state,
+    cursor,
+    limit,
+    text,
+    since,
+  } = input;
+  // Narrows (never widens) the per-branch practice match to the leaves of
+  // one category.
+  const categoryFilter = practiceCategory
+    ? Prisma.sql`AND c.practice_area_id IN (
+        SELECT leaf.id FROM practice_areas leaf
+        JOIN practice_areas cat ON cat.id = leaf.parent_id
+        WHERE cat.code = ${practiceCategory})`
+    : Prisma.empty;
   const searchFilter = Prisma.sql`${
     text
       ? Prisma.sql`AND c.search_tsv @@ plainto_tsquery('english', ${text})`
@@ -103,6 +121,7 @@ export function buildVisibleCasesSql(
         )
         ${primaryStateFilter}
         ${primaryPracticeFilter}
+        ${categoryFilter}
         ${text || since ? searchFilter : Prisma.empty}
       UNION
       SELECT c.id, c.created_at FROM case_states cs
@@ -124,6 +143,7 @@ export function buildVisibleCasesSql(
         )
         ${secondaryStateFilter}
         ${secondaryPracticeFilter}
+        ${categoryFilter}
         ${text || since ? searchFilter : Prisma.empty}
     ) v
     WHERE TRUE

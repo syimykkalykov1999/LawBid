@@ -585,3 +585,27 @@ Decided by the owner from phone review (replaces parts of OQ-032):
   nav bar; 3 lines of text, then "Read more"; the time and "Public" sit
   left of Save so the photo gets more room. Header logo and chats sit
   closer to the screen edges; the slider starts at the left edge.
+
+## OQ-034 — Case cards like post cards; case comments; case documents; state filter (owner, 2026-09-30)
+
+- Case comments: a full system like post comments (one reply level, likes,
+  delete by author or case owner, reports `case_comment`, moderation,
+  counters, notification `case_comment`, data export). Only the case owner
+  and attorneys who can see the case read/write them; the client is shown
+  as "Case owner"/"Client" (never named); contacts are refused
+  (CASE_CONTAINS_CONTACT_INFO).
+- Case feed card = post card: our practice photo, comments count, share
+  link `lawbid.app/case/:id`, time, Save. Filter: the same topic slider as
+  posts (practice category, `GET /cases?practiceCategory=`), plus a state.
+- Posts: the filter sheet has "Choose topics" and "Choose state"; a state
+  filters to attorneys licensed there (`GET /tags/:tag/posts?state=`,
+  `GET /search/latest-posts?state=`).
+- Case documents: besides photos a client can attach PDF and Word (.docx)
+  files (`case_attachment`, private bucket); 9 files total. Only the owner
+  and the accepted attorney open them; the feed shows only our photos.
+- Post photos are shown whole (contain over a blurred copy); the open post
+  opens a full-screen gallery with zoom.
+- Default practice photos for every category (Unsplash License, credits in
+  docs/PHOTO_CREDITS.md); a CDL case shows a truck.
+- Header logos (feed, own profile) are the animated scales, swinging for
+  6 s after they appear and easing to rest.

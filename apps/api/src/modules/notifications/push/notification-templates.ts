@@ -171,6 +171,11 @@ export const NOTIFICATION_TEMPLATES: Partial<
     en: { title: 'New comment', body: 'Someone commented on your post.' },
     ru: { title: 'Новый комментарий', body: 'Ваш пост прокомментировали.' },
   },
+  case_comment: {
+    group: 'cases',
+    en: { title: 'New comment', body: 'Someone commented on your case.' },
+    ru: { title: 'Новый комментарий', body: 'Ваш кейс прокомментировали.' },
+  },
   comment_reply: {
     group: 'social',
     en: { title: 'New reply', body: 'Someone replied to your comment.' },

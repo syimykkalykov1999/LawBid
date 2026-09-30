@@ -307,6 +307,12 @@ class _OwnerCaseBody extends ConsumerWidget {
               title: t.t('cases.photos.title'),
               child: CasePhotosStrip(photos: c.photos),
             ),
+          // OQ-034: attorneys' questions under the case; the owner answers.
+          AppListRow(
+            icon: Icons.mode_comment_outlined,
+            label: t.t('cases.comments.title'),
+            onTap: () => context.push(AppRoutes.caseComments(c.id)),
+          ),
           DetailSection(
             title: t.t('cases.detail.details'),
             child: FactsCard(
@@ -509,7 +515,8 @@ class _AcceptedAttorneyCard extends StatelessWidget {
               height: AppSizes.touchTarget,
               onPressed: conversationId == null
                   ? () => showAppSnackBar(context, t.t('cases.chat.soon'))
-                  : () => context.push(ChatRoutes.conversation(conversationId!)),
+                  : () =>
+                      context.push(ChatRoutes.conversation(conversationId!)),
             ),
           ),
         ],

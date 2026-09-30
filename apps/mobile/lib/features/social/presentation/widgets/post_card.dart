@@ -1,3 +1,4 @@
+import 'dart:ui' show ImageFilter;
 import 'dart:math' as math;
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -271,6 +272,13 @@ class PostCard extends ConsumerWidget {
                 media: p.media,
                 semanticLabel: t.t('post.media.label'),
                 onDoubleTap: () => run(() => actions.like(p)),
+                // All (up to 9) photos full screen: swipe and zoom.
+                onTap: (i) => showPhotoGallery(
+                  context,
+                  urls: [for (final m in p.media) m.url],
+                  initial: i,
+                  closeLabel: t.t('common.close'),
+                ),
               ),
             ),
           ),
@@ -742,8 +750,12 @@ class PostMediaCarousel extends StatefulWidget {
     required this.semanticLabel,
     this.compact = false,
     this.fill = false,
+    this.onTap,
     super.key,
   });
+
+  /// Tap on photo [index] (the open post shows the full-screen gallery).
+  final void Function(int index)? onTap;
 
   final List<PostMedia> media;
   final VoidCallback onDoubleTap;
@@ -795,19 +807,43 @@ class _PostMediaCarouselState extends State<PostMediaCarousel>
           PageView.builder(
             itemCount: media.length,
             onPageChanged: (i) => _page.value = i,
-            itemBuilder: (context, i) => CachedNetworkImage(
-              imageUrl: media[i].mediumUrl,
-              cacheKey: '${media[i].fileId}:1080',
-              fit: BoxFit.cover,
-              fadeInDuration:
-                  context.reduceMotion ? Duration.zero : AppMotion.stateChange,
-              placeholder: (_, __) => ColoredBox(color: colors.skeletonBase),
-              errorWidget: (_, __, ___) => ColoredBox(
-                color: colors.skeletonBase,
-                child: Icon(Icons.image_not_supported_outlined,
-                    color: colors.textSecondary),
-              ),
-            ),
+            // Owner 2026-09-30: the whole photo is always visible — shown
+            // "contain" over a blurred copy of itself filling the frame
+            // (no half-cropped portraits). Tap in the open post = full
+            // screen gallery.
+            itemBuilder: (context, i) {
+              final m = media[i];
+              Widget img(BoxFit fit, String url, String key) =>
+                  CachedNetworkImage(
+                    imageUrl: url,
+                    cacheKey: key,
+                    fit: fit,
+                    fadeInDuration: context.reduceMotion
+                        ? Duration.zero
+                        : AppMotion.stateChange,
+                    placeholder: (_, __) =>
+                        ColoredBox(color: colors.skeletonBase),
+                    errorWidget: (_, __, ___) => ColoredBox(
+                      color: colors.skeletonBase,
+                      child: Icon(Icons.image_not_supported_outlined,
+                          color: colors.textSecondary),
+                    ),
+                  );
+              return GestureDetector(
+                onTap: widget.onTap == null ? null : () => widget.onTap!(i),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    ImageFiltered(
+                      imageFilter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+                      child: img(BoxFit.cover, m.previewUrl, '${m.fileId}:320'),
+                    ),
+                    ColoredBox(color: Colors.black.withValues(alpha: 0.18)),
+                    img(BoxFit.contain, m.mediumUrl, '${m.fileId}:1080'),
+                  ],
+                ),
+              );
+            },
           ),
           IgnorePointer(child: _HeartBurst(animation: _heart)),
           if (media.length > 1)

@@ -7,6 +7,7 @@ import {
 } from '../../../common/pagination/cursor.util';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { PostEngagementService } from '../../posts/post-engagement.service';
+import { CounterAggregator } from '../../counters/counter-aggregator.service';
 import { PrismaService } from '../../../prisma/prisma.service';
 import {
   CaseDetailForAttorneyDto,
@@ -56,6 +57,7 @@ export class CasesFeedService {
     private readonly viewTracking: CaseViewTrackingService,
     private readonly posts: PostEngagementService,
     @Optional() private readonly photos?: CasePhotosService,
+    @Optional() private readonly counters?: CounterAggregator,
   ) {}
 
   /** GET /cases (docs/04 §4.2). Empty page, not an error, for a caller
@@ -84,6 +86,7 @@ export class CasesFeedService {
       buildVisibleCasesSql({
         attorneyId: viewer.userId,
         practiceAreaId: query.practiceAreaId,
+        practiceCategory: query.practiceCategory,
         state: query.state,
         cursor,
         limit: limit + 1,
@@ -209,7 +212,7 @@ export class CasesFeedService {
    * skipped). Also used by the saved-cases list (docs/04 §11.2). */
   async hydrate(ids: string[], attorneyId: string): Promise<CaseFeedItemDto[]> {
     if (ids.length === 0) return [];
-    const [rows, ownBids] = await Promise.all([
+    const [rows, ownBids, saved, pendingComments] = await Promise.all([
       this.prisma.case.findMany({
         where: { id: { in: ids } },
         include: CASE_WITH_PRACTICE_AREA_INCLUDE,
@@ -218,8 +221,16 @@ export class CasesFeedService {
         where: { attorney_id: attorneyId, case_id: { in: ids } },
         select: { case_id: true },
       }),
+      this.prisma.savedItem.findMany({
+        where: { user_id: attorneyId, item_type: 'case', item_id: { in: ids } },
+        select: { item_id: true },
+      }),
+      this.counters
+        ? this.counters.pending('case', 'comment_count', ids)
+        : Promise.resolve(new Map<string, number>()),
     ]);
     const bidCaseIds = new Set(ownBids.map((b) => b.case_id));
+    const savedIds = new Set(saved.map((s) => s.item_id));
     const byId = new Map(rows.map((r) => [r.id, r]));
     const now = Date.now();
     const items: CaseFeedItemDto[] = [];
@@ -259,6 +270,11 @@ export class CasesFeedService {
         isNew:
           now - c.created_at.getTime() < CASE_NEW_BADGE_HOURS * 60 * 60 * 1000,
         hasOwnBid: bidCaseIds.has(c.id),
+        commentCount: Math.max(
+          0,
+          c.comment_count + (pendingComments.get(c.id) ?? 0),
+        ),
+        isSaved: savedIds.has(c.id),
       });
     }
     return items;

@@ -64,8 +64,13 @@ abstract final class CasesMappers {
         photos: c.photos.map(casePhoto).toList(growable: false),
       );
 
-  static CasePhoto casePhoto(api.CasePhotoDto p) =>
-      CasePhoto(fileId: p.fileId, url: p.url, previewUrl: p.previewUrl);
+  static CasePhoto casePhoto(api.CasePhotoDto p) => CasePhoto(
+        fileId: p.fileId,
+        url: p.url,
+        previewUrl: p.previewUrl,
+        mime: p.mime,
+        sizeBytes: p.sizeBytes.toInt(),
+      );
 
   static BidAttorney attorney(api.BidAttorneySummaryDto a) => BidAttorney(
         id: a.id,
@@ -141,6 +146,8 @@ abstract final class CasesMappers {
         createdAt: c.createdAt.toLocal(),
         isNew: c.isNew,
         hasOwnBid: c.hasOwnBid,
+        isSaved: c.isSaved,
+        commentCount: c.commentCount.toInt(),
       );
 
   static FeedCase attorneyCase(api.CaseDetailForAttorneyDto c) => FeedCase(
@@ -164,6 +171,7 @@ abstract final class CasesMappers {
         ownBidId: c.ownBidId,
         photos: c.photos.map(casePhoto).toList(growable: false),
         photosCount: c.photosCount.toInt(),
+        commentCount: c.commentCount.toInt(),
       );
 
   static MyBid myBid(api.MyBidItemDto b) => MyBid(

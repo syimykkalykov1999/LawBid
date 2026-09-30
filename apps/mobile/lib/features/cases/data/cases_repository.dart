@@ -63,8 +63,12 @@ abstract interface class CasesRepository {
   Future<CaseBid> withdraw(String bidId);
 
   // --- attorney ---
-  Future<CursorPage<FeedCase>> feed(
-      {String? cursor, String? practiceAreaId, String? state});
+  Future<CursorPage<FeedCase>> feed({
+    String? cursor,
+    String? practiceAreaId,
+    String? practiceCategory,
+    String? state,
+  });
   Future<FeedCase> attorneyCase(String caseId);
   Future<void> recordView(String caseId);
   Future<void> setSaved(String caseId, {required bool saved});
@@ -289,6 +293,7 @@ class ApiCasesRepository implements CasesRepository {
   Future<CursorPage<FeedCase>> feed({
     String? cursor,
     String? practiceAreaId,
+    String? practiceCategory,
     String? state,
   }) async {
     final env = await guardApiCall(
@@ -296,6 +301,7 @@ class ApiCasesRepository implements CasesRepository {
         limit: pageSize,
         cursor: cursor,
         practiceAreaId: practiceAreaId,
+        practiceCategory: practiceCategory,
         state: state,
       ),
     );

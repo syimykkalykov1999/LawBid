@@ -61,7 +61,13 @@ String? notificationRoute({
     case 'new_follower':
       if (actorUsername != null) return AppRoutes.lawyer(actorUsername);
       return myId == null ? null : SocialRoutes.followers(myId);
+    // OQ-034: comments under a case carry caseId instead of postId.
+    case 'case_comment':
+      return caseId == null ? null : AppRoutes.caseComments(caseId);
     case 'post_like' || 'post_comment' || 'comment_reply' || 'comment_like':
+      if (postId == null && caseId != null) {
+        return AppRoutes.caseComments(caseId);
+      }
       return postId == null ? null : SocialRoutes.post(postId);
     case 'verification_update':
       return AppRoutes.verification;
@@ -93,7 +99,10 @@ String notificationText(Translator t, AppNotification n) {
 
 IconData _icon(AppNotification n) => switch (n.type) {
       'post_like' || 'comment_like' => Icons.favorite_rounded,
-      'post_comment' || 'comment_reply' => Icons.mode_comment_rounded,
+      'post_comment' ||
+      'comment_reply' ||
+      'case_comment' =>
+        Icons.mode_comment_rounded,
       'new_follower' => Icons.person_add_alt_1_rounded,
       'review_requested' || 'review_received' => Icons.star_rounded,
       'security_new_device' => Icons.devices_rounded,

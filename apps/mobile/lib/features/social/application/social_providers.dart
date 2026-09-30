@@ -145,7 +145,8 @@ final attorneyPostsProvider = AsyncNotifierProvider.autoDispose
   retry: _noRetry,
 );
 
-typedef TagPostsKey = ({String tag, TagSort sort});
+/// [state] (OQ-034): only posts of attorneys licensed there.
+typedef TagPostsKey = ({String tag, TagSort sort, String? state});
 
 class TagPostsNotifier extends PagedNotifier<Post> {
   TagPostsNotifier(this.key);
@@ -155,7 +156,7 @@ class TagPostsNotifier extends PagedNotifier<Post> {
   @override
   Future<CursorPage<Post>> fetch(String? cursor) => ref
       .read(socialRepositoryProvider)
-      .tagPosts(key.tag, key.sort, cursor: cursor);
+      .tagPosts(key.tag, key.sort, cursor: cursor, state: key.state);
 
   @override
   Object idOf(Post item) => item.id;
@@ -164,6 +165,27 @@ class TagPostsNotifier extends PagedNotifier<Post> {
 final tagPostsProvider = AsyncNotifierProvider.autoDispose
     .family<TagPostsNotifier, PaginatedList<Post>, TagPostsKey>(
   TagPostsNotifier.new,
+  retry: _noRetry,
+);
+
+/// OQ-034: the feed's "All" topic with a state chosen.
+class LatestPostsNotifier extends PagedNotifier<Post> {
+  LatestPostsNotifier(this.stateCode);
+
+  final String stateCode;
+
+  @override
+  Future<CursorPage<Post>> fetch(String? cursor) => ref
+      .read(socialRepositoryProvider)
+      .latestPosts(stateCode, cursor: cursor);
+
+  @override
+  Object idOf(Post item) => item.id;
+}
+
+final latestPostsProvider = AsyncNotifierProvider.autoDispose
+    .family<LatestPostsNotifier, PaginatedList<Post>, String>(
+  LatestPostsNotifier.new,
   retry: _noRetry,
 );
 

@@ -41,12 +41,15 @@ abstract class CasesClient {
   /// [practiceAreaId] - Leaf practice area id.
   ///
   /// [state] - Two-letter state code.
+  ///
+  /// [practiceCategory] - Practice category code: cases of any of its leaves (owner 2026-09-30, OQ-034 topic slider).
   @GET('/cases')
   Future<CaseFeedItemListEnvelope> listCaseFeed({
     @Query('limit') int? limit = 20,
     @Query('cursor') String? cursor,
     @Query('practiceAreaId') String? practiceAreaId,
     @Query('state') String? state,
+    @Query('practiceCategory') String? practiceCategory,
     @Extras() Map<String, dynamic>? extras,
   });
 

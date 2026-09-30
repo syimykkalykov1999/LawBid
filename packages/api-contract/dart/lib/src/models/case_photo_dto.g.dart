@@ -10,6 +10,8 @@ CasePhotoDto _$CasePhotoDtoFromJson(Map<String, dynamic> json) => CasePhotoDto(
   fileId: json['fileId'] as String,
   url: json['url'] as String,
   previewUrl: json['previewUrl'] as String,
+  mime: json['mime'] as String,
+  sizeBytes: (json['sizeBytes'] as num).toInt(),
 );
 
 Map<String, dynamic> _$CasePhotoDtoToJson(CasePhotoDto instance) =>
@@ -17,4 +19,6 @@ Map<String, dynamic> _$CasePhotoDtoToJson(CasePhotoDto instance) =>
       'fileId': instance.fileId,
       'url': instance.url,
       'previewUrl': instance.previewUrl,
+      'mime': instance.mime,
+      'sizeBytes': instance.sizeBytes,
     };

@@ -22,6 +22,36 @@ const kPostMaxChars = 2200;
 /// docs/05 §5.1: comment length 1–1000.
 const kCommentMaxChars = 1000;
 
+/// Owner 2026-09-30 (OQ-034): comments under a case reuse the post comment
+/// UI. A case thread id and its comment ids carry this prefix, so the
+/// repository routes each call to the case-comment API.
+const kCaseThreadPrefix = 'case:';
+
+bool isCaseRef(String id) => id.startsWith(kCaseThreadPrefix);
+String _raw(String id) =>
+    isCaseRef(id) ? id.substring(kCaseThreadPrefix.length) : id;
+String caseThreadId(String caseId) => '$kCaseThreadPrefix$caseId';
+
+const kPdfMime = 'application/pdf';
+const kDocxMime =
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
+/// OQ-034: PDF ("%PDF-") or Word .docx (a ZIP with the Word part), by the
+/// leading bytes — the server re-checks the same way.
+String? sniffDocumentMime(Uint8List b) {
+  if (b.length >= 5 && String.fromCharCodes(b.sublist(0, 5)) == '%PDF-') {
+    return kPdfMime;
+  }
+  if (b.length >= 30 && b[0] == 0x50 && b[1] == 0x4B && b[2] == 3 && b[3] == 4) {
+    final head = String.fromCharCodes(
+        b.sublist(0, b.length < 65536 ? b.length : 65536));
+    if (head.contains('[Content_Types].xml') && head.contains('word/')) {
+      return kDocxMime;
+    }
+  }
+  return null;
+}
+
 const Map<String, dynamic> _createsResource = {
   RequestFlags.createsResource: true,
 };
@@ -40,7 +70,11 @@ abstract interface class SocialRepository {
     String tag,
     TagSort sort, {
     String? cursor,
+    String? state,
   });
+
+  /// OQ-034: newest posts of attorneys licensed in [state].
+  Future<CursorPage<Post>> latestPosts(String state, {String? cursor});
   Future<Post> createPost(String body, List<String> mediaFileIds);
   Future<Post> updatePost(String id, String body);
   Future<void> deletePost(String id);
@@ -95,6 +129,7 @@ class ApiSocialRepository implements SocialRepository {
         _feed = api.FeedClient(apiDio),
         _posts = api.PostsClient(apiDio),
         _comments = api.CommentsClient(apiDio),
+        _caseComments = api.CaseCommentsClient(apiDio),
         _follows = api.FollowsClient(apiDio),
         _search = api.SearchClient(apiDio),
         _cases = api.CasesClient(apiDio),
@@ -105,6 +140,7 @@ class ApiSocialRepository implements SocialRepository {
   final api.FeedClient _feed;
   final api.PostsClient _posts;
   final api.CommentsClient _comments;
+  final api.CaseCommentsClient _caseComments;
   final api.FollowsClient _follows;
   final api.SearchClient _search;
   final api.CasesClient _cases;
@@ -170,13 +206,26 @@ class ApiSocialRepository implements SocialRepository {
     String tag,
     TagSort sort, {
     String? cursor,
+    String? state,
   }) async {
     final env = await guardApiCall(
       () => _search.tagPosts(
         tag: tag,
         sort: sort == TagSort.top ? api.Sort2.top : api.Sort2.valueNew,
         cursor: cursor,
+        state: state,
       ),
+    );
+    return CursorPage(
+      items: env.data.map(SocialMappers.post).toList(),
+      nextCursor: env.meta?.nextCursor,
+    );
+  }
+
+  @override
+  Future<CursorPage<Post>> latestPosts(String state, {String? cursor}) async {
+    final env = await guardApiCall(
+      () => _search.latestPosts(state: state, cursor: cursor),
     );
     return CursorPage(
       items: env.data.map(SocialMappers.post).toList(),
@@ -247,6 +296,15 @@ class ApiSocialRepository implements SocialRepository {
 
   @override
   Future<CursorPage<Comment>> comments(String postId, {String? cursor}) async {
+    if (isCaseRef(postId)) {
+      final env = await guardApiCall(
+        () => _caseComments.listCaseComments(id: _raw(postId), cursor: cursor),
+      );
+      return CursorPage(
+        items: env.data.map(SocialMappers.caseComment).toList(),
+        nextCursor: env.meta?.nextCursor,
+      );
+    }
     final env = await guardApiCall(
       () => _comments.listComments(id: postId, cursor: cursor),
     );
@@ -261,6 +319,18 @@ class ApiSocialRepository implements SocialRepository {
     String commentId, {
     String? cursor,
   }) async {
+    if (isCaseRef(commentId)) {
+      final env = await guardApiCall(
+        () => _caseComments.listCaseCommentReplies(
+          id: _raw(commentId),
+          cursor: cursor,
+        ),
+      );
+      return CursorPage(
+        items: env.data.map(SocialMappers.caseComment).toList(),
+        nextCursor: env.meta?.nextCursor,
+      );
+    }
     final env = await guardApiCall(
       () => _comments.listReplies(id: commentId, cursor: cursor),
     );
@@ -275,32 +345,57 @@ class ApiSocialRepository implements SocialRepository {
     String postId,
     String body, {
     String? parentId,
-  }) async =>
-      SocialMappers.comment(
+  }) async {
+    if (isCaseRef(postId)) {
+      return SocialMappers.caseComment(
         (await guardApiCall(
-          () => _comments.createComment(
-            id: postId,
+          () => _caseComments.createCaseComment(
+            id: _raw(postId),
             body: api.CreateCommentDto(
               body: body,
-              parentCommentId: parentId,
+              parentCommentId: parentId == null ? null : _raw(parentId),
             ),
             extras: _createsResource,
           ),
         ))
             .data,
       );
+    }
+    return SocialMappers.comment(
+      (await guardApiCall(
+        () => _comments.createComment(
+          id: postId,
+          body: api.CreateCommentDto(
+            body: body,
+            parentCommentId: parentId,
+          ),
+          extras: _createsResource,
+        ),
+      ))
+          .data,
+    );
+  }
 
   @override
-  Future<void> deleteComment(String commentId) =>
-      guardApiCall(() => _comments.deleteComment(id: commentId));
-
-  @override
-  Future<void> setCommentLiked(String commentId, {required bool liked}) =>
-      guardApiCall(
-        () => liked
-            ? _comments.likeComment(id: commentId)
-            : _comments.unlikeComment(id: commentId),
+  Future<void> deleteComment(String commentId) => guardApiCall(
+        () => isCaseRef(commentId)
+            ? _caseComments.deleteCaseComment(id: _raw(commentId))
+            : _comments.deleteComment(id: commentId),
       );
+
+  @override
+  Future<void> setCommentLiked(String commentId, {required bool liked}) {
+    final raw = _raw(commentId);
+    return guardApiCall(
+      () => isCaseRef(commentId)
+          ? (liked
+              ? _caseComments.likeCaseComment(id: raw)
+              : _caseComments.unlikeCaseComment(id: raw))
+          : (liked
+              ? _comments.likeComment(id: commentId)
+              : _comments.unlikeComment(id: commentId)),
+    );
+  }
 
   @override
   Future<void> setFollowing(String attorneyId, {required bool following}) =>
@@ -361,11 +456,13 @@ class ApiSocialRepository implements SocialRepository {
           body: api.CreateReportDto(
             targetType: switch (target) {
               ReportTarget.post => api.ReportTargetType.post,
+              ReportTarget.comment when isCaseRef(id) =>
+                api.ReportTargetType.caseComment,
               ReportTarget.comment => api.ReportTargetType.comment,
               ReportTarget.message => api.ReportTargetType.message,
               ReportTarget.user => api.ReportTargetType.user,
             },
-            targetId: id,
+            targetId: _raw(id),
             reason: api.ReportReason.values.byName(reason.name),
             note: note,
           ),
@@ -379,7 +476,10 @@ class ApiSocialRepository implements SocialRepository {
     // OQ-031: the same pipeline for private case photos.
     bool casePhoto = false,
   }) async {
-    final mime = sniffImageMime(bytes);
+    // OQ-034: a case also takes documents (PDF, Word) next to photos.
+    final image = sniffImageMime(bytes);
+    final doc = casePhoto && image == null ? sniffDocumentMime(bytes) : null;
+    final mime = image ?? doc;
     if (mime == null) {
       throw const ApiException(
         code: ApiErrorCodes.fileTypeNotAllowed,
@@ -395,8 +495,11 @@ class ApiSocialRepository implements SocialRepository {
     final target = (await guardApiCall(
       () => _files.presign(
         body: api.PresignFileDto(
-          purpose:
-              casePhoto ? api.FilePurpose.casePhoto : api.FilePurpose.postImage,
+          purpose: doc != null
+              ? api.FilePurpose.caseAttachment
+              : casePhoto
+                  ? api.FilePurpose.casePhoto
+                  : api.FilePurpose.postImage,
           mime: mime,
           sizeBytes: bytes.length,
           sha256: sha256Hex(bytes),
@@ -414,7 +517,9 @@ class ApiSocialRepository implements SocialRepository {
           // S3 POST policy: the file must be the LAST field.
           'file': MultipartFile.fromBytes(
             bytes,
-            filename: 'photo.${parts.last}',
+            filename: doc == null
+                ? 'photo.${parts.last}'
+                : (doc == kPdfMime ? 'document.pdf' : 'document.docx'),
             contentType: DioMediaType(parts.first, parts.last),
           ),
         }),
@@ -513,6 +618,30 @@ abstract final class SocialMappers {
           displayName: d.author.displayName,
           avatarUrl: d.author.avatarUrl,
           verified: d.author.verifiedBadge,
+        ),
+        body: d.body,
+        likeCount: d.likeCount,
+        replyCount: d.replyCount,
+        likedByMe: d.likedByMe,
+        canDelete: d.canDelete,
+        isMine: d.isMine,
+        createdAt: DateTime.parse(d.createdAt),
+      );
+
+  /// OQ-034: a comment under a case, ids prefixed (see kCaseThreadPrefix).
+  static Comment caseComment(api.CaseCommentDto d) => Comment(
+        id: caseThreadId(d.id),
+        postId: caseThreadId(d.caseId),
+        parentId:
+            d.parentCommentId == null ? null : caseThreadId(d.parentCommentId!),
+        author: CommentAuthor(
+          isAttorney: d.author.kind == api.CommentAuthorDtoKind.attorney,
+          attorneyId: d.author.attorneyId,
+          username: d.author.username,
+          displayName: d.author.displayName,
+          avatarUrl: d.author.avatarUrl,
+          verified: d.author.verifiedBadge,
+          isCaseOwner: d.byCaseOwner,
         ),
         body: d.body,
         likeCount: d.likeCount,
