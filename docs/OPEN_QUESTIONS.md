@@ -736,3 +736,21 @@ their own mention; not across a block; no duplicate when they already get
 a comment/reply notification). The API returns `mentions` on posts and
 comments (real people only). Owner decisions the same day: attorneys do
 not publish cases; the case city stays visible as before.
+
+## OQ-043 — "Message" on a profile opens a direct chat; message requests like Instagram (owner, 2026-09-30)
+
+Differs from OQ-014 / docs/04 §9 (chats only from a case).
+- "Message" on an attorney's profile (for clients) or a client's profile
+  (for attorneys) opens the one direct chat of that pair. Attorney ↔
+  attorney and client ↔ client have no direct chats (the button is hidden).
+- The first messages are a request: the recipient sees them under
+  "Message requests" (a row with the count at the top of Chats), without
+  a badge and with one push; the requester sees "Request sent" and may
+  send up to 3 messages, without "Seen", until the answer.
+- Accept (or simply replying) moves the chat to the main list; Delete
+  stops the requester ("This person isn't accepting your messages");
+  Block blocks and deletes.
+- Contacts stay masked in direct chats and calls are not available there
+  (they open with an accepted bid, OQ-041) — so a direct chat cannot be
+  used to take a client off the platform. Blocks and the attorney's
+  subscription apply as in case chats.

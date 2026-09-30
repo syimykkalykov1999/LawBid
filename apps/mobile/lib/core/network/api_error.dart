@@ -116,6 +116,10 @@ abstract final class ApiErrorCodes {
   static const callNotAllowed = 'CALL_NOT_ALLOWED';
   static const callInProgress = 'CALL_IN_PROGRESS';
   static const callStateConflict = 'CALL_STATE_CONFLICT';
+  // OQ-043 direct chats / message requests.
+  static const directChatNotAllowed = 'DIRECT_CHAT_NOT_ALLOWED';
+  static const messageRequestDeclined = 'MESSAGE_REQUEST_DECLINED';
+  static const messageRequestLimit = 'MESSAGE_REQUEST_LIMIT';
   static const bidAttorneyInactive = 'BID_ATTORNEY_INACTIVE';
   static const contactsLocked = 'CONTACTS_LOCKED';
   static const contactIssueAlreadyOpen = 'CONTACT_ISSUE_ALREADY_OPEN';
@@ -232,6 +236,9 @@ abstract final class ApiErrorCodes {
     callNotAllowed,
     callInProgress,
     callStateConflict,
+    directChatNotAllowed,
+    messageRequestDeclined,
+    messageRequestLimit,
     bidAttorneyInactive,
     contactsLocked,
     contactIssueAlreadyOpen,

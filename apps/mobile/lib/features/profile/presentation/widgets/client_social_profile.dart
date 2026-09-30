@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:lawbid/features/chat/presentation/open_direct_chat.dart';
+import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
+import 'package:lawbid/shared/domain/user_role.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -204,10 +207,30 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
               onPressed: () => context.push(AppRoutes.profileEdit),
             )
           else if (!blocked)
-            FollowButton(
-              attorneyId: p.id,
-              initial: p.isFollowing,
-              expanded: true,
+            Row(
+              children: [
+                Expanded(
+                  child: FollowButton(
+                    attorneyId: p.id,
+                    initial: p.isFollowing,
+                    expanded: true,
+                  ),
+                ),
+                // OQ-043: an attorney can write to a client directly (a
+                // message request until the client accepts).
+                if (ref.watch(currentUserRoleProvider) ==
+                    UserRole.attorney) ...[
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: AppButton(
+                      label: t.t('profile.action.message'),
+                      variant: AppButtonVariant.secondary,
+                      height: AppSizes.touchTarget,
+                      onPressed: () => openDirectChat(context, ref, p.id),
+                    ),
+                  ),
+                ],
+              ],
             ),
           const SizedBox(height: AppSpacing.md),
           Row(

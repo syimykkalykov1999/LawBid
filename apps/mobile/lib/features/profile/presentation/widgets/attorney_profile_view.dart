@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:lawbid/features/chat/presentation/open_direct_chat.dart';
+import 'package:lawbid/shared/domain/user_role.dart';
+import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -24,7 +27,6 @@ import 'package:lawbid/features/profile/presentation/widgets/review_widgets.dart
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart';
 import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart';
 import 'package:lawbid/features/social/social_routes.dart';
-import 'package:lawbid/features/chat/chat_routes.dart';
 
 enum AttorneyProfileTab { posts, reviews }
 
@@ -165,9 +167,10 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
           attorneyId: p.id,
           isFollowing: p.isFollowing,
           blocked: p.isBlocked || p.hasBlockedMe,
-          // Owner decision (OQ-014): "Написать" leads to the Chats screen;
-          // chats themselves open from a case (docs/04 §9).
-          onMessage: () => context.push(ChatRoutes.inbox),
+          // OQ-043: "Написать" opens the direct chat (a message request
+          // until accepted). Attorney ↔ attorney has no direct chat.
+          canMessage: ref.watch(currentUserRoleProvider) != UserRole.attorney,
+          onMessage: () => openDirectChat(context, ref, p.id),
           onShare: () => _share(t),
         ),
         const SizedBox(height: AppSpacing.md),
@@ -760,7 +763,11 @@ class _Actions extends ConsumerWidget {
     required this.onMessage,
     required this.onShare,
     this.blocked = false,
+    this.canMessage = true,
   });
+
+  /// OQ-043: direct chats are attorney ↔ client.
+  final bool canMessage;
 
   final bool isSelf;
   final String attorneyId;
@@ -789,7 +796,7 @@ class _Actions extends ConsumerWidget {
                     expanded: true,
                   ),
           ),
-        if (!isSelf && !blocked) ...[
+        if (!isSelf && !blocked && canMessage) ...[
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: _QuietButton(

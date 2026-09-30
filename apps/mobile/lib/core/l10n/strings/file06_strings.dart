@@ -2,6 +2,28 @@
 // merged into StaticTranslatorRu/En like file05_strings.dart.
 
 const file06Ru = <String, String>{
+  // --- OQ-043: личные чаты и запросы на переписку ---
+  'chat.requests.title': 'Запросы на переписку',
+  'chat.requests.subtitle': 'Сообщения от людей, с которыми вы не общались',
+  'chat.requests.explain':
+      'Откройте запрос, чтобы прочитать. Отправитель не узнает, что вы его прочитали, пока вы не примете запрос.',
+  'chat.requests.empty': 'Новых запросов нет.',
+  'chat.requests.wants': '{name} хочет написать вам',
+  'chat.requests.privacy':
+      'Примите, чтобы переписываться. Удалить — сообщения исчезнут, человек больше не сможет писать.',
+  'chat.requests.accept': 'Принять',
+  'chat.requests.delete': 'Удалить',
+  'chat.requests.block': 'Блок',
+  'chat.requests.sentNote':
+      'Запрос отправлен. До ответа можно отправить до 3 сообщений.',
+  'chat.requests.declinedForYou':
+      'Этот человек не принимает ваши сообщения.',
+  'error.api.DIRECT_CHAT_NOT_ALLOWED':
+      'Личная переписка доступна между адвокатом и клиентом.',
+  'error.api.MESSAGE_REQUEST_DECLINED':
+      'Этот человек не принимает ваши сообщения.',
+  'error.api.MESSAGE_REQUEST_LIMIT':
+      'Дождитесь, пока запрос на переписку примут.',
   // --- OQ-042: отметки @username ---
   'notif.list.mention': '{name} отметил(-а) вас',
   'notif.list.mention.many': '{name} и ещё {others} отметили вас',
@@ -309,6 +331,28 @@ const file06Ru = <String, String>{
 };
 
 const file06En = <String, String>{
+  // --- OQ-043: direct chats and message requests ---
+  'chat.requests.title': 'Message requests',
+  'chat.requests.subtitle': "Messages from people you haven't talked to",
+  'chat.requests.explain':
+      "Open a request to read it. They won't know you've seen it until you accept.",
+  'chat.requests.empty': 'No new requests.',
+  'chat.requests.wants': '{name} wants to message you',
+  'chat.requests.privacy':
+      "Accept to chat. Delete removes the request and they can't message you again.",
+  'chat.requests.accept': 'Accept',
+  'chat.requests.delete': 'Delete',
+  'chat.requests.block': 'Block',
+  'chat.requests.sentNote':
+      'Request sent. You can send up to 3 messages until they accept.',
+  'chat.requests.declinedForYou':
+      "This person isn't accepting your messages.",
+  'error.api.DIRECT_CHAT_NOT_ALLOWED':
+      'Direct messages are between an attorney and a client.',
+  'error.api.MESSAGE_REQUEST_DECLINED':
+      "This person isn't accepting your messages.",
+  'error.api.MESSAGE_REQUEST_LIMIT':
+      'Wait until your message request is accepted.',
   // --- OQ-042: @mentions ---
   'notif.list.mention': '{name} mentioned you',
   'notif.list.mention.many': '{name} and {others} more mentioned you',

@@ -11,6 +11,9 @@ import 'package:lawbid/features/notifications/presentation/notification_settings
 /// Settings → Notifications.
 abstract final class ChatRoutes {
   static const inbox = '/inbox';
+
+  /// OQ-043: message requests sent to me.
+  static const requests = '/inbox/requests';
   static String inboxTab(InboxTab tab) => '/inbox?tab=${tab.name}';
 
   static const conversationPattern = '/chat/:id';
@@ -34,6 +37,12 @@ List<RouteBase> chatRoutes(GlobalKey<NavigatorState> root) => [
                 : InboxTab.chats,
           ),
         ),
+      ),
+      GoRoute(
+        path: ChatRoutes.requests,
+        parentNavigatorKey: root,
+        pageBuilder: (context, state) =>
+            AppPageTransitions.push(state, const MessageRequestsScreen()),
       ),
       GoRoute(
         path: ChatRoutes.conversationPattern,

@@ -251,11 +251,14 @@ class ConversationsView extends ConsumerWidget {
     final value = ref.watch(conversationsProvider);
     final n = ref.read(conversationsProvider.notifier);
     final attorney = ref.watch(currentUserRoleProvider) == UserRole.attorney;
+    final requests = ref.watch(messageRequestsCountProvider).value ?? 0;
     return PagedListBody<Conversation>(
       value: value,
       t: t,
       itemKey: (c) => c.id,
-      itemBuilder: (context, c, _) => _ConversationRow(conversation: c),
+      itemBuilder: (context, c, _) => ConversationRow(conversation: c),
+      // OQ-043: messages from people you haven't talked to wait here.
+      header: requests == 0 ? null : _RequestsRow(count: requests),
       empty: AppEmptyState(
         icon: Icons.forum_outlined,
         title: t.t('chat.empty.title'),
@@ -268,8 +271,119 @@ class ConversationsView extends ConsumerWidget {
   }
 }
 
-class _ConversationRow extends ConsumerWidget {
-  const _ConversationRow({required this.conversation});
+/// "Message requests · 2" at the top of the chats (OQ-043).
+class _RequestsRow extends ConsumerWidget {
+  const _RequestsRow({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+      child: Semantics(
+        button: true,
+        label: '${t.t('chat.requests.title')}, $count',
+        excludeSemantics: true,
+        child: AppPressable(
+          onTap: () => context.push(ChatRoutes.requests),
+          child: Container(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            decoration: BoxDecoration(
+              color: colors.goldTint,
+              borderRadius: BorderRadius.circular(AppRadii.card),
+              border: Border.all(color: colors.goldStroke),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: colors.navy,
+                  ),
+                  child: Icon(Icons.mark_email_unread_outlined,
+                      color: colors.goldLight),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(t.t('chat.requests.title'),
+                          style: type.body.copyWith(
+                              color: colors.text, fontWeight: FontWeight.w700)),
+                      Text(t.t('chat.requests.subtitle'),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: type.caption
+                              .copyWith(color: colors.textSecondary)),
+                    ],
+                  ),
+                ),
+                CountPill(count: count),
+                const SizedBox(width: AppSpacing.xs),
+                Icon(Icons.chevron_right_rounded, color: colors.textSecondary),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// OQ-043: message requests sent to me — open one to accept or delete.
+class MessageRequestsScreen extends ConsumerWidget {
+  const MessageRequestsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final value = ref.watch(messageRequestsProvider);
+    final n = ref.read(messageRequestsProvider.notifier);
+    return Scaffold(
+      backgroundColor: colors.bg,
+      appBar: AppTopBar(
+        leading: AppBackButton(
+          semanticLabel: t.t('common.back'),
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
+        title: Text(t.t('chat.requests.title')),
+      ),
+      body: PagedListBody<Conversation>(
+        value: value,
+        t: t,
+        itemKey: (c) => c.id,
+        itemBuilder: (context, c, _) => Padding(
+          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+          child: ConversationRow(conversation: c),
+        ),
+        header: Padding(
+          padding: const EdgeInsets.only(bottom: AppSpacing.md),
+          child: Text(t.t('chat.requests.explain'),
+              style: type.bodySmall.copyWith(color: colors.textSecondary)),
+        ),
+        empty: AppEmptyState(
+          icon: Icons.mark_email_read_outlined,
+          message: t.t('chat.requests.empty'),
+        ),
+        onRefresh: n.refresh,
+        onLoadMore: n.loadMore,
+        onRetryMore: n.retryLoadMore,
+      ),
+    );
+  }
+}
+
+class ConversationRow extends ConsumerWidget {
+  const ConversationRow({required this.conversation});
 
   final Conversation conversation;
 

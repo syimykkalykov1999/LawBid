@@ -68,6 +68,34 @@ final conversationsProvider = AsyncNotifierProvider.autoDispose<
   retry: _noRetry,
 );
 
+// --- Message requests (OQ-043) ------------------------------------------------
+
+/// Requests sent to me (the "Requests" folder).
+class MessageRequestsNotifier extends ConversationsNotifier {
+  @override
+  Future<CursorPage<Conversation>> fetch(String? cursor) => ref
+      .read(chatRepositoryProvider)
+      .conversations(cursor: cursor, requests: true);
+}
+
+final messageRequestsProvider = AsyncNotifierProvider.autoDispose<
+    MessageRequestsNotifier, PaginatedList<Conversation>>(
+  MessageRequestsNotifier.new,
+  retry: _noRetry,
+);
+
+/// How many requests wait for me — the "Requests · N" row; re-read on new
+/// messages and chat updates.
+final messageRequestsCountProvider = FutureProvider.autoDispose<int>((ref) {
+  final sub = ref.watch(realtimeEventsProvider).listen((e) {
+    if (e.name == 'message:new' || e.name == 'conversation:update') {
+      ref.invalidateSelf();
+    }
+  });
+  ref.onDispose(sub.cancel);
+  return ref.watch(chatRepositoryProvider).requestsCount();
+}, retry: _noRetry);
+
 // --- Outbox (docs/05 §8.4) --------------------------------------------------
 
 /// Sends messages written offline, in order, each with its own
@@ -482,6 +510,17 @@ class ChatThread extends Notifier<ChatThreadState> {
     rt.typing(id, active: active);
   }
 
+  /// OQ-043: accept or delete a message request sent to me.
+  Future<void> answerRequest({required bool accept}) async {
+    final updated = await _repo.answerRequest(id, accept: accept);
+    if (!ref.mounted) return;
+    state = state.copyWith(conversation: updated);
+    ref
+      ..invalidate(messageRequestsProvider)
+      ..invalidate(messageRequestsCountProvider)
+      ..invalidate(conversationsProvider);
+  }
+
   Future<void> setMuted(bool muted) async {
     final updated = await _repo.mute(
         id, muted ? DateTime.now().add(const Duration(days: 3650)) : null);
@@ -560,6 +599,9 @@ class ChatThread extends Notifier<ChatThreadState> {
                 mutedUntil: c.mutedUntil,
                 counterpartLastReadId: last,
                 updatedAt: c.updatedAt,
+                isDirect: c.isDirect,
+                request: c.request,
+                requestedByMe: c.requestedByMe,
               ),
             );
           }

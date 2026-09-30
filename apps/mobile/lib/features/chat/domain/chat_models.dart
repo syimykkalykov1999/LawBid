@@ -4,6 +4,9 @@ import 'package:flutter/foundation.dart';
 
 enum ConversationStatus { preAcceptance, active, closed }
 
+/// OQ-043: a direct chat from a profile starts as a message request.
+enum MessageRequest { none, pending, accepted, declined }
+
 /// The other side of a chat (docs/05 §8.1): an attorney always by public
 /// profile; a client hidden ("Клиент по кейсу «…»") until contacts unlock.
 @immutable
@@ -43,7 +46,28 @@ class Conversation {
     this.lastMessageAt,
     this.mutedUntil,
     this.counterpartLastReadId,
+    this.isDirect = false,
+    this.request = MessageRequest.none,
+    this.requestedByMe = false,
   });
+
+  /// OQ-043: started from a profile ("Message"), not from a case.
+  final bool isDirect;
+  final MessageRequest request;
+
+  /// The viewer sent the request.
+  final bool requestedByMe;
+
+  /// A request waiting for the viewer's answer.
+  bool get awaitingMyAnswer =>
+      request == MessageRequest.pending && !requestedByMe;
+
+  /// The viewer's own request not answered yet.
+  bool get myRequestPending =>
+      request == MessageRequest.pending && requestedByMe;
+
+  bool get myRequestDeclined =>
+      request == MessageRequest.declined && requestedByMe;
 
   final String id;
 

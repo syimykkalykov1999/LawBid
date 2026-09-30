@@ -13,7 +13,12 @@ import 'package:lawbid/shared/domain/cursor_page.dart';
 /// docs/05 §8 chats for the app. Throws [ApiException].
 abstract interface class ChatRepository {
   Future<CursorPage<Conversation>> conversations(
-      {String? cursor, DateTime? updatedSince});
+      {String? cursor, DateTime? updatedSince, bool requests = false});
+
+  /// OQ-043: the direct chat with [userId] ("Message" on a profile).
+  Future<Conversation> startDirect(String userId);
+  Future<int> requestsCount();
+  Future<Conversation> answerRequest(String id, {required bool accept});
   Future<Conversation> conversation(String id);
   Future<CursorPage<ChatMessage>> messages(String id, {String? cursor});
 
@@ -138,11 +143,30 @@ class ApiChatRepository implements ChatRepository {
           .data);
 
   @override
+  Future<Conversation> startDirect(String userId) async =>
+      ChatMappers.conversation((await guardApiCall(() => _chat.startDirectChat(
+                body: api.StartDirectChatDto(userId: userId),
+              )))
+          .data);
+
+  @override
+  Future<int> requestsCount() async =>
+      (await guardApiCall(() => _chat.requestsCount())).data.count.toInt();
+
+  @override
+  Future<Conversation> answerRequest(String id, {required bool accept}) async =>
+      ChatMappers.conversation((await guardApiCall(() => accept
+              ? _chat.acceptMessageRequest(id: id)
+              : _chat.declineMessageRequest(id: id)))
+          .data);
+
+  @override
   Future<CursorPage<Conversation>> conversations(
-      {String? cursor, DateTime? updatedSince}) async {
+      {String? cursor, DateTime? updatedSince, bool requests = false}) async {
     final env = await guardApiCall(() => _chat.listConversations(
           cursor: cursor,
           updatedSince: updatedSince?.toUtc().toIso8601String(),
+          folder: requests ? api.ConversationFolder.requests : null,
         ));
     return CursorPage(
       items: env.data.map(ChatMappers.conversation).toList(),
@@ -260,6 +284,14 @@ abstract final class ChatMappers {
         mutedUntil: d.mutedUntil,
         counterpartLastReadId: d.counterpartLastReadMessageId,
         updatedAt: d.updatedAt,
+        isDirect: d.kind == api.ConversationKind.direct,
+        request: switch (d.requestStatus) {
+          api.MessageRequestStatus.pending => MessageRequest.pending,
+          api.MessageRequestStatus.accepted => MessageRequest.accepted,
+          api.MessageRequestStatus.declined => MessageRequest.declined,
+          _ => MessageRequest.none,
+        },
+        requestedByMe: d.requestedByMe,
       );
 
   /// A realtime `message:new` payload (same shape as MessageDto).

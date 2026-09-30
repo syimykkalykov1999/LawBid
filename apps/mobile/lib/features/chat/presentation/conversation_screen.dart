@@ -195,7 +195,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
         title: c == null ? null : _Header(conversation: c),
         actions: [
           // OQ-041: an in-app audio call (after acceptance).
-          if (c != null && !c.closed)
+          // Direct chats keep contacts masked: no calls there (OQ-043).
+          if (c != null && !c.closed && !c.isDirect)
             AppIconButton(
               plain: true,
               icon: Icon(
@@ -240,7 +241,16 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                             )
                           : const SizedBox.shrink(),
                     ),
-                    if (c != null && !c.closed)
+                    // OQ-043: a request sent to me — accept / delete /
+                    // block before anything else.
+                    if (c != null && c.awaitingMyAnswer)
+                      _RequestPanel(conversation: c, thread: _thread)
+                    else if (c != null && c.myRequestDeclined)
+                      _Banner(
+                        icon: Icons.block_rounded,
+                        text: t.t('chat.requests.declinedForYou'),
+                      )
+                    else if (c != null && !c.closed)
                       ValueListenableBuilder<bool>(
                         valueListenable: subscriptionGate,
                         builder: (context, gated, _) => gated && attorney
@@ -248,7 +258,13 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                             : Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  if (!c.contactsUnlocked) const _MaskingHint(),
+                                  if (c.myRequestPending)
+                                    _Banner(
+                                      icon: Icons.schedule_send_outlined,
+                                      text: t.t('chat.requests.sentNote'),
+                                    )
+                                  else if (!c.contactsUnlocked)
+                                    const _MaskingHint(),
                                   _Composer(
                                     controller: _text,
                                     onSend: _send,
@@ -291,9 +307,11 @@ class _Header extends ConsumerWidget {
             context.push(attorney
                 ? AppRoutes.caseDetail(caseId)
                 : AppRoutes.myCase(caseId));
-          } else if (c.counterpart.isAttorney &&
-              c.counterpart.username != null) {
-            context.push(AppRoutes.lawyer(c.counterpart.username!));
+          } else if (c.counterpart.username != null) {
+            // OQ-043: a direct chat opens the other person's profile.
+            context.push(c.counterpart.isAttorney
+                ? AppRoutes.lawyer(c.counterpart.username!)
+                : AppRoutes.client(c.counterpart.username!));
           }
         },
         child: Row(
@@ -806,6 +824,113 @@ class _MaskingHintState extends ConsumerState<_MaskingHint> {
             },
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// OQ-043: "Anna wants to message you" — Accept · Delete · Block.
+class _RequestPanel extends ConsumerStatefulWidget {
+  const _RequestPanel({required this.conversation, required this.thread});
+
+  final Conversation conversation;
+  final ChatThread thread;
+
+  @override
+  ConsumerState<_RequestPanel> createState() => _RequestPanelState();
+}
+
+class _RequestPanelState extends ConsumerState<_RequestPanel> {
+  bool _busy = false;
+
+  Future<void> _answer(bool accept) async {
+    final t = ref.read(translatorProvider);
+    setState(() => _busy = true);
+    try {
+      await widget.thread.answerRequest(accept: accept);
+      if (!accept && mounted) Navigator.of(context).maybePop();
+    } on Object catch (e) {
+      if (mounted) showAppSnackBar(context, errorText(t, e));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ref.watch(translatorProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final c = widget.conversation;
+    final name = counterpartName(t, c);
+    return Material(
+      color: colors.surface,
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide,
+              AppSpacing.md, AppSpacing.screenSide, AppSpacing.md),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                t.t('chat.requests.wants', {'name': name}),
+                textAlign: TextAlign.center,
+                style: type.body
+                    .copyWith(color: colors.text, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                t.t('chat.requests.privacy'),
+                textAlign: TextAlign.center,
+                style: type.caption.copyWith(color: colors.textSecondary),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Row(
+                children: [
+                  if (c.counterpart.id != null)
+                    Expanded(
+                      child: AppButton(
+                        label: t.t('chat.requests.block'),
+                        variant: AppButtonVariant.secondary,
+                        height: AppSizes.touchTarget,
+                        onPressed: _busy
+                            ? null
+                            : () async {
+                                final blocked = await toggleBlock(
+                                  context,
+                                  ref,
+                                  userId: c.counterpart.id!,
+                                  displayName: name,
+                                  currentlyBlocked: false,
+                                );
+                                if (blocked) await _answer(false);
+                              },
+                      ),
+                    ),
+                  if (c.counterpart.id != null)
+                    const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: AppButton(
+                      label: t.t('chat.requests.delete'),
+                      variant: AppButtonVariant.secondary,
+                      height: AppSizes.touchTarget,
+                      onPressed: _busy ? null : () => _answer(false),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: AppButton(
+                      label: t.t('chat.requests.accept'),
+                      height: AppSizes.touchTarget,
+                      onPressed: _busy ? null : () => _answer(true),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
