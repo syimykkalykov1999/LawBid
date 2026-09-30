@@ -312,6 +312,7 @@ export class CommentsService {
             select: {
               username: true,
               verification_status: true,
+              name_mismatch: true,
               licenses: {
                 where: { license_status: 'verified' },
                 select: { id: true },
@@ -359,6 +360,7 @@ export class CommentsService {
               avatarUrl: avatar.get(r.author_id) ?? null,
               verifiedBadge:
                 prof?.verification_status === 'verified' &&
+                !prof.name_mismatch &&
                 (prof.licenses.length ?? 0) > 0,
             }
           : {

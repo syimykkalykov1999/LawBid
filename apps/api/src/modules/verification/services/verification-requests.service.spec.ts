@@ -96,6 +96,11 @@ describe('syncProfileStatus (§2.3 mapping)', () => {
       updateMany,
       client: {
         attorneyProfile: { updateMany },
+        user: {
+          findUnique: jest.fn(() =>
+            Promise.resolve({ first_name: 'Anna', last_name: 'Kim' }),
+          ),
+        },
       } as unknown as Prisma.TransactionClient,
     };
   }
@@ -125,9 +130,15 @@ describe('syncProfileStatus (§2.3 mapping)', () => {
     const t = tx();
     const now = new Date('2026-09-27T00:00:00Z');
     await syncProfileStatus(t.client, 'a1', 'approved', now);
+    // OQ-029: the verified name is snapshotted, the mismatch flag reset.
     expect(t.updateMany).toHaveBeenNthCalledWith(1, {
       where: { user_id: 'a1', verification_status: { not: 'suspended' } },
-      data: { verification_status: 'verified' },
+      data: {
+        verification_status: 'verified',
+        verified_first_name: 'Anna',
+        verified_last_name: 'Kim',
+        name_mismatch: false,
+      },
     });
     expect(t.updateMany).toHaveBeenNthCalledWith(2, {
       where: { user_id: 'a1', verified_at: null },

@@ -76,6 +76,7 @@ export const BID_LIST_INCLUDE = {
         select: {
           username: true,
           verification_status: true,
+          name_mismatch: true,
           rating_avg: true,
           rating_count: true,
           licenses: {
@@ -188,7 +189,9 @@ export class CaseBidsService {
         lastName: a.last_name,
         avatarUrl256: avatar.url256,
         verifiedBadge:
-          p?.verification_status === 'verified' && (p.licenses.length ?? 0) > 0,
+          p?.verification_status === 'verified' &&
+          !p.name_mismatch &&
+          (p.licenses.length ?? 0) > 0,
         rating: {
           avg: p ? Number(p.rating_avg) : 0,
           count: p?.rating_count ?? 0,

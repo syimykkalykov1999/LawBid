@@ -358,6 +358,7 @@ export class FollowsService {
             select: {
               username: true,
               verification_status: true,
+              name_mismatch: true,
               rating_avg: true,
               rating_count: true,
               licenses: {
@@ -398,7 +399,9 @@ export class FollowsService {
           ? (avatars.get(u.avatar_file_id)?.url256 ?? null)
           : null,
         verifiedBadge:
-          p.verification_status === 'verified' && p.licenses.length > 0,
+          p.verification_status === 'verified' &&
+          !p.name_mismatch &&
+          p.licenses.length > 0,
         rating: { avg: Number(p.rating_avg), count: p.rating_count },
         states: p.licenses.map((l) => l.state_code),
         practiceI18nKeys: p.practice_areas.map((x) => x.practice_area.i18n_key),

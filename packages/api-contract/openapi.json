@@ -30171,6 +30171,10 @@
             "type": "boolean",
             "description": "Blue check (docs/03 §6.3): verified status and at least one verified license."
           },
+          "nameMismatch": {
+            "type": "boolean",
+            "description": "OQ-029: the current name is far from the verified one, so the blue\ncheck is hidden until it is changed back (own profile only)."
+          },
           "usernameChangedAt": {
             "type": "string",
             "nullable": true,
@@ -30206,6 +30210,7 @@
           "languages",
           "verificationStatus",
           "verifiedBadge",
+          "nameMismatch",
           "usernameChangedAt",
           "usernameNextChangeAt",
           "licenses",

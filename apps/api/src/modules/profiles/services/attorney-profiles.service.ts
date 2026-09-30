@@ -110,7 +110,9 @@ export class AttorneyProfilesService {
       verificationStatus: row.verification_status,
       verifiedBadge:
         row.verification_status === 'verified' &&
+        !row.name_mismatch &&
         row.licenses.some((l) => l.license_status === 'verified'),
+      nameMismatch: row.name_mismatch,
       usernameChangedAt: row.username_changed_at?.toISOString() ?? null,
       usernameNextChangeAt: next?.toISOString() ?? null,
       licenses: row.licenses.map((l) => ({
@@ -214,13 +216,7 @@ export class AttorneyProfilesService {
             data: { first_name: dto.firstName, last_name: dto.lastName },
             select: { first_name: true, last_name: true },
           });
-          await startNameRecheckIfVerified(
-            tx,
-            userId,
-            current.user,
-            after,
-            now,
-          );
+          await startNameRecheckIfVerified(tx, userId, current.user, after);
         }
 
         if (Object.keys(data).length > 0) {
@@ -266,6 +262,7 @@ export class AttorneyProfilesService {
         firm_names: true,
         languages: true,
         verification_status: true,
+        name_mismatch: true,
         rating_avg: true,
         rating_count: true,
         posts_count: true,
@@ -332,7 +329,9 @@ export class AttorneyProfilesService {
       avatarUrl256: avatar.url256,
       languages: row.languages,
       verifiedBadge:
-        row.verification_status === 'verified' && row.licenses.length > 0,
+        row.verification_status === 'verified' &&
+        !row.name_mismatch &&
+        row.licenses.length > 0,
       licensedStates: [...states].map(([code, name]) => ({ code, name })),
       practiceAreas,
       rating: { avg: Number(row.rating_avg), count: row.rating_count },

@@ -55,9 +55,19 @@ export async function syncProfileStatus(
 ): Promise<void> {
   const target: VerificationStatus = PROFILE_STATUS_FOR_REQUEST[requestStatus];
   if (target === 'verified') {
+    // OQ-029: remember the name the documents were checked against.
+    const user = await tx.user.findUnique({
+      where: { id: attorneyId },
+      select: { first_name: true, last_name: true },
+    });
     await tx.attorneyProfile.updateMany({
       where: { user_id: attorneyId, verification_status: { not: 'suspended' } },
-      data: { verification_status: 'verified' },
+      data: {
+        verification_status: 'verified',
+        verified_first_name: user?.first_name ?? null,
+        verified_last_name: user?.last_name ?? null,
+        name_mismatch: false,
+      },
     });
     await tx.attorneyProfile.updateMany({
       where: { user_id: attorneyId, verified_at: null },

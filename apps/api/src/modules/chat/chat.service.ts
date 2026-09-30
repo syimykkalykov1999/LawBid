@@ -458,7 +458,11 @@ export class ChatService {
             last_name: true,
             avatar_file_id: true,
             attorney_profile: {
-              select: { username: true, verification_status: true },
+              select: {
+                username: true,
+                verification_status: true,
+                name_mismatch: true,
+              },
             },
           },
         }),
@@ -538,7 +542,8 @@ export class ChatService {
                 ? (avatars.get(other.avatar_file_id)?.url256 ?? null)
                 : null,
           verifiedBadge:
-            other?.attorney_profile?.verification_status === 'verified',
+            other?.attorney_profile?.verification_status === 'verified' &&
+            !other.attorney_profile.name_mismatch,
         },
         lastMessage: last ? this.toMessage(last, viewerId, c) : null,
         lastMessageAt: c.last_message_at,

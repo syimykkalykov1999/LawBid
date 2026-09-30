@@ -1,60 +1,96 @@
 import type { Prisma } from '@prisma/client';
 import {
-  NAME_RECHECK_NOTE_PREFIX,
   nameChanged,
+  namesClose,
   startNameRecheckIfVerified,
 } from './attorney-name-recheck';
 
-describe('attorney name re-check (docs/03 §4.1)', () => {
-  const before = { first_name: 'Anna', last_name: 'Kim' };
+/** Owner decision 2026-09-30 (OQ-029): name changes never block; a big
+ * change hides the blue check automatically. */
+describe('attorney name change (OQ-029)', () => {
+  const verified = { first_name: 'Anna', last_name: 'Kowalski' };
 
-  function tx(opts: { verifiedRows: number; openRequest: boolean }) {
+  it('detects a changed first or last name', () => {
+    expect(nameChanged(verified, { ...verified })).toBe(false);
+    expect(nameChanged(verified, { ...verified, last_name: 'Lee' })).toBe(true);
+  });
+
+  it.each([
+    ['typo fix', { first_name: 'Ana', last_name: 'Kowalski' }],
+    ['case and accents', { first_name: 'ANNA', last_name: 'Kowálski' }],
+    ['swapped order', { first_name: 'Kowalski', last_name: 'Anna' }],
+    ['middle name added', { first_name: 'Anna Maria', last_name: 'Kowalski' }],
+    ['two typos in a long word', { first_name: 'Anna', last_name: 'Kovalsky' }],
+  ])('close: %s', (_label, after) => {
+    expect(namesClose(verified, after)).toBe(true);
+  });
+
+  it.each([
+    ['other surname', { first_name: 'Anna', last_name: 'Lee' }],
+    ['other person', { first_name: 'Saul', last_name: 'Goodman' }],
+    ['two extra words', { first_name: 'Anna B C', last_name: 'Kowalski' }],
+  ])('far: %s', (_label, after) => {
+    expect(namesClose(verified, after)).toBe(false);
+  });
+
+  function tx(snapshot: typeof verified | null) {
     return {
       attorneyProfile: {
-        updateMany: jest.fn(() =>
-          Promise.resolve({ count: opts.verifiedRows }),
+        findUnique: jest.fn(() =>
+          Promise.resolve(
+            snapshot
+              ? {
+                  verified_first_name: snapshot.first_name,
+                  verified_last_name: snapshot.last_name,
+                }
+              : { verified_first_name: null, verified_last_name: null },
+          ),
         ),
-      },
-      verificationRequest: {
-        findFirst: jest.fn(() =>
-          Promise.resolve(opts.openRequest ? { id: 'r' } : null),
-        ),
-        create: jest.fn(() => Promise.resolve({})),
+        update: jest.fn(() => Promise.resolve({})),
       },
     };
   }
-  const run = (t: ReturnType<typeof tx>, after: typeof before) =>
+  const run = (t: ReturnType<typeof tx>, after: typeof verified) =>
     startNameRecheckIfVerified(
       t as unknown as Prisma.TransactionClient,
       'u1',
-      before,
+      verified,
       after,
-      new Date('2026-09-27T00:00:00Z'),
     );
 
-  it('detects a changed first or last name', () => {
-    expect(nameChanged(before, { ...before })).toBe(false);
-    expect(nameChanged(before, { ...before, last_name: 'Lee' })).toBe(true);
-    expect(nameChanged(before, { ...before, first_name: null })).toBe(true);
+  it('far change sets name_mismatch; the status is never touched', async () => {
+    const t = tx(verified);
+    expect(await run(t, { first_name: 'Saul', last_name: 'Goodman' })).toBe(
+      true,
+    );
+    expect(t.attorneyProfile.update).toHaveBeenCalledWith({
+      where: { user_id: 'u1' },
+      data: { name_mismatch: true },
+    });
   });
 
-  it('does nothing when the name is unchanged', async () => {
-    const t = tx({ verifiedRows: 1, openRequest: false });
-    expect(await run(t, { ...before })).toBe(false);
-    expect(t.attorneyProfile.updateMany).not.toHaveBeenCalled();
+  it('close change clears name_mismatch', async () => {
+    const t = tx(verified);
+    expect(await run(t, { first_name: 'Ana', last_name: 'Kowalski' })).toBe(
+      false,
+    );
+    expect(t.attorneyProfile.update).toHaveBeenCalledWith({
+      where: { user_id: 'u1' },
+      data: { name_mismatch: false },
+    });
   });
 
-  it('OQ-029: a verified attorney keeps the status after a name change (no re-check)', async () => {
-    const t = tx({ verifiedRows: 1, openRequest: false });
-    expect(await run(t, { ...before, last_name: 'Lee' })).toBe(false);
-    expect(t.attorneyProfile.updateMany).not.toHaveBeenCalled();
-    expect(t.verificationRequest.create).not.toHaveBeenCalled();
-    expect(NAME_RECHECK_NOTE_PREFIX).toBe('name_change_recheck');
+  it('never verified (no snapshot): nothing changes', async () => {
+    const t = tx(null);
+    expect(await run(t, { first_name: 'Saul', last_name: 'Goodman' })).toBe(
+      false,
+    );
+    expect(t.attorneyProfile.update).not.toHaveBeenCalled();
   });
 
-  it('not verified (unverified/pending/suspended): no re-check', async () => {
-    const t = tx({ verifiedRows: 0, openRequest: false });
-    expect(await run(t, { ...before, last_name: 'Lee' })).toBe(false);
-    expect(t.verificationRequest.findFirst).not.toHaveBeenCalled();
+  it('unchanged name: no DB access', async () => {
+    const t = tx(verified);
+    expect(await run(t, { ...verified })).toBe(false);
+    expect(t.attorneyProfile.findUnique).not.toHaveBeenCalled();
   });
 });

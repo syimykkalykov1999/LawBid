@@ -527,3 +527,12 @@ licenses only.
 ## OQ-027 (addendum 2, owner 2026-09-30)
 Status bar: the owner reversed the hidden status bar — clock, network and
 battery stay visible in-app (`SystemUiMode.edgeToEdge` in MainShell).
+
+## OQ-029 (update, owner 2026-09-30): no manual work
+Owner: no admin review for name changes. Rule (automatic): the name at
+verification approval is stored (`verified_first_name/last_name`). A later
+change close to it (typo, case, accents, order, one added middle name) keeps
+the blue check; a different name sets `name_mismatch` and hides the check
+everywhere (profile, posts, comments, bids, chats, lists) while the account,
+cases, bids, chats and subscription keep working. Changing the name back
+restores the check. Nothing reaches the admin queue.

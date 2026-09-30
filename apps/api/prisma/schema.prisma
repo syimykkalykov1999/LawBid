@@ -951,6 +951,11 @@ model AttorneyProfile {
   languages           String[]
   verification_status VerificationStatus @default(unverified)
   verified_at         DateTime?          @db.Timestamptz
+  // Owner 2026-09-30 (OQ-029): the name the attorney was verified under;
+  // a big later change hides the blue check automatically (no admin).
+  verified_first_name String?
+  verified_last_name  String?
+  name_mismatch       Boolean            @default(false)
   // docs/03_VERIFICATION_PROFILES.md §10 (stage 3.1)
   username_changed_at DateTime?          @db.Timestamptz
   rating_avg          Decimal            @default(0) @db.Decimal(3, 2)

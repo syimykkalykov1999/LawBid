@@ -23,6 +23,7 @@ OwnAttorneyProfileDto _$OwnAttorneyProfileDtoFromJson(
     json['verificationStatus'] as String,
   ),
   verifiedBadge: json['verifiedBadge'] as bool,
+  nameMismatch: json['nameMismatch'] as bool,
   usernameChangedAt: json['usernameChangedAt'] == null
       ? null
       : DateTime.parse(json['usernameChangedAt'] as String),
@@ -51,6 +52,7 @@ Map<String, dynamic> _$OwnAttorneyProfileDtoToJson(
   'languages': instance.languages,
   'verificationStatus': instance.verificationStatus.toJson(),
   'verifiedBadge': instance.verifiedBadge,
+  'nameMismatch': instance.nameMismatch,
   'usernameChangedAt': ?instance.usernameChangedAt?.toIso8601String(),
   'usernameNextChangeAt': ?instance.usernameNextChangeAt?.toIso8601String(),
   'licenses': instance.licenses.map((e) => e.toJson()).toList(),

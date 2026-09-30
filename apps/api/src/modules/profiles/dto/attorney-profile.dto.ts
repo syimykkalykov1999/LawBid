@@ -219,6 +219,11 @@ export class OwnAttorneyProfileDto {
   })
   verifiedBadge!: boolean;
 
+  /** OQ-029: the current name is far from the verified one, so the blue
+   * check is hidden until it is changed back (own profile only). */
+  @ApiProperty()
+  nameMismatch!: boolean;
+
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   usernameChangedAt!: string | null;
 

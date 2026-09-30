@@ -24,6 +24,7 @@ class OwnAttorneyProfileDto {
     required this.languages,
     required this.verificationStatus,
     required this.verifiedBadge,
+    required this.nameMismatch,
     required this.usernameChangedAt,
     required this.usernameNextChangeAt,
     required this.licenses,
@@ -50,6 +51,10 @@ class OwnAttorneyProfileDto {
 
   /// Blue check (docs/03 §6.3): verified status and at least one verified license.
   final bool verifiedBadge;
+
+  /// OQ-029: the current name is far from the verified one, so the blue.
+  /// check is hidden until it is changed back (own profile only).
+  final bool nameMismatch;
   final DateTime? usernameChangedAt;
 
   /// When the username may be changed again; null = it can be changed now.
