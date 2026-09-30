@@ -16,7 +16,10 @@ import { UsageLimitsService } from '../../common/usage-limits/usage-limits.servi
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
-import { CounterAggregator } from '../counters/counter-aggregator.service';
+import {
+  CounterAggregator,
+  profileEntity,
+} from '../counters/counter-aggregator.service';
 import { FilesService } from '../files/files.service';
 import {
   CONTENT_MODERATION_HOOK,
@@ -101,7 +104,12 @@ export class PostsService {
       return created;
     });
     if (status === 'published') {
-      await this.counters.bump('attorney', user.sub, 'posts_count', 1);
+      await this.counters.bump(
+        profileEntity(user.role),
+        user.sub,
+        'posts_count',
+        1,
+      );
     }
     return (await this.presenter.present([post], user.sub))[0];
   }
@@ -128,7 +136,12 @@ export class PostsService {
       return updated;
     });
     if (current.status === 'published' && post.status !== 'published') {
-      await this.counters.bump('attorney', user.sub, 'posts_count', -1);
+      await this.counters.bump(
+        profileEntity(user.role),
+        user.sub,
+        'posts_count',
+        -1,
+      );
     }
     return (await this.presenter.present([post], user.sub))[0];
   }
@@ -145,7 +158,12 @@ export class PostsService {
       select: { status: true },
     });
     if (post?.status === 'published') {
-      await this.counters.bump('attorney', user.sub, 'posts_count', -1);
+      await this.counters.bump(
+        profileEntity(user.role),
+        user.sub,
+        'posts_count',
+        -1,
+      );
     }
     return { deleted: true };
   }
@@ -205,17 +223,23 @@ export class PostsService {
       select: {
         role: true,
         status: true,
+        phone_verified_at: true,
         attorney_profile: { select: { verification_status: true } },
+        client_profile: { select: { user_id: true } },
       },
     });
-    if (
-      me?.role !== 'attorney' ||
-      me.status !== 'active' ||
-      me.attorney_profile?.verification_status !== 'verified'
-    ) {
+    // Verified attorneys; OQ-038: clients with a verified phone too.
+    const attorneyOk =
+      me?.role === 'attorney' &&
+      me.attorney_profile?.verification_status === 'verified';
+    const clientOk =
+      me?.role === 'client' &&
+      me.phone_verified_at != null &&
+      me.client_profile != null;
+    if (me?.status !== 'active' || !(attorneyOk || clientOk)) {
       throw new ForbiddenException({
         code: ErrorCode.POST_NOT_ALLOWED,
-        message: 'Only verified attorneys can publish posts.',
+        message: 'Only verified accounts can publish posts.',
       });
     }
   }

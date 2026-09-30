@@ -4,7 +4,10 @@ import { AppSettingsService } from '../../common/app-settings/app-settings.servi
 import { PrismaService } from '../../prisma/prisma.service';
 import { withDeleted } from '../../prisma/soft-delete.extension';
 import { withTxRetry } from '../../prisma/tx-retry.util';
-import { CounterAggregator } from '../counters/counter-aggregator.service';
+import {
+  CounterAggregator,
+  profileEntity,
+} from '../counters/counter-aggregator.service';
 import { recalcAttorneyRating } from '../reviews/review-rating';
 
 export type Tx = Prisma.TransactionClient;
@@ -264,7 +267,17 @@ export class ModerationService {
         if (delta && target.authorId) {
           const authorId = target.authorId;
           after.push(() =>
-            this.counters.bump('attorney', authorId, 'posts_count', delta),
+            // OQ-038: the author may be a client.
+            this.prisma.user
+              .findUnique({ where: { id: authorId }, select: { role: true } })
+              .then((u) =>
+                this.counters.bump(
+                  profileEntity(u?.role),
+                  authorId,
+                  'posts_count',
+                  delta,
+                ),
+              ),
           );
         }
         return target.status;

@@ -526,7 +526,9 @@ class _AuthorRow extends ConsumerWidget {
               button: true,
               label: t.t('post.author.open', {'name': a.displayName}),
               child: AppPressable(
-                onTap: () => context.push(AppRoutes.lawyer(a.username)),
+                onTap: () => context.push(a.isClient
+                    ? AppRoutes.client(a.username)
+                    : AppRoutes.lawyer(a.username)),
                 child: Row(
                   children: [
                     GoldRingAvatar(
@@ -560,9 +562,11 @@ class _AuthorRow extends ConsumerWidget {
                             ],
                           ),
                           Text(
-                            a.verified
-                                ? t.t('post.licensedAttorney')
-                                : '@${a.username}',
+                            a.isClient
+                                ? '@${a.username} · ${t.t('person.client')}'
+                                : a.verified
+                                    ? t.t('post.licensedAttorney')
+                                    : '@${a.username}',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: type.caption

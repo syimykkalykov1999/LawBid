@@ -288,6 +288,20 @@ class FakeClientRepo implements ClientProfileRepository {
   @override
   Future<PublicClientProfile> fetchPublic(String username) async {
     if (error != null) throw error!;
+    // OQ-038: the own profile screen loads the same public profile.
+    if (username == profile.username) {
+      return PublicClientProfile(
+        id: 'cl-1',
+        username: username,
+        firstName: profile.firstName,
+        lastName: profile.lastName,
+        state: profile.state,
+        memberSince: kNow,
+        isSelf: true,
+        canSeeReviews: true,
+        followingCount: 3,
+      );
+    }
     return PublicClientProfile(
       id: 'cl-2',
       username: username,

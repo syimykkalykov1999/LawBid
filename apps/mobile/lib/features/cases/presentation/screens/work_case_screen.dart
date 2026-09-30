@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_photos.dart';
+import 'package:lawbid/features/cases/presentation/widgets/client_review_sheet.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -222,6 +223,8 @@ class _WorkCaseScreenState extends ConsumerState<WorkCaseScreen> {
                   title: t.t('cases.work.terms'),
                   child: _TermsLine(bidId: c.ownBidId!, t: t, formats: formats),
                 ),
+              // OQ-038: the hired attorney reviews the client.
+              ClientReviewAction(caseId: c.id),
               DetailSection(
                 title: t.t('cases.detail.description'),
                 child: Text(

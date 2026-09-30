@@ -405,8 +405,9 @@ export class SearchService {
       SELECT p.id::STRING AS id FROM recent
       JOIN posts p ON p.id = recent.id
       JOIN users u ON u.id = p.author_id AND u.status = 'active'
-      JOIN attorney_profiles a ON a.user_id = p.author_id
-        AND a.verification_status <> 'suspended'
+        -- OQ-038: clients post too; suspended attorneys never show.
+        AND NOT EXISTS (SELECT 1 FROM attorney_profiles sa
+          WHERE sa.user_id = p.author_id AND sa.verification_status = 'suspended')
       ORDER BY
         (p.like_count + 2 * p.comment_count + 2 * p.save_count)::FLOAT8
           / power(GREATEST(EXTRACT(EPOCH FROM (now() - p.created_at)) / 3600, 0) + 2, 1.5)

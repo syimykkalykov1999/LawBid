@@ -487,13 +487,15 @@ void main() {
   });
 
   group('client profile (docs/03 §5)', () {
-    testWidgets('private profile: name, state, "My cases" lock + empty state, no counters', (tester) async {
+    // OQ-038: Instagram-like client profile — counters, Posts / Reviews.
+    testWidgets('own profile: name, state, counters, Posts and Reviews tabs', (tester) async {
       await _pumpScreen(tester, const ProfileScreen(), user: clientMe(), overrides: profileOverrides());
       expect(find.text('Anna Kowalski'), findsOneWidget);
-      expect(find.text('California'), findsOneWidget);
-      expect(find.text('Visible only to you'), findsOneWidget);
-      expect(find.text('You have no cases yet'), findsOneWidget);
-      expect(find.text('Followers'), findsNothing);
+      expect(find.textContaining('California'), findsOneWidget);
+      expect(find.text('Followers'), findsOneWidget);
+      expect(find.text('Following'), findsOneWidget);
+      expect(find.text('Reviews'), findsOneWidget);
+      expect(find.text('Edit'), findsOneWidget);
       await _teardown(tester);
     });
 

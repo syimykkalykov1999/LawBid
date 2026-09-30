@@ -78,13 +78,15 @@ export class FollowsController {
   }
 
   @Get('attorneys/:id/following')
-  @ApiOperation({ summary: 'Attorneys an attorney follows (docs/05 §6.2)' })
-  @ApiEnvelopeResponse(AttorneyListItemDto, { isArray: true })
+  @ApiOperation({
+    summary: 'Whom a user follows — attorneys and clients (OQ-038)',
+  })
+  @ApiEnvelopeResponse(PersonItemDto, { isArray: true })
   listFollowing(
     @CurrentUser() user: RequestUser,
     @Param() p: AttorneyIdParamDto,
     @Query() q: FollowsQueryDto,
-  ): Promise<AttorneyListPage> {
+  ): Promise<PeoplePage> {
     return this.follows.following(user.sub, p.id, q.cursor);
   }
 

@@ -32,6 +32,6 @@ export class ClientsController {
     @CurrentUser() user: RequestUser,
     @Param('username') username: string,
   ): Promise<PublicClientProfileDto> {
-    return this.clients.getPublic(username, user.sub);
+    return this.clients.getPublic(username, user.sub, user.role);
   }
 }

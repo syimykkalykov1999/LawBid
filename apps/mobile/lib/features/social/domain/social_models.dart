@@ -11,7 +11,11 @@ class PostAuthor {
     this.lastName,
     this.avatarUrl,
     this.isFollowing = false,
+    this.isClient = false,
   });
+
+  /// OQ-038: clients publish posts too (their profile is /client/:username).
+  final bool isClient;
 
   final String id;
   final String username;

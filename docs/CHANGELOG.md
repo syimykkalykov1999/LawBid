@@ -5,6 +5,13 @@ All notable changes to this project are documented here, per
 .cursorrules (each stage ends with a CHANGELOG update + commit on
 branch cursor/stage-X-Y-description).
 
+## Owner pass 6 (2026-09-30) — OQ-035…039
+
+- Search redesign and per-tab filters (OQ-035/036); compact counters, share counters, double-tap like, swipe back everywhere (OQ-037).
+- Client profile like Instagram: client posts, followers/following, "Posts" and "Reviews from attorneys" tabs, attorney → client reviews (`client-reviews` module, migration `20260930150000_owner_client_profile_social`); "My cases" removed from the client's Search (OQ-038).
+- "Mine" cards redesigned: practice photo banner, practice chip, status, meta icons, footer; practice added to work items and bid case refs.
+- Case wizard: privacy note above Publish (OQ-039).
+
 ## Owner pass 5 (2026-09-30) — OQ-034
 
 - API: case comments module (`/cases/:id/comments`, `/case-comments/:id/*`), migration `20260930130000_owner_case_comments_attachments`, counters/moderation/reports/notifications/export wired; case feed `practiceCategory` filter, `commentCount`/`isSaved` on feed items; post state filter and `/search/latest-posts`; `case_attachment` files (PDF, DOCX); e2e `owner-case-comments`.

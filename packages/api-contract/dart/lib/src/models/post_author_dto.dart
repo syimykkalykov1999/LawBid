@@ -4,12 +4,15 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'post_author_dto_role.dart';
+
 part 'post_author_dto.g.dart';
 
 @JsonSerializable()
 class PostAuthorDto {
   const PostAuthorDto({
     required this.id,
+    required this.role,
     required this.username,
     required this.verifiedBadge,
     required this.isFollowing,
@@ -22,6 +25,9 @@ class PostAuthorDto {
       _$PostAuthorDtoFromJson(json);
 
   final String id;
+
+  /// OQ-038: clients publish posts too.
+  final PostAuthorDtoRole role;
   final String username;
   final String? firstName;
   final String? lastName;

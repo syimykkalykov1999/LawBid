@@ -376,6 +376,7 @@ class MyBid {
     required this.casePracticeNameEn,
     required this.primaryStateCode,
     required this.lastOffer,
+    this.casePracticeCode,
   });
 
   final CaseBid bid;
@@ -386,6 +387,9 @@ class MyBid {
   final String casePracticeNameEn;
   final String primaryStateCode;
   final BidOffer lastOffer;
+
+  /// Leaf practice code — picks the card art.
+  final String? casePracticeCode;
 }
 
 /// "В работе" / "Завершённые" row (docs/04 §11.2).
@@ -402,6 +406,10 @@ class WorkItem {
     this.autoCloseAt,
     this.acceptedAt,
     this.closedAt,
+    this.primaryStateCode,
+    this.practiceCode,
+    this.practiceI18nKey,
+    this.practiceNameEn,
   });
 
   final String caseId;
@@ -416,6 +424,12 @@ class WorkItem {
   final DateTime? autoCloseAt;
   final DateTime? acceptedAt;
   final DateTime? closedAt;
+  final String? primaryStateCode;
+
+  /// Leaf practice code — picks the card art.
+  final String? practiceCode;
+  final String? practiceI18nKey;
+  final String? practiceNameEn;
 }
 
 /// "Сохранённое" row (docs/04 §11.2): an available case or "Кейс

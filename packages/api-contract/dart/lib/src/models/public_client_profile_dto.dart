@@ -22,6 +22,13 @@ class PublicClientProfileDto {
     required this.verifiedBadge,
     required this.isBlocked,
     required this.hasBlockedMe,
+    required this.postsCount,
+    required this.followersCount,
+    required this.followingCount,
+    required this.isFollowing,
+    required this.canSeeReviews,
+    required this.ratingCount,
+    this.ratingAvg,
   });
 
   factory PublicClientProfileDto.fromJson(Map<String, Object?> json) =>
@@ -46,6 +53,18 @@ class PublicClientProfileDto {
 
   /// OQ-028: this user blocked the viewer.
   final bool hasBlockedMe;
+
+  /// OQ-038: Instagram-like counters.
+  final int postsCount;
+  final int followersCount;
+  final int followingCount;
+  final bool isFollowing;
+
+  /// OQ-038: attorneys' reviews of this client are visible to attorneys.
+  /// and to the client; other clients get false and no rating.
+  final bool canSeeReviews;
+  final num? ratingAvg;
+  final int ratingCount;
 
   Map<String, Object?> toJson() => _$PublicClientProfileDtoToJson(this);
 }

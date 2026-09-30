@@ -1,4 +1,4 @@
-import { ApiProperty, PickType } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional, PickType } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsOptional, IsString, Matches } from 'class-validator';
 import { ContactMethod } from '@prisma/client';
@@ -139,4 +139,28 @@ export class PublicClientProfileDto {
   /** OQ-028: this user blocked the viewer. */
   @ApiProperty()
   hasBlockedMe!: boolean;
+
+  /** OQ-038: Instagram-like counters. */
+  @ApiProperty({ type: 'integer' })
+  postsCount!: number;
+
+  @ApiProperty({ type: 'integer' })
+  followersCount!: number;
+
+  @ApiProperty({ type: 'integer' })
+  followingCount!: number;
+
+  @ApiProperty()
+  isFollowing!: boolean;
+
+  /** OQ-038: attorneys' reviews of this client are visible to attorneys
+   * and to the client; other clients get false and no rating. */
+  @ApiProperty()
+  canSeeReviews!: boolean;
+
+  @ApiPropertyOptional({ type: Number, nullable: true })
+  ratingAvg!: number | null;
+
+  @ApiProperty({ type: 'integer' })
+  ratingCount!: number;
 }

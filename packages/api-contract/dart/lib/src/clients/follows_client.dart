@@ -38,11 +38,11 @@ abstract class FollowsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Attorneys an attorney follows (docs/05 §6.2).
+  /// Whom a user follows — attorneys and clients (OQ-038).
   ///
   /// [cursor] - meta.nextCursor of the previous page.
   @GET('/attorneys/{id}/following')
-  Future<AttorneyListItemListEnvelope> listFollowing({
+  Future<PersonItemListEnvelope> listFollowing({
     @Path('id') required String id,
     @Query('cursor') String? cursor,
     @Extras() Map<String, dynamic>? extras,

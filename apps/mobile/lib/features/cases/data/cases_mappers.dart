@@ -198,6 +198,7 @@ abstract final class CasesMappers {
         caseStatus: b.caseValue.status,
         casePracticeI18nKey: b.caseValue.practiceAreaI18nKey,
         casePracticeNameEn: b.caseValue.practiceAreaNameEn,
+        casePracticeCode: b.caseValue.practiceAreaCode,
         primaryStateCode: b.caseValue.primaryStateCode,
         lastOffer: offer(b.lastOffer),
       );
@@ -213,6 +214,10 @@ abstract final class CasesMappers {
         autoCloseAt: _dateOrNull(w.autoCloseAt),
         acceptedAt: _dateOrNull(w.acceptedAt),
         closedAt: _dateOrNull(w.closedAt),
+        primaryStateCode: w.primaryStateCode,
+        practiceCode: w.practiceAreaCode,
+        practiceI18nKey: w.practiceAreaI18nKey,
+        practiceNameEn: w.practiceAreaNameEn,
       );
 
   static SavedCase savedCase(api.SavedCaseItemDto s) => SavedCase(

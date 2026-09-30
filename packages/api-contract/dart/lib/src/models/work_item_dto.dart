@@ -16,6 +16,10 @@ class WorkItemDto {
     required this.bidId,
     required this.title,
     required this.status,
+    required this.primaryStateCode,
+    required this.practiceAreaNameEn,
+    required this.practiceAreaI18nKey,
+    required this.practiceAreaCode,
     required this.feeType,
     required this.amountCents,
     this.clientName,
@@ -31,6 +35,12 @@ class WorkItemDto {
   final String bidId;
   final String title;
   final CaseStatus status;
+  final String primaryStateCode;
+  final String practiceAreaNameEn;
+  final String practiceAreaI18nKey;
+
+  /// Leaf practice code — picks the card art.
+  final String practiceAreaCode;
 
   /// Client name; null while the subscription is inactive (contacts are locked, §8.3).
   final String? clientName;

@@ -404,7 +404,25 @@ class PublicClientProfile {
     this.isBlocked = false,
     this.hasBlockedMe = false,
     this.verified = false,
+    this.postsCount = 0,
+    this.followersCount = 0,
+    this.followingCount = 0,
+    this.isFollowing = false,
+    this.canSeeReviews = false,
+    this.ratingAvg,
+    this.ratingCount = 0,
   });
+
+  /// OQ-038: Instagram-like counters; the attorneys' rating of the client
+  /// (only for attorneys and the client).
+  final int postsCount;
+  final int followersCount;
+  final int followingCount;
+  final bool isFollowing;
+  final bool canSeeReviews;
+  final double? ratingAvg;
+  final int ratingCount;
+
   final String id;
   final String username;
   final String? firstName;
@@ -459,4 +477,35 @@ String initialsOf(String? first, String? last, {String fallback = ''}) {
   return parts.isEmpty
       ? fallback.substring(0, fallback.isEmpty ? 0 : 1).toUpperCase()
       : parts;
+}
+
+/// OQ-038: an attorney's review of a client.
+class ClientReview {
+  const ClientReview({
+    required this.id,
+    required this.caseId,
+    required this.caseTitle,
+    required this.rating,
+    required this.attorneyId,
+    required this.attorneyUsername,
+    required this.attorneyName,
+    required this.createdAt,
+    this.body,
+    this.attorneyAvatarUrl,
+    this.attorneyVerified = false,
+    this.isMine = false,
+  });
+
+  final String id;
+  final String caseId;
+  final String caseTitle;
+  final int rating;
+  final String? body;
+  final String attorneyId;
+  final String attorneyUsername;
+  final String attorneyName;
+  final String? attorneyAvatarUrl;
+  final bool attorneyVerified;
+  final bool isMine;
+  final DateTime createdAt;
 }

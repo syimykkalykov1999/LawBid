@@ -85,6 +85,10 @@ export class PostAuthorDto {
   @ApiProperty({ format: 'uuid' })
   id!: string;
 
+  /** OQ-038: clients publish posts too. */
+  @ApiProperty({ enum: ['attorney', 'client'] })
+  role!: 'attorney' | 'client';
+
   @ApiProperty()
   username!: string;
 

@@ -311,11 +311,7 @@ class FollowListNotifier extends PagedNotifier<PersonRow> {
     if (key.kind == FollowListKind.followers) {
       return repo.followers(key.attorneyId, cursor: cursor);
     }
-    final page = await repo.following(key.attorneyId, cursor: cursor);
-    return CursorPage(
-      items: page.items.map(PersonRow.attorney).toList(),
-      nextCursor: page.nextCursor,
-    );
+    return repo.following(key.attorneyId, cursor: cursor);
   }
 
   @override

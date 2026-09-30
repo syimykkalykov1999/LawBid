@@ -12,7 +12,11 @@ export const VISIBLE_POST_WHERE: Prisma.PostWhereInput = {
   deleted_at: null,
   author: {
     status: 'active',
-    attorney_profile: { verification_status: { not: 'suspended' } },
+    // OQ-038: clients post too; suspended attorneys never show.
+    OR: [
+      { role: 'client' },
+      { attorney_profile: { verification_status: { not: 'suspended' } } },
+    ],
   },
 };
 
@@ -50,9 +54,12 @@ export class PostPresenter {
         where: { id: { in: authorIds } },
         select: {
           id: true,
+          role: true,
           first_name: true,
           last_name: true,
           avatar_file_id: true,
+          phone_verified_at: true,
+          client_profile: { select: { username: true } },
           attorney_profile: {
             select: {
               username: true,
@@ -123,18 +130,23 @@ export class PostPresenter {
     return posts.map((p) => {
       const a = authorById.get(p.author_id);
       const prof = a?.attorney_profile;
+      const isClient = a?.role === 'client';
       return {
         id: p.id,
         author: {
           id: p.author_id,
-          username: prof?.username ?? '',
+          role: isClient ? ('client' as const) : ('attorney' as const),
+          username: isClient
+            ? (a?.client_profile?.username ?? '')
+            : (prof?.username ?? ''),
           firstName: a?.first_name ?? null,
           lastName: a?.last_name ?? null,
           avatarUrl: avatars.get(p.author_id) ?? null,
-          verifiedBadge:
-            prof?.verification_status === 'verified' &&
-            !prof.name_mismatch &&
-            (prof.licenses.length ?? 0) > 0,
+          // OQ-029 final: the badge follows the verified phone.
+          verifiedBadge: isClient
+            ? a?.phone_verified_at != null
+            : prof?.verification_status === 'verified' &&
+              (prof.licenses.length ?? 0) > 0,
           isFollowing: followed.has(p.author_id),
         },
         body: p.body,

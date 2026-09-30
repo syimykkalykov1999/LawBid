@@ -92,6 +92,9 @@ export class BidCaseRefDto {
 
   @ApiProperty()
   practiceAreaI18nKey!: string;
+
+  @ApiProperty({ description: 'Leaf practice code — picks the card art.' })
+  practiceAreaCode!: string;
 }
 
 /** A "Мои биды" row: the bid, its case ("Re: …") and its last offer. */
@@ -116,6 +119,18 @@ export class WorkItemDto {
 
   @ApiProperty({ enum: CaseStatus, enumName: 'CaseStatus' })
   status!: CaseStatus;
+
+  @ApiProperty()
+  primaryStateCode!: string;
+
+  @ApiProperty()
+  practiceAreaNameEn!: string;
+
+  @ApiProperty()
+  practiceAreaI18nKey!: string;
+
+  @ApiProperty({ description: 'Leaf practice code — picks the card art.' })
+  practiceAreaCode!: string;
 
   @ApiPropertyOptional({
     type: String,

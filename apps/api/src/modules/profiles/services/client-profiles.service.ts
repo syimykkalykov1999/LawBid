@@ -225,6 +225,7 @@ export class ClientProfilesService {
   async getPublic(
     username: string,
     viewerId: string,
+    viewerRole?: string | null,
   ): Promise<PublicClientProfileDto> {
     if (!isValidUsername(username)) throw notFound();
     const row = await this.prisma.clientProfile.findUnique({
@@ -232,6 +233,11 @@ export class ClientProfilesService {
       select: {
         user_id: true,
         username: true,
+        posts_count: true,
+        followers_count: true,
+        following_count: true,
+        rating_avg: true,
+        rating_count: true,
         state: { select: { code: true, name: true } },
         user: {
           select: {
@@ -256,6 +262,7 @@ export class ClientProfilesService {
       throw notFound();
     }
     const avatars = await this.files.avatarUrlsMany([row.user.avatar_file_id]);
+    const seeReviews = row.user_id === viewerId || viewerRole === 'attorney';
     return {
       id: row.user_id,
       username: row.username,
@@ -269,6 +276,17 @@ export class ClientProfilesService {
       isSelf: row.user_id === viewerId,
       verifiedBadge: row.user.phone_verified_at !== null,
       ...(await this.blocks.relation(viewerId, row.user_id)),
+      postsCount: row.posts_count,
+      followersCount: row.followers_count,
+      followingCount: row.following_count,
+      isFollowing:
+        (await this.prisma.follow.count({
+          where: { follower_id: viewerId, followee_id: row.user_id },
+        })) > 0,
+      canSeeReviews: seeReviews,
+      ratingAvg:
+        seeReviews && row.rating_count > 0 ? Number(row.rating_avg) : null,
+      ratingCount: seeReviews ? row.rating_count : 0,
     };
   }
 }

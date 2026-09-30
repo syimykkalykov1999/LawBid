@@ -45,9 +45,22 @@ export const COUNTERS = {
     key: 'user_id',
     fields: ['posts_count', 'followers_count', 'following_count'],
   },
+  // OQ-038: clients post and are followed too.
+  client: {
+    table: 'client_profiles',
+    key: 'user_id',
+    fields: ['posts_count', 'followers_count', 'following_count'],
+  },
 } as const;
 
 export type CounterEntity = keyof typeof COUNTERS;
+
+/** OQ-038: the profile counter entity of a user by role. */
+export function profileEntity(
+  role: string | null | undefined,
+): 'attorney' | 'client' {
+  return role === 'client' ? 'client' : 'attorney';
+}
 export type CounterField<E extends CounterEntity> =
   (typeof COUNTERS)[E]['fields'][number];
 
@@ -267,6 +280,15 @@ export class CounterAggregator
                          WHERE r.parent_comment_id = c.id AND r.deleted_at IS NULL
                            AND r.status = 'published')
         WHERE c.id = ANY(${ids}::UUID[])`;
+    } else if (entity === 'client') {
+      await this.prisma.$executeRaw`
+        UPDATE client_profiles AS a SET
+          posts_count = (SELECT count(*) FROM posts p
+                         WHERE p.author_id = a.user_id AND p.deleted_at IS NULL
+                           AND p.status = 'published'),
+          followers_count = (SELECT count(*) FROM follows f WHERE f.followee_id = a.user_id),
+          following_count = (SELECT count(*) FROM follows f WHERE f.follower_id = a.user_id)
+        WHERE a.user_id = ANY(${ids}::UUID[])`;
     } else {
       await this.prisma.$executeRaw`
         UPDATE attorney_profiles AS a SET

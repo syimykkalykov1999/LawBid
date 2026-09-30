@@ -12,6 +12,7 @@ import 'package:lawbid/features/cases/presentation/widgets/client_cases_grid.dar
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
+import 'package:lawbid/features/profile/presentation/widgets/client_social_profile.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_avatar.dart';
 
 /// The client's private profile (docs/03 §5): photo, name, state — no
@@ -62,8 +63,43 @@ class ClientProfileView extends ConsumerWidget {
               // Rendered by the error state.
             }
           },
-          child: _ClientBody(profile: p, t: t),
+          // OQ-038: the same Instagram-like profile others see (+ Edit);
+          // the client's cases live in "Mine".
+          child: p.username.isEmpty
+              ? _ClientBody(profile: p, t: t)
+              : _OwnSocial(username: p.username),
         ),
+      ),
+    );
+  }
+}
+
+class _OwnSocial extends ConsumerWidget {
+  const _OwnSocial({required this.username});
+
+  final String username;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final value = ref.watch(publicClientProfileProvider(username));
+    return value.when(
+      skipLoadingOnReload: true,
+      loading: () => const _ClientSkeleton(),
+      error: (_, __) => AppErrorState(
+        message: ref.read(translatorProvider).t('profile.error'),
+        retryLabel: ref.read(translatorProvider).t('error.retry'),
+        onRetry: () => ref.invalidate(publicClientProfileProvider(username)),
+      ),
+      data: (p) => ClientSocialProfile(
+        profile: p,
+        onRefresh: () async {
+          ref
+            ..invalidate(publicClientProfileProvider(username))
+            ..invalidate(clientProfileProvider);
+          try {
+            await ref.read(publicClientProfileProvider(username).future);
+          } catch (_) {}
+        },
       ),
     );
   }

@@ -17,6 +17,7 @@ class BidCaseRefDto {
     required this.primaryStateCode,
     required this.practiceAreaNameEn,
     required this.practiceAreaI18nKey,
+    required this.practiceAreaCode,
   });
 
   factory BidCaseRefDto.fromJson(Map<String, Object?> json) =>
@@ -28,6 +29,9 @@ class BidCaseRefDto {
   final String primaryStateCode;
   final String practiceAreaNameEn;
   final String practiceAreaI18nKey;
+
+  /// Leaf practice code — picks the card art.
+  final String practiceAreaCode;
 
   Map<String, Object?> toJson() => _$BidCaseRefDtoToJson(this);
 }

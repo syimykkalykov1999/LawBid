@@ -14,7 +14,10 @@ import { UsageLimitsService } from '../../common/usage-limits/usage-limits.servi
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
-import { CounterAggregator } from '../counters/counter-aggregator.service';
+import {
+  CounterAggregator,
+  profileEntity,
+} from '../counters/counter-aggregator.service';
 import { FilesService } from '../files/files.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { BlocksService } from '../blocks/blocks.service';
@@ -75,8 +78,9 @@ export class FollowsService {
         message: 'Attorney not found.',
       });
     }
+    // OQ-038: clients can be followed too.
     if (
-      target.role !== 'attorney' ||
+      (target.role !== 'attorney' && target.role !== 'client') ||
       target.status !== 'active' ||
       target.attorney_profile?.verification_status === 'suspended'
     ) {
@@ -90,10 +94,18 @@ export class FollowsService {
       skipDuplicates: true,
     });
     if (count === 0) return;
-    await this.counters.bump('attorney', attorneyId, 'followers_count', 1);
-    if (user.role === 'attorney') {
-      await this.counters.bump('attorney', user.sub, 'following_count', 1);
-    }
+    await this.counters.bump(
+      profileEntity(target.role),
+      attorneyId,
+      'followers_count',
+      1,
+    );
+    await this.counters.bump(
+      profileEntity(user.role),
+      user.sub,
+      'following_count',
+      1,
+    );
     await this.notifications.emit({
       type: 'new_follower',
       recipientId: attorneyId,
@@ -111,27 +123,52 @@ export class FollowsService {
       where: { follower_id: user.sub, followee_id: attorneyId },
     });
     if (count === 0) return;
-    await this.counters.bump('attorney', attorneyId, 'followers_count', -1);
-    if (user.role === 'attorney') {
-      await this.counters.bump('attorney', user.sub, 'following_count', -1);
-    }
+    const target = await this.prisma.user.findUnique({
+      where: { id: attorneyId },
+      select: { role: true },
+    });
+    await this.counters.bump(
+      profileEntity(target?.role),
+      attorneyId,
+      'followers_count',
+      -1,
+    );
+    await this.counters.bump(
+      profileEntity(user.role),
+      user.sub,
+      'following_count',
+      -1,
+    );
   }
 
   /** GET /attorneys/:id/followers — attorney followers only (§6.2). */
   /** Owner 2026-09-29 (OQ-026): followers of an attorney are listed with
    * both roles — attorneys as before, clients as mini rows (they now have
    * usernames and a public mini-profile). */
-  async followers(
+  followers(
     viewerId: string,
     attorneyId: string,
     cursor?: string,
   ): Promise<PeoplePage> {
-    await this.assertPublicAttorney(attorneyId);
+    return this.people(viewerId, attorneyId, 'followers', cursor);
+  }
+
+  /** OQ-038: followers / following of any public profile (attorney or
+   * client), both roles listed. */
+  async people(
+    viewerId: string,
+    userId: string,
+    side: 'followers' | 'following',
+    cursor?: string,
+  ): Promise<PeoplePage> {
+    await this.assertPublicAttorney(userId);
     const c = cursor ? decodeCursor(cursor) : undefined;
+    const followers = side === 'followers';
+    const other = followers ? 'follower_id' : 'followee_id';
     const rows = await this.prisma.follow.findMany({
       where: {
-        followee_id: attorneyId,
-        follower: {
+        ...(followers ? { followee_id: userId } : { follower_id: userId }),
+        [followers ? 'follower' : 'followee']: {
           status: 'active',
           deleted_at: null,
           OR: [
@@ -148,26 +185,31 @@ export class FollowsService {
           ? {
               OR: [
                 { created_at: { lt: c.createdAt } },
-                { created_at: c.createdAt, follower_id: { lt: c.id } },
+                { created_at: c.createdAt, [other]: { lt: c.id } },
               ],
             }
           : {}),
       },
-      orderBy: [{ created_at: 'desc' }, { follower_id: 'desc' }],
+      orderBy: [{ created_at: 'desc' }, { [other]: 'desc' }],
       take: PAGE + 1,
       select: {
         follower_id: true,
+        followee_id: true,
         created_at: true,
         follower: { select: { role: true } },
+        followee: { select: { role: true } },
       },
     });
-    const page = rows.slice(0, PAGE);
+    const all = rows.map((r) => ({
+      id: followers ? r.follower_id : r.followee_id,
+      role: (followers ? r.follower : r.followee).role,
+      created_at: r.created_at,
+    }));
+    const page = all.slice(0, PAGE);
     const attorneyIds = page
-      .filter((r) => r.follower.role === 'attorney')
-      .map((r) => r.follower_id);
-    const clientIds = page
-      .filter((r) => r.follower.role === 'client')
-      .map((r) => r.follower_id);
+      .filter((r) => r.role === 'attorney')
+      .map((r) => r.id);
+    const clientIds = page.filter((r) => r.role === 'client').map((r) => r.id);
     const [attorneys, clients] = await Promise.all([
       this.present(attorneyIds, viewerId),
       this.clients.presentMany(clientIds),
@@ -176,8 +218,8 @@ export class FollowsService {
     const byClient = new Map(clients.map((x) => [x.id, x]));
     const items: PersonItemDto[] = [];
     for (const r of page) {
-      const a = byAttorney.get(r.follower_id);
-      const x = byClient.get(r.follower_id);
+      const a = byAttorney.get(r.id);
+      const x = byClient.get(r.id);
       if (a) items.push({ role: 'attorney', attorney: a, client: null });
       else if (x) items.push({ role: 'client', attorney: null, client: x });
     }
@@ -186,26 +228,36 @@ export class FollowsService {
       items,
       nextCursor:
         rows.length > PAGE && last
-          ? encodeCursor({ createdAt: last.created_at, id: last.follower_id })
+          ? encodeCursor({ createdAt: last.created_at, id: last.id })
           : null,
     };
   }
 
   /** GET /attorneys/:id/following — public list of attorneys. */
-  async following(
+  following(
     viewerId: string,
     attorneyId: string,
     cursor?: string,
-  ): Promise<AttorneyListPage> {
-    await this.assertPublicAttorney(attorneyId);
-    return this.pageOf(viewerId, cursor, 'follower', attorneyId);
+  ): Promise<PeoplePage> {
+    return this.people(viewerId, attorneyId, 'following', cursor);
   }
 
   /** The public lists exist for attorneys only: a client's follows are
    * visible to that client alone (§6.2), so any other id is a 404. */
   private async assertPublicAttorney(attorneyId: string): Promise<void> {
     const found = await this.prisma.user.findFirst({
-      where: { id: attorneyId, ...LISTABLE_ATTORNEY },
+      where: {
+        OR: [
+          { id: attorneyId, ...LISTABLE_ATTORNEY },
+          // OQ-038: client profiles have public follow lists too.
+          {
+            id: attorneyId,
+            role: 'client',
+            status: 'active',
+            deleted_at: null,
+          },
+        ],
+      },
       select: { id: true },
     });
     if (!found) {

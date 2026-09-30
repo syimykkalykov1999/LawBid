@@ -134,7 +134,9 @@ export class MineService {
             title: true,
             status: true,
             primary_state_code: true,
-            practice_area: { select: { name_en: true, i18n_key: true } },
+            practice_area: {
+              select: { name_en: true, i18n_key: true, code: true },
+            },
           },
         },
         offers: { orderBy: { round_no: 'desc' }, take: 1 },
@@ -152,6 +154,7 @@ export class MineService {
           primaryStateCode: b.case.primary_state_code,
           practiceAreaNameEn: b.case.practice_area.name_en,
           practiceAreaI18nKey: b.case.practice_area.i18n_key,
+          practiceAreaCode: b.case.practice_area.code,
         },
         lastOffer: offerFields(b.offers[0], b),
       })),
@@ -204,6 +207,10 @@ export class MineService {
               status: true,
               auto_close_at: true,
               closed_at: true,
+              primary_state_code: true,
+              practice_area: {
+                select: { name_en: true, i18n_key: true, code: true },
+              },
               client: { select: { first_name: true, last_name: true } },
             },
           },
@@ -223,6 +230,10 @@ export class MineService {
             bidId: b.id,
             title: k.title,
             status: k.status,
+            primaryStateCode: k.primary_state_code,
+            practiceAreaNameEn: k.practice_area.name_en,
+            practiceAreaI18nKey: k.practice_area.i18n_key,
+            practiceAreaCode: k.practice_area.code,
             clientName: active
               ? [k.client.first_name, k.client.last_name]
                   .filter(Boolean)

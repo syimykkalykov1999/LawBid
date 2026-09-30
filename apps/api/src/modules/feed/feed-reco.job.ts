@@ -36,8 +36,9 @@ export class FeedRecoJob {
                AS score
       FROM posts AS p
       JOIN users AS u ON u.id = p.author_id AND u.status = 'active'
-      JOIN attorney_profiles AS a ON a.user_id = p.author_id
-        AND a.verification_status <> 'suspended'
+        -- OQ-038: clients post too; suspended attorneys never show.
+        AND NOT EXISTS (SELECT 1 FROM attorney_profiles sa
+          WHERE sa.user_id = p.author_id AND sa.verification_status = 'suspended')
       WHERE p.status = 'published' AND p.deleted_at IS NULL
         AND p.created_at > ${since}
       ORDER BY score DESC, p.created_at DESC

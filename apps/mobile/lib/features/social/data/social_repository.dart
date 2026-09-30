@@ -103,10 +103,7 @@ abstract interface class SocialRepository {
     String attorneyId, {
     String? cursor,
   });
-  Future<CursorPage<AttorneyRow>> following(
-    String attorneyId, {
-    String? cursor,
-  });
+  Future<CursorPage<PersonRow>> following(String attorneyId, {String? cursor});
   Future<CursorPage<AttorneyRow>> myFollowing({String? cursor});
   Future<CursorPage<AttorneyRow>> suggestions({String? cursor});
 
@@ -446,11 +443,19 @@ class ApiSocialRepository implements SocialRepository {
   }
 
   @override
-  Future<CursorPage<AttorneyRow>> following(
+  Future<CursorPage<PersonRow>> following(
     String attorneyId, {
     String? cursor,
-  }) =>
-      _rows(() => _follows.listFollowing(id: attorneyId, cursor: cursor));
+  }) async {
+    // OQ-038: attorneys and clients.
+    final env = await guardApiCall(
+      () => _follows.listFollowing(id: attorneyId, cursor: cursor),
+    );
+    return CursorPage(
+      items: env.data.map(SocialMappers.person).whereType<PersonRow>().toList(),
+      nextCursor: env.meta?.nextCursor,
+    );
+  }
 
   @override
   Future<CursorPage<AttorneyRow>> myFollowing({String? cursor}) =>
@@ -597,6 +602,7 @@ abstract final class SocialMappers {
           avatarUrl: d.author.avatarUrl,
           verified: d.author.verifiedBadge,
           isFollowing: d.author.isFollowing,
+          isClient: d.author.role == api.PostAuthorDtoRole.client,
         ),
         body: d.body,
         media: [

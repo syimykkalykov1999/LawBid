@@ -17152,6 +17152,294 @@
         ]
       }
     },
+    "/cases/{id}/client-review": {
+      "put": {
+        "operationId": "upsertClientReview",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertClientReviewDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientReviewEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR, CASE_CONTAINS_CONTACT_INFO",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Review the case's client (hired attorney)",
+        "tags": [
+          "client-reviews"
+        ]
+      },
+      "get": {
+        "operationId": "getMyClientReview",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientReviewEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "My review of the case client, or null",
+        "tags": [
+          "client-reviews"
+        ]
+      }
+    },
+    "/clients/{id}/reviews": {
+      "get": {
+        "operationId": "listClientReviews",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 300,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientReviewListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Reviews of a client (attorneys and the client only)",
+        "tags": [
+          "client-reviews"
+        ]
+      }
+    },
     "/reports": {
       "post": {
         "operationId": "createReport",
@@ -17504,7 +17792,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AttorneyListItemListEnvelope"
+                  "$ref": "#/components/schemas/PersonItemListEnvelope"
                 }
               }
             }
@@ -17555,7 +17843,7 @@
             "bearer": []
           }
         ],
-        "summary": "Attorneys an attorney follows (docs/05 §6.2)",
+        "summary": "Whom a user follows — attorneys and clients (OQ-038)",
         "tags": [
           "follows"
         ]
@@ -29362,6 +29650,10 @@
           },
           "practiceAreaI18nKey": {
             "type": "string"
+          },
+          "practiceAreaCode": {
+            "type": "string",
+            "description": "Leaf practice code — picks the card art."
           }
         },
         "required": [
@@ -29370,7 +29662,8 @@
           "status",
           "primaryStateCode",
           "practiceAreaNameEn",
-          "practiceAreaI18nKey"
+          "practiceAreaI18nKey",
+          "practiceAreaCode"
         ]
       },
       "MyBidItemDto": {
@@ -29509,6 +29802,19 @@
               }
             ]
           },
+          "primaryStateCode": {
+            "type": "string"
+          },
+          "practiceAreaNameEn": {
+            "type": "string"
+          },
+          "practiceAreaI18nKey": {
+            "type": "string"
+          },
+          "practiceAreaCode": {
+            "type": "string",
+            "description": "Leaf practice code — picks the card art."
+          },
           "clientName": {
             "type": "string",
             "nullable": true,
@@ -29542,6 +29848,10 @@
           "bidId",
           "title",
           "status",
+          "primaryStateCode",
+          "practiceAreaNameEn",
+          "practiceAreaI18nKey",
+          "practiceAreaCode",
           "feeType",
           "amountCents"
         ]
@@ -29667,6 +29977,14 @@
             "type": "string",
             "format": "uuid"
           },
+          "role": {
+            "description": "OQ-038: clients publish posts too.",
+            "enum": [
+              "attorney",
+              "client"
+            ],
+            "type": "string"
+          },
           "username": {
             "type": "string"
           },
@@ -29694,6 +30012,7 @@
         },
         "required": [
           "id",
+          "role",
           "username",
           "verifiedBadge",
           "isFollowing"
@@ -30916,6 +31235,123 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/CaseCommentDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "ClientReviewAuthorDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "username": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "avatarUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "verifiedBadge": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "username",
+          "displayName",
+          "verifiedBadge"
+        ]
+      },
+      "ClientReviewDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "caseId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "caseTitle": {
+            "type": "string"
+          },
+          "rating": {
+            "type": "integer"
+          },
+          "body": {
+            "type": "string",
+            "nullable": true
+          },
+          "attorney": {
+            "$ref": "#/components/schemas/ClientReviewAuthorDto"
+          },
+          "isMine": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "caseId",
+          "caseTitle",
+          "rating",
+          "attorney",
+          "isMine",
+          "createdAt"
+        ]
+      },
+      "UpsertClientReviewDto": {
+        "type": "object",
+        "properties": {
+          "rating": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 5
+          },
+          "body": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "rating"
+        ]
+      },
+      "ClientReviewEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ClientReviewDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "ClientReviewListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClientReviewDto"
+            }
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
@@ -32240,6 +32676,30 @@
           "hasBlockedMe": {
             "type": "boolean",
             "description": "OQ-028: this user blocked the viewer."
+          },
+          "postsCount": {
+            "type": "integer",
+            "description": "OQ-038: Instagram-like counters."
+          },
+          "followersCount": {
+            "type": "integer"
+          },
+          "followingCount": {
+            "type": "integer"
+          },
+          "isFollowing": {
+            "type": "boolean"
+          },
+          "canSeeReviews": {
+            "type": "boolean",
+            "description": "OQ-038: attorneys' reviews of this client are visible to attorneys\nand to the client; other clients get false and no rating."
+          },
+          "ratingAvg": {
+            "type": "number",
+            "nullable": true
+          },
+          "ratingCount": {
+            "type": "integer"
           }
         },
         "required": [
@@ -32253,7 +32713,13 @@
           "isSelf",
           "verifiedBadge",
           "isBlocked",
-          "hasBlockedMe"
+          "hasBlockedMe",
+          "postsCount",
+          "followersCount",
+          "followingCount",
+          "isFollowing",
+          "canSeeReviews",
+          "ratingCount"
         ]
       },
       "PublicClientProfileEnvelope": {

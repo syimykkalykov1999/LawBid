@@ -594,6 +594,8 @@ model User {
   case_comment_likes       CaseCommentLike[]         @relation("CaseCommentLiker")
   post_shares              PostShare[]               @relation("PostSharer")
   case_shares              CaseShare[]               @relation("CaseSharer")
+  client_reviews_given     ClientReview[]            @relation("ClientReviewAttorney")
+  client_reviews_received  ClientReview[]            @relation("ClientReviewClient")
 
   // Trigram GIN on full_name_lower is a *partial* index (raw SQL): Prisma's
   // CockroachDB connector can't declare gin_trgm_ops, and ignores partial
@@ -942,6 +944,13 @@ model ClientProfile {
   username                 String?
   username_lower           String?        @unique
   username_changed_at      DateTime?      @db.Timestamptz
+  // Owner 2026-09-30 (OQ-038): Instagram-like client profile counters and
+  // the attorneys' rating of the client (visible to attorneys and self).
+  posts_count              Int            @default(0)
+  followers_count          Int            @default(0)
+  following_count          Int            @default(0)
+  rating_avg               Decimal        @default(0) @db.Decimal(3, 2)
+  rating_count             Int            @default(0)
   created_at               DateTime       @default(now()) @db.Timestamptz
   updated_at               DateTime       @updatedAt @db.Timestamptz
 
@@ -1151,7 +1160,8 @@ model Case {
   disputes            CaseDispute[]
   review              Review?
 
-  conversations Conversation[]
+  conversations  Conversation[]
+  client_reviews ClientReview[]
 
   // Partial indexes (§5.2) and the search_tsv GIN index are raw SQL in the
   // stage 2.6 migration.
@@ -1959,4 +1969,26 @@ model CaseShare {
 
   @@index([case_id])
   @@map("case_shares")
+}
+
+// Owner 2026-09-30 (OQ-038): an attorney's review of a client, left by the
+// attorney whose bid the client accepted. Visible to attorneys and to the
+// client; never to other clients.
+model ClientReview {
+  id          String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  case_id     String       @db.Uuid
+  case        Case         @relation(fields: [case_id], references: [id], onDelete: Restrict)
+  attorney_id String       @db.Uuid
+  attorney    User         @relation("ClientReviewAttorney", fields: [attorney_id], references: [id], onDelete: Restrict)
+  client_id   String       @db.Uuid
+  client      User         @relation("ClientReviewClient", fields: [client_id], references: [id], onDelete: Restrict)
+  rating      Int          @db.Int2
+  body        String?
+  status      ReviewStatus @default(published)
+  created_at  DateTime     @default(now()) @db.Timestamptz
+  updated_at  DateTime     @updatedAt @db.Timestamptz
+
+  @@unique([case_id, attorney_id])
+  @@index([client_id, created_at(sort: Desc)])
+  @@map("client_reviews")
 }

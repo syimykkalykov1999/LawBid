@@ -150,6 +150,28 @@ abstract final class ProfileMappers {
         isBlocked: d.isBlocked,
         hasBlockedMe: d.hasBlockedMe,
         verified: d.verifiedBadge,
+        postsCount: d.postsCount.toInt(),
+        followersCount: d.followersCount.toInt(),
+        followingCount: d.followingCount.toInt(),
+        isFollowing: d.isFollowing,
+        canSeeReviews: d.canSeeReviews,
+        ratingAvg: d.ratingAvg?.toDouble(),
+        ratingCount: d.ratingCount.toInt(),
+      );
+
+  static ClientReview clientReview(api.ClientReviewDto d) => ClientReview(
+        id: d.id,
+        caseId: d.caseId,
+        caseTitle: d.caseTitle,
+        rating: d.rating.toInt(),
+        body: d.body,
+        attorneyId: d.attorney.id,
+        attorneyUsername: d.attorney.username,
+        attorneyName: d.attorney.displayName,
+        attorneyAvatarUrl: d.attorney.avatarUrl,
+        attorneyVerified: d.attorney.verifiedBadge,
+        isMine: d.isMine,
+        createdAt: DateTime.parse(d.createdAt).toLocal(),
       );
 
   static ClientProfileDetails client(api.ClientProfileDto d) =>

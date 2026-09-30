@@ -21,6 +21,7 @@ import { PostsModule } from './modules/posts/posts.module';
 import { FeedModule } from './modules/feed/feed.module';
 import { CommentsModule } from './modules/comments/comments.module';
 import { CaseCommentsModule } from './modules/case-comments/case-comments.module';
+import { ClientReviewsModule } from './modules/client-reviews/client-reviews.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { FollowsModule } from './modules/follows/follows.module';
 import { BlocksModule } from './modules/blocks/blocks.module';
@@ -159,6 +160,7 @@ const isDev =
     FeedModule,
     CommentsModule,
     CaseCommentsModule,
+    ClientReviewsModule,
     ReportsModule,
     FollowsModule,
     SearchModule,

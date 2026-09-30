@@ -458,6 +458,41 @@ class _ReviewStep extends ConsumerWidget {
             ),
           ],
         ),
+        // Owner 2026-09-30 (OQ-039): what happens to the case and who sees
+        // what, right above Publish.
+        const SizedBox(height: AppSpacing.lg),
+        Container(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          decoration: BoxDecoration(
+            color: colors.goldTint,
+            borderRadius: BorderRadius.circular(AppRadii.card),
+            border: Border.all(color: colors.goldStroke),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final (icon, key) in const [
+                (Icons.visibility_off_outlined, 'cases.create.privacy.clients'),
+                (Icons.gavel_rounded, 'cases.create.privacy.attorneys'),
+                (Icons.lock_outline_rounded, 'cases.create.privacy.files'),
+              ]) ...[
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(icon, size: AppSizes.iconSm, color: colors.goldDark),
+                    const SizedBox(width: AppSpacing.sm),
+                    Expanded(
+                      child: Text(t.t(key),
+                          style: typography.bodySmall
+                              .copyWith(color: colors.text)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.sm),
+              ],
+            ],
+          ),
+        ),
         if (state.needsConsent) ...[
           const SizedBox(height: AppSpacing.lg),
           _ConsentBox(

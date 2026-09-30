@@ -20,6 +20,13 @@ PublicClientProfileDto _$PublicClientProfileDtoFromJson(
   verifiedBadge: json['verifiedBadge'] as bool,
   isBlocked: json['isBlocked'] as bool,
   hasBlockedMe: json['hasBlockedMe'] as bool,
+  postsCount: (json['postsCount'] as num).toInt(),
+  followersCount: (json['followersCount'] as num).toInt(),
+  followingCount: (json['followingCount'] as num).toInt(),
+  isFollowing: json['isFollowing'] as bool,
+  canSeeReviews: json['canSeeReviews'] as bool,
+  ratingCount: (json['ratingCount'] as num).toInt(),
+  ratingAvg: json['ratingAvg'] as num?,
 );
 
 Map<String, dynamic> _$PublicClientProfileDtoToJson(
@@ -36,4 +43,11 @@ Map<String, dynamic> _$PublicClientProfileDtoToJson(
   'verifiedBadge': instance.verifiedBadge,
   'isBlocked': instance.isBlocked,
   'hasBlockedMe': instance.hasBlockedMe,
+  'postsCount': instance.postsCount,
+  'followersCount': instance.followersCount,
+  'followingCount': instance.followingCount,
+  'isFollowing': instance.isFollowing,
+  'canSeeReviews': instance.canSeeReviews,
+  'ratingAvg': ?instance.ratingAvg,
+  'ratingCount': instance.ratingCount,
 };

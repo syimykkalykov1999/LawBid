@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
-import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/network/api_error.dart';
@@ -17,7 +16,7 @@ import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart'
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/widgets/attorney_profile_view.dart'
     show ProfileUnavailableState;
-import 'package:lawbid/features/profile/presentation/widgets/profile_avatar.dart';
+import 'package:lawbid/features/profile/presentation/widgets/client_social_profile.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_handle_bar.dart';
 
 /// `/client/:username` — a client's public mini-profile (owner decision
@@ -135,130 +134,20 @@ class ClientPublicProfileScreen extends ConsumerWidget {
                 onRetry: retry,
               );
             },
-            data: (p) => _Body(key: ValueKey('client-${p.id}'), profile: p),
+            // OQ-038: Instagram-like client profile.
+            data: (p) => ClientSocialProfile(
+              key: ValueKey('client-${p.id}'),
+              profile: p,
+              onRefresh: () async {
+                ref.invalidate(publicClientProfileProvider(username));
+                try {
+                  await ref.read(publicClientProfileProvider(username).future);
+                } catch (_) {}
+              },
+            ),
           ),
         ),
       ),
-    );
-  }
-}
-
-class _Body extends ConsumerWidget {
-  const _Body({required this.profile, super.key});
-
-  final PublicClientProfile profile;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final t = ref.watch(translatorProvider);
-    final f = ref.watch(l10nFormatsProvider);
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    final name =
-        profile.fullName.isEmpty ? '@${profile.username}' : profile.fullName;
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.screenSide,
-        AppSpacing.md,
-        AppSpacing.screenSide,
-        AppSpacing.xxl,
-      ),
-      children: [
-        Row(
-          children: [
-            ProfileAvatar(
-              size: 88,
-              url: profile.avatarUrl,
-              initials: initialsOf(
-                profile.firstName,
-                profile.lastName,
-                fallback: profile.username,
-              ),
-              semanticLabel: t.t('profile.avatar.label'),
-            ),
-            const SizedBox(width: AppSpacing.lg),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Flexible(
-                        child: Semantics(
-                          header: true,
-                          child: Text(
-                            name,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: typography.titleMedium
-                                .copyWith(color: colors.text),
-                          ),
-                        ),
-                      ),
-                      if (profile.verified) ...[
-                        const SizedBox(width: AppSpacing.xs),
-                        VerifiedBadge(
-                            semanticLabel: t.t('profile.verified.label')),
-                      ],
-                    ],
-                  ),
-                  const SizedBox(height: AppSpacing.xs),
-                  Text(
-                    t.t('person.client'),
-                    style: typography.caption
-                        .copyWith(color: colors.textSecondary),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        if (profile.isBlocked || profile.hasBlockedMe) ...[
-          const SizedBox(height: AppSpacing.md),
-          _InfoRow(
-            icon: Icons.block_flipped,
-            text: t.t(profile.isBlocked ? 'block.byYou' : 'block.blockedYou'),
-          ),
-        ],
-        const SizedBox(height: AppSpacing.lg),
-        _InfoRow(
-          icon: Icons.location_on_outlined,
-          text: profile.state.name,
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        _InfoRow(
-          icon: Icons.verified_user_outlined,
-          text: t.t(
-            'client.memberSince',
-            {'date': f.date(profile.memberSince)},
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _InfoRow extends StatelessWidget {
-  const _InfoRow({required this.icon, required this.text});
-
-  final IconData icon;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    return Row(
-      children: [
-        Icon(icon, size: AppSizes.iconSm, color: colors.goldDark),
-        const SizedBox(width: AppSpacing.sm),
-        Expanded(
-          child: Text(
-            text,
-            style: typography.body.copyWith(color: colors.text),
-          ),
-        ),
-      ],
     );
   }
 }

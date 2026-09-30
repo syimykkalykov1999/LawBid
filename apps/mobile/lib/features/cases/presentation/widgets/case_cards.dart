@@ -612,8 +612,9 @@ class _PlainChip extends StatelessWidget {
   }
 }
 
-/// Client "Мои кейсы" card (docs/04 §11.1): category, title, state,
-/// status, bids (+ new), date.
+/// Client "Мои кейсы" card (docs/04 §11.1). Owner 2026-09-30: styled like
+/// the feed — practice photo banner with the practice chip and status,
+/// title, place and date, then bids (+ new) in the footer.
 class ClientCaseCard extends StatelessWidget {
   const ClientCaseCard({
     required this.item,
@@ -633,7 +634,6 @@ class ClientCaseCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final practice =
         CaseFormat.practice(t, item.practice.i18nKey, item.practice.nameEn);
     final place = CaseFormat.place(
@@ -646,7 +646,7 @@ class ClientCaseCard extends StatelessWidget {
     final fresh = unseenBids > 0
         ? t.t('cases.card.newBids', {'count': '$unseenBids'})
         : null;
-    return _CaseCardShell(
+    return _MineCardFrame(
       onTap: onTap,
       semanticLabel: [
         practice,
@@ -657,56 +657,244 @@ class ClientCaseCard extends StatelessWidget {
         if (fresh != null) fresh,
         formats.date(item.createdAt),
       ].join(', '),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      artCode: item.practice.artCode,
+      practiceCode: item.practice.code,
+      practiceLabel: practice,
+      status: CaseStatusPill(status: item.status, t: t),
+      title: item.title,
+      meta: [
+        _MineMeta(icon: Icons.place_outlined, label: place),
+        _MineMeta(
+            icon: Icons.event_outlined, label: formats.date(item.createdAt)),
+      ],
+      footer: Row(
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  practice,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: typography.caption.copyWith(
-                    color: colors.goldDark,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              CaseStatusPill(status: item.status, t: t),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          Text(
-            item.title,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: typography.roleTitle.copyWith(color: colors.text),
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-            '$place · ${formats.date(item.createdAt)}',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: typography.bodySmall.copyWith(color: colors.textSecondary),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Row(
-            children: [
-              _IconStat(icon: Icons.gavel_rounded, value: bids),
-              if (fresh != null) ...[
-                const SizedBox(width: AppSpacing.sm),
-                StatusPill(label: fresh, tone: StatusTone.gold),
-              ],
-              const Spacer(),
-              Icon(Icons.chevron_right_rounded, color: colors.textSecondary),
-            ],
-          ),
+          Icon(Icons.gavel_rounded,
+              size: AppSizes.iconSm, color: colors.goldDark),
+          const SizedBox(width: AppSpacing.xs),
+          Expanded(child: _FooterText(bids)),
+          if (fresh != null) ...[
+            const SizedBox(width: AppSpacing.sm),
+            StatusPill(label: fresh, tone: StatusTone.gold),
+          ],
+          Icon(Icons.chevron_right_rounded, color: colors.textSecondary),
         ],
       ),
     );
   }
 }
+
+/// Owner 2026-09-30 ("карточки раздела mine … по красивее и по
+/// грамотнее"): one frame for every "Mine" card — the practice photo as a
+/// banner (practice chip bottom-left, status top-right), a bold title, a
+/// meta line with icons and a footer under a hairline.
+class _MineCardFrame extends StatelessWidget {
+  const _MineCardFrame({
+    required this.onTap,
+    required this.semanticLabel,
+    required this.artCode,
+    required this.practiceCode,
+    required this.practiceLabel,
+    required this.status,
+    required this.title,
+    required this.meta,
+    required this.footer,
+    this.note,
+  });
+
+  final VoidCallback onTap;
+  final String semanticLabel;
+  final String? artCode;
+  final String? practiceCode;
+  final String practiceLabel;
+  final Widget status;
+  final String title;
+  final List<_MineMeta> meta;
+  final Widget footer;
+
+  /// An optional quiet line under the meta (e.g. the last bid message).
+  final String? note;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
+    final banner = SizedBox(
+      height: 104,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          PracticePhoto(categoryCode: artCode, practiceCode: practiceCode),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.black.withValues(alpha: 0.05),
+                  Colors.black.withValues(alpha: 0.55),
+                ],
+              ),
+            ),
+          ),
+          // A solid backing keeps the status readable on any photo.
+          Positioned(
+            top: AppSpacing.sm,
+            right: AppSpacing.sm,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: colors.surface,
+                borderRadius: BorderRadius.circular(AppRadii.pill),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.18),
+                    blurRadius: 6,
+                  ),
+                ],
+              ),
+              child: status,
+            ),
+          ),
+          Positioned(
+            left: AppSpacing.md,
+            right: AppSpacing.md,
+            bottom: AppSpacing.sm + 2,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm + 2, vertical: AppSpacing.xs + 1),
+                decoration: BoxDecoration(
+                  color: colors.navy.withValues(alpha: 0.78),
+                  borderRadius: BorderRadius.circular(AppRadii.pill),
+                  border: Border.all(color: colors.gold.withValues(alpha: 0.8)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(practiceGlyph(artCode),
+                        size: 15, color: colors.goldLight),
+                    const SizedBox(width: AppSpacing.xs),
+                    Flexible(
+                      child: Text(
+                        practiceLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: typography.caption.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    return _CaseCardShell(
+      onTap: onTap,
+      semanticLabel: semanticLabel,
+      header: banner,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: typography.body.copyWith(
+              color: colors.text,
+              fontSize: 17,
+              fontWeight: FontWeight.w700,
+              height: 1.3,
+            ),
+          ),
+          if (meta.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Wrap(
+              spacing: AppSpacing.md,
+              runSpacing: AppSpacing.xs,
+              children: meta,
+            ),
+          ],
+          if (note != null && note!.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              note!,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: typography.bodySmall.copyWith(
+                color: colors.textSecondary,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
+          const SizedBox(height: AppSpacing.md),
+          Container(height: 1, color: colors.border),
+          const SizedBox(height: AppSpacing.md),
+          footer,
+        ],
+      ),
+    );
+  }
+}
+
+/// Icon + quiet text for a "Mine" card's meta line.
+class _MineMeta extends StatelessWidget {
+  const _MineMeta({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 15, color: colors.goldDark),
+        const SizedBox(width: AppSpacing.xs),
+        Flexible(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: typography.bodySmall.copyWith(color: colors.textSecondary),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Semi-bold footer text of a "Mine" card.
+class _FooterText extends StatelessWidget {
+  const _FooterText(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
+    return Text(
+      text,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: typography.bodySmall
+          .copyWith(color: colors.text, fontWeight: FontWeight.w600),
+    );
+  }
+}
+
+String? _artOf(String? practiceCode) =>
+    practiceCode == null || practiceCode.isEmpty
+        ? null
+        : practiceCode.split('.').first;
 
 /// Initials for an avatar without a photo.
 String initialsOf(String? first, String? last) {
@@ -888,8 +1076,8 @@ class BidCard extends StatelessWidget {
   }
 }
 
-/// "Мои биды" card (docs/04 §11.2): "Re: case title", terms, status chip,
-/// round counter, last message.
+/// "Мои биды" card (docs/04 §11.2): the case ("Re: …") on the practice
+/// banner with the bid status, terms, round counter, last message.
 class MyBidCard extends StatelessWidget {
   const MyBidCard({
     required this.item,
@@ -907,52 +1095,38 @@ class MyBidCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final bid = item.bid;
     final terms = CaseFormat.terms(t, formats, bid.feeType, bid.amountCents);
     final re = t.t('cases.myBids.re', {'title': item.caseTitle});
+    final practice = CaseFormat.practice(
+        t, item.casePracticeI18nKey, item.casePracticeNameEn);
     final lastMessage = item.lastOffer.message;
-    return _CaseCardShell(
+    final practiceCode = item.casePracticeCode ??
+        item.casePracticeI18nKey.replaceFirst('practice.', '');
+    return _MineCardFrame(
       onTap: onTap,
-      semanticLabel:
-          [re, terms, if (lastMessage != null) lastMessage].join(', '),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      semanticLabel: [re, practice, terms, if (lastMessage != null) lastMessage]
+          .join(', '),
+      artCode: _artOf(practiceCode),
+      practiceCode: practiceCode,
+      practiceLabel: practice,
+      status: BidStatusPill(bid: bid, viewer: PartyRole.attorney, t: t),
+      title: re,
+      meta: [
+        _MineMeta(icon: Icons.place_outlined, label: item.primaryStateCode),
+        _MineMeta(
+            icon: Icons.schedule_rounded, label: formats.date(bid.createdAt)),
+      ],
+      note: lastMessage,
+      footer: Row(
         children: [
-          Text(
-            re,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: typography.body
-                .copyWith(color: colors.text, fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-            '${CaseFormat.practice(t, item.casePracticeI18nKey, item.casePracticeNameEn)} · ${item.primaryStateCode}',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: typography.caption.copyWith(color: colors.textSecondary),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Expanded(child: MoneyText(terms)),
-              BidStatusPill(bid: bid, viewer: PartyRole.attorney, t: t),
-            ],
-          ),
+          Icon(Icons.payments_outlined,
+              size: AppSizes.iconSm, color: colors.goldDark),
+          const SizedBox(width: AppSpacing.xs),
+          Expanded(child: MoneyText(terms)),
           if (!bid.isFreeConsultation) ...[
-            const SizedBox(height: AppSpacing.sm),
+            const SizedBox(width: AppSpacing.sm),
             RoundCounter(used: bid.roundCount, t: t),
-          ],
-          if (lastMessage != null && lastMessage.isNotEmpty) ...[
-            const SizedBox(height: AppSpacing.sm),
-            Text(
-              lastMessage,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: typography.bodySmall.copyWith(color: colors.textSecondary),
-            ),
           ],
         ],
       ),
@@ -960,7 +1134,8 @@ class MyBidCard extends StatelessWidget {
   }
 }
 
-/// "В работе" card (docs/04 §11.2): title, client, status, terms.
+/// "В работе" card (docs/04 §11.2): practice banner with the case status,
+/// title, client (or a lock while contacts are closed), terms.
 class WorkCard extends StatelessWidget {
   const WorkCard({
     required this.item,
@@ -978,58 +1153,47 @@ class WorkCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final terms = CaseFormat.terms(t, formats, item.feeType, item.amountCents);
     final client = item.clientName ?? t.t('cases.work.clientLocked');
-    return _CaseCardShell(
+    final practice = item.practiceI18nKey == null
+        ? ''
+        : CaseFormat.practice(
+            t, item.practiceI18nKey!, item.practiceNameEn ?? '');
+    final since = item.closedAt ?? item.acceptedAt;
+    return _MineCardFrame(
       onTap: onTap,
       semanticLabel: [
         item.title,
+        if (practice.isNotEmpty) practice,
         client,
         caseStatusLabel(t, item.status),
         terms
       ].join(', '),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      artCode: _artOf(item.practiceCode),
+      practiceCode: item.practiceCode,
+      practiceLabel:
+          practice.isEmpty ? caseStatusLabel(t, item.status) : practice,
+      status: CaseStatusPill(status: item.status, t: t),
+      title: item.title,
+      meta: [
+        _MineMeta(
+          icon: item.clientName == null
+              ? Icons.lock_outline_rounded
+              : Icons.person_outline_rounded,
+          label: client,
+        ),
+        if (item.primaryStateCode != null)
+          _MineMeta(icon: Icons.place_outlined, label: item.primaryStateCode!),
+        if (since != null)
+          _MineMeta(icon: Icons.event_outlined, label: formats.date(since)),
+      ],
+      footer: Row(
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Text(
-                  item.title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: typography.roleTitle.copyWith(color: colors.text),
-                ),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              CaseStatusPill(status: item.status, t: t),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          Row(
-            children: [
-              Icon(
-                item.clientName == null
-                    ? Icons.lock_outline_rounded
-                    : Icons.person_outline_rounded,
-                size: AppSpacing.lg,
-                color: colors.textSecondary,
-              ),
-              const SizedBox(width: AppSpacing.xs),
-              Expanded(
-                child: Text(
-                  client,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: typography.bodySmall
-                      .copyWith(color: colors.textSecondary),
-                ),
-              ),
-              MoneyText(terms),
-            ],
-          ),
+          Icon(Icons.payments_outlined,
+              size: AppSizes.iconSm, color: colors.goldDark),
+          const SizedBox(width: AppSpacing.xs),
+          Expanded(child: MoneyText(terms)),
+          Icon(Icons.chevron_right_rounded, color: colors.textSecondary),
         ],
       ),
     );

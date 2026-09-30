@@ -123,12 +123,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     // OQ-026: People (attorneys and clients) for both roles.
     final tabs = [
       (SearchTab.attorneys, t.t('search.tab.people')),
-      // Attorneys search open cases; a client searches their own cases
-      // (other clients' cases are private).
-      (
-        SearchTab.cases,
-        t.t(attorney ? 'search.tab.cases' : 'search.tab.myCases'),
-      ),
+      // Owner 2026-09-30: cases are searched by attorneys only; a client
+      // sees their own cases in "Mine".
+      if (attorney) (SearchTab.cases, t.t('search.tab.cases')),
       (SearchTab.posts, t.t('search.tab.posts')),
       (SearchTab.tags, t.t('search.tab.tags')),
     ];

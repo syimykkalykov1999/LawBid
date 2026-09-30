@@ -9,6 +9,7 @@ part of 'post_author_dto.dart';
 PostAuthorDto _$PostAuthorDtoFromJson(Map<String, dynamic> json) =>
     PostAuthorDto(
       id: json['id'] as String,
+      role: PostAuthorDtoRole.fromJson(json['role'] as String),
       username: json['username'] as String,
       verifiedBadge: json['verifiedBadge'] as bool,
       isFollowing: json['isFollowing'] as bool,
@@ -20,6 +21,7 @@ PostAuthorDto _$PostAuthorDtoFromJson(Map<String, dynamic> json) =>
 Map<String, dynamic> _$PostAuthorDtoToJson(PostAuthorDto instance) =>
     <String, dynamic>{
       'id': instance.id,
+      'role': instance.role.toJson(),
       'username': instance.username,
       'firstName': ?instance.firstName,
       'lastName': ?instance.lastName,

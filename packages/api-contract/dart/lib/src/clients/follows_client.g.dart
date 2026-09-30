@@ -102,7 +102,7 @@ class _FollowsClient implements FollowsClient {
   }
 
   @override
-  Future<AttorneyListItemListEnvelope> listFollowing({
+  Future<PersonItemListEnvelope> listFollowing({
     required String id,
     String? cursor,
     Map<String, dynamic>? extras,
@@ -113,7 +113,7 @@ class _FollowsClient implements FollowsClient {
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};
     const Map<String, dynamic>? _data = null;
-    final _options = _setStreamType<AttorneyListItemListEnvelope>(
+    final _options = _setStreamType<PersonItemListEnvelope>(
       Options(method: 'GET', headers: _headers, extra: _extra)
           .compose(
             _dio.options,
@@ -124,9 +124,9 @@ class _FollowsClient implements FollowsClient {
           .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
     );
     final _result = await _dio.fetch<Map<String, Object?>>(_options);
-    late AttorneyListItemListEnvelope _value;
+    late PersonItemListEnvelope _value;
     try {
-      _value = AttorneyListItemListEnvelope.fromJson(_result.data!);
+      _value = PersonItemListEnvelope.fromJson(_result.data!);
     } on Object catch (e, s) {
       errorLogger?.logError(e, s, _options, response: _result);
       rethrow;

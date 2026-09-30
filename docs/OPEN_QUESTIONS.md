@@ -653,3 +653,34 @@ withPhotos&sort`; e2e `owner-search-filters`.
 - Double tap anywhere on a post likes it (never unlikes) with the heart.
 - Pages slide in from the right and a swipe from the LEFT edge goes back
   on every platform (Android too), like on iPhone.
+
+## OQ-038 — Instagram-like client profile, client posts, reviews of clients (owner, 2026-09-30)
+
+The owner: the client profile looked too plain next to the attorney's.
+Differs from docs/03 §5 (private client profile without counters):
+- A client profile is public like an attorney's: avatar, posts / followers /
+  following counters, name, "Client · state", Edit (own) or Follow.
+- Clients can publish posts ("+" → New case / New post); clients can be
+  followed; followers / following lists work for both roles.
+- Two tabs: "Posts" and "Reviews from attorneys". An attorney whose bid was
+  accepted can rate the client (1–5 + text) from the case at work
+  (`PUT /cases/:id/client-review`, one per case). Reviews and the client's
+  rating are visible only to attorneys and the client (`GET /clients/:id/
+  reviews` → 403 for other clients).
+- The client's cases stay in "Mine" only; the "My cases" tab is removed
+  from the client's Search.
+- "Mine" cards (client cases, my bids, in progress / closed) now carry the
+  practice photo banner with the practice chip and status, a bold title,
+  a meta line with icons and a footer (bids / terms). `WorkItemDto` and
+  the bid's case ref now include the practice (`practiceAreaCode` …).
+API: migration `20260930150000_owner_client_profile_social`, module
+`client-reviews`; e2e `owner-client-profile`.
+
+## OQ-039 — Privacy note when publishing a case (owner, 2026-09-30)
+
+Above "Publish" the case wizard explains, in three lines: other clients
+never see the case; attorneys see only the description — not documents,
+photos or contact details — until the client accepts a bid; files are
+opened only to the attorney the client chooses. "Not sure / other" cases
+are shown (as before, docs/04 §4.1) only to attorneys with General
+Practice licensed in the case's state.

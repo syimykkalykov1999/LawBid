@@ -90,13 +90,10 @@ describe('Follows (e2e, docs/05 §6, stage 5.5)', () => {
   const follow = (auth: Record<string, string>, id: string) =>
     api().post(`/api/v1/attorneys/${id}/follow`).set(auth);
 
-  it('only attorneys can be followed, never yourself', async () => {
+  // OQ-038: clients can be followed too; yourself never.
+  it('you cannot follow yourself', async () => {
     const att = await user('attorney');
-    const client = await user('client');
-    for (const [who, target] of [
-      [att, client.id],
-      [att, att.id],
-    ] as const) {
+    for (const [who, target] of [[att, att.id]] as const) {
       const r = await follow(who.auth, target);
       expect(r.status).toBe(422);
       expect(r.body.error.code).toBe('FOLLOW_NOT_ALLOWED');
@@ -153,10 +150,11 @@ describe('Follows (e2e, docs/05 §6, stage 5.5)', () => {
     // Nobody else can list a client's follows (§6.2): the public route
     // exists for attorneys only.
     const other = await user('client');
-    const leak = await api()
+    // OQ-038: a client's follow lists are public like on Instagram.
+    const open = await api()
       .get(`/api/v1/attorneys/${client.id}/following`)
       .set(other.auth);
-    expect(leak.status).toBe(404);
+    expect(open.status).toBe(200);
 
     const s = await api().get('/api/v1/suggestions/attorneys').set(client.auth);
     expect((s.body.data as { id: string }[]).some((a) => a.id === a1.id)).toBe(
