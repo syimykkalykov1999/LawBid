@@ -161,8 +161,8 @@ class RealtimeClient {
         ack: (Object? r) {
       if (!done.isCompleted) done.complete(r is Map && r['ok'] == true);
     });
-    return done.future.timeout(const Duration(seconds: 5),
-        onTimeout: () => false);
+    return done.future
+        .timeout(const Duration(seconds: 5), onTimeout: () => false);
   }
 
   void dispose() {

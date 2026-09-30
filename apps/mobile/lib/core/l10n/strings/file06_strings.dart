@@ -2,6 +2,7 @@
 // merged into StaticTranslatorRu/En like file05_strings.dart.
 
 const file06Ru = <String, String>{
+  'inbox.tab.requests': 'Запросы',
   'call.notAllowedRequest': 'Звонок откроется, когда запрос на переписку примут.',
   // --- OQ-043: личные чаты и запросы на переписку ---
   'chat.requests.title': 'Запросы на переписку',
@@ -332,6 +333,7 @@ const file06Ru = <String, String>{
 };
 
 const file06En = <String, String>{
+  'inbox.tab.requests': 'Requests',
   'call.notAllowedRequest': 'Calls open once the message request is accepted.',
   // --- OQ-043: direct chats and message requests ---
   'chat.requests.title': 'Message requests',

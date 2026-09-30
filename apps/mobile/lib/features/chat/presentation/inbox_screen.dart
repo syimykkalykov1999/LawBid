@@ -20,10 +20,11 @@ import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 
-enum InboxTab { chats, notifications }
+enum InboxTab { chats, notifications, requests }
 
-/// The screen behind the Chats icon (docs/05 §8.1, §9.1): "Чаты |
-/// Уведомления", each tab with its own unread count.
+/// The screen behind the Chats icon (docs/05 §8.1, §9.1). Owner
+/// 2026-09-30: three compact tabs — Chats · Notifications · Requests — in
+/// one centered row on the level of the back arrow, each with its count.
 class InboxScreen extends ConsumerStatefulWidget {
   const InboxScreen({this.initialTab = InboxTab.chats, super.key});
 
@@ -41,73 +42,98 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final badges = ref.watch(badgesProvider);
+    final requests = ref.watch(messageRequestsCountProvider).value ?? 0;
     return Scaffold(
       backgroundColor: colors.bg,
-      appBar: AppTopBar(
-        leading: AppBackButton(
-          semanticLabel: t.t('common.back'),
-          onPressed: () => Navigator.of(context).maybePop(),
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            SizedBox(
+              height: AppSizes.touchTarget + AppSpacing.md,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Padding(
+                      padding: const EdgeInsets.only(left: AppSpacing.xs),
+                      child: AppBackButton(
+                        semanticLabel: t.t('common.back'),
+                        onPressed: () => Navigator.of(context).maybePop(),
+                      ),
+                    ),
+                  ),
+                  _InboxTabs(
+                    value: _tab,
+                    counts: (badges.chats, badges.notifications, requests),
+                    labels: (
+                      t.t('inbox.tab.chats'),
+                      t.t('inbox.tab.notifications'),
+                      t.t('inbox.tab.requests'),
+                    ),
+                    onChanged: (v) => setState(() => _tab = v),
+                  ),
+                ],
+              ),
+            ),
+            // Notification actions moved under the tabs.
+            if (_tab == InboxTab.notifications)
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.screenSide),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    if (badges.notifications > 0)
+                      TextButton(
+                        onPressed: () =>
+                            ref.read(notificationsProvider.notifier).markRead(),
+                        child: Text(t.t('notif.markAllRead')),
+                      ),
+                    AppIconButton(
+                      plain: true,
+                      icon: Icon(Icons.tune_rounded, color: colors.text),
+                      semanticLabel: t.t('settings.notifications'),
+                      onPressed: () =>
+                          context.push(ChatRoutes.notificationSettings),
+                    ),
+                  ],
+                ),
+              ),
+            Expanded(
+              child: IndexedStack(
+                index: _tab.index,
+                children: const [
+                  ConversationsView(),
+                  NotificationsView(),
+                  MessageRequestsView(),
+                ],
+              ),
+            ),
+          ],
         ),
-        // Owner 2026-09-29: no "Messages" title; the tabs say it.
-        actions: [
-          if (_tab == InboxTab.notifications && badges.notifications > 0)
-            TextButton(
-              onPressed: () =>
-                  ref.read(notificationsProvider.notifier).markRead(),
-              child: Text(t.t('notif.markAllRead')),
-            ),
-          if (_tab == InboxTab.notifications)
-            AppIconButton(
-              plain: true,
-              icon: Icon(Icons.tune_rounded, color: colors.text),
-              semanticLabel: t.t('settings.notifications'),
-              onPressed: () => context.push(ChatRoutes.notificationSettings),
-            ),
-        ],
-      ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.screenSide, vertical: AppSpacing.sm),
-            child: _InboxTabs(
-              value: _tab,
-              chats: badges.chats,
-              notifications: badges.notifications,
-              labels: (t.t('inbox.tab.chats'), t.t('inbox.tab.notifications')),
-              onChanged: (v) => setState(() => _tab = v),
-            ),
-          ),
-          Expanded(
-            child: IndexedStack(
-              index: _tab.index,
-              children: const [
-                ConversationsView(),
-                NotificationsView(),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }
 }
 
-/// Two segments with a gliding gold-bordered indicator and count pills.
+/// Three compact segments with a gliding gold-bordered indicator.
 class _InboxTabs extends StatelessWidget {
   const _InboxTabs({
     required this.value,
-    required this.chats,
-    required this.notifications,
+    required this.counts,
     required this.labels,
     required this.onChanged,
   });
 
   final InboxTab value;
-  final int chats;
-  final int notifications;
-  final (String, String) labels;
+  final (int, int, int) counts;
+  final (String, String, String) labels;
   final ValueChanged<InboxTab> onChanged;
+
+  static const _segment = 96.0;
+  static const _height = 36.0;
 
   @override
   Widget build(BuildContext context) {
@@ -116,7 +142,8 @@ class _InboxTabs extends StatelessWidget {
     final d = context.reduceMotion ? Duration.zero : AppMotion.stateChange;
     Widget segment(InboxTab tab, String label, int count) {
       final selected = tab == value;
-      return Expanded(
+      return SizedBox(
+        width: _segment,
         child: Semantics(
           button: true,
           selected: selected,
@@ -125,21 +152,24 @@ class _InboxTabs extends StatelessWidget {
           child: AppPressable(
             onTap: () => onChanged(tab),
             child: SizedBox(
-              height: AppSizes.touchTarget,
+              height: _height,
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  AnimatedDefaultTextStyle(
-                    duration: d,
-                    style: type.body.copyWith(
-                      color: selected ? colors.onAccent : colors.text,
-                      fontWeight: FontWeight.w600,
+                  Flexible(
+                    child: AnimatedDefaultTextStyle(
+                      duration: d,
+                      style: type.caption.copyWith(
+                        color: selected ? colors.onAccent : colors.text,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      child: Text(label,
+                          maxLines: 1, overflow: TextOverflow.ellipsis),
                     ),
-                    child: Text(label),
                   ),
                   if (count > 0) ...[
-                    const SizedBox(width: AppSpacing.xs),
-                    CountPill(count: count),
+                    const SizedBox(width: 3),
+                    _Dot(count: count),
                   ],
                 ],
               ),
@@ -150,7 +180,7 @@ class _InboxTabs extends StatelessWidget {
     }
 
     return Container(
-      padding: const EdgeInsets.all(3),
+      padding: const EdgeInsets.all(2),
       decoration: BoxDecoration(
         color: colors.surface,
         borderRadius: BorderRadius.circular(AppRadii.pill),
@@ -158,31 +188,57 @@ class _InboxTabs extends StatelessWidget {
       ),
       child: Stack(
         children: [
-          AnimatedAlign(
+          AnimatedPositioned(
             duration: d,
             curve: AppMotion.enterCurve,
-            alignment: value == InboxTab.chats
-                ? Alignment.centerLeft
-                : Alignment.centerRight,
-            child: FractionallySizedBox(
-              widthFactor: 0.5,
-              child: Container(
-                height: AppSizes.touchTarget,
-                decoration: BoxDecoration(
-                  color: colors.accent,
-                  borderRadius: BorderRadius.circular(AppRadii.pill),
-                  border: Border.all(color: colors.goldStroke),
-                ),
+            left: _segment * value.index,
+            top: 0,
+            child: Container(
+              width: _segment,
+              height: _height,
+              decoration: BoxDecoration(
+                color: colors.accent,
+                borderRadius: BorderRadius.circular(AppRadii.pill),
+                border: Border.all(color: colors.goldStroke),
               ),
             ),
           ),
           Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              segment(InboxTab.chats, labels.$1, chats),
-              segment(InboxTab.notifications, labels.$2, notifications),
+              segment(InboxTab.chats, labels.$1, counts.$1),
+              segment(InboxTab.notifications, labels.$2, counts.$2),
+              segment(InboxTab.requests, labels.$3, counts.$3),
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// A small gold count for the compact tabs.
+class _Dot extends StatelessWidget {
+  const _Dot({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    return Container(
+      constraints: const BoxConstraints(minWidth: 16),
+      height: 16,
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: colors.gold,
+        borderRadius: BorderRadius.circular(AppRadii.pill),
+      ),
+      child: Text(
+        count > 99 ? '99+' : '$count',
+        style: type.badge.copyWith(color: colors.navy, fontSize: 10),
       ),
     );
   }
@@ -251,14 +307,11 @@ class ConversationsView extends ConsumerWidget {
     final value = ref.watch(conversationsProvider);
     final n = ref.read(conversationsProvider.notifier);
     final attorney = ref.watch(currentUserRoleProvider) == UserRole.attorney;
-    final requests = ref.watch(messageRequestsCountProvider).value ?? 0;
     return PagedListBody<Conversation>(
       value: value,
       t: t,
       itemKey: (c) => c.id,
       itemBuilder: (context, c, _) => ConversationRow(conversation: c),
-      // OQ-043: messages from people you haven't talked to wait here.
-      header: requests == 0 ? null : _RequestsRow(count: requests),
       empty: AppEmptyState(
         icon: Icons.forum_outlined,
         title: t.t('chat.empty.title'),
@@ -271,75 +324,9 @@ class ConversationsView extends ConsumerWidget {
   }
 }
 
-/// "Message requests · 2" at the top of the chats (OQ-043).
-class _RequestsRow extends ConsumerWidget {
-  const _RequestsRow({required this.count});
-
-  final int count;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final t = ref.watch(translatorProvider);
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.md),
-      child: Semantics(
-        button: true,
-        label: '${t.t('chat.requests.title')}, $count',
-        excludeSemantics: true,
-        child: AppPressable(
-          onTap: () => context.push(ChatRoutes.requests),
-          child: Container(
-            padding: const EdgeInsets.all(AppSpacing.md),
-            decoration: BoxDecoration(
-              color: colors.goldTint,
-              borderRadius: BorderRadius.circular(AppRadii.card),
-              border: Border.all(color: colors.goldStroke),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: colors.navy,
-                  ),
-                  child: Icon(Icons.mark_email_unread_outlined,
-                      color: colors.goldLight),
-                ),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(t.t('chat.requests.title'),
-                          style: type.body.copyWith(
-                              color: colors.text, fontWeight: FontWeight.w700)),
-                      Text(t.t('chat.requests.subtitle'),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: type.caption
-                              .copyWith(color: colors.textSecondary)),
-                    ],
-                  ),
-                ),
-                CountPill(count: count),
-                const SizedBox(width: AppSpacing.xs),
-                Icon(Icons.chevron_right_rounded, color: colors.textSecondary),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 /// OQ-043: message requests sent to me — open one to accept or delete.
-class MessageRequestsScreen extends ConsumerWidget {
-  const MessageRequestsScreen({super.key});
+class MessageRequestsView extends ConsumerWidget {
+  const MessageRequestsView({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -348,36 +335,29 @@ class MessageRequestsScreen extends ConsumerWidget {
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final value = ref.watch(messageRequestsProvider);
     final n = ref.read(messageRequestsProvider.notifier);
-    return Scaffold(
-      backgroundColor: colors.bg,
-      appBar: AppTopBar(
-        leading: AppBackButton(
-          semanticLabel: t.t('common.back'),
-          onPressed: () => Navigator.of(context).maybePop(),
-        ),
-        title: Text(t.t('chat.requests.title')),
+    return PagedListBody<Conversation>(
+      value: value,
+      t: t,
+      itemKey: (c) => c.id,
+      itemBuilder: (context, c, _) => Padding(
+        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+        child: ConversationRow(conversation: c),
       ),
-      body: PagedListBody<Conversation>(
-        value: value,
-        t: t,
-        itemKey: (c) => c.id,
-        itemBuilder: (context, c, _) => Padding(
-          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-          child: ConversationRow(conversation: c),
-        ),
-        header: Padding(
-          padding: const EdgeInsets.only(bottom: AppSpacing.md),
-          child: Text(t.t('chat.requests.explain'),
-              style: type.bodySmall.copyWith(color: colors.textSecondary)),
-        ),
-        empty: AppEmptyState(
-          icon: Icons.mark_email_read_outlined,
-          message: t.t('chat.requests.empty'),
-        ),
-        onRefresh: n.refresh,
-        onLoadMore: n.loadMore,
-        onRetryMore: n.retryLoadMore,
+      header: Padding(
+        padding: const EdgeInsets.only(bottom: AppSpacing.md),
+        child: Text(t.t('chat.requests.explain'),
+            style: type.bodySmall.copyWith(color: colors.textSecondary)),
       ),
+      empty: AppEmptyState(
+        icon: Icons.mark_email_read_outlined,
+        message: t.t('chat.requests.empty'),
+      ),
+      onRefresh: () async {
+        ref.invalidate(messageRequestsCountProvider);
+        await n.refresh();
+      },
+      onLoadMore: n.loadMore,
+      onRetryMore: n.retryLoadMore,
     );
   }
 }

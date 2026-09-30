@@ -32,17 +32,19 @@ List<RouteBase> chatRoutes(GlobalKey<NavigatorState> root) => [
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
           InboxScreen(
-            initialTab: state.uri.queryParameters['tab'] == 'notifications'
-                ? InboxTab.notifications
-                : InboxTab.chats,
+            initialTab: switch (state.uri.queryParameters['tab']) {
+              'notifications' => InboxTab.notifications,
+              'requests' => InboxTab.requests,
+              _ => InboxTab.chats,
+            },
           ),
         ),
       ),
       GoRoute(
         path: ChatRoutes.requests,
         parentNavigatorKey: root,
-        pageBuilder: (context, state) =>
-            AppPageTransitions.push(state, const MessageRequestsScreen()),
+        pageBuilder: (context, state) => AppPageTransitions.push(
+            state, const InboxScreen(initialTab: InboxTab.requests)),
       ),
       GoRoute(
         path: ChatRoutes.conversationPattern,
