@@ -171,13 +171,13 @@ const file06Ru = <String, String>{
       'Имя отличается от имени в проверенных документах. Всё работает как обычно. Верните прежнее имя или подтвердите новое документом.',
   'profile.nameMismatch.action': 'Подтвердить новое имя',
   // OQ-031 case photos.
-  'cases.photos.title': 'Фото',
+  'cases.photos.title': 'Фото и файлы',
   'cases.photos.privacy':
-      'Необязательно, до 9 фото. Их увидит только адвокат, чей бид вы примете.',
+      'Необязательно: до 9 фото или файлов (PDF, Word). Их увидит только адвокат, чей бид вы примете.',
   'cases.photos.add': 'Добавить фото',
   'cases.photos.remove': 'Убрать фото',
   'cases.photos.locked':
-      'Фото к кейсу: {count}. Откроются после того, как клиент примет ваш бид.',
+      'Файлов к кейсу: {count}. Откроются после того, как клиент примет ваш бид.',
   // Owner 2026-09-30 post card and feed header.
   'post.readMore': 'Читать дальше',
   'post.public': 'Публично',
@@ -407,13 +407,13 @@ const file06En = <String, String>{
       'Your name differs from the one on your verified documents. Everything keeps working. Change it back or confirm the new name with a document.',
   'profile.nameMismatch.action': 'Confirm new name',
   // OQ-031 case photos.
-  'cases.photos.title': 'Photos',
+  'cases.photos.title': 'Photos and files',
   'cases.photos.privacy':
-      'Optional, up to 9 photos. Only the attorney whose bid you accept will see them.',
+      'Optional: up to 9 photos or files (PDF, Word). Only the attorney whose bid you accept will see them.',
   'cases.photos.add': 'Add photo',
   'cases.photos.remove': 'Remove photo',
   'cases.photos.locked':
-      'Photos attached: {count}. They open once the client accepts your bid.',
+      'Files attached: {count}. They open once the client accepts your bid.',
   // Owner 2026-09-30 post card and feed header.
   'post.readMore': 'Read more',
   'post.public': 'Public',
