@@ -22,11 +22,15 @@ String _link(WidgetRef ref, String postId) => SocialFormat.postLink(
 /// §4 "Поделиться": the system share sheet with `lawbid.app/post/:id`.
 Future<void> sharePost(BuildContext context, WidgetRef ref, Post post) async {
   final box = context.findRenderObject() as RenderBox?;
-  await SharePlus.instance.share(ShareParams(
+  final result = await SharePlus.instance.share(ShareParams(
     uri: Uri.parse(_link(ref, post.id)),
     sharePositionOrigin:
         box == null ? null : box.localToGlobal(Offset.zero) & box.size,
   ));
+  // OQ-037: count it unless the sheet was just closed.
+  if (result.status != ShareResultStatus.dismissed) {
+    await ref.read(socialActionsProvider).recordShare(post);
+  }
 }
 
 /// §2.4 "⋯": someone else's post — report, copy link; your own — edit

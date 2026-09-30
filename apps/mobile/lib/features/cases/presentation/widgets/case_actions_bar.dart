@@ -13,6 +13,8 @@ import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart'
     show BounceIcon;
+import 'package:lawbid/features/social/application/social_providers.dart'
+    show socialRepositoryProvider;
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 
 /// `https://lawbid.app/case/:id` — opens the attorney case screen.
@@ -33,6 +35,9 @@ class CaseActionsBar extends ConsumerStatefulWidget {
 class _CaseActionsBarState extends ConsumerState<CaseActionsBar> {
   bool? _saved;
 
+  /// Shares made from this card (added to the server count at once).
+  int _shared = 0;
+
   Future<void> _toggleSave() async {
     final t = ref.read(translatorProvider);
     final next = !(_saved ?? widget.item.isSaved);
@@ -52,12 +57,20 @@ class _CaseActionsBarState extends ConsumerState<CaseActionsBar> {
 
   Future<void> _share() async {
     final box = context.findRenderObject() as RenderBox?;
-    await SharePlus.instance.share(ShareParams(
+    final result = await SharePlus.instance.share(ShareParams(
       uri: Uri.parse(caseLink(
           ref.read(appEnvironmentProvider).deepLinkHost, widget.item.id)),
       sharePositionOrigin:
           box == null ? null : box.localToGlobal(Offset.zero) & box.size,
     ));
+    // OQ-037: count it unless the sheet was just closed.
+    if (result.status == ShareResultStatus.dismissed || !mounted) return;
+    setState(() => _shared++);
+    try {
+      await ref.read(socialRepositoryProvider).recordCaseShare(widget.item.id);
+    } on Object {
+      if (mounted) setState(() => _shared--);
+    }
   }
 
   @override
@@ -81,7 +94,7 @@ class _CaseActionsBarState extends ConsumerState<CaseActionsBar> {
           ),
           if (count > 0)
             Text(
-              f.number(count),
+              SocialFormat.count(f, count),
               style: type.bodySmall
                   .copyWith(color: colors.text, fontWeight: FontWeight.w600),
             ),
@@ -92,6 +105,12 @@ class _CaseActionsBarState extends ConsumerState<CaseActionsBar> {
             label: t.t('post.share'),
             onTap: _share,
           ),
+          if (widget.item.shareCount + _shared > 0)
+            Text(
+              SocialFormat.count(f, widget.item.shareCount + _shared),
+              style: type.bodySmall
+                  .copyWith(color: colors.text, fontWeight: FontWeight.w600),
+            ),
           // Owner 2026-09-30: the time and Save sit at the right edge.
           Expanded(
             child: Text(

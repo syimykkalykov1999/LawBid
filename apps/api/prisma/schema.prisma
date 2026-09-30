@@ -592,6 +592,8 @@ model User {
   data_access_entries      DataAccessLog[]           @relation("DataAccessAdmin")
   case_comments            CaseComment[]             @relation("CaseCommentAuthor")
   case_comment_likes       CaseCommentLike[]         @relation("CaseCommentLiker")
+  post_shares              PostShare[]               @relation("PostSharer")
+  case_shares              CaseShare[]               @relation("CaseSharer")
 
   // Trigram GIN on full_name_lower is a *partial* index (raw SQL): Prisma's
   // CockroachDB connector can't declare gin_trgm_ops, and ignores partial
@@ -1121,6 +1123,9 @@ model Case {
   bids_count            Int                      @default(0)
   // Owner 2026-09-30 (OQ-034): published comments under the case.
   comment_count         Int                      @default(0)
+  // OQ-037: times shared.
+  share_count           Int                      @default(0)
+  shares                CaseShare[]
   comments              CaseComment[]
   last_activity_at      DateTime                 @default(now()) @db.Timestamptz
   stale_prompt_sent_at  DateTime?                @db.Timestamptz
@@ -1361,6 +1366,9 @@ model Post {
   like_count    Int                      @default(0)
   comment_count Int                      @default(0)
   save_count    Int                      @default(0)
+  // Owner 2026-09-30 (OQ-037): times shared (share sheet completed).
+  share_count   Int                      @default(0)
+  shares        PostShare[]
   // docs/05 §3.3, §14 (stage 5.1): "Изменено" after a text edit.
   edited_at     DateTime?                @db.Timestamptz
   deleted_at    DateTime?                @db.Timestamptz
@@ -1925,4 +1933,30 @@ model CaseCommentLike {
 
   @@id([comment_id, user_id])
   @@map("case_comment_likes")
+}
+
+// Owner 2026-09-30 (OQ-037): one row per completed share (the share
+// counter's source of truth for the nightly reconcile).
+model PostShare {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  post_id    String   @db.Uuid
+  post       Post     @relation(fields: [post_id], references: [id], onDelete: Cascade)
+  user_id    String   @db.Uuid
+  user       User     @relation("PostSharer", fields: [user_id], references: [id], onDelete: Cascade)
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  @@index([post_id])
+  @@map("post_shares")
+}
+
+model CaseShare {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  case_id    String   @db.Uuid
+  case       Case     @relation(fields: [case_id], references: [id], onDelete: Cascade)
+  user_id    String   @db.Uuid
+  user       User     @relation("CaseSharer", fields: [user_id], references: [id], onDelete: Cascade)
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  @@index([case_id])
+  @@map("case_shares")
 }

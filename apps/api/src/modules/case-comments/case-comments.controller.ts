@@ -52,6 +52,17 @@ export class CaseCommentsController {
     return this.comments.list(user, p.id, q.cursor);
   }
 
+  @Post('cases/:id/share')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Count a completed share of a case (OQ-037)' })
+  @ApiErrors({ 404: [E.CASE_NOT_FOUND], 429: [E.RATE_LIMITED] })
+  shareCase(
+    @CurrentUser() user: RequestUser,
+    @Param() p: CaseIdParamDto,
+  ): Promise<void> {
+    return this.comments.shareCase(user, p.id);
+  }
+
   @Get('case-comments/:id/replies')
   @ApiOperation({ summary: 'Replies of a case comment' })
   @ApiEnvelopeResponse(CaseCommentDto, { isArray: true })

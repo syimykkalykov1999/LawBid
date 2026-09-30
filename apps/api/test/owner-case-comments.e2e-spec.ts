@@ -292,4 +292,36 @@ describe('Case comments, category filter, documents (e2e, OQ-034)', () => {
     expect(seen.body.data.photos).toEqual([]);
     expect(seen.body.data.photosCount).toBe(1);
   });
+
+  it('shares are counted on posts and cases (OQ-037)', async () => {
+    const cli = await client();
+    const caseId = (await postCase(cli.auth)).body.data.id as string;
+    const att = await attorney();
+    for (let i = 0; i < 2; i++) {
+      expect(
+        (await api().post(`/api/v1/cases/${caseId}/share`).set(att.auth))
+          .status,
+      ).toBe(204);
+    }
+    const seen = await api().get(`/api/v1/cases/${caseId}`).set(att.auth);
+    expect(seen.body.data.shareCount).toBe(2);
+    const stranger = await client();
+    expect(
+      (await api().post(`/api/v1/cases/${caseId}/share`).set(stranger.auth))
+        .status,
+    ).toBe(404);
+
+    const post = await api()
+      .post('/api/v1/posts')
+      .set(att.auth)
+      .set('Idempotency-Key', randomUUID())
+      .send({ body: 'Know your rights at a traffic stop #traffic' });
+    expect(post.status).toBe(201);
+    const postId = post.body.data.id as string;
+    expect(
+      (await api().post(`/api/v1/posts/${postId}/share`).set(cli.auth)).status,
+    ).toBe(204);
+    const read = await api().get(`/api/v1/posts/${postId}`).set(cli.auth);
+    expect(read.body.data.shareCount).toBe(1);
+  });
 });

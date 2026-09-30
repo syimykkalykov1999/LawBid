@@ -42,9 +42,13 @@ String? sniffDocumentMime(Uint8List b) {
   if (b.length >= 5 && String.fromCharCodes(b.sublist(0, 5)) == '%PDF-') {
     return kPdfMime;
   }
-  if (b.length >= 30 && b[0] == 0x50 && b[1] == 0x4B && b[2] == 3 && b[3] == 4) {
-    final head = String.fromCharCodes(
-        b.sublist(0, b.length < 65536 ? b.length : 65536));
+  if (b.length >= 30 &&
+      b[0] == 0x50 &&
+      b[1] == 0x4B &&
+      b[2] == 3 &&
+      b[3] == 4) {
+    final head =
+        String.fromCharCodes(b.sublist(0, b.length < 65536 ? b.length : 65536));
     if (head.contains('[Content_Types].xml') && head.contains('word/')) {
       return kDocxMime;
     }
@@ -79,6 +83,10 @@ abstract interface class SocialRepository {
   Future<Post> updatePost(String id, String body);
   Future<void> deletePost(String id);
   Future<void> setLiked(String postId, {required bool liked});
+
+  /// OQ-037: count a completed share of a post / a case.
+  Future<void> recordPostShare(String postId);
+  Future<void> recordCaseShare(String caseId);
   Future<void> setSaved(String postId, {required bool saved});
   Future<CursorPage<SavedPost>> savedPosts({String? cursor});
 
@@ -259,6 +267,14 @@ class ApiSocialRepository implements SocialRepository {
   @override
   Future<void> deletePost(String id) =>
       guardApiCall(() => _posts.deletePost(id: id));
+
+  @override
+  Future<void> recordPostShare(String postId) =>
+      guardApiCall(() => _posts.sharePost(id: postId));
+
+  @override
+  Future<void> recordCaseShare(String caseId) =>
+      guardApiCall(() => _caseComments.shareCase(id: caseId));
 
   @override
   Future<void> setLiked(String postId, {required bool liked}) => guardApiCall(
@@ -599,6 +615,7 @@ abstract final class SocialMappers {
         tags: d.tags,
         likeCount: d.likeCount,
         commentCount: d.commentCount,
+        shareCount: d.shareCount.toInt(),
         likedByMe: d.likedByMe,
         savedByMe: d.savedByMe,
         isMine: d.isMine,

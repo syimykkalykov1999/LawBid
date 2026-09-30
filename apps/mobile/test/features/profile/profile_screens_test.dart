@@ -83,7 +83,7 @@ void main() {
       expect(find.text('Family Law · 2'), findsOneWidget);
       expect(find.text('Work Visas'), findsOneWidget);
       expect(find.text('New York'), findsOneWidget);
-      expect(find.text('1,280'), findsOneWidget);
+      expect(find.text('1.2K'), findsOneWidget);
       expect(find.text('Follow'), findsOneWidget);
       expect(find.bySemanticsLabel('Share'), findsOneWidget);
       expect(find.text('Edit'), findsNothing);

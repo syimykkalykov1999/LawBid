@@ -14,6 +14,7 @@ import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart'
     show splitPostBody, topicCategory, topicLabel;
+import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/social/social_routes.dart';
 
 /// Owner 2026-09-30: Search shows posts and cases as an Instagram-like
@@ -226,7 +227,9 @@ class SearchMyCaseTile extends ConsumerWidget {
     );
     final kind = '${t.t('search.kind.case')} · $practice';
     final footer = '${CaseFormat.budget(t, f, item.budget)} · '
-        '${t.t('cases.card.bidsCount', {'count': '${item.bidsCount}'})}';
+        '${t.t('cases.card.bidsCount', {
+          'count': SocialFormat.count(f, item.bidsCount)
+        })}';
     return SearchTileFrame(
       picture: PracticePhoto(
         categoryCode: item.practice.artCode,

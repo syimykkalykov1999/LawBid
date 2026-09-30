@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_photos.dart';
 import 'package:go_router/go_router.dart';
@@ -221,7 +222,9 @@ class _Body extends ConsumerWidget {
         AppListRow(
           icon: Icons.mode_comment_outlined,
           label: t.t('cases.comments.title'),
-          trailingText: c.commentCount > 0 ? '${c.commentCount}' : null,
+          trailingText: c.commentCount > 0
+              ? SocialFormat.count(formats, c.commentCount)
+              : null,
           onTap: () => context.push(AppRoutes.caseComments(c.id)),
         ),
         DetailSection(
@@ -246,8 +249,8 @@ class _Body extends ConsumerWidget {
                 icon: Icons.insights_outlined,
                 label: t.t('cases.detail.activity'),
                 value: t.t('cases.detail.activityValue', {
-                  'views': formats.number(c.viewCount),
-                  'bids': formats.number(c.bidsCount),
+                  'views': SocialFormat.count(formats, c.viewCount),
+                  'bids': SocialFormat.count(formats, c.bidsCount),
                 }),
               ),
             ],

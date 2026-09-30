@@ -22,6 +22,7 @@ class PostDto {
     required this.likeCount,
     required this.commentCount,
     required this.saveCount,
+    required this.shareCount,
     required this.likedByMe,
     required this.savedByMe,
     required this.isMine,
@@ -43,6 +44,9 @@ class PostDto {
   final int likeCount;
   final int commentCount;
   final int saveCount;
+
+  /// OQ-037.
+  final int shareCount;
   final bool likedByMe;
   final bool savedByMe;
   final bool isMine;

@@ -164,6 +164,10 @@ export class PostDto {
   @ApiProperty({ type: 'integer' })
   saveCount!: number;
 
+  /** OQ-037. */
+  @ApiProperty({ type: 'integer' })
+  shareCount!: number;
+
   @ApiProperty()
   likedByMe!: boolean;
 

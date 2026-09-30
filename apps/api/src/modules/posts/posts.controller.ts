@@ -139,6 +139,17 @@ export class PostsController {
     return this.engagement.like(user.sub, p.id);
   }
 
+  @Post('posts/:id/share')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Count a completed share (OQ-037)' })
+  @ApiErrors({ 404: [E.POST_NOT_FOUND], 429: [E.RATE_LIMITED] })
+  sharePost(
+    @CurrentUser() user: RequestUser,
+    @Param() p: PostIdParamDto,
+  ): Promise<void> {
+    return this.engagement.share(user.sub, p.id);
+  }
+
   @Delete('posts/:id/like')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Remove a like (idempotent, docs/05 §4)' })

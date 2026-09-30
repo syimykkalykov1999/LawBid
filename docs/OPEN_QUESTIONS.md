@@ -641,3 +641,15 @@ The filters also shape each tab's suggestions before typing.
 API: `/search/people?role&verifiedOnly`, `/search/cases?practiceCategory&
 budgetMin&budgetMax&budgetUnknown&noBids`, `/search/posts?tag&state&period&
 withPhotos&sort`; e2e `owner-search-filters`.
+
+## OQ-037 — Compact counters, share counter, double-tap like, swipe back (owner, 2026-09-30)
+
+- Every counter in the app (likes, comments, shares, views, bids,
+  followers, reviews…) is compact: 999, 1.3K, 12K, 500K, 1.3M, 2B. The
+  admin panel keeps exact numbers.
+- Posts and cases count shares: a completed share sheet calls
+  `POST /posts/:id/share` / `POST /cases/:id/share` (rows in post_shares /
+  case_shares, `shareCount` on the DTOs, counters + nightly reconcile).
+- Double tap anywhere on a post likes it (never unlikes) with the heart.
+- Pages slide in from the right and a swipe from the LEFT edge goes back
+  on every platform (Android too), like on iPhone.

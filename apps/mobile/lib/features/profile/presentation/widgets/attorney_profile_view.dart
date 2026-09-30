@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -387,16 +388,19 @@ class _HeaderCard extends ConsumerWidget {
               child: Row(
                 children: [
                   _Counter(
-                      value: formats.number(profile.counters.posts),
+                      value:
+                          SocialFormat.count(formats, profile.counters.posts),
                       label: t.t('profile.counters.posts')),
                   _Counter(
-                    value: formats.number(profile.counters.followers),
+                    value:
+                        SocialFormat.count(formats, profile.counters.followers),
                     label: t.t('profile.counters.followers'),
                     onTap: () =>
                         context.push(SocialRoutes.followers(profile.id)),
                   ),
                   _Counter(
-                    value: formats.number(profile.counters.following),
+                    value:
+                        SocialFormat.count(formats, profile.counters.following),
                     label: t.t('profile.counters.following'),
                     onTap: () =>
                         context.push(SocialRoutes.following(profile.id)),

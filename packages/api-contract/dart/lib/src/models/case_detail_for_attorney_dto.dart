@@ -28,6 +28,7 @@ class CaseDetailForAttorneyDto {
     required this.isNew,
     required this.hasOwnBid,
     required this.commentCount,
+    required this.shareCount,
     required this.isSaved,
     required this.description,
     required this.photos,
@@ -62,6 +63,9 @@ class CaseDetailForAttorneyDto {
 
   /// Owner 2026-09-30 (OQ-034): the case card works like a post card.
   final int commentCount;
+
+  /// OQ-037.
+  final int shareCount;
 
   /// In the viewer's saved items.
   final bool isSaved;

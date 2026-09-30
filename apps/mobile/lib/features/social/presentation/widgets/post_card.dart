@@ -94,9 +94,14 @@ class PostCard extends ConsumerWidget {
         ],
       ),
       clipBehavior: Clip.antiAlias,
-      child: inDetail
-          ? _detail(context, ref, p, t, colors, actions, run)
-          : _feed(context, p, t, colors, run, fill: fill),
+      // Owner 2026-09-30: double tap anywhere on the post likes it, with
+      // the heart (Instagram).
+      child: DoubleTapLike(
+        onLike: () => run(() => actions.like(p)),
+        child: inDetail
+            ? _detail(context, ref, p, t, colors, actions, run)
+            : _feed(context, p, t, colors, run, fill: fill),
+      ),
     );
   }
 
@@ -288,7 +293,8 @@ class PostCard extends ConsumerWidget {
             padding: const EdgeInsets.fromLTRB(
                 AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.xs),
             child: Text(
-              t.plural('post.likes', p.likeCount),
+              SocialFormat.plural(
+                  t, ref.watch(l10nFormatsProvider), 'post.likes', p.likeCount),
               style: Theme.of(context)
                   .extension<AppTypographyTokens>()!
                   .bodySmall
@@ -890,6 +896,50 @@ class _PostMediaCarouselState extends State<PostMediaCarousel>
   }
 }
 
+/// Double tap on the whole post = like (never unlike, like Instagram) with
+/// the heart bursting in the middle of the card.
+class DoubleTapLike extends StatefulWidget {
+  const DoubleTapLike({required this.onLike, required this.child, super.key});
+
+  final VoidCallback onLike;
+  final Widget child;
+
+  @override
+  State<DoubleTapLike> createState() => _DoubleTapLikeState();
+}
+
+class _DoubleTapLikeState extends State<DoubleTapLike>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _heart = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 820),
+  );
+
+  @override
+  void dispose() {
+    _heart.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onDoubleTap: () {
+          HapticFeedback.lightImpact();
+          widget.onLike();
+          if (!context.reduceMotion) _heart.forward(from: 0);
+        },
+        child: Stack(
+          children: [
+            widget.child,
+            Positioned.fill(
+              child: IgnorePointer(child: _HeartBurst(animation: _heart)),
+            ),
+          ],
+        ),
+      );
+}
+
 class _HeartBurst extends StatelessWidget {
   const _HeartBurst({required this.animation});
 
@@ -1011,6 +1061,7 @@ class _ActionsBar extends ConsumerWidget {
             label: t.t('post.share'),
             onTap: () => sharePost(context, ref, post),
           ),
+          if (post.shareCount > 0) _Count(post.shareCount),
           // Owner 2026-09-30: the time and Save sit at the right edge.
           Expanded(
             child: showTime

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_photos.dart';
 import 'package:go_router/go_router.dart';
@@ -334,14 +335,15 @@ class _OwnerCaseBody extends ConsumerWidget {
                 InfoRow(
                   icon: Icons.visibility_outlined,
                   label: t.t('cases.detail.views'),
-                  value: formats.number(c.viewCount),
+                  value: SocialFormat.count(formats, c.viewCount),
                 ),
               ],
             ),
           ),
           if (showBids)
             DetailSection(
-              title: t.t('cases.bids.title', {'count': '${c.bidsCount}'}),
+              title: t.t('cases.bids.title',
+                  {'count': SocialFormat.count(formats, c.bidsCount)}),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [

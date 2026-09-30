@@ -251,6 +251,16 @@ export class CaseCommentsService {
     }
   }
 
+  /** OQ-037: a completed share of the case link (anyone who can see it). */
+  async shareCase(user: RequestUser, caseId: string): Promise<void> {
+    await this.caseOwner(user, caseId);
+    await this.limits.consume('like', user.sub);
+    await this.prisma.caseShare.create({
+      data: { case_id: caseId, user_id: user.sub },
+    });
+    await this.counters.bump('case', caseId, 'share_count', 1);
+  }
+
   async unlike(user: RequestUser, commentId: string): Promise<void> {
     const { count } = await this.prisma.caseCommentLike.deleteMany({
       where: { comment_id: commentId, user_id: user.sub },

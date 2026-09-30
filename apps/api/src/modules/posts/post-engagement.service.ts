@@ -45,6 +45,16 @@ export class PostEngagementService {
     }
   }
 
+  /** OQ-037: the share sheet was completed — counts every share. */
+  async share(userId: string, postId: string): Promise<void> {
+    await this.visible(postId);
+    await this.limits.consume('like', userId);
+    await this.prisma.postShare.create({
+      data: { post_id: postId, user_id: userId },
+    });
+    await this.counters.bump('post', postId, 'share_count', 1);
+  }
+
   async unlike(userId: string, postId: string): Promise<void> {
     const { count } = await this.prisma.postLike.deleteMany({
       where: { post_id: postId, user_id: userId },

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -175,7 +176,7 @@ class RatingCard extends ConsumerWidget {
     final number = ratingNumber(formats, t, isNew ? null : rating.average);
     final countText = isNew
         ? t.t('profile.rating.new')
-        : t.plural('profile.rating.count', rating.count);
+        : SocialFormat.plural(t, formats, 'profile.rating.count', rating.count);
     final ink = colors.navy;
 
     final card = Container(
@@ -322,7 +323,8 @@ class ReviewSummaryPanel extends ConsumerWidget {
                     Text(
                       summary.isNew
                           ? t.t('profile.rating.new')
-                          : t.plural('profile.rating.count', total),
+                          : SocialFormat.plural(
+                              t, formats, 'profile.rating.count', total),
                       style: typography.caption
                           .copyWith(color: colors.textSecondary),
                     ),
@@ -426,7 +428,7 @@ class ReviewSummaryPanel extends ConsumerWidget {
                                 SizedBox(
                                   width: AppSpacing.xl,
                                   child: Text(
-                                    formats.number(
+                                    SocialFormat.count(formats,
                                         summary.distribution[stars] ?? 0),
                                     textAlign: TextAlign.end,
                                     textScaler: TextScaler.noScaling,

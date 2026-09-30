@@ -72,6 +72,13 @@ abstract class PostsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
+  /// Count a completed share (OQ-037)
+  @POST('/posts/{id}/share')
+  Future<void> sharePost({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
   /// Saved posts (docs/05 §4, "Моё → Сохранённое").
   ///
   /// [cursor] - meta.nextCursor of the previous page.

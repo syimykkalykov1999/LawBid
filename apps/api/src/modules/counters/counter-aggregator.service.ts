@@ -22,7 +22,7 @@ export const COUNTERS = {
   post: {
     table: 'posts',
     key: 'id',
-    fields: ['like_count', 'comment_count', 'save_count'],
+    fields: ['like_count', 'comment_count', 'save_count', 'share_count'],
   },
   comment: {
     table: 'comments',
@@ -33,7 +33,7 @@ export const COUNTERS = {
   case: {
     table: 'cases',
     key: 'id',
-    fields: ['comment_count'],
+    fields: ['comment_count', 'share_count'],
   },
   case_comment: {
     table: 'case_comments',
@@ -240,7 +240,8 @@ export class CounterAggregator
                            WHERE c.post_id = p.id AND c.deleted_at IS NULL
                              AND c.status = 'published'),
           save_count = (SELECT count(*) FROM saved_items s
-                        WHERE s.item_type = 'post' AND s.item_id = p.id)
+                        WHERE s.item_type = 'post' AND s.item_id = p.id),
+          share_count = (SELECT count(*) FROM post_shares x WHERE x.post_id = p.id)
         WHERE p.id = ANY(${ids}::UUID[])`;
     } else if (entity === 'comment') {
       await this.prisma.$executeRaw`
@@ -255,7 +256,8 @@ export class CounterAggregator
         UPDATE cases AS k SET
           comment_count = (SELECT count(*) FROM case_comments c
                            WHERE c.case_id = k.id AND c.deleted_at IS NULL
-                             AND c.status = 'published')
+                             AND c.status = 'published'),
+          share_count = (SELECT count(*) FROM case_shares x WHERE x.case_id = k.id)
         WHERE k.id = ANY(${ids}::UUID[])`;
     } else if (entity === 'case_comment') {
       await this.prisma.$executeRaw`

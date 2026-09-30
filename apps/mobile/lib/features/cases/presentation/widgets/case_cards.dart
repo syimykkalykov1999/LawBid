@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
+import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_actions_bar.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -329,11 +330,13 @@ class FeedCaseCard extends StatelessWidget {
                           ),
                           _IconStat(
                               icon: Icons.visibility_outlined,
-                              value: formats.number(item.viewCount)),
+                              value:
+                                  SocialFormat.count(formats, item.viewCount)),
                           const SizedBox(width: AppSpacing.md),
                           _IconStat(
                               icon: Icons.gavel_rounded,
-                              value: formats.number(item.bidsCount)),
+                              value:
+                                  SocialFormat.count(formats, item.bidsCount)),
                         ],
                       ),
                       if (item.hasOwnBid || item.status != CaseStatus.open) ...[
@@ -496,11 +499,13 @@ class FeedCaseCard extends StatelessWidget {
                           ),
                           _IconStat(
                               icon: Icons.visibility_outlined,
-                              value: formats.number(item.viewCount)),
+                              value:
+                                  SocialFormat.count(formats, item.viewCount)),
                           const SizedBox(width: AppSpacing.md),
                           _IconStat(
                               icon: Icons.gavel_rounded,
-                              value: formats.number(item.bidsCount)),
+                              value:
+                                  SocialFormat.count(formats, item.bidsCount)),
                         ],
                       ),
                       if (item.hasOwnBid || item.status != CaseStatus.open) ...[
@@ -636,7 +641,8 @@ class ClientCaseCard extends StatelessWidget {
       item.primaryStateCode,
       item.additionalStateCount,
     );
-    final bids = t.t('cases.card.bidsCount', {'count': '${item.bidsCount}'});
+    final bids = t.t('cases.card.bidsCount',
+        {'count': SocialFormat.count(formats, item.bidsCount)});
     final fresh = unseenBids > 0
         ? t.t('cases.card.newBids', {'count': '$unseenBids'})
         : null;
@@ -735,7 +741,7 @@ class AttorneyLine extends StatelessWidget {
         ? t.t('cases.attorney.noReviews')
         : t.t('cases.attorney.rating', {
             'avg': attorney.ratingAvg.toStringAsFixed(1),
-            'count': '${attorney.ratingCount}',
+            'count': SocialFormat.count(formats, attorney.ratingCount),
           });
     final row = Row(
       children: [

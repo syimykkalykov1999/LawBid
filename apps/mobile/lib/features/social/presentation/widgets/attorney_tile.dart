@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
+import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -84,7 +86,7 @@ class AttorneyTile extends ConsumerWidget {
                         row.ratingCount == 0
                             ? t.t('profile.rating.new')
                             : '${row.ratingAvg.toStringAsFixed(1)} · '
-                                '${t.plural('profile.rating.count', row.ratingCount)}',
+                                '${SocialFormat.plural(t, ref.watch(l10nFormatsProvider), 'profile.rating.count', row.ratingCount)}',
                         style: type.caption.copyWith(color: colors.text),
                       ),
                     ],

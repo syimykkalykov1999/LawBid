@@ -19,14 +19,19 @@ import 'package:lawbid/core/design_system/design_system.dart';
 /// The welcome route deliberately keeps its plain `builder` (owner: the
 /// welcome screen is not part of this pass).
 abstract final class AppPageTransitions {
+  /// Owner 2026-09-30: iPhone-style swipe back on Android as well.
+  static const bool _swipeBackEverywhere = true;
+
   static bool get _cupertino => switch (defaultTargetPlatform) {
         TargetPlatform.iOS || TargetPlatform.macOS => true,
         _ => false,
       };
 
-  /// Standard push (forward navigation within a flow).
+  /// Standard push (forward navigation within a flow). Owner 2026-09-30:
+  /// on every platform (Android too) the page slides in from the right and
+  /// a swipe from the LEFT edge to the right goes back, like on iPhone.
   static Page<void> push(GoRouterState state, Widget child) {
-    if (_cupertino) {
+    if (_cupertino || _swipeBackEverywhere) {
       return CupertinoPage<void>(
         key: state.pageKey,
         name: state.name,

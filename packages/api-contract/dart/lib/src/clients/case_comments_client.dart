@@ -34,6 +34,13 @@ abstract class CaseCommentsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
+  /// Count a completed share of a case (OQ-037)
+  @POST('/cases/{id}/share')
+  Future<void> shareCase({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
   /// Replies of a case comment.
   ///
   /// [cursor] - meta.nextCursor of the previous page.

@@ -302,10 +302,14 @@ class FeedCase {
     this.photos = const [],
     this.photosCount = 0,
     this.commentCount = 0,
+    this.shareCount = 0,
   });
 
   /// OQ-034: comments under the case.
   final int commentCount;
+
+  /// OQ-037: completed shares.
+  final int shareCount;
 
   final String id;
   final String title;
@@ -356,6 +360,7 @@ class FeedCase {
         photos: photos,
         photosCount: photosCount,
         commentCount: commentCount,
+        shareCount: shareCount,
       );
 }
 

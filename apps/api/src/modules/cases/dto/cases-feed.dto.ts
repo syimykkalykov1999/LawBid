@@ -182,6 +182,10 @@ export class CaseFeedItemDto {
   @ApiProperty({ type: 'integer' })
   commentCount!: number;
 
+  /** OQ-037. */
+  @ApiProperty({ type: 'integer' })
+  shareCount!: number;
+
   @ApiProperty({ description: "In the viewer's saved items." })
   isSaved!: boolean;
 }

@@ -148,6 +148,7 @@ abstract final class CasesMappers {
         hasOwnBid: c.hasOwnBid,
         isSaved: c.isSaved,
         commentCount: c.commentCount.toInt(),
+        shareCount: c.shareCount.toInt(),
       );
 
   static FeedCase attorneyCase(api.CaseDetailForAttorneyDto c) => FeedCase(
@@ -172,6 +173,7 @@ abstract final class CasesMappers {
         photos: c.photos.map(casePhoto).toList(growable: false),
         photosCount: c.photosCount.toInt(),
         commentCount: c.commentCount.toInt(),
+        shareCount: c.shareCount.toInt(),
       );
 
   static MyBid myBid(api.MyBidItemDto b) => MyBid(

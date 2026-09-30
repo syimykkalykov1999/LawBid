@@ -241,7 +241,11 @@ class _CommentTileState extends ConsumerState<CommentTile> {
                                 _showReplies
                                     ? 'comment.hideReplies'
                                     : 'comment.showReplies',
-                                {'count': '${_c.replyCount}'},
+                                {
+                                  'count': SocialFormat.count(
+                                      ref.watch(l10nFormatsProvider),
+                                      _c.replyCount),
+                                },
                               )),
                             ),
                           ],

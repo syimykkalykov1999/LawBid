@@ -212,23 +212,31 @@ export class CasesFeedService {
    * skipped). Also used by the saved-cases list (docs/04 §11.2). */
   async hydrate(ids: string[], attorneyId: string): Promise<CaseFeedItemDto[]> {
     if (ids.length === 0) return [];
-    const [rows, ownBids, saved, pendingComments] = await Promise.all([
-      this.prisma.case.findMany({
-        where: { id: { in: ids } },
-        include: CASE_WITH_PRACTICE_AREA_INCLUDE,
-      }) as Promise<CaseWithPracticeArea[]>,
-      this.prisma.bid.findMany({
-        where: { attorney_id: attorneyId, case_id: { in: ids } },
-        select: { case_id: true },
-      }),
-      this.prisma.savedItem.findMany({
-        where: { user_id: attorneyId, item_type: 'case', item_id: { in: ids } },
-        select: { item_id: true },
-      }),
-      this.counters
-        ? this.counters.pending('case', 'comment_count', ids)
-        : Promise.resolve(new Map<string, number>()),
-    ]);
+    const [rows, ownBids, saved, pendingComments, pendingShares] =
+      await Promise.all([
+        this.prisma.case.findMany({
+          where: { id: { in: ids } },
+          include: CASE_WITH_PRACTICE_AREA_INCLUDE,
+        }) as Promise<CaseWithPracticeArea[]>,
+        this.prisma.bid.findMany({
+          where: { attorney_id: attorneyId, case_id: { in: ids } },
+          select: { case_id: true },
+        }),
+        this.prisma.savedItem.findMany({
+          where: {
+            user_id: attorneyId,
+            item_type: 'case',
+            item_id: { in: ids },
+          },
+          select: { item_id: true },
+        }),
+        this.counters
+          ? this.counters.pending('case', 'comment_count', ids)
+          : Promise.resolve(new Map<string, number>()),
+        this.counters
+          ? this.counters.pending('case', 'share_count', ids)
+          : Promise.resolve(new Map<string, number>()),
+      ]);
     const bidCaseIds = new Set(ownBids.map((b) => b.case_id));
     const savedIds = new Set(saved.map((s) => s.item_id));
     const byId = new Map(rows.map((r) => [r.id, r]));
@@ -275,6 +283,7 @@ export class CasesFeedService {
           c.comment_count + (pendingComments.get(c.id) ?? 0),
         ),
         isSaved: savedIds.has(c.id),
+        shareCount: Math.max(0, c.share_count + (pendingShares.get(c.id) ?? 0)),
       });
     }
     return items;

@@ -43,6 +43,7 @@ export class PostPresenter {
       pLike,
       pComment,
       pSave,
+      pShare,
       follows,
     ] = await Promise.all([
       this.prisma.user.findMany({
@@ -85,6 +86,7 @@ export class PostPresenter {
       this.counters.pending('post', 'like_count', ids),
       this.counters.pending('post', 'comment_count', ids),
       this.counters.pending('post', 'save_count', ids),
+      this.counters.pending('post', 'share_count', ids),
       // Owner 2026-09-30: the card's Follow button needs the state.
       this.prisma.follow.findMany({
         where: { follower_id: viewerId, followee_id: { in: authorIds } },
@@ -155,6 +157,7 @@ export class PostPresenter {
         likeCount: clamp(p.like_count + (pLike.get(p.id) ?? 0)),
         commentCount: clamp(p.comment_count + (pComment.get(p.id) ?? 0)),
         saveCount: clamp(p.save_count + (pSave.get(p.id) ?? 0)),
+        shareCount: clamp(p.share_count + (pShare.get(p.id) ?? 0)),
         likedByMe: liked.has(p.id),
         savedByMe: saved.has(p.id),
         isMine: p.author_id === viewerId,

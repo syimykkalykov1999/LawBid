@@ -83,7 +83,11 @@ class Post {
     required this.createdAt,
     this.editedAt,
     this.status = 'published',
+    this.shareCount = 0,
   });
+
+  /// OQ-037: completed shares.
+  final int shareCount;
 
   final String id;
   final PostAuthor author;
@@ -112,6 +116,7 @@ class Post {
     bool? likedByMe,
     bool? savedByMe,
     DateTime? editedAt,
+    int? shareCount,
   }) =>
       Post(
         id: id,
@@ -127,6 +132,7 @@ class Post {
         createdAt: createdAt,
         editedAt: editedAt ?? this.editedAt,
         status: status,
+        shareCount: shareCount ?? this.shareCount,
       );
 }
 
