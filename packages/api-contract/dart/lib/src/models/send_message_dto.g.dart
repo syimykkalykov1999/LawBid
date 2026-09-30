@@ -9,11 +9,23 @@ part of 'send_message_dto.dart';
 SendMessageDto _$SendMessageDtoFromJson(Map<String, dynamic> json) =>
     SendMessageDto(
       clientMessageId: json['clientMessageId'] as String,
-      body: json['body'] as String,
+      body: json['body'] as String?,
+      fileId: json['fileId'] as String?,
+      durationMs: (json['durationMs'] as num?)?.toInt(),
+      waveform: (json['waveform'] as List<dynamic>?)
+          ?.map((e) => (e as num).toInt())
+          .toList(),
+      type: json['type'] == null
+          ? SendMessageType.text
+          : SendMessageType.fromJson(json['type'] as String),
     );
 
 Map<String, dynamic> _$SendMessageDtoToJson(SendMessageDto instance) =>
     <String, dynamic>{
       'clientMessageId': instance.clientMessageId,
-      'body': instance.body,
+      'type': instance.type.toJson(),
+      'body': ?instance.body,
+      'fileId': ?instance.fileId,
+      'durationMs': ?instance.durationMs,
+      'waveform': ?instance.waveform,
     };

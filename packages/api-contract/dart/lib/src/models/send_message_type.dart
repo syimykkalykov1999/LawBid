@@ -5,32 +5,18 @@
 import 'package:json_annotation/json_annotation.dart';
 
 @JsonEnum()
-enum FilePurpose {
-  @JsonValue('avatar')
-  avatar('avatar'),
-  @JsonValue('post_image')
-  postImage('post_image'),
-  @JsonValue('verification_document')
-  verificationDocument('verification_document'),
-  @JsonValue('verification_selfie')
-  verificationSelfie('verification_selfie'),
-  @JsonValue('post_video')
-  postVideo('post_video'),
-  @JsonValue('data_export')
-  dataExport('data_export'),
-  @JsonValue('case_photo')
-  casePhoto('case_photo'),
-  @JsonValue('case_attachment')
-  caseAttachment('case_attachment'),
-  @JsonValue('chat_voice')
-  chatVoice('chat_voice'),
+enum SendMessageType {
+  @JsonValue('text')
+  text('text'),
+  @JsonValue('voice')
+  voice('voice'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);
 
-  const FilePurpose(this.json);
+  const SendMessageType(this.json);
 
-  factory FilePurpose.fromJson(String json) =>
+  factory SendMessageType.fromJson(String json) =>
       values.firstWhere((e) => e.json == json, orElse: () => $unknown);
 
   final String? json;
@@ -49,6 +35,6 @@ enum FilePurpose {
   String toString() => json?.toString() ?? super.toString();
 
   /// Returns all defined enum values excluding the $unknown value.
-  static List<FilePurpose> get $valuesDefined =>
+  static List<SendMessageType> get $valuesDefined =>
       values.where((value) => value != $unknown).toList();
 }

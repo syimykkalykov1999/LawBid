@@ -4,18 +4,37 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'send_message_type.dart';
+
 part 'send_message_dto.g.dart';
 
 @JsonSerializable()
 class SendMessageDto {
-  const SendMessageDto({required this.clientMessageId, required this.body});
+  const SendMessageDto({
+    required this.clientMessageId,
+    this.body,
+    this.fileId,
+    this.durationMs,
+    this.waveform,
+    this.type = SendMessageType.text,
+  });
 
   factory SendMessageDto.fromJson(Map<String, Object?> json) =>
       _$SendMessageDtoFromJson(json);
 
   /// App-generated id (UUID), idempotency key.
   final String clientMessageId;
-  final String body;
+  final SendMessageType type;
+
+  /// Text of a text message; ignored for voice.
+  final String? body;
+
+  /// Voice: a clean `chat_voice` file of the sender.
+  final String? fileId;
+  final int? durationMs;
+
+  /// Up to 100 bars, each 0–100.
+  final List<int>? waveform;
 
   Map<String, Object?> toJson() => _$SendMessageDtoToJson(this);
 }

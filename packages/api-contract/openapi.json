@@ -20774,6 +20774,102 @@
         ]
       }
     },
+    "/conversations/{id}/messages/{messageId}/listened": {
+      "post": {
+        "operationId": "voiceListened",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "messageId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CONVERSATION_NOT_FOUND, NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The recipient played a voice message (OQ-040)",
+        "tags": [
+          "chat"
+        ]
+      }
+    },
     "/conversations/{id}/read": {
       "post": {
         "operationId": "readConversation",
@@ -25295,7 +25391,8 @@
           "post_video",
           "data_export",
           "case_photo",
-          "case_attachment"
+          "case_attachment",
+          "chat_voice"
         ]
       },
       "PresignFileDto": {
@@ -25311,7 +25408,7 @@
           "mime": {
             "type": "string",
             "example": "image/jpeg",
-            "description": "One of: image/jpeg, image/png, image/heic, application/pdf, application/vnd.openxmlformats-officedocument.wordprocessingml.document (allowed set depends on purpose)."
+            "description": "One of: image/jpeg, image/png, image/heic, application/pdf, application/vnd.openxmlformats-officedocument.wordprocessingml.document, audio/mp4 (allowed set depends on purpose)."
           },
           "sizeBytes": {
             "type": "number",
@@ -33048,6 +33145,34 @@
           "verifiedBadge"
         ]
       },
+      "VoiceNoteDto": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "nullable": true,
+            "description": "Short signed link; null in chat-list previews."
+          },
+          "durationMs": {
+            "type": "integer"
+          },
+          "waveform": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "listened": {
+            "type": "boolean",
+            "description": "The recipient has played it."
+          }
+        },
+        "required": [
+          "durationMs",
+          "waveform",
+          "listened"
+        ]
+      },
       "MessageDto": {
         "type": "object",
         "properties": {
@@ -33067,9 +33192,19 @@
           "type": {
             "enum": [
               "text",
-              "system"
+              "system",
+              "voice"
             ],
             "type": "string"
+          },
+          "voice": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/VoiceNoteDto"
+              }
+            ]
           },
           "body": {
             "type": "string",
@@ -33219,6 +33354,13 @@
           "data"
         ]
       },
+      "SendMessageType": {
+        "type": "string",
+        "enum": [
+          "text",
+          "voice"
+        ]
+      },
       "SendMessageDto": {
         "type": "object",
         "properties": {
@@ -33228,14 +33370,41 @@
             "maxLength": 64,
             "description": "App-generated id (UUID), idempotency key."
           },
+          "type": {
+            "default": "text",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SendMessageType"
+              }
+            ]
+          },
           "body": {
             "type": "string",
-            "maxLength": 2000
+            "maxLength": 2000,
+            "description": "Text of a text message; ignored for voice."
+          },
+          "fileId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Voice: a clean `chat_voice` file of the sender."
+          },
+          "durationMs": {
+            "type": "integer",
+            "minimum": 500,
+            "maximum": 900000
+          },
+          "waveform": {
+            "description": "Up to 100 bars, each 0–100.",
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 0
+            }
           }
         },
         "required": [
-          "clientMessageId",
-          "body"
+          "clientMessageId"
         ]
       },
       "MessageEnvelope": {

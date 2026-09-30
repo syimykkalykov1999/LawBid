@@ -222,6 +222,13 @@ class CountPill extends StatelessWidget {
 /// contacts (§8.2, §8.3).
 String messagePreview(Translator t, ChatMessage m) {
   if (m.kind == MessageKind.system) return t.t('chat.system.${m.body}');
+  // OQ-040: "🎤 Voice message 0:12".
+  if (m.kind == MessageKind.voice) {
+    final ms = m.voice?.durationMs ?? 0;
+    final d = Duration(milliseconds: ms);
+    return '🎤 ${t.t('chat.voice.label')} '
+        '${d.inMinutes}:${(d.inSeconds % 60).toString().padLeft(2, '0')}';
+  }
   return m.body.replaceAll(kContactMask, t.t('chat.masked'));
 }
 

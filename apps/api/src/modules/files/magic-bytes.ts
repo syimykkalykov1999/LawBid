@@ -29,7 +29,20 @@ export function detectMime(buf: Uint8Array): FileMime | null {
   }
   if (isHeic(b)) return FILE_MIME.heic;
   if (isDocx(b)) return FILE_MIME.docx;
+  if (isM4a(b)) return FILE_MIME.m4a;
   return null;
+}
+
+// MPEG-4 audio brands the iOS/Android recorders write (AAC in .m4a).
+const M4A_BRANDS = new Set(['M4A ', 'mp42', 'mp41', 'isom', 'iso2', 'dash']);
+
+/** An ISO-BMFF file with an audio brand (checked after HEIC, which shares
+ * the `ftyp` box). */
+function isM4a(b: Buffer): boolean {
+  if (b.length < 12 || b.subarray(4, 8).toString('latin1') !== 'ftyp') {
+    return false;
+  }
+  return M4A_BRANDS.has(b.subarray(8, 12).toString('latin1'));
 }
 
 /** OOXML Word document: a ZIP (local file header "PK\x03\x04") whose

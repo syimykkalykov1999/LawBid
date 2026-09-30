@@ -2,6 +2,19 @@
 // merged into StaticTranslatorRu/En like file05_strings.dart.
 
 const file06Ru = <String, String>{
+  // --- OQ-040: голосовые сообщения ---
+  'chat.voice.label': 'Голосовое сообщение',
+  'chat.voice.record': 'Удерживайте, чтобы записать голосовое',
+  'chat.voice.hold': 'Удерживайте кнопку микрофона, чтобы записать',
+  'chat.voice.slideCancel': 'Влево — отмена',
+  'chat.voice.cancel': 'Удалить запись',
+  'chat.voice.sendNow': 'Отправить голосовое',
+  'chat.voice.play': 'Слушать',
+  'chat.voice.pause': 'Пауза',
+  'chat.voice.speed': 'Скорость воспроизведения',
+  'chat.voice.unavailable': 'Недоступно',
+  'chat.voice.noMic':
+      'Нет доступа к микрофону. Разрешите его в настройках телефона.',
   // --- Подписка (docs/06 §1.7 п.1–2) ---
   'subscription.title': 'Подписка',
   'subscription.plan.badge': 'LawBid для адвокатов',
@@ -260,6 +273,19 @@ const file06Ru = <String, String>{
 };
 
 const file06En = <String, String>{
+  // --- OQ-040: voice messages ---
+  'chat.voice.label': 'Voice message',
+  'chat.voice.record': 'Hold to record a voice message',
+  'chat.voice.hold': 'Hold the mic button to record',
+  'chat.voice.slideCancel': 'Slide to cancel',
+  'chat.voice.cancel': 'Delete recording',
+  'chat.voice.sendNow': 'Send voice message',
+  'chat.voice.play': 'Play',
+  'chat.voice.pause': 'Pause',
+  'chat.voice.speed': 'Playback speed',
+  'chat.voice.unavailable': 'Unavailable',
+  'chat.voice.noMic':
+      'No microphone access. Allow it in your phone settings.',
   // --- Subscription (docs/06 §1.7 items 1–2) ---
   'subscription.title': 'Subscription',
   'subscription.plan.badge': 'LawBid for attorneys',

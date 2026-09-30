@@ -9,6 +9,7 @@ import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/features/cases/application/paged_notifier.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/chat/data/chat_repository.dart';
+import 'package:lawbid/features/chat/data/voice_files.dart';
 import 'package:lawbid/features/chat/data/realtime_client.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
@@ -18,7 +19,10 @@ import 'package:lawbid/shared/domain/cursor_page.dart';
 Duration? _noRetry(int retryCount, Object error) => null;
 
 final chatRepositoryProvider = Provider<ChatRepository>(
-  (ref) => ApiChatRepository(ref.watch(dioProvider)),
+  (ref) => ApiChatRepository(
+    ref.watch(dioProvider),
+    storageDio: ref.watch(storageDioProvider),
+  ),
 );
 
 // --- Conversations list (docs/05 §8.1) ---------------------------------------
@@ -129,13 +133,16 @@ class OutboxSender {
     for (final row in await db.pending(owner)) {
       if (row.failedCode != null) continue;
       try {
-        final m = await repo.send(row.conversationId, row.clientMessageId, row.body);
+        final m =
+            await repo.send(row.conversationId, row.clientMessageId, row.body);
         // Merge into the thread before the outbox row disappears, so the
         // bubble never blinks out.
         _sent.add(m);
         await db.sent(row.clientMessageId);
       } on ApiException catch (e) {
-        if (e.isNetworkError || e.statusCode == 429 || (e.statusCode ?? 500) >= 500) {
+        if (e.isNetworkError ||
+            e.statusCode == 429 ||
+            (e.statusCode ?? 500) >= 500) {
           // Temporary: keep it and stop; the next trigger retries in order.
           await db.attempted(row.clientMessageId);
           return;
@@ -169,6 +176,7 @@ class ChatThreadState {
     this.error,
     this.loadMoreFailed = false,
     this.typing = false,
+    this.voiceOutbox = const [],
   });
 
   final Conversation? conversation;
@@ -188,8 +196,15 @@ class ChatThreadState {
   final bool loadMoreFailed;
   final bool typing;
 
+  /// OQ-040: voice notes being uploaded/sent (or failed), oldest first.
+  final List<ChatMessage> voiceOutbox;
+
   /// Newest first, the outbox on top.
-  List<ChatMessage> get all => [...outbox.reversed, ...messages];
+  List<ChatMessage> get all {
+    final pending = [...outbox, ...voiceOutbox]
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return [...pending, ...messages];
+  }
 
   ChatThreadState copyWith({
     Conversation? conversation,
@@ -203,6 +218,7 @@ class ChatThreadState {
     bool clearError = false,
     bool? loadMoreFailed,
     bool? typing,
+    List<ChatMessage>? voiceOutbox,
   }) =>
       ChatThreadState(
         conversation: conversation ?? this.conversation,
@@ -214,6 +230,7 @@ class ChatThreadState {
         error: clearError ? null : (error ?? this.error),
         loadMoreFailed: loadMoreFailed ?? this.loadMoreFailed,
         typing: typing ?? this.typing,
+        voiceOutbox: voiceOutbox ?? this.voiceOutbox,
       );
 }
 
@@ -311,18 +328,129 @@ class ChatThread extends Notifier<ChatThreadState> {
     unawaited(ref.read(outboxSenderProvider).drain());
   }
 
+  /// OQ-040: a recorded note → a local "sending" bubble → upload → send.
+  /// A failure keeps the bubble with Retry (the file stays on the device).
+  Future<void> sendVoice({
+    required String path,
+    required int durationMs,
+    required List<int> waveform,
+  }) async {
+    final owner = ref.read(currentUserIdProvider);
+    if (owner == null) return;
+    final cmid = newClientMessageId();
+    final local = ChatMessage(
+      id: 'local:$cmid',
+      conversationId: id,
+      senderId: owner,
+      kind: MessageKind.voice,
+      body: '',
+      clientMessageId: cmid,
+      createdAt: DateTime.now(),
+      delivery: DeliveryState.sending,
+      voice: VoiceNote(
+        localPath: path,
+        durationMs: durationMs,
+        waveform: waveform,
+        listened: false,
+      ),
+    );
+    state = state.copyWith(voiceOutbox: [...state.voiceOutbox, local]);
+    await _uploadVoice(local);
+  }
+
+  Future<void> _uploadVoice(ChatMessage local) async {
+    final v = local.voice!;
+    try {
+      final bytes = await readVoiceFile(v.localPath!);
+      final fileId = await _repo.uploadVoice(bytes);
+      final sent = await _repo.sendVoice(
+        id,
+        local.clientMessageId!,
+        fileId: fileId,
+        durationMs: v.durationMs,
+        waveform: v.waveform,
+      );
+      if (!ref.mounted) return;
+      state = state.copyWith(
+        voiceOutbox: state.voiceOutbox
+            .where((m) => m.clientMessageId != local.clientMessageId)
+            .toList(),
+      );
+      _merge([sent]);
+    } on ApiException catch (e) {
+      if (e.code == ApiErrorCodes.subscriptionRequired) {
+        ref.read(outboxSenderProvider).subscriptionRequired.value = true;
+      }
+      _markVoice(local, DeliveryState.failed, e.code);
+    } on Object {
+      _markVoice(local, DeliveryState.failed, null);
+    }
+  }
+
+  void _markVoice(ChatMessage local, DeliveryState d, String? code) {
+    if (!ref.mounted) return;
+    state = state.copyWith(voiceOutbox: [
+      for (final m in state.voiceOutbox)
+        if (m.clientMessageId == local.clientMessageId)
+          m.copyWith(delivery: d, failedCode: code)
+        else
+          m,
+    ]);
+  }
+
+  /// OQ-040: the recipient played a note — tell the server once.
+  Future<void> voicePlayed(ChatMessage m) async {
+    final me = ref.read(currentUserIdProvider);
+    final v = m.voice;
+    if (m.isLocal || v == null || v.listened || m.senderId == me) return;
+    _setListened(m.id);
+    try {
+      await _repo.listened(id, m.id);
+    } on Object {
+      // Best effort; the next play retries.
+    }
+  }
+
+  void _setListened(String messageId) {
+    if (!ref.mounted) return;
+    state = state.copyWith(messages: [
+      for (final m in state.messages)
+        if (m.id == messageId && m.voice != null)
+          m.copyWith(voice: m.voice!.copyWith(listened: true))
+        else
+          m,
+    ]);
+  }
+
   Future<void> retry(ChatMessage local) async {
+    if (local.kind == MessageKind.voice) {
+      _markVoice(local, DeliveryState.sending, null);
+      await _uploadVoice(local.copyWith(delivery: DeliveryState.sending));
+      return;
+    }
     final owner = ref.read(currentUserIdProvider);
     final cmid = local.clientMessageId;
     if (owner == null || cmid == null) return;
     final db = ref.read(socialLocalDatabaseProvider);
     await db.sent(cmid);
     await db.enqueue(
-        clientMessageId: cmid, ownerId: owner, conversationId: id, body: local.body);
+        clientMessageId: cmid,
+        ownerId: owner,
+        conversationId: id,
+        body: local.body);
     unawaited(ref.read(outboxSenderProvider).drain());
   }
 
   Future<void> discard(ChatMessage local) async {
+    if (local.kind == MessageKind.voice) {
+      state = state.copyWith(
+        voiceOutbox: state.voiceOutbox
+            .where((m) => m.clientMessageId != local.clientMessageId)
+            .toList(),
+      );
+      await deleteVoiceFile(local.voice?.localPath);
+      return;
+    }
     final cmid = local.clientMessageId;
     if (cmid != null) await ref.read(socialLocalDatabaseProvider).sent(cmid);
   }
@@ -330,9 +458,8 @@ class ChatThread extends Notifier<ChatThreadState> {
   /// Marks the newest message from the other side as read (§8.4).
   Future<void> markRead() async {
     final me = ref.read(currentUserIdProvider);
-    final newest = state.messages
-        .where((m) => m.senderId != me && !m.isLocal)
-        .firstOrNull;
+    final newest =
+        state.messages.where((m) => m.senderId != me && !m.isLocal).firstOrNull;
     if (newest == null || newest.id == _lastReadSent) return;
     _lastReadSent = newest.id;
     try {
@@ -347,7 +474,8 @@ class ChatThread extends Notifier<ChatThreadState> {
     final rt = ref.read(realtimeClientProvider);
     if (rt == null) return;
     final now = DateTime.now();
-    if (active && now.difference(_lastTypingSent) < const Duration(seconds: 2)) {
+    if (active &&
+        now.difference(_lastTypingSent) < const Duration(seconds: 2)) {
       return;
     }
     _lastTypingSent = active ? now : DateTime.fromMillisecondsSinceEpoch(0);
@@ -399,9 +527,8 @@ class ChatThread extends Notifier<ChatThreadState> {
     final done = {for (final m in incoming) m.clientMessageId};
     state = state.copyWith(
       messages: merged,
-      outbox: state.outbox
-          .where((o) => !done.contains(o.clientMessageId))
-          .toList(),
+      outbox:
+          state.outbox.where((o) => !done.contains(o.clientMessageId)).toList(),
     );
   }
 
@@ -436,6 +563,11 @@ class ChatThread extends Notifier<ChatThreadState> {
               ),
             );
           }
+        }
+      case 'message:listened':
+        if (data is Map && data['conversationId'] == id) {
+          final mid = data['messageId'];
+          if (mid is String) _setListened(mid);
         }
       case 'typing':
         if (data is Map && data['conversationId'] == id) {

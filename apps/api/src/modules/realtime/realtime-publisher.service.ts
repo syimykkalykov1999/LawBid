@@ -15,6 +15,8 @@ export const viewingKey = (userId: string, conversationId: string) =>
 export type RealtimeEvent =
   | 'message:new'
   | 'message:read'
+  // OQ-040: the recipient played a voice note.
+  | 'message:listened'
   | 'conversation:update'
   | 'notification:new'
   | 'badge:update';

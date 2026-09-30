@@ -9,6 +9,9 @@ export const FILE_MIME = {
   pdf: 'application/pdf',
   // Owner 2026-09-30 (OQ-034): Word documents attached to a case.
   docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  // Owner 2026-09-30 (OQ-040): voice messages — AAC in an MPEG-4 (.m4a)
+  // container, what the app records on iOS and Android.
+  m4a: 'audio/mp4',
 } as const;
 export type FileMime = (typeof FILE_MIME)[keyof typeof FILE_MIME];
 export const ALL_FILE_MIMES: readonly FileMime[] = Object.values(FILE_MIME);
@@ -59,6 +62,13 @@ export const PURPOSE_RULES: Record<FilePurpose, PurposeRule> = {
   // (only the owner and the attorney whose bid was accepted open them).
   case_attachment: {
     mimes: [...IMAGES, FILE_MIME.pdf, FILE_MIME.docx],
+    sizeSetting: 'files.max_size_mb',
+    bucket: 'documents',
+  },
+  // OQ-040: voice messages; private (only the two chat members get a
+  // short signed link).
+  chat_voice: {
+    mimes: [FILE_MIME.m4a],
     sizeSetting: 'files.max_size_mb',
     bucket: 'documents',
   },

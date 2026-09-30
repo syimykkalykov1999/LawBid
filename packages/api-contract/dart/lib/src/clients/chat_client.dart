@@ -60,6 +60,14 @@ abstract class ChatClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
+  /// The recipient played a voice message (OQ-040)
+  @POST('/conversations/{id}/messages/{messageId}/listened')
+  Future<MessageEnvelope> voiceListened({
+    @Path('id') required String id,
+    @Path('messageId') required String messageId,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
   /// Mark read up to a message (§8.4)
   @POST('/conversations/{id}/read')
   Future<ReadResultEnvelope> readConversation({

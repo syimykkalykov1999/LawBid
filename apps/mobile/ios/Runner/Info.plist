@@ -51,6 +51,8 @@
 	     permission.photos.ios). -->
 	<key>NSCameraUsageDescription</key>
 	<string>LawBid uses the camera to take your profile photo, photograph your license and ID document, and take a verification selfie.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>LawBid uses the microphone to record voice messages and for calls in the app.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>LawBid uses your photo library so you can choose a profile photo and upload license and ID document images.</string>
 	<key>NSFaceIDUsageDescription</key>

@@ -39,6 +39,8 @@ class RealtimeClient {
   static const _serverEvents = [
     'message:new',
     'message:read',
+    // OQ-040: the other side played a voice note.
+    'message:listened',
     'typing',
     'notification:new',
     'badge:update',

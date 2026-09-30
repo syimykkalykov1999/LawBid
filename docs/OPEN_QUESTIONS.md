@@ -684,3 +684,20 @@ photos or contact details — until the client accepts a bid; files are
 opened only to the attorney the client chooses. "Not sure / other" cases
 are shown (as before, docs/04 §4.1) only to attorneys with General
 Practice licensed in the case's state.
+
+## OQ-040 — Voice messages in chats, like Telegram (owner, 2026-09-30)
+
+Differs from docs/05 §8.2 ("text only"): chats take voice messages.
+- Hold the mic to record (AAC .m4a, mono 64 kbit/s), slide left to cancel,
+  slide up to lock and record hands-free; 0.5 s … 15 min.
+- Bubble: play/pause, waveform that fills while playing (tap/drag to
+  seek), time, speed 1× / 1.5× / 2×, one note plays at a time; a dot until
+  the recipient has played it (`POST /conversations/:id/messages/:mid/
+  listened`, realtime `message:listened`).
+- Server: `chat_voice` files (m4a checked by magic bytes, private bucket,
+  antivirus), `messages.type = voice` with `file_id`, `duration_ms`,
+  `waveform`, `listened_at`; a note is sent once; same rules as text
+  (blocks, closed chats, attorney subscription, rate limit). Push says
+  "🎤 Voice message"; reports show moderators a link to listen; data export
+  lists notes; account deletion removes the audio.
+- The app downloads a note once and plays it from the cache.

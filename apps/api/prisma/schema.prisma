@@ -110,6 +110,8 @@ enum FilePurpose {
   case_photo
   // Owner 2026-09-30 (OQ-034): case documents (PDF, Word), private bucket.
   case_attachment
+  // Owner 2026-09-30 (OQ-040): chat voice messages, private bucket.
+  chat_voice
 
   @@map("file_purpose")
 }
@@ -349,6 +351,8 @@ enum ConversationStatus {
 enum MessageType {
   text
   system
+  // OQ-040: an audio note (messages.file_id, duration_ms, waveform).
+  voice
 
   @@map("message_type")
 }
@@ -632,8 +636,9 @@ model File {
   verification_documents VerificationDocument[]
   data_export_jobs       DataExportJob[]
 
-  post_media  PostMedia[]
-  case_photos CasePhoto[]
+  post_media     PostMedia[]
+  case_photos    CasePhoto[]
+  voice_messages Message[]   @relation("MessageVoice")
 
   @@index([owner_user_id])
   @@map("files")
@@ -1611,11 +1616,19 @@ model Message {
   contact_masked    Boolean      @default(false)
   // Client-generated idempotency key.
   client_message_id String
+  // OQ-040 voice messages: the audio file, its length, 0–100 bars for the
+  // bubble and when the recipient first played it (Telegram's blue dot).
+  file_id           String?      @db.Uuid
+  file              File?        @relation("MessageVoice", fields: [file_id], references: [id], onDelete: Restrict)
+  duration_ms       Int?
+  waveform          Int[]        @default([])
+  listened_at       DateTime?    @db.Timestamptz
   deleted_at        DateTime?    @db.Timestamptz
   created_at        DateTime     @default(now()) @db.Timestamptz
   updated_at        DateTime     @updatedAt @db.Timestamptz
 
   @@unique([conversation_id, sender_id, client_message_id])
+  @@index([file_id])
   @@index([conversation_id, created_at(sort: Desc)])
   // docs/06 §5.1: anonymization scrubs a user's messages by sender.
   @@index([sender_id])

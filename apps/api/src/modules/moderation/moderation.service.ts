@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { Prisma, ReportTargetType } from '@prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import { FilesService } from '../files/files.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withDeleted } from '../../prisma/soft-delete.extension';
 import { withTxRetry } from '../../prisma/tx-retry.util';
@@ -49,6 +50,7 @@ export class ModerationService {
     private readonly prisma: PrismaService,
     private readonly counters: CounterAggregator,
     private readonly settings: AppSettingsService,
+    private readonly files: FilesService,
   ) {}
 
   async resolve(
@@ -149,19 +151,33 @@ export class ModerationService {
             deleted_at: true,
             created_at: true,
             conversation_id: true,
+            type: true,
+            file_id: true,
+            duration_ms: true,
           },
         });
-        return m
-          ? {
-              type,
-              id,
-              authorId: m.sender_id,
-              status: m.deleted_at ? 'removed' : 'published',
-              text: m.body_display,
-              context: { conversationId: m.conversation_id },
-              createdAt: m.created_at,
-            }
-          : null;
+        if (!m) return null;
+        // OQ-040: a reported voice note — the moderator gets a short
+        // signed link to listen (outside transactions only).
+        const voiceUrl =
+          m.type === 'voice' && m.file_id && db === this.prisma
+            ? ((await this.files.voiceUrls([m.file_id])).get(m.file_id) ?? null)
+            : null;
+        return {
+          type,
+          id,
+          authorId: m.sender_id,
+          status: m.deleted_at ? 'removed' : 'published',
+          text:
+            m.type === 'voice'
+              ? `[voice message, ${Math.round((m.duration_ms ?? 0) / 1000)} s]`
+              : m.body_display,
+          context: {
+            conversationId: m.conversation_id,
+            ...(m.type === 'voice' ? { voiceUrl } : {}),
+          },
+          createdAt: m.created_at,
+        };
       }
       case 'review': {
         const r = await db.review.findUnique({

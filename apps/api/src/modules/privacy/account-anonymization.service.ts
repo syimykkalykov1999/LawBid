@@ -143,13 +143,20 @@ export class AccountAnonymizationService {
       await this.sync.apply(remote);
     }
 
-    // 2. Files: avatar + verification documents out of S3 (idempotent).
+    // 2. Files: avatar, verification documents and voice notes out of S3
+    // (idempotent).
     const files = await this.prisma.file.findMany({
       where: {
         owner_user_id: userId,
         deleted_at: null,
         purpose: {
-          in: ['avatar', 'verification_document', 'verification_selfie'],
+          // OQ-040: voice notes are the sender's messages — gone too.
+          in: [
+            'avatar',
+            'verification_document',
+            'verification_selfie',
+            'chat_voice',
+          ],
         },
       },
       select: { id: true, s3_bucket: true, s3_key: true },

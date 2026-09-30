@@ -9,6 +9,8 @@
          The camera is optional hardware: devices without one can still
          upload license/ID files from storage. -->
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- OQ-040: voice messages; in-app calls. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <!-- android:label comes from the flavor's resValue app_name
          (android/app/build.gradle.kts): "LawBid Dev" / "LawBid Staging" /

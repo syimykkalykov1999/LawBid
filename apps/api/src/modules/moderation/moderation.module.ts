@@ -2,6 +2,7 @@ import { Global, Module } from '@nestjs/common';
 import { AdminAccessModule } from '../admin-access/admin-access.module';
 import { AdminUsersModule } from '../admin-users/admin-users.module';
 import { CountersModule } from '../counters/counters.module';
+import { FilesModule } from '../files/files.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { AdminModerationController } from './admin-moderation.controller';
 import { AdminModerationService } from './admin-moderation.service';
@@ -19,6 +20,7 @@ import { RuleBasedModerationHook } from './rule-based-moderation.hook';
 @Module({
   imports: [
     CountersModule,
+    FilesModule,
     AdminAccessModule,
     NotificationsModule,
     AdminUsersModule,

@@ -1,20 +1,40 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  ArrayMaxSize,
+  IsIn,
+  IsInt,
   IsISO8601,
   IsOptional,
   IsString,
   IsUUID,
+  Max,
   MaxLength,
+  Min,
   MinLength,
 } from 'class-validator';
 
 /** docs/05 §8.2: text only, up to 2000 characters. */
 export const MESSAGE_MAX_CHARS = 2000;
 
+/** OQ-040 voice messages: 0.5 s … 15 min, up to 100 waveform bars 0–100. */
+export const VOICE_MIN_MS = 500;
+export const VOICE_MAX_MS = 15 * 60 * 1000;
+export const VOICE_WAVEFORM_MAX = 100;
+
 export class ConversationIdParamDto {
   @ApiProperty({ format: 'uuid' })
   @IsUUID('all')
   id!: string;
+}
+
+export class MessageIdParamDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID('all')
+  id!: string;
+
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID('all')
+  messageId!: string;
 }
 
 export class ConversationsQueryDto {
@@ -57,12 +77,56 @@ export class SendMessageDto {
   @MaxLength(64)
   clientMessageId!: string;
 
-  @ApiProperty({ maxLength: MESSAGE_MAX_CHARS })
+  @ApiPropertyOptional({
+    enum: ['text', 'voice'],
+    enumName: 'SendMessageType',
+    default: 'text',
+  })
+  @IsOptional()
+  @IsIn(['text', 'voice'])
+  type?: 'text' | 'voice';
+
+  @ApiPropertyOptional({
+    maxLength: MESSAGE_MAX_CHARS,
+    description: 'Text of a text message; ignored for voice.',
+  })
+  @IsOptional()
   @IsString()
   // Hard stop for oversized payloads; the 2000-character rule itself is
   // MESSAGE_TOO_LONG from the service.
   @MaxLength(20000)
-  body!: string;
+  body?: string;
+
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: 'Voice: a clean `chat_voice` file of the sender.',
+  })
+  @IsOptional()
+  @IsUUID('all')
+  fileId?: string;
+
+  @ApiPropertyOptional({
+    type: 'integer',
+    minimum: VOICE_MIN_MS,
+    maximum: VOICE_MAX_MS,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(VOICE_MIN_MS)
+  @Max(VOICE_MAX_MS)
+  durationMs?: number;
+
+  @ApiPropertyOptional({
+    type: 'integer',
+    isArray: true,
+    description: `Up to ${VOICE_WAVEFORM_MAX} bars, each 0–100.`,
+  })
+  @IsOptional()
+  @ArrayMaxSize(VOICE_WAVEFORM_MAX)
+  @IsInt({ each: true })
+  @Min(0, { each: true })
+  @Max(100, { each: true })
+  waveform?: number[];
 }
 
 export class ReadConversationDto {
@@ -83,6 +147,25 @@ export class MuteConversationDto {
   until?: string | null;
 }
 
+/** OQ-040: the audio of a voice message. */
+export class VoiceNoteDto {
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description: 'Short signed link; null in chat-list previews.',
+  })
+  url!: string | null;
+
+  @ApiProperty({ type: 'integer' })
+  durationMs!: number;
+
+  @ApiProperty({ type: 'integer', isArray: true })
+  waveform!: number[];
+
+  @ApiProperty({ description: 'The recipient has played it.' })
+  listened!: boolean;
+}
+
 export class MessageDto {
   @ApiProperty({ format: 'uuid' })
   id!: string;
@@ -93,8 +176,11 @@ export class MessageDto {
   @ApiPropertyOptional({ type: String, nullable: true, format: 'uuid' })
   senderId!: string | null;
 
-  @ApiProperty({ enum: ['text', 'system'] })
-  type!: 'text' | 'system';
+  @ApiProperty({ enum: ['text', 'system', 'voice'] })
+  type!: 'text' | 'system' | 'voice';
+
+  @ApiPropertyOptional({ type: () => VoiceNoteDto, nullable: true })
+  voice!: VoiceNoteDto | null;
 
   @ApiProperty({
     description:

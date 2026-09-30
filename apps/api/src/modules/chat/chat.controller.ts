@@ -22,6 +22,7 @@ import {
 import {
   ConversationDto,
   ConversationIdParamDto,
+  MessageIdParamDto,
   ConversationsQueryDto,
   MessageDto,
   MessagesQueryDto,
@@ -95,6 +96,20 @@ export class ChatController {
     @Body() dto: SendMessageDto,
   ): Promise<MessageDto> {
     return this.chat.send(user, p.id, dto);
+  }
+
+  @Post(':id/messages/:messageId/listened')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'The recipient played a voice message (OQ-040)' })
+  @ApiEnvelopeResponse(MessageDto)
+  @ApiErrors({
+    404: [ErrorCode.CONVERSATION_NOT_FOUND, ErrorCode.NOT_FOUND],
+  })
+  voiceListened(
+    @CurrentUser() user: RequestUser,
+    @Param() p: MessageIdParamDto,
+  ): Promise<MessageDto> {
+    return this.chat.listened(user, p.id, p.messageId);
   }
 
   @Post(':id/read')

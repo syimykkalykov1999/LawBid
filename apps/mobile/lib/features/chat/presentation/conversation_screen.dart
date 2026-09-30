@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -16,8 +17,11 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
+import 'package:lawbid/features/chat/application/voice_player.dart';
+import 'package:lawbid/features/chat/application/voice_recorder.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
+import 'package:lawbid/features/chat/presentation/voice_widgets.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
@@ -213,6 +217,11 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                                     controller: _text,
                                     onSend: _send,
                                     onTyping: _thread.typing,
+                                    onVoice: (r) => _thread.sendVoice(
+                                      path: r.path,
+                                      durationMs: r.durationMs,
+                                      waveform: r.waveform,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -507,10 +516,13 @@ class _Bubble extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.end,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text.rich(
-            TextSpan(children: spans),
-            style: type.body.copyWith(color: fg, height: 1.35),
-          ),
+          if (m.kind == MessageKind.voice && m.voice != null)
+            VoiceMessageBody(message: m, mine: mine, threadId: threadId)
+          else
+            Text.rich(
+              TextSpan(children: spans),
+              style: type.body.copyWith(color: fg, height: 1.35),
+            ),
           const SizedBox(height: 2),
           Row(
             mainAxisSize: MainAxisSize.min,
@@ -552,10 +564,14 @@ class _Bubble extends ConsumerWidget {
           AppEntrance(
             child: Semantics(
               label: [
-                m.body.replaceAll(kContactMask, t.t('chat.masked')),
+                if (m.kind == MessageKind.voice)
+                  t.t('chat.voice.label')
+                else
+                  m.body.replaceAll(kContactMask, t.t('chat.masked')),
                 if (mine) t.t(_deliveryKey(m.delivery, seen)),
               ].join('. '),
-              excludeSemantics: true,
+              // Voice bubbles keep their play/speed buttons reachable.
+              excludeSemantics: m.kind != MessageKind.voice,
               child: bubble,
             ),
           ),
@@ -791,22 +807,229 @@ class _SubscriptionGate extends StatelessWidget {
   }
 }
 
-class _Composer extends ConsumerWidget {
+/// Text field + send; with an empty field the button is a mic (OQ-040):
+/// hold to record, slide left to cancel, slide up to lock and keep
+/// recording hands-free, release (or Send when locked) to send.
+class _Composer extends ConsumerStatefulWidget {
   const _Composer({
     required this.controller,
     required this.onSend,
     required this.onTyping,
+    required this.onVoice,
   });
 
   final TextEditingController controller;
   final VoidCallback onSend;
   final void Function(bool active) onTyping;
+  final Future<void> Function(VoiceRecording r) onVoice;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_Composer> createState() => _ComposerState();
+}
+
+class _ComposerState extends ConsumerState<_Composer> {
+  static const _cancelDx = -110.0;
+  static const _lockDy = -80.0;
+
+  bool _recording = false;
+  bool _locked = false;
+  Offset _drag = Offset.zero;
+  final List<double> _levels = [];
+  StreamSubscription<double>? _levelSub;
+  Timer? _tick;
+  Duration _elapsed = Duration.zero;
+
+  // Owned by the composer: lives exactly as long as the chat screen.
+  final VoiceRecorder _rec = VoiceRecorder();
+
+  @override
+  void dispose() {
+    _levelSub?.cancel();
+    _tick?.cancel();
+    unawaited(() async {
+      if (_rec.recording) await _rec.cancel();
+      await _rec.dispose();
+    }());
+    super.dispose();
+  }
+
+  Future<void> _start() async {
+    final t = ref.read(translatorProvider);
+    // One note at a time: stop whatever is playing.
+    unawaited(ref.read(voicePlayerProvider.notifier).stop());
+    HapticFeedback.mediumImpact();
+    final ok = await _rec.start(onCap: () => _finish(send: true));
+    if (!mounted) return;
+    if (!ok) {
+      showAppSnackBar(context, t.t('chat.voice.noMic'));
+      return;
+    }
+    _levels.clear();
+    _levelSub = _rec.levels.listen((l) {
+      if (!mounted) return;
+      setState(() {
+        _levels.add(l);
+        if (_levels.length > 40) _levels.removeAt(0);
+      });
+    });
+    _tick = Timer.periodic(const Duration(milliseconds: 200), (_) {
+      if (mounted) setState(() => _elapsed = _rec.elapsed);
+    });
+    setState(() {
+      _recording = true;
+      _locked = false;
+      _drag = Offset.zero;
+      _elapsed = Duration.zero;
+    });
+  }
+
+  Future<void> _finish({required bool send}) async {
+    if (!_recording) return;
+    await _levelSub?.cancel();
+    _tick?.cancel();
+    setState(() {
+      _recording = false;
+      _locked = false;
+      _drag = Offset.zero;
+    });
+    if (!send) {
+      HapticFeedback.lightImpact();
+      await _rec.cancel();
+      return;
+    }
+    final r = await _rec.stop();
+    if (!mounted) return;
+    if (r == null) {
+      showAppSnackBar(
+          context, ref.read(translatorProvider).t('chat.voice.hold'));
+      return;
+    }
+    HapticFeedback.lightImpact();
+    await widget.onVoice(r);
+  }
+
+  void _onMove(PointerMoveEvent e) {
+    if (!_recording || _locked) return;
+    setState(() => _drag += e.delta);
+    if (_drag.dx < _cancelDx) {
+      unawaited(_finish(send: false));
+    } else if (_drag.dy < _lockDy) {
+      HapticFeedback.selectionClick();
+      setState(() => _locked = true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final motion = context.reduceMotion ? Duration.zero : AppMotion.stateChange;
+
+    final field = TextField(
+      controller: widget.controller,
+      minLines: 1,
+      maxLines: 5,
+      maxLength: kMessageMaxChars,
+      buildCounter:
+          (_, {required currentLength, required isFocused, maxLength}) => null,
+      textCapitalization: TextCapitalization.sentences,
+      onChanged: (v) => widget.onTyping(v.isNotEmpty),
+      style: type.body.copyWith(color: colors.text),
+      decoration: InputDecoration(
+        hintText: t.t('chat.hint'),
+        filled: true,
+        fillColor: colors.bg,
+        contentPadding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.lg, vertical: AppSpacing.md),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(24),
+          borderSide: BorderSide(color: colors.border),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(24),
+          borderSide: BorderSide(color: colors.border),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(24),
+          borderSide: BorderSide(color: colors.gold),
+        ),
+      ),
+    );
+
+    final recordingRow = Container(
+      height: AppSizes.touchTarget + 4,
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+      decoration: BoxDecoration(
+        color: colors.bg,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: colors.goldStroke),
+      ),
+      child: Row(
+        children: [
+          _RecDot(color: colors.danger),
+          const SizedBox(width: AppSpacing.sm),
+          Text(
+            voiceClock(_elapsed),
+            style: type.body.copyWith(
+              color: colors.text,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: _locked
+                ? RecordingMeter(levels: _levels)
+                : Opacity(
+                    opacity: (1 + _drag.dx / -_cancelDx).clamp(0.2, 1.0),
+                    child: Text(
+                      '‹ ${t.t('chat.voice.slideCancel')}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style:
+                          type.bodySmall.copyWith(color: colors.textSecondary),
+                    ),
+                  ),
+          ),
+          if (_locked)
+            AppIconButton(
+              plain: true,
+              icon: Icon(Icons.delete_outline_rounded, color: colors.danger),
+              semanticLabel: t.t('chat.voice.cancel'),
+              onPressed: () => _finish(send: false),
+            ),
+        ],
+      ),
+    );
+
+    Widget circle({
+      required IconData icon,
+      required bool on,
+      required String label,
+      double scale = 1,
+    }) =>
+        AnimatedScale(
+          scale: scale,
+          duration: motion,
+          curve: Curves.easeOutBack,
+          child: Semantics(
+            button: true,
+            label: label,
+            excludeSemantics: true,
+            child: AnimatedContainer(
+              duration: motion,
+              width: AppSizes.touchTarget + 4,
+              height: AppSizes.touchTarget + 4,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: on ? colors.gold : colors.border,
+              ),
+              child: Icon(icon, color: on ? colors.navy : colors.textSecondary),
+            ),
+          ),
+        );
+
     return Material(
       color: colors.surface,
       child: SafeArea(
@@ -818,74 +1041,81 @@ class _Composer extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Expanded(
-                child: TextField(
-                  controller: controller,
-                  minLines: 1,
-                  maxLines: 5,
-                  maxLength: kMessageMaxChars,
-                  buildCounter: (_,
-                          {required currentLength,
-                          required isFocused,
-                          maxLength}) =>
-                      null,
-                  textCapitalization: TextCapitalization.sentences,
-                  onChanged: (v) => onTyping(v.isNotEmpty),
-                  style: type.body.copyWith(color: colors.text),
-                  decoration: InputDecoration(
-                    hintText: t.t('chat.hint'),
-                    filled: true,
-                    fillColor: colors.bg,
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.lg, vertical: AppSpacing.md),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(24),
-                      borderSide: BorderSide(color: colors.border),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(24),
-                      borderSide: BorderSide(color: colors.border),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(24),
-                      borderSide: BorderSide(color: colors.gold),
-                    ),
-                  ),
+                child: AnimatedSwitcher(
+                  duration: motion,
+                  child: _recording ? recordingRow : field,
                 ),
               ),
               const SizedBox(width: AppSpacing.xs),
               ValueListenableBuilder<TextEditingValue>(
-                valueListenable: controller,
+                valueListenable: widget.controller,
                 builder: (context, v, _) {
-                  final enabled = v.text.trim().isNotEmpty;
-                  return AnimatedScale(
-                    scale: enabled ? 1 : 0.86,
-                    duration: context.reduceMotion
-                        ? Duration.zero
-                        : AppMotion.stateChange,
-                    curve: Curves.easeOutBack,
-                    child: Semantics(
-                      button: true,
-                      enabled: enabled,
-                      label: t.t('chat.send'),
-                      excludeSemantics: true,
-                      child: AppPressable(
-                        onTap: enabled ? onSend : () {},
-                        child: AnimatedContainer(
-                          duration: context.reduceMotion
-                              ? Duration.zero
-                              : AppMotion.stateChange,
-                          width: AppSizes.touchTarget + 4,
-                          height: AppSizes.touchTarget + 4,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: enabled ? colors.gold : colors.border,
+                  final hasText = v.text.trim().isNotEmpty;
+                  if (hasText && !_recording) {
+                    return AppPressable(
+                      onTap: widget.onSend,
+                      child: circle(
+                        icon: Icons.arrow_upward_rounded,
+                        on: true,
+                        label: t.t('chat.send'),
+                      ),
+                    );
+                  }
+                  if (_locked) {
+                    return AppPressable(
+                      onTap: () => _finish(send: true),
+                      child: circle(
+                        icon: Icons.arrow_upward_rounded,
+                        on: true,
+                        label: t.t('chat.voice.sendNow'),
+                      ),
+                    );
+                  }
+                  // Hold-to-record mic; a lock hint floats above it.
+                  return Stack(
+                    clipBehavior: Clip.none,
+                    alignment: Alignment.bottomCenter,
+                    children: [
+                      if (_recording)
+                        Positioned(
+                          bottom: AppSizes.touchTarget + 16,
+                          child: Opacity(
+                            opacity: (0.4 + _drag.dy / _lockDy).clamp(0.4, 1.0),
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: colors.surface,
+                                borderRadius:
+                                    BorderRadius.circular(AppRadii.pill),
+                                border: Border.all(color: colors.border),
+                              ),
+                              child: Icon(Icons.lock_outline_rounded,
+                                  size: 18, color: colors.goldDark),
+                            ),
                           ),
-                          child: Icon(Icons.arrow_upward_rounded,
-                              color:
-                                  enabled ? colors.navy : colors.textSecondary),
+                        ),
+                      Listener(
+                        onPointerDown: (_) => _start(),
+                        onPointerMove: _onMove,
+                        onPointerUp: (_) {
+                          if (!_locked) unawaited(_finish(send: true));
+                        },
+                        onPointerCancel: (_) {
+                          if (!_locked) unawaited(_finish(send: false));
+                        },
+                        child: Transform.translate(
+                          offset: _recording && !_locked
+                              ? Offset(math.min(0, _drag.dx) * 0.5, 0)
+                              : Offset.zero,
+                          child: circle(
+                            icon: Icons.mic_rounded,
+                            on: true,
+                            label: t.t('chat.voice.record'),
+                            scale: _recording ? 1.25 : 1,
+                          ),
                         ),
                       ),
-                    ),
+                    ],
                   );
                 },
               ),
@@ -895,4 +1125,40 @@ class _Composer extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// Blinking red dot of a running recording.
+class _RecDot extends StatefulWidget {
+  const _RecDot({required this.color});
+
+  final Color color;
+
+  @override
+  State<_RecDot> createState() => _RecDotState();
+}
+
+class _RecDotState extends State<_RecDot> with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => FadeTransition(
+        opacity: context.reduceMotion
+            ? const AlwaysStoppedAnimation(1)
+            : Tween(begin: 0.25, end: 1.0).animate(_c),
+        child: Container(
+          width: 10,
+          height: 10,
+          decoration:
+              BoxDecoration(shape: BoxShape.circle, color: widget.color),
+        ),
+      );
 }

@@ -153,8 +153,9 @@ export class ChatService {
         orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
         take: CATCH_UP_MAX,
       });
+      const urls = await this.voiceUrls(rows);
       return {
-        items: rows.map((m) => this.toMessage(m, user.sub, conv)),
+        items: rows.map((m) => this.toMessage(m, user.sub, conv, urls)),
         nextCursor: null,
       };
     }
@@ -177,8 +178,9 @@ export class ChatService {
     });
     const page = rows.slice(0, MESSAGES_PAGE);
     const last = page[page.length - 1];
+    const urls = await this.voiceUrls(page);
     return {
-      items: page.map((m) => this.toMessage(m, user.sub, conv)),
+      items: page.map((m) => this.toMessage(m, user.sub, conv, urls)),
       nextCursor:
         rows.length > MESSAGES_PAGE && last
           ? encodeCursor({ createdAt: last.created_at, id: last.id })
@@ -192,8 +194,17 @@ export class ChatService {
     id: string,
     dto: SendMessageDto,
   ): Promise<MessageDto> {
-    const body = dto.body.trim();
-    if (!body) {
+    const voice = dto.type === 'voice';
+    const body = voice ? '' : (dto.body ?? '').trim();
+    if (voice) {
+      if (!dto.fileId || dto.durationMs === undefined) {
+        throw new BadRequestException({
+          code: ErrorCode.VALIDATION_ERROR,
+          message: 'A voice message needs fileId and durationMs.',
+          details: { fields: ['fileId', 'durationMs'] },
+        });
+      }
+    } else if (!body) {
       throw new BadRequestException({
         code: ErrorCode.VALIDATION_ERROR,
         message: 'Empty message.',
@@ -211,7 +222,14 @@ export class ChatService {
     // A retry of an already stored message: same answer, no new row and
     // no rate-limit charge.
     const existing = await this.findOwn(id, user.sub, dto.clientMessageId);
-    if (existing) return this.toMessage(existing, user.sub);
+    if (existing) {
+      return this.toMessage(
+        existing,
+        user.sub,
+        undefined,
+        await this.voiceUrls([existing]),
+      );
+    }
 
     await this.limits.consume('message', user.sub);
     if (conv.status === 'closed') throw closed();
@@ -229,6 +247,20 @@ export class ChatService {
         message: 'Renew your subscription to send messages.',
       });
     }
+    if (voice) {
+      await this.files.assertAttachable(user.sub, dto.fileId!, ['chat_voice']);
+      // One note, one message: a file is never re-sent elsewhere.
+      const used = await this.prisma.message.findFirst({
+        where: { file_id: dto.fileId },
+        select: { id: true },
+      });
+      if (used) {
+        throw new ConflictException({
+          code: ErrorCode.FILE_NOT_ATTACHABLE,
+          message: 'This voice note was already sent.',
+        });
+      }
+    }
 
     let message: Message;
     try {
@@ -240,18 +272,26 @@ export class ChatService {
         >`SELECT status, contacts_unlocked FROM conversations
             WHERE id = ${id}::UUID FOR UPDATE`;
         if (!locked || locked.status === 'closed') throw closed();
-        const masked = locked.contacts_unlocked
-          ? { text: body, masked: false }
-          : maskContactInfo(body);
+        const masked =
+          voice || locked.contacts_unlocked
+            ? { text: body, masked: false }
+            : maskContactInfo(body);
         const m = await tx.message.create({
           data: {
             conversation_id: id,
             sender_id: user.sub,
-            type: 'text',
+            type: voice ? 'voice' : 'text',
             body_original: body,
             body_display: masked.text,
             contact_masked: masked.masked,
             client_message_id: dto.clientMessageId,
+            ...(voice
+              ? {
+                  file_id: dto.fileId,
+                  duration_ms: dto.durationMs,
+                  waveform: dto.waveform ?? [],
+                }
+              : {}),
           },
         });
         await tx.conversation.update({
@@ -274,18 +314,26 @@ export class ChatService {
         error.code === 'P2002'
       ) {
         const again = await this.findOwn(id, user.sub, dto.clientMessageId);
-        if (again) return this.toMessage(again, user.sub);
+        if (again) {
+          return this.toMessage(
+            again,
+            user.sub,
+            undefined,
+            await this.voiceUrls([again]),
+          );
+        }
       }
       throw error;
     }
 
     const other =
       user.sub === conv.client_id ? conv.attorney_id : conv.client_id;
+    const urls = await this.voiceUrls([message]);
     this.realtime.toUsers([user.sub], 'message:new', {
-      message: this.toMessage(message, user.sub),
+      message: this.toMessage(message, user.sub, undefined, urls),
     });
     this.realtime.toUsers([other], 'message:new', {
-      message: this.toMessage(message, other, conv),
+      message: this.toMessage(message, other, conv, urls),
     });
     // §8.4: badge + push to the recipient (the dispatcher skips it while
     // the chat is open on their device or muted).
@@ -295,7 +343,43 @@ export class ChatService {
       recipientId: other,
       payload: { conversationId: id, messageId: message.id },
     });
-    return this.toMessage(message, user.sub);
+    return this.toMessage(message, user.sub, undefined, urls);
+  }
+
+  /**
+   * POST /conversations/:id/messages/:messageId/listened (OQ-040): the
+   * recipient played a voice note — the sender's dot turns off. Only the
+   * first play counts; the sender's own plays never do.
+   */
+  async listened(
+    user: RequestUser,
+    id: string,
+    messageId: string,
+  ): Promise<MessageDto> {
+    const conv = await this.load(user, id);
+    const m = await this.prisma.message.findFirst({
+      where: { id: messageId, conversation_id: id, deleted_at: null },
+    });
+    if (!m || m.type !== 'voice') {
+      throw new NotFoundException({
+        code: ErrorCode.NOT_FOUND,
+        message: 'Voice message not found.',
+      });
+    }
+    let row = m;
+    if (m.sender_id !== user.sub && !m.listened_at) {
+      row = await this.prisma.message.update({
+        where: { id: m.id },
+        data: { listened_at: new Date() },
+      });
+      if (m.sender_id) {
+        this.realtime.toUsers([m.sender_id], 'message:listened', {
+          conversationId: id,
+          messageId: m.id,
+        });
+      }
+    }
+    return this.toMessage(row, user.sub, conv, await this.voiceUrls([row]));
   }
 
   /** POST /conversations/:id/read (§8.4): only ever moves forward. */
@@ -389,6 +473,13 @@ export class ChatService {
     return conv;
   }
 
+  /** Signed links for the voice notes among [rows]. */
+  private voiceUrls(rows: Message[]): Promise<Map<string, string>> {
+    return this.files.voiceUrls(
+      rows.flatMap((m) => (m.type === 'voice' && m.file_id ? [m.file_id] : [])),
+    );
+  }
+
   private findOwn(id: string, senderId: string, clientMessageId: string) {
     return this.prisma.message.findUnique({
       where: {
@@ -411,6 +502,7 @@ export class ChatService {
       Conversation,
       'attorney_id' | 'client_id' | 'contacts_unlocked'
     >,
+    voiceUrls?: Map<string, string>,
   ): MessageDto {
     const hideSender =
       conv !== undefined &&
@@ -422,6 +514,15 @@ export class ChatService {
       conversationId: m.conversation_id,
       senderId: hideSender ? null : m.sender_id,
       type: m.type,
+      voice:
+        m.type === 'voice'
+          ? {
+              url: m.file_id ? (voiceUrls?.get(m.file_id) ?? null) : null,
+              durationMs: m.duration_ms ?? 0,
+              waveform: m.waveform,
+              listened: m.listened_at !== null,
+            }
+          : null,
       body: m.body_display,
       contactMasked: m.contact_masked,
       clientMessageId: m.sender_id === viewerId ? m.client_message_id : null,

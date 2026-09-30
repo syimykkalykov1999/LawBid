@@ -461,6 +461,35 @@ export class FilesService {
     return out;
   }
 
+  /**
+   * OQ-040: short signed links to clean voice notes (documents bucket,
+   * never the CDN). The caller has already checked chat membership.
+   */
+  async voiceUrls(fileIds: string[]): Promise<Map<string, string>> {
+    const out = new Map<string, string>();
+    if (fileIds.length === 0 || !this.storage.configured) return out;
+    const files = await this.prisma.file.findMany({
+      where: {
+        id: { in: fileIds },
+        purpose: 'chat_voice',
+        scan_status: 'clean',
+        deleted_at: null,
+      },
+      select: { id: true, s3_bucket: true, s3_key: true },
+    });
+    for (const f of files) {
+      out.set(
+        f.id,
+        await this.storage.signedGetUrl(
+          f.s3_bucket,
+          f.s3_key,
+          MEDIA_SIGNED_URL_TTL_SEC,
+        ),
+      );
+    }
+    return out;
+  }
+
   /** docs/06 §6.1: media (avatars, post images) come from CloudFront in
    * deployed environments (`MEDIA_CDN_BASE_URL`, private bucket behind an
    * origin access control); dev/e2e without a CDN keep short-lived signed

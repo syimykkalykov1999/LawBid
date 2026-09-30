@@ -46,6 +46,7 @@ class Conversation {
   });
 
   final String id;
+
   /// Reserved: null when a conversation has no case (none today).
   final String? caseId;
   final String? caseTitle;
@@ -63,7 +64,40 @@ class Conversation {
   bool get closed => status == ConversationStatus.closed;
 }
 
-enum MessageKind { text, system }
+enum MessageKind { text, system, voice }
+
+/// OQ-040: the audio of a voice message, like Telegram's.
+@immutable
+class VoiceNote {
+  const VoiceNote({
+    required this.durationMs,
+    required this.waveform,
+    required this.listened,
+    this.url,
+    this.localPath,
+  });
+
+  /// Short signed link (null in previews and while uploading).
+  final String? url;
+
+  /// The recorded file while it is being sent.
+  final String? localPath;
+  final int durationMs;
+
+  /// 0–100 bars.
+  final List<int> waveform;
+
+  /// The recipient has played it (the dot goes away).
+  final bool listened;
+
+  VoiceNote copyWith({String? url, bool? listened}) => VoiceNote(
+        url: url ?? this.url,
+        localPath: localPath,
+        durationMs: durationMs,
+        waveform: waveform,
+        listened: listened ?? this.listened,
+      );
+}
 
 /// Where an own message is in its life (§8.2 "отправляется / отправлено /
 /// прочитано"); server messages are [sent].
@@ -82,6 +116,7 @@ class ChatMessage {
     this.clientMessageId,
     this.delivery = DeliveryState.sent,
     this.failedCode,
+    this.voice,
   });
 
   /// Server id, or `local:<clientMessageId>` while in the outbox.
@@ -98,7 +133,29 @@ class ChatMessage {
   final DeliveryState delivery;
   final String? failedCode;
 
+  /// Set for [MessageKind.voice].
+  final VoiceNote? voice;
+
   bool get isLocal => id.startsWith('local:');
+
+  ChatMessage copyWith({
+    VoiceNote? voice,
+    DeliveryState? delivery,
+    String? failedCode,
+  }) =>
+      ChatMessage(
+        id: id,
+        conversationId: conversationId,
+        senderId: senderId,
+        kind: kind,
+        body: body,
+        createdAt: createdAt,
+        contactMasked: contactMasked,
+        clientMessageId: clientMessageId,
+        delivery: delivery ?? this.delivery,
+        failedCode: failedCode ?? this.failedCode,
+        voice: voice ?? this.voice,
+      );
 }
 
 /// UUID v4 for clientMessageId (idempotency key of a message, §8.4).

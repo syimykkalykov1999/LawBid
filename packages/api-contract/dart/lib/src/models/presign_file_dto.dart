@@ -22,7 +22,7 @@ class PresignFileDto {
 
   final FilePurpose purpose;
 
-  /// One of: image/jpeg, image/png, image/heic, application/pdf, application/vnd.openxmlformats-officedocument.wordprocessingml.document (allowed set depends on purpose).
+  /// One of: image/jpeg, image/png, image/heic, application/pdf, application/vnd.openxmlformats-officedocument.wordprocessingml.document, audio/mp4 (allowed set depends on purpose).
   final String mime;
 
   /// Exact size of the file in bytes.

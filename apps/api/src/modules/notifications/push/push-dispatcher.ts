@@ -204,7 +204,7 @@ export class PushDispatcher
       }),
       this.prisma.message.findUnique({
         where: { id: data.messageId },
-        select: { body_display: true, deleted_at: true },
+        select: { body_display: true, type: true, deleted_at: true },
       }),
     ]);
     if (!user || user.status !== 'active' || !part || !message) {
@@ -226,9 +226,13 @@ export class PushDispatcher
       }
     }
     const text = await this.templates.render('new_message', user.ui_language);
-    const preview = [...message.body_display]
-      .slice(0, MESSAGE_PREVIEW_CHARS)
-      .join('');
+    // OQ-040: a voice note has no text — say what it is.
+    const preview =
+      message.type === 'voice'
+        ? user.ui_language === 'ru'
+          ? '🎤 Голосовое сообщение'
+          : '🎤 Voice message'
+        : [...message.body_display].slice(0, MESSAGE_PREVIEW_CHARS).join('');
     const badge = (await this.badges.get(data.recipientId)).total;
     await this.sender.send(
       {

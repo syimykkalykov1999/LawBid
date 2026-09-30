@@ -109,6 +109,9 @@ export class DataExportService {
           conversation_id: true,
           type: true,
           body_original: true,
+          // OQ-040: voice notes (the file id; audio stays in storage).
+          file_id: true,
+          duration_ms: true,
           created_at: true,
         },
         orderBy: { created_at: 'asc' },
