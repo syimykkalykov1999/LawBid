@@ -175,6 +175,7 @@ class FeedCaseCard extends StatelessWidget {
     required this.t,
     required this.formats,
     required this.onTap,
+    this.feedHeight,
     super.key,
   });
 
@@ -182,6 +183,11 @@ class FeedCaseCard extends StatelessWidget {
   final Translator t;
   final L10nFormats formats;
   final VoidCallback onTap;
+
+  /// Owner 2026-09-30: in the attorney's case feed a card fills the
+  /// visible area down to the nav bar, like a post: text on top, our
+  /// practice photo full-bleed below. Null = the compact card.
+  final double? feedHeight;
 
   @override
   Widget build(BuildContext context) {
@@ -199,6 +205,169 @@ class FeedCaseCard extends StatelessWidget {
     );
     final budget = CaseFormat.budget(t, formats, item.budget);
     final radius = BorderRadius.circular(AppRadii.card + 2);
+
+    final semantics = [
+      category,
+      if (item.isNew) t.t('cases.card.new'),
+      item.title,
+      place,
+      budget,
+      t.t('cases.card.bidsCount', {'count': '${item.bidsCount}'}),
+      if (item.hasOwnBid) t.t('cases.card.youBid'),
+    ].join(', ');
+    final fill =
+        feedHeight != null && MediaQuery.textScalerOf(context).scale(10) <= 13;
+    if (fill) {
+      return Semantics(
+        button: true,
+        label: semantics,
+        excludeSemantics: true,
+        child: AppPressable(
+          onTap: onTap,
+          child: Container(
+            height: feedHeight,
+            clipBehavior: Clip.antiAlias,
+            // Owner 2026-09-30: edge to edge like the post feed.
+            decoration: BoxDecoration(
+              color: colors.surface,
+              border: Border.symmetric(
+                horizontal: BorderSide(
+                  color: item.isNew
+                      ? colors.gold.withValues(alpha: 0.55)
+                      : colors.border,
+                ),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: colors.shadow,
+                  blurRadius: AppSizes.cardShadowBlur,
+                  offset: const Offset(0, AppSizes.cardShadowOffsetY),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(AppSpacing.lg,
+                      AppSpacing.lg, AppSpacing.lg, AppSpacing.md),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          // The chips take the width they need; "NEW"
+                          // only gets what is left.
+                          Flexible(
+                            flex: 6,
+                            child: _GoldChip(
+                              icon: practiceGlyph(item.practice.artCode),
+                              label: category,
+                            ),
+                          ),
+                          const SizedBox(width: AppSpacing.sm),
+                          Flexible(
+                            flex: 3,
+                            child: _PlainChip(
+                              icon: Icons.place_outlined,
+                              label: place,
+                            ),
+                          ),
+                          if (item.isNew) ...[
+                            const Spacer(),
+                            Text(
+                              t.t('cases.card.new'),
+                              style: typography.caption.copyWith(
+                                color: colors.goldDark,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      Text(
+                        item.title,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: typography.titleMedium.copyWith(
+                          fontFamily: typography.body.fontFamily,
+                          color: colors.text,
+                          fontWeight: FontWeight.w700,
+                          height: 1.25,
+                        ),
+                      ),
+                      if (item.excerpt.isNotEmpty) ...[
+                        const SizedBox(height: AppSpacing.sm),
+                        Text(
+                          item.excerpt,
+                          maxLines: 4,
+                          overflow: TextOverflow.ellipsis,
+                          style: typography.body.copyWith(
+                            color: colors.text,
+                            height: 1.45,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: AppSpacing.md),
+                      Row(
+                        children: [
+                          Icon(Icons.payments_outlined,
+                              size: AppSizes.iconSm, color: colors.goldDark),
+                          const SizedBox(width: AppSpacing.xs),
+                          Expanded(
+                            child: Text(
+                              budget,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: typography.body.copyWith(
+                                color: colors.text,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          _IconStat(
+                              icon: Icons.visibility_outlined,
+                              value: formats.number(item.viewCount)),
+                          const SizedBox(width: AppSpacing.md),
+                          _IconStat(
+                              icon: Icons.gavel_rounded,
+                              value: formats.number(item.bidsCount)),
+                        ],
+                      ),
+                      if (item.hasOwnBid || item.status != CaseStatus.open) ...[
+                        const SizedBox(height: AppSpacing.sm),
+                        Wrap(
+                          spacing: AppSpacing.sm,
+                          runSpacing: AppSpacing.sm,
+                          children: [
+                            if (item.status != CaseStatus.open)
+                              CaseStatusPill(status: item.status, t: t),
+                            if (item.hasOwnBid)
+                              StatusPill(
+                                label: t.t('cases.card.youBid'),
+                                tone: StatusTone.gold,
+                              ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                // Our photo for the practice; the client's own case
+                // photos are private until a bid is accepted (OQ-031).
+                Expanded(
+                  child: PracticePhoto(
+                    categoryCode: item.practice.artCode,
+                    practiceCode: item.practice.code,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
 
     // Owner 2026-09-30 design: chips, bold title and a short excerpt on the
     // left, the practice artwork dissolving into the card on the right.

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:lawbid/features/social/presentation/widgets/post_card.dart'
+    show feedCardHeight;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -111,49 +113,60 @@ class _AttorneyCasesTabState extends ConsumerState<AttorneyCasesTab> {
             .map((p) => CaseFormat.practice(t, p.i18nKey, p.nameEn))
             .firstOrNull;
 
-    return PagedListBody<FeedCase>(
-      value: value,
-      t: t,
-      itemKey: (c) => c.id,
-      onRefresh: n.refresh,
-      onLoadMore: n.loadMore,
-      onRetryMore: n.retryLoadMore,
-      header: Wrap(
-        spacing: AppSpacing.sm,
-        runSpacing: AppSpacing.sm,
-        children: [
-          AppChip(
-            label: practiceLabel ?? t.t('cases.feed.allPractices'),
-            selected: _practiceId != null,
-            leading: const Icon(Icons.balance_rounded, size: AppSpacing.lg),
-            trailing:
-                const Icon(Icons.expand_more_rounded, size: AppSpacing.lg),
-            onTap: () => _pickPractice(t, allLeaves),
-          ),
-          AppChip(
-            label: _state == null
-                ? t.t('cases.feed.allStates')
-                : stateName(_state!),
-            selected: _state != null,
-            leading: const Icon(Icons.map_outlined, size: AppSpacing.lg),
-            trailing:
-                const Icon(Icons.expand_more_rounded, size: AppSpacing.lg),
-            onTap: () => _pickState(t),
-          ),
-        ],
-      ),
-      empty: AppEmptyState(
-        icon: Icons.inbox_outlined,
-        title: t.t('cases.feed.emptyTitle'),
-        message: t.t('cases.feed.emptyMessage'),
-      ),
-      itemBuilder: (context, c, _) => FeedCaseCard(
-        item: c,
+    return LayoutBuilder(builder: (context, box) {
+      // Owner 2026-09-30: one case card fills the screen down to the nav
+      // bar (the filter chips sit above the first card).
+      final height = feedCardHeight(box.maxHeight);
+      return PagedListBody<FeedCase>(
+        value: value,
         t: t,
-        formats: formats,
-        onTap: () => context.push(AppRoutes.caseDetail(c.id)),
-      ),
-    );
+        edgeToEdge: true,
+        itemKey: (c) => c.id,
+        onRefresh: n.refresh,
+        onLoadMore: n.loadMore,
+        onRetryMore: n.retryLoadMore,
+        // Owner 2026-09-30: the two filters share the width evenly.
+        header: Row(
+          children: [
+            Expanded(
+                child: AppChip(
+              expand: true,
+              label: practiceLabel ?? t.t('cases.feed.allPractices'),
+              selected: _practiceId != null,
+              leading: const Icon(Icons.balance_rounded, size: AppSpacing.lg),
+              trailing:
+                  const Icon(Icons.expand_more_rounded, size: AppSpacing.lg),
+              onTap: () => _pickPractice(t, allLeaves),
+            )),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+                child: AppChip(
+              expand: true,
+              label: _state == null
+                  ? t.t('cases.feed.allStates')
+                  : stateName(_state!),
+              selected: _state != null,
+              leading: const Icon(Icons.map_outlined, size: AppSpacing.lg),
+              trailing:
+                  const Icon(Icons.expand_more_rounded, size: AppSpacing.lg),
+              onTap: () => _pickState(t),
+            )),
+          ],
+        ),
+        empty: AppEmptyState(
+          icon: Icons.inbox_outlined,
+          title: t.t('cases.feed.emptyTitle'),
+          message: t.t('cases.feed.emptyMessage'),
+        ),
+        itemBuilder: (context, c, _) => FeedCaseCard(
+          item: c,
+          t: t,
+          formats: formats,
+          onTap: () => context.push(AppRoutes.caseDetail(c.id)),
+          feedHeight: height,
+        ),
+      );
+    });
   }
 
   /// Owner 2026-09-29: every practice (searchable), "All" first.

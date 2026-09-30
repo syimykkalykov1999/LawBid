@@ -11,9 +11,10 @@ import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
-/// docs/05 §3.2: post photos up to 10 MB each, at most 10 per post.
+/// docs/05 §3.2: post photos up to 10 MB each; at most 9 per post (owner
+/// 2026-09-30, same as cases).
 const kPostPhotoMaxBytes = 10 * 1024 * 1024;
-const kPostMaxPhotos = 10;
+const kPostMaxPhotos = 9;
 
 /// docs/05 §3.1: post text limit (server-enforced too).
 const kPostMaxChars = 2200;
@@ -394,9 +395,8 @@ class ApiSocialRepository implements SocialRepository {
     final target = (await guardApiCall(
       () => _files.presign(
         body: api.PresignFileDto(
-          purpose: casePhoto
-              ? api.FilePurpose.casePhoto
-              : api.FilePurpose.postImage,
+          purpose:
+              casePhoto ? api.FilePurpose.casePhoto : api.FilePurpose.postImage,
           mime: mime,
           sizeBytes: bytes.length,
           sha256: sha256Hex(bytes),

@@ -79,8 +79,13 @@ class PagedListBody<T> extends ConsumerWidget {
     required this.onRetryMore,
     this.skeleton,
     this.header,
+    this.edgeToEdge = false,
     super.key,
   });
+
+  /// Owner 2026-09-30: feed cards span the full screen width (Instagram
+  /// style); the header keeps the usual side padding.
+  final bool edgeToEdge;
 
   final AsyncValue<PaginatedList<T>> value;
   final Translator t;
@@ -136,6 +141,10 @@ class PagedListBody<T> extends ConsumerWidget {
       AsyncData(:final value) => AppPaginatedListView<T>(
           key: const ValueKey('data'),
           items: value.items,
+          padding: edgeToEdge
+              ? const EdgeInsets.fromLTRB(0, AppSpacing.sm, 0, AppSpacing.xxl)
+              : const EdgeInsets.fromLTRB(AppSpacing.screenSide, AppSpacing.sm,
+                  AppSpacing.screenSide, AppSpacing.xxl),
           itemKey: itemKey,
           status: value.loadMoreError != null
               ? AppPaginationStatus.error
@@ -157,7 +166,12 @@ class PagedListBody<T> extends ConsumerWidget {
           header: header == null
               ? null
               : Padding(
-                  padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                  padding: EdgeInsets.fromLTRB(
+                    edgeToEdge ? AppSpacing.screenSide : 0,
+                    0,
+                    edgeToEdge ? AppSpacing.screenSide : 0,
+                    AppSpacing.md,
+                  ),
                   child: header,
                 ),
           itemBuilder: (context, item, index) => AppEntrance(

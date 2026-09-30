@@ -16,7 +16,7 @@ import {
 } from 'class-validator';
 
 export const POST_BODY_MAX = 2200;
-export const POST_MEDIA_MAX = 10;
+export const POST_MEDIA_MAX = 9;
 export const POSTS_PAGE_DEFAULT = 20;
 export const POSTS_PAGE_MAX = 50;
 

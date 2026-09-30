@@ -564,3 +564,17 @@ author + working Follow, topic chips (main one navy), time, bold title
 share, save. Case card: practice chip, place chip, title, 180-char
 excerpt, budget, views, bids, practice artwork dissolving on the right
 (bundled photos per category, icon fallback).
+
+## OQ-033 — Full-height feed cards, default photos, 9 photos per post (owner, 2026-09-30)
+
+Decided by the owner from phone review (replaces parts of OQ-032):
+- Feed cards (posts and the attorney's case feed) fill the visible area
+  down to the nav bar and run edge to edge (Instagram style). The photo
+  takes all the space the text leaves, full width.
+- A post has up to 9 photos (was 10 in docs/05 §3.2) — same as cases.
+  A post without photos shows our default photo for its practice (from
+  its hashtags). Case cards always show our default practice photo; the
+  client's own case photos stay private until a bid is accepted (OQ-031).
+- The topic slider is shown to attorneys too (Posts tab); the two case
+  filters share the row evenly. The "⋯" menu of a profile sits in the top
+  bar, opposite the @username.

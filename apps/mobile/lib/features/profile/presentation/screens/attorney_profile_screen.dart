@@ -119,6 +119,16 @@ class AttorneyProfileScreen extends ConsumerWidget {
         leading: AppBackButton(
             semanticLabel: t.t('common.back'),
             onPressed: () => _leave(context)),
+        // Owner 2026-09-30: "⋯" (Block / Report) opposite the @username.
+        actions: [
+          if (ref.watch(publicAttorneyProfileProvider(username)).value
+              case final p? when !p.isSelf)
+            AppIconButton(
+              icon: Icon(Icons.more_horiz_rounded, color: colors.text),
+              semanticLabel: t.t('chat.menu'),
+              onPressed: () => showAttorneyMoreSheet(context, ref, p),
+            ),
+        ],
       ),
       body: SafeArea(
         top: false,

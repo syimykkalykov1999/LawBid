@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -20,6 +22,12 @@ import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/social/social_routes.dart';
 
+/// Owner 2026-09-30: a feed card fills the list viewport down to the nav
+/// bar (minus the list's top padding and the gap to the next card); never
+/// shorter than a readable minimum on tiny screens.
+double feedCardHeight(double viewport) =>
+    math.max(440, viewport - AppSpacing.sm - AppSpacing.md);
+
 /// docs/05 §2.4 post card, top to bottom: author row (avatar, name,
 /// @username + check, time, "⋯"), photos (carousel with a page indicator,
 /// double tap = like with a heart burst), actions (like, comments, share,
@@ -31,10 +39,16 @@ class PostCard extends ConsumerWidget {
   const PostCard({
     required this.post,
     this.inDetail = false,
+    this.feedHeight,
     super.key,
   });
 
   final Post post;
+
+  /// Owner 2026-09-30: in the feed one card fills the visible area down to
+  /// the nav bar; the photo takes all the space the text leaves, edge to
+  /// edge. Null = natural height (2:1 photo band).
+  final double? feedHeight;
 
   /// On the post screen: full text, no "view comments" link.
   final bool inDetail;
@@ -54,11 +68,22 @@ class PostCard extends ConsumerWidget {
       }
     }
 
+    // At large text sizes the text alone may need the whole screen: then
+    // the card keeps its natural height instead of squeezing the photo.
+    final fill = feedHeight != null &&
+        !inDetail &&
+        MediaQuery.textScalerOf(context).scale(10) <= 13;
+    // Owner 2026-09-30: feed cards run edge to edge (Instagram style):
+    // no side border or rounded corners, hairlines on top and bottom.
+    final edge = feedHeight != null && !inDetail;
     return Container(
+      height: fill ? feedHeight : null,
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(AppRadii.card),
-        border: Border.all(color: colors.border),
+        borderRadius: edge ? null : BorderRadius.circular(AppRadii.card),
+        border: edge
+            ? Border.symmetric(horizontal: BorderSide(color: colors.border))
+            : Border.all(color: colors.border),
         boxShadow: [
           BoxShadow(
             color: colors.shadow,
@@ -70,7 +95,7 @@ class PostCard extends ConsumerWidget {
       clipBehavior: Clip.antiAlias,
       child: inDetail
           ? _detail(context, ref, p, t, colors, actions, run)
-          : _feed(context, p, t, colors, run),
+          : _feed(context, p, t, colors, run, fill: fill),
     );
   }
 
@@ -81,11 +106,30 @@ class PostCard extends ConsumerWidget {
     Post p,
     Translator t,
     AppColorTokens colors,
-    Future<void> Function(Future<Object?> Function()) run,
-  ) {
+    Future<void> Function(Future<Object?> Function()) run, {
+    required bool fill,
+  }) {
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final (title, rest) = _split(p.body);
     void open() => context.push(SocialRoutes.post(p.id));
+    // Owner 2026-09-30: the author's photos (up to 9) or, when there are
+    // none, the default art of the post's practice — full card width.
+    final Widget picture = p.media.isNotEmpty
+        ? PostMediaCarousel(
+            media: p.media,
+            semanticLabel: t.t('post.media.label'),
+            // The card sizes the photo box (a 2:1 band or the rest of a
+            // full-height card).
+            fill: true,
+            onDoubleTap: () => run(() => ProviderScope.containerOf(context)
+                .read(socialActionsProvider)
+                .like(p)),
+          )
+        : PracticePhoto(
+            categoryCode: p.tags
+                .map(topicCategory)
+                .firstWhere((c) => c != null, orElse: () => null),
+          );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -145,21 +189,13 @@ class PostCard extends ConsumerWidget {
             ),
           ),
         ),
-        if (p.media.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-                AppSpacing.lg, AppSpacing.md, AppSpacing.lg, 0),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(AppRadii.card - 2),
-              child: PostMediaCarousel(
-                media: p.media,
-                semanticLabel: t.t('post.media.label'),
-                compact: true,
-                onDoubleTap: () => run(() => ProviderScope.containerOf(context)
-                    .read(socialActionsProvider)
-                    .like(p)),
-              ),
-            ),
+        const SizedBox(height: AppSpacing.md),
+        if (fill)
+          Expanded(child: AppPressable(onTap: open, child: picture))
+        else
+          AspectRatio(
+            aspectRatio: 2,
+            child: AppPressable(onTap: open, child: picture),
           ),
         _ActionsBar(post: p, run: run),
         const SizedBox(height: AppSpacing.xs),
@@ -694,6 +730,7 @@ class PostMediaCarousel extends StatefulWidget {
     required this.onDoubleTap,
     required this.semanticLabel,
     this.compact = false,
+    this.fill = false,
     super.key,
   });
 
@@ -705,6 +742,10 @@ class PostMediaCarousel extends StatefulWidget {
   /// the photo is a wide 2:1 band (cropped); the opened post keeps the
   /// photo's own aspect ratio.
   final bool compact;
+
+  /// Fill the parent box (the feed card sizes it) instead of keeping a
+  /// ratio.
+  final bool fill;
 
   @override
   State<PostMediaCarousel> createState() => _PostMediaCarouselState();
@@ -735,52 +776,54 @@ class _PostMediaCarouselState extends State<PostMediaCarousel>
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final media = widget.media;
-    return Semantics(
-      label: widget.semanticLabel,
-      child: AspectRatio(
-        aspectRatio: widget.compact ? 2 : media.first.aspectRatio,
-        child: GestureDetector(
-          onDoubleTap: _doubleTap,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              PageView.builder(
-                itemCount: media.length,
-                onPageChanged: (i) => _page.value = i,
-                itemBuilder: (context, i) => CachedNetworkImage(
-                  imageUrl: media[i].mediumUrl,
-                  cacheKey: '${media[i].fileId}:1080',
-                  fit: BoxFit.cover,
-                  fadeInDuration: context.reduceMotion
-                      ? Duration.zero
-                      : AppMotion.stateChange,
-                  placeholder: (_, __) =>
-                      ColoredBox(color: colors.skeletonBase),
-                  errorWidget: (_, __, ___) => ColoredBox(
-                    color: colors.skeletonBase,
-                    child: Icon(Icons.image_not_supported_outlined,
-                        color: colors.textSecondary),
-                  ),
+    final Widget gallery = GestureDetector(
+      onDoubleTap: _doubleTap,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          PageView.builder(
+            itemCount: media.length,
+            onPageChanged: (i) => _page.value = i,
+            itemBuilder: (context, i) => CachedNetworkImage(
+              imageUrl: media[i].mediumUrl,
+              cacheKey: '${media[i].fileId}:1080',
+              fit: BoxFit.cover,
+              fadeInDuration:
+                  context.reduceMotion ? Duration.zero : AppMotion.stateChange,
+              placeholder: (_, __) => ColoredBox(color: colors.skeletonBase),
+              errorWidget: (_, __, ___) => ColoredBox(
+                color: colors.skeletonBase,
+                child: Icon(Icons.image_not_supported_outlined,
+                    color: colors.textSecondary),
+              ),
+            ),
+          ),
+          IgnorePointer(child: _HeartBurst(animation: _heart)),
+          if (media.length > 1)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: AppSpacing.md,
+              child: IgnorePointer(
+                child: ValueListenableBuilder<int>(
+                  valueListenable: _page,
+                  builder: (context, page, _) =>
+                      _Dots(count: media.length, index: page),
                 ),
               ),
-              IgnorePointer(child: _HeartBurst(animation: _heart)),
-              if (media.length > 1)
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: AppSpacing.md,
-                  child: IgnorePointer(
-                    child: ValueListenableBuilder<int>(
-                      valueListenable: _page,
-                      builder: (context, page, _) =>
-                          _Dots(count: media.length, index: page),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
+            ),
+        ],
       ),
+    );
+    return Semantics(
+      label: widget.semanticLabel,
+      // In fill mode the parent (the feed card) decides the size.
+      child: widget.fill
+          ? gallery
+          : AspectRatio(
+              aspectRatio: widget.compact ? 2 : media.first.aspectRatio,
+              child: gallery,
+            ),
     );
   }
 }

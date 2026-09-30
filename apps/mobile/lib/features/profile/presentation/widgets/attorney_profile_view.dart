@@ -60,6 +60,44 @@ class AttorneyProfileView extends ConsumerStatefulWidget {
       _AttorneyProfileViewState();
 }
 
+/// "⋯" on someone else's profile: Block / Unblock, Report (OQ-028). Owner
+/// 2026-09-30: opened from the top bar, opposite the @username.
+Future<void> showAttorneyMoreSheet(
+  BuildContext context,
+  WidgetRef ref,
+  PublicAttorneyProfile p,
+) async {
+  final t = ref.read(translatorProvider);
+  await showAppBottomSheet<void>(
+    context: context,
+    builder: (sheet) => SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const AppSheetHandle(),
+          BlockListRow(
+            userId: p.id,
+            displayName: p.fullName.isEmpty ? '@${p.username}' : p.fullName,
+            currentlyBlocked: p.isBlocked,
+            onChanged: () =>
+                ref.invalidate(publicAttorneyProfileProvider(p.username)),
+          ),
+          AppListRow(
+            icon: Icons.flag_outlined,
+            label: t.t('post.menu.report'),
+            showChevron: false,
+            onTap: () {
+              Navigator.of(sheet).pop();
+              showReportSheet(context, ref, ReportTarget.user, p.id);
+            },
+          ),
+          const SizedBox(height: AppSpacing.md),
+        ],
+      ),
+    ),
+  );
+}
+
 class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
   late AttorneyProfileTab _tab = widget.initialTab;
 
@@ -79,38 +117,6 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
     } catch (e) {
       if (mounted) showAppSnackBar(context, errorText(t, e));
     }
-  }
-
-  /// "⋯" on someone else's profile: Block / Unblock, Report (OQ-028).
-  Future<void> _more(Translator t) async {
-    await showAppBottomSheet<void>(
-      context: context,
-      builder: (sheet) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const AppSheetHandle(),
-            BlockListRow(
-              userId: p.id,
-              displayName: p.fullName.isEmpty ? '@${p.username}' : p.fullName,
-              currentlyBlocked: p.isBlocked,
-              onChanged: () =>
-                  ref.invalidate(publicAttorneyProfileProvider(p.username)),
-            ),
-            AppListRow(
-              icon: Icons.flag_outlined,
-              label: t.t('post.menu.report'),
-              showChevron: false,
-              onTap: () {
-                Navigator.of(sheet).pop();
-                showReportSheet(context, ref, ReportTarget.user, p.id);
-              },
-            ),
-            const SizedBox(height: AppSpacing.md),
-          ],
-        ),
-      ),
-    );
   }
 
   Future<void> _share(Translator t) async {
@@ -158,7 +164,6 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
           attorneyId: p.id,
           isFollowing: p.isFollowing,
           blocked: p.isBlocked || p.hasBlockedMe,
-          onMore: p.isSelf ? null : () => _more(t),
           // Owner decision (OQ-014): "Написать" leads to the Chats screen;
           // chats themselves open from a case (docs/04 §9).
           onMessage: () => context.push(ChatRoutes.inbox),
@@ -751,7 +756,6 @@ class _Actions extends ConsumerWidget {
     required this.onMessage,
     required this.onShare,
     this.blocked = false,
-    this.onMore,
   });
 
   final bool isSelf;
@@ -762,9 +766,6 @@ class _Actions extends ConsumerWidget {
 
   /// OQ-028: no Follow / Message while a block is in effect.
   final bool blocked;
-
-  /// "⋯" sheet (Block / Report) on someone else's profile.
-  final VoidCallback? onMore;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -794,14 +795,6 @@ class _Actions extends ConsumerWidget {
           ),
         ],
         if (blocked) const Spacer(),
-        if (onMore != null) ...[
-          _IconSquare(
-            icon: Icons.more_horiz_rounded,
-            semanticLabel: t.t('chat.menu'),
-            onTap: onMore!,
-          ),
-          const SizedBox(width: AppSpacing.sm),
-        ],
         if (!blocked) const SizedBox(width: AppSpacing.sm),
         // Share as a small icon square (Instagram-style), full tap target.
         _IconSquare(

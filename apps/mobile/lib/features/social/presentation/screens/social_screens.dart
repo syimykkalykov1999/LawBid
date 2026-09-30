@@ -50,31 +50,35 @@ class PostsFeedView extends ConsumerWidget {
     final value = _withoutDeleted(
         ref.watch(feedProvider), ref.watch(deletedPostsProvider));
     final notifier = ref.read(feedProvider.notifier);
-    return PagedListBody<Post>(
-      value: value,
-      t: t,
-      skeleton: const PostListSkeleton(),
-      itemKey: (p) => p.id,
-      itemBuilder: (context, p, _) => PostCard(post: p),
-      // §2.3: "Пока в ленте пусто" + recommended attorneys to follow.
-      empty: ListView(
-        padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
-        children: [
-          SizedBox(
-            height: 340,
-            child: AppEmptyState(
-              icon: Icons.dynamic_feed_rounded,
-              title: t.t('feed.empty.title'),
-              message: t.t('feed.empty.message'),
+    return LayoutBuilder(builder: (context, box) {
+      final height = feedCardHeight(box.maxHeight);
+      return PagedListBody<Post>(
+        value: value,
+        t: t,
+        edgeToEdge: true,
+        skeleton: const PostListSkeleton(),
+        itemKey: (p) => p.id,
+        itemBuilder: (context, p, _) => PostCard(post: p, feedHeight: height),
+        // §2.3: "Пока в ленте пусто" + recommended attorneys to follow.
+        empty: ListView(
+          padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
+          children: [
+            SizedBox(
+              height: 340,
+              child: AppEmptyState(
+                icon: Icons.dynamic_feed_rounded,
+                title: t.t('feed.empty.title'),
+                message: t.t('feed.empty.message'),
+              ),
             ),
-          ),
-          const SuggestedAttorneys(),
-        ],
-      ),
-      onRefresh: notifier.refresh,
-      onLoadMore: notifier.loadMore,
-      onRetryMore: notifier.retryLoadMore,
-    );
+            const SuggestedAttorneys(),
+          ],
+        ),
+        onRefresh: notifier.refresh,
+        onLoadMore: notifier.loadMore,
+        onRetryMore: notifier.retryLoadMore,
+      );
+    });
   }
 }
 
@@ -90,21 +94,25 @@ class TopicPostsView extends ConsumerWidget {
     final t = ref.watch(translatorProvider);
     final key = (tag: tag, sort: TagSort.fresh);
     final notifier = ref.read(tagPostsProvider(key).notifier);
-    return PagedListBody<Post>(
-      value: _withoutDeleted(
-          ref.watch(tagPostsProvider(key)), ref.watch(deletedPostsProvider)),
-      t: t,
-      skeleton: const PostListSkeleton(),
-      itemKey: (p) => p.id,
-      itemBuilder: (context, p, _) => PostCard(post: p),
-      empty: AppEmptyState(
-        icon: Icons.tag_rounded,
-        message: t.t('tag.empty'),
-      ),
-      onRefresh: notifier.refresh,
-      onLoadMore: notifier.loadMore,
-      onRetryMore: notifier.retryLoadMore,
-    );
+    return LayoutBuilder(builder: (context, box) {
+      final height = feedCardHeight(box.maxHeight);
+      return PagedListBody<Post>(
+        value: _withoutDeleted(
+            ref.watch(tagPostsProvider(key)), ref.watch(deletedPostsProvider)),
+        t: t,
+        edgeToEdge: true,
+        skeleton: const PostListSkeleton(),
+        itemKey: (p) => p.id,
+        itemBuilder: (context, p, _) => PostCard(post: p, feedHeight: height),
+        empty: AppEmptyState(
+          icon: Icons.tag_rounded,
+          message: t.t('tag.empty'),
+        ),
+        onRefresh: notifier.refresh,
+        onLoadMore: notifier.loadMore,
+        onRetryMore: notifier.retryLoadMore,
+      );
+    });
   }
 }
 

@@ -19,7 +19,12 @@ class AppChip extends StatelessWidget {
     this.onTap,
     this.selected = false,
     this.height = 36,
+    this.expand = false,
   });
+
+  /// Fill the given width (a filter sharing a row evenly); the label is
+  /// ellipsised and the trailing icon sits at the end.
+  final bool expand;
 
   final String label;
   final Widget? leading;
@@ -50,13 +55,26 @@ class AppChip extends StatelessWidget {
           decoration: BoxDecoration(
             color: colors.surface,
             borderRadius: BorderRadius.circular(height / 2),
-            border: Border.all(color: selected ? colors.gold : colors.border, width: selected ? 1.5 : 1),
+            border: Border.all(
+                color: selected ? colors.gold : colors.border,
+                width: selected ? 1.5 : 1),
           ),
           child: Row(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
             children: [
               if (leading != null) ...[leading!, const SizedBox(width: 6)],
-              Text(label, style: typography.bodySmall.copyWith(color: colors.text)),
+              if (expand)
+                Expanded(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: typography.bodySmall.copyWith(color: colors.text),
+                  ),
+                )
+              else
+                Text(label,
+                    style: typography.bodySmall.copyWith(color: colors.text)),
               if (trailing != null) ...[const SizedBox(width: 6), trailing!],
             ],
           ),
@@ -65,6 +83,7 @@ class AppChip extends StatelessWidget {
     );
     // Tappable chips keep their visual height (36 by default) but get a
     // 48px touch/semantics area (docs/01 §8.4, AppTapTarget).
-    return onTap == null ? chip : AppTapTarget(child: chip);
+    final body = expand ? SizedBox(width: double.infinity, child: chip) : chip;
+    return onTap == null ? body : AppTapTarget(child: body);
   }
 }

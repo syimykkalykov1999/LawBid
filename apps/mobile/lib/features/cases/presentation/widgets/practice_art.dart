@@ -134,3 +134,52 @@ class PracticeArt extends StatelessWidget {
     );
   }
 }
+
+/// Owner 2026-09-30: our default photo for a practice, shown full-bleed at
+/// the bottom of feed cards (a post without photos, every case card — a
+/// client's own case photos stay private until a bid is accepted). The
+/// leaf photo wins over the category one; without either, a navy panel
+/// with the gold practice glyph.
+class PracticePhoto extends StatelessWidget {
+  const PracticePhoto({
+    required this.categoryCode,
+    this.practiceCode,
+    super.key,
+  });
+
+  final String? categoryCode;
+  final String? practiceCode;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final artKey = [practiceCode, categoryCode].firstWhere(
+        (c) => c != null && kPracticeArtAssets.contains(c),
+        orElse: () => null);
+    final panel = DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [colors.navy, colors.navy.withValues(alpha: 0.85)],
+        ),
+      ),
+      child: Center(
+        child: Icon(
+          practiceGlyph(categoryCode),
+          size: 72,
+          color: colors.goldLight,
+        ),
+      ),
+    );
+    return ExcludeSemantics(
+      child: artKey == null
+          ? panel
+          : Image.asset(
+              'assets/practice_art/$artKey.jpg',
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => panel,
+            ),
+    );
+  }
+}

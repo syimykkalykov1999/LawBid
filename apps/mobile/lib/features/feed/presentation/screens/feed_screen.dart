@@ -87,32 +87,44 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
       body: attorney
           ? IndexedStack(
               index: _tab.index,
-              children: const [
-                PostsFeedView(),
-                AttorneyCasesTab(),
-              ],
-            )
-          : Column(
               children: [
-                _TopicSlider(
-                  value: _topic,
+                // Owner 2026-09-30: the topic slider for every role.
+                _TopicFeed(
+                  topic: _topic,
                   onChanged: (v) => setState(() => _topic = v),
                 ),
-                Expanded(
-                  child: _topic == null
-                      ? const PostsFeedView()
-                      : TopicPostsView(
-                          key: ValueKey(_topic),
-                          tag: _topic!,
-                        ),
-                ),
+                const AttorneyCasesTab(),
               ],
+            )
+          : _TopicFeed(
+              topic: _topic,
+              onChanged: (v) => setState(() => _topic = v),
             ),
     );
   }
 }
 
-/// Owner 2026-09-30: the clients' practice-topic slider above the feed.
+/// The topic slider above the post stream ("All" = the regular feed).
+class _TopicFeed extends StatelessWidget {
+  const _TopicFeed({required this.topic, required this.onChanged});
+
+  final String? topic;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context) => Column(
+        children: [
+          _TopicSlider(value: topic, onChanged: onChanged),
+          Expanded(
+            child: topic == null
+                ? const PostsFeedView()
+                : TopicPostsView(key: ValueKey(topic), tag: topic!),
+          ),
+        ],
+      );
+}
+
+/// Owner 2026-09-30: the practice-topic slider above the feed.
 /// Each topic is a hashtag; "All" is the regular feed.
 const kFeedTopics = <String>[
   'immigration',
