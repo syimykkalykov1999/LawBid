@@ -7,6 +7,8 @@ import 'package:retrofit/retrofit.dart';
 
 import '../models/client_review_envelope.dart';
 import '../models/client_review_list_envelope.dart';
+import '../models/client_reviews_sort.dart';
+import '../models/review_summary_envelope.dart';
 import '../models/upsert_client_review_dto.dart';
 
 part 'client_reviews_client.g.dart';
@@ -31,11 +33,22 @@ abstract class ClientReviewsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Reviews of a client (attorneys and the client only)
+  /// Reviews of a client (attorneys and the client only).
+  ///
+  /// [rating] - Only reviews with this star rating (tap on the bar).
   @GET('/clients/{id}/reviews')
   Future<ClientReviewListEnvelope> listClientReviews({
     @Path('id') required String id,
+    @Query('rating') int? rating,
+    @Query('sort') ClientReviewsSort? sort,
     @Query('cursor') String? cursor,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Average, count and per-star distribution of a client
+  @GET('/clients/{id}/reviews/summary')
+  Future<ReviewSummaryEnvelope> clientReviewsSummary({
+    @Path('id') required String id,
     @Extras() Map<String, dynamic>? extras,
   });
 }

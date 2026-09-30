@@ -17348,6 +17348,25 @@
             }
           },
           {
+            "name": "rating",
+            "required": false,
+            "in": "query",
+            "description": "Only reviews with this star rating (tap on the bar).",
+            "schema": {
+              "minimum": 1,
+              "maximum": 5,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/ClientReviewsSort"
+            }
+          },
+          {
             "name": "cursor",
             "required": false,
             "in": "query",
@@ -17435,6 +17454,103 @@
           }
         ],
         "summary": "Reviews of a client (attorneys and the client only)",
+        "tags": [
+          "client-reviews"
+        ]
+      }
+    },
+    "/clients/{id}/reviews/summary": {
+      "get": {
+        "operationId": "clientReviewsSummary",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewSummaryEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Average, count and per-star distribution of a client",
         "tags": [
           "client-reviews"
         ]
@@ -31344,6 +31460,13 @@
           "data"
         ]
       },
+      "ClientReviewsSort": {
+        "type": "string",
+        "enum": [
+          "newest",
+          "oldest"
+        ]
+      },
       "ClientReviewListEnvelope": {
         "type": "object",
         "properties": {
@@ -31352,6 +31475,63 @@
             "items": {
               "$ref": "#/components/schemas/ClientReviewDto"
             }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "RatingBucketDto": {
+        "type": "object",
+        "properties": {
+          "stars": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5
+          },
+          "count": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "stars",
+          "count"
+        ]
+      },
+      "ReviewSummaryDto": {
+        "type": "object",
+        "properties": {
+          "ratingAvg": {
+            "type": "number",
+            "nullable": true,
+            "description": "Average of published reviews rounded to one decimal; null when there are none (\"New — no reviews\").",
+            "example": 4.5
+          },
+          "ratingCount": {
+            "type": "integer"
+          },
+          "distribution": {
+            "description": "Count per star, always 5 entries, 5 → 1.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RatingBucketDto"
+            }
+          }
+        },
+        "required": [
+          "ratingAvg",
+          "ratingCount",
+          "distribution"
+        ]
+      },
+      "ReviewSummaryEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ReviewSummaryDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
@@ -33635,63 +33815,6 @@
             "items": {
               "$ref": "#/components/schemas/PublicReviewDto"
             }
-          },
-          "meta": {
-            "$ref": "#/components/schemas/ResponseMetaDto"
-          }
-        },
-        "required": [
-          "data"
-        ]
-      },
-      "RatingBucketDto": {
-        "type": "object",
-        "properties": {
-          "stars": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 5
-          },
-          "count": {
-            "type": "integer"
-          }
-        },
-        "required": [
-          "stars",
-          "count"
-        ]
-      },
-      "ReviewSummaryDto": {
-        "type": "object",
-        "properties": {
-          "ratingAvg": {
-            "type": "number",
-            "nullable": true,
-            "description": "Average of published reviews rounded to one decimal; null when there are none (\"New — no reviews\").",
-            "example": 4.5
-          },
-          "ratingCount": {
-            "type": "integer"
-          },
-          "distribution": {
-            "description": "Count per star, always 5 entries, 5 → 1.",
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/RatingBucketDto"
-            }
-          }
-        },
-        "required": [
-          "ratingAvg",
-          "ratingCount",
-          "distribution"
-        ]
-      },
-      "ReviewSummaryEnvelope": {
-        "type": "object",
-        "properties": {
-          "data": {
-            "$ref": "#/components/schemas/ReviewSummaryDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"

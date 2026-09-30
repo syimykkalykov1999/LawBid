@@ -15,16 +15,34 @@ class ClientReviewsRepository {
 
   final api.ClientReviewsClient _api;
 
-  Future<CursorPage<ClientReview>> list(String clientId,
-      {String? cursor}) async {
+  Future<CursorPage<ClientReview>> list(
+    String clientId, {
+    String? cursor,
+    int? rating,
+    bool oldest = false,
+  }) async {
     final env = await guardApiCall(
-      () => _api.listClientReviews(id: clientId, cursor: cursor),
+      () => _api.listClientReviews(
+        id: clientId,
+        cursor: cursor,
+        rating: rating,
+        sort: oldest
+            ? api.ClientReviewsSort.oldest
+            : api.ClientReviewsSort.newest,
+      ),
     );
     return CursorPage(
       items: env.data.map(ProfileMappers.clientReview).toList(),
       nextCursor: env.meta?.nextCursor,
     );
   }
+
+  /// Average, count and 5 → 1 distribution (the Reviews tab header).
+  Future<ReviewSummary> summary(String clientId) async =>
+      ProfileMappers.summary(
+        (await guardApiCall(() => _api.clientReviewsSummary(id: clientId)))
+            .data,
+      );
 
   /// The caller's own review of the case client; null when none yet (the
   /// API answers `data: null`, which the generated envelope cannot parse).
@@ -57,22 +75,38 @@ final clientReviewsRepositoryProvider = Provider<ClientReviewsRepository>(
   (ref) => ClientReviewsRepository(ref.watch(dioProvider)),
 );
 
-class ClientReviewsNotifier extends PagedNotifier<ClientReview> {
-  ClientReviewsNotifier(this.clientId);
+/// Which client's reviews, filtered by stars and ordered by date — the
+/// same controls as the attorney's Reviews tab (owner 2026-09-30).
+typedef ClientReviewsKey = ({String clientId, int? rating, bool oldest});
 
-  final String clientId;
+class ClientReviewsNotifier extends PagedNotifier<ClientReview> {
+  ClientReviewsNotifier(this.key);
+
+  final ClientReviewsKey key;
 
   @override
   Future<CursorPage<ClientReview>> fetch(String? cursor) =>
-      ref.read(clientReviewsRepositoryProvider).list(clientId, cursor: cursor);
+      ref.read(clientReviewsRepositoryProvider).list(
+            key.clientId,
+            cursor: cursor,
+            rating: key.rating,
+            oldest: key.oldest,
+          );
 
   @override
   Object idOf(ClientReview item) => item.id;
 }
 
-final clientReviewsProvider = AsyncNotifierProvider.autoDispose
-    .family<ClientReviewsNotifier, PaginatedList<ClientReview>, String>(
+final clientReviewsProvider = AsyncNotifierProvider.autoDispose.family<
+    ClientReviewsNotifier, PaginatedList<ClientReview>, ClientReviewsKey>(
   ClientReviewsNotifier.new,
+  retry: (_, __) => null,
+);
+
+final clientReviewSummaryProvider =
+    FutureProvider.autoDispose.family<ReviewSummary, String>(
+  (ref, clientId) =>
+      ref.watch(clientReviewsRepositoryProvider).summary(clientId),
   retry: (_, __) => null,
 );
 

@@ -1,3 +1,4 @@
+import { ReviewSummaryDto } from '../reviews/dto/review-responses.dto';
 import { Body, Controller, Get, Param, Put, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
@@ -66,6 +67,19 @@ export class ClientReviewsController {
     @Param() p: ClientIdParamDto,
     @Query() q: ClientReviewsQueryDto,
   ): Promise<ClientReviewPage> {
-    return this.reviews.list(user, p.id, q.cursor);
+    return this.reviews.list(user, p.id, q);
+  }
+
+  @Get('clients/:id/reviews/summary')
+  @ApiOperation({
+    summary: 'Average, count and per-star distribution of a client',
+  })
+  @ApiEnvelopeResponse(ReviewSummaryDto)
+  @ApiErrors({ 403: [E.FORBIDDEN], 404: [E.NOT_FOUND] })
+  clientReviewsSummary(
+    @CurrentUser() user: RequestUser,
+    @Param() p: ClientIdParamDto,
+  ): Promise<ReviewSummaryDto> {
+    return this.reviews.summary(user, p.id);
   }
 }

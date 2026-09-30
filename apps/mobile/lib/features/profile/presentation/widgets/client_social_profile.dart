@@ -7,7 +7,11 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/profile/data/client_reviews_repository.dart';
+import 'package:lawbid/features/profile/application/profile_providers.dart'
+    show ReviewsSort;
 import 'package:lawbid/features/profile/domain/profile_models.dart';
+import 'package:lawbid/features/profile/presentation/widgets/review_widgets.dart'
+    show ReviewSummaryPanel;
 import 'package:lawbid/features/profile/presentation/widgets/profile_avatar.dart';
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart'
     show ProfilePostsGrid;
@@ -21,8 +25,7 @@ enum _Tab { posts, reviews }
 
 /// Owner 2026-09-30 (OQ-038): the client profile like Instagram, for the
 /// client and for anyone opening it — avatar with posts / followers /
-/// following (and, for attorneys and the client, the attorneys' rating),
-/// name, state, Edit or Follow, then two tabs: Posts and Reviews. Reviews
+/// following, name, state, Edit or Follow, then two tabs: Posts and Reviews. Reviews
 /// (attorneys about this client) are shown only to attorneys and the
 /// client themself.
 class ClientSocialProfile extends ConsumerStatefulWidget {
@@ -69,8 +72,12 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
+                    // Owner 2026-09-30: the same size as the attorney's
+                    // counters, not a big title.
                     Text(value,
-                        style: type.titleMedium.copyWith(
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: type.body.copyWith(
                             color: colors.text, fontWeight: FontWeight.w700)),
                     Text(label,
                         maxLines: 1,
@@ -132,7 +139,7 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
           Row(
             children: [
               ProfileAvatar(
-                size: 86,
+                size: 88,
                 url: p.avatarUrl,
                 initials:
                     initialsOf(p.firstName, p.lastName, fallback: p.username),
@@ -147,14 +154,6 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
               counter(SocialFormat.count(f, p.followingCount),
                   t.t('client.counter.following'),
                   onTap: () => context.push(SocialRoutes.following(p.id))),
-              if (p.canSeeReviews)
-                counter(
-                  p.ratingAvg == null
-                      ? '—'
-                      : '★ ${p.ratingAvg!.toStringAsFixed(1)}',
-                  t.t('client.counter.rating'),
-                  onTap: () => setState(() => _tab = _Tab.reviews),
-                ),
             ],
           ),
           const SizedBox(height: AppSpacing.md),
@@ -228,7 +227,9 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
     return RefreshIndicator(
       color: colors.gold,
       onRefresh: () async {
-        ref.invalidate(clientReviewsProvider(p.id));
+        ref
+          ..invalidate(clientReviewsProvider)
+          ..invalidate(clientReviewSummaryProvider(p.id));
         await widget.onRefresh();
       },
       child: ListView(
@@ -249,18 +250,38 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
   }
 }
 
-class _ReviewsList extends ConsumerWidget {
+/// The Reviews tab like the attorney's: average, count and the 5 → 1 bars
+/// (tap a bar to show only those reviews — good or bad ones), date order
+/// in the corner, then the reviews (owner 2026-09-30).
+class _ReviewsList extends ConsumerStatefulWidget {
   const _ReviewsList({required this.clientId});
 
   final String clientId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_ReviewsList> createState() => _ReviewsListState();
+}
+
+class _ReviewsListState extends ConsumerState<_ReviewsList> {
+  int? _stars;
+  ReviewsSort _sort = ReviewsSort.newest;
+
+  String get clientId => widget.clientId;
+
+  @override
+  Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
     final f = ref.watch(l10nFormatsProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    final value = ref.watch(clientReviewsProvider(clientId));
+    final key = (
+      clientId: clientId,
+      rating: _stars,
+      oldest: _sort == ReviewsSort.oldest,
+    );
+    final value = ref.watch(clientReviewsProvider(key));
+    final summary = ref.watch(clientReviewSummaryProvider(clientId)).value ??
+        const ReviewSummary.empty();
     final note = Padding(
       padding: const EdgeInsets.fromLTRB(
           AppSpacing.screenSide, AppSpacing.sm, AppSpacing.screenSide, 0),
@@ -277,6 +298,18 @@ class _ReviewsList extends ConsumerWidget {
         ],
       ),
     );
+    final panel = Padding(
+      padding: const EdgeInsets.fromLTRB(
+          AppSpacing.screenSide, AppSpacing.md, AppSpacing.screenSide, 0),
+      child: ReviewSummaryPanel(
+        summary: summary,
+        selectedStars: _stars,
+        onStarsTap: (stars) =>
+            setState(() => _stars = _stars == stars ? null : stars),
+        sort: _sort,
+        onSort: (sort) => setState(() => _sort = sort),
+      ),
+    );
     return value.when(
       loading: () => const Padding(
         padding: EdgeInsets.all(AppSpacing.screenSide),
@@ -284,7 +317,7 @@ class _ReviewsList extends ConsumerWidget {
       ),
       error: (_, __) => Center(
         child: TextButton(
-          onPressed: () => ref.invalidate(clientReviewsProvider(clientId)),
+          onPressed: () => ref.invalidate(clientReviewsProvider(key)),
           child: Text(t.t('error.retry')),
         ),
       ),
@@ -292,6 +325,7 @@ class _ReviewsList extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           note,
+          panel,
           if (page.items.isEmpty)
             Padding(
               padding: const EdgeInsets.all(AppSpacing.xxl),

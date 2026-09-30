@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -37,6 +38,28 @@ export class ClientIdParamDto {
 }
 
 export class ClientReviewsQueryDto {
+  @ApiPropertyOptional({
+    type: 'integer',
+    minimum: 1,
+    maximum: 5,
+    description: 'Only reviews with this star rating (tap on the bar).',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(5)
+  rating?: number;
+
+  @ApiPropertyOptional({
+    enum: ['newest', 'oldest'],
+    enumName: 'ClientReviewsSort',
+    default: 'newest',
+  })
+  @IsOptional()
+  @IsIn(['newest', 'oldest'])
+  sort?: 'newest' | 'oldest';
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()

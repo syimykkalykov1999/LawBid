@@ -251,5 +251,34 @@ describe('Client profile: posts, follows, attorney reviews (e2e, OQ-038)', () =>
       .set(att.auth);
     expect(seenByAttorney.body.data.ratingAvg).toBe(4);
     expect(seenByAttorney.body.data.ratingCount).toBe(1);
+
+    // Reviews tab summary + star filter, like the attorney's (owner).
+    const summary = await api()
+      .get(`/api/v1/clients/${cli.id}/reviews/summary`)
+      .set(cli.auth);
+    expect(summary.status).toBe(200);
+    expect(summary.body.data.ratingAvg).toBe(4);
+    expect(summary.body.data.distribution).toEqual([
+      { stars: 5, count: 0 },
+      { stars: 4, count: 1 },
+      { stars: 3, count: 0 },
+      { stars: 2, count: 0 },
+      { stars: 1, count: 0 },
+    ]);
+    expect(
+      (
+        await api()
+          .get(`/api/v1/clients/${cli.id}/reviews/summary`)
+          .set(other.auth)
+      ).status,
+    ).toBe(403);
+    const fours = await api()
+      .get(`/api/v1/clients/${cli.id}/reviews?rating=4&sort=oldest`)
+      .set(cli.auth);
+    expect(fours.body.data).toHaveLength(1);
+    const ones = await api()
+      .get(`/api/v1/clients/${cli.id}/reviews?rating=1`)
+      .set(cli.auth);
+    expect(ones.body.data).toHaveLength(0);
   });
 });
