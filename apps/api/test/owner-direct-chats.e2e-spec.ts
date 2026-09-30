@@ -168,21 +168,29 @@ describe('Direct chats and message requests (e2e, OQ-043)', () => {
       .set(cli.auth);
     expect(mine.body.data.counterpartLastReadMessageId).toBeNull();
 
-    // The attorney's reply accepts; calls stay closed (contacts locked).
+    // The attorney's reply accepts: a full chat — contacts open, calls on.
     await send(att.auth, convId, 'Happy to help').expect(201);
     const after = await api()
       .get(`/api/v1/conversations/${convId}`)
       .set(cli.auth);
     expect(after.body.data.requestStatus).toBe('accepted');
+    expect(after.body.data.contactsUnlocked).toBe(true);
     expect(after.body.data.counterpartLastReadMessageId).not.toBeNull();
     expect(
       ids(await api().get('/api/v1/conversations').set(att.auth)),
     ).toContain(convId);
-    await send(cli.auth, convId, 'Great').expect(201);
+    const open2 = await send(cli.auth, convId, 'My number is 555 123 4567');
+    expect(open2.body.data.contactMasked).toBe(false);
     const call = await api()
       .post(`/api/v1/conversations/${convId}/calls`)
-      .set(cli.auth);
-    expect(call.body.error.code).toBe('CALL_NOT_ALLOWED');
+      .set(cli.auth)
+      .expect(201);
+    expect(call.body.data.status).toBe('ringing');
+    await api()
+      .post(`/api/v1/calls/${call.body.data.id}/end`)
+      .set(cli.auth)
+      .send({})
+      .expect(200);
   });
 
   it('delete stops the requester; accept works; wrong pairs are refused', async () => {

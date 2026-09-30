@@ -474,6 +474,16 @@ class ConversationRow extends ConsumerWidget {
                   if (c.caseTitle != null) ...[
                     const SizedBox(height: AppSpacing.xs),
                     _CaseChip(title: c.caseTitle!, closed: c.closed),
+                  ] else if (c.isDirect && c.counterpart.username != null) ...[
+                    // OQ-043: a direct chat is labelled with the @username.
+                    const SizedBox(height: AppSpacing.xs),
+                    _CaseChip(
+                      title: '@${c.counterpart.username}',
+                      closed: false,
+                      icon: c.myRequestPending
+                          ? Icons.schedule_send_outlined
+                          : Icons.person_outline_rounded,
+                    ),
                   ],
                 ],
               ),
@@ -486,10 +496,13 @@ class ConversationRow extends ConsumerWidget {
 }
 
 class _CaseChip extends StatelessWidget {
-  const _CaseChip({required this.title, required this.closed});
+  const _CaseChip({required this.title, required this.closed, this.icon});
 
   final String title;
   final bool closed;
+
+  /// Overrides the scales icon (direct chats).
+  final IconData? icon;
 
   @override
   Widget build(BuildContext context) {
@@ -505,8 +518,11 @@ class _CaseChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(closed ? Icons.lock_outline_rounded : Icons.balance_rounded,
-              size: 12, color: colors.goldDark),
+          Icon(
+              icon ??
+                  (closed ? Icons.lock_outline_rounded : Icons.balance_rounded),
+              size: 12,
+              color: colors.goldDark),
           const SizedBox(width: 4),
           Flexible(
             child: Text(

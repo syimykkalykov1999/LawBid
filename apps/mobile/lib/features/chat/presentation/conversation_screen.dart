@@ -95,7 +95,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
   void _call(Conversation c) {
     final t = ref.read(translatorProvider);
     if (!c.contactsUnlocked) {
-      showAppSnackBar(context, t.t('call.notAllowed'));
+      showAppSnackBar(context,
+          t.t(c.isDirect ? 'call.notAllowedRequest' : 'call.notAllowed'));
       return;
     }
     HapticFeedback.mediumImpact();
@@ -195,8 +196,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
         title: c == null ? null : _Header(conversation: c),
         actions: [
           // OQ-041: an in-app audio call (after acceptance).
-          // Direct chats keep contacts masked: no calls there (OQ-043).
-          if (c != null && !c.closed && !c.isDirect)
+          // OQ-043: a direct chat gets calls once the request is accepted.
+          if (c != null && !c.closed)
             AppIconButton(
               plain: true,
               icon: Icon(

@@ -269,11 +269,14 @@ export class ChatService {
         }
         requestFirst = sent === 0;
       } else {
+        // Owner 2026-09-30: an accepted request is a full chat —
+        // contacts open, calls allowed (the attorney pays a subscription).
         await this.prisma.conversation.update({
           where: { id },
-          data: { request_status: 'accepted' },
+          data: { request_status: 'accepted', contacts_unlocked: true },
         });
         conv.request_status = 'accepted';
+        conv.contacts_unlocked = true;
       }
     } else if (
       conv.request_status === 'declined' &&
@@ -553,7 +556,10 @@ export class ChatService {
     }
     const updated = await this.prisma.conversation.update({
       where: { id },
-      data: { request_status: accept ? 'accepted' : 'declined' },
+      // Owner 2026-09-30: accepted = a full chat (contacts, calls).
+      data: accept
+        ? { request_status: 'accepted', contacts_unlocked: true }
+        : { request_status: 'declined' },
     });
     if (accept && conv.requested_by) {
       this.realtime.toUsers([conv.requested_by], 'conversation:update', {

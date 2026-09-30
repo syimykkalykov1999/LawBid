@@ -750,7 +750,10 @@ Differs from OQ-014 / docs/04 §9 (chats only from a case).
 - Accept (or simply replying) moves the chat to the main list; Delete
   stops the requester ("This person isn't accepting your messages");
   Block blocks and deletes.
-- Contacts stay masked in direct chats and calls are not available there
-  (they open with an accepted bid, OQ-041) — so a direct chat cannot be
-  used to take a client off the platform. Blocks and the attorney's
-  subscription apply as in case chats.
+- Owner decision (same day): one common "Chats" list — case chats
+  (labelled with the case) and direct chats (labelled @username) together.
+  An accepted request is a full chat: contacts are not masked and calls
+  are available (only attorneys with an active subscription can write or
+  call, so what they agree with a client is their business). While a
+  request is pending: contacts masked, no calls. Case chats keep docs/04:
+  masked, no calls until the bid is accepted. Blocks apply everywhere.
