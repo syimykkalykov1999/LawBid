@@ -82,6 +82,25 @@ export class VerificationRequestsService {
     private readonly checks: VerificationChecksService,
   ) {}
 
+  /**
+   * ID + selfie are needed for a first verification and — owner decision
+   * 2026-09-30 (OQ-029) — for a verified attorney whose name no longer
+   * matches the verified one ("Confirm new name"); licenses alone
+   * otherwise. The profile stays verified while such a request is open.
+   */
+  private async identityRequired(
+    userId: string,
+    status: string,
+    db: Pick<PrismaService, 'attorneyProfile'> = this.prisma,
+  ): Promise<boolean> {
+    if (status !== 'verified') return true;
+    const row = await db.attorneyProfile.findUnique({
+      where: { user_id: userId },
+      select: { name_mismatch: true },
+    });
+    return row?.name_mismatch ?? false;
+  }
+
   async overview(
     userId: string,
     now = new Date(),
@@ -104,7 +123,7 @@ export class VerificationRequestsService {
     return {
       verificationStatus,
       request: latest ? toDto(latest) : null,
-      identityRequired: verificationStatus !== 'verified',
+      identityRequired: await this.identityRequired(userId, verificationStatus),
       submissionsLast30Days: used,
       maxSubmissions30Days: max,
     };
@@ -398,7 +417,7 @@ export class VerificationRequestsService {
         tx,
         req,
         fromDraft,
-        verificationStatus !== 'verified',
+        await this.identityRequired(userId, verificationStatus, tx),
       );
       if (missing.length > 0) {
         throw httpError(

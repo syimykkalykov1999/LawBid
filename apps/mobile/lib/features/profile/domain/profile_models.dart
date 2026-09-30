@@ -180,6 +180,7 @@ class OwnAttorneyProfile {
     required this.username,
     required this.verification,
     required this.verifiedBadge,
+    this.nameMismatch = false,
     this.firstName,
     this.lastName,
     this.bio,
@@ -202,6 +203,10 @@ class OwnAttorneyProfile {
   final List<String> languages;
   final AttorneyVerification verification;
   final bool verifiedBadge;
+
+  /// OQ-029: the name drifted from the verified one; the blue check is
+  /// hidden until it matches again or the new name is confirmed.
+  final bool nameMismatch;
 
   /// When @username may change again; null = now (30-day cooldown, §4.1).
   final DateTime? usernameNextChangeAt;

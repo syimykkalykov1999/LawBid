@@ -84,6 +84,7 @@ abstract final class ProfileMappers {
         languages: d.languages,
         verification: AttorneyVerification.parse(d.verificationStatus.json),
         verifiedBadge: d.verifiedBadge,
+        nameMismatch: d.nameMismatch,
         usernameNextChangeAt: d.usernameNextChangeAt,
         licenses: [
           for (final l in d.licenses)

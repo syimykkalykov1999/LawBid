@@ -166,6 +166,10 @@ const file06Ru = <String, String>{
   'profile.edit.firms.helper': 'До {max} фирм. Введите название и нажмите «+».',
   'profile.edit.firms.add': 'Добавить фирму',
   'profile.edit.addState': 'Добавить штат (лицензию)',
+  'profile.nameMismatch.title': 'Синяя галочка скрыта',
+  'profile.nameMismatch.body':
+      'Имя отличается от имени в проверенных документах. Всё работает как обычно. Верните прежнее имя или подтвердите новое документом.',
+  'profile.nameMismatch.action': 'Подтвердить новое имя',
 };
 
 const file06En = <String, String>{
@@ -334,4 +338,8 @@ const file06En = <String, String>{
   'profile.edit.firms.helper': 'Up to {max} firms. Type a name and tap "+".',
   'profile.edit.firms.add': 'Add firm',
   'profile.edit.addState': 'Add a state (license)',
+  'profile.nameMismatch.title': 'Blue check hidden',
+  'profile.nameMismatch.body':
+      'Your name differs from the one on your verified documents. Everything keeps working. Change it back or confirm the new name with a document.',
+  'profile.nameMismatch.action': 'Confirm new name',
 };
