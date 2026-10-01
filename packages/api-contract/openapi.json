@@ -888,7 +888,7 @@
             }
           },
           "409": {
-            "description": "Conflict: ACCOUNT_EXISTS_USE_OTHER_METHOD, IDEMPOTENCY_KEY_CONFLICT",
+            "description": "Conflict: ACCOUNT_EXISTS_USE_OTHER_METHOD, IDEMPOTENCY_KEY_CONFLICT, AUTH_OTHER_DEVICE_ACTIVE",
             "content": {
               "application/json": {
                 "schema": {
@@ -33874,6 +33874,10 @@
             "type": "string",
             "nullable": true
           },
+          "contactEmail": {
+            "type": "string",
+            "nullable": true
+          },
           "files": {
             "type": "array",
             "items": {
@@ -33954,6 +33958,12 @@
           "contactPhone": {
             "type": "string",
             "example": "+13125550123"
+          },
+          "contactEmail": {
+            "type": "string",
+            "maxLength": 254,
+            "format": "email",
+            "description": "Email tasks: the address."
           },
           "fileIds": {
             "maxItems": 200,

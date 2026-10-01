@@ -444,13 +444,16 @@ class AssistantBanner extends StatelessWidget {
       ),
       color: colors.goldTint,
       child: Row(
+        // Owner 2026-10-01: centred.
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(Icons.support_agent_rounded,
               size: AppSizes.iconSm, color: colors.gold),
           const SizedBox(width: AppSpacing.sm),
-          Expanded(
+          Flexible(
             child: Text(
               text,
+              textAlign: TextAlign.center,
               style: typography.bodySmall.copyWith(
                 color: colors.text,
                 fontWeight: FontWeight.w600,

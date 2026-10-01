@@ -329,6 +329,12 @@ class _AppPaginatedListViewState<T> extends State<AppPaginatedListView<T>> {
           );
         }
         if (itemIndex == widget.items.length) {
+          // Nothing paginated here (e.g. a profile's posts tab): no empty
+          // footer gap between the header and the extra footer.
+          if (widget.items.isEmpty &&
+              widget.status == AppPaginationStatus.idle) {
+            return const SizedBox.shrink();
+          }
           return AppPaginationFooter(
             status: widget.status,
             labels: widget.labels,

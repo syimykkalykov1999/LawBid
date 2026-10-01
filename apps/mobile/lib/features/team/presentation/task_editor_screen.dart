@@ -12,6 +12,8 @@ import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/features/team/presentation/task_sheet.dart';
 import 'package:lawbid/features/team/presentation/task_widgets.dart';
+import 'package:lawbid/features/team/presentation/task_kind_form.dart';
+import 'package:lawbid/core/l10n/translator.dart';
 
 /// OQ-048 (owner 2026-09-30): a new task — set by an assistant for the
 /// attorney or by the attorney for themself: what (call, meeting, court,
@@ -34,6 +36,7 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
   final _location = TextEditingController();
   final _contactName = TextEditingController();
   final _contactPhone = TextEditingController();
+  final _contactEmail = TextEditingController();
   final _notes = TextEditingController();
   DateTime? _due;
   WorkItem? _case;
@@ -48,6 +51,7 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
     _location.dispose();
     _contactName.dispose();
     _contactPhone.dispose();
+    _contactEmail.dispose();
     _notes.dispose();
     super.dispose();
   }
@@ -131,6 +135,12 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
     final t = ref.read(translatorProvider);
     setState(() => _tried = true);
     if (_title.text.trim().isEmpty || _uploading > 0) return;
+    final form = TaskKindForm.of(_kind);
+    if (form.email &&
+        _contactEmail.text.trim().isNotEmpty &&
+        !_emailRe.hasMatch(_contactEmail.text.trim())) {
+      return;
+    }
     setState(() => _saving = true);
     try {
       await ref.read(teamRepositoryProvider).createTask(TaskDraft(
@@ -138,10 +148,11 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
             title: _title.text.trim(),
             notes: _clean(_notes),
             dueAt: _due,
-            location: _clean(_location),
+            location: form.where != null ? _clean(_location) : null,
             caseId: _case?.caseId,
-            contactName: _clean(_contactName),
-            contactPhone: _clean(_contactPhone),
+            contactName: form.contact != null ? _clean(_contactName) : null,
+            contactPhone: form.phone ? _clean(_contactPhone) : null,
+            contactEmail: form.email ? _clean(_contactEmail) : null,
             fileIds: [
               for (final f in _files)
                 if (f.fileId != null) f.fileId!,
@@ -159,6 +170,120 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
         showAppSnackBar(context, errorText(t, e));
       }
     }
+  }
+
+  /// The kind's own fields: what, when, where, who, case, details.
+  List<Widget> _fields(Translator t, L10nFormats formats, TextStyle label) {
+    final f = TaskKindForm.of(_kind);
+    String k(String key) => t.t('tasks.f.$key');
+    final emailBad = _tried &&
+        _contactEmail.text.trim().isNotEmpty &&
+        !_emailRe.hasMatch(_contactEmail.text.trim());
+    return [
+      AppTextField(
+        key: const ValueKey('task-title'),
+        controller: _title,
+        label: k(f.title),
+        hintText: k('${f.title}Hint'),
+        maxLength: 200,
+        textCapitalization: TextCapitalization.sentences,
+        errorText: _tried && _title.text.trim().isEmpty
+            ? t.t('post.create.required')
+            : null,
+        onChanged: (_) => _tried ? setState(() {}) : null,
+      ),
+      const SizedBox(height: AppSpacing.md),
+      Text(k(f.when), style: label),
+      const SizedBox(height: AppSpacing.sm),
+      AppCard(
+        padding: EdgeInsets.zero,
+        child: AppListRow(
+          key: const ValueKey('task-when'),
+          icon: Icons.event_outlined,
+          label:
+              _due == null ? t.t('tasks.field.date') : formats.dateTime(_due!),
+          trailingText: _due == null ? null : '✕',
+          onTap: () async {
+            if (_due != null) {
+              setState(() => _due = null);
+              return;
+            }
+            final picked = await pickDateTime(context);
+            if (picked != null) setState(() => _due = picked);
+          },
+        ),
+      ),
+      if (f.where != null) ...[
+        const SizedBox(height: AppSpacing.lg),
+        AppTextField(
+          key: const ValueKey('task-location'),
+          controller: _location,
+          label: k(f.where!),
+          leading: const Icon(Icons.place_outlined),
+          maxLength: 300,
+        ),
+      ],
+      if (f.contact != null) ...[
+        const SizedBox(height: AppSpacing.md),
+        AppTextField(
+          key: const ValueKey('task-contact-name'),
+          controller: _contactName,
+          label: k(f.contact!),
+          leading: const Icon(Icons.person_outline_rounded),
+          textCapitalization: TextCapitalization.words,
+          maxLength: 120,
+        ),
+      ],
+      if (f.phone) ...[
+        const SizedBox(height: AppSpacing.sm),
+        AppTextField(
+          key: const ValueKey('task-contact-phone'),
+          controller: _contactPhone,
+          label: t.t('tasks.field.contactPhone'),
+          leading: const Icon(Icons.phone_outlined),
+          keyboardType: TextInputType.phone,
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(r'[+0-9 ()\-]')),
+          ],
+          maxLength: 32,
+        ),
+      ],
+      if (f.email) ...[
+        const SizedBox(height: AppSpacing.sm),
+        AppTextField(
+          key: const ValueKey('task-contact-email'),
+          controller: _contactEmail,
+          label: k('email'),
+          leading: const Icon(Icons.mail_outline_rounded),
+          keyboardType: TextInputType.emailAddress,
+          errorText: emailBad ? t.t('tasks.emailInvalid') : null,
+          maxLength: 254,
+        ),
+      ],
+      if (f.caseLink) ...[
+        const SizedBox(height: AppSpacing.md),
+        AppCard(
+          padding: EdgeInsets.zero,
+          child: AppListRow(
+            key: const ValueKey('task-case'),
+            icon: Icons.work_outline_rounded,
+            label: _case?.title ?? t.t('tasks.field.casePick'),
+            subtitle: _case == null ? null : t.t('tasks.field.case'),
+            onTap: _pickCase,
+          ),
+        ),
+      ],
+      const SizedBox(height: AppSpacing.lg),
+      AppTextField(
+        key: const ValueKey('task-notes'),
+        controller: _notes,
+        label: k(f.notes),
+        maxLines: 4,
+        maxLength: 2000,
+        textCapitalization: TextCapitalization.sentences,
+      ),
+      const SizedBox(height: AppSpacing.md),
+    ];
   }
 
   @override
@@ -213,144 +338,63 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
             ],
           ),
           const SizedBox(height: AppSpacing.lg),
-          AppTextField(
-            key: const ValueKey('task-title'),
-            controller: _title,
-            label: t.t('tasks.field.title'),
-            hintText: t.t('tasks.field.titleHint'),
-            maxLength: 200,
-            textCapitalization: TextCapitalization.sentences,
-            errorText: _tried && _title.text.trim().isEmpty
-                ? t.t('post.create.required')
-                : null,
-            onChanged: (_) => _tried ? setState(() {}) : null,
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Text(t.t('tasks.field.when'), style: label),
-          const SizedBox(height: AppSpacing.sm),
-          AppCard(
-            padding: EdgeInsets.zero,
-            child: AppListRow(
-              key: const ValueKey('task-when'),
-              icon: Icons.event_outlined,
-              label: _due == null
-                  ? t.t('tasks.field.date')
-                  : formats.dateTime(_due!),
-              trailingText: _due == null ? null : '✕',
-              onTap: () async {
-                if (_due != null) {
-                  setState(() => _due = null);
-                  return;
-                }
-                final picked = await pickDateTime(context);
-                if (picked != null) setState(() => _due = picked);
-              },
-            ),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          AppTextField(
-            key: const ValueKey('task-location'),
-            controller: _location,
-            label: t.t('tasks.field.where'),
-            leading: const Icon(Icons.place_outlined),
-            maxLength: 300,
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Text(t.t('tasks.field.contact'), style: label),
-          const SizedBox(height: AppSpacing.sm),
-          AppTextField(
-            key: const ValueKey('task-contact-name'),
-            controller: _contactName,
-            label: t.t('tasks.field.contactName'),
-            leading: const Icon(Icons.person_outline_rounded),
-            textCapitalization: TextCapitalization.words,
-            maxLength: 120,
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          AppTextField(
-            key: const ValueKey('task-contact-phone'),
-            controller: _contactPhone,
-            label: t.t('tasks.field.contactPhone'),
-            leading: const Icon(Icons.phone_outlined),
-            keyboardType: TextInputType.phone,
-            inputFormatters: [
-              FilteringTextInputFormatter.allow(RegExp(r'[+0-9 ()\-]')),
-            ],
-            maxLength: 32,
-          ),
-          const SizedBox(height: AppSpacing.md),
-          AppCard(
-            padding: EdgeInsets.zero,
-            child: AppListRow(
-              key: const ValueKey('task-case'),
-              icon: Icons.work_outline_rounded,
-              label: _case?.title ?? t.t('tasks.field.casePick'),
-              subtitle: _case == null ? null : t.t('tasks.field.case'),
-              onTap: _pickCase,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          AppTextField(
-            key: const ValueKey('task-notes'),
-            controller: _notes,
-            label: t.t('tasks.field.notes'),
-            maxLines: 4,
-            maxLength: 2000,
-            textCapitalization: TextCapitalization.sentences,
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Text(t.t('tasks.field.files'), style: label),
-          const SizedBox(height: AppSpacing.sm),
-          for (final (i, f) in _files.indexed)
-            Padding(
-              padding: const EdgeInsets.only(bottom: AppSpacing.xs),
-              child: Row(
-                children: [
-                  Icon(
-                    f.failed
-                        ? Icons.error_outline_rounded
-                        : f.fileId == null
-                            ? Icons.cloud_upload_outlined
-                            : Icons.check_circle_outline_rounded,
-                    size: AppSizes.iconSm,
-                    color: f.failed
-                        ? colors.dangerText
-                        : f.fileId == null
-                            ? colors.textSecondary
-                            : colors.success,
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  Expanded(
-                    child: Text(
-                      f.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: typography.bodySmall.copyWith(color: colors.text),
+          // Owner 2026-10-01: the fields below follow the kind of task.
+          ..._fields(t, formats, label),
+          if (TaskKindForm.of(_kind).files) ...[
+            Text(t.t('tasks.field.files'), style: label),
+            const SizedBox(height: AppSpacing.sm),
+            for (final (i, f) in _files.indexed)
+              Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+                child: Row(
+                  children: [
+                    Icon(
+                      f.failed
+                          ? Icons.error_outline_rounded
+                          : f.fileId == null
+                              ? Icons.cloud_upload_outlined
+                              : Icons.check_circle_outline_rounded,
+                      size: AppSizes.iconSm,
+                      color: f.failed
+                          ? colors.dangerText
+                          : f.fileId == null
+                              ? colors.textSecondary
+                              : colors.success,
                     ),
-                  ),
-                  if (f.fileId == null && !f.failed)
-                    const SizedBox.square(
-                      dimension: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  else
-                    AppIconButton(
-                      icon: const Icon(Icons.close_rounded),
-                      semanticLabel: t.t('common.delete'),
-                      onPressed: () => setState(() => _files.removeAt(i)),
+                    const SizedBox(width: AppSpacing.sm),
+                    Expanded(
+                      child: Text(
+                        f.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style:
+                            typography.bodySmall.copyWith(color: colors.text),
+                      ),
                     ),
-                ],
+                    if (f.fileId == null && !f.failed)
+                      const SizedBox.square(
+                        dimension: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    else
+                      AppIconButton(
+                        icon: const Icon(Icons.close_rounded),
+                        semanticLabel: t.t('common.delete'),
+                        onPressed: () => setState(() => _files.removeAt(i)),
+                      ),
+                  ],
+                ),
+              ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                key: const ValueKey('task-attach'),
+                onPressed: _attach,
+                icon: const Icon(Icons.attach_file_rounded),
+                label: Text(t.t('tasks.field.attach')),
               ),
             ),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton.icon(
-              key: const ValueKey('task-attach'),
-              onPressed: _attach,
-              icon: const Icon(Icons.attach_file_rounded),
-              label: Text(t.t('tasks.field.attach')),
-            ),
-          ),
+          ],
           const SizedBox(height: AppSpacing.xl),
           AppButton(
             key: const ValueKey('task-save'),
@@ -424,3 +468,5 @@ class _KindTile extends StatelessWidget {
     );
   }
 }
+
+final _emailRe = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');

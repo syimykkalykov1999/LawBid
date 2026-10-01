@@ -134,12 +134,48 @@ void main() {
     expect(find.text('Fill in this field'), findsOneWidget);
     await tester.enterText(
         find.byKey(const ValueKey('task-title')), 'Hearing at 10');
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pumpAndSettle();
     await tester.scrollUntilVisible(save, 300,
         scrollable: find.byType(Scrollable).first);
     await tester.tap(save);
     await tester.pump();
     await tester.pump();
     expect(repo.calls, contains('create:court:Hearing at 10'));
+  });
+
+  testWidgets('TaskEditorScreen: each kind asks for its own fields',
+      (tester) async {
+    // A tall screen: the whole form is built at once.
+    tester.view.physicalSize = const Size(1200, 4000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(uxApp(
+      const Scaffold(body: TaskEditorScreen()),
+      theme: AppTheme.light(),
+      size: const Size(1200, 4000),
+      disableAnimations: true,
+      overrides: uxOverrides(extra: [
+        teamRepositoryProvider.overrideWithValue(repo),
+      ]),
+    ));
+    await tester.pump();
+    // Call: whom + phone, no address / email.
+    expect(find.text('Whom to call'), findsOneWidget);
+    expect(find.byKey(const ValueKey('task-contact-phone')), findsOneWidget);
+    expect(find.byKey(const ValueKey('task-location')), findsNothing);
+    expect(find.byKey(const ValueKey('task-contact-email')), findsNothing);
+    // Email: whom + address.
+    await tester.tap(find.byKey(const ValueKey('task-kind-email')));
+    await tester.pump();
+    expect(find.text('Whom to write to'), findsOneWidget);
+    expect(find.byKey(const ValueKey('task-contact-email')), findsOneWidget);
+    expect(find.byKey(const ValueKey('task-contact-phone')), findsNothing);
+    // Visit: where to go.
+    await tester.ensureVisible(find.byKey(const ValueKey('task-kind-visit')));
+    await tester.tap(find.byKey(const ValueKey('task-kind-visit')));
+    await tester.pump();
+    expect(find.text('Where to go (address)'), findsOneWidget);
   });
 
   group('Team', () {

@@ -5,6 +5,7 @@ import {
   ArrayUnique,
   IsArray,
   IsBoolean,
+  IsEmail,
   IsIn,
   IsISO8601,
   IsObject,
@@ -334,6 +335,16 @@ export class CreateTaskDto {
   @Matches(PHONE)
   contactPhone?: string;
 
+  @ApiPropertyOptional({
+    maxLength: 254,
+    description: 'Email tasks: the address.',
+  })
+  @IsOptional()
+  @Transform(trim)
+  @IsEmail()
+  @MaxLength(254)
+  contactEmail?: string;
+
   // Owner 2026-10-01: practically unlimited (a technical cap only).
   @ApiPropertyOptional({ type: [String], maxItems: 200 })
   @IsOptional()
@@ -383,6 +394,8 @@ export class TaskDto {
   @ApiPropertyOptional({ type: String, nullable: true }) contactName!:
     string | null;
   @ApiPropertyOptional({ type: String, nullable: true }) contactPhone!:
+    string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) contactEmail!:
     string | null;
   @ApiProperty({ type: [TaskFileDto] }) files!: TaskFileDto[];
   @ApiProperty({ enum: TASK_STATUSES, enumName: 'AttorneyTaskStatus' })

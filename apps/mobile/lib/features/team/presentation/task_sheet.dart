@@ -209,6 +209,19 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
                   ? () => launchUrl(Uri(scheme: 'tel', path: task.contactPhone))
                   : null,
             ),
+          if (task.contactEmail?.isNotEmpty ?? false)
+            _InfoRow(
+              icon: Icons.mail_outline_rounded,
+              text: task.contactEmail!,
+              action: t.t('tasks.write'),
+              onAction: () => launchUrl(
+                Uri(
+                  scheme: 'mailto',
+                  path: task.contactEmail,
+                  queryParameters: {'subject': task.title},
+                ),
+              ),
+            ),
           if (task.caseTitle?.isNotEmpty ?? false)
             _InfoRow(icon: Icons.work_outline_rounded, text: task.caseTitle!),
           if (task.notes?.isNotEmpty ?? false) ...[

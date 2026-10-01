@@ -73,6 +73,7 @@ export class TasksService {
         case_id: dto.caseId ?? null,
         contact_name: dto.contactName ?? null,
         contact_phone: dto.contactPhone ?? null,
+        contact_email: dto.contactEmail ?? null,
         file_ids: fileIds,
       },
       include: INCLUDE,
@@ -216,6 +217,7 @@ export class TasksService {
       caseTitle: t.case?.title ?? null,
       contactName: t.contact_name,
       contactPhone: t.contact_phone,
+      contactEmail: t.contact_email,
       files: t.file_ids.map((id) => ({
         fileId: id,
         url: urls.get(id)?.url ?? null,

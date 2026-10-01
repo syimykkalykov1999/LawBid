@@ -133,7 +133,7 @@ class _Chooser extends ConsumerWidget {
                   option(
                       _Kind.post,
                       Icons.edit_note_rounded,
-                      t.t(direct ? 'create.post' : 'assistant.plus.post'),
+                      t.t('create.post'),
                       t.t(direct
                           ? 'create.post.subAttorney'
                           : 'assistant.plus.post.hint')),

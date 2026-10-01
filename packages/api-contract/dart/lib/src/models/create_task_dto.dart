@@ -19,6 +19,7 @@ class CreateTaskDto {
     this.caseId,
     this.contactName,
     this.contactPhone,
+    this.contactEmail,
     this.fileIds,
   });
 
@@ -33,6 +34,9 @@ class CreateTaskDto {
   final String? caseId;
   final String? contactName;
   final String? contactPhone;
+
+  /// Email tasks: the address.
+  final String? contactEmail;
   final List<String>? fileIds;
 
   Map<String, Object?> toJson() => _$CreateTaskDtoToJson(this);

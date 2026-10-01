@@ -247,6 +247,8 @@ class TaskRow extends StatelessWidget {
                                   .where((x) => x.isNotEmpty)
                                   .join(' · '),
                             ),
+                          if (task.contactEmail?.isNotEmpty ?? false)
+                            line(Icons.mail_outline_rounded, task.contactEmail!),
                           if (task.caseTitle?.isNotEmpty ?? false)
                             line(Icons.work_outline_rounded, task.caseTitle!),
                           if (task.outcomeNote?.isNotEmpty ?? false) ...[

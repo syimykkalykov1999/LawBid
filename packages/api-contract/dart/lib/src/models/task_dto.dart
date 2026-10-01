@@ -26,6 +26,7 @@ class TaskDto {
     this.caseTitle,
     this.contactName,
     this.contactPhone,
+    this.contactEmail,
     this.outcomeNote,
     this.rescheduledTo,
     this.createdByName,
@@ -45,6 +46,7 @@ class TaskDto {
   final String? caseTitle;
   final String? contactName;
   final String? contactPhone;
+  final String? contactEmail;
   final List<TaskFileDto> files;
   final AttorneyTaskStatus status;
   final String? outcomeNote;

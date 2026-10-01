@@ -171,6 +171,7 @@ class ApiTeamRepository implements TeamRepository {
         caseTitle: t.caseTitle,
         contactName: t.contactName,
         contactPhone: t.contactPhone,
+        contactEmail: t.contactEmail,
         files: [
           for (final f in t.files)
             TaskFile(fileId: f.fileId, url: f.url, mime: f.mime),
@@ -382,6 +383,7 @@ class ApiTeamRepository implements TeamRepository {
               caseId: d.caseId,
               contactName: d.contactName,
               contactPhone: d.contactPhone,
+              contactEmail: d.contactEmail,
               fileIds: d.fileIds.isEmpty ? null : d.fileIds,
             ),
             extras: const {RequestFlags.createsResource: true},

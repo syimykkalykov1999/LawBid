@@ -2319,6 +2319,7 @@ model AttorneyTask {
   case                     Case?                @relation(fields: [case_id], references: [id], onDelete: SetNull)
   contact_name             String?
   contact_phone            String?
+  contact_email            String?              @db.String(254)
   file_ids                 String[]             @default([]) @db.Uuid
   status                   AttorneyTaskStatus   @default(open)
   outcome_note             String?

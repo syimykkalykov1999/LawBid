@@ -18,6 +18,7 @@ CreateTaskDto _$CreateTaskDtoFromJson(Map<String, dynamic> json) =>
       caseId: json['caseId'] as String?,
       contactName: json['contactName'] as String?,
       contactPhone: json['contactPhone'] as String?,
+      contactEmail: json['contactEmail'] as String?,
       fileIds: (json['fileIds'] as List<dynamic>?)
           ?.map((e) => e as String)
           .toList(),
@@ -33,5 +34,6 @@ Map<String, dynamic> _$CreateTaskDtoToJson(CreateTaskDto instance) =>
       'caseId': ?instance.caseId,
       'contactName': ?instance.contactName,
       'contactPhone': ?instance.contactPhone,
+      'contactEmail': ?instance.contactEmail,
       'fileIds': ?instance.fileIds,
     };

@@ -296,6 +296,7 @@ class TaskItem {
     this.caseTitle,
     this.contactName,
     this.contactPhone,
+    this.contactEmail,
     this.files = const [],
     this.outcomeNote,
     this.rescheduledTo,
@@ -313,6 +314,7 @@ class TaskItem {
   final String? caseTitle;
   final String? contactName;
   final String? contactPhone;
+  final String? contactEmail;
   final List<TaskFile> files;
   final TaskStatus status;
   final String? outcomeNote;
@@ -339,6 +341,7 @@ class TaskDraft {
     this.caseId,
     this.contactName,
     this.contactPhone,
+    this.contactEmail,
     this.fileIds = const [],
   });
 
@@ -350,6 +353,7 @@ class TaskDraft {
   final String? caseId;
   final String? contactName;
   final String? contactPhone;
+  final String? contactEmail;
   final List<String> fileIds;
 }
 
