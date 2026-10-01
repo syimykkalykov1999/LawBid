@@ -11,7 +11,7 @@ import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/features/team/presentation/team_widgets.dart';
 import 'package:lawbid/features/team/team_routes.dart';
 
-enum _TeamView { requests, activity }
+enum _TeamView { activity, requests }
 
 /// OQ-048 (owner 2026-09-30) — Inbox → «Команда» (the attorney only):
 /// approval requests from assistants (approve publishes in the attorney's
@@ -24,7 +24,7 @@ class TeamInboxTab extends ConsumerStatefulWidget {
 }
 
 class _TeamInboxTabState extends ConsumerState<TeamInboxTab> {
-  _TeamView _view = _TeamView.requests;
+  _TeamView _view = _TeamView.activity;
   final Set<String> _busy = {};
 
   Future<void> _decide(AssistantRequest r, {required bool approve}) async {
@@ -63,17 +63,48 @@ class _TeamInboxTabState extends ConsumerState<TeamInboxTab> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     return Column(
       children: [
-        // Owner 2026-10-01: the team settings icon sits at the right edge
-        // straight under the notifications bell (same inset), on its own
-        // line — it used to overlap "Requests" on narrow screens; Requests ·
-        // Activity stay centred below it.
-        SizedBox(
-          width: double.infinity,
-          child: Align(
-            alignment: Alignment.centerRight,
-            child: Padding(
-              padding: const EdgeInsets.only(right: AppSpacing.xs),
-              child: SizedBox.square(
+        // Owner 2026-10-01: one line — Activity · Requests centred, the
+        // team settings icon at the right edge straight under the bell.
+        // An empty slot of the same width on the left keeps the chips
+        // centred and never under the icon.
+        Padding(
+          padding: const EdgeInsets.only(
+            top: AppSpacing.xs,
+            bottom: AppSpacing.sm,
+            right: AppSpacing.xs,
+            left: AppSpacing.xs,
+          ),
+          child: Row(
+            children: [
+              const SizedBox(width: AppSizes.touchTarget),
+              Expanded(
+                child: Center(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        AppChip(
+                          key: const ValueKey('team-view-activity'),
+                          label: t.t('team.activity'),
+                          selected: _view == _TeamView.activity,
+                          onTap: () =>
+                              setState(() => _view = _TeamView.activity),
+                        ),
+                        const SizedBox(width: AppSpacing.sm),
+                        AppChip(
+                          key: const ValueKey('team-view-requests'),
+                          label: t.t('team.requests'),
+                          selected: _view == _TeamView.requests,
+                          onTap: () =>
+                              setState(() => _view = _TeamView.requests),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              SizedBox.square(
                 dimension: AppSizes.touchTarget,
                 child: AppIconButton(
                   key: const ValueKey('team-settings'),
@@ -85,28 +116,6 @@ class _TeamInboxTabState extends ConsumerState<TeamInboxTab> {
                   semanticLabel: t.t('team.title'),
                   onPressed: () => context.push(TeamRoutes.team),
                 ),
-              ),
-            ),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-          child: Wrap(
-            alignment: WrapAlignment.center,
-            spacing: AppSpacing.sm,
-            runSpacing: AppSpacing.xs,
-            children: [
-              AppChip(
-                key: const ValueKey('team-view-requests'),
-                label: t.t('team.requests'),
-                selected: _view == _TeamView.requests,
-                onTap: () => setState(() => _view = _TeamView.requests),
-              ),
-              AppChip(
-                key: const ValueKey('team-view-activity'),
-                label: t.t('team.activity'),
-                selected: _view == _TeamView.activity,
-                onTap: () => setState(() => _view = _TeamView.activity),
               ),
             ],
           ),

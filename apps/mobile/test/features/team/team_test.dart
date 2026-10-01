@@ -388,6 +388,10 @@ void main() {
         (tester) async {
       repo.requestList = [makeRequest('r1'), makeRequest('r2')];
       await pump(tester, const TeamInboxTab());
+      // Activity opens first (owner 2026-10-01); Requests is next to it.
+      await tester.tap(find.byKey(const ValueKey('team-view-requests')));
+      await tester.pump();
+      await tester.pump();
       expect(find.text('Custody basics'), findsNWidgets(2));
       await tester.tap(find.byKey(const ValueKey('request-approve-r1')));
       await tester.pump();
