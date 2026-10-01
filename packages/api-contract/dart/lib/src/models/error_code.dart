@@ -114,6 +114,8 @@ enum ErrorCode {
   assistantInviteNotFound('ASSISTANT_INVITE_NOT_FOUND'),
   @JsonValue('ASSISTANT_LIABILITY_REQUIRED')
   assistantLiabilityRequired('ASSISTANT_LIABILITY_REQUIRED'),
+  @JsonValue('TASK_CLOSED')
+  taskClosed('TASK_CLOSED'),
   @JsonValue('ATTORNEY_NOT_VERIFIED')
   attorneyNotVerified('ATTORNEY_NOT_VERIFIED'),
   @JsonValue('USERNAME_TAKEN')

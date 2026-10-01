@@ -47,6 +47,59 @@ Future<T?> showAppBottomSheet<T>({
         top: Radius.circular(AppRadii.sheet),
       ),
     ),
-    builder: builder,
+    // Owner 2026-10-01: every sheet closes with a swipe down — also when
+    // its whole body scrolls (the list used to swallow the drag).
+    builder: (ctx) => PullDownToClose(child: builder(ctx)),
   );
+}
+
+/// Pops the current route when the user pulls a scrollable down past its
+/// top (Android overscroll or iOS bounce). Wraps sheets and modal pages.
+class PullDownToClose extends StatefulWidget {
+  const PullDownToClose({required this.child, this.threshold = 72, super.key});
+
+  final Widget child;
+
+  /// Pixels pulled beyond the top that close the route.
+  final double threshold;
+
+  @override
+  State<PullDownToClose> createState() => _PullDownToCloseState();
+}
+
+class _PullDownToCloseState extends State<PullDownToClose> {
+  double _pulled = 0;
+  bool _closing = false;
+
+  void _close() {
+    if (_closing) return;
+    _closing = true;
+    Navigator.of(context).maybePop();
+  }
+
+  bool _onScroll(ScrollNotification n) {
+    if (n.metrics.axis != Axis.vertical || _closing) return false;
+    if (n is OverscrollNotification &&
+        n.dragDetails != null &&
+        n.overscroll < 0 &&
+        n.metrics.pixels <= n.metrics.minScrollExtent) {
+      _pulled -= n.overscroll;
+      if (_pulled > widget.threshold) _close();
+    } else if (n is ScrollUpdateNotification && n.dragDetails != null) {
+      // iOS bounce: the list goes below its top.
+      final below = n.metrics.minScrollExtent - n.metrics.pixels;
+      if (below > widget.threshold) _close();
+      if ((n.scrollDelta ?? 0) > 0) _pulled = 0;
+    } else if (n is ScrollEndNotification) {
+      _pulled = 0;
+    }
+    return false;
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      NotificationListener<ScrollNotification>(
+        onNotification: _onScroll,
+        child: widget.child,
+      );
 }

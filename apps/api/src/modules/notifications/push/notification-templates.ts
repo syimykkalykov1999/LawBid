@@ -334,6 +334,17 @@ export const NOTIFICATION_TEMPLATES: Partial<
       body: 'В ваш аккаунт вошли с нового устройства.',
     },
   },
+  security_phone_changed: {
+    group: 'system',
+    en: {
+      title: 'Phone number changed',
+      body: 'Support changed the phone number on your account at your request. Not you? Contact support right away.',
+    },
+    ru: {
+      title: 'Номер телефона изменён',
+      body: 'Поддержка сменила номер телефона в вашем аккаунте по вашему запросу. Это были не вы? Сразу напишите в поддержку.',
+    },
+  },
 };
 
 /** Types without a template yet (docs/05 adds theirs). */

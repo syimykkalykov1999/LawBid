@@ -13,8 +13,10 @@ TaskItem makeTask(
   DateTime? dueAt,
   String? by = 'Sam',
   String? note,
+  List<TaskStep> steps = const [],
 }) =>
     TaskItem(
+      steps: steps,
       id: id,
       kind: kind,
       title: 'Task $id',
@@ -184,6 +186,9 @@ class FakeTeamRepository implements TeamRepository {
   @override
   Future<TaskItem> createTask(TaskDraft draft) async {
     calls.add('create:${draft.kind.name}:${draft.title}');
+    if (draft.steps.isNotEmpty) {
+      calls.add('steps:${draft.steps.map((s) => s.title).join('|')}');
+    }
     final t = makeTask('new', kind: draft.kind, by: null);
     active = [...active, t];
     return t;
@@ -208,6 +213,63 @@ class FakeTeamRepository implements TeamRepository {
 
   @override
   Future<String> uploadTaskFile(Uint8List bytes, String mime) async => 'f1';
+
+  TaskItem _replace(String id, List<TaskStep> Function(List<TaskStep>) f) {
+    final t = [...active, ...done].firstWhere((t) => t.id == id);
+    final steps = f(t.steps);
+    final all = steps.isNotEmpty && steps.every((s) => s.checked);
+    final updated = makeTask(
+      id,
+      kind: t.kind,
+      by: t.createdByName,
+      dueAt: t.dueAt,
+      steps: steps,
+      status: all ? TaskStatus.done : TaskStatus.open,
+    );
+    active = [for (final x in active) x.id == id ? updated : x];
+    return updated;
+  }
+
+  @override
+  Future<TaskItem> addTaskStep(String taskId, TaskStepDraft step) async {
+    calls.add('step+:$taskId:${step.title}');
+    return _replace(taskId, (s) => [
+          ...s,
+          TaskStep(id: 's${s.length + 1}', title: step.title, dueAt: step.dueAt),
+        ]);
+  }
+
+  @override
+  Future<TaskItem> updateTaskStep(
+    String taskId,
+    String stepId, {
+    TaskStatus? status,
+    String? note,
+    DateTime? dueAt,
+  }) async {
+    calls.add('step:$taskId:$stepId:${status?.wire}:$note');
+    return _replace(taskId, (s) => [
+          for (final x in s)
+            x.id == stepId
+                ? TaskStep(
+                    id: x.id,
+                    title: x.title,
+                    status: status ?? x.status,
+                    dueAt: dueAt ?? x.dueAt,
+                    note: note ?? x.note,
+                  )
+                : x,
+        ]);
+  }
+
+  @override
+  Future<TaskItem> removeTaskStep(String taskId, String stepId) async {
+    calls.add('step-:$taskId:$stepId');
+    return _replace(taskId, (s) => [
+          for (final x in s)
+            if (x.id != stepId) x,
+        ]);
+  }
 
   @override
   Future<BidDraft?> bidDraft(String caseId) async => null;

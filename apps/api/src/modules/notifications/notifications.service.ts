@@ -55,6 +55,7 @@ export const NOTIFICATION_CATEGORY: Record<
   case_history_export_ready: 'system',
   moderation_notice: 'system',
   security_new_device: 'system',
+  security_phone_changed: 'system',
 };
 
 export interface NotificationEmit {

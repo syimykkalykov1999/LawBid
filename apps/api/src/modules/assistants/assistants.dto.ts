@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   ArrayUnique,
@@ -16,6 +16,7 @@ import {
   Matches,
   MaxLength,
   MinLength,
+  ValidateNested,
 } from 'class-validator';
 import { ASSISTANT_DUTIES, type AssistantDuty } from './assistant-duties';
 
@@ -287,6 +288,102 @@ export const TASK_STATUSES = [
   'cancelled',
 ] as const;
 
+/** Owner 2026-10-01: one checklist step inside a task. */
+export class TaskStepInputDto {
+  @ApiPropertyOptional({ enum: TASK_KINDS, enumName: 'AttorneyTaskKind' })
+  @IsOptional()
+  @IsIn(TASK_KINDS)
+  kind?: (typeof TASK_KINDS)[number];
+
+  @ApiProperty({ minLength: 1, maxLength: 160 })
+  @Transform(trim)
+  @IsString()
+  @MinLength(1)
+  @MaxLength(160)
+  title!: string;
+
+  @ApiPropertyOptional({ format: 'date-time' })
+  @IsOptional()
+  @IsISO8601()
+  dueAt?: string;
+
+  @ApiPropertyOptional({ maxLength: 200 })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(200)
+  location?: string;
+
+  @ApiPropertyOptional({ maxLength: 120 })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(120)
+  contactName?: string;
+
+  @ApiPropertyOptional({ example: '+13125550123' })
+  @IsOptional()
+  @Matches(PHONE)
+  contactPhone?: string;
+
+  @ApiPropertyOptional({ maxLength: 254 })
+  @IsOptional()
+  @Transform(trim)
+  @IsEmail()
+  @MaxLength(254)
+  contactEmail?: string;
+}
+
+export class UpdateTaskStepDto {
+  @ApiPropertyOptional({
+    enum: ['open', 'done', 'not_done'],
+    enumName: 'TaskStepStatus',
+  })
+  @IsOptional()
+  @IsIn(['open', 'done', 'not_done'])
+  status?: 'open' | 'done' | 'not_done';
+
+  @ApiPropertyOptional({ maxLength: 1000 })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(1000)
+  note?: string;
+
+  /** Move the step to another time (attorney or assistant). */
+  @ApiPropertyOptional({ format: 'date-time', nullable: true })
+  @IsOptional()
+  @IsISO8601()
+  dueAt?: string;
+}
+
+export class TaskStepDto {
+  @ApiProperty({ format: 'uuid' }) id!: string;
+  @ApiProperty() position!: number;
+  @ApiPropertyOptional({
+    enum: TASK_KINDS,
+    enumName: 'AttorneyTaskKind',
+    nullable: true,
+  })
+  kind!: (typeof TASK_KINDS)[number] | null;
+  @ApiProperty() title!: string;
+  @ApiPropertyOptional({ type: String, nullable: true }) dueAt!: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) location!:
+    string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) contactName!:
+    string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) contactPhone!:
+    string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) contactEmail!:
+    string | null;
+  @ApiProperty({ enum: TASK_STATUSES, enumName: 'AttorneyTaskStatus' })
+  status!: (typeof TASK_STATUSES)[number];
+  @ApiPropertyOptional({ type: String, nullable: true }) note!: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) doneAt!: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) createdByName!:
+    string | null;
+}
+
 export class CreateTaskDto {
   @ApiProperty({ enum: TASK_KINDS, enumName: 'AttorneyTaskKind' })
   @IsIn(TASK_KINDS)
@@ -352,6 +449,15 @@ export class CreateTaskDto {
   @ArrayMaxSize(200)
   @IsUUID('all', { each: true })
   fileIds?: string[];
+
+  /** Owner 2026-10-01: a checklist — as many steps as needed. */
+  @ApiPropertyOptional({ type: [TaskStepInputDto], maxItems: 100 })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(100)
+  @ValidateNested({ each: true })
+  @Type(() => TaskStepInputDto)
+  steps?: TaskStepInputDto[];
 }
 
 export class UpdateTaskStatusDto {
@@ -408,6 +514,7 @@ export class TaskDto {
     string | null;
   @ApiProperty() createdAt!: string;
   @ApiPropertyOptional({ type: String, nullable: true }) doneAt!: string | null;
+  @ApiProperty({ type: [TaskStepDto] }) steps!: TaskStepDto[];
 }
 
 export class TasksQueryDto {
@@ -440,4 +547,14 @@ export class TasksQueryDto {
   @IsOptional()
   @Length(10, 10)
   to?: string;
+}
+
+export class TaskStepParamDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID('all')
+  id!: string;
+
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID('all')
+  stepId!: string;
 }

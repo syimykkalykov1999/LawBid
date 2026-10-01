@@ -422,6 +422,104 @@ describe('Assistants (e2e, OQ-048)', () => {
 
   // OQ-049 (owner 2026-10-01): every access is switched on by the attorney,
   // who accepts responsibility; bids and direct publishing included.
+  it('one task, many steps: each with its own time, checked off one by one', async () => {
+    const att = await attorney(2);
+    const asst = await assistantUser();
+    await api()
+      .post('/api/v1/team')
+      .set(att.auth)
+      .send({
+        phone: asst.phone,
+        name: 'Ann P.',
+        duties: ['tasks'],
+        acceptLiability: true,
+      })
+      .expect(201);
+    await api()
+      .post('/api/v1/assistants/join/accept')
+      .set(asst.auth)
+      .expect(201);
+    const at = (h: number) =>
+      new Date(Date.now() + h * 3_600_000).toISOString();
+    const t = await api()
+      .post('/api/v1/tasks')
+      .set(asst.auth)
+      .send({
+        kind: 'call',
+        title: 'Monday calls',
+        steps: [
+          { title: 'Mr. Brown', contactPhone: '+13125550199', dueAt: at(2) },
+          { title: 'Ms. Lee', contactPhone: '+13125550198', dueAt: at(3) },
+          { kind: 'visit', title: 'Courthouse', location: '50 W Washington' },
+        ],
+      })
+      .expect(201);
+    const id = t.body.data.id as string;
+    const steps = t.body.data.steps as { id: string; title: string }[];
+    expect(steps.map((x) => x.title)).toEqual([
+      'Mr. Brown',
+      'Ms. Lee',
+      'Courthouse',
+    ]);
+    expect(t.body.data.steps[0]).toMatchObject({
+      status: 'open',
+      createdByName: 'Ann P.',
+      contactPhone: '+13125550199',
+    });
+    expect(t.body.data.steps[2]).toMatchObject({ kind: 'visit' });
+
+    // The assistant adds a step and moves a time, but can't check off.
+    const added = await api()
+      .post(`/api/v1/tasks/${id}/steps`)
+      .set(asst.auth)
+      .send({ title: 'Email the clerk', contactEmail: 'clerk@court.gov' })
+      .expect(201);
+    expect(added.body.data.steps).toHaveLength(4);
+    const fourth = added.body.data.steps[3].id as string;
+    await api()
+      .patch(`/api/v1/tasks/${id}/steps/${steps[0].id}`)
+      .set(asst.auth)
+      .send({ dueAt: at(5) })
+      .expect(200);
+    await api()
+      .patch(`/api/v1/tasks/${id}/steps/${steps[0].id}`)
+      .set(asst.auth)
+      .send({ status: 'done' })
+      .expect(403);
+
+    // The attorney removes one and checks the rest off, one by one.
+    await api()
+      .delete(`/api/v1/tasks/${id}/steps/${fourth}`)
+      .set(att.auth)
+      .expect(200);
+    for (const [i, s] of steps.entries()) {
+      const r = await api()
+        .patch(`/api/v1/tasks/${id}/steps/${s.id}`)
+        .set(att.auth)
+        .send({ status: 'done', note: i === 0 ? 'Confirmed' : undefined })
+        .expect(200);
+      // The task finishes only with the last checkmark.
+      expect(r.body.data.status).toBe(i === steps.length - 1 ? 'done' : 'open');
+    }
+    const told = await prisma.notification.findFirst({
+      where: { user_id: asst.id, type: 'assistant_result' },
+    });
+    expect(told).not.toBeNull();
+    // Unchecking one opens the task again.
+    const reopened = await api()
+      .patch(`/api/v1/tasks/${id}/steps/${steps[1].id}`)
+      .set(att.auth)
+      .send({ status: 'open' })
+      .expect(200);
+    expect(reopened.body.data.status).toBe('open');
+    expect(reopened.body.data.steps[0].note).toBe('Confirmed');
+    await api()
+      .patch(`/api/v1/tasks/${id}/steps/00000000-0000-4000-8000-000000000000`)
+      .set(att.auth)
+      .send({ status: 'done' })
+      .expect(404);
+  });
+
   it('access only with the attorney accepting responsibility; bids and publishing', async () => {
     const att = await attorney(1);
     const asst = await assistantUser();

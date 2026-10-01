@@ -8,6 +8,8 @@ import 'package:retrofit/retrofit.dart';
 import '../models/admin_user_card_envelope.dart';
 import '../models/admin_user_contacts_envelope.dart';
 import '../models/admin_user_list_item_list_envelope.dart';
+import '../models/change_user_phone_dto.dart';
+import '../models/phone_changed_envelope.dart';
 import '../models/role.dart';
 import '../models/sanction_result_envelope.dart';
 import '../models/status.dart';
@@ -56,6 +58,14 @@ abstract class AdminUsersClient {
   @POST('/admin/users/{id}/sessions/revoke')
   Future<SanctionResultEnvelope> revokeUserSessions({
     @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Change the phone on the user's request (sessions signed out, user notified)
+  @POST('/admin/users/{id}/phone')
+  Future<PhoneChangedEnvelope> changeUserPhone({
+    @Path('id') required String id,
+    @Body() required ChangeUserPhoneDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

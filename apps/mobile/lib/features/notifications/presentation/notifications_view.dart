@@ -89,7 +89,7 @@ String? notificationRoute({
       return AppRoutes.dataExport;
     case 'case_history_export_ready':
       return AppRoutes.caseHistory;
-    case 'security_new_device':
+    case 'security_new_device' || 'security_phone_changed':
       return AppRoutes.activeDevices;
     // OQ-048: Team requests → Inbox → Team; tasks / answers → Mine.
     case 'assistant_request' || 'assistant_joined':
@@ -134,6 +134,7 @@ IconData _icon(AppNotification n) => switch (n.type) {
       'mention' => Icons.alternate_email_rounded,
       'review_requested' || 'review_received' => Icons.star_rounded,
       'security_new_device' => Icons.devices_rounded,
+      'security_phone_changed' => Icons.phonelink_lock_rounded,
       'verification_update' => Icons.verified_rounded,
       'moderation_notice' => Icons.policy_rounded,
       'assistant_request' => Icons.fact_check_rounded,

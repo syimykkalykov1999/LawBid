@@ -15,6 +15,9 @@ TaskDto _$TaskDtoFromJson(Map<String, dynamic> json) => TaskDto(
       .toList(),
   status: AttorneyTaskStatus.fromJson(json['status'] as String),
   createdAt: json['createdAt'] as String,
+  steps: (json['steps'] as List<dynamic>)
+      .map((e) => TaskStepDto.fromJson(e as Map<String, dynamic>))
+      .toList(),
   notes: json['notes'] as String?,
   dueAt: json['dueAt'] as String?,
   location: json['location'] as String?,
@@ -48,4 +51,5 @@ Map<String, dynamic> _$TaskDtoToJson(TaskDto instance) => <String, dynamic>{
   'createdByName': ?instance.createdByName,
   'createdAt': instance.createdAt,
   'doneAt': ?instance.doneAt,
+  'steps': instance.steps.map((e) => e.toJson()).toList(),
 };

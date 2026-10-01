@@ -5,6 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'attorney_task_kind.dart';
+import 'task_step_input_dto.dart';
 
 part 'create_task_dto.g.dart';
 
@@ -21,6 +22,7 @@ class CreateTaskDto {
     this.contactPhone,
     this.contactEmail,
     this.fileIds,
+    this.steps,
   });
 
   factory CreateTaskDto.fromJson(Map<String, Object?> json) =>
@@ -38,6 +40,9 @@ class CreateTaskDto {
   /// Email tasks: the address.
   final String? contactEmail;
   final List<String>? fileIds;
+
+  /// Owner 2026-10-01: a checklist — as many steps as needed.
+  final List<TaskStepInputDto>? steps;
 
   Map<String, Object?> toJson() => _$CreateTaskDtoToJson(this);
 }

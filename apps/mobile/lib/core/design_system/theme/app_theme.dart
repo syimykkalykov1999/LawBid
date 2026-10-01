@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
 import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
 import 'package:lawbid/core/design_system/theme/app_typography_tokens.dart';
@@ -20,6 +21,15 @@ abstract final class AppTheme {
     final typography = AppTypographyTokens.standard();
 
     return ThemeData(
+      // Owner 2026-10-01: every pushed screen (also plain MaterialPageRoute)
+      // goes back with a swipe from the left edge, on iPhone and Android.
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
+        },
+      ),
       brightness: brightness,
       useMaterial3: true,
       scaffoldBackgroundColor: colors.bg,

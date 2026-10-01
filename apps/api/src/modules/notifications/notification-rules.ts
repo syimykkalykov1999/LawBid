@@ -54,11 +54,13 @@ export const EMAIL_TYPES: ReadonlySet<NotificationType> = new Set([
   'subscription_payment_failed',
   'subscription_status',
   'moderation_notice',
+  'security_phone_changed',
 ]);
 
 /** §9.5: pushes that ignore quiet hours. */
 export const QUIET_EXEMPT: ReadonlySet<NotificationType> = new Set([
   'security_new_device',
+  'security_phone_changed',
 ]);
 
 export interface QuietHours {

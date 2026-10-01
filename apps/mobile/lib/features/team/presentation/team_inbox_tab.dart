@@ -232,6 +232,7 @@ class _RejectDialogState extends State<_RejectDialog> {
     return AlertDialog(
       title: Text(t.t('team.reject')),
       content: TextField(
+        onTapOutside: hideKeyboardOnTapOutside,
         key: const ValueKey('reject-note'),
         controller: _note,
         maxLength: 500,

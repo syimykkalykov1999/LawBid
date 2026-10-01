@@ -42,6 +42,9 @@ import {
   RequestsQueryDto,
   TaskDto,
   TasksQueryDto,
+  TaskStepInputDto,
+  TaskStepParamDto,
+  UpdateTaskStepDto,
   TeamDto,
   UpdateAssistantDto,
   UpdateTaskStatusDto,
@@ -279,6 +282,46 @@ export class AssistantsController {
     @Body() dto: UpdateTaskStatusDto,
   ): Promise<TaskDto> {
     return this.tasks.setStatus(user, p.id, dto);
+  }
+
+  // Owner 2026-10-01: a task's checklist steps.
+  @Post('tasks/:id/steps')
+  @ApiOperation({ summary: "Add a step to a task's checklist" })
+  @ApiEnvelopeResponse(TaskDto)
+  @ApiErrors({
+    403: [E.ASSISTANT_NOT_ALLOWED],
+    404: [E.NOT_FOUND],
+    409: [E.TASK_CLOSED],
+  })
+  addTaskStep(
+    @CurrentUser() user: RequestUser,
+    @Param() p: AssistantIdParamDto,
+    @Body() dto: TaskStepInputDto,
+  ): Promise<TaskDto> {
+    return this.tasks.addStep(user, p.id, dto);
+  }
+
+  @Patch('tasks/:id/steps/:stepId')
+  @ApiOperation({ summary: 'Check a step off / move it to another time' })
+  @ApiEnvelopeResponse(TaskDto)
+  @ApiErrors({ 403: [E.ASSISTANT_NOT_ALLOWED], 404: [E.NOT_FOUND] })
+  updateTaskStep(
+    @CurrentUser() user: RequestUser,
+    @Param() p: TaskStepParamDto,
+    @Body() dto: UpdateTaskStepDto,
+  ): Promise<TaskDto> {
+    return this.tasks.updateStep(user, p.id, p.stepId, dto);
+  }
+
+  @Delete('tasks/:id/steps/:stepId')
+  @ApiOperation({ summary: 'Remove a step' })
+  @ApiEnvelopeResponse(TaskDto)
+  @ApiErrors({ 403: [E.ASSISTANT_NOT_ALLOWED], 404: [E.NOT_FOUND] })
+  removeTaskStep(
+    @CurrentUser() user: RequestUser,
+    @Param() p: TaskStepParamDto,
+  ): Promise<TaskDto> {
+    return this.tasks.removeStep(user, p.id, p.stepId);
   }
 }
 

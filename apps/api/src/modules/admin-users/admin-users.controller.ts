@@ -31,6 +31,8 @@ import {
   SanctionResultDto,
   SuspendUserDto,
   WarnUserDto,
+  ChangeUserPhoneDto,
+  PhoneChangedDto,
   type AdminUsersPage,
 } from './admin-users.dto';
 import { AdminUsersService } from './admin-users.service';
@@ -95,6 +97,24 @@ export class AdminUsersController {
     @Param() params: AdminUserIdParamDto,
   ): Promise<SanctionResultDto> {
     return this.users.revokeSessions(admin, params.id);
+  }
+
+  @Post(':id/phone')
+  @HttpCode(HttpStatus.OK)
+  @Roles('super_admin', 'moderator')
+  @SkipAutoAudit()
+  @ApiOperation({
+    summary:
+      "Change the phone on the user's request (sessions signed out, user notified)",
+  })
+  @ApiEnvelopeResponse(PhoneChangedDto)
+  @ApiErrors({ ...TARGET_ERRORS, 409: [E.IDENTIFIER_ALREADY_LINKED] })
+  changeUserPhone(
+    @CurrentAdmin() admin: AdminActor,
+    @Param() params: AdminUserIdParamDto,
+    @Body() dto: ChangeUserPhoneDto,
+  ): Promise<PhoneChangedDto> {
+    return this.users.changePhone(admin, params.id, dto.phone, dto.reason);
   }
 
   @Post(':id/warn')

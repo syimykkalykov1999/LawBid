@@ -442,6 +442,8 @@ enum NotificationType {
   assistant_joined
   assistant_result
   admin_broadcast
+  // Owner 2026-10-01: an admin changed the phone on the user's request.
+  security_phone_changed
 
   @@map("notification_type")
 }
@@ -2327,9 +2329,35 @@ model AttorneyTask {
   done_at                  DateTime?            @db.Timestamptz
   created_at               DateTime             @default(now()) @db.Timestamptz
   updated_at               DateTime             @default(now()) @updatedAt @db.Timestamptz
+  steps                    AttorneyTaskStep[]
 
   @@index([attorney_id, status, due_at])
   @@map("attorney_tasks")
+}
+
+/// Owner 2026-10-01: a checklist step inside a task — any number per task,
+/// each with its own time/place/contact and checkmark.
+model AttorneyTaskStep {
+  id              String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  task_id         String             @db.Uuid
+  task            AttorneyTask       @relation(fields: [task_id], references: [id], onDelete: Cascade, map: "attorney_task_steps_task_fkey")
+  position        Int                @default(0)
+  kind            AttorneyTaskKind?
+  title           String             @db.String(160)
+  due_at          DateTime?          @db.Timestamptz
+  location        String?            @db.String(200)
+  contact_name    String?            @db.String(120)
+  contact_phone   String?            @db.String(20)
+  contact_email   String?            @db.String(254)
+  status          AttorneyTaskStatus @default(open)
+  note            String?            @db.String(1000)
+  done_at         DateTime?          @db.Timestamptz
+  created_by_name String?            @db.String(120)
+  created_at      DateTime           @default(now()) @db.Timestamptz
+  updated_at      DateTime           @default(now()) @updatedAt @db.Timestamptz
+
+  @@index([task_id, position], map: "attorney_task_steps_task_idx")
+  @@map("attorney_task_steps")
 }
 
 /// OQ-048: a bid an assistant prepared for the attorney to review and send.

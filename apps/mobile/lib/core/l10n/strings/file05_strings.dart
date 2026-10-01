@@ -231,6 +231,7 @@ const file05Ru = <String, String>{
   'notif.list.subscription_status': 'Статус подписки изменился',
   'notif.list.moderation_notice': 'Сообщение от модерации',
   'notif.list.security_new_device': 'Вход в аккаунт с нового устройства',
+  'notif.list.security_phone_changed': 'Поддержка сменила номер телефона по вашему запросу',
   // --- profile header (owner redesign) ---
   'profile.rating.newShort': 'Новый',
   'profile.action.message': 'Написать',
@@ -464,6 +465,7 @@ const file05En = <String, String>{
   'notif.list.subscription_status': 'Your subscription status changed',
   'notif.list.moderation_notice': 'A message from moderation',
   'notif.list.security_new_device': 'New sign-in from another device',
+  'notif.list.security_phone_changed': 'Support changed your phone number at your request',
   // --- profile header (owner redesign) ---
   'profile.rating.newShort': 'New',
   'profile.action.message': 'Message',

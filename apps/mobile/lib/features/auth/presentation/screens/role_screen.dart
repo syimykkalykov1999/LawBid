@@ -35,6 +35,8 @@ class RoleScreen extends ConsumerWidget {
     final serverRole = ref.watch(currentUserControllerProvider.select((s) => s.user?.role));
     final selectedRole = serverRole ?? flowState.selectedRole ?? UserRole.client;
     final action = ref.watch(onboardingActionsProvider);
+    final attorneySide =
+        selectedRole == UserRole.attorney || selectedRole == UserRole.assistant;
 
     void select(UserRole role) {
       if (serverRole != null) return;
@@ -100,31 +102,73 @@ class RoleScreen extends ConsumerWidget {
                         ),
                       ),
                       const SizedBox(height: AppSpacing.roleCardGap),
+                      // Owner 2026-10-01: the assistant role lives inside
+                      // the attorney role — pick "Attorney", then who you
+                      // are in the practice.
                       lockable(
-                        UserRole.attorney,
+                        attorneySide ? selectedRole : UserRole.attorney,
                         RoleCard(
                           icon: Icons.gavel,
                           title: t.t('onboarding.role.attorney.title'),
                           description: t.t('onboarding.role.attorney.desc'),
-                          isSelected: selectedRole == UserRole.attorney,
+                          isSelected: attorneySide,
                           isAttorneyFixedStyle: true,
                           showProBadge: true,
                           proBadgeLabel: t.t('onboarding.role.attorney.badge'),
-                          onTap: () => select(UserRole.attorney),
+                          onTap: () {
+                            if (!attorneySide) select(UserRole.attorney);
+                          },
                         ),
                       ),
-                      // OQ-048: an attorney's assistant.
-                      const SizedBox(height: AppSpacing.roleCardGap),
-                      lockable(
-                        UserRole.assistant,
-                        RoleCard(
-                          key: const ValueKey('role-card-assistant'),
-                          icon: Icons.support_agent_rounded,
-                          title: t.t('onboarding.role.assistant.title'),
-                          description: t.t('onboarding.role.assistant.body'),
-                          isSelected: selectedRole == UserRole.assistant,
-                          onTap: () => select(UserRole.assistant),
-                        ),
+                      AnimatedSize(
+                        duration: context.reduceMotion
+                            ? Duration.zero
+                            : AppMotion.stateChange,
+                        curve: Curves.easeOutCubic,
+                        child: !attorneySide
+                            ? const SizedBox(width: double.infinity)
+                            : Padding(
+                                padding: const EdgeInsets.only(
+                                  top: AppSpacing.sm,
+                                  left: AppSpacing.lg,
+                                ),
+                                child: Column(
+                                  children: [
+                                    for (final (role, icon, title, body) in [
+                                      (
+                                        UserRole.attorney,
+                                        Icons.balance_rounded,
+                                        t.t('onboarding.role.sub.attorney'),
+                                        t.t('onboarding.role.sub.attorney.body'),
+                                      ),
+                                      (
+                                        UserRole.assistant,
+                                        Icons.support_agent_rounded,
+                                        t.t('onboarding.role.assistant.title'),
+                                        t.t('onboarding.role.assistant.body'),
+                                      ),
+                                    ])
+                                      Padding(
+                                        padding: const EdgeInsets.only(
+                                            bottom: AppSpacing.sm),
+                                        child: lockable(
+                                          role,
+                                          _SubRole(
+                                            key: ValueKey(role ==
+                                                    UserRole.assistant
+                                                ? 'role-card-assistant'
+                                                : 'role-sub-attorney'),
+                                            icon: icon,
+                                            title: title,
+                                            body: body,
+                                            selected: selectedRole == role,
+                                            onTap: () => select(role),
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
                       ),
                       if (serverRole != null) ...[
                         const SizedBox(height: AppSpacing.md),
@@ -159,6 +203,84 @@ class RoleScreen extends ConsumerWidget {
               ),
             );
           },
+        ),
+      ),
+    );
+  }
+}
+
+/// A choice inside the attorney card: the attorney or their assistant.
+class _SubRole extends StatelessWidget {
+  const _SubRole({
+    required this.icon,
+    required this.title,
+    required this.body,
+    required this.selected,
+    required this.onTap,
+    super.key,
+  });
+
+  final IconData icon;
+  final String title;
+  final String body;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
+    return Semantics(
+      selected: selected,
+      button: true,
+      label: title,
+      child: AppPressable(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration:
+              context.reduceMotion ? Duration.zero : AppMotion.stateChange,
+          padding: const EdgeInsets.all(AppSpacing.md),
+          decoration: BoxDecoration(
+            color: selected ? colors.goldTint : colors.surface,
+            borderRadius: BorderRadius.circular(AppRadii.card),
+            border: Border.all(
+              color: selected ? colors.gold : colors.border,
+              width: selected ? 1.6 : 1,
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, color: colors.goldDark),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: typography.body.copyWith(
+                        color: colors.text,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      body,
+                      style: typography.bodySmall
+                          .copyWith(color: colors.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Icon(
+                selected
+                    ? Icons.radio_button_checked_rounded
+                    : Icons.radio_button_unchecked_rounded,
+                color: selected ? colors.goldDark : colors.textSecondary,
+              ),
+            ],
+          ),
         ),
       ),
     );

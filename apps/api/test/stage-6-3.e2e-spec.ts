@@ -341,6 +341,59 @@ describe('stage 6.3 — admin users and sanctions (e2e)', () => {
     ).toEqual(['users.sessions_revoked', 'users.warn']);
   });
 
+  it('changes the phone on request: old number out, sessions signed out, user told, audited', async () => {
+    const support = await adminSession(baseUrl, prisma, 'support');
+    const moderator = await adminSession(baseUrl, prisma, 'moderator');
+    const c = await client();
+    const other = await client();
+    const fresh = nextPhone();
+    // Support can't; the number must be free; a reason is required.
+    await api()
+      .post(`/api/v1/admin/users/${c.id}/phone`)
+      .set(support.auth)
+      .send({ phone: fresh, reason: 'Lost phone, ID checked' })
+      .expect(403);
+    await api()
+      .post(`/api/v1/admin/users/${c.id}/phone`)
+      .set(moderator.auth)
+      .send({ phone: other.phone, reason: 'x' })
+      .expect(409);
+    await api()
+      .post(`/api/v1/admin/users/${c.id}/phone`)
+      .set(moderator.auth)
+      .send({ phone: fresh })
+      .expect(400);
+    const r = await api()
+      .post(`/api/v1/admin/users/${c.id}/phone`)
+      .set(moderator.auth)
+      .send({ phone: fresh, reason: 'Lost phone, ID checked' })
+      .expect(200);
+    expect((r.body as Body).data).toMatchObject({
+      phone: fresh,
+      revokedSessions: 1,
+    });
+    await api().get('/api/v1/users/me').set(c.auth).expect(401);
+    // The new number signs in to the same account; the old one doesn't.
+    const again = await signIn(fresh);
+    const me = await api().get('/api/v1/users/me').set(again).expect(200);
+    expect((me.body as Body).data.id).toBe(c.id);
+    expect(
+      await prisma.userIdentifier.count({
+        where: { provider: 'phone', provider_uid: c.phone },
+      }),
+    ).toBe(0);
+    expect(
+      await prisma.notification.count({
+        where: { user_id: c.id, type: 'security_phone_changed' },
+      }),
+    ).toBe(1);
+    const log = await prisma.auditLog.findFirst({
+      where: { target_id: c.id, action: 'users.phone_changed' },
+    });
+    expect(JSON.stringify(log?.after)).toContain('Lost phone');
+    expect(JSON.stringify(log)).not.toContain(fresh);
+  });
+
   it('suspends a client per §3.4: sessions revoked, login blocked, open cases archived + bids rejected, in_progress kept; restore keeps the archive', async () => {
     const moderator = await adminSession(baseUrl, prisma, 'moderator');
     const c = await client();

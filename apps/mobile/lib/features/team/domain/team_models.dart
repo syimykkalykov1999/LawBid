@@ -281,6 +281,69 @@ class TaskFile {
   bool get isImage => mime?.startsWith('image/') ?? false;
 }
 
+/// Owner 2026-10-01: one checklist step inside a task (5 calls, 6
+/// meetings, several addresses — one card, checked off step by step).
+@immutable
+class TaskStep {
+  const TaskStep({
+    required this.id,
+    required this.title,
+    this.status = TaskStatus.open,
+    this.kind,
+    this.dueAt,
+    this.location,
+    this.contactName,
+    this.contactPhone,
+    this.contactEmail,
+    this.note,
+    this.doneAt,
+    this.createdByName,
+  });
+
+  final String id;
+  final String title;
+  final TaskStatus status;
+
+  /// Null = the task's own kind.
+  final TaskKind? kind;
+  final DateTime? dueAt;
+  final String? location;
+  final String? contactName;
+  final String? contactPhone;
+  final String? contactEmail;
+  final String? note;
+  final DateTime? doneAt;
+  final String? createdByName;
+
+  bool get checked => status == TaskStatus.done || status == TaskStatus.notDone;
+
+  bool isOverdue(DateTime now) =>
+      !checked && dueAt != null && dueAt!.isBefore(now);
+}
+
+/// A step being written in the editor (`steps[]` of `POST /tasks`, or
+/// `POST /tasks/:id/steps`).
+@immutable
+class TaskStepDraft {
+  const TaskStepDraft({
+    required this.title,
+    this.kind,
+    this.dueAt,
+    this.location,
+    this.contactName,
+    this.contactPhone,
+    this.contactEmail,
+  });
+
+  final String title;
+  final TaskKind? kind;
+  final DateTime? dueAt;
+  final String? location;
+  final String? contactName;
+  final String? contactPhone;
+  final String? contactEmail;
+}
+
 @immutable
 class TaskItem {
   const TaskItem({
@@ -302,6 +365,7 @@ class TaskItem {
     this.rescheduledTo,
     this.createdByName,
     this.doneAt,
+    this.steps = const [],
   });
 
   final String id;
@@ -325,8 +389,27 @@ class TaskItem {
   final DateTime createdAt;
   final DateTime? doneAt;
 
-  bool isOverdue(DateTime now) =>
-      status.active && dueAt != null && dueAt!.isBefore(now);
+  /// Owner 2026-10-01: the checklist (empty = a single-step task).
+  final List<TaskStep> steps;
+
+  int get checkedSteps => steps.where((s) => s.checked).length;
+
+  /// The first unchecked step — its time leads the card.
+  TaskStep? get nextStep {
+    for (final s in steps) {
+      if (!s.checked) return s;
+    }
+    return null;
+  }
+
+  /// When the card is due: the next step's time, else the task's.
+  DateTime? get nextDueAt => nextStep?.dueAt ?? dueAt;
+
+  bool isOverdue(DateTime now) {
+    if (!status.active) return false;
+    if (steps.isNotEmpty) return steps.any((s) => s.isOverdue(now));
+    return dueAt != null && dueAt!.isBefore(now);
+  }
 }
 
 /// A new task (`POST /tasks`).
@@ -343,6 +426,7 @@ class TaskDraft {
     this.contactPhone,
     this.contactEmail,
     this.fileIds = const [],
+    this.steps = const [],
   });
 
   final TaskKind kind;
@@ -355,6 +439,7 @@ class TaskDraft {
   final String? contactPhone;
   final String? contactEmail;
   final List<String> fileIds;
+  final List<TaskStepDraft> steps;
 }
 
 /// A bid an assistant prepared (`/cases/:id/bid-draft`).

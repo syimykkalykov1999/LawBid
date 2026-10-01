@@ -18,10 +18,12 @@ import '../models/decide_request_dto.dart';
 import '../models/join_verify_dto.dart';
 import '../models/task_envelope.dart';
 import '../models/task_list_envelope.dart';
+import '../models/task_step_input_dto.dart';
 import '../models/tasks_view.dart';
 import '../models/team_envelope.dart';
 import '../models/update_assistant_dto.dart';
 import '../models/update_task_status_dto.dart';
+import '../models/update_task_step_dto.dart';
 
 part 'assistants_client.g.dart';
 
@@ -153,6 +155,31 @@ abstract class AssistantsClient {
   Future<TaskEnvelope> setTaskStatus({
     @Path('id') required String id,
     @Body() required UpdateTaskStatusDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Add a step to a task's checklist
+  @POST('/tasks/{id}/steps')
+  Future<TaskEnvelope> addTaskStep({
+    @Path('id') required String id,
+    @Body() required TaskStepInputDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Check a step off / move it to another time
+  @PATCH('/tasks/{id}/steps/{stepId}')
+  Future<TaskEnvelope> updateTaskStep({
+    @Path('id') required String id,
+    @Path('stepId') required String stepId,
+    @Body() required UpdateTaskStepDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Remove a step
+  @DELETE('/tasks/{id}/steps/{stepId}')
+  Future<TaskEnvelope> removeTaskStep({
+    @Path('id') required String id,
+    @Path('stepId') required String stepId,
     @Extras() Map<String, dynamic>? extras,
   });
 }

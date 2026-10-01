@@ -7,6 +7,7 @@ import 'package:json_annotation/json_annotation.dart';
 import 'attorney_task_kind.dart';
 import 'attorney_task_status.dart';
 import 'task_file_dto.dart';
+import 'task_step_dto.dart';
 
 part 'task_dto.g.dart';
 
@@ -19,6 +20,7 @@ class TaskDto {
     required this.files,
     required this.status,
     required this.createdAt,
+    required this.steps,
     this.notes,
     this.dueAt,
     this.location,
@@ -54,6 +56,7 @@ class TaskDto {
   final String? createdByName;
   final String createdAt;
   final String? doneAt;
+  final List<TaskStepDto> steps;
 
   Map<String, Object?> toJson() => _$TaskDtoToJson(this);
 }

@@ -198,6 +198,7 @@ class PostTextField extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
         TextField(
+          onTapOutside: hideKeyboardOnTapOutside,
           controller: controller,
           autofocus: autofocus,
           minLines: 4,

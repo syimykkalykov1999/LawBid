@@ -438,7 +438,8 @@ class _CommentComposerState extends ConsumerState<CommentComposer> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final reply = widget.replyTo;
-    return Material(
+    // The send button is part of the field: tapping it keeps the keyboard.
+    return TextFieldTapRegion(child: Material(
       color: colors.surface,
       child: SafeArea(
         top: false,
@@ -480,6 +481,7 @@ class _CommentComposerState extends ConsumerState<CommentComposer> {
                 children: [
                   Expanded(
                     child: TextField(
+                      onTapOutside: hideKeyboardOnTapOutside,
                       controller: _text,
                       focusNode: widget.focusNode,
                       minLines: 1,
@@ -534,6 +536,6 @@ class _CommentComposerState extends ConsumerState<CommentComposer> {
           ],
         ),
       ),
-    );
+    ));
   }
 }

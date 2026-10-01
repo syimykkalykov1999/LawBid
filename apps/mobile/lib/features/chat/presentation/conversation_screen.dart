@@ -1188,6 +1188,7 @@ class _ComposerState extends ConsumerState<_Composer> {
     final motion = context.reduceMotion ? Duration.zero : AppMotion.stateChange;
 
     final field = TextField(
+      onTapOutside: hideKeyboardOnTapOutside,
       controller: widget.controller,
       minLines: 1,
       maxLines: 5,
@@ -1291,7 +1292,9 @@ class _ComposerState extends ConsumerState<_Composer> {
           ),
         );
 
-    return Material(
+    // The composer (send, attach, mic) keeps the keyboard; taps outside
+    // it hide the keyboard.
+    return TextFieldTapRegion(child: Material(
       color: colors.surface,
       child: SafeArea(
         top: false,
@@ -1405,7 +1408,7 @@ class _ComposerState extends ConsumerState<_Composer> {
           ),
         ),
       ),
-    );
+    ));
   }
 }
 

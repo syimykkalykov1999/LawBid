@@ -8,6 +8,7 @@ import {
   IsString,
   IsUUID,
   Max,
+  Matches,
   MaxLength,
   Min,
 } from 'class-validator';
@@ -230,4 +231,26 @@ export class SanctionResultDto {
   archivedCases!: number;
   @ApiProperty({ type: 'integer', description: 'Attorney bids withdrawn.' })
   withdrawnBids!: number;
+}
+
+/** Owner 2026-10-01: support changes the phone on the user's request
+ * (lost phone / new number) — the reason is mandatory for the audit. */
+export class ChangeUserPhoneDto {
+  @ApiProperty({ example: '+13125550123' })
+  @Transform(trim)
+  @Matches(/^\+[1-9]\d{7,14}$/)
+  phone!: string;
+
+  @ApiProperty({ maxLength: SANCTION_TEXT_MAX })
+  @Transform(trim)
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(SANCTION_TEXT_MAX)
+  reason!: string;
+}
+
+export class PhoneChangedDto {
+  @ApiProperty({ format: 'uuid' }) userId!: string;
+  @ApiProperty() phone!: string;
+  @ApiProperty() revokedSessions!: number;
 }

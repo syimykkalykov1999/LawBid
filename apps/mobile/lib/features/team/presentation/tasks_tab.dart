@@ -43,8 +43,14 @@ class _TasksTabState extends ConsumerState<TasksTab> {
     }
   }
 
-  /// The checkbox: done at once (a note can be added from the task).
+  /// Double tap: the next step is checked off (or the whole task when it
+  /// has no steps); a note can be added from the task.
   Future<void> _quickDone(TaskItem task) async {
+    final next = task.nextStep;
+    if (task.steps.isNotEmpty) {
+      if (next != null) await _toggleStep(task, next);
+      return;
+    }
     final t = ref.read(translatorProvider);
     try {
       await ref
@@ -52,6 +58,25 @@ class _TasksTabState extends ConsumerState<TasksTab> {
           .setStatus(task, TaskStatus.done);
       if (!mounted) return;
       showAppSnackBar(context, '${t.t('tasks.status.done')} · ${task.title}');
+    } on Object catch (e) {
+      if (mounted) showAppSnackBar(context, errorText(t, e));
+    }
+  }
+
+  /// Owner 2026-10-01: a step's box on the card — checked ↔ open.
+  Future<void> _toggleStep(TaskItem task, TaskStep step) async {
+    final t = ref.read(translatorProvider);
+    try {
+      final updated = await ref.read(tasksProvider(_key).notifier).checkStep(
+            task,
+            step,
+            step.checked ? TaskStatus.open : TaskStatus.done,
+          );
+      if (!mounted) return;
+      if (!updated.status.active) {
+        showAppSnackBar(
+            context, '${t.t('tasks.steps.allDone')} · ${task.title}');
+      }
     } on Object catch (e) {
       if (mounted) showAppSnackBar(context, errorText(t, e));
     }
@@ -127,6 +152,7 @@ class _TasksTabState extends ConsumerState<TasksTab> {
                     canAdd: canAdd,
                     onAdd: _add,
                     onCheck: assistant ? null : _quickDone,
+                    onStepCheck: assistant ? null : _toggleStep,
                   ),
           ),
         ),
@@ -143,6 +169,7 @@ class _TaskList extends ConsumerWidget {
     required this.canAdd,
     required this.onAdd,
     required this.onCheck,
+    this.onStepCheck,
   });
 
   final Translator t;
@@ -151,6 +178,7 @@ class _TaskList extends ConsumerWidget {
   final bool canAdd;
   final VoidCallback onAdd;
   final void Function(TaskItem)? onCheck;
+  final void Function(TaskItem, TaskStep)? onStepCheck;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -236,6 +264,9 @@ class _TaskList extends ConsumerWidget {
                       onCheck: onCheck == null || !task.status.active
                           ? null
                           : () => onCheck!(task),
+                      onStepCheck: onStepCheck == null
+                          ? null
+                          : (step) => onStepCheck!(task, step),
                     ),
                   ),
                 ),

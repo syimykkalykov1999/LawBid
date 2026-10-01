@@ -99,6 +99,8 @@ void main() {
       // A single tap waits out the double-tap window.
       await tester.pump(const Duration(milliseconds: 400));
       await tester.pumpAndSettle();
+      await tester.ensureVisible(find.byKey(const ValueKey('task-not-done')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('task-not-done')));
       await tester.pumpAndSettle();
       await tester.enterText(
@@ -176,6 +178,82 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('task-kind-visit')));
     await tester.pump();
     expect(find.text('Where to go (address)'), findsOneWidget);
+  });
+
+  group('Task steps (owner 2026-10-01)', () {
+    TaskItem withSteps() => makeTask(
+          's',
+          dueAt: DateTime.now().add(const Duration(hours: 3)),
+          steps: [
+            TaskStep(
+              id: 's1',
+              title: 'Call Brown',
+              dueAt: DateTime.now().add(const Duration(hours: 1)),
+            ),
+            const TaskStep(id: 's2', title: 'Call Lee'),
+          ],
+        );
+
+    testWidgets('the card shows progress; a box checks one step',
+        (tester) async {
+      repo.active = [withSteps()];
+      await pump(tester, const TasksTab());
+      expect(find.text('0 of 2'), findsOneWidget);
+      expect(find.text('Call Brown'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('step-check-s1')));
+      // The card's double tap holds a single tap for its window.
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+      expect(repo.calls, contains('step:s:s1:done:null'));
+      expect(find.text('1 of 2'), findsOneWidget);
+      // The last box finishes the whole task.
+      await tester.tap(find.byKey(const ValueKey('step-check-s2')));
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+      expect(find.text('Task s'), findsNothing);
+    });
+
+    testWidgets('a double tap checks the next step', (tester) async {
+      repo.active = [withSteps()];
+      await pump(tester, const TasksTab());
+      await tester.tap(find.text('Task s'));
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.tap(find.text('Task s'));
+      await tester.pumpAndSettle();
+      expect(repo.calls, contains('step:s:s1:done:null'));
+    });
+
+    testWidgets('the editor adds steps to one task', (tester) async {
+      tester.view.physicalSize = const Size(1200, 4000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(uxApp(
+        const Scaffold(body: TaskEditorScreen()),
+        theme: AppTheme.light(),
+        size: const Size(1200, 4000),
+        disableAnimations: true,
+        overrides: uxOverrides(extra: [
+          teamRepositoryProvider.overrideWithValue(repo),
+        ]),
+      ));
+      await tester.pump();
+      await tester.enterText(
+          find.byKey(const ValueKey('task-title')), 'Monday calls');
+      for (final name in ['Brown', 'Lee']) {
+        await tester.tap(find.byKey(const ValueKey('task-editor-step-add')));
+        await tester.pumpAndSettle();
+        await tester.enterText(
+            find.byKey(const ValueKey('step-title')), 'Call $name');
+        await tester.tap(find.byKey(const ValueKey('step-save')));
+        await tester.pumpAndSettle();
+      }
+      expect(find.text('Call Brown'), findsOneWidget);
+      expect(find.text('Call Lee'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('task-save')));
+      await tester.pump();
+      await tester.pump();
+      expect(repo.calls, contains('steps:Call Brown|Call Lee'));
+    });
   });
 
   group('Team', () {

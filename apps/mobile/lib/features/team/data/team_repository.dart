@@ -64,6 +64,19 @@ abstract interface class TeamRepository {
   });
   Future<String> uploadTaskFile(Uint8List bytes, String mime);
 
+  // Owner 2026-10-01: a task's checklist steps.
+  Future<TaskItem> addTaskStep(String taskId, TaskStepDraft step);
+
+  /// Check a step off ([status]), add a [note], or move it ([dueAt]).
+  Future<TaskItem> updateTaskStep(
+    String taskId,
+    String stepId, {
+    TaskStatus? status,
+    String? note,
+    DateTime? dueAt,
+  });
+  Future<TaskItem> removeTaskStep(String taskId, String stepId);
+
   // Bid drafts.
   Future<BidDraft?> bidDraft(String caseId);
   Future<BidDraft> saveBidDraft(
@@ -182,6 +195,34 @@ class ApiTeamRepository implements TeamRepository {
         createdByName: t.createdByName,
         createdAt: _date(t.createdAt) ?? DateTime.now(),
         doneAt: _date(t.doneAt),
+        steps: [
+          for (final s in t.steps)
+            TaskStep(
+              id: s.id,
+              title: s.title,
+              status: TaskStatus.parse(s.status.json),
+              kind: s.kind == null ? null : TaskKind.parse(s.kind!.json),
+              dueAt: _date(s.dueAt),
+              location: s.location,
+              contactName: s.contactName,
+              contactPhone: s.contactPhone,
+              contactEmail: s.contactEmail,
+              note: s.note,
+              doneAt: _date(s.doneAt),
+              createdByName: s.createdByName,
+            ),
+        ],
+      );
+
+  static api.TaskStepInputDto _stepInput(TaskStepDraft s) =>
+      api.TaskStepInputDto(
+        kind: s.kind == null ? null : api.AttorneyTaskKind.fromJson(s.kind!.wire),
+        title: s.title,
+        dueAt: s.dueAt?.toUtc(),
+        location: s.location,
+        contactName: s.contactName,
+        contactPhone: s.contactPhone,
+        contactEmail: s.contactEmail,
       );
 
   static BidDraft _draft(api.BidDraftDto d) => BidDraft(
@@ -385,6 +426,9 @@ class ApiTeamRepository implements TeamRepository {
               contactPhone: d.contactPhone,
               contactEmail: d.contactEmail,
               fileIds: d.fileIds.isEmpty ? null : d.fileIds,
+              steps: d.steps.isEmpty
+                  ? null
+                  : [for (final s in d.steps) _stepInput(s)],
             ),
             extras: const {RequestFlags.createsResource: true},
           ),
@@ -409,6 +453,48 @@ class ApiTeamRepository implements TeamRepository {
               rescheduleTo: rescheduleTo?.toUtc(),
             ),
           ),
+        ))
+            .data,
+      );
+
+  @override
+  Future<TaskItem> addTaskStep(String taskId, TaskStepDraft step) async =>
+      _task(
+        (await guardApiCall(
+          () => _api.addTaskStep(id: taskId, body: _stepInput(step)),
+        ))
+            .data,
+      );
+
+  @override
+  Future<TaskItem> updateTaskStep(
+    String taskId,
+    String stepId, {
+    TaskStatus? status,
+    String? note,
+    DateTime? dueAt,
+  }) async =>
+      _task(
+        (await guardApiCall(
+          () => _api.updateTaskStep(
+            id: taskId,
+            stepId: stepId,
+            body: api.UpdateTaskStepDto(
+              status: status == null
+                  ? null
+                  : api.TaskStepStatus.fromJson(status.wire),
+              note: note,
+              dueAt: dueAt?.toUtc(),
+            ),
+          ),
+        ))
+            .data,
+      );
+
+  @override
+  Future<TaskItem> removeTaskStep(String taskId, String stepId) async => _task(
+        (await guardApiCall(
+          () => _api.removeTaskStep(id: taskId, stepId: stepId),
         ))
             .data,
       );

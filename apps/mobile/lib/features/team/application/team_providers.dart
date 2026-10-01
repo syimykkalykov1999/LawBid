@@ -238,6 +238,111 @@ class TasksController extends AsyncNotifier<List<TaskItem>> {
       rethrow;
     }
   }
+
+  /// Owner 2026-10-01: puts the server's copy of [updated] into the list
+  /// (it moves to Done when its last step was checked).
+  void _put(TaskItem updated) {
+    final current = state.value ?? const <TaskItem>[];
+    final keep = key.done ? !updated.status.active : updated.status.active;
+    final had = current.any((t) => t.id == updated.id);
+    if (!ref.mounted) return;
+    state = AsyncData([
+      for (final t in current)
+        if (t.id != updated.id) t else if (keep) updated,
+      if (!had && keep) updated,
+    ]);
+    if (!keep) {
+      ref.invalidate(tasksProvider((done: !key.done, mine: key.mine)));
+    }
+  }
+
+  /// A step's checkmark — instant locally, then the server's answer.
+  Future<TaskItem> checkStep(
+    TaskItem task,
+    TaskStep step,
+    TaskStatus status, {
+    String? note,
+  }) async {
+    final before = state.value;
+    if (ref.mounted && before != null) {
+      state = AsyncData([
+        for (final t in before)
+          t.id != task.id
+              ? t
+              : TaskItem(
+                  id: t.id,
+                  kind: t.kind,
+                  title: t.title,
+                  status: t.status,
+                  createdAt: t.createdAt,
+                  notes: t.notes,
+                  dueAt: t.dueAt,
+                  location: t.location,
+                  caseId: t.caseId,
+                  caseTitle: t.caseTitle,
+                  contactName: t.contactName,
+                  contactPhone: t.contactPhone,
+                  contactEmail: t.contactEmail,
+                  files: t.files,
+                  outcomeNote: t.outcomeNote,
+                  rescheduledTo: t.rescheduledTo,
+                  createdByName: t.createdByName,
+                  doneAt: t.doneAt,
+                  steps: [
+                    for (final s in t.steps)
+                      s.id != step.id
+                          ? s
+                          : TaskStep(
+                              id: s.id,
+                              title: s.title,
+                              status: status,
+                              kind: s.kind,
+                              dueAt: s.dueAt,
+                              location: s.location,
+                              contactName: s.contactName,
+                              contactPhone: s.contactPhone,
+                              contactEmail: s.contactEmail,
+                              note: note ?? s.note,
+                              doneAt: DateTime.now(),
+                              createdByName: s.createdByName,
+                            ),
+                  ],
+                ),
+      ]);
+    }
+    try {
+      final updated = await ref
+          .read(teamRepositoryProvider)
+          .updateTaskStep(task.id, step.id, status: status, note: note);
+      _put(updated);
+      return updated;
+    } on Object {
+      if (ref.mounted && before != null) state = AsyncData(before);
+      rethrow;
+    }
+  }
+
+  Future<TaskItem> moveStep(TaskItem task, TaskStep step, DateTime to) async {
+    final updated = await ref
+        .read(teamRepositoryProvider)
+        .updateTaskStep(task.id, step.id, dueAt: to);
+    _put(updated);
+    return updated;
+  }
+
+  Future<TaskItem> addStep(TaskItem task, TaskStepDraft draft) async {
+    final updated =
+        await ref.read(teamRepositoryProvider).addTaskStep(task.id, draft);
+    _put(updated);
+    return updated;
+  }
+
+  Future<TaskItem> removeStep(TaskItem task, TaskStep step) async {
+    final updated =
+        await ref.read(teamRepositoryProvider).removeTaskStep(task.id, step.id);
+    _put(updated);
+    return updated;
+  }
 }
 
 /// Open tasks count for the Mine → Tasks tab badge.

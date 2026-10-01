@@ -51,6 +51,9 @@ abstract final class AppPageTransitions {
   /// Full-screen modal (the "+" create flow, file 07 §3.4): rises from
   /// the bottom and fades in.
   static Page<void> modal(GoRouterState state, Widget child) {
+    // Owner 2026-10-01: a screen that rose from the bottom closes with a
+    // pull down from its top, like a sheet.
+    child = PullDownToClose(threshold: 110, child: child);
     if (_cupertino) {
       return CupertinoPage<void>(
         key: state.pageKey,

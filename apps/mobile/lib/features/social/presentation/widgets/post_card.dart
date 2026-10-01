@@ -316,7 +316,9 @@ class PostCard extends ConsumerWidget {
               ),
             ),
           ),
-        _ActionsBar(post: p, run: run),
+        // Owner 2026-10-01: inside the post the comment field is right
+        // below — no comment button (it only reopened the same post).
+        _ActionsBar(post: p, run: run, showComment: false),
         if (p.likeCount > 0)
           Padding(
             padding: const EdgeInsets.fromLTRB(
@@ -1145,7 +1147,10 @@ class _ActionsBar extends ConsumerWidget {
     required this.post,
     required this.run,
     this.showTime = false,
+    this.showComment = true,
   });
+
+  final bool showComment;
 
   final Post post;
   final Future<void> Function(Future<Object?> Function()) run;
@@ -1172,14 +1177,16 @@ class _ActionsBar extends ConsumerWidget {
           ),
           // Owner 2026-09-30 design: counts next to the icons.
           if (post.likeCount > 0) _Count(post.likeCount),
-          BounceIcon(
-            active: false,
-            activeIcon: Icons.mode_comment_outlined,
-            icon: Icons.mode_comment_outlined,
-            label: t.t('post.comments'),
-            onTap: () => context.push(SocialRoutes.post(post.id)),
-          ),
-          if (post.commentCount > 0) _Count(post.commentCount),
+          if (showComment) ...[
+            BounceIcon(
+              active: false,
+              activeIcon: Icons.mode_comment_outlined,
+              icon: Icons.mode_comment_outlined,
+              label: t.t('post.comments'),
+              onTap: () => context.push(SocialRoutes.post(post.id)),
+            ),
+            if (post.commentCount > 0) _Count(post.commentCount),
+          ],
           BounceIcon(
             active: false,
             activeIcon: Icons.send_outlined,

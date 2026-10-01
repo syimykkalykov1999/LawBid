@@ -138,6 +138,7 @@ class _AppTextFieldState extends State<AppTextField> {
                   const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: TextField(
+                    onTapOutside: hideKeyboardOnTapOutside,
                     controller: widget.controller,
                     focusNode: _focusNode,
                     autofocus: widget.autofocus,
@@ -202,3 +203,9 @@ class _AppTextFieldState extends State<AppTextField> {
     );
   }
 }
+
+/// Owner 2026-10-01: a tap anywhere outside a text field hides the
+/// keyboard (Samsung / iPhone) — every field passes this as onTapOutside.
+/// A send button that must keep the keyboard sits in a TextFieldTapRegion.
+void hideKeyboardOnTapOutside(PointerDownEvent _) =>
+    FocusManager.instance.primaryFocus?.unfocus();

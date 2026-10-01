@@ -64,6 +64,180 @@ Future<DateTime?> pickDateTime(
   );
 }
 
+/// Owner 2026-10-01: writes one checklist step (a call, a meeting, an
+/// address…) — title, its own time, place and contact.
+Future<TaskStepDraft?> showStepEditor(
+  BuildContext context, {
+  required TaskKind taskKind,
+}) =>
+    showAppBottomSheet<TaskStepDraft>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => StepEditorSheet(taskKind: taskKind),
+    );
+
+class StepEditorSheet extends ConsumerStatefulWidget {
+  const StepEditorSheet({required this.taskKind, super.key});
+
+  final TaskKind taskKind;
+
+  @override
+  ConsumerState<StepEditorSheet> createState() => _StepEditorSheetState();
+}
+
+class _StepEditorSheetState extends ConsumerState<StepEditorSheet> {
+  final _title = TextEditingController();
+  final _place = TextEditingController();
+  final _name = TextEditingController();
+  final _phone = TextEditingController();
+  final _email = TextEditingController();
+  late TaskKind _kind = widget.taskKind;
+  DateTime? _at;
+  String? _error;
+
+  static final _phoneRe = RegExp(r'^\+[1-9]\d{7,14}$');
+  static final _emailRe = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+
+  @override
+  void dispose() {
+    for (final c in [_title, _place, _name, _phone, _email]) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  void _save() {
+    final t = ref.read(translatorProvider);
+    final phone = _phone.text.replaceAll(RegExp(r'[\s()-]'), '');
+    final email = _email.text.trim();
+    String? error;
+    if (_title.text.trim().isEmpty) {
+      error = t.t('post.create.required');
+    } else if (phone.isNotEmpty && !_phoneRe.hasMatch(phone)) {
+      error = t.t('tasks.phoneInvalid');
+    } else if (email.isNotEmpty && !_emailRe.hasMatch(email)) {
+      error = t.t('tasks.emailInvalid');
+    }
+    if (error != null) {
+      setState(() => _error = error);
+      return;
+    }
+    String? v(TextEditingController c) =>
+        c.text.trim().isEmpty ? null : c.text.trim();
+    Navigator.of(context).pop(
+      TaskStepDraft(
+        title: _title.text.trim(),
+        kind: _kind == widget.taskKind ? null : _kind,
+        dueAt: _at,
+        location: v(_place),
+        contactName: v(_name),
+        contactPhone: phone.isEmpty ? null : phone,
+        contactEmail: email.isEmpty ? null : email,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ref.watch(translatorProvider);
+    final formats = ref.watch(l10nFormatsProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
+    Widget field(String key, TextEditingController c, String hint,
+            {TextInputType? type, IconData? icon}) =>
+        Padding(
+          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+          child: AppTextField(
+            key: ValueKey(key),
+            controller: c,
+            hintText: hint,
+            semanticLabel: hint,
+            keyboardType: type,
+            leading: icon == null ? null : Icon(icon, size: 18),
+          ),
+        );
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        AppSpacing.screenSide,
+        0,
+        AppSpacing.screenSide,
+        MediaQuery.viewInsetsOf(context).bottom + AppSpacing.xl,
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              t.t('tasks.steps.new'),
+              style: typography.titleMedium.copyWith(color: colors.text),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            SizedBox(
+              height: 40,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: [
+                  for (final k in TaskKind.values)
+                    Padding(
+                      padding: const EdgeInsets.only(right: AppSpacing.sm),
+                      child: AppChip(
+                        key: ValueKey('step-kind-${k.wire}'),
+                        label: taskKindLabel(t, k),
+                        selected: _kind == k,
+                        onTap: () => setState(() => _kind = k),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            field('step-title', _title, t.t('tasks.steps.titleHint'),
+                icon: Icons.short_text_rounded),
+            AppListRow(
+              key: const ValueKey('step-when'),
+              icon: Icons.schedule_rounded,
+              label: _at == null
+                  ? t.t('tasks.steps.pickTime')
+                  : formats.dateTime(_at!),
+              showChevron: true,
+              onTap: () async {
+                final at = await pickDateTime(context, initial: _at);
+                if (at != null && mounted) setState(() => _at = at);
+              },
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            field('step-place', _place, t.t('tasks.steps.placeHint'),
+                icon: Icons.place_outlined),
+            field('step-name', _name, t.t('tasks.steps.whoHint'),
+                icon: Icons.person_outline_rounded),
+            field('step-phone', _phone, '+1 312 555 0123',
+                type: TextInputType.phone, icon: Icons.call_outlined),
+            field('step-email', _email, 'name@example.com',
+                type: TextInputType.emailAddress,
+                icon: Icons.mail_outline_rounded),
+            if (_error != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                child: Text(
+                  _error!,
+                  style: typography.bodySmall.copyWith(color: colors.dangerText),
+                ),
+              ),
+            const SizedBox(height: AppSpacing.sm),
+            AppButton(
+              key: const ValueKey('step-save'),
+              label: t.t('tasks.steps.add'),
+              icon: Icons.add_rounded,
+              onPressed: _save,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _TaskSheet extends ConsumerStatefulWidget {
   const _TaskSheet({required this.task, required this.listKey});
 
@@ -107,6 +281,145 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
     }
   }
 
+  TasksController get _ctrl => ref.read(tasksProvider(widget.listKey).notifier);
+
+  Future<void> _stepOp(Future<TaskItem> Function() op) async {
+    final t = ref.read(translatorProvider);
+    try {
+      final updated = await op();
+      if (!mounted) return;
+      setState(() => _task = updated);
+      if (!updated.status.active && _task.steps.isNotEmpty) {
+        showAppSnackBar(context, t.t('tasks.steps.allDone'));
+      }
+    } on Object catch (e) {
+      if (mounted) showAppSnackBar(context, errorText(t, e));
+    }
+  }
+
+  Future<void> _toggle(TaskStep step) => _stepOp(() => _ctrl.checkStep(
+        _task,
+        step,
+        step.checked ? TaskStatus.open : TaskStatus.done,
+      ));
+
+  Future<void> _addStep() async {
+    final d = await showStepEditor(context, taskKind: _task.kind);
+    if (d == null || !mounted) return;
+    await _stepOp(() => _ctrl.addStep(_task, d));
+  }
+
+  /// A step's actions: check / not done with a note / move / call /
+  /// write / map / remove.
+  Future<void> _stepMenu(TaskStep step, {required bool canPlan}) async {
+    final t = ref.read(translatorProvider);
+    final assistant = ref.read(isAssistantProvider);
+    final active = _task.status.active;
+    final choice = await showAppBottomSheet<String>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (!assistant && active) ...[
+              AppListRow(
+                key: const ValueKey('step-act-done'),
+                icon: step.status == TaskStatus.done
+                    ? Icons.undo_rounded
+                    : Icons.check_rounded,
+                label: step.status == TaskStatus.done
+                    ? t.t('tasks.steps.reopen')
+                    : t.t('tasks.done'),
+                onTap: () => Navigator.of(ctx).pop('done'),
+              ),
+              if (step.status != TaskStatus.notDone)
+                AppListRow(
+                  key: const ValueKey('step-act-not'),
+                  icon: Icons.close_rounded,
+                  label: t.t('tasks.notDone'),
+                  onTap: () => Navigator.of(ctx).pop('not'),
+                ),
+            ],
+            if (canPlan && active && !step.checked)
+              AppListRow(
+                key: const ValueKey('step-act-move'),
+                icon: Icons.schedule_rounded,
+                label: t.t('tasks.steps.move'),
+                onTap: () => Navigator.of(ctx).pop('move'),
+              ),
+            if (step.contactPhone?.isNotEmpty ?? false)
+              AppListRow(
+                icon: Icons.call_outlined,
+                label: '${t.t('tasks.call')} · ${step.contactPhone}',
+                onTap: () => Navigator.of(ctx).pop('call'),
+              ),
+            if (step.contactEmail?.isNotEmpty ?? false)
+              AppListRow(
+                icon: Icons.mail_outline_rounded,
+                label: '${t.t('tasks.write')} · ${step.contactEmail}',
+                onTap: () => Navigator.of(ctx).pop('mail'),
+              ),
+            if (step.location?.isNotEmpty ?? false)
+              AppListRow(
+                icon: Icons.map_outlined,
+                label: t.t('tasks.map'),
+                onTap: () => Navigator.of(ctx).pop('map'),
+              ),
+            if (canPlan && active)
+              AppListRow(
+                key: const ValueKey('step-act-remove'),
+                icon: Icons.delete_outline_rounded,
+                label: t.t('tasks.steps.remove'),
+                onTap: () => Navigator.of(ctx).pop('remove'),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (choice == null || !mounted) return;
+    switch (choice) {
+      case 'done':
+        await _toggle(step);
+      case 'not':
+        final r = await askTaskOutcome(context, t, done: false);
+        if (r == null || !mounted) return;
+        await _stepOp(() => _ctrl.checkStep(
+              _task,
+              step,
+              TaskStatus.notDone,
+              note: r.note,
+            ));
+        if (r.rescheduleTo != null && mounted) {
+          // "Not done, move it": the step opens again at the new time.
+          final moved = _task.steps.firstWhere((s) => s.id == step.id);
+          await _stepOp(() => _ctrl.checkStep(_task, moved, TaskStatus.open));
+          if (mounted) {
+            await _stepOp(() => _ctrl.moveStep(_task, moved, r.rescheduleTo!));
+          }
+        }
+      case 'move':
+        final at = await pickDateTime(context, initial: step.dueAt);
+        if (at != null && mounted) {
+          await _stepOp(() => _ctrl.moveStep(_task, step, at));
+        }
+      case 'call':
+        await launchUrl(Uri(scheme: 'tel', path: step.contactPhone));
+      case 'mail':
+        await launchUrl(Uri(
+          scheme: 'mailto',
+          path: step.contactEmail,
+          queryParameters: {'subject': step.title},
+        ));
+      case 'map':
+        await launchUrl(
+          Uri.https('maps.google.com', '/', {'q': step.location!}),
+          mode: LaunchMode.externalApplication,
+        );
+      case 'remove':
+        await _stepOp(() => _ctrl.removeStep(_task, step));
+    }
+  }
+
   Future<void> _finish(bool done) async {
     final t = ref.read(translatorProvider);
     final r = await askTaskOutcome(
@@ -130,8 +443,10 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final assistant = ref.watch(isAssistantProvider);
+    final canPlan = ref.watch(canDoProvider(AssistantDuty.tasks));
     final task = _task;
     final active = task.status.active;
+    final now = DateTime.now();
     return DraggableScrollableSheet(
       expand: false,
       initialChildSize: 0.75,
@@ -148,7 +463,7 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
         children: [
           Row(
             children: [
-              AppIconMedallion(icon: taskKindIcon(task.kind)),
+              TaskKindMedallion(kind: task.kind, size: 48),
               const SizedBox(width: AppSpacing.md),
               Expanded(
                 child: Column(
@@ -157,9 +472,9 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
                     Text(
                       taskKindLabel(t, task.kind).toUpperCase(),
                       style: typography.caption.copyWith(
-                        color: colors.gold,
+                        color: colors.goldDark,
                         fontWeight: FontWeight.w700,
-                        letterSpacing: 0.6,
+                        letterSpacing: 1.1,
                       ),
                     ),
                     Text(
@@ -230,6 +545,74 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
               task.notes!,
               style: typography.body.copyWith(color: colors.text),
             ),
+          ],
+          // Owner 2026-10-01: the checklist — every step with its own
+          // time; the attorney checks them off one by one.
+          if (task.steps.isNotEmpty || (canPlan && active)) ...[
+            const SizedBox(height: AppSpacing.lg),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    t.t('tasks.steps.title'),
+                    style: typography.body.copyWith(
+                      color: colors.text,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                if (canPlan && active)
+                  TextButton.icon(
+                    key: const ValueKey('task-step-add'),
+                    onPressed: _addStep,
+                    icon: Icon(Icons.add_rounded,
+                        size: 18, color: colors.goldDark),
+                    label: Text(
+                      t.t('tasks.steps.add'),
+                      style: TextStyle(color: colors.goldDark),
+                    ),
+                  ),
+              ],
+            ),
+            if (task.steps.isNotEmpty) ...[
+              TaskProgress(
+                done: task.checkedSteps,
+                total: task.steps.length,
+                label: t.t('tasks.steps.progress', {
+                  'done': '${task.checkedSteps}',
+                  'total': '${task.steps.length}',
+                }),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              AppCard(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md,
+                  vertical: AppSpacing.xs,
+                ),
+                child: Column(
+                  children: [
+                    for (final (i, step) in task.steps.indexed) ...[
+                      if (i > 0) Divider(height: 1, color: colors.border),
+                      TaskStepTile(
+                        key: ValueKey('sheet-step-${step.id}'),
+                        step: step,
+                        t: t,
+                        formats: formats,
+                        now: now,
+                        onCheck:
+                            assistant || !active ? null : () => _toggle(step),
+                        onTap: () => _stepMenu(step, canPlan: canPlan),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ] else
+              Text(
+                t.t('tasks.steps.emptyHint'),
+                style: typography.bodySmall
+                    .copyWith(color: colors.textSecondary),
+              ),
           ],
           if (task.files.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.lg),

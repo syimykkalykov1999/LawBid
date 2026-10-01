@@ -26,6 +26,7 @@ import type {
   AdminUsersPage,
   AdminUsersQueryDto,
   SanctionResultDto,
+  PhoneChangedDto,
 } from './admin-users.dto';
 
 export const USERS_AUDIT = {
@@ -33,6 +34,7 @@ export const USERS_AUDIT = {
   warn: 'users.warn',
   suspend: 'users.suspend',
   restore: 'users.restore',
+  phoneChanged: 'users.phone_changed',
 } as const;
 
 const LIST_DEFAULT = 20;
@@ -380,6 +382,86 @@ export class AdminUsersService {
     };
   }
 
+  /**
+   * Owner 2026-10-01: support changes the phone on the user's request
+   * (lost the old phone, new number). The phone identifier moves to the
+   * new number, every session is signed out (the next sign-in goes to the
+   * new phone), the change is audited with the reason and the user is
+   * told (push + email).
+   */
+  async changePhone(
+    admin: AdminActor,
+    id: string,
+    phone: string,
+    reason: string,
+  ): Promise<PhoneChangedDto> {
+    await this.target(id);
+    const taken = await this.prisma.userIdentifier.findUnique({
+      where: {
+        provider_provider_uid: { provider: 'phone', provider_uid: phone },
+      },
+      select: { user_id: true },
+    });
+    if (taken && taken.user_id !== id) {
+      throw new ConflictException({
+        code: ErrorCode.IDENTIFIER_ALREADY_LINKED,
+        message: 'This phone number belongs to another account.',
+      });
+    }
+    const before = await this.prisma.user.findUniqueOrThrow({
+      where: { id },
+      select: { phone_e164: true },
+    });
+    let revoked = 0;
+    await withTxRetry(this.prisma, async (tx) => {
+      const now = new Date();
+      await tx.userIdentifier.deleteMany({
+        where: { user_id: id, provider: 'phone', NOT: { provider_uid: phone } },
+      });
+      await tx.userIdentifier.upsert({
+        where: {
+          provider_provider_uid: { provider: 'phone', provider_uid: phone },
+        },
+        create: {
+          user_id: id,
+          provider: 'phone',
+          provider_uid: phone,
+          verified_at: now,
+        },
+        update: { verified_at: now },
+      });
+      await tx.user.update({
+        where: { id },
+        data: { phone_e164: phone, phone_verified_at: now },
+      });
+      const chains = await this.sessions.revokeAllChainsForUser(
+        id,
+        'admin_block',
+        tx,
+      );
+      revoked = chains.length;
+      await this.notifications.emit(
+        {
+          type: 'security_phone_changed',
+          recipientId: id,
+          payload: {},
+        },
+        tx,
+      );
+    });
+    await this.audit.record({
+      adminId: admin.id,
+      action: USERS_AUDIT.phoneChanged,
+      targetType: 'user',
+      targetId: id,
+      // Only the last digits: no full numbers in the audit log.
+      before: { phone: mask(before.phone_e164) },
+      after: { phone: mask(phone), reason, revokedSessions: revoked },
+      ip: admin.ip,
+    });
+    return { userId: id, phone, revokedSessions: revoked };
+  }
+
   /** §3.4 "Предупреждение: уведомление moderation_notice". */
   async warn(
     admin: AdminActor,
@@ -594,3 +676,7 @@ const notFound = () =>
     code: ErrorCode.NOT_FOUND,
     message: 'User not found.',
   });
+
+function mask(phone: string | null): string | null {
+  return phone ? `•••${phone.slice(-4)}` : null;
+}

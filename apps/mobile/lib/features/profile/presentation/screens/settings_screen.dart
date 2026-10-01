@@ -11,6 +11,8 @@ import 'package:lawbid/features/settings/account/account_routes.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/subscription/subscription_routes.dart';
+import 'package:lawbid/features/team/application/team_providers.dart';
+import 'package:lawbid/features/team/team_routes.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 
 /// `/profile/settings` (file 01 §3.6: "Настройки (гамбургер): Аккаунт,
@@ -80,6 +82,17 @@ class SettingsScreen extends ConsumerWidget {
               icon: Icons.workspace_premium_outlined,
               label: t.t('settings.subscription'),
               onTap: () => context.push(SubscriptionRoutes.subscription),
+            ),
+          // Owner 2026-10-01: assistants' access lives in Settings too —
+          // the Team screen (seats, every access switch, removal).
+          if (ref.watch(currentUserRoleProvider) == UserRole.attorney &&
+              !ref.watch(isAssistantProvider))
+            AppListRow(
+              key: const ValueKey('settings-assistants'),
+              icon: Icons.admin_panel_settings_outlined,
+              label: t.t('settings.assistants'),
+              subtitle: t.t('settings.assistants.hint'),
+              onTap: () => context.push(TeamRoutes.team),
             ),
           AppListRow(
             icon: Icons.history_rounded,

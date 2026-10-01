@@ -1,4 +1,5 @@
 import {
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -14,11 +15,27 @@ import type {
   CreateTaskDto,
   TaskDto,
   TasksQueryDto,
+  TaskStepInputDto,
   UpdateTaskStatusDto,
+  UpdateTaskStepDto,
 } from './assistants.dto';
+
+/** Owner 2026-10-01: the step columns from the input. */
+function stepData(s: TaskStepInputDto) {
+  return {
+    kind: s.kind ?? null,
+    title: s.title,
+    due_at: s.dueAt ? new Date(s.dueAt) : null,
+    location: s.location ?? null,
+    contact_name: s.contactName ?? null,
+    contact_phone: s.contactPhone ?? null,
+    contact_email: s.contactEmail ?? null,
+  };
+}
 
 const INCLUDE = {
   case: { select: { title: true } },
+  steps: { orderBy: [{ position: 'asc' }, { created_at: 'asc' }] },
   created_by: {
     select: {
       display_name: true,
@@ -46,7 +63,7 @@ export class TasksService {
     private readonly assistants: AssistantsService,
   ) {}
 
-  async create(user: RequestUser, dto: CreateTaskDto): Promise<TaskDto> {
+  private assertMayPlan(user: RequestUser): void {
     const a = user.assistant;
     if (a && !a.duties.includes('tasks')) {
       throw new ForbiddenException({
@@ -55,6 +72,11 @@ export class TasksService {
         details: { duty: 'tasks' },
       });
     }
+  }
+
+  async create(user: RequestUser, dto: CreateTaskDto): Promise<TaskDto> {
+    const a = user.assistant;
+    this.assertMayPlan(user);
     const fileIds = dto.fileIds ?? [];
     for (const id of fileIds) {
       // The uploader is whoever is signed in (the assistant's files are
@@ -75,6 +97,13 @@ export class TasksService {
         contact_phone: dto.contactPhone ?? null,
         contact_email: dto.contactEmail ?? null,
         file_ids: fileIds,
+        steps: {
+          create: (dto.steps ?? []).map((st, i) => ({
+            ...stepData(st),
+            position: i,
+            created_by_name: a?.name ?? null,
+          })),
+        },
       },
       include: INCLUDE,
     });
@@ -189,6 +218,158 @@ export class TasksService {
     return (await this.present([updated]))[0];
   }
 
+  /**
+   * Owner 2026-10-01: add a step to a task's checklist — the attorney or
+   * an assistant with the tasks duty. A finished task opens again.
+   */
+  async addStep(
+    user: RequestUser,
+    id: string,
+    dto: TaskStepInputDto,
+  ): Promise<TaskDto> {
+    this.assertMayPlan(user);
+    const t = await this.own(user, id);
+    if (t.status === 'cancelled') throw this.closed();
+    const last = t.steps.at(-1)?.position ?? -1;
+    await this.prisma.$transaction([
+      this.prisma.attorneyTaskStep.create({
+        data: {
+          ...stepData(dto),
+          task_id: id,
+          position: last + 1,
+          created_by_name: user.assistant?.name ?? null,
+        },
+      }),
+      ...(t.status === 'done' || t.status === 'not_done'
+        ? [
+            this.prisma.attorneyTask.update({
+              where: { id },
+              data: { status: 'open', done_at: null },
+            }),
+          ]
+        : []),
+    ]);
+    if (user.assistant) {
+      await this.assistants.log(user, 'task.step.add', {
+        type: 'task',
+        id,
+        summary: `${t.title} · ${dto.title}`,
+      });
+    }
+    return this.get(user, id);
+  }
+
+  /**
+   * Check a step off (done / not done / open again) or move it to another
+   * time. Checkmarks are the attorney's; assistants may only move times.
+   * When every step is checked the whole task is done.
+   */
+  async updateStep(
+    user: RequestUser,
+    id: string,
+    stepId: string,
+    dto: UpdateTaskStepDto,
+  ): Promise<TaskDto> {
+    const t = await this.own(user, id);
+    const step = t.steps.find((x) => x.id === stepId);
+    if (!step) throw this.stepNotFound();
+    if (dto.status && user.assistant) {
+      throw new ForbiddenException({
+        code: ErrorCode.ASSISTANT_NOT_ALLOWED,
+        message: 'Only the attorney checks steps off.',
+      });
+    }
+    if (dto.dueAt !== undefined) this.assertMayPlan(user);
+    await this.prisma.attorneyTaskStep.update({
+      where: { id: stepId },
+      data: {
+        ...(dto.status
+          ? {
+              status: dto.status,
+              done_at: dto.status === 'open' ? null : new Date(),
+            }
+          : {}),
+        ...(dto.note !== undefined ? { note: dto.note || null } : {}),
+        ...(dto.dueAt !== undefined
+          ? { due_at: dto.dueAt ? new Date(dto.dueAt) : null }
+          : {}),
+      },
+    });
+    if (dto.status) await this.syncTaskWithSteps(t, stepId, dto.status);
+    if (user.assistant) {
+      await this.assistants.log(user, 'task.step.move', {
+        type: 'task',
+        id,
+        summary: `${t.title} · ${step.title}`,
+      });
+    }
+    return this.get(user, id);
+  }
+
+  async removeStep(
+    user: RequestUser,
+    id: string,
+    stepId: string,
+  ): Promise<TaskDto> {
+    this.assertMayPlan(user);
+    const t = await this.own(user, id);
+    if (!t.steps.some((x) => x.id === stepId)) throw this.stepNotFound();
+    await this.prisma.attorneyTaskStep.delete({ where: { id: stepId } });
+    if (user.assistant) {
+      await this.assistants.log(user, 'task.step.remove', {
+        type: 'task',
+        id,
+        summary: t.title,
+      });
+    }
+    return this.get(user, id);
+  }
+
+  /** All steps checked → the task is done (the assistant hears back). */
+  private async syncTaskWithSteps(
+    t: TaskRow,
+    changedId: string,
+    changedTo: 'open' | 'done' | 'not_done',
+  ): Promise<void> {
+    const statuses = t.steps.map((x) =>
+      x.id === changedId ? changedTo : x.status,
+    );
+    const allChecked = statuses.every((x) => x === 'done' || x === 'not_done');
+    if (allChecked && t.status !== 'done' && t.status !== 'not_done') {
+      const status = statuses.every((x) => x === 'done') ? 'done' : 'not_done';
+      await this.prisma.attorneyTask.update({
+        where: { id: t.id },
+        data: { status, done_at: new Date() },
+      });
+      await this.assistants.tellAssistant(t.created_by_membership_id, {
+        taskId: t.id,
+        status,
+      });
+    } else if (
+      !allChecked &&
+      (t.status === 'done' || t.status === 'not_done')
+    ) {
+      await this.prisma.attorneyTask.update({
+        where: { id: t.id },
+        data: { status: 'open', done_at: null },
+      });
+    }
+  }
+
+  private stepNotFound(): NotFoundException {
+    return new NotFoundException({
+      code: ErrorCode.NOT_FOUND,
+      message: 'Step not found.',
+    });
+  }
+
+  private closed(): ConflictException {
+    return new ConflictException({
+      code: ErrorCode.TASK_CLOSED,
+      message: 'This task was cancelled.',
+    });
+  }
+
   private async own(user: RequestUser, id: string): Promise<TaskRow> {
     const t = await this.prisma.attorneyTask.findFirst({
       where: { id, attorney_id: user.sub },
@@ -229,6 +410,21 @@ export class TasksService {
       createdByName: t.created_by ? nameOf(t.created_by) : null,
       createdAt: t.created_at.toISOString(),
       doneAt: t.done_at?.toISOString() ?? null,
+      steps: (t.steps ?? []).map((st) => ({
+        id: st.id,
+        position: st.position,
+        kind: st.kind,
+        title: st.title,
+        dueAt: st.due_at?.toISOString() ?? null,
+        location: st.location,
+        contactName: st.contact_name,
+        contactPhone: st.contact_phone,
+        contactEmail: st.contact_email,
+        status: st.status,
+        note: st.note,
+        doneAt: st.done_at?.toISOString() ?? null,
+        createdByName: st.created_by_name,
+      })),
     }));
   }
 }

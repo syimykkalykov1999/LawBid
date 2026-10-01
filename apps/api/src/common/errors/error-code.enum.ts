@@ -101,6 +101,8 @@ export enum ErrorCode {
   ASSISTANT_INVITE_NOT_FOUND = 'ASSISTANT_INVITE_NOT_FOUND',
   // OQ-049: granting bids / publish needs the attorney's acceptance.
   ASSISTANT_LIABILITY_REQUIRED = 'ASSISTANT_LIABILITY_REQUIRED',
+  /** Owner 2026-10-01: a cancelled task takes no new steps. */
+  TASK_CLOSED = 'TASK_CLOSED',
   // Practices and profiles (docs/03_VERIFICATION_PROFILES.md §3–§4,
   // stages 3.5–3.6)
   // 403: the action needs verification_status = verified (practices).

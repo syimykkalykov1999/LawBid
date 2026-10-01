@@ -253,7 +253,7 @@ class StaticTranslatorRu extends _MapTranslator {
         'onboarding.role.attorney.title': 'Адвокат',
         'onboarding.role.attorney.badge': 'PRO',
         'onboarding.role.attorney.desc':
-            'Лицензированный юрист: находите клиентов по своей практике и штату.',
+            'Лицензированный юрист или помощник адвоката: клиенты по практике и штату.',
         'onboarding.role.continue': 'Продолжить',
         'onboarding.role.warning': 'Роль потом изменить нельзя',
         'brand.name': 'LawBid',
@@ -1032,7 +1032,7 @@ class StaticTranslatorEn extends _MapTranslator {
         'onboarding.role.attorney.title': 'Attorney',
         'onboarding.role.attorney.badge': 'PRO',
         'onboarding.role.attorney.desc':
-            'Licensed attorney: find clients in your practice areas and states.',
+            "Licensed attorney or an attorney's assistant: clients in your practice areas and states.",
         'onboarding.role.continue': 'Continue',
         'onboarding.role.warning': "You can't change your role later",
         'brand.name': 'LawBid',

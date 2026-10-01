@@ -23,7 +23,7 @@ class FlipSearchBar extends StatefulWidget {
     this.leading,
     this.trailing,
     this.showCancel = true,
-    this.height = 51,
+    this.height = 44,
     super.key,
   });
 
@@ -49,7 +49,7 @@ class FlipSearchBar extends StatefulWidget {
   /// focused. `false` when the caller has its own way to close.
   final bool showCancel;
 
-  /// Field height (48 px inside the border by default).
+  /// Field height (owner 2026-10-01: 44 — the old 51 looked huge).
   final double height;
 
   @override
@@ -194,17 +194,19 @@ class _FlipSearchBarState extends State<FlipSearchBar> {
                   textField: true,
                   label: widget.semanticLabel,
                   child: TextField(
+                    onTapOutside: hideKeyboardOnTapOutside,
                     controller: widget.controller,
                     focusNode: widget.focusNode,
                     textInputAction: TextInputAction.search,
                     onSubmitted: widget.onSubmitted,
                     style: type.body.copyWith(color: colors.text),
                     cursorColor: colors.goldDark,
-                    // Full 48 px tall: the whole bar is the tap target
+                    // The whole 44 px bar is the tap target
                     // (docs/01 §8.4).
                     decoration: const InputDecoration(
                       border: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(vertical: 14),
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(vertical: 11),
                     ),
                   ),
                 ),

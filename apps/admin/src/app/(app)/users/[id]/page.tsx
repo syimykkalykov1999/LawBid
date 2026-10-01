@@ -64,8 +64,35 @@ export default function UserCardPage() {
   });
 
   const act = useMutation({
-    mutationFn: async (what: 'revoke' | 'warn' | 'suspend' | 'restore') => {
+    mutationFn: async (what: 'revoke' | 'warn' | 'suspend' | 'restore' | 'phone') => {
       const path = { params: { path: { id } } };
+      if (what === 'phone') {
+        // Owner 2026-10-01: a new number on the user's request (lost phone).
+        const p = await ask({
+          title: 'Сменить телефон по запросу',
+          description:
+            'Новый номер в формате +13125550123. Старый номер перестанет работать, все сессии будут закрыты, пользователь получит уведомление и письмо.',
+          label: 'Новый номер',
+          min: 9,
+          confirm: 'Дальше',
+        });
+        if (!p) return null;
+        const phone = p.text.replace(/[\s()-]/g, '');
+        if (!/^\+[1-9]\d{7,14}$/.test(phone)) {
+          setError('Номер должен быть в формате +13125550123');
+          return null;
+        }
+        const r = await ask({
+          title: `Сменить на ${phone}?`,
+          description: 'Укажите, как вы подтвердили личность (документ, звонок, письмо с почты аккаунта). Причина попадает в журнал.',
+          label: 'Причина и как проверили личность',
+          min: 5,
+          confirm: 'Сменить номер',
+          danger: true,
+        });
+        if (!r) return null;
+        return api.POST('/admin/users/{id}/phone', { ...path, body: { phone, reason: r.text } });
+      }
       if (what === 'revoke') return api.POST('/admin/users/{id}/sessions/revoke', path);
       if (what === 'restore') return api.POST('/admin/users/{id}/restore', path);
       const r = await ask(
@@ -125,6 +152,9 @@ export default function UserCardPage() {
               </Button>
               {canSanction ? (
                 <>
+                  <Button variant="outline" size="sm" disabled={act.isPending} onClick={() => act.mutate('phone')}>
+                    Сменить телефон
+                  </Button>
                   <Button variant="outline" size="sm" disabled={act.isPending} onClick={() => act.mutate('warn')}>
                     Предупредить
                   </Button>
