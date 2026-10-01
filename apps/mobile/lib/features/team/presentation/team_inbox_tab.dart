@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
@@ -9,7 +8,6 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/features/team/presentation/team_widgets.dart';
-import 'package:lawbid/features/team/team_routes.dart';
 
 enum _TeamView { activity, requests }
 
@@ -63,59 +61,29 @@ class _TeamInboxTabState extends ConsumerState<TeamInboxTab> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     return Column(
       children: [
-        // Owner 2026-10-01: one line — Activity · Requests centred, the
-        // team settings icon at the right edge straight under the bell.
-        // An empty slot of the same width on the left keeps the chips
-        // centred and never under the icon.
+        // Owner 2026-10-01: Activity · Requests centred; the team settings
+        // live in the header where the bell is in Chats.
         Padding(
           padding: const EdgeInsets.only(
             top: AppSpacing.xs,
             bottom: AppSpacing.sm,
-            right: AppSpacing.xs,
-            left: AppSpacing.xs,
           ),
-          child: Row(
+          child: Wrap(
+            alignment: WrapAlignment.center,
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.xs,
             children: [
-              const SizedBox(width: AppSizes.touchTarget),
-              Expanded(
-                child: Center(
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        AppChip(
-                          key: const ValueKey('team-view-activity'),
-                          label: t.t('team.activity'),
-                          selected: _view == _TeamView.activity,
-                          onTap: () =>
-                              setState(() => _view = _TeamView.activity),
-                        ),
-                        const SizedBox(width: AppSpacing.sm),
-                        AppChip(
-                          key: const ValueKey('team-view-requests'),
-                          label: t.t('team.requests'),
-                          selected: _view == _TeamView.requests,
-                          onTap: () =>
-                              setState(() => _view = _TeamView.requests),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+              AppChip(
+                key: const ValueKey('team-view-activity'),
+                label: t.t('team.activity'),
+                selected: _view == _TeamView.activity,
+                onTap: () => setState(() => _view = _TeamView.activity),
               ),
-              SizedBox.square(
-                dimension: AppSizes.touchTarget,
-                child: AppIconButton(
-                  key: const ValueKey('team-settings'),
-                  plain: true,
-                  icon: const AppIcon(
-                    AppIcons.manageAccountsOutlined,
-                    size: 28,
-                  ),
-                  semanticLabel: t.t('team.title'),
-                  onPressed: () => context.push(TeamRoutes.team),
-                ),
+              AppChip(
+                key: const ValueKey('team-view-requests'),
+                label: t.t('team.requests'),
+                selected: _view == _TeamView.requests,
+                onTap: () => setState(() => _view = _TeamView.requests),
               ),
             ],
           ),

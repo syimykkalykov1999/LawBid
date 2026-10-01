@@ -21,6 +21,7 @@ import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/presentation/team_inbox_tab.dart';
+import 'package:lawbid/features/team/team_routes.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 
@@ -98,15 +99,32 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                     alignment: Alignment.centerRight,
                     child: Padding(
                       padding: const EdgeInsets.only(right: AppSpacing.xs),
-                      child: _Bell(
-                        count: badges.notifications,
-                        selected: tab == InboxTab.notifications,
-                        label: t.t('inbox.tab.notifications'),
-                        onTap: () => setState(() => _tab =
-                            tab == InboxTab.notifications
-                                ? InboxTab.chats
-                                : InboxTab.notifications),
-                      ),
+                      // Owner 2026-10-01: in Team the bell gives way to
+                      // the team settings (seats, access).
+                      child: tab == InboxTab.team
+                          ? SizedBox.square(
+                              dimension: AppSizes.touchTarget,
+                              child: AppIconButton(
+                                key: const ValueKey('team-settings'),
+                                plain: true,
+                                icon: AppIcon(
+                                  AppIcons.manageAccountsOutlined,
+                                  size: 28,
+                                  color: colors.text,
+                                ),
+                                semanticLabel: t.t('team.title'),
+                                onPressed: () => context.push(TeamRoutes.team),
+                              ),
+                            )
+                          : _Bell(
+                              count: badges.notifications,
+                              selected: tab == InboxTab.notifications,
+                              label: t.t('inbox.tab.notifications'),
+                              onTap: () => setState(() => _tab =
+                                  tab == InboxTab.notifications
+                                      ? InboxTab.chats
+                                      : InboxTab.notifications),
+                            ),
                     ),
                   ),
                 ],
@@ -703,7 +721,9 @@ class _CaseChip extends StatelessWidget {
         children: [
           AppIcon(
               icon ??
-                  (closed ? AppIcons.lockOutlineRounded : AppIcons.balanceRounded),
+                  (closed
+                      ? AppIcons.lockOutlineRounded
+                      : AppIcons.balanceRounded),
               size: 12,
               color: colors.goldDark),
           const SizedBox(width: 4),
