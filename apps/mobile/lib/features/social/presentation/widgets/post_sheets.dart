@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/features/blocks/presentation/block_actions.dart';
 import 'package:lawbid/features/social/presentation/screens/create_post_screen.dart';
 
 import 'package:lawbid/core/config/app_environment.dart';
@@ -33,10 +36,24 @@ Future<void> sharePost(BuildContext context, WidgetRef ref, Post post) async {
   if (shared) await ref.read(socialActionsProvider).recordShare(post);
 }
 
-/// §2.4 "⋯": someone else's post — report, copy link; your own — edit
-/// text, delete, copy link.
+/// Reloads every post list after a block (the blocked person's posts go).
+void refreshPostLists(WidgetRef ref) {
+  ref
+    ..invalidate(feedProvider)
+    ..invalidate(latestPostsProvider)
+    ..invalidate(explorePostsProvider)
+    ..invalidate(filteredPostsProvider)
+    ..invalidate(tagPostsProvider)
+    ..invalidate(attorneyPostsProvider)
+    ..invalidate(attorneyNewsProvider);
+}
+
+/// §2.4 "⋯": your own post — edit, delete; someone else's — the author's
+/// profile, unfollow (when following), block, report.
 Future<void> showPostMenu(BuildContext context, WidgetRef ref, Post post) {
   final t = ref.read(translatorProvider);
+  final following = ref.read(followOverridesProvider)[post.author.id] ??
+      post.author.isFollowing;
   return showAppBottomSheet<void>(
     context: context,
     builder: (sheet) => SafeArea(
@@ -83,8 +100,66 @@ Future<void> showPostMenu(BuildContext context, WidgetRef ref, Post post) {
                   }
                 },
               ),
-            ] else
+            ] else ...[
+              // Owner 2026-10-01: the "⋯" of someone else's post — the
+              // author's profile, unfollow, block, report ("copy link"
+              // lives in the share sheet behind the paper plane).
               AppListRow(
+                key: const ValueKey('post-menu-profile'),
+                icon: AppIcons.personOutlineRounded,
+                label: t.t('post.menu.profile'),
+                showChevron: false,
+                onTap: () {
+                  Navigator.of(sheet).pop();
+                  final a = post.author;
+                  context.push(a.isClient
+                      ? AppRoutes.client(a.username)
+                      : AppRoutes.lawyer(a.username));
+                },
+              ),
+              if (following)
+                AppListRow(
+                  key: const ValueKey('post-menu-unfollow'),
+                  icon: AppIcons.personOffOutlined,
+                  label: t.t('post.menu.unfollow'),
+                  showChevron: false,
+                  onTap: () async {
+                    Navigator.of(sheet).pop();
+                    final error = await ref
+                        .read(socialActionsProvider)
+                        .setFollowing(post.author.id, false);
+                    if (context.mounted) {
+                      showAppSnackBar(
+                        context,
+                        error == null
+                            ? t.t('post.menu.unfollowed',
+                                {'name': post.author.displayName})
+                            : errorText(t, error),
+                      );
+                    }
+                  },
+                ),
+              AppListRow(
+                key: const ValueKey('post-menu-block'),
+                icon: AppIcons.blockFlipped,
+                label: t.t('post.menu.block'),
+                destructive: true,
+                showChevron: false,
+                onTap: () async {
+                  Navigator.of(sheet).pop();
+                  final done = await toggleBlock(
+                    context,
+                    ref,
+                    userId: post.author.id,
+                    displayName: post.author.displayName,
+                    currentlyBlocked: false,
+                  );
+                  // Their posts leave every list (the server hides them).
+                  if (done) refreshPostLists(ref);
+                },
+              ),
+              AppListRow(
+                key: const ValueKey('post-menu-report'),
                 icon: AppIcons.flagOutlined,
                 label: t.t('post.menu.report'),
                 showChevron: false,
@@ -93,19 +168,7 @@ Future<void> showPostMenu(BuildContext context, WidgetRef ref, Post post) {
                   showReportSheet(context, ref, ReportTarget.post, post.id);
                 },
               ),
-            AppListRow(
-              icon: AppIcons.linkRounded,
-              label: t.t('post.menu.copyLink'),
-              showChevron: false,
-              onTap: () async {
-                Navigator.of(sheet).pop();
-                await Clipboard.setData(
-                    ClipboardData(text: _link(ref, post.id)));
-                if (context.mounted) {
-                  showAppSnackBar(context, t.t('post.linkCopied'));
-                }
-              },
-            ),
+            ],
           ],
         ),
       ),

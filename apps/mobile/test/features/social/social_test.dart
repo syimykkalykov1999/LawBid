@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
-import 'package:lawbid/core/design_system/theme/app_theme.dart';
+import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/features/search/presentation/screens/search_screen.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart';
@@ -77,7 +77,29 @@ void main() {
     expect(find.textContaining('#dui', findRichText: true), findsOneWidget);
   });
 
-  testWidgets('search: one request per pause, nothing under 2 characters (§7.1)',
+  testWidgets(
+      "someone else's post ⋯: profile, block, report — no copy link "
+      '(the paper plane shares)', (tester) async {
+    final repo = FakeSocialRepository(posts: [fakePost('p1')]);
+    await tester.pumpWidget(uxApp(
+      const Scaffold(body: PostsFeedView()),
+      theme: AppTheme.light(),
+      overrides: uxOverrides(social: repo),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(AppIcons.moreHorizRounded).first);
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('post-menu-profile')), findsOneWidget);
+    expect(find.byKey(const ValueKey('post-menu-block')), findsOneWidget);
+    expect(find.byKey(const ValueKey('post-menu-report')), findsOneWidget);
+    // Not following yet: no "Unfollow".
+    expect(find.byKey(const ValueKey('post-menu-unfollow')), findsNothing);
+    expect(find.text('Copy link'), findsNothing);
+  });
+
+  testWidgets(
+      'search: one request per pause, nothing under 2 characters (§7.1)',
       (tester) async {
     final search = FakeSearchRepository();
     await tester.pumpWidget(uxApp(
