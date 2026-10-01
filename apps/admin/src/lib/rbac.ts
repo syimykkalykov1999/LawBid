@@ -39,6 +39,7 @@ export const SECTIONS: readonly Section[] = [
   { href: '/verification', label: 'Верификация', roles: ['super_admin', 'verifier'] },
   { href: '/users', label: 'Пользователи', roles: ['super_admin', 'moderator', 'support'] },
   { href: '/moderation', label: 'Модерация', roles: ['super_admin', 'moderator'] },
+  { href: '/review-appeals', label: 'Обжалования отзывов', roles: ['super_admin', 'moderator'] },
   { href: '/cases', label: 'Кейсы', roles: ['super_admin', 'support'] },
   { href: '/subscriptions', label: 'Подписки и платежи', roles: ['super_admin', 'support', 'finance'] },
   { href: '/flags', label: 'Флаги функций', roles: ['super_admin'] },

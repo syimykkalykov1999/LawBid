@@ -1,6 +1,8 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart'
+    show PracticePhoto;
 import 'package:lawbid/features/practice/practice_options.dart' as practices;
 import 'package:go_router/go_router.dart';
 
@@ -651,47 +653,92 @@ class ProfilePostsGrid extends ConsumerWidget {
                   label: t.t('post.open'),
                   child: AppPressable(
                     onTap: () => context.push(SocialRoutes.post(p.id)),
-                    child: p.media.isEmpty
-                        ? Container(
-                            color: colors.goldTint,
-                            padding: const EdgeInsets.all(AppSpacing.sm),
-                            child: Text(
-                              p.body,
-                              maxLines: 5,
-                              overflow: TextOverflow.ellipsis,
-                              style: type.caption.copyWith(color: colors.text),
-                            ),
-                          )
-                        : Stack(
+                    child: p.media.isEmpty && p.practice != null
+                        // Owner 2026-09-30: no photos — our art of the
+                        // post's qualification under its title.
+                        ? Stack(
                             fit: StackFit.expand,
                             children: [
-                              CachedNetworkImage(
-                                imageUrl: p.media.first.previewUrl,
-                                cacheKey: '${p.media.first.fileId}:320',
-                                fit: BoxFit.cover,
-                                placeholder: (_, __) =>
-                                    ColoredBox(color: colors.skeletonBase),
-                                errorWidget: (_, __, ___) =>
-                                    ColoredBox(color: colors.skeletonBase),
+                              PracticePhoto(
+                                categoryCode: p.practice!.categoryCode,
+                                practiceCode: p.practice!.code,
                               ),
-                              if (p.media.length > 1)
+                              const DecoratedBox(
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    stops: [0.35, 1],
+                                    colors: [
+                                      Color(0x00000000),
+                                      Color(0xCC0A1A3F),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              Positioned(
+                                left: 6,
+                                right: 6,
+                                bottom: 6,
+                                child: Text(
+                                  p.title ?? splitPostBody(p.body).$1,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: type.caption.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                              if (p.isNews)
                                 const Positioned(
                                   top: 6,
                                   right: 6,
-                                  child: Icon(Icons.collections_rounded,
+                                  child: Icon(Icons.newspaper_rounded,
                                       size: 16, color: Colors.white),
                                 ),
                             ],
-                          ),
+                          )
+                        : p.media.isEmpty
+                            ? Container(
+                                color: colors.goldTint,
+                                padding: const EdgeInsets.all(AppSpacing.sm),
+                                child: Text(
+                                  p.title ?? p.body,
+                                  maxLines: 5,
+                                  overflow: TextOverflow.ellipsis,
+                                  style:
+                                      type.caption.copyWith(color: colors.text),
+                                ),
+                              )
+                            : Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  CachedNetworkImage(
+                                    imageUrl: p.media.first.previewUrl,
+                                    cacheKey: '${p.media.first.fileId}:320',
+                                    fit: BoxFit.cover,
+                                    placeholder: (_, __) =>
+                                        ColoredBox(color: colors.skeletonBase),
+                                    errorWidget: (_, __, ___) =>
+                                        ColoredBox(color: colors.skeletonBase),
+                                  ),
+                                  if (p.media.length > 1)
+                                    const Positioned(
+                                      top: 6,
+                                      right: 6,
+                                      child: Icon(Icons.collections_rounded,
+                                          size: 16, color: Colors.white),
+                                    ),
+                                ],
+                              ),
                   ),
                 );
               },
             ),
             if (page.canLoadMore)
               TextButton(
-                onPressed: () => ref
-                    .read(_provider.notifier)
-                    .loadMore(),
+                onPressed: () => ref.read(_provider.notifier).loadMore(),
                 child: Text(t.t('pagination.loadingMore')),
               ),
           ],
