@@ -224,7 +224,7 @@ describe('Case history (e2e, docs/04 §12, stage 4.7)', () => {
       data: {
         first_name: 'Dana',
         last_name: 'Client',
-        phone_e164: `+1201${Math.floor(1_000_000 + Math.random() * 8_999_999)}`,
+        phone_e164: `+1201${Math.floor(2_000_000 + Math.random() * 7_999_999)}`,
       },
     });
     const a1 = await user('attorney');

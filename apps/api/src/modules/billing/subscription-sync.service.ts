@@ -102,6 +102,15 @@ export class SubscriptionSyncService {
           where: { stripe_subscription_id: remote.id },
         })) ?? (await this.byCustomer(tx, remote.customerId));
       if (!local) return null;
+      // Audit 2026-10-01: an event of another (duplicate, cancelled)
+      // subscription of the same customer never overwrites the live one.
+      if (
+        local.stripe_subscription_id &&
+        local.stripe_subscription_id !== remote.id &&
+        SubscriptionAccessService.rowIsActive(local)
+      ) {
+        return null;
+      }
       const hadPayment =
         (await tx.payment.count({
           where: { user_id: local.user_id, status: 'succeeded' },

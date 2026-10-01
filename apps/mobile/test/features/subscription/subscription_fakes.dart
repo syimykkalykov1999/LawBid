@@ -193,6 +193,20 @@ class FakeSubscriptionRepository implements SubscriptionRepository {
   }
 
   @override
+  Future<SubscriptionOverview> resume() async {
+    calls.add('resume');
+    final s = current.subscription!;
+    return current = makeOverview(
+      subscription: makeInfo(
+        status: s.status,
+        trialEndsAt: s.trialEndsAt,
+        currentPeriodEnd: s.currentPeriodEnd,
+      ),
+      trialEligible: false,
+    );
+  }
+
+  @override
   Future<SubscriptionOverview> cancel() async {
     calls.add('cancel');
     final s = current.subscription!;

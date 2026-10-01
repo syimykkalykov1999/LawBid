@@ -10,6 +10,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { POSTS_PAGE_DEFAULT, type SavedPostItemDto } from './dto/posts.dto';
 import { PostPresenter, VISIBLE_POST_WHERE } from './post-presenter.service';
 import { postNotFound } from './posts.service';
+import { assertNoBlock } from '../blocks/block-guard';
 
 /**
  * docs/05 §4 (stage 5.4): post likes and saves. Idempotent by the primary
@@ -29,6 +30,7 @@ export class PostEngagementService {
 
   async like(userId: string, postId: string): Promise<void> {
     const post = await this.visible(postId);
+    await assertNoBlock(this.prisma, userId, post.author_id);
     await this.limits.consume('like', userId);
     const { count } = await this.prisma.postLike.createMany({
       data: [{ post_id: postId, user_id: userId }],
@@ -64,7 +66,8 @@ export class PostEngagementService {
 
   /** §4 "Сохранение поста" via /saved-items (item_type = post). */
   async save(userId: string, postId: string): Promise<void> {
-    await this.visible(postId);
+    const post = await this.visible(postId);
+    await assertNoBlock(this.prisma, userId, post.author_id);
     const { count } = await this.prisma.savedItem.createMany({
       data: [{ user_id: userId, item_type: 'post', item_id: postId }],
       skipDuplicates: true,

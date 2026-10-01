@@ -195,4 +195,15 @@ export class SubscriptionsController {
   ): Promise<SubscriptionMeDto> {
     return this.subscriptions.cancel(user);
   }
+
+  @Post('resume')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Keep the subscription (undo a cancel)' })
+  @ApiEnvelopeResponse(SubscriptionMeDto)
+  @ApiErrors({ 404: [E.SUBSCRIPTION_NOT_FOUND] })
+  resumeSubscription(
+    @CurrentUser() user: RequestUser,
+  ): Promise<SubscriptionMeDto> {
+    return this.subscriptions.resume(user);
+  }
 }

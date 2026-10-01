@@ -752,6 +752,11 @@ export class ChatService {
       const [dto] = await this.present([conv], user.sub);
       return dto;
     }
+    // Audit 2026-10-01: a request from someone blocked either way can be
+    // declined, not accepted (accepting unlocks contacts and calls).
+    if (accept && conv.requested_by) {
+      await this.blocks.assertNotBlocked(user.sub, conv.requested_by);
+    }
     const updated = await this.prisma.conversation.update({
       where: { id },
       // Owner 2026-09-30: accepted = a full chat (contacts, calls).

@@ -167,4 +167,8 @@ class ApiSubscriptionRepository implements SubscriptionRepository {
   @override
   Future<SubscriptionOverview> cancel() async =>
       _overview((await guardApiCall(_api.cancelSubscription)).data);
+
+  @override
+  Future<SubscriptionOverview> resume() async =>
+      _overview((await guardApiCall(_api.resumeSubscription)).data);
 }

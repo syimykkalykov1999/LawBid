@@ -488,6 +488,15 @@ describe('stage 6.7 — Stripe subscriptions (e2e, fake provider)', () => {
         where: { user_id: first.id, type: 'subscription_trial_ending' },
       }),
     ).toBe(0);
+    // Audit 2026-10-01: the cancel can be taken back in the app.
+    const resumed = await api()
+      .post('/api/v1/subscriptions/resume')
+      .set(first.auth)
+      .expect(200);
+    expect((resumed.body as Body).data).toMatchObject({
+      isActive: true,
+      subscription: expect.objectContaining({ cancelAtPeriodEnd: false }),
+    });
   });
 
   it('trial reminder notifies with the date and amount', async () => {

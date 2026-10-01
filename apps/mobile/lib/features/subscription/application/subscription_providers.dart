@@ -64,6 +64,13 @@ class SubscriptionOverviewController
     apply(next);
     return next;
   }
+
+  /// `POST /subscriptions/resume`: the cancel is taken back.
+  Future<SubscriptionOverview> resume() async {
+    final next = await ref.read(subscriptionRepositoryProvider).resume();
+    apply(next);
+    return next;
+  }
 }
 
 /// `GET /subscriptions/payments` (docs/06 §1.7 п.4), cursor-paged.

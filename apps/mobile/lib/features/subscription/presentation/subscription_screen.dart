@@ -206,6 +206,15 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
     }
   }
 
+  Future<void> _resume() async {
+    try {
+      await ref.read(subscriptionOverviewProvider.notifier).resume();
+      if (mounted) showAppSnackBar(context, _t.t('subscription.resume.done'));
+    } on Object catch (e) {
+      if (mounted) showAppSnackBar(context, errorText(_t, e));
+    }
+  }
+
   /// Stripe Customer Portal in the in-app browser (docs/06 §1.4
   /// "Управление"): card, invoices, cancellation.
   Future<void> _openPortal() async {
@@ -310,6 +319,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
             portalBusy: _portalBusy,
             onManage: _openPortal,
             onCancel: () => _cancel(s),
+            onResume: _resume,
             onRefresh: _refresh,
           ),
         );
@@ -444,6 +454,7 @@ class SubscriptionStatusCard extends StatelessWidget {
     required this.onManage,
     required this.onCancel,
     required this.onRefresh,
+    this.onResume,
     super.key,
   });
 
@@ -454,6 +465,9 @@ class SubscriptionStatusCard extends StatelessWidget {
   final VoidCallback onManage;
   final VoidCallback onCancel;
   final Future<void> Function() onRefresh;
+
+  /// Shown while a cancel is scheduled: keep the subscription.
+  final VoidCallback? onResume;
 
   @override
   Widget build(BuildContext context) {
@@ -498,6 +512,14 @@ class SubscriptionStatusCard extends StatelessWidget {
             variant: AppButtonVariant.secondary,
             height: AppSizes.touchTarget,
             onPressed: onCancel,
+          ),
+        if (s.isActive && s.cancelAtPeriodEnd && onResume != null)
+          AppButton(
+            key: const ValueKey('subscription-resume'),
+            label: t.t('subscription.action.resume'),
+            icon: Icons.replay_rounded,
+            height: AppSizes.touchTarget,
+            onPressed: onResume,
           ),
       ],
     ];

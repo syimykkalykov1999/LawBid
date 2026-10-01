@@ -6,6 +6,11 @@ import {
   encodeCursor,
 } from '../../common/pagination/cursor.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import { withTxRetry } from '../../prisma/tx-retry.util';
+import {
+  type ContentAction,
+  ModerationService,
+} from '../moderation/moderation.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import type {
   AdminBidRowDto,
@@ -74,7 +79,38 @@ export class AdminContentService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
+    private readonly moderation: ModerationService,
   ) {}
+
+  /** Audit 2026-10-01: the admin's content actions go through the
+   * moderation status path — posts_count / comment_count / reply_count
+   * and the attorney's rating stay in sync (they were left stale). */
+  private async setStatus(
+    type: 'post' | 'comment' | 'case_comment' | 'review',
+    id: string,
+    action: ContentAction,
+  ): Promise<string> {
+    const after: (() => Promise<void>)[] = [];
+    const authorId = await withTxRetry(this.prisma, async (tx) => {
+      after.length = 0;
+      const target = await this.moderation.resolve(type, id, tx);
+      if (!target) throw notFound();
+      await this.moderation.setContentStatus(tx, target, action, after);
+      if (action === 'remove') {
+        const data = { deleted_at: new Date() };
+        if (type === 'post') await tx.post.update({ where: { id }, data });
+        if (type === 'comment') {
+          await tx.comment.update({ where: { id }, data });
+        }
+        if (type === 'case_comment') {
+          await tx.caseComment.update({ where: { id }, data });
+        }
+      }
+      return target.authorId ?? '';
+    });
+    for (const f of after) await f();
+    return authorId;
+  }
 
   // --- content ---------------------------------------------------------------
 
@@ -120,16 +156,8 @@ export class AdminContentService {
   }
 
   async removePost(id: string, reason: string): Promise<void> {
-    const post = await this.prisma.post.findUnique({
-      where: { id },
-      select: { author_id: true },
-    });
-    if (!post) throw notFound();
-    await this.prisma.post.update({
-      where: { id },
-      data: { status: 'removed', deleted_at: new Date() },
-    });
-    await this.tellAuthor(post.author_id, reason, { postId: id });
+    const authorId = await this.setStatus('post', id, 'remove');
+    if (authorId) await this.tellAuthor(authorId, reason, { postId: id });
   }
 
   /** The author learns why (the moderation_notice template + reason). */
@@ -205,24 +233,12 @@ export class AdminContentService {
     thread: 'post' | 'case',
     reason: string,
   ): Promise<void> {
-    const data = { status: 'removed' as const, deleted_at: new Date() };
-    const row =
-      thread === 'case'
-        ? await this.prisma.caseComment.findUnique({
-            where: { id },
-            select: { author_id: true },
-          })
-        : await this.prisma.comment.findUnique({
-            where: { id },
-            select: { author_id: true },
-          });
-    if (!row) throw notFound();
-    if (thread === 'case') {
-      await this.prisma.caseComment.update({ where: { id }, data });
-    } else {
-      await this.prisma.comment.update({ where: { id }, data });
-    }
-    await this.tellAuthor(row.author_id, reason, { commentId: id });
+    const authorId = await this.setStatus(
+      thread === 'case' ? 'case_comment' : 'comment',
+      id,
+      'remove',
+    );
+    if (authorId) await this.tellAuthor(authorId, reason, { commentId: id });
   }
 
   async reviews(cursor?: string): Promise<Page<AdminReviewRowDto>> {
@@ -254,14 +270,14 @@ export class AdminContentService {
     status: 'published' | 'hidden',
     reason?: string,
   ): Promise<void> {
-    const review = await this.prisma.review.findUnique({
-      where: { id },
-      select: { client_id: true },
-    });
-    if (!review) throw notFound();
-    await this.prisma.review.update({ where: { id }, data: { status } });
-    if (reason) {
-      await this.tellAuthor(review.client_id, reason, { reviewId: id });
+    // The rating is recalculated (a hidden review no longer counts).
+    const authorId = await this.setStatus(
+      'review',
+      id,
+      status === 'hidden' ? 'hide' : 'restore',
+    );
+    if (reason && authorId) {
+      await this.tellAuthor(authorId, reason, { reviewId: id });
     }
   }
 

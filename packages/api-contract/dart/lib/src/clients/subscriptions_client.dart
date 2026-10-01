@@ -88,4 +88,10 @@ abstract class SubscriptionsClient {
   Future<SubscriptionMeEnvelope> cancelSubscription({
     @Extras() Map<String, dynamic>? extras,
   });
+
+  /// Keep the subscription (undo a cancel)
+  @POST('/subscriptions/resume')
+  Future<SubscriptionMeEnvelope> resumeSubscription({
+    @Extras() Map<String, dynamic>? extras,
+  });
 }

@@ -39,7 +39,11 @@ describe('One account, one phone + one website (e2e)', () => {
   });
 
   const api = () => request(base);
-  const phone = `+1312${String(Math.floor(Math.random() * 1e7)).padStart(7, '0')}`;
+  // A valid NANP number: the exchange starts with 2–9 (a random 0/1 made
+  // the number invalid → the run failed now and then).
+  const phone = `+1312${2 + Math.floor(Math.random() * 8)}${String(
+    Math.floor(Math.random() * 1e6),
+  ).padStart(6, '0')}`;
 
   const warned: string[] = [];
 

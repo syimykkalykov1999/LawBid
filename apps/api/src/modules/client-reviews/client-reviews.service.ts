@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client';
 import {
   ConflictException,
   ForbiddenException,
@@ -13,6 +14,7 @@ import {
   encodeCursor,
 } from '../../common/pagination/cursor.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import { withTxRetry } from '../../prisma/tx-retry.util';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { assertNoContactInfo } from '../cases/domain/contact-detector';
 import { FilesService } from '../files/files.service';
@@ -27,6 +29,7 @@ import type {
   ClientReviewsQueryDto,
   UpsertClientReviewDto,
 } from './client-reviews.dto';
+import { assertNoBlock } from '../blocks/block-guard';
 
 const PAGE = 20;
 
@@ -154,38 +157,45 @@ export class ClientReviewsService {
     }
     await this.assertCanWrite(user);
     await this.assertCanSee(user, clientId);
+    await assertNoBlock(this.prisma, user.sub, clientId);
     const body = dto.body?.length ? dto.body : null;
     if (body) assertNoContactInfo({ body });
     const photoIds = await this.checkPhotos(user.sub, dto.photoIds);
-    const existing = await this.prisma.clientReview.findFirst({
-      where: {
-        client_id: clientId,
-        attorney_id: user.sub,
-        status: { not: 'removed' },
-      },
-      orderBy: { created_at: 'desc' },
-      select: { id: true },
+    // Audit 2026-10-01: find → write → rating in one serializable
+    // transaction — a double submit can't make two reviews, the rating
+    // can't be left stale.
+    const { existing, row } = await withTxRetry(this.prisma, async (tx) => {
+      const existing = await tx.clientReview.findFirst({
+        where: {
+          client_id: clientId,
+          attorney_id: user.sub,
+          status: { not: 'removed' },
+        },
+        orderBy: { created_at: 'desc' },
+        select: { id: true },
+      });
+      const row = existing
+        ? await tx.clientReview.update({
+            where: { id: existing.id },
+            data: {
+              rating: dto.rating,
+              body,
+              edited_at: new Date(),
+              ...(dto.photoIds !== undefined ? { photo_ids: photoIds } : {}),
+            },
+          })
+        : await tx.clientReview.create({
+            data: {
+              attorney_id: user.sub,
+              client_id: clientId,
+              rating: dto.rating,
+              body,
+              photo_ids: photoIds,
+            },
+          });
+      await this.recalc(clientId, tx);
+      return { existing, row };
     });
-    const row = existing
-      ? await this.prisma.clientReview.update({
-          where: { id: existing.id },
-          data: {
-            rating: dto.rating,
-            body,
-            edited_at: new Date(),
-            ...(dto.photoIds !== undefined ? { photo_ids: photoIds } : {}),
-          },
-        })
-      : await this.prisma.clientReview.create({
-          data: {
-            attorney_id: user.sub,
-            client_id: clientId,
-            rating: dto.rating,
-            body,
-            photo_ids: photoIds,
-          },
-        });
-    await this.recalc(clientId);
     if (!existing) {
       await this.notifications.emit({
         type: 'review_received',
@@ -224,15 +234,17 @@ export class ClientReviewsService {
       select: { client_id: true },
     });
     if (!r) throw reviewNotFound();
-    await this.prisma.clientReview.update({
-      where: { id: reviewId },
-      data: { status: 'removed' },
+    await withTxRetry(this.prisma, async (tx) => {
+      await tx.clientReview.update({
+        where: { id: reviewId },
+        data: { status: 'removed' },
+      });
+      await tx.clientReviewAppeal.updateMany({
+        where: { review_id: reviewId, status: 'pending' },
+        data: { status: 'accepted', decided_at: new Date() },
+      });
+      await this.recalc(r.client_id, tx);
     });
-    await this.prisma.clientReviewAppeal.updateMany({
-      where: { review_id: reviewId, status: 'pending' },
-      data: { status: 'accepted', decided_at: new Date() },
-    });
-    await this.recalc(r.client_id);
   }
 
   /**
@@ -705,13 +717,16 @@ export class ClientReviewsService {
     }
   }
 
-  async recalc(clientId: string): Promise<void> {
-    const agg = await this.prisma.clientReview.aggregate({
+  async recalc(
+    clientId: string,
+    db: Prisma.TransactionClient | PrismaService = this.prisma,
+  ): Promise<void> {
+    const agg = await db.clientReview.aggregate({
       where: { client_id: clientId, status: 'published' },
       _avg: { rating: true },
       _count: { _all: true },
     });
-    await this.prisma.clientProfile.updateMany({
+    await db.clientProfile.updateMany({
       where: { user_id: clientId },
       data: {
         rating_avg: agg._avg.rating ?? 0,

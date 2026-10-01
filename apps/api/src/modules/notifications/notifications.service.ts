@@ -1,9 +1,12 @@
-import { Injectable, Optional } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
+import type Redis from 'ioredis';
 import { NotificationCategory, NotificationType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { BadgesService } from './badges.service';
 import { dedupeKeyFor } from './notification-rules';
 import { PushQueueService } from './push/push-queue.service';
+import { blockedEitherWay } from '../blocks/block-guard';
 
 /** docs/05_FEED_SEARCH_CHAT_NOTIFICATIONS.md §9.2: category of every
  * notification type (drives the per-category settings of §9.5). Typed as
@@ -85,7 +88,34 @@ export class NotificationsService {
     private readonly prisma: PrismaService,
     @Optional() private readonly push?: PushQueueService,
     @Optional() private readonly badges?: BadgesService,
+    @Optional() @Inject(REDIS_CLIENT) private readonly redis?: Redis,
   ) {}
+
+  /** Audit 2026-10-01: like → unlike → like (or follow → unfollow →
+   * follow) notifies once a day per person and object — the toggles used
+   * to re-push and inflate "and N others". */
+  private async firstToday(
+    type: string,
+    actorId: string,
+    recipientId: string,
+    payload: Record<string, unknown>,
+  ): Promise<boolean> {
+    if (!this.redis) return true;
+    const id = payload.postId ?? payload.commentId;
+    const object = typeof id === 'string' ? id : '';
+    try {
+      const set = await this.redis.set(
+        `notif:once:${type}:${actorId}:${recipientId}:${object}`,
+        '1',
+        'EX',
+        86_400,
+        'NX',
+      );
+      return set === 'OK';
+    } catch {
+      return true;
+    }
+  }
 
   /** Returns the stored row id, or null for `new_message`. */
   async emit(
@@ -107,6 +137,27 @@ export class NotificationsService {
       return null;
     }
     const db = tx ?? this.prisma;
+    // Audit 2026-10-01: nothing reaches a person from someone they
+    // blocked (or who blocked them).
+    const actorId = (input.payload as Record<string, unknown> | null)?.actorId;
+    if (
+      typeof actorId === 'string' &&
+      (await blockedEitherWay(db, actorId, input.recipientId))
+    ) {
+      return null;
+    }
+    if (
+      typeof actorId === 'string' &&
+      ['post_like', 'comment_like', 'new_follower'].includes(input.type) &&
+      !(await this.firstToday(
+        input.type,
+        actorId,
+        input.recipientId,
+        input.payload,
+      ))
+    ) {
+      return null;
+    }
     const category = NOTIFICATION_CATEGORY[input.type];
     const dedupe = dedupeKeyFor(input.type, input.payload, new Date());
     if (dedupe) {

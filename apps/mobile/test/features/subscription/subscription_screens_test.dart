@@ -291,6 +291,23 @@ void main() {
       expect(find.byKey(const ValueKey('subscription-manage')), findsOneWidget);
     });
 
+    testWidgets('a scheduled cancel can be taken back in the app',
+        (tester) async {
+      repo.current = makeOverview(
+          subscription: makeInfo(
+              status: SubscriptionStatus.active, cancelAtPeriodEnd: true),
+          trialEligible: false);
+      await pump(tester, const SubscriptionScreen());
+      await tester.ensureVisible(
+          find.byKey(const ValueKey('subscription-resume')));
+      await tester.tap(find.byKey(const ValueKey('subscription-resume')));
+      await tester.pump();
+      await tester.pump();
+      expect(repo.calls, contains('resume'));
+      expect(find.byKey(const ValueKey('subscription-resume')), findsNothing);
+      expect(find.byKey(const ValueKey('subscription-cancel')), findsOneWidget);
+    });
+
     testWidgets('ended subscription: "Subscribe again" without the trial line',
         (tester) async {
       repo.current = makeOverview(

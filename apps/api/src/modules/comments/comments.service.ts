@@ -28,6 +28,7 @@ import {
   type CommentDto,
   type CommentPage,
 } from './comments.dto';
+import { assertNoBlock } from '../blocks/block-guard';
 
 function commentNotFound(): NotFoundException {
   return new NotFoundException({
@@ -77,6 +78,7 @@ export class CommentsService {
       select: { id: true, author_id: true },
     });
     if (!post) throw postNotFound();
+    await assertNoBlock(this.prisma, userId, post.author_id);
     await this.limits.consume('comment', userId);
     const verdict = await this.moderation.check(body, {
       kind: 'comment',
@@ -99,6 +101,7 @@ export class CommentsService {
         where: { id: parentCommentId, post_id: postId, ...LIVE },
       });
       if (!replyTo) throw commentNotFound();
+      await assertNoBlock(this.prisma, userId, replyTo.author_id);
       parent = replyTo.parent_comment_id
         ? await this.prisma.comment.findFirst({
             where: { id: replyTo.parent_comment_id, ...LIVE },
@@ -214,19 +217,23 @@ export class CommentsService {
         data: { deleted_at: now },
       });
       if (c.parent_comment_id) return 0;
-      const r = await tx.comment.updateMany({
+      // Audit 2026-10-01: every reply goes with its comment — held ones
+      // too (a later "publish" would count an orphan); only the published
+      // ones were in the counter.
+      const counted = await tx.comment.count({
         where: { parent_comment_id: c.id, ...LIVE },
+      });
+      await tx.comment.updateMany({
+        where: { parent_comment_id: c.id, deleted_at: null },
         data: { deleted_at: now },
       });
-      return r.count;
+      return counted;
     });
+    const gone = (c.status === 'published' ? 1 : 0) + removedReplies;
+    if (gone > 0) {
+      await this.counters.bump('post', c.post_id, 'comment_count', -gone);
+    }
     if (c.status === 'published') {
-      await this.counters.bump(
-        'post',
-        c.post_id,
-        'comment_count',
-        -(1 + removedReplies),
-      );
       if (c.parent_comment_id) {
         await this.counters.bump(
           'comment',
@@ -245,6 +252,7 @@ export class CommentsService {
       select: { id: true, author_id: true, post_id: true },
     });
     if (!c) throw commentNotFound();
+    await assertNoBlock(this.prisma, userId, c.author_id);
     await this.limits.consume('like', userId);
     const { count } = await this.prisma.commentLike.createMany({
       data: [{ comment_id: commentId, user_id: userId }],
@@ -276,10 +284,26 @@ export class CommentsService {
     cursor?: string,
   ): Promise<CommentPage> {
     const c = cursor ? decodeCursor(cursor) : undefined;
+    // Audit 2026-10-01: comments of deleted / suspended accounts and of
+    // people blocked either way are not shown.
+    const blocks = await this.prisma.userBlock.findMany({
+      where: { OR: [{ blocker_id: userId }, { blocked_id: userId }] },
+      select: { blocker_id: true, blocked_id: true },
+      take: 5000,
+    });
+    const hidden = [
+      ...new Set(
+        blocks.map((b) =>
+          b.blocker_id === userId ? b.blocked_id : b.blocker_id,
+        ),
+      ),
+    ];
     const rows = await this.prisma.comment.findMany({
       where: {
         ...where,
         ...LIVE,
+        author: { status: 'active' },
+        ...(hidden.length ? { author_id: { notIn: hidden } } : {}),
         ...(c
           ? {
               OR: [

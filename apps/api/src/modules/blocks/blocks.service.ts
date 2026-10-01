@@ -8,6 +8,10 @@ import type { Prisma } from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
+import {
+  CounterAggregator,
+  profileEntity,
+} from '../counters/counter-aggregator.service';
 import { FilesService } from '../files/files.service';
 import type { BlockedUserDto } from './blocks.dto';
 
@@ -27,6 +31,7 @@ export class BlocksService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly files: FilesService,
+    private readonly counters: CounterAggregator,
   ) {}
 
   async block(userId: string, targetId: string): Promise<void> {
@@ -46,21 +51,46 @@ export class BlocksService {
         message: 'User not found.',
       });
     }
-    await withTxRetry(this.prisma, async (tx) => {
+    const between = {
+      OR: [
+        { follower_id: userId, followee_id: targetId },
+        { follower_id: targetId, followee_id: userId },
+      ],
+    };
+    const removed = await withTxRetry(this.prisma, async (tx) => {
       await tx.userBlock.createMany({
         data: [{ blocker_id: userId, blocked_id: targetId }],
         skipDuplicates: true,
       });
       // No follows either way while blocked.
-      await tx.follow.deleteMany({
-        where: {
-          OR: [
-            { follower_id: userId, followee_id: targetId },
-            { follower_id: targetId, followee_id: userId },
-          ],
+      const rows = await tx.follow.findMany({
+        where: between,
+        select: {
+          follower_id: true,
+          followee_id: true,
+          follower: { select: { role: true } },
+          followee: { select: { role: true } },
         },
       });
+      await tx.follow.deleteMany({ where: between });
+      return rows;
     });
+    // Audit 2026-10-01: the removed follows leave both profiles' counters
+    // (followers / following) — as an unfollow does.
+    for (const f of removed) {
+      await this.counters.bump(
+        profileEntity(f.followee.role),
+        f.followee_id,
+        'followers_count',
+        -1,
+      );
+      await this.counters.bump(
+        profileEntity(f.follower.role),
+        f.follower_id,
+        'following_count',
+        -1,
+      );
+    }
   }
 
   async unblock(userId: string, targetId: string): Promise<void> {

@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
+import { CounterAggregator } from '../src/modules/counters/counter-aggregator.service';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
@@ -246,6 +247,69 @@ describe('User blocks (e2e, OQ-028)', () => {
       .set(cli.auth)
       .send({ body: 'hello again', clientMessageId: randomUUID() });
     expect(msg.status).toBe(201);
+  });
+
+  it('audit: a block fixes follower counters and stops comments, likes, saves, reviews and notifications', async () => {
+    const att = await attorney(`${token}.aud`);
+    const cli = await client(`${token}.audc`);
+    const counters = app.get(CounterAggregator);
+    const followers = async () =>
+      (
+        await prisma.attorneyProfile.findUniqueOrThrow({
+          where: { user_id: att.id },
+          select: { followers_count: true },
+        })
+      ).followers_count;
+    expect(
+      (await api().post(`/api/v1/attorneys/${att.id}/follow`).set(cli.auth))
+        .status,
+    ).toBe(204);
+    await counters.flush();
+    expect(await followers()).toBe(1);
+    const post = await prisma.post.create({
+      data: { author_id: att.id, body: 'Tenant rights after a lease ends' },
+    });
+
+    const before = await prisma.notification.count({
+      where: { user_id: att.id },
+    });
+    // The attorney blocks the client: the follow and its count go.
+    expect(
+      (await api().put(`/api/v1/users/${cli.id}/block`).set(att.auth)).status,
+    ).toBe(204);
+    await counters.flush();
+    expect(await followers()).toBe(0);
+
+    const blocked = (r: {
+      status: number;
+      body: { error?: { code?: string } };
+    }) => {
+      expect(r.status).toBe(403);
+      expect(r.body.error?.code).toBe('USER_BLOCKED');
+    };
+    blocked(
+      await api()
+        .post(`/api/v1/posts/${post.id}/comments`)
+        .set(cli.auth)
+        .send({ body: 'Hello there' }),
+    );
+    blocked(await api().post(`/api/v1/posts/${post.id}/like`).set(cli.auth));
+    blocked(
+      await api()
+        .post('/api/v1/saved-items')
+        .set(cli.auth)
+        .send({ itemType: 'post', itemId: post.id }),
+    );
+    blocked(
+      await api()
+        .put(`/api/v1/attorneys/${att.id}/reviews/mine`)
+        .set(cli.auth)
+        .send({ rating: 1, body: 'Never answered my calls at all.' }),
+    );
+    // Nothing new reached the attorney from the blocked client.
+    expect(
+      await prisma.notification.count({ where: { user_id: att.id } }),
+    ).toBe(before);
   });
 
   it('cannot block yourself; unknown user is 404', async () => {

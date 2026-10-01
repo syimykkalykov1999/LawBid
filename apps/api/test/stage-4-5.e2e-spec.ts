@@ -171,7 +171,7 @@ describe('Bid acceptance and client contacts (e2e, docs/04 §7–§8, stage 4.5)
       data: {
         first_name: 'Dana',
         last_name: 'Client',
-        phone_e164: `+1201${Math.floor(1_000_000 + Math.random() * 8_999_999)}`,
+        phone_e164: `+1201${Math.floor(2_000_000 + Math.random() * 7_999_999)}`,
         email: `client_${clientId.slice(0, 8)}@example.com`,
       },
     });

@@ -1,4 +1,8 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
+import {
+  CounterAggregator,
+  profileEntity,
+} from '../counters/counter-aggregator.service';
 import type { Prisma } from '@prisma/client';
 import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
@@ -51,6 +55,7 @@ export class AccountAnonymizationService {
     @Inject(PAYMENT_PROVIDER) private readonly payments: PaymentProvider,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     private readonly logger: PinoLogger,
+    @Optional() private readonly counters?: CounterAggregator,
   ) {
     this.logger.setContext(AccountAnonymizationService.name);
   }
@@ -185,7 +190,16 @@ export class AccountAnonymizationService {
     }
 
     // 4. One transaction over the user's entities.
+    let follows: {
+      follower_id: string;
+      followee_id: string;
+      follower: { role: string | null };
+      followee: { role: string | null };
+    }[] = [];
+    let postsRemoved = 0;
     const chains = await withTxRetry(this.prisma, async (tx) => {
+      follows = [];
+      postsRemoved = 0;
       const fresh = await tx.user.findUnique({
         where: { id: userId },
         select: { anonymized_at: true },
@@ -266,11 +280,31 @@ export class AccountAnonymizationService {
             payload: { bidId: r.id, reason: 'account_deleted' },
           });
         }
-        await tx.post.updateMany({
-          where: { author_id: userId, deleted_at: null },
-          data: { status: 'removed', deleted_at: now },
-        });
       }
+      // Audit 2026-10-01: every role's posts go (clients post too), and
+      // the follows either way — the other people's followers / following
+      // counters drop with them (the lists already hid the account).
+      const published = await tx.post.count({
+        where: { author_id: userId, deleted_at: null, status: 'published' },
+      });
+      await tx.post.updateMany({
+        where: { author_id: userId, deleted_at: null },
+        data: { status: 'removed', deleted_at: now },
+      });
+      postsRemoved = published;
+      const between = {
+        OR: [{ follower_id: userId }, { followee_id: userId }],
+      };
+      follows = await tx.follow.findMany({
+        where: between,
+        select: {
+          follower_id: true,
+          followee_id: true,
+          follower: { select: { role: true } },
+          followee: { select: { role: true } },
+        },
+      });
+      await tx.follow.deleteMany({ where: between });
       // Comments keep their rows: the author renders as "Deleted User"
       // through the scrubbed user row (§5.1). Messages are scrubbed in
       // batches after this transaction (largest table, load review).
@@ -283,6 +317,31 @@ export class AccountAnonymizationService {
       return active.map((s) => s.session_chain_id);
     });
 
+    for (const f of follows) {
+      if (f.follower_id === userId) {
+        await this.counters?.bump(
+          profileEntity(f.followee.role),
+          f.followee_id,
+          'followers_count',
+          -1,
+        );
+      } else {
+        await this.counters?.bump(
+          profileEntity(f.follower.role),
+          f.follower_id,
+          'following_count',
+          -1,
+        );
+      }
+    }
+    if (postsRemoved > 0) {
+      await this.counters?.bump(
+        profileEntity(user.role),
+        userId,
+        'posts_count',
+        -postsRemoved,
+      );
+    }
     await this.scrubMessages(userId);
     // Access tokens of the revoked chains die within their 15 minutes.
     if (chains.length > 0) {

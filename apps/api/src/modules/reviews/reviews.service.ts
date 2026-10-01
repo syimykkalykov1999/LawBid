@@ -36,6 +36,7 @@ import type {
 } from './dto/review-responses.dto';
 import { reviewerDisplayName } from './review-display';
 import { displayRating, recalcAttorneyRating } from './review-rating';
+import { assertNoBlock } from '../blocks/block-guard';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -551,6 +552,7 @@ export class ReviewsService {
       });
     }
     await this.assertVisibleAttorney(attorneyId);
+    await assertNoBlock(this.prisma, user.sub, attorneyId);
     await this.assertCanWrite(user.sub, attorneyId);
     const body = dto.body?.length ? dto.body : null;
     const photoIds = await this.checkPhotos(user.sub, dto.photoIds);

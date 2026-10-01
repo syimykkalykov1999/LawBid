@@ -966,3 +966,31 @@ reviews a client).
   SMS / email / storage budgets (fail closed), one data export a day.
   Deployed environments must set `TRUST_PROXY_HOPS=1` (startup refuses 0).
 
+## OQ-051 — Google-style reviews, chat folders, planner for everyone, blocks stop everything (owner, 2026-10-01)
+
+- Reviews work like Google Maps: anyone can review anyone (people collect
+  reviews for their CV), with or without a case together ("Verified case"
+  when there was one). The author edits or deletes their review at any
+  time. The reviewed person cannot delete it — they reply publicly (as a
+  Google business owner does) or report it; reports go to admin
+  moderation under Google's policy categories. Appeals with 30-day
+  auto-removal (OQ-046) are retired.
+- Chats get Instagram-like folders inside the Chats tab (Requests moved
+  there). Folders are per member (moving a chat only changes my view).
+- Planner: every card can be edited and deleted. An assistant deletes only
+  the tasks they created; the attorney deletes any. Clients get the same
+  planner in Mine (their own notes, steps, checkmarks; linked only to their
+  own cases).
+- Swipes: left/right switches sections **inside** a screen (Mine, Chats /
+  Team, Search, feed, profile tabs). Bottom-nav sections never switch by
+  swipe (they hold separate stacks; Instagram does the same). A swipe that
+  starts at the left edge is always "back".
+- Blocks (changes OQ-028): a block now stops every interaction, not only
+  messages and follows — no comments, replies, likes, saves, reviews or
+  notifications between the two, and each side stops seeing the other's
+  comments and recommended / searched posts. Cases and bids already in
+  progress stay untouched (business records).
+- A second paid checkout while a subscription is live is cancelled at
+  once; if Stripe already charged it, support refunds that first invoice
+  (the server logs the ids). A scheduled cancel can be undone in the app.
+- Like / follow toggles notify the person once a day.

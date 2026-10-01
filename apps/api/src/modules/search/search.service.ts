@@ -352,6 +352,10 @@ export class SearchService {
         AND: [
           VISIBLE_POST_WHERE,
           authorStateWhere(state),
+          // Audit 2026-10-01: nothing of people blocked either way.
+          {
+            author_id: { notIn: [...(await this.blocks.hiddenIds(user.sub))] },
+          },
           ...(filter.kind ? [{ kind: filter.kind }] : []),
           ...(span
             ? [{ created_at: { gte: new Date(Date.now() - span) } }]
@@ -442,7 +446,15 @@ export class SearchService {
       const rows = await this.prisma.post.findMany({
         where: {
           // Audit 2026-10-01: AND so the state filter keeps the author checks.
-          AND: [VISIBLE_POST_WHERE, authorStateWhere(state)],
+          AND: [
+            VISIBLE_POST_WHERE,
+            authorStateWhere(state),
+            {
+              author_id: {
+                notIn: [...(await this.blocks.hiddenIds(user.sub))],
+              },
+            },
+          ],
           tags: { some: { tag_id: tag.id } },
           ...(c
             ? {
@@ -545,7 +557,10 @@ export class SearchService {
     const rows = await this.prisma.post.findMany({
       where: { ...VISIBLE_POST_WHERE, id: { in: ids } },
     });
-    const byId = new Map(rows.map((p) => [p.id, p]));
+    const hidden = await this.blocks.hiddenIds(viewerId);
+    const byId = new Map(
+      rows.filter((p) => !hidden.has(p.author_id)).map((p) => [p.id, p]),
+    );
     return this.posts.present(
       ids.flatMap((id) => {
         const p = byId.get(id);

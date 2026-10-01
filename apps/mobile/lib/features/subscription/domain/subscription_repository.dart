@@ -43,4 +43,7 @@ abstract interface class SubscriptionRepository {
 
   /// Cancel at period end; access stays until then (docs/06 §1.3).
   Future<SubscriptionOverview> cancel();
+
+  /// Audit 2026-10-01: undo a cancel before the period ends.
+  Future<SubscriptionOverview> resume();
 }

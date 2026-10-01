@@ -199,6 +199,15 @@ export class FeedService implements FeedProvider {
     const scores = await this.redis.zmscore(seenKey(viewer.sub), ...ids);
     const seen = new Set(ids.filter((_, i) => scores[i] !== null));
     const exclude = new Set(excludeAuthors);
+    // Audit 2026-10-01: no recommended posts of people blocked either way.
+    const blocks = await this.prisma.userBlock.findMany({
+      where: { OR: [{ blocker_id: viewer.sub }, { blocked_id: viewer.sub }] },
+      select: { blocker_id: true, blocked_id: true },
+      take: 5000,
+    });
+    for (const b of blocks) {
+      exclude.add(b.blocker_id === viewer.sub ? b.blocked_id : b.blocker_id);
+    }
     const rows = await this.prisma.post.findMany({
       where: {
         ...VISIBLE_POST_WHERE,

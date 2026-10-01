@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
@@ -54,6 +55,8 @@ const PAYMENTS_PAGE = 20;
  */
 @Injectable()
 export class SubscriptionsService {
+  private readonly logger = new Logger(SubscriptionsService.name);
+
   private readonly priceId: string | undefined;
   private readonly portalReturnUrl: string;
   /** Where Stripe Checkout returns (the website's pages / app links). */
@@ -223,6 +226,25 @@ export class SubscriptionsService {
       session.subscriptionId,
     );
     if (!remote) return;
+    // Audit 2026-10-01: a second paid checkout (two devices, an old tab)
+    // while a live subscription exists must not replace it — the first
+    // would keep billing unseen. The newcomer is cancelled at once.
+    const current = await this.prisma.subscription.findUnique({
+      where: { user_id: owner },
+    });
+    if (
+      current?.stripe_subscription_id &&
+      current.stripe_subscription_id !== remote.id &&
+      SubscriptionAccessService.rowIsActive(current)
+    ) {
+      if (remote.status !== 'canceled') {
+        await this.provider.cancelNow(remote.id);
+        this.logger.error(
+          `duplicate subscription ${remote.id} for ${owner} cancelled (kept ${current.stripe_subscription_id}); refund its first invoice if paid`,
+        );
+      }
+      return;
+    }
     const fingerprint = remote.defaultPaymentMethodId
       ? await this.provider.paymentMethodFingerprint(
           remote.defaultPaymentMethodId,
@@ -283,19 +305,23 @@ export class SubscriptionsService {
       .filter((p) => /^\+[1-9][0-9]{7,14}$/.test(p))
       .slice(0, seats);
     for (const phone of phones) {
-      const live = await this.prisma.assistantMembership.findFirst({
-        where: { phone_e164: phone, status: { not: 'removed' } },
-        select: { id: true },
-      });
-      if (live) continue;
-      await this.prisma.assistantMembership.create({
-        data: {
-          attorney_id: owner,
-          phone_e164: phone,
-          approval: 'purchase',
-          status: 'invited',
-          duties: [...DEFAULT_DUTIES],
-        },
+      // Audit 2026-10-01: the webhook and the app's call run at once —
+      // check + create in one serializable transaction (no duplicates).
+      await withTxRetry(this.prisma, async (tx) => {
+        const live = await tx.assistantMembership.findFirst({
+          where: { phone_e164: phone, status: { not: 'removed' } },
+          select: { id: true },
+        });
+        if (live) return;
+        await tx.assistantMembership.create({
+          data: {
+            attorney_id: owner,
+            phone_e164: phone,
+            approval: 'purchase',
+            status: 'invited',
+            duties: [...DEFAULT_DUTIES],
+          },
+        });
       });
     }
     await this.access.invalidate(owner);
@@ -561,6 +587,31 @@ export class SubscriptionsService {
       true,
     );
     await this.sync.apply(remote);
+    return this.me(user);
+  }
+
+  /** Audit 2026-10-01: undo a cancel before the period ends (it used to
+   * be possible only in the Stripe portal). */
+  async resume(user: RequestUser): Promise<SubscriptionMeDto> {
+    const row = await this.prisma.subscription.findUnique({
+      where: { user_id: user.sub },
+    });
+    if (
+      !row?.stripe_subscription_id ||
+      !SubscriptionAccessService.rowIsActive(row)
+    ) {
+      throw new NotFoundException({
+        code: ErrorCode.SUBSCRIPTION_NOT_FOUND,
+        message: 'No active subscription.',
+      });
+    }
+    if (row.cancel_at_period_end) {
+      const remote = await this.provider.setCancelAtPeriodEnd(
+        row.stripe_subscription_id,
+        false,
+      );
+      await this.sync.apply(remote);
+    }
     return this.me(user);
   }
 
