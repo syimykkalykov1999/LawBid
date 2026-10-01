@@ -14,9 +14,13 @@ SubscriptionInfo makeInfo({
   DateTime? currentPeriodEnd,
   bool cancelAtPeriodEnd = false,
   DateTime? graceEndsAt,
+  SubscriptionPlan plan = SubscriptionPlan.monthly,
+  int assistantSeats = 0,
 }) =>
     SubscriptionInfo(
       id: 'sub_1',
+      plan: plan,
+      assistantSeats: assistantSeats,
       status: status,
       isActive: isActive ??
           (status == SubscriptionStatus.trialing ||
@@ -98,6 +102,45 @@ class FakeSubscriptionRepository implements SubscriptionRepository {
     if (overviewError != null) throw overviewError!;
     if (overviewQueue.isNotEmpty) return current = overviewQueue.removeAt(0);
     return current;
+  }
+
+  WebCheckout checkoutResult = WebCheckout(
+    url: Uri.parse('https://checkout.stripe.com/c/pay/cs_1'),
+    sessionId: 'cs_1',
+    trialEligible: true,
+    priceCents: 39900,
+    trialDays: 7,
+  );
+
+  /// What `completeCheckout` returns (null → [current]).
+  SubscriptionOverview Function()? onComplete;
+
+  @override
+  Future<WebCheckout> checkout({
+    SubscriptionPlan plan = SubscriptionPlan.monthly,
+    int assistantSeats = 0,
+    List<String> assistantPhones = const [],
+  }) async {
+    calls.add(
+      'checkout:${plan.name}:$assistantSeats:${assistantPhones.join(',')}',
+    );
+    return checkoutResult;
+  }
+
+  @override
+  Future<SubscriptionOverview> completeCheckout(String sessionId) async {
+    calls.add('complete:$sessionId');
+    return current = onComplete?.call() ?? current;
+  }
+
+  @override
+  Future<SubscriptionOverview> setSeats(int seats) async {
+    calls.add('seats:$seats');
+    final s = current.subscription!;
+    return current = makeOverview(
+      subscription: makeInfo(status: s.status, assistantSeats: seats),
+      trialEligible: false,
+    );
   }
 
   @override

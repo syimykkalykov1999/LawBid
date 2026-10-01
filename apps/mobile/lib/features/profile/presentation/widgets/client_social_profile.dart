@@ -3,8 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:lawbid/features/chat/presentation/open_direct_chat.dart';
-import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
-import 'package:lawbid/shared/domain/user_role.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -29,6 +27,7 @@ import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart'
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/social/social_routes.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
+import 'package:lawbid/features/team/application/team_providers.dart';
 
 enum _Tab { posts, reviews }
 
@@ -225,8 +224,7 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
                 ),
                 // OQ-043: an attorney can write to a client directly (a
                 // message request until the client accepts).
-                if (ref.watch(currentUserRoleProvider) ==
-                    UserRole.attorney) ...[
+                if (ref.watch(actsAsAttorneyProvider)) ...[
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
                     child: AppButton(

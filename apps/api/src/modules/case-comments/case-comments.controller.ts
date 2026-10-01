@@ -94,6 +94,8 @@ export class CaseCommentsController {
     return this.comments.create(user, p.id, dto.body, dto.parentCommentId);
   }
 
+  // OQ-048: publications are the attorney's — an assistant never deletes.
+  @AttorneyOnly()
   @Delete('case-comments/:id')
   @ApiOperation({ summary: 'Delete own comment or one under own case' })
   @ApiEnvelopeResponse(CommentDeletedDto)

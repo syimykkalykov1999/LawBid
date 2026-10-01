@@ -110,6 +110,8 @@ export class PostsController {
     return this.posts.update(user, p.id, dto);
   }
 
+  // OQ-048: publications are the attorney's — an assistant never deletes.
+  @AttorneyOnly()
   @Delete('posts/:id')
   @ApiOperation({ summary: 'Delete an own post (soft, docs/05 §3.3)' })
   @ApiEnvelopeResponse(PostDeletedDto)

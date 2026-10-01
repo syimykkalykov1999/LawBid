@@ -17,7 +17,9 @@ import 'package:lawbid/features/onboarding/application/current_user_controller.d
 import 'package:lawbid/features/subscription/application/subscription_providers.dart';
 import 'package:lawbid/features/subscription/data/card_collector.dart';
 import 'package:lawbid/features/subscription/domain/subscription_models.dart';
+import 'package:lawbid/features/subscription/presentation/plan_picker.dart';
 import 'package:lawbid/features/subscription/subscription_routes.dart';
+import 'package:lawbid/features/team/team_routes.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// docs/06 §1.7 п.1–2, 5 — Settings → «Подписка»: the $399/мес plan card,
@@ -105,28 +107,14 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
     return (ok ?? false) && mounted;
   }
 
-  Future<void> _subscribe() async {
-    final formats = ref.read(l10nFormatsProvider);
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    final outcome = await ref
-        .read(subscribeControllerProvider.notifier)
-        .subscribe(
-          confirmChargeNow: (cents) {
-            final price = subscriptionPrice(formats, cents);
-            return _confirm(
-              title: _t.t('subscription.chargeNow.title'),
-              body: _t.t('subscription.chargeNow.body', {'price': price}),
-              action: _t.t('subscription.chargeNow.confirm', {'price': price}),
+  /// OQ-048: the chosen plan is paid on Stripe's page in the browser.
+  Future<void> _subscribeWeb(PlanChoice c) async {
+    final outcome =
+        await ref.read(subscribeControllerProvider.notifier).subscribeWeb(
+              plan: c.plan,
+              assistantSeats: c.seats,
+              assistantPhones: c.phones,
             );
-          },
-          buildRequest: (start) => CardCollectionRequest(
-            clientSecret: start.clientSecret,
-            customerId: start.customerId,
-            dark: dark,
-            primaryColor: dark ? colors.gold : colors.navy,
-          ),
-        );
     if (!mounted) return;
     switch (outcome) {
       case SubscribeOutcome.trialStarted:
@@ -136,7 +124,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
       case SubscribeOutcome.pendingConfirmation:
         showAppSnackBar(context, _t.t('subscription.done.pending'));
       case SubscribeOutcome.cancelled:
-        break;
+        unawaited(_refreshQuietly());
       case SubscribeOutcome.failed:
         showAppSnackBar(
           context,
@@ -145,7 +133,89 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
     }
   }
 
+  /// OQ-048: monthly plan — more or fewer assistant seats.
+  Future<void> _changeSeats(SubscriptionOverview o) async {
+    final s = o.subscription!;
+    var seats = s.assistantSeats;
+    final next = await showModalBottomSheet<int>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: Theme.of(context).extension<AppColorTokens>()!.surface,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) {
+          final colors = Theme.of(ctx).extension<AppColorTokens>()!;
+          final typography = Theme.of(ctx).extension<AppTypographyTokens>()!;
+          final formats = ref.read(l10nFormatsProvider);
+          return SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.screenSide,
+                0,
+                AppSpacing.screenSide,
+                AppSpacing.lg,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    _t.t('plans.seats.change'),
+                    style: typography.titleMedium.copyWith(color: colors.text),
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          _t.t('plans.seats'),
+                          style: typography.body.copyWith(color: colors.text),
+                        ),
+                      ),
+                      SeatsStepper(
+                        seats: seats,
+                        max: o.prices.maxSeats,
+                        onChanged: (v) => setSheet(() => seats = v),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  Text(
+                    _t.t('plans.total.month', {
+                      'price': subscriptionPrice(
+                        formats,
+                        o.prices.monthlyTotal(seats),
+                      ),
+                    }),
+                    style:
+                        typography.body.copyWith(color: colors.textSecondary),
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                  AppButton(
+                    key: const ValueKey('seats-save'),
+                    label: _t.t('common.save'),
+                    onPressed: () => Navigator.of(ctx).pop(seats),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+    if (next == null || next == s.assistantSeats || !mounted) return;
+    try {
+      final o2 = await ref.read(subscriptionRepositoryProvider).setSeats(next);
+      ref.read(subscriptionOverviewProvider.notifier).apply(o2);
+      if (mounted) {
+        showAppSnackBar(context, _t.t('plans.seats.saved', {'seats': '$next'}));
+      }
+    } on Object catch (e) {
+      if (mounted) showAppSnackBar(context, errorText(_t, e));
+    }
+  }
+
   String _errorText(Object? error) => switch (error) {
+        CheckoutNotOpened() => _t.t('plans.cantOpen'),
         CardCollectionFailed(:final reason) =>
           _t.t('subscription.card.failed', {'reason': reason}),
         CardCollectorUnavailable() => _t.t('subscription.card.unavailable'),
@@ -274,43 +344,87 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
         );
     return [
       if (s != null && s.paymentFailed)
-        section(PaymentFailedCard(
-          t: t,
-          busy: _portalBusy,
-          onUpdateCard: _openPortal,
-        )),
-      section(PlanCard(
-        t: t,
-        formats: formats,
-        priceCents: o.priceCents,
-        trialOffered: o.trialEligible && !(s?.ended ?? false),
-      )),
-      if (s != null)
-        section(SubscriptionStatusCard(
-          subscription: s,
-          t: t,
-          formats: formats,
-          portalBusy: _portalBusy,
-          onManage: _openPortal,
-          onCancel: () => _cancel(s),
-          onRefresh: _refresh,
-        )),
-      if (showCta)
-        section(SubscribeCta(
-          t: t,
-          overview: o,
-          verified: verified,
-          state: subscribing,
-          onSubscribe: _subscribe,
-          onGoVerify: () => context.push(AppRoutes.verification),
-        )),
-      section(AppListSection(children: [
-        AppListRow(
-          icon: Icons.receipt_long_outlined,
-          label: t.t('subscription.action.payments'),
-          onTap: () => context.push(SubscriptionRoutes.payments),
+        section(
+          PaymentFailedCard(
+            t: t,
+            busy: _portalBusy,
+            onUpdateCard: _openPortal,
+          ),
         ),
-      ])),
+      if (!showCta)
+        section(
+          PlanCard(
+            t: t,
+            formats: formats,
+            priceCents: o.priceCents,
+            trialOffered: o.trialEligible && !(s?.ended ?? false),
+          ),
+        ),
+      if (s != null)
+        section(
+          SubscriptionStatusCard(
+            subscription: s,
+            t: t,
+            formats: formats,
+            portalBusy: _portalBusy,
+            onManage: _openPortal,
+            onCancel: () => _cancel(s),
+            onRefresh: _refresh,
+          ),
+        ),
+      if (s != null && !showCta)
+        section(
+          AppListSection(
+            children: [
+              AppListRow(
+                key: const ValueKey('current-plan'),
+                icon: Icons.workspace_premium_outlined,
+                label: t.t('plans.current'),
+                subtitle: s.plan == SubscriptionPlan.yearly
+                    ? t.t('plans.current.yearly')
+                    : t.t(
+                        'plans.current.monthly',
+                        {'seats': '${s.assistantSeats}'},
+                      ),
+                showChevron: s.plan == SubscriptionPlan.monthly && s.isActive,
+                onTap: s.plan == SubscriptionPlan.monthly && s.isActive
+                    ? () => _changeSeats(o)
+                    : null,
+              ),
+              AppListRow(
+                key: const ValueKey('team-row'),
+                icon: Icons.groups_2_outlined,
+                label: t.t('plans.team'),
+                onTap: () => context.push(TeamRoutes.team),
+              ),
+            ],
+          ),
+        ),
+      if (showCta)
+        section(
+          PlanPicker(
+            t: t,
+            formats: formats,
+            overview: o,
+            verified: verified,
+            state: subscribing,
+            onPay: _subscribeWeb,
+            onStopWaiting: () =>
+                ref.read(subscribeControllerProvider.notifier).stopWaiting(),
+            onGoVerify: () => context.push(AppRoutes.verification),
+          ),
+        ),
+      section(
+        AppListSection(
+          children: [
+            AppListRow(
+              icon: Icons.receipt_long_outlined,
+              label: t.t('subscription.action.payments'),
+              onTap: () => context.push(SubscriptionRoutes.payments),
+            ),
+          ],
+        ),
+      ),
     ];
   }
 }
@@ -417,7 +531,8 @@ class PlanCard extends StatelessWidget {
               style: typography.bodySmall.copyWith(color: body),
             ),
             const SizedBox(height: AppSpacing.lg),
-            Divider(height: 1, color: AppColorsFixed.attorneyCardGoldBorder),
+            const Divider(
+                height: 1, color: AppColorsFixed.attorneyCardGoldBorder),
             const SizedBox(height: AppSpacing.lg),
             for (final (i, key) in features.indexed) ...[
               if (i > 0) const SizedBox(height: AppSpacing.sm),
@@ -462,16 +577,17 @@ StatusTone subscriptionTone(SubscriptionStatus status) => switch (status) {
         StatusTone.neutral,
     };
 
-String subscriptionStatusLabel(Translator t, SubscriptionStatus status) =>
-    t.t(switch (status) {
-      SubscriptionStatus.trialing => 'subscription.status.trialing',
-      SubscriptionStatus.active => 'subscription.status.active',
-      SubscriptionStatus.pastDue => 'subscription.status.past_due',
-      SubscriptionStatus.canceled => 'subscription.status.canceled',
-      SubscriptionStatus.expired => 'subscription.status.expired',
-      SubscriptionStatus.incomplete => 'subscription.status.incomplete',
-      SubscriptionStatus.unknown => 'subscription.status.unknown',
-    });
+String subscriptionStatusLabel(Translator t, SubscriptionStatus status) => t.t(
+      switch (status) {
+        SubscriptionStatus.trialing => 'subscription.status.trialing',
+        SubscriptionStatus.active => 'subscription.status.active',
+        SubscriptionStatus.pastDue => 'subscription.status.past_due',
+        SubscriptionStatus.canceled => 'subscription.status.canceled',
+        SubscriptionStatus.expired => 'subscription.status.expired',
+        SubscriptionStatus.incomplete => 'subscription.status.incomplete',
+        SubscriptionStatus.unknown => 'subscription.status.unknown',
+      },
+    );
 
 /// The one-line explanation under the status (docs/06 §1.7 п.2: trial end
 /// / next charge, cancellation, grace period).
@@ -734,6 +850,7 @@ class SubscribeCta extends StatelessWidget {
         t.t('subscription.progress.collectingCard'),
       SubscribePhase.confirming => t.t('subscription.progress.confirming'),
       SubscribePhase.syncing => t.t('subscription.progress.syncing'),
+      SubscribePhase.awaitingPayment => t.t('plans.waiting'),
     };
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,

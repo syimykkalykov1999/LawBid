@@ -26,11 +26,11 @@ import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
 import 'package:lawbid/features/chat/presentation/attachment_widgets.dart';
 import 'package:lawbid/features/chat/presentation/voice_widgets.dart';
-import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
-import 'package:lawbid/shared/domain/user_role.dart';
+import 'package:lawbid/features/team/application/team_providers.dart';
+import 'package:lawbid/features/team/domain/team_models.dart';
 
 /// docs/05 §8.2: 2000 characters, text only.
 const kMessageMaxChars = 2000;
@@ -214,7 +214,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
         chatThreadProvider(widget.conversationId)
             .select((x) => x.messages.firstOrNull?.id),
         (_, __) => _markRead());
-    final attorney = ref.watch(currentUserRoleProvider) == UserRole.attorney;
+    final attorney = ref.watch(actsAsAttorneyProvider);
     final subscriptionGate =
         ref.watch(outboxSenderProvider).subscriptionRequired;
 
@@ -307,7 +307,10 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                                     controller: _text,
                                     onSend: _send,
                                     onTyping: _thread.typing,
-                                    onAttach: c.contactsUnlocked
+                                    // OQ-048: assistants need "files".
+                                    onAttach: c.contactsUnlocked &&
+                                            ref.watch(canDoProvider(
+                                                AssistantDuty.files))
                                         ? () => _attach()
                                         : null,
                                     onVoice: (r) => _thread.sendVoice(
@@ -336,7 +339,7 @@ class _Header extends ConsumerWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final c = conversation;
-    final attorney = ref.watch(currentUserRoleProvider) == UserRole.attorney;
+    final attorney = ref.watch(actsAsAttorneyProvider);
     final caseId = c.caseId;
     return Semantics(
       button: caseId != null,
@@ -664,6 +667,26 @@ class _Bubble extends ConsumerWidget {
         crossAxisAlignment:
             mine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
+          // OQ-048: "Assistant · Sam" over an assistant's message.
+          if (m.sentByAssistant != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 2, left: 4, right: 4),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.support_agent_rounded,
+                      size: 12, color: colors.gold),
+                  const SizedBox(width: 3),
+                  Text(
+                    t.t('assistant.of', {'name': m.sentByAssistant!}),
+                    style: type.caption.copyWith(
+                      color: colors.textSecondary,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           AppEntrance(
             child: Semantics(
               label: [

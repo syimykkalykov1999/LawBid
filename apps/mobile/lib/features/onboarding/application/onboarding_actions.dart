@@ -159,6 +159,14 @@ class OnboardingActions extends Notifier<StepActionState> {
         return _repo.saveProfileStep(next, profile);
       });
 
+  /// OQ-048: an assistant only gives their name, then onboarding ends and
+  /// they join an attorney (AssistantJoinScreen).
+  Future<bool> saveAssistantName(String first, String last) =>
+      _run(() async {
+        await _repo.updateProfile(firstName: first.trim(), lastName: last.trim());
+        return _repo.completeOnboarding();
+      });
+
   /// Moves from [from] to its successor, merging [data] into the step
   /// data. From the last step this completes onboarding instead.
   Future<bool> advance(OnboardingStepId from, [Map<String, dynamic>? data]) {

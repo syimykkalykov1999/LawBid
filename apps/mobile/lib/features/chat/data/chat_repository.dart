@@ -409,6 +409,7 @@ abstract final class ChatMappers {
         id: d.id,
         conversationId: d.conversationId,
         senderId: d.senderId,
+        sentByAssistant: d.sentByAssistant,
         kind: switch (d.type) {
           api.MessageDtoType.system => MessageKind.system,
           api.MessageDtoType.voice => MessageKind.voice,

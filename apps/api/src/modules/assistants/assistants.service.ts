@@ -85,6 +85,7 @@ export class AssistantsService {
     return {
       state: 'none',
       membershipId: null,
+      attorneyId: null,
       attorneyName: null,
       attorneyUsername: null,
       attorneyAvatarUrl: null,
@@ -111,6 +112,7 @@ export class AssistantsService {
     return {
       state,
       membershipId: m.id,
+      attorneyId: m.attorney_id,
       attorneyName:
         [a?.first_name, a?.last_name].filter(Boolean).join(' ') || null,
       attorneyUsername: a?.attorney_profile?.username ?? null,

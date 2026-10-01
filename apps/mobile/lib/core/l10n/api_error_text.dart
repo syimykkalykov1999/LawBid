@@ -66,6 +66,12 @@ const _keys = <String, String>{
   ApiErrorCodes.reviewAlreadyExists: 'error.api.REVIEW_ALREADY_EXISTS',
   ApiErrorCodes.reviewAppealExists: 'error.api.REVIEW_APPEAL_EXISTS',
   ApiErrorCodes.chatAttachmentsLocked: 'error.api.CHAT_ATTACHMENTS_LOCKED',
+  ApiErrorCodes.subscriptionPlanIncludesSeats: 'error.api.SUBSCRIPTION_PLAN_INCLUDES_SEATS',
+  ApiErrorCodes.assistantSeatsInUse: 'error.api.ASSISTANT_SEATS_IN_USE',
+  ApiErrorCodes.assistantNoFreeSeat: 'error.api.ASSISTANT_NO_FREE_SEAT',
+  ApiErrorCodes.assistantNotAllowed: 'error.api.ASSISTANT_NOT_ALLOWED',
+  ApiErrorCodes.assistantPhoneTaken: 'error.api.ASSISTANT_PHONE_TAKEN',
+  ApiErrorCodes.assistantInviteNotFound: 'error.api.ASSISTANT_INVITE_NOT_FOUND',
   ApiErrorCodes.reviewEditWindowExpired: 'error.api.REVIEW_EDIT_WINDOW_EXPIRED',
   ApiErrorCodes.reviewNotEditable: 'error.api.REVIEW_NOT_EDITABLE',
   // Uploads (docs/03 §2.2). A checksum mismatch or a missing upload means

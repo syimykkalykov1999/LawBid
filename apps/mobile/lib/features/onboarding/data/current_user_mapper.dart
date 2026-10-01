@@ -14,6 +14,7 @@ abstract final class CurrentUserMapper {
     final role = switch (dto.role) {
       api.UserRole.client => UserRole.client,
       api.UserRole.attorney => UserRole.attorney,
+      api.UserRole.assistant => UserRole.assistant,
       _ => null,
     };
     final profile = dto.profile;

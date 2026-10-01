@@ -258,25 +258,32 @@ class FeedCaseCard extends StatelessWidget {
                     children: [
                       Row(
                         children: [
-                          // The chips take the width they need; "NEW"
-                          // only gets what is left.
-                          Flexible(
-                            flex: 6,
-                            child: _GoldChip(
-                              icon: practiceGlyph(item.practice.artCode),
-                              label: category,
-                            ),
-                          ),
-                          const SizedBox(width: AppSpacing.sm),
-                          Flexible(
-                            flex: 3,
-                            child: _PlainChip(
-                              icon: Icons.place_outlined,
-                              label: place,
+                          // Owner 2026-09-30: the chips on the left,
+                          // "NEW" flush with the right edge (in line with
+                          // the Save button below).
+                          Expanded(
+                            child: Row(
+                              children: [
+                                Flexible(
+                                  flex: 6,
+                                  child: _GoldChip(
+                                    icon: practiceGlyph(item.practice.artCode),
+                                    label: category,
+                                  ),
+                                ),
+                                const SizedBox(width: AppSpacing.sm),
+                                Flexible(
+                                  flex: 3,
+                                  child: _PlainChip(
+                                    icon: Icons.place_outlined,
+                                    label: place,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                           if (item.isNew) ...[
-                            const Spacer(),
+                            const SizedBox(width: AppSpacing.sm),
                             Text(
                               t.t('cases.card.new'),
                               style: typography.caption.copyWith(

@@ -6,6 +6,22 @@ import 'package:lawbid/shared/domain/cursor_page.dart';
 abstract interface class SubscriptionRepository {
   Future<SubscriptionOverview> overview();
 
+  /// Owner 2026-09-30: Stripe's hosted payment page (opened in the
+  /// browser) — the store-compliant, cheapest way to pay.
+  /// OQ-048: [plan], [assistantSeats] (monthly) and the phones of
+  /// assistants who join without a code.
+  Future<WebCheckout> checkout({
+    SubscriptionPlan plan = SubscriptionPlan.monthly,
+    int assistantSeats = 0,
+    List<String> assistantPhones = const [],
+  });
+
+  /// OQ-048: monthly plan — change the number of assistant seats.
+  Future<SubscriptionOverview> setSeats(int seats);
+
+  /// Back from the browser: apply the paid session (no-op until paid).
+  Future<SubscriptionOverview> completeCheckout(String sessionId);
+
   /// Customer + SetupIntent for the PaymentSheet.
   Future<SubscriptionStart> start();
 

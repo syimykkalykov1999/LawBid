@@ -17,6 +17,7 @@ import 'package:lawbid/features/onboarding/domain/us_states.dart';
 import 'package:lawbid/features/onboarding/presentation/widgets/option_picker_sheet.dart';
 import 'package:lawbid/features/practice/practice_options.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
+import 'package:lawbid/features/search/presentation/widgets/flip_search_bar.dart';
 
 /// Owner 2026-09-30: one square of the "Mine" grid — the case's first photo
 /// (or our art of its qualification), a short title and its status.
@@ -307,14 +308,24 @@ class MineSearchBar extends ConsumerStatefulWidget {
 }
 
 class _MineSearchBarState extends ConsumerState<MineSearchBar> {
-  late final _text = TextEditingController(text: widget.search.q);
+  late final _text = TextEditingController(text: widget.search.q)
+    ..addListener(_onText);
+  final _focus = FocusNode();
   Timer? _debounce;
+  late String _last = widget.search.q;
 
   @override
   void dispose() {
     _debounce?.cancel();
     _text.dispose();
+    _focus.dispose();
     super.dispose();
+  }
+
+  void _onText() {
+    if (_text.text == _last) return;
+    _last = _text.text;
+    _typed(_text.text);
   }
 
   void _typed(String v) {
@@ -402,53 +413,40 @@ class _MineSearchBarState extends ConsumerState<MineSearchBar> {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final count = widget.search.filterCount;
+    // Owner 2026-09-30: like Search — the filter button inside the field
+    // on the left, the magnifier on the right.
     return Padding(
       padding: const EdgeInsets.fromLTRB(
           AppSpacing.screenSide, AppSpacing.sm, AppSpacing.screenSide, 0),
-      child: Row(
-        children: [
-          Expanded(
-            child: AppTextField(
-              controller: _text,
-              hintText: t.t('mine.search.hint'),
-              semanticLabel: t.t('mine.search.hint'),
-              leading: Icon(Icons.search_rounded,
-                  size: AppSizes.iconSm, color: colors.textSecondary),
-              onChanged: _typed,
-            ),
+      child: FlipSearchBar(
+        key: const ValueKey('mine-search'),
+        controller: _text,
+        focusNode: _focus,
+        semanticLabel: t.t('mine.search.hint'),
+        cancelLabel: t.t('common.cancel'),
+        clearLabel: t.t('search.clear'),
+        showCancel: false,
+        height: AppSizes.searchField,
+        hints: [t.t('mine.search.hint')],
+        leading: Badge(
+          isLabelVisible: count > 0,
+          label: Text('$count'),
+          backgroundColor: colors.gold,
+          textColor: colors.navy,
+          child: AppIconButton(
+            key: const ValueKey('mine-filters'),
+            plain: true,
+            icon: Icon(Icons.tune_rounded, color: colors.text),
+            semanticLabel: t.t('mine.search.filters'),
+            onPressed: _filters,
           ),
-          const SizedBox(width: AppSpacing.sm),
-          Semantics(
-            button: true,
-            label: t.t('mine.search.filters'),
-            excludeSemantics: true,
-            child: AppPressable(
-              onTap: _filters,
-              child: Container(
-                width: AppSizes.touchTarget,
-                height: AppSizes.touchTarget,
-                decoration: BoxDecoration(
-                  color: count > 0 ? colors.goldTint : colors.surface,
-                  borderRadius: BorderRadius.circular(AppRadii.field),
-                  border: Border.all(
-                      color: count > 0 ? colors.goldStroke : colors.border),
-                ),
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Icon(Icons.tune_rounded, color: colors.goldDark),
-                    if (count > 0)
-                      Positioned(
-                        right: 4,
-                        top: 4,
-                        child: CountPill(count: count),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
+        ),
+        trailing: AppIconButton(
+          plain: true,
+          icon: Icon(Icons.search_rounded, color: colors.goldDark),
+          semanticLabel: t.t('mine.search.hint'),
+          onPressed: () => _focus.requestFocus(),
+        ),
       ),
     );
   }

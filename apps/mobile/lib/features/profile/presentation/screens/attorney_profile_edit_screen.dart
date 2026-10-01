@@ -18,6 +18,8 @@ import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/widgets/avatar_picker_field.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_avatar.dart';
+import 'package:lawbid/features/team/application/team_providers.dart';
+import 'package:lawbid/features/team/domain/team_models.dart';
 
 /// docs/03 §4.1 limits (the server enforces the same).
 const kAttorneyNameMax = 50;
@@ -216,6 +218,29 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
       return;
     }
     setState(() => _saving = true);
+    // OQ-048: an assistant proposes the edit; the attorney approves it.
+    if (ref.read(isAssistantProvider)) {
+      try {
+        await ref.read(teamRepositoryProvider).createRequest(
+          RequestKind.profileEdit,
+          {
+            if (patch.firstName != null) 'firstName': patch.firstName!.trim(),
+            if (patch.lastName != null) 'lastName': patch.lastName!.trim(),
+            if (patch.bio != null) 'bio': patch.bio!.trim(),
+            if (patch.firms != null) 'firms': patch.firms,
+            if (patch.languages != null) 'languages': patch.languages,
+          },
+        );
+        if (!mounted) return;
+        showAppSnackBar(context, t.t('request.sent'));
+        Navigator.of(context).maybePop();
+      } catch (e) {
+        if (mounted) showAppSnackBar(context, errorText(t, e));
+      } finally {
+        if (mounted) setState(() => _saving = false);
+      }
+      return;
+    }
     try {
       await ref.read(attorneyProfileRepositoryProvider).updateOwn(patch);
       if (!mounted) return;

@@ -18,8 +18,7 @@ import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
 import 'package:lawbid/features/cases/presentation/widgets/negotiation_timeline.dart';
-import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
-import 'package:lawbid/shared/domain/user_role.dart';
+import 'package:lawbid/features/team/application/team_providers.dart';
 
 /// docs/04 §5.2 bid detail + §6 negotiation, for both parties. Actions are
 /// offered only to the side whose turn it is (§6.3); the server re-checks.
@@ -40,7 +39,7 @@ class _BidDetailScreenState extends ConsumerState<BidDetailScreen> {
   bool _busy = false;
 
   PartyRole get _viewer =>
-      ref.read(currentUserRoleProvider) == UserRole.attorney
+      ref.read(actsAsAttorneyProvider)
           ? PartyRole.attorney
           : PartyRole.client;
 

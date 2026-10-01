@@ -22,6 +22,38 @@ enum SubscriptionStatus {
       };
 }
 
+/// OQ-048: monthly ($399 + $100 per assistant seat) or yearly (attorney
+/// + all six assistants, −20%).
+enum SubscriptionPlan {
+  monthly,
+  yearly;
+
+  static SubscriptionPlan parse(String? raw) =>
+      raw == 'yearly' ? yearly : monthly;
+}
+
+/// OQ-048: the prices the plan picker shows (server is the source).
+@immutable
+class PlanPrices {
+  const PlanPrices({
+    this.monthlyCents = 39900,
+    this.seatCents = 10000,
+    this.yearlyCents = 959000,
+    this.maxSeats = 6,
+  });
+
+  final int monthlyCents;
+  final int seatCents;
+  final int yearlyCents;
+  final int maxSeats;
+
+  int monthlyTotal(int seats) => monthlyCents + seats * seatCents;
+
+  /// What the yearly plan saves against 12 months of the monthly plan
+  /// with every seat.
+  int get yearlySavingsCents => 12 * monthlyTotal(maxSeats) - yearlyCents;
+}
+
 /// The attorney's subscription row as `GET /subscriptions/me` presents it.
 @immutable
 class SubscriptionInfo {
@@ -32,6 +64,8 @@ class SubscriptionInfo {
     required this.priceCents,
     required this.cancelAtPeriodEnd,
     required this.createdAt,
+    this.plan = SubscriptionPlan.monthly,
+    this.assistantSeats = 0,
     this.trialEndsAt,
     this.currentPeriodEnd,
     this.canceledAt,
@@ -39,6 +73,10 @@ class SubscriptionInfo {
   });
 
   final String id;
+  final SubscriptionPlan plan;
+
+  /// Seats bought on the monthly plan (yearly always has every seat).
+  final int assistantSeats;
   final SubscriptionStatus status;
 
   /// The server's verdict (docs/06 §1.2) — the only source of truth for
@@ -76,10 +114,12 @@ class SubscriptionOverview {
     required this.canStart,
     required this.trialEligible,
     required this.priceCents,
+    this.prices = const PlanPrices(),
     this.subscription,
   });
 
   final SubscriptionInfo? subscription;
+  final PlanPrices prices;
   final bool isActive;
 
   /// Verified attorney without an active subscription (server-side rule,
@@ -149,4 +189,22 @@ class PaymentRecord {
   final DateTime? paidAt;
   final String? failureCode;
   final DateTime createdAt;
+}
+
+/// Owner 2026-09-30: a hosted Stripe Checkout page for the subscription.
+@immutable
+class WebCheckout {
+  const WebCheckout({
+    required this.url,
+    required this.sessionId,
+    required this.trialEligible,
+    required this.priceCents,
+    required this.trialDays,
+  });
+
+  final Uri url;
+  final String sessionId;
+  final bool trialEligible;
+  final int priceCents;
+  final int trialDays;
 }

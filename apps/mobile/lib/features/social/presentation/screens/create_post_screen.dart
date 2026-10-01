@@ -9,7 +9,6 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
-import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/onboarding/presentation/widgets/option_picker_sheet.dart';
 import 'package:lawbid/features/practice/practice_options.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
@@ -18,7 +17,8 @@ import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/mention_suggestions.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
-import 'package:lawbid/shared/domain/user_role.dart';
+import 'package:lawbid/features/team/application/team_providers.dart';
+import 'package:lawbid/features/team/domain/team_models.dart';
 
 /// One photo in the composer: uploaded right after it is picked, so
 /// "Опубликовать" only waits for what is still in flight.
@@ -152,6 +152,24 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
         Navigator.of(context).pop();
         return;
       }
+      // OQ-048: an assistant's post goes to the attorney for approval.
+      if (ref.read(isAssistantProvider)) {
+        await ref.read(teamRepositoryProvider).createRequest(
+          RequestKind.post,
+          {
+            'title': _title.text.trim(),
+            'body': _text.text.trim(),
+            'practiceCode': _practice!,
+            'kind': _news ? 'news' : 'post',
+            'mediaFileIds': [for (final p in _photos) p.fileId!],
+          },
+        );
+        if (!mounted) return;
+        HapticFeedback.mediumImpact();
+        showAppSnackBar(context, t.t('request.sent'));
+        Navigator.of(context).pop();
+        return;
+      }
       final post = await ref.read(socialRepositoryProvider).createPost(
             PostDraft(
               title: _title.text.trim(),
@@ -180,7 +198,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    final attorney = ref.watch(currentUserRoleProvider) == UserRole.attorney;
+    final attorney = ref.watch(actsAsAttorneyProvider);
     final practice = _practice;
     final missing = _triedPublish;
 
@@ -356,7 +374,9 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                 builder: (context, _, __) => AppButton(
                   label: t.t(_editing
                       ? 'common.save'
-                      : (_news ? 'post.news.publish' : 'post.create.publish')),
+                      : ref.watch(isAssistantProvider)
+                          ? 'request.sendForApproval'
+                          : (_news ? 'post.news.publish' : 'post.create.publish')),
                   icon: _editing ? Icons.check_rounded : Icons.send_rounded,
                   isLoading: _publishing,
                   isEnabled:

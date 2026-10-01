@@ -124,8 +124,10 @@ final Map<String, String> _categoryByTag = {
 /// Category of a generated topic hashtag (null for other tags).
 String? categoryForTopicTag(String tag) => _categoryByTag[tag.toLowerCase()];
 
-/// What the slider shows before the user picks anything.
+/// What the slider shows before the user picks anything. Owner
+/// 2026-09-30: "News" first and on by default.
 const kDefaultFeedTopicCategories = <String>[
+  kNewsTopic,
   'immigration',
   'family_law',
   'traffic_tickets',
@@ -138,6 +140,7 @@ const kDefaultFeedTopicCategories = <String>[
 ];
 
 const _prefsKey = 'feed.topics.v1';
+const _newsKey = 'feed.topics.news.v1';
 
 /// Owner 2026-09-30: the "News" topic in the slider (not a practice code).
 const kNewsTopic = '@news';
@@ -155,10 +158,19 @@ class FeedTopicsNotifier extends Notifier<List<String>> {
       if (saved != null) {
         // Owner 2026-09-30: any category or subcategory, in the order
         // picked.
-        return [
+        final list = [
           for (final c in saved)
-            if (_codeShape.hasMatch(c)) c,
+            if (c == kNewsTopic || _codeShape.hasMatch(c)) c,
         ];
+        // Owner 2026-09-30: News joined the picker checked by default —
+        // add it once to a list saved before it existed.
+        final prefs = ref.read(sharedPreferencesProvider);
+        if (prefs.getBool(_newsKey) != true) {
+          prefs.setBool(_newsKey, true);
+          if (!list.contains(kNewsTopic)) list.insert(0, kNewsTopic);
+          prefs.setStringList(_prefsKey, list);
+        }
+        return list;
       }
     } on Object {
       // Tests / previews without preferences: defaults.
@@ -171,8 +183,11 @@ class FeedTopicsNotifier extends Notifier<List<String>> {
       for (final c in state)
         if (codes.contains(c)) c,
       for (final c in codes)
-        if (!state.contains(c) && _codeShape.hasMatch(c)) c,
+        if (!state.contains(c) && (c == kNewsTopic || _codeShape.hasMatch(c)))
+          c,
     ];
+    // News stays first when picked.
+    if (state.remove(kNewsTopic)) state = [kNewsTopic, ...state];
     try {
       ref.read(sharedPreferencesProvider).setStringList(_prefsKey, state);
     } on Object {

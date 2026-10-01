@@ -44,6 +44,8 @@ import 'package:lawbid/features/search/presentation/screens/search_screen.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:lawbid/features/social/social_routes.dart';
 import 'package:lawbid/features/subscription/subscription_routes.dart';
+import 'package:lawbid/features/team/application/team_providers.dart';
+import 'package:lawbid/features/team/team_routes.dart';
 import 'package:lawbid/features/settings/data_export/presentation/data_export_screen.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 
@@ -73,6 +75,7 @@ GoRouter appRouter(Ref ref) {
         startup: ref.read(appStartupProvider),
         hasSession: ref.read(sessionControllerProvider) != null,
         user: ref.read(currentUserControllerProvider),
+        assistant: _assistantGate(ref),
       ),
     ),
     routes: [
@@ -303,6 +306,8 @@ GoRouter appRouter(Ref ref) {
       ...chatRoutes(_rootNavigatorKey),
       // docs/06 §1.7: Settings → Подписка, payments, gate paywall.
       ...subscriptionRoutes(_rootNavigatorKey),
+      // OQ-048: Team, new task, assistant joining.
+      ...teamRoutes(_rootNavigatorKey),
     ],
   );
 }
@@ -319,6 +324,19 @@ class _GuardRefresh extends ChangeNotifier {
       ..listen(appStartupProvider, (_, __) => notifyListeners())
       ..listen(sessionControllerProvider.select((s) => s?.sub),
           (_, __) => notifyListeners())
-      ..listen(currentUserControllerProvider, (_, __) => notifyListeners());
+      ..listen(currentUserControllerProvider, (_, __) => notifyListeners())
+      ..listen(assistantMeProvider, (_, __) => notifyListeners());
   }
+}
+
+/// OQ-048: the assistant's team state for the guard.
+AssistantGate _assistantGate(Ref ref) {
+  if (!ref.read(isAssistantProvider)) return AssistantGate.notAssistant;
+  final me = ref.read(assistantMeProvider);
+  if (me.isLoading && !me.hasValue) return AssistantGate.loading;
+  // Offline / error: let them in; the server still refuses what it must.
+  if (me.hasError && !me.hasValue) return AssistantGate.active;
+  return (me.value?.active ?? false)
+      ? AssistantGate.active
+      : AssistantGate.notJoined;
 }

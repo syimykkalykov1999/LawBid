@@ -18,6 +18,7 @@ import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/social/social_routes.dart';
 import 'package:lawbid/features/subscription/subscription_routes.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
+import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
 
 /// Where a notification (or its push) leads (docs/05 §9.2); null = no
 /// target screen (a sheet with the text is shown instead).
@@ -90,6 +91,11 @@ String? notificationRoute({
       return AppRoutes.caseHistory;
     case 'security_new_device':
       return AppRoutes.activeDevices;
+    // OQ-048: Team requests → Inbox → Team; tasks / answers → Mine.
+    case 'assistant_request' || 'assistant_joined':
+      return ChatRoutes.inboxTab(InboxTab.team);
+    case 'assistant_task' || 'assistant_result':
+      return AppRoutes.mine;
   }
   return null;
 }
@@ -121,6 +127,9 @@ IconData _icon(AppNotification n) => switch (n.type) {
       'security_new_device' => Icons.devices_rounded,
       'verification_update' => Icons.verified_rounded,
       'moderation_notice' => Icons.policy_rounded,
+      'assistant_request' => Icons.fact_check_rounded,
+      'assistant_task' => Icons.event_note_rounded,
+      'assistant_joined' || 'assistant_result' => Icons.support_agent_rounded,
       _ => switch (n.category) {
           NotifCategory.bids => Icons.gavel_rounded,
           NotifCategory.cases => Icons.folder_rounded,

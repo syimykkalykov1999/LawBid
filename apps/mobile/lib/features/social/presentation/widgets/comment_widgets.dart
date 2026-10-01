@@ -17,6 +17,8 @@ import 'package:lawbid/features/social/presentation/widgets/mention_suggestions.
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
+import 'package:lawbid/features/team/application/team_providers.dart';
+import 'package:lawbid/features/team/domain/team_models.dart';
 
 /// Who a new comment answers (§5.1: one level; a reply to a reply goes to
 /// the top-level comment, the server prefixes "@username").
@@ -371,6 +373,32 @@ class _CommentComposerState extends ConsumerState<CommentComposer> {
     final t = ref.read(translatorProvider);
     setState(() => _sending = true);
     final reply = widget.replyTo;
+    // OQ-048: an assistant's comment waits for the attorney's approval.
+    if (ref.read(isAssistantProvider)) {
+      try {
+        final caseThread = isCaseRef(widget.postId);
+        await ref.read(teamRepositoryProvider).createRequest(
+          caseThread ? RequestKind.caseComment : RequestKind.comment,
+          {
+            if (caseThread)
+              'caseId': widget.postId.substring(kCaseThreadPrefix.length)
+            else
+              'postId': widget.postId,
+            'body': body,
+            if (reply?.parentId != null) 'parentId': reply!.parentId,
+          },
+        );
+        if (!mounted) return;
+        _text.clear();
+        widget.onClearReply();
+        showAppSnackBar(context, t.t('request.sent'));
+      } on Object catch (e) {
+        if (mounted) showAppSnackBar(context, errorText(t, e));
+      } finally {
+        if (mounted) setState(() => _sending = false);
+      }
+      return;
+    }
     try {
       final c = await ref.read(socialRepositoryProvider).addComment(
             widget.postId,

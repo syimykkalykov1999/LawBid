@@ -16,6 +16,8 @@ class ApiSubscriptionRepository implements SubscriptionRepository {
         status: SubscriptionStatus.parse(d.status.json),
         isActive: d.isActive,
         priceCents: d.priceCents,
+        plan: SubscriptionPlan.parse(d.plan.json),
+        assistantSeats: d.assistantSeats,
         trialEndsAt: d.trialEndsAt,
         currentPeriodEnd: d.currentPeriodEnd,
         cancelAtPeriodEnd: d.cancelAtPeriodEnd,
@@ -31,6 +33,12 @@ class ApiSubscriptionRepository implements SubscriptionRepository {
         canStart: d.canStart,
         trialEligible: d.trialEligible,
         priceCents: d.priceCents,
+        prices: PlanPrices(
+          monthlyCents: d.prices.monthlyCents,
+          seatCents: d.prices.seatCents,
+          yearlyCents: d.prices.yearlyCents,
+          maxSeats: d.prices.maxSeats,
+        ),
       );
 
   static PaymentRecord _payment(api.PaymentDto p) => PaymentRecord(
@@ -46,6 +54,59 @@ class ApiSubscriptionRepository implements SubscriptionRepository {
   @override
   Future<SubscriptionOverview> overview() async =>
       _overview((await guardApiCall(_api.mySubscription)).data);
+
+  @override
+  Future<WebCheckout> checkout({
+    SubscriptionPlan plan = SubscriptionPlan.monthly,
+    int assistantSeats = 0,
+    List<String> assistantPhones = const [],
+  }) async {
+    final d = (await guardApiCall(
+      () => _api.createCheckout(
+        body: api.CheckoutRequestDto(
+          plan: plan == SubscriptionPlan.yearly
+              ? api.SubscriptionPlan.yearly
+              : api.SubscriptionPlan.monthly,
+          assistantSeats: plan == SubscriptionPlan.yearly ? 0 : assistantSeats,
+          assistantPhones: assistantPhones.isEmpty ? null : assistantPhones,
+        ),
+      ),
+    ))
+        .data;
+    final uri = Uri.tryParse(d.url);
+    if (uri == null || !uri.hasScheme) {
+      throw const ApiException(
+        code: ApiException.networkErrorCode,
+        message: 'Unexpected checkout URL from the server.',
+      );
+    }
+    return WebCheckout(
+      url: uri,
+      sessionId: d.sessionId,
+      trialEligible: d.trialEligible,
+      priceCents: d.priceCents,
+      trialDays: d.trialDays,
+    );
+  }
+
+  @override
+  Future<SubscriptionOverview> completeCheckout(String sessionId) async =>
+      _overview(
+        (await guardApiCall(
+          () => _api.completeCheckout(
+            body: api.CompleteCheckoutDto(sessionId: sessionId),
+          ),
+        ))
+            .data,
+      );
+
+  @override
+  Future<SubscriptionOverview> setSeats(int seats) async => _overview(
+        (await guardApiCall(
+          () => _api.setSeats(body: api.SetSeatsDto(seats: seats)),
+        ))
+            .data,
+      );
 
   @override
   Future<SubscriptionStart> start() async {

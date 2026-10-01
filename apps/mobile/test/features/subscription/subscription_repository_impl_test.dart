@@ -12,6 +12,8 @@ Map<String, dynamic> _subscription({String status = 'trialing'}) => {
       'status': status,
       'isActive': status == 'trialing' || status == 'active',
       'priceCents': 39900,
+      'plan': 'monthly',
+      'assistantSeats': 2,
       'trialEndsAt': '2026-10-06T12:00:00.000Z',
       'currentPeriodEnd': null,
       'cancelAtPeriodEnd': false,
@@ -26,6 +28,12 @@ Map<String, dynamic> _me({Map<String, dynamic>? subscription}) => {
       'canStart': subscription == null,
       'trialEligible': subscription == null,
       'priceCents': 39900,
+      'prices': {
+        'monthlyCents': 39900,
+        'seatCents': 10000,
+        'yearlyCents': 959000,
+        'maxSeats': 6,
+      },
     };
 
 void main() {
@@ -65,6 +73,37 @@ void main() {
         (o) async => ok(_me(subscription: _subscription(status: 'paused')));
     expect((await repo.overview()).subscription!.status,
         SubscriptionStatus.unknown);
+  });
+
+  test('OQ-048: plan, seats and prices are mapped', () async {
+    adapter.handler =
+        (o) async => ok(_me(subscription: _subscription(status: 'active')));
+    final o = await repo.overview();
+    expect(o.subscription!.plan, SubscriptionPlan.monthly);
+    expect(o.subscription!.assistantSeats, 2);
+    expect(o.prices.yearlyCents, 959000);
+    expect(o.prices.monthlyTotal(2), 59900);
+  });
+
+  test('OQ-048: checkout sends the plan, seats and phones', () async {
+    adapter.handler = (o) async => ok({
+          'url': 'https://checkout.stripe.com/c/pay/cs_1',
+          'sessionId': 'cs_1',
+          'trialEligible': true,
+          'priceCents': 59900,
+          'trialDays': 7,
+        });
+    final c = await repo.checkout(
+      assistantSeats: 2,
+      assistantPhones: ['+13125550111'],
+    );
+    expect(adapter.requests.single.path, '/subscriptions/checkout');
+    expect(adapter.requests.single.data, {
+      'plan': 'monthly',
+      'assistantSeats': 2,
+      'assistantPhones': ['+13125550111'],
+    });
+    expect(c.sessionId, 'cs_1');
   });
 
   test('start returns the SetupIntent secret and trial eligibility', () async {

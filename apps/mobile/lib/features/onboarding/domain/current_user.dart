@@ -244,5 +244,6 @@ class CurrentUser {
 UserRole? parseUserRole(String? raw) => switch (raw) {
       'client' => UserRole.client,
       'attorney' => UserRole.attorney,
+      'assistant' => UserRole.assistant,
       _ => null,
     };

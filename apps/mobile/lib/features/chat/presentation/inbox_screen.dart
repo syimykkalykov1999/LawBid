@@ -14,13 +14,16 @@ import 'package:lawbid/features/calls/presentation/call_log_entry.dart'
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
 import 'package:lawbid/features/notifications/presentation/notifications_view.dart';
-import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
+import 'package:lawbid/features/team/application/team_providers.dart';
+import 'package:lawbid/features/team/presentation/team_inbox_tab.dart';
+import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 
-enum InboxTab { chats, notifications, requests }
+// OQ-048: [team] — assistants' approval requests and activity (attorney).
+enum InboxTab { chats, notifications, requests, team }
 
 /// The screen behind the Chats icon (docs/05 §8.1, §9.1). Owner
 /// 2026-09-30: three compact tabs — Chats · Notifications · Requests — in
@@ -43,6 +46,10 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final badges = ref.watch(badgesProvider);
     final requests = ref.watch(messageRequestsCountProvider).value ?? 0;
+    final showTeam = ref.watch(currentUserRoleProvider) == UserRole.attorney;
+    final teamPending =
+        showTeam ? (ref.watch(pendingRequestsCountProvider).value ?? 0) : 0;
+    final tab = !showTeam && _tab == InboxTab.team ? InboxTab.chats : _tab;
     return Scaffold(
       backgroundColor: colors.bg,
       body: SafeArea(
@@ -65,20 +72,23 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                     ),
                   ),
                   _InboxTabs(
-                    value: _tab,
+                    value: tab,
                     counts: (badges.chats, badges.notifications, requests),
                     labels: (
                       t.t('inbox.tab.chats'),
                       t.t('inbox.tab.notifications'),
                       t.t('inbox.tab.requests'),
                     ),
+                    team: showTeam
+                        ? (t.t('inbox.tab.team'), teamPending)
+                        : null,
                     onChanged: (v) => setState(() => _tab = v),
                   ),
                 ],
               ),
             ),
             // Notification actions moved under the tabs.
-            if (_tab == InboxTab.notifications)
+            if (tab == InboxTab.notifications)
               Padding(
                 padding: const EdgeInsets.symmetric(
                     horizontal: AppSpacing.screenSide),
@@ -103,11 +113,12 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
               ),
             Expanded(
               child: IndexedStack(
-                index: _tab.index,
-                children: const [
-                  ConversationsView(),
-                  NotificationsView(),
-                  MessageRequestsView(),
+                index: tab.index,
+                children: [
+                  const ConversationsView(),
+                  const NotificationsView(),
+                  const MessageRequestsView(),
+                  if (showTeam) const TeamInboxTab(),
                 ],
               ),
             ),
@@ -125,14 +136,18 @@ class _InboxTabs extends StatelessWidget {
     required this.counts,
     required this.labels,
     required this.onChanged,
+    this.team,
   });
 
   final InboxTab value;
   final (int, int, int) counts;
   final (String, String, String) labels;
+
+  /// OQ-048: the attorney's 4th segment (label, pending requests).
+  final (String, int)? team;
   final ValueChanged<InboxTab> onChanged;
 
-  static const _segment = 96.0;
+  double get _segment => team == null ? 96.0 : 80.0;
   static const _height = 36.0;
 
   @override
@@ -209,6 +224,7 @@ class _InboxTabs extends StatelessWidget {
               segment(InboxTab.chats, labels.$1, counts.$1),
               segment(InboxTab.notifications, labels.$2, counts.$2),
               segment(InboxTab.requests, labels.$3, counts.$3),
+              if (team != null) segment(InboxTab.team, team!.$1, team!.$2),
             ],
           ),
         ],
@@ -314,7 +330,7 @@ class ConversationsView extends ConsumerWidget {
     final t = ref.watch(translatorProvider);
     final value = ref.watch(conversationsProvider);
     final n = ref.read(conversationsProvider.notifier);
-    final attorney = ref.watch(currentUserRoleProvider) == UserRole.attorney;
+    final attorney = ref.watch(actsAsAttorneyProvider);
     return PagedListBody<Conversation>(
       value: value,
       t: t,

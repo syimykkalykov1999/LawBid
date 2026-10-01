@@ -14,6 +14,7 @@ class AssistantMeDto {
     required this.state,
     required this.duties,
     this.membershipId,
+    this.attorneyId,
     this.attorneyName,
     this.attorneyUsername,
     this.attorneyAvatarUrl,
@@ -24,6 +25,9 @@ class AssistantMeDto {
 
   final AssistantMeDtoState state;
   final String? membershipId;
+
+  /// The attorney's user id (the account the assistant acts in).
+  final String? attorneyId;
   final String? attorneyName;
   final String? attorneyUsername;
   final String? attorneyAvatarUrl;

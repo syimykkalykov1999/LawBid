@@ -11,6 +11,8 @@ import 'package:lawbid/features/profile/presentation/screens/attorney_profile_sc
 import 'package:lawbid/features/profile/presentation/widgets/attorney_profile_view.dart';
 import 'package:lawbid/features/profile/presentation/widgets/client_profile_view.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_handle_bar.dart';
+import 'package:lawbid/features/team/application/team_providers.dart';
+import 'package:lawbid/features/team/presentation/team_widgets.dart';
 
 /// Profile tab (docs/03 §8 «Профиль»): an attorney sees their own public
 /// profile (§4.2, with Edit/Share and — before verification — a
@@ -25,11 +27,25 @@ class ProfileScreen extends ConsumerWidget {
     final t = ref.watch(translatorProvider);
     final user = ref.watch(currentUserControllerProvider).user;
     final needsVerification = ref.watch(attorneyNeedsVerificationProvider);
-    final username = user?.attorneyProfile?.username;
+    // OQ-048: an assistant sees (and works on) their attorney's profile.
+    final assistant = ref.watch(activeAssistantProvider);
+    final username =
+        assistant?.attorneyUsername ?? user?.attorneyProfile?.username;
 
     final Widget body;
     if (user == null) {
       body = const AttorneyProfileSkeleton();
+    } else if (assistant != null && username != null) {
+      body = Column(
+        children: [
+          AssistantBanner(
+            text: t.t('assistant.banner', {
+              'name': assistant.attorneyName ?? '',
+            }),
+          ),
+          Expanded(child: AttorneyProfileBody(username: username)),
+        ],
+      );
     } else if (user.isAttorney && username != null) {
       body = AttorneyProfileBody(
           username: username, needsVerification: needsVerification);

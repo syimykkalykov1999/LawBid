@@ -68,6 +68,13 @@ abstract final class ApiErrorCodes {
   static const reviewAlreadyExists = 'REVIEW_ALREADY_EXISTS';
   static const reviewAppealExists = 'REVIEW_APPEAL_EXISTS';
   static const chatAttachmentsLocked = 'CHAT_ATTACHMENTS_LOCKED';
+  // OQ-048 plans and assistants.
+  static const subscriptionPlanIncludesSeats = 'SUBSCRIPTION_PLAN_INCLUDES_SEATS';
+  static const assistantSeatsInUse = 'ASSISTANT_SEATS_IN_USE';
+  static const assistantNoFreeSeat = 'ASSISTANT_NO_FREE_SEAT';
+  static const assistantNotAllowed = 'ASSISTANT_NOT_ALLOWED';
+  static const assistantPhoneTaken = 'ASSISTANT_PHONE_TAKEN';
+  static const assistantInviteNotFound = 'ASSISTANT_INVITE_NOT_FOUND';
   static const reviewEditWindowExpired = 'REVIEW_EDIT_WINDOW_EXPIRED';
   static const reviewNotEditable = 'REVIEW_NOT_EDITABLE';
   // Practices and profiles (docs/03 §3–§4, stages 3.5–3.6)
@@ -197,6 +204,12 @@ abstract final class ApiErrorCodes {
     reviewAlreadyExists,
     reviewAppealExists,
     chatAttachmentsLocked,
+    subscriptionPlanIncludesSeats,
+    assistantSeatsInUse,
+    assistantNoFreeSeat,
+    assistantNotAllowed,
+    assistantPhoneTaken,
+    assistantInviteNotFound,
     reviewEditWindowExpired,
     reviewNotEditable,
     attorneyNotVerified,

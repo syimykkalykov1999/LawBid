@@ -9,7 +9,6 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
-import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/feed/application/feed_topics.dart';
 import 'package:lawbid/features/feed/presentation/widgets/topic_filter_bar.dart'
@@ -24,7 +23,7 @@ import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
-import 'package:lawbid/shared/domain/user_role.dart';
+import 'package:lawbid/features/team/application/team_providers.dart';
 
 enum SearchTab { attorneys, cases, posts, tags }
 
@@ -119,7 +118,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final attorney = ref.watch(currentUserRoleProvider) == UserRole.attorney;
+    final attorney = ref.watch(actsAsAttorneyProvider);
     // OQ-026: People (attorneys and clients) for both roles.
     final tabs = [
       (SearchTab.attorneys, t.t('search.tab.people')),
@@ -192,16 +191,17 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         bottom: false,
         child: Column(
           children: [
+            // Owner 2026-09-30: the sections on top, the field under them.
+            tabsRow,
             Padding(
               padding: const EdgeInsets.fromLTRB(
                 AppSpacing.screenSide,
-                AppSpacing.md,
+                AppSpacing.xs,
                 AppSpacing.screenSide,
-                0,
+                AppSpacing.sm,
               ),
               child: field,
             ),
-            tabsRow,
             Expanded(
               child: AnimatedSwitcher(
                 duration: context.reduceMotion
@@ -245,7 +245,7 @@ class _Results extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translatorProvider);
-    final attorney = ref.watch(currentUserRoleProvider) == UserRole.attorney;
+    final attorney = ref.watch(actsAsAttorneyProvider);
     final nothing = AppEmptyState(
       icon: Icons.search_off_rounded,
       title: t.t('search.empty.title'),
@@ -386,7 +386,7 @@ class _BeforeTyping extends ConsumerWidget {
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final recent = ref.watch(recentSearchesProvider).value ?? const [];
     final last = recent.isEmpty ? null : recent.first;
-    final attorney = ref.watch(currentUserRoleProvider) == UserRole.attorney;
+    final attorney = ref.watch(actsAsAttorneyProvider);
 
     Widget title(String text, {Widget? trailing}) => Padding(
           padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide,

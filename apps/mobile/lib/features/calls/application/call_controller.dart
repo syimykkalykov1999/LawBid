@@ -11,6 +11,8 @@ import 'package:lawbid/features/calls/data/calls_repository.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/chat/data/realtime_client.dart';
+import 'package:lawbid/features/team/application/team_providers.dart';
+import 'package:lawbid/features/team/domain/team_models.dart';
 
 /// What the call screen shows (OQ-041).
 enum CallPhase {
@@ -350,6 +352,8 @@ class CallController extends Notifier<CallSession> {
         final call = CallMappers.fromEvent(data);
         // While in another call the server's sweep marks this one missed.
         if (call == null || state.busy) return;
+        // OQ-048: an assistant rings only with the "calls" duty.
+        if (!ref.read(canDoProvider(AssistantDuty.calls))) return;
         _ring(call);
       case 'call:accepted':
         final call = CallMappers.fromEvent(data);

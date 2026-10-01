@@ -1,0 +1,382 @@
+import 'package:flutter/material.dart';
+import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/l10n/l10n_formats.dart';
+import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/features/team/domain/team_models.dart';
+
+String dutyLabel(Translator t, AssistantDuty d) => t.t('duty.${d.wire}');
+String dutyHint(Translator t, AssistantDuty d) => t.t('duty.${d.wire}.hint');
+
+IconData dutyIcon(AssistantDuty d) => switch (d) {
+      AssistantDuty.calls => Icons.call_outlined,
+      AssistantDuty.chats => Icons.chat_bubble_outline_rounded,
+      AssistantDuty.files => Icons.attach_file_rounded,
+      AssistantDuty.cases => Icons.work_outline_rounded,
+      AssistantDuty.bidDrafts => Icons.edit_note_rounded,
+      AssistantDuty.posts => Icons.campaign_outlined,
+      AssistantDuty.tasks => Icons.event_note_outlined,
+      AssistantDuty.profile => Icons.badge_outlined,
+    };
+
+String requestKindLabel(Translator t, RequestKind k) =>
+    t.t('team.request.${k.wire}');
+
+/// "act.<key>" or the raw action for unknown routes.
+String activityLabel(Translator t, String action) {
+  final key = 'act.$action';
+  final text = t.t(key);
+  return text == key ? t.t('act.other', {'action': action}) : text;
+}
+
+/// Gold pill "+ Add task" (Mine → Tasks).
+class AddTaskButton extends StatelessWidget {
+  const AddTaskButton({required this.label, required this.onTap, super.key});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
+    return Semantics(
+      button: true,
+      label: label,
+      excludeSemantics: true,
+      child: AppPressable(
+        onTap: onTap,
+        child: Container(
+          height: 40,
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+          decoration: BoxDecoration(
+            color: colors.ctaBright,
+            borderRadius: BorderRadius.circular(AppRadii.pill),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.add_rounded, size: 20, color: colors.onCtaBright),
+              const SizedBox(width: 4),
+              Text(
+                label,
+                style: typography.bodySmall.copyWith(
+                  color: colors.onCtaBright,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StatusPillSmall extends StatelessWidget {
+  const _StatusPillSmall({required this.status, required this.t});
+
+  final RequestStatus status;
+  final Translator t;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
+    final color = switch (status) {
+      RequestStatus.pending => colors.gold,
+      RequestStatus.approved => colors.success,
+      RequestStatus.rejected => colors.danger,
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(AppRadii.pill),
+      ),
+      child: Text(
+        t.t('team.request.${status.name}'),
+        style: typography.caption
+            .copyWith(color: color, fontWeight: FontWeight.w600),
+      ),
+    );
+  }
+}
+
+/// One approval request: kind, who, the content, the decision; with
+/// approve / reject for the attorney while pending.
+class RequestCard extends StatelessWidget {
+  const RequestCard({
+    required this.request,
+    required this.t,
+    required this.formats,
+    this.onApprove,
+    this.onReject,
+    this.busy = false,
+    super.key,
+  });
+
+  final AssistantRequest request;
+  final Translator t;
+  final L10nFormats formats;
+  final VoidCallback? onApprove;
+  final VoidCallback? onReject;
+  final bool busy;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
+    final r = request;
+    final body = r.kind == RequestKind.post ? r.text('body') : '';
+    final pending = r.status == RequestStatus.pending;
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                r.kind == RequestKind.post
+                    ? Icons.campaign_outlined
+                    : r.kind == RequestKind.profileEdit
+                        ? Icons.badge_outlined
+                        : Icons.mode_comment_outlined,
+                size: AppSizes.iconSm,
+                color: colors.gold,
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
+                  '${requestKindLabel(t, r.kind)} · ${r.assistantName}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: typography.caption.copyWith(
+                    color: colors.textSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              _StatusPillSmall(status: r.status, t: t),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            r.headline,
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+            style: typography.body.copyWith(
+              color: colors.text,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          if (body.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              body,
+              maxLines: 4,
+              overflow: TextOverflow.ellipsis,
+              style: typography.bodySmall.copyWith(color: colors.text),
+            ),
+          ],
+          if (r.note?.isNotEmpty ?? false) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              '“${r.note!}”',
+              style: typography.bodySmall.copyWith(
+                color: colors.textSecondary,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            formats.dateTime(r.decidedAt ?? r.createdAt),
+            style: typography.caption.copyWith(color: colors.textSecondary),
+          ),
+          if (pending && onApprove != null) ...[
+            const SizedBox(height: AppSpacing.md),
+            Row(
+              children: [
+                Expanded(
+                  child: AppButton(
+                    key: ValueKey('request-reject-${r.id}'),
+                    label: t.t('team.reject'),
+                    variant: AppButtonVariant.secondary,
+                    height: AppSizes.touchTarget,
+                    isLoading: busy,
+                    onPressed: onReject,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: AppButton(
+                    key: ValueKey('request-approve-${r.id}'),
+                    label: t.t('team.approve'),
+                    icon: Icons.check_rounded,
+                    height: AppSizes.touchTarget,
+                    isLoading: busy,
+                    onPressed: onApprove,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// An assistant's answered request in «Результаты».
+class RequestResultCard extends StatelessWidget {
+  const RequestResultCard({
+    required this.request,
+    required this.t,
+    required this.formats,
+    super.key,
+  });
+
+  final AssistantRequest request;
+  final Translator t;
+  final L10nFormats formats;
+
+  @override
+  Widget build(BuildContext context) =>
+      RequestCard(request: request, t: t, formats: formats);
+}
+
+/// One line of the hidden activity log.
+class ActivityRow extends StatelessWidget {
+  const ActivityRow({
+    required this.entry,
+    required this.t,
+    required this.formats,
+    super.key,
+  });
+
+  final ActivityEntry entry;
+  final Translator t;
+  final L10nFormats formats;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
+    final initials = entry.assistantName
+        .split(' ')
+        .where((w) => w.isNotEmpty)
+        .take(2)
+        .map((w) => w[0].toUpperCase())
+        .join();
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CircleAvatar(
+            radius: 16,
+            backgroundColor: colors.goldTint,
+            child: Text(
+              initials.isEmpty ? '•' : initials,
+              style: typography.caption.copyWith(
+                color: colors.gold,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(
+                        text: entry.assistantName,
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      TextSpan(text: ' ${activityLabel(t, entry.action)}'),
+                    ],
+                  ),
+                  style: typography.body.copyWith(color: colors.text),
+                ),
+                if (entry.summary?.isNotEmpty ?? false)
+                  Text(
+                    entry.summary!,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: typography.bodySmall
+                        .copyWith(color: colors.textSecondary),
+                  ),
+                Text(
+                  formats.dateTime(entry.createdAt),
+                  style:
+                      typography.caption.copyWith(color: colors.textSecondary),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// "You're <attorney>'s assistant" strip (profile, settings).
+class AssistantBanner extends StatelessWidget {
+  const AssistantBanner({required this.text, super.key});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.screenSide,
+        vertical: AppSpacing.sm,
+      ),
+      color: colors.goldTint,
+      child: Row(
+        children: [
+          Icon(Icons.support_agent_rounded,
+              size: AppSizes.iconSm, color: colors.gold),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Text(
+              text,
+              style: typography.bodySmall.copyWith(
+                color: colors.text,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// An empty / error state that still pulls to refresh: fills the visible
+/// height inside an always-scrollable list.
+class PullableState extends StatelessWidget {
+  const PullableState({required this.child, super.key});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, c) => ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: [
+            SizedBox(
+              height: c.maxHeight.isFinite ? c.maxHeight : 480,
+              child: child,
+            ),
+          ],
+        ),
+      );
+}

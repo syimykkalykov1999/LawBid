@@ -12,6 +12,7 @@ import 'package:lawbid/features/social/data/social_local_database.dart';
 import 'package:lawbid/features/social/data/social_repository.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
+import 'package:lawbid/features/team/application/team_providers.dart';
 
 // No silent automatic retries: a failed load shows its error/offline
 // state with Retry at once (docs/01 §8.3).
@@ -26,9 +27,13 @@ final socialLocalDatabaseProvider = Provider<SocialLocalDatabase>((ref) {
 });
 
 /// The signed-in user's id (JWT `sub`), or null signed out.
-final currentUserIdProvider = Provider<String?>(
-  (ref) => ref.watch(sessionControllerProvider.select((s) => s?.sub)),
-);
+/// The account the app acts as — for an assistant (OQ-048) the attorney
+/// whose account they work in, so the attorney's messages/posts are "mine".
+final currentUserIdProvider = Provider<String?>((ref) {
+  final acting = ref.watch(activeAssistantProvider)?.attorneyId;
+  return acting ??
+      ref.watch(sessionControllerProvider.select((s) => s?.sub));
+});
 
 final socialRepositoryProvider = Provider<SocialRepository>(
   (ref) => ApiSocialRepository(

@@ -214,7 +214,11 @@ class ChatMessage {
     this.voice,
     this.callLog,
     this.attachment,
+    this.sentByAssistant,
   });
+
+  /// OQ-048: sent by the attorney's assistant — their name.
+  final String? sentByAssistant;
 
   /// Set for [MessageKind.attachment].
   final ChatAttachment? attachment;
@@ -261,6 +265,7 @@ class ChatMessage {
         voice: voice ?? this.voice,
         callLog: callLog,
         attachment: attachment ?? this.attachment,
+        sentByAssistant: sentByAssistant,
       );
 }
 

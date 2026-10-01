@@ -113,6 +113,19 @@ class RoleScreen extends ConsumerWidget {
                           onTap: () => select(UserRole.attorney),
                         ),
                       ),
+                      // OQ-048: an attorney's assistant.
+                      const SizedBox(height: AppSpacing.roleCardGap),
+                      lockable(
+                        UserRole.assistant,
+                        RoleCard(
+                          key: const ValueKey('role-card-assistant'),
+                          icon: Icons.support_agent_rounded,
+                          title: t.t('onboarding.role.assistant.title'),
+                          description: t.t('onboarding.role.assistant.body'),
+                          isSelected: selectedRole == UserRole.assistant,
+                          onTap: () => select(UserRole.assistant),
+                        ),
+                      ),
                       if (serverRole != null) ...[
                         const SizedBox(height: AppSpacing.md),
                         Text(

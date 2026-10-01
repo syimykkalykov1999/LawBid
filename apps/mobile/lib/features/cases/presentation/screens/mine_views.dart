@@ -14,10 +14,12 @@ import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/mine/presentation/widgets/mine_grid.dart';
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart';
+import 'package:lawbid/features/team/presentation/tasks_tab.dart';
 
 enum _ClientTab { open, inProgress, completed, saved }
 
-enum _AttorneyTab { bids, work, completed, saved }
+// OQ-048: «Задачи» — the attorney's (and assistants') task calendar.
+enum _AttorneyTab { bids, work, completed, saved, tasks }
 
 /// Owner 2026-09-30 — client "Mine": Open (with Archive), In progress,
 /// Completed and Saved (posts). Cases show as an Instagram-like grid —
@@ -208,7 +210,6 @@ class AttorneyMineView extends ConsumerStatefulWidget {
 
 class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
   _AttorneyTab _tab = _AttorneyTab.bids;
-  MyBidsFilter _bids = MyBidsFilter.active;
   MineSearch _search = const MineSearch();
 
   @override
@@ -232,16 +233,11 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
           children: [
             search,
             const SizedBox(height: AppSpacing.sm),
-            FilterChips<MyBidsFilter>(
-              value: _bids,
-              options: [
-                (MyBidsFilter.active, t.t('mine.filter.active')),
-                (MyBidsFilter.finished, t.t('mine.filter.finished')),
-              ],
-              onChanged: (v) => setState(() => _bids = v),
+            // Owner 2026-09-30: My bids = bids waiting for the client;
+            // accepted ones live in In progress, finished in Completed.
+            Expanded(
+              child: _BidsGrid(filter: MyBidsFilter.active, search: _search),
             ),
-            const SizedBox(height: AppSpacing.sm),
-            Expanded(child: _BidsGrid(filter: _bids, search: _search)),
           ],
         ),
       _AttorneyTab.work || _AttorneyTab.completed => Column(
@@ -264,6 +260,7 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
           search: _search,
           searchBar: search,
         ),
+      _AttorneyTab.tasks => const TasksTab(key: ValueKey('tasks')),
     };
     return Column(
       children: [
@@ -274,6 +271,7 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
             (_AttorneyTab.work, t.t('mine.tab.inWork')),
             (_AttorneyTab.completed, t.t('mine.tab.completed')),
             (_AttorneyTab.saved, t.t('mine.tab.saved')),
+            (_AttorneyTab.tasks, t.t('mine.tab.tasks')),
           ],
           onChanged: (v) => setState(() => _tab = v),
         ),

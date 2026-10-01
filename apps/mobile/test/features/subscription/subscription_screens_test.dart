@@ -11,10 +11,10 @@ import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/subscription/application/subscription_providers.dart';
-import 'package:lawbid/features/subscription/data/card_collector.dart';
 import 'package:lawbid/features/subscription/domain/subscription_models.dart';
 import 'package:lawbid/features/subscription/presentation/payments_screen.dart';
 import 'package:lawbid/features/subscription/presentation/paywall_screen.dart';
+import 'package:lawbid/features/subscription/presentation/plan_picker.dart';
 import 'package:lawbid/features/subscription/presentation/subscription_screen.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 
@@ -26,12 +26,19 @@ import 'subscription_fakes.dart';
 void main() {
   late FakeSubscriptionRepository repo;
   late FakeCardCollector collector;
+  late List<Uri> launched;
+  var launchResult = true;
   setUpAll(initializeDateFormatting);
 
   List<Override> overrides() => uxOverrides(extra: [
         subscriptionRepositoryProvider.overrideWithValue(repo),
         cardCollectorProvider.overrideWithValue(collector),
         subscriptionPollIntervalProvider.overrideWithValue(Duration.zero),
+        checkoutPollIntervalProvider.overrideWithValue(Duration.zero),
+        checkoutLauncherProvider.overrideWithValue((url) async {
+          launched.add(url);
+          return launchResult;
+        }),
       ]);
 
   Future<void> pump(
@@ -54,22 +61,27 @@ void main() {
   setUp(() {
     repo = FakeSubscriptionRepository(makeOverview());
     collector = FakeCardCollector();
+    launched = [];
+    launchResult = true;
   });
 
   group('SubscriptionScreen states', () {
-    testWidgets('loading: skeleton, then the plan card', (tester) async {
+    testWidgets('loading: skeleton, then the two plans (monthly first)',
+        (tester) async {
       repo.hold = Completer<void>();
       await pump(tester, const SubscriptionScreen());
       expect(find.byType(DetailSkeleton), findsOneWidget);
-      expect(find.byType(CircularProgressIndicator), findsNothing);
       repo.hold!.complete();
       await tester.pump();
       await tester.pump();
-      expect(find.byType(PlanCard), findsOneWidget);
-      expect(find.byKey(const ValueKey('plan-price')), findsOneWidget);
-      expect(find.text('\$399'), findsOneWidget);
-      expect(find.text('7 days free, then \$399 per month. Cancel anytime.'),
-          findsOneWidget);
+      expect(find.byType(PlanPicker), findsOneWidget);
+      final monthly =
+          tester.getTopLeft(find.byKey(const ValueKey('plan-monthly')));
+      final yearly =
+          tester.getTopLeft(find.byKey(const ValueKey('plan-yearly')));
+      expect(monthly.dy, lessThan(yearly.dy), reason: 'yearly below monthly');
+      expect(find.text('\$399 per month'), findsWidgets);
+      expect(find.text('\$9,590 per year'), findsOneWidget);
     });
 
     testWidgets('offline: offline state with Retry that reloads',
@@ -82,7 +94,7 @@ void main() {
       await tester.tap(find.text('Retry'));
       await tester.pump();
       await tester.pump();
-      expect(find.byType(PlanCard), findsOneWidget);
+      expect(find.byType(PlanPicker), findsOneWidget);
     });
 
     testWidgets('not verified yet: CTA disabled with the explanation',
@@ -92,73 +104,128 @@ void main() {
       final cta =
           tester.widget<AppButton>(find.byKey(const ValueKey('subscribe-cta')));
       expect(cta.isEnabled, isFalse);
-      expect(cta.label, 'Start free trial');
+      expect(cta.label, 'Start 7 days free');
       expect(find.byKey(const ValueKey('verify-first')), findsOneWidget);
       expect(find.text('Go to verification'), findsOneWidget);
       expect(find.byType(SubscriptionStatusCard), findsNothing);
     });
 
-    testWidgets('verified: tap → card sheet → trial started', (tester) async {
-      repo.onConfirm = (_) => makeOverview(subscription: makeInfo());
+    testWidgets('monthly + 2 assistants + a phone → Stripe page → trial',
+        (tester) async {
+      repo.onComplete = () => makeOverview(
+            subscription: makeInfo(assistantSeats: 2),
+            trialEligible: false,
+          );
       await pump(tester, const SubscriptionScreen());
+      await tester.tap(find.byKey(const ValueKey('seats-plus')));
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('seats-plus')));
+      await tester.pump();
+      expect(find.text('\$599 per month'), findsOneWidget);
+      await tester.ensureVisible(find.byKey(const ValueKey('plan-phone-add')));
+      await tester.tap(find.byKey(const ValueKey('plan-phone-add')));
+      await tester.pump();
+      await tester.enterText(
+          find.byKey(const ValueKey('plan-phone-0')), '+13125550111');
+      await tester.ensureVisible(find.byKey(const ValueKey('subscribe-cta')));
+      await tester.pump();
       await tester.tap(find.byKey(const ValueKey('subscribe-cta')));
       await tester.pump();
       await tester.pump();
-      expect(collector.requests, hasLength(1));
-      expect(repo.calls, contains('confirm:seti_1:false'));
+      await tester.pump();
+      expect(repo.calls, contains('checkout:monthly:2:+13125550111'));
+      expect(launched.single.host, 'checkout.stripe.com');
+      expect(repo.calls, contains('complete:cs_1'));
       expect(find.text('Your trial has started'), findsOneWidget);
       expect(find.byKey(const ValueKey('subscription-status')), findsOneWidget);
-      expect(find.text('Trial'), findsOneWidget);
-      expect(find.textContaining('Trial until'), findsOneWidget);
-      // Active now: no CTA, Manage + Cancel available.
       expect(find.byKey(const ValueKey('subscribe-cta')), findsNothing);
-      expect(find.byKey(const ValueKey('subscription-manage')), findsOneWidget);
-      expect(find.byKey(const ValueKey('subscription-cancel')), findsOneWidget);
-    });
-
-    testWidgets('no trial available: honest dialog, charge only after consent',
-        (tester) async {
-      repo.current = makeOverview(trialEligible: false);
-      repo.startResult = const SubscriptionStart(
-        clientSecret: 's',
-        setupIntentId: 'seti_1',
-        customerId: 'cus_1',
-        trialEligible: false,
-        priceCents: 39900,
-        trialDays: 7,
+      await tester.scrollUntilVisible(
+        find.text('Monthly · assistants: 2'),
+        300,
+        scrollable: find.byType(Scrollable).first,
       );
-      repo.onConfirm = (_) => makeOverview(
-          subscription: makeInfo(status: SubscriptionStatus.active),
-          trialEligible: false);
-      await pump(tester, const SubscriptionScreen());
-      expect(find.text('Subscribe'), findsOneWidget);
-      expect(find.text('\$399 per month. Cancel anytime.'), findsOneWidget);
-      await tester.tap(find.byKey(const ValueKey('subscribe-cta')));
-      await tester.pump();
-      expect(find.text('Trial unavailable'), findsOneWidget);
-      expect(
-          find.text(
-              'No trial is available: \$399 will be charged now. Continue?'),
-          findsOneWidget);
-      await tester.tap(find.text('Pay \$399'));
-      await tester.pump();
-      await tester.pump();
-      expect(repo.calls, contains('confirm:seti_1:true'));
-      expect(find.text('Subscription active'), findsOneWidget);
+      expect(find.text('Monthly · assistants: 2'), findsOneWidget);
     });
 
-    testWidgets('closing the card sheet leaves the screen calm',
-        (tester) async {
-      collector.error = const CardCollectionCancelled();
+    testWidgets('yearly: all six seats, the year total', (tester) async {
+      repo.onComplete = () => makeOverview(
+            subscription: makeInfo(
+              status: SubscriptionStatus.active,
+              plan: SubscriptionPlan.yearly,
+            ),
+            trialEligible: false,
+          );
       await pump(tester, const SubscriptionScreen());
+      await tester.tap(find.byKey(const ValueKey('plan-yearly')));
+      await tester.pump();
+      expect(find.text('All 6 seats included'), findsOneWidget);
+      expect(find.text('\$9,590 per year'), findsWidgets);
+      await tester.ensureVisible(find.byKey(const ValueKey('subscribe-cta')));
+      await tester.pump();
       await tester.tap(find.byKey(const ValueKey('subscribe-cta')));
       await tester.pump();
       await tester.pump();
-      expect(repo.calls, ['overview', 'start']);
-      expect(find.byType(SnackBar), findsNothing);
-      final cta =
-          tester.widget<AppButton>(find.byKey(const ValueKey('subscribe-cta')));
-      expect(cta.isLoading, isFalse);
+      await tester.pump();
+      expect(repo.calls, contains('checkout:yearly:6:'));
+      expect(find.text('Subscription active'), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.text('Yearly · 6 assistants'),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.text('Yearly · 6 assistants'), findsOneWidget);
+    });
+
+    testWidgets('a bad phone is flagged, nothing is sent', (tester) async {
+      await pump(tester, const SubscriptionScreen());
+      await tester.tap(find.byKey(const ValueKey('seats-plus')));
+      await tester.pump();
+      await tester.ensureVisible(find.byKey(const ValueKey('plan-phone-add')));
+      await tester.tap(find.byKey(const ValueKey('plan-phone-add')));
+      await tester.pump();
+      await tester.enterText(find.byKey(const ValueKey('plan-phone-0')), '123');
+      await tester.ensureVisible(find.byKey(const ValueKey('subscribe-cta')));
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('subscribe-cta')));
+      await tester.pump();
+      expect(find.text('Phone like +13125550123'), findsOneWidget);
+      expect(repo.calls.where((c) => c.startsWith('checkout')), isEmpty);
+    });
+
+    testWidgets("the page can't open: a clear message", (tester) async {
+      launchResult = false;
+      await pump(tester, const SubscriptionScreen());
+      await tester.ensureVisible(find.byKey(const ValueKey('subscribe-cta')));
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('subscribe-cta')));
+      await tester.pump();
+      await tester.pump();
+      expect(find.text("Couldn't open the payment page"), findsOneWidget);
+    });
+
+    testWidgets('active monthly: change seats from the plan row',
+        (tester) async {
+      repo.current = makeOverview(
+        subscription: makeInfo(
+          status: SubscriptionStatus.active,
+          assistantSeats: 2,
+        ),
+        trialEligible: false,
+      );
+      await pump(tester, const SubscriptionScreen());
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('current-plan')),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(find.byKey(const ValueKey('current-plan')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('seats-plus')).last);
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('seats-save')));
+      await tester.pumpAndSettle();
+      expect(repo.calls, contains('seats:3'));
+      expect(find.text('Assistant seats: 3'), findsOneWidget);
     });
 
     testWidgets('payment failed: notice with "Update card", no CTA',
@@ -210,8 +277,9 @@ void main() {
               trialEndsAt: day),
           trialEligible: false);
       await pump(tester, const SubscriptionScreen());
-      expect(find.text('Subscribe again'), findsOneWidget);
+      expect(find.byType(PlanPicker), findsOneWidget);
       expect(find.text('Expired'), findsOneWidget);
+      expect(find.text('Pay on the secure Stripe page'), findsOneWidget);
       expect(find.textContaining('7 days free'), findsNothing);
     });
 
@@ -235,6 +303,14 @@ void main() {
           theme: AppTheme.dark(), textScale: 2);
       expect(tester.takeException(), isNull);
       expect(find.byType(PlanCard), findsOneWidget);
+    });
+
+    testWidgets('plan picker: dark theme and 200% text, no overflow',
+        (tester) async {
+      await pump(tester, const SubscriptionScreen(),
+          theme: AppTheme.dark(), textScale: 2);
+      expect(tester.takeException(), isNull);
+      expect(find.byType(PlanPicker), findsOneWidget);
     });
   });
 

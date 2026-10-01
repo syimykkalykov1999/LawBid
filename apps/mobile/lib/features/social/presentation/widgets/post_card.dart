@@ -546,7 +546,7 @@ class _TopicChips extends ConsumerWidget {
         );
     final pr = practice;
     final quietTags = pr == null ? tags.skip(1).take(3) : tags.take(3);
-    return Wrap(
+    final topics = Wrap(
       spacing: AppSpacing.sm,
       runSpacing: AppSpacing.xs,
       children: [
@@ -566,20 +566,29 @@ class _TopicChips extends ConsumerWidget {
             icon: practiceGlyph(topicCategory(tags.first)),
             onTap: () => context.push(SocialRoutes.tag(tags.first)),
           ),
-        if (news)
-          pill(
-            label: t.t('post.kind.news'),
-            main: false,
-            gold: true,
-            icon: Icons.newspaper_rounded,
-            onTap: () {},
-          ),
         for (final tag in quietTags)
           pill(
             label: topicLabel(tag),
             main: false,
             onTap: () => context.push(SocialRoutes.tag(tag)),
           ),
+      ],
+    );
+    if (!news) return topics;
+    // Owner 2026-09-30: "News" sits at the right edge of the row, where
+    // the Save button lines up below.
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(child: topics),
+        const SizedBox(width: AppSpacing.sm),
+        pill(
+          label: t.t('post.kind.news'),
+          main: false,
+          gold: true,
+          icon: Icons.newspaper_rounded,
+          onTap: () {},
+        ),
       ],
     );
   }

@@ -13,6 +13,7 @@ AssistantMeDto _$AssistantMeDtoFromJson(Map<String, dynamic> json) =>
           .map((e) => e as String)
           .toList(),
       membershipId: json['membershipId'] as String?,
+      attorneyId: json['attorneyId'] as String?,
       attorneyName: json['attorneyName'] as String?,
       attorneyUsername: json['attorneyUsername'] as String?,
       attorneyAvatarUrl: json['attorneyAvatarUrl'] as String?,
@@ -22,6 +23,7 @@ Map<String, dynamic> _$AssistantMeDtoToJson(AssistantMeDto instance) =>
     <String, dynamic>{
       'state': instance.state.toJson(),
       'membershipId': ?instance.membershipId,
+      'attorneyId': ?instance.attorneyId,
       'attorneyName': ?instance.attorneyName,
       'attorneyUsername': ?instance.attorneyUsername,
       'attorneyAvatarUrl': ?instance.attorneyAvatarUrl,

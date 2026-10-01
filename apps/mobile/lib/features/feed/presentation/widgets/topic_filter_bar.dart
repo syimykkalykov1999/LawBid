@@ -45,13 +45,20 @@ class TopicFilterBar extends ConsumerWidget {
       multi: true,
       searchHint: t.t('practice.search.hint'),
       initial: ref.read(feedTopicsProvider).toSet(),
-      options: practiceOptions(ref),
+      // Owner 2026-09-30: "News" is the first item.
+      options: [
+        PickerOption(
+          value: kNewsTopic,
+          label: t.t('feed.topics.news'),
+        ),
+        ...practiceOptions(ref),
+      ],
     );
     if (picked == null) return;
     ref.read(feedTopicsProvider.notifier).set(picked);
     // The open topic was removed from the slider: back to "All".
     final open = category;
-    if (open != null && open != kNewsTopic && !picked.contains(open)) {
+    if (open != null && !picked.contains(open)) {
       onCategory(null);
     }
   }
@@ -209,7 +216,7 @@ class TopicFilterBar extends ConsumerWidget {
             selected: category == null,
             onTap: () => onCategory(null),
           ),
-          if (showNews) ...[
+          if (showNews && topics.contains(kNewsTopic)) ...[
             const SizedBox(width: AppSpacing.sm),
             pill(
               label: t.t('feed.topics.news'),
@@ -218,7 +225,7 @@ class TopicFilterBar extends ConsumerWidget {
               onTap: () => onCategory(kNewsTopic),
             ),
           ],
-          for (final c in topics) ...[
+          for (final c in topics.where((c) => c != kNewsTopic)) ...[
             const SizedBox(width: AppSpacing.sm),
             pill(
               label: topicName(ref, c),

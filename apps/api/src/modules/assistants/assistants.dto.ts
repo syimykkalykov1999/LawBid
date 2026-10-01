@@ -111,6 +111,13 @@ export class AssistantMeDto {
   state!: 'none' | 'invited' | 'active';
   @ApiPropertyOptional({ type: String, nullable: true, format: 'uuid' })
   membershipId!: string | null;
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    format: 'uuid',
+    description: "The attorney's user id (the account the assistant acts in).",
+  })
+  attorneyId!: string | null;
   @ApiPropertyOptional({ type: String, nullable: true })
   attorneyName!: string | null;
   @ApiPropertyOptional({ type: String, nullable: true })

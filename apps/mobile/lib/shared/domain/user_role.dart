@@ -7,4 +7,8 @@
 /// stage 1.7 with `AuthRepository`/`SessionState`. Nothing here should be
 /// extended before then — if a screen needs more than "which role", that's
 /// a stage 1.7 concern.
-enum UserRole { client, attorney }
+///
+/// OQ-048: [assistant] — works inside an attorney's account (the server
+/// serves the attorney's data); the UI shows the attorney's app with
+/// assistant limits, see `actsAsAttorneyProvider`.
+enum UserRole { client, attorney, assistant }

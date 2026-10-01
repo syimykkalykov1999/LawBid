@@ -31801,6 +31801,12 @@
             "nullable": true,
             "format": "uuid"
           },
+          "attorneyId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid",
+            "description": "The attorney's user id (the account the assistant acts in)."
+          },
           "attorneyName": {
             "type": "string",
             "nullable": true

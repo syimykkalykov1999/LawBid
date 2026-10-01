@@ -35,6 +35,7 @@ List<RouteBase> chatRoutes(GlobalKey<NavigatorState> root) => [
             initialTab: switch (state.uri.queryParameters['tab']) {
               'notifications' => InboxTab.notifications,
               'requests' => InboxTab.requests,
+              'team' => InboxTab.team,
               _ => InboxTab.chats,
             },
           ),

@@ -10,6 +10,7 @@ import 'package:lawbid/features/subscription/data/subscription_repository_impl.d
 import 'package:lawbid/features/subscription/domain/subscription_models.dart';
 import 'package:lawbid/features/subscription/domain/subscription_repository.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 Duration? _noRetry(int retryCount, Object error) => null;
 
@@ -81,7 +82,33 @@ class PaymentsNotifier extends PagedNotifier<PaymentRecord> {
   Object idOf(PaymentRecord item) => item.id;
 }
 
-enum SubscribePhase { idle, starting, collectingCard, confirming, syncing }
+enum SubscribePhase {
+  idle,
+  starting,
+  collectingCard,
+  confirming,
+  syncing,
+
+  /// OQ-048: the Stripe page is open in the browser; the app checks the
+  /// session until it is paid (or the attorney stops waiting).
+  awaitingPayment,
+}
+
+/// Opens the hosted payment page; tests replace it.
+typedef CheckoutLauncher = Future<bool> Function(Uri url);
+
+final checkoutLauncherProvider = Provider<CheckoutLauncher>(
+  (ref) => (url) => launchUrl(url, mode: LaunchMode.inAppBrowserView),
+);
+
+/// How often the open checkout session is checked; tests shorten it.
+final checkoutPollIntervalProvider =
+    Provider<Duration>((ref) => const Duration(seconds: 3));
+
+/// The browser could not open the payment page.
+class CheckoutNotOpened implements Exception {
+  const CheckoutNotOpened();
+}
 
 /// How one run of [SubscribeController.subscribe] ended.
 enum SubscribeOutcome {
@@ -168,7 +195,8 @@ class SubscribeController extends Notifier<SubscribeState> {
         if (e.code != ApiErrorCodes.subscriptionTrialUnavailable) rethrow;
         final cents = e.details?['chargeNowCents'];
         if (!await confirmChargeNow(
-            cents is num ? cents.toInt() : start.priceCents)) {
+          cents is num ? cents.toInt() : start.priceCents,
+        )) {
           _phase(SubscribePhase.idle);
           return SubscribeOutcome.cancelled;
         }
@@ -195,6 +223,74 @@ class SubscribeController extends Notifier<SubscribeState> {
     } on Object catch (e) {
       if (ref.mounted) state = SubscribeState.failed(e);
       return SubscribeOutcome.failed;
+    }
+  }
+
+  String? _sessionId;
+  bool _stopWaiting = false;
+
+  /// OQ-048 (owner 2026-09-30): pay on Stripe's hosted page in the
+  /// browser — plan, seats and assistant phones are fixed in the session.
+  /// Waits (polling the session, 15 min max) until it is paid; the
+  /// attorney may stop waiting and come back later — [checkNow] on resume.
+  Future<SubscribeOutcome> subscribeWeb({
+    required SubscriptionPlan plan,
+    int assistantSeats = 0,
+    List<String> assistantPhones = const [],
+  }) async {
+    if (state.busy) return SubscribeOutcome.cancelled;
+    final repo = ref.read(subscriptionRepositoryProvider);
+    try {
+      _phase(SubscribePhase.starting);
+      final checkout = await repo.checkout(
+        plan: plan,
+        assistantSeats: assistantSeats,
+        assistantPhones: assistantPhones,
+      );
+      _sessionId = checkout.sessionId;
+      _stopWaiting = false;
+      // Only https in production; the dev payment page is http://localhost.
+      final okScheme = checkout.url.scheme == 'https' ||
+          (kDebugMode && checkout.url.scheme == 'http');
+      if (!okScheme ||
+          !await ref.read(checkoutLauncherProvider)(checkout.url)) {
+        throw const CheckoutNotOpened();
+      }
+      _phase(SubscribePhase.awaitingPayment);
+      final interval = ref.read(checkoutPollIntervalProvider);
+      final deadline = DateTime.now().add(const Duration(minutes: 15));
+      while (
+          ref.mounted && !_stopWaiting && DateTime.now().isBefore(deadline)) {
+        final overview = await _check(repo);
+        if (overview != null && overview.isActive) {
+          if (!ref.mounted) return SubscribeOutcome.activated;
+          ref.read(subscriptionOverviewProvider.notifier).apply(overview);
+          _phase(SubscribePhase.idle);
+          return (overview.subscription?.inTrial ?? false)
+              ? SubscribeOutcome.trialStarted
+              : SubscribeOutcome.activated;
+        }
+        await Future<void>.delayed(interval);
+      }
+      _phase(SubscribePhase.idle);
+      return SubscribeOutcome.cancelled;
+    } on Object catch (e) {
+      if (ref.mounted) state = SubscribeState.failed(e);
+      return SubscribeOutcome.failed;
+    }
+  }
+
+  /// "I closed the page": stop waiting (a later payment still lands by
+  /// webhook and shows on the next refresh).
+  void stopWaiting() => _stopWaiting = true;
+
+  Future<SubscriptionOverview?> _check(SubscriptionRepository repo) async {
+    final id = _sessionId;
+    if (id == null) return null;
+    try {
+      return await repo.completeCheckout(id);
+    } on Object {
+      return null; // offline for a moment: keep waiting
     }
   }
 

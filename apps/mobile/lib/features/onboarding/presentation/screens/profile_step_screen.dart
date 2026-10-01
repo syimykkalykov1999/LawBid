@@ -19,6 +19,7 @@ import 'package:lawbid/features/onboarding/presentation/widgets/option_picker_sh
 import 'package:lawbid/features/profile/application/avatar_upload_controller.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/widgets/avatar_picker_field.dart';
+import 'package:lawbid/shared/domain/user_role.dart';
 
 /// Server limit for first/last name (apps/api UpdateProfileDto @Length(1, 80)).
 // docs/03 §4.1 limits (server enforces the same).
@@ -137,6 +138,14 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
 
   Future<void> _submit(CurrentUser user) async {
     setState(() => _attempted = true);
+    // OQ-048: an assistant needs only a name (no states, no profile).
+    if (user.role == UserRole.assistant) {
+      if (_first.text.trim().isEmpty || _last.text.trim().isEmpty) return;
+      await ref
+          .read(onboardingActionsProvider.notifier)
+          .saveAssistantName(_first.text, _last.text);
+      return;
+    }
     final statesOk = _states.isNotEmpty;
     if (_first.text.trim().isEmpty ||
         _last.text.trim().isEmpty ||
@@ -173,6 +182,7 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
     if (user == null) return const SizedBox.shrink();
     _prefill(user);
     final attorney = user.isAttorney;
+    final assistant = user.role == UserRole.assistant;
 
     final languageOptions = [
       for (final LanguageCatalogEntry l in kLanguageCatalog)
@@ -231,10 +241,14 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
       step: OnboardingStepId.profile,
       title: t.t(attorney
           ? 'onboarding.profile.title.attorney'
-          : 'onboarding.profile.title.client'),
+          : assistant
+              ? 'onboarding.role.assistant.title'
+              : 'onboarding.profile.title.client'),
       subtitle: t.t(attorney
           ? 'onboarding.profile.subtitle.attorney'
-          : 'onboarding.profile.subtitle.client'),
+          : assistant
+              ? 'onboarding.role.assistant.body'
+              : 'onboarding.profile.subtitle.client'),
       onBack: () =>
           context.go(OnboardingRoutes.forStep(OnboardingStepId.contacts)),
       error: action.error,
@@ -305,6 +319,7 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
           ),
           const SizedBox(height: AppSpacing.lg),
         ],
+        if (!assistant) ...[
         PickerField(
           label: t.t(attorney
               ? 'onboarding.profile.licensedStates'
@@ -323,7 +338,8 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
               : _languages.map(languageLabel).join(', '),
           onTap: pickLanguages,
         ),
-        if (!attorney) ...[
+        ],
+        if (!attorney && !assistant) ...[
           const SizedBox(height: AppSpacing.xl),
           StepSectionLabel(t.t('onboarding.profile.contactMethod')),
           Wrap(

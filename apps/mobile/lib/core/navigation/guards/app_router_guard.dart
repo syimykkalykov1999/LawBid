@@ -10,6 +10,14 @@ import '../../../shared/domain/user_role.dart';
 import '../../startup/app_startup.dart';
 import '../app_routes.dart';
 
+/// OQ-048: where an assistant stands — still loading, joined an
+/// attorney, or not (→ the join screen).
+enum AssistantGate { notAssistant, loading, active, notJoined }
+
+/// Routes an assistant never uses (the attorney's billing / verification).
+const _assistantBlocked = ['/profile/settings/subscription', '/verification'];
+const _assistantJoin = '/assistant/join';
+
 /// Everything the guard decides on — a plain value so the redirect table
 /// is unit-testable without a router or providers
 /// (test/core/navigation/app_router_guard_test.dart).
@@ -19,9 +27,13 @@ class GuardSnapshot {
     required this.startup,
     required this.hasSession,
     required this.user,
+    this.assistant = AssistantGate.notAssistant,
   });
 
   final StartupStatus startup;
+
+  /// OQ-048: an assistant's team state (`GET /assistants/me`).
+  final AssistantGate assistant;
 
   /// A token-backed session exists (SessionController state non-null).
   final bool hasSession;
@@ -101,6 +113,21 @@ abstract final class AppRouterGuard {
       final onEntryRoute = location == AppRoutes.splash ||
           publicAuthRoutes.contains(location) ||
           OnboardingRoutes.stepOf(location) != null;
+      // OQ-048: an assistant works only inside an attorney's account.
+      if (user.role == UserRole.assistant) {
+        switch (s.assistant) {
+          case AssistantGate.loading:
+            return location == AppRoutes.splash ? null : AppRoutes.splash;
+          case AssistantGate.notJoined:
+            return location == _assistantJoin ? null : _assistantJoin;
+          case AssistantGate.active:
+          case AssistantGate.notAssistant:
+            if (location == _assistantJoin) return AppRoutes.feed;
+            if (_assistantBlocked.any(location.startsWith)) {
+              return AppRoutes.feed;
+            }
+        }
+      }
       if (onEntryRoute) return AppRoutes.feed;
       // docs/03 §6.4 (stage 3.9): "+" is "Post to feed" for attorneys;
       // before verification it opens the "Complete verification" gate.
@@ -114,7 +141,9 @@ abstract final class AppRouterGuard {
           location == AppRoutes.completedWork ||
           RegExp(r'^/case/[^/]+/bid$').hasMatch(location);
       if ((clientOnly && user.role != UserRole.client) ||
-          (attorneyOnly && user.role != UserRole.attorney)) {
+          (attorneyOnly &&
+              user.role != UserRole.attorney &&
+              user.role != UserRole.assistant)) {
         return AppRoutes.mine;
       }
       return null;
@@ -154,7 +183,8 @@ abstract final class AppRouterGuard {
             missing.contains(MissingRequirement.emailVerified))) {
       return OnboardingStepId.contacts;
     }
-    if (user.isAttorney && missing.contains(MissingRequirement.phoneVerified)) {
+    if ((user.isAttorney || user.role == UserRole.assistant) &&
+        missing.contains(MissingRequirement.phoneVerified)) {
       return OnboardingStepId.contacts;
     }
     if (completed) return null;
@@ -167,7 +197,7 @@ abstract final class AppRouterGuard {
     } else if (!order.contains(saved)) {
       // A step that doesn't exist for this role (e.g. `verification` saved
       // for a client) → the last step.
-      effective = OnboardingStepId.tour;
+      effective = order.last;
     } else if (order.indexOf(saved) <= roleIndex) {
       // language/consents/role are already satisfied (rows 2-3 passed).
       effective = OnboardingStepId.contacts;

@@ -14,6 +14,7 @@ import 'package:lawbid/features/cases/presentation/screens/attorney_case_screen.
 import 'package:lawbid/features/cases/presentation/widgets/case_wizard_steps.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/features/team/application/team_providers.dart';
 
 /// docs/04 §5.1 limits.
 abstract final class BidLimits {
@@ -43,6 +44,72 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
   final _duration = TextEditingController();
   bool _busy = false;
   String? _error;
+
+  /// OQ-048: who prepared the loaded draft (an assistant).
+  String? _draftBy;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDraft();
+  }
+
+  /// A saved draft fills the form (the attorney reviews and sends it).
+  Future<void> _loadDraft() async {
+    try {
+      final d = await ref.read(teamRepositoryProvider).bidDraft(widget.caseId);
+      if (d == null || !mounted) return;
+      setState(() {
+        if (d.feeType != null) _fee = FeeType.fromJson(d.feeType!);
+        if (d.amountCents != null) {
+          _amount.text = '${d.amountCents! ~/ 100}';
+        }
+        if (d.message != null) _message.text = d.message!;
+        if (d.startAvailability != null) {
+          _start = StartAvailability.fromJson(d.startAvailability!);
+        }
+        _startDate = d.startDate ?? _startDate;
+        if (d.estimatedDurationDays != null) {
+          _duration.text = '${d.estimatedDurationDays}';
+        }
+        _draftBy = d.preparedBy ?? '';
+      });
+    } on Object {
+      // No draft or offline: an empty form.
+    }
+  }
+
+  /// OQ-048: an assistant saves a draft instead of sending.
+  Future<void> _saveDraft() async {
+    final t = ref.read(translatorProvider);
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await ref.read(teamRepositoryProvider).saveBidDraft(
+            widget.caseId,
+            feeType: _fee.json,
+            amountCents: _fee == FeeType.freeConsultation || _amountDollars == null
+                ? null
+                : _amountDollars! * 100,
+            message: _message.text.trim().isEmpty ? null : _message.text,
+            startAvailability: _start.json,
+            startDate: _startDate,
+            estimatedDurationDays: int.tryParse(_duration.text),
+          );
+      if (!mounted) return;
+      showAppSnackBar(context, t.t('bidDraft.saved'));
+      context.pop();
+    } on Object catch (e) {
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _error = errorText(t, e);
+        });
+      }
+    }
+  }
 
   int? get _amountDollars => int.tryParse(_amount.text);
 
@@ -130,6 +197,7 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final free = _fee == FeeType.freeConsultation;
+    final assistant = ref.watch(isAssistantProvider);
     return Scaffold(
       backgroundColor: colors.bg,
       appBar: AppTopBar(
@@ -142,8 +210,34 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
         children: [
           WizardHeading(
             title: t.t('cases.bidForm.heading'),
-            subtitle: t.t('cases.bidForm.subtitle'),
+            subtitle: t.t(assistant
+                ? 'assistant.mode.noBids'
+                : 'cases.bidForm.subtitle'),
           ),
+          if (_draftBy != null) ...[
+            Container(
+              key: const ValueKey('bid-draft-banner'),
+              padding: const EdgeInsets.all(AppSpacing.md),
+              margin: const EdgeInsets.only(bottom: AppSpacing.lg),
+              decoration: BoxDecoration(
+                color: colors.goldTint,
+                borderRadius: BorderRadius.circular(AppRadii.field),
+                border: Border.all(color: colors.goldStroke),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.edit_note_rounded, color: colors.gold),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Text(
+                      t.t('bidDraft.prepared', {'name': _draftBy!}),
+                      style: typography.bodySmall.copyWith(color: colors.text),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           Text(t.t('cases.bidForm.feeType'),
               style:
                   typography.bodySmall.copyWith(color: colors.textSecondary)),
@@ -251,13 +345,22 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
       ),
       bottomNavigationBar: BottomActionBar(
         children: [
-          GavelStrikeButton(
-            label: t.t('cases.bidForm.submit'),
-            strike: true,
-            isLoading: _busy,
-            isEnabled: _valid,
-            onPressed: _submit,
-          ),
+          if (assistant)
+            AppButton(
+              key: const ValueKey('bid-draft-save'),
+              label: t.t('bidDraft.save'),
+              icon: Icons.save_outlined,
+              isLoading: _busy,
+              onPressed: _saveDraft,
+            )
+          else
+            GavelStrikeButton(
+              label: t.t('cases.bidForm.submit'),
+              strike: true,
+              isLoading: _busy,
+              isEnabled: _valid,
+              onPressed: _submit,
+            ),
         ],
       ),
     );

@@ -7,6 +7,9 @@ import 'package:lawbid/features/cases/presentation/screens/create_case_screen.da
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/social/presentation/screens/create_post_screen.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
+import 'package:lawbid/features/team/application/team_providers.dart';
+import 'package:lawbid/features/team/domain/team_models.dart';
+import 'package:lawbid/features/team/presentation/task_editor_screen.dart';
 
 /// The "+" full-screen creation flow (file 07 §3.4). Clients (OQ-038): a
 /// new case (docs/04) or a post. Attorneys (owner 2026-09-30): a post or
@@ -18,7 +21,8 @@ class CreateScreen extends ConsumerStatefulWidget {
   ConsumerState<CreateScreen> createState() => _CreateScreenState();
 }
 
-enum _Kind { caseKind, post, news }
+// OQ-048: [task] — the attorney's own task or an assistant's task for them.
+enum _Kind { caseKind, post, news, task }
 
 class _CreateScreenState extends ConsumerState<CreateScreen> {
   _Kind? _kind;
@@ -30,6 +34,7 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
       _Kind.caseKind => const CreateCaseScreen(),
       _Kind.post => const CreatePostScreen(),
       _Kind.news => const CreatePostScreen(news: true),
+      _Kind.task => const TaskEditorScreen(),
       null => _Chooser(
           attorney: attorney,
           onPick: (k) => setState(() => _kind = k),
@@ -49,6 +54,9 @@ class _Chooser extends ConsumerWidget {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final assistant = ref.watch(isAssistantProvider);
+    final canTask = ref.watch(canDoProvider(AssistantDuty.tasks));
+    final canPost = ref.watch(canDoProvider(AssistantDuty.posts));
 
     Widget option(_Kind kind, IconData icon, String title, String sub) =>
         Semantics(
@@ -111,13 +119,33 @@ class _Chooser extends ConsumerWidget {
       ),
       body: ListView(
         padding: const EdgeInsets.all(AppSpacing.screenSide),
-        children: attorney
+        children: assistant
+            ? [
+                if (canTask) ...[
+                  option(_Kind.task, Icons.event_note_outlined,
+                      t.t('assistant.plus.task'),
+                      t.t('assistant.plus.task.hint')),
+                  const SizedBox(height: AppSpacing.md),
+                ],
+                if (canPost) ...[
+                  option(_Kind.post, Icons.edit_note_rounded,
+                      t.t('assistant.plus.post'),
+                      t.t('assistant.plus.post.hint')),
+                  const SizedBox(height: AppSpacing.md),
+                  option(_Kind.news, Icons.newspaper_rounded,
+                      t.t('create.news'), t.t('assistant.plus.post.hint')),
+                ],
+              ]
+            : attorney
             ? [
                 option(_Kind.post, Icons.edit_note_rounded, t.t('create.post'),
                     t.t('create.post.subAttorney')),
                 const SizedBox(height: AppSpacing.md),
                 option(_Kind.news, Icons.newspaper_rounded, t.t('create.news'),
                     t.t('create.news.sub')),
+                const SizedBox(height: AppSpacing.md),
+                option(_Kind.task, Icons.event_note_outlined,
+                    t.t('tasks.forMe'), t.t('assistant.plus.task.hint')),
               ]
             : [
                 option(_Kind.caseKind, Icons.gavel_rounded, t.t('create.case'),
