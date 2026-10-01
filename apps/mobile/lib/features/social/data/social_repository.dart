@@ -113,6 +113,10 @@ abstract interface class SocialRepository {
     String? practice,
     String? tag,
     bool newsOnly = false,
+    // Audit 2026-10-01: Search-tab filters on the server.
+    String? period,
+    bool withPhotos = false,
+    bool popular = false,
   });
   Future<Post> createPost(PostDraft draft);
   Future<Post> updatePost(
@@ -280,6 +284,9 @@ class ApiSocialRepository implements SocialRepository {
     String? practice,
     String? tag,
     bool newsOnly = false,
+    String? period,
+    bool withPhotos = false,
+    bool popular = false,
   }) async {
     final env = await guardApiCall(
       () => _search.latestPosts(
@@ -288,6 +295,9 @@ class ApiSocialRepository implements SocialRepository {
         practice: practice,
         tag: tag,
         kind: newsOnly ? api.PostKind.news : null,
+        period: period == null ? null : api.Period.fromJson(period),
+        withPhotos: withPhotos ? true : null,
+        sort: popular ? api.LatestPostsSort.popular : null,
       ),
     );
     return CursorPage(

@@ -31,7 +31,7 @@ class FakeCasesRepository implements CasesRepository {
   Future<CursorPage<CaseBid>> caseBids(String caseId, BidsSort sort, {String? cursor}) async => _empty();
 
   @override
-  Future<CursorPage<FeedCase>> feed({String? cursor, String? practiceAreaId, String? practiceCategory, String? state}) async => _empty();
+  Future<CursorPage<FeedCase>> feed({String? cursor, String? practiceAreaId, String? practiceCategory, String? state, CaseFeedExtras extras = const CaseFeedExtras()}) async => _empty();
 
   @override
   Future<CursorPage<MyBid>> myBids(MyBidsFilter filter, {String? cursor, MineSearch search = const MineSearch()}) async => _empty();

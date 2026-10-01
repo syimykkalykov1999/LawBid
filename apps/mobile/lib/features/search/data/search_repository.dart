@@ -256,9 +256,12 @@ class ApiSearchRepository implements SearchRepository {
       () => _search.posts(
         q: q,
         cursor: cursor,
+        // Audit 2026-10-01: posts of the qualification (and its
+        // subcategories); the topic hashtag catches older posts.
+        practice: f.practiceCategory,
         tag: f.practiceCategory == null
             ? null
-            : topicTagFor(f.practiceCategory!),
+            : topicTagFor(f.practiceCategory!.split('.').first),
         state: f.state,
         withPhotos: f.withPhotos ? true : null,
         period: switch (f.period) {

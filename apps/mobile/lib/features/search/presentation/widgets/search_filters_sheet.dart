@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lawbid/features/practice/practice_options.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -9,7 +10,6 @@ import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_wizard_steps.dart'
     show pickState, stateName;
-import 'package:lawbid/features/feed/application/feed_topics.dart';
 import 'package:lawbid/features/feed/presentation/widgets/topic_filter_bar.dart'
     show topicName;
 import 'package:lawbid/features/onboarding/presentation/widgets/option_picker_sheet.dart';
@@ -111,14 +111,22 @@ class _FiltersSheetState extends ConsumerState<_FiltersSheet> {
       title: t.t('search.filter.practice'),
       // Owner 2026-09-30: suggestions while typing.
       searchHint: t.t('practice.search.hint'),
+      // Audit 2026-10-01: a category (the server includes its
+      // subcategories) or one subcategory.
       options: [
-        for (final c in tree)
+        for (final c in tree) ...[
+          PickerOption(
+            value: c.id,
+            label: labels[c.id] = CaseFormat.practice(t, c.i18nKey, c.nameEn),
+          ),
           for (final l in c.children)
             PickerOption(
               value: l.id,
               label: labels[l.id] = CaseFormat.practice(t, l.i18nKey, l.nameEn),
               group: CaseFormat.practice(t, c.i18nKey, c.nameEn),
+              nested: true,
             ),
+        ],
       ],
       initial: {if (_f.practiceAreaId != null) _f.practiceAreaId!},
     );
@@ -132,10 +140,8 @@ class _FiltersSheetState extends ConsumerState<_FiltersSheet> {
       context,
       title: title,
       searchHint: ref.read(translatorProvider).t('practice.search.hint'),
-      options: [
-        for (final c in kPracticeCategoryCodes)
-          PickerOption(value: c, label: topicName(ref, c)),
-      ],
+      // Audit 2026-10-01: every category and subcategory.
+      options: practiceOptions(ref),
       initial: {if (_f.practiceCategory != null) _f.practiceCategory!},
     );
     if (picked == null || !mounted) return;
@@ -289,7 +295,17 @@ class _FiltersSheetState extends ConsumerState<_FiltersSheet> {
                 ('client', t.t('search.filter.role.client')),
               ],
               _f.role,
-              (r) => _set((_) => _with(role: r)),
+              // Audit 2026-10-01: clients have no practice / rating /
+              // language — switching to clients clears those filters.
+              (r) => _set((_) => r == 'client'
+                  ? _with(
+                      role: r,
+                      practiceAreaId: null,
+                      practiceLabel: null,
+                      minRating: null,
+                      language: null,
+                    )
+                  : _with(role: r)),
             ),
           ),
           stateSection(t.t('search.filter.state')),

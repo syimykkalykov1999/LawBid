@@ -17,6 +17,7 @@ import '../models/create_case_dto.dart';
 import '../models/create_contact_issue_dto.dart';
 import '../models/dispute_case_dto.dart';
 import '../models/filter.dart';
+import '../models/period.dart';
 import '../models/saved_item_dto.dart';
 import '../models/sort.dart';
 import '../models/update_case_dto.dart';
@@ -45,14 +46,27 @@ abstract class CasesClient {
   /// [practiceCategory] - Practice category code: cases of any of its leaves (owner 2026-09-30, OQ-034 topic slider).
   ///
   /// [practice] - Owner 2026-09-30: any qualification (category with its subcategories, or one subcategory) — every open case of it in the attorney's licensed states, own practices or not.
+  ///
+  /// [budgetMin] - Whole dollars.
+  ///
+  /// [budgetMax] - Whole dollars.
+  ///
+  /// [budgetUnknown] - Only cases with "clarify later".
+  ///
+  /// [noBids] - Only cases nobody has bid on yet.
   @GET('/cases')
   Future<CaseFeedItemListEnvelope> listCaseFeed({
     @Query('limit') int? limit = 20,
+    @Query('period') Period? period = Period.all,
     @Query('cursor') String? cursor,
     @Query('practiceAreaId') String? practiceAreaId,
     @Query('state') String? state,
     @Query('practiceCategory') String? practiceCategory,
     @Query('practice') String? practice,
+    @Query('budgetMin') num? budgetMin,
+    @Query('budgetMax') num? budgetMax,
+    @Query('budgetUnknown') bool? budgetUnknown,
+    @Query('noBids') bool? noBids,
     @Extras() Map<String, dynamic>? extras,
   });
 

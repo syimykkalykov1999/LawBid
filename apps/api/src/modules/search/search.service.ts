@@ -270,6 +270,7 @@ export class SearchService {
     const span = PERIOD_MS[dto?.period ?? 'all'];
     const filters = {
       tag: dto?.tag?.toLowerCase(),
+      practice: dto?.practice?.trim().toLowerCase(),
       state: dto?.state?.toUpperCase(),
       since: span ? new Date(Date.now() - span) : undefined,
       withPhotos: dto?.withPhotos,
@@ -292,7 +293,26 @@ export class SearchService {
     const prefix = normalizeQuery(rawQ);
     if (prefix.length < 1) throw invalid('q', 'Empty tag.');
     const tags = await this.provider.searchTags(prefix, PAGE);
-    return tags.map((tag) => ({ tag, postsCount: null }));
+    if (tags.length === 0) return [];
+    // Audit 2026-10-01: how many published posts carry each tag; the most
+    // used first (alphabetical sorting stays an option in the app).
+    const counts = await this.prisma.$queryRaw<{ tag: string; n: bigint }[]>`
+      SELECT t.tag_lower AS tag, count(p.id) AS n
+      FROM tags t
+      LEFT JOIN post_tags pt ON pt.tag_id = t.id
+      LEFT JOIN posts p ON p.id = pt.post_id
+        AND p.status = 'published' AND p.deleted_at IS NULL
+        -- Only posts anyone can see (active, not deleted authors).
+        AND EXISTS (SELECT 1 FROM users u WHERE u.id = p.author_id
+                    AND u.status = 'active' AND u.deleted_at IS NULL)
+      WHERE t.tag_lower = ANY(${tags}::STRING[])
+      GROUP BY t.tag_lower`;
+    const byTag = new Map(counts.map((c) => [c.tag, Number(c.n)]));
+    return tags
+      .map((tag) => ({ tag, postsCount: byTag.get(tag) ?? 0 }))
+      .sort(
+        (a, b) => b.postsCount - a.postsCount || a.tag.localeCompare(b.tag),
+      );
   }
 
   /** §7.2 "Популярные темы": written by TrendingTagsJob. */
@@ -308,21 +328,39 @@ export class SearchService {
     user: RequestUser,
     state: string | undefined,
     cursor?: string,
-    filter: { practice?: string; tag?: string; kind?: 'post' | 'news' } = {},
+    filter: {
+      practice?: string;
+      tag?: string;
+      kind?: 'post' | 'news';
+      period?: SearchPeriod;
+      withPhotos?: boolean;
+      sort?: 'newest' | 'popular';
+    } = {},
   ): Promise<PostPage> {
-    const c = cursor ? decodeCursor(cursor) : undefined;
+    const popular = filter.sort === 'popular';
+    // Popular pages by offset; newest keeps the keyset cursor.
+    const offset = popular && cursor ? Number(cursor) || 0 : 0;
+    const c = !popular && cursor ? decodeCursor(cursor) : undefined;
+    const span = PERIOD_MS[filter.period ?? 'all'];
     const practice = filter.practice?.trim().toLowerCase();
     const tag = filter.tag ? normalizeQuery(filter.tag) : '';
     const rows = await this.prisma.post.findMany({
       where: {
-        ...VISIBLE_POST_WHERE,
-        ...authorStateWhere(state),
-        ...(filter.kind ? { kind: filter.kind } : {}),
-        // Owner 2026-09-30: the qualification and its subcategories;
-        // older posts (no qualification) by their topic hashtag.
-        ...(practice
-          ? {
-              AND: [
+        // Audit 2026-10-01: every condition AND-composed — the state filter
+        // used to overwrite VISIBLE_POST_WHERE's `author` (active, not
+        // suspended) and the practice clause shared the `AND` key.
+        AND: [
+          VISIBLE_POST_WHERE,
+          authorStateWhere(state),
+          ...(filter.kind ? [{ kind: filter.kind }] : []),
+          ...(span
+            ? [{ created_at: { gte: new Date(Date.now() - span) } }]
+            : []),
+          ...(filter.withPhotos ? [{ media: { some: {} } }] : []),
+          // Owner 2026-09-30: the qualification and its subcategories;
+          // older posts (no qualification) by their topic hashtag.
+          ...(practice
+            ? [
                 {
                   OR: [
                     { practice_area: { code: practice } },
@@ -341,23 +379,39 @@ export class SearchService {
                       : []),
                   ],
                 },
-              ],
-            }
-          : {}),
-        ...(c
-          ? {
-              OR: [
-                { created_at: { lt: c.createdAt } },
-                { created_at: c.createdAt, id: { lt: c.id } },
-              ],
-            }
-          : {}),
+              ]
+            : []),
+          ...(c
+            ? [
+                {
+                  OR: [
+                    { created_at: { lt: c.createdAt } },
+                    { created_at: c.createdAt, id: { lt: c.id } },
+                  ],
+                },
+              ]
+            : []),
+        ],
       },
-      orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+      orderBy: popular
+        ? [
+            { like_count: 'desc' },
+            { comment_count: 'desc' },
+            { created_at: 'desc' },
+            { id: 'desc' },
+          ]
+        : [{ created_at: 'desc' }, { id: 'desc' }],
+      ...(popular ? { skip: offset } : {}),
       take: PAGE + 1,
     });
     const page = rows.slice(0, PAGE);
     const last = page[page.length - 1];
+    if (popular) {
+      return {
+        items: await this.posts.present(page, user.sub),
+        nextCursor: rows.length > PAGE ? String(offset + PAGE) : null,
+      };
+    }
     return {
       items: await this.posts.present(page, user.sub),
       nextCursor:
@@ -387,9 +441,9 @@ export class SearchService {
       const c = cursor ? decodeCursor(cursor) : undefined;
       const rows = await this.prisma.post.findMany({
         where: {
-          ...VISIBLE_POST_WHERE,
+          // Audit 2026-10-01: AND so the state filter keeps the author checks.
+          AND: [VISIBLE_POST_WHERE, authorStateWhere(state)],
           tags: { some: { tag_id: tag.id } },
-          ...authorStateWhere(state),
           ...(c
             ? {
                 OR: [

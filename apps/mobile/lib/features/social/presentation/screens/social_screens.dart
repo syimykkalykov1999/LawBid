@@ -1,5 +1,8 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:lawbid/features/practice/practice_options.dart'
+    as practice_options;
+import 'package:lawbid/features/feed/application/feed_topics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart'
     show PracticePhoto;
@@ -416,6 +419,24 @@ class _TagScreenState extends ConsumerState<TagScreen> {
   Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
+    // Audit 2026-10-01: a qualification's topic shows every post of that
+    // qualification (and its subcategories), not only the hashtagged ones.
+    final category = categoryForTopicTag(widget.tag);
+    if (category != null) {
+      return Scaffold(
+        backgroundColor: colors.bg,
+        appBar: AppTopBar(
+          leading: AppBackButton(
+              semanticLabel: t.t('common.back'),
+              onPressed: () => Navigator.of(context).maybePop()),
+          title: Text(practice_options.practiceLabel(ref, category)),
+        ),
+        body: FilteredPostsView(
+          key: ValueKey('topic-$category'),
+          practice: category,
+        ),
+      );
+    }
     final key = (tag: widget.tag, sort: _sort, state: null);
     final value = _withoutDeleted(
         ref.watch(tagPostsProvider(key)), ref.watch(deletedPostsProvider));

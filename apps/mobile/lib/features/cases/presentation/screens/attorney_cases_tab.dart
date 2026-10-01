@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:lawbid/features/onboarding/domain/us_states.dart';
+import 'package:lawbid/features/feed/application/feed_topics.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart'
     show feedCardHeight;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -108,6 +110,7 @@ class _AttorneyCasesTabState extends ConsumerState<AttorneyCasesTab> {
           onState: (v) => setState(() => _state = v),
           showNews: false,
           showNotSure: true,
+          allowedStates: licensed,
         ),
         Expanded(
           child: LayoutBuilder(builder: (context, box) {
@@ -120,11 +123,36 @@ class _AttorneyCasesTabState extends ConsumerState<AttorneyCasesTab> {
               onRefresh: n.refresh,
               onLoadMore: n.loadMore,
               onRetryMore: n.retryLoadMore,
-              empty: AppEmptyState(
-                icon: Icons.inbox_outlined,
-                title: t.t('cases.feed.emptyTitle'),
-                message: t.t('cases.feed.emptyMessage'),
-              ),
+              // Audit 2026-10-01: the empty state names the active filters
+              // and offers to clear them.
+              empty: _category == null && _state == null
+                  ? AppEmptyState(
+                      icon: Icons.inbox_outlined,
+                      title: t.t('cases.feed.emptyTitle'),
+                      message: t.t('cases.feed.emptyMessage'),
+                    )
+                  : AppEmptyState(
+                      icon: Icons.filter_alt_off_outlined,
+                      title: t.t('cases.feed.emptyFiltered'),
+                      message: [
+                        if (_category != null)
+                          _category == kNotSureTopic
+                              ? t.t('feed.topics.notSure')
+                              : topicName(ref, _category!),
+                        if (_state != null)
+                          usStateByCode(_state)?.name ?? _state!,
+                      ].join(' · '),
+                      action: AppButton(
+                        key: const ValueKey('cases-clear-filters'),
+                        label: t.t('feed.filters.clear'),
+                        variant: AppButtonVariant.secondary,
+                        height: AppSizes.touchTarget,
+                        onPressed: () => setState(() {
+                          _category = null;
+                          _state = null;
+                        }),
+                      ),
+                    ),
               itemBuilder: (context, c, _) => FeedCaseCard(
                 item: c,
                 t: t,

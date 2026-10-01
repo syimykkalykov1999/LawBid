@@ -32,6 +32,8 @@ export interface CaseSearchParams {
 /** OQ-036 Posts filters. */
 export interface PostSearchFilters {
   tag?: string;
+  /** Audit 2026-10-01: a qualification code (category or subcategory). */
+  practice?: string;
   state?: string;
   since?: Date;
   withPhotos?: boolean;

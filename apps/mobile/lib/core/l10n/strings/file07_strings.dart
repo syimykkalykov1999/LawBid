@@ -3,6 +3,10 @@
 
 const file07Ru = <String, String>{
   'feed.topics.notSure': 'Не уверены в квалификации',
+  'search.more': 'Показать ещё',
+  'cases.feed.emptyFiltered': 'Нет открытых кейсов по этому фильтру',
+  'feed.filters.clear': 'Сбросить фильтры',
+  'cases.feed.allLicensedStates': 'Все мои штаты (с лицензией)',
   'reviews.more': 'Ещё',
   'reviews.photos.add': 'Фото',
   'reviews.authorCount.one': '{count} отзыв',
@@ -503,6 +507,10 @@ const file07Ru = <String, String>{
 
 const file07En = <String, String>{
   'feed.topics.notSure': 'Not sure of the qualification',
+  'search.more': 'Show more',
+  'cases.feed.emptyFiltered': 'No open cases for this filter',
+  'feed.filters.clear': 'Clear filters',
+  'cases.feed.allLicensedStates': 'All my licensed states',
   'reviews.more': 'More',
   'reviews.photos.add': 'Photos',
   'reviews.authorCount.one': '{count} review',

@@ -1,18 +1,20 @@
 import { CasePhotoDto } from './case-responses.dto';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { BudgetMode, CaseStatus, SavedItemType } from '@prisma/client';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 import {
+  IsBoolean,
   IsEnum,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
   IsUUID,
   Length,
+  Matches,
   Max,
   MaxLength,
   Min,
-  Matches,
 } from 'class-validator';
 
 /** docs/04 §4.2: attorney "Cases" tab is a cursor-paginated list. */
@@ -87,6 +89,51 @@ export class ListCasesFeedQueryDto {
   @IsString()
   @Matches(/^[a-z0-9_.]{2,120}$/)
   practice?: string;
+
+  // Audit 2026-10-01: the Search tab's case filters, applied on the server
+  // (the explore grid used to filter one page in the app).
+  @ApiPropertyOptional({ enum: ['24h', '7d', '30d', 'all'], default: 'all' })
+  @IsOptional()
+  @IsIn(['24h', '7d', '30d', 'all'])
+  period?: '24h' | '7d' | '30d' | 'all';
+
+  @ApiPropertyOptional({ minimum: 0, description: 'Whole dollars.' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  budgetMin?: number;
+
+  @ApiPropertyOptional({ minimum: 0, description: 'Whole dollars.' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  budgetMax?: number;
+
+  @ApiPropertyOptional({ description: 'Only cases with "clarify later".' })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === true || value === 'true'
+      ? true
+      : value === false || value === 'false'
+        ? false
+        : value,
+  )
+  @IsBoolean()
+  budgetUnknown?: boolean;
+
+  @ApiPropertyOptional({ description: 'Only cases nobody has bid on yet.' })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === true || value === 'true'
+      ? true
+      : value === false || value === 'false'
+        ? false
+        : value,
+  )
+  @IsBoolean()
+  noBids?: boolean;
 }
 
 /** POST/DELETE /saved-items (docs/04 §4.3, §11.2, §15). Only itemType

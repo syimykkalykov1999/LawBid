@@ -25,8 +25,13 @@ class TopicFilterBar extends ConsumerWidget {
     required this.onState,
     this.showNews = true,
     this.showNotSure = false,
+    this.allowedStates,
     super.key,
   });
+
+  /// Audit 2026-10-01: the case feed only shows cases in the attorney's
+  /// verified-license states — the picker lists just those.
+  final List<String>? allowedStates;
 
   /// The "News" pill (the post feed; not the attorney's case feed).
   final bool showNews;
@@ -74,9 +79,15 @@ class TopicFilterBar extends ConsumerWidget {
       title: t.t('feed.state.pick'),
       initial: {if (stateCode != null) stateCode!},
       options: [
-        PickerOption(value: '', label: t.t('cases.feed.allStates')),
+        PickerOption(
+          value: '',
+          label: t.t(allowedStates == null
+              ? 'cases.feed.allStates'
+              : 'cases.feed.allLicensedStates'),
+        ),
         for (final s in kUsStates)
-          PickerOption(value: s.code, label: s.name, sublabel: s.code),
+          if (allowedStates == null || allowedStates!.contains(s.code))
+            PickerOption(value: s.code, label: s.name, sublabel: s.code),
       ],
     );
     if (picked == null) return;

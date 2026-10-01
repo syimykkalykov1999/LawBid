@@ -10,6 +10,8 @@ import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
+import 'package:lawbid/features/cases/data/cases_repository.dart'
+    show CaseFeedExtras;
 import 'package:lawbid/features/feed/application/feed_topics.dart';
 import 'package:lawbid/features/feed/presentation/widgets/topic_filter_bar.dart'
     show topicName;
@@ -467,28 +469,42 @@ class _BeforeTyping extends ConsumerWidget {
             (c) => SearchMyCaseTile(item: c),
           ),
         ],
+      // Audit 2026-10-01: explore grids filtered on the server (every
+      // filter, every page), with "Show more".
       SearchTab.cases => [
           SliverToBoxAdapter(child: title(t.t('search.section.cases'))),
           grid<FeedCase>(
-            _filterCases(
-              ref
-                      .watch(caseFeedProvider((
-                        practiceCategory: filters.practiceCategory,
-                        state: filters.state,
-                      )))
-                      .value
-                      ?.items ??
-                  const <FeedCase>[],
-              filters,
-            ),
+            ref.watch(exploreCasesProvider(_casesKey(filters))).value?.items ??
+                const <FeedCase>[],
             (c) => SearchCaseTile(item: c),
+          ),
+          _MoreButton(
+            hasMore: ref
+                    .watch(exploreCasesProvider(_casesKey(filters)))
+                    .value
+                    ?.nextCursor !=
+                null,
+            onMore: () => ref
+                .read(exploreCasesProvider(_casesKey(filters)).notifier)
+                .loadMore(),
           ),
         ],
       SearchTab.posts => [
           SliverToBoxAdapter(child: title(t.t('search.section.posts'))),
           grid<Post>(
-            _explorePosts(ref, filters),
+            ref.watch(explorePostsProvider(_postsKey(filters))).value?.items ??
+                const <Post>[],
             (p) => SearchPostTile(post: p),
+          ),
+          _MoreButton(
+            hasMore: ref
+                    .watch(explorePostsProvider(_postsKey(filters)))
+                    .value
+                    ?.nextCursor !=
+                null,
+            onMore: () => ref
+                .read(explorePostsProvider(_postsKey(filters)).notifier)
+                .loadMore(),
           ),
         ],
       SearchTab.tags => [
@@ -611,46 +627,56 @@ List<CaseSummary> _myCases(WidgetRef ref, String query, SearchFilters f) {
   ];
 }
 
-/// The Cases filters the feed query does not cover (explore grid).
-List<FeedCase> _filterCases(List<FeedCase> items, SearchFilters f) => [
-      for (final c in items)
-        if ((!f.noBids || c.bidsCount == 0) &&
-            (!f.budgetUnknown || c.budget.amountCents == null) &&
-            (f.budgetMin == null ||
-                (c.budget.amountCents ?? -1) >= f.budgetMin! * 100) &&
-            (f.budgetMax == null ||
-                (c.budget.amountCents != null &&
-                    c.budget.amountCents! <= f.budgetMax! * 100)))
-          c,
-    ];
+String? _periodWire(SearchPeriod p) => switch (p) {
+      SearchPeriod.day => '24h',
+      SearchPeriod.week => '7d',
+      SearchPeriod.month => '30d',
+      SearchPeriod.all => null,
+    };
 
-/// The Posts explore grid under the Posts filters (topic, author's state,
-/// photos only, sort).
-List<Post> _explorePosts(WidgetRef ref, SearchFilters f) {
-  final cat = f.practiceCategory;
-  final base = cat != null
-      ? ref
-              .watch(tagPostsProvider((
-                tag: topicTagFor(cat),
-                sort: f.postSort == PostSort.popular
-                    ? TagSort.top
-                    : TagSort.fresh,
-                state: f.state,
-              )))
-              .value
-              ?.items ??
-          const <Post>[]
-      : ref.watch(latestPostsProvider(f.state ?? '')).value?.items ??
-          const <Post>[];
-  final items = [
-    for (final p in base)
-      if (!f.withPhotos || p.media.isNotEmpty) p,
-  ];
-  if (f.postSort == PostSort.popular && cat == null) {
-    items.sort((a, b) =>
-        (b.likeCount + b.commentCount).compareTo(a.likeCount + a.commentCount));
+/// Audit 2026-10-01: every Cases filter goes to the server.
+ExploreCasesKey _casesKey(SearchFilters f) => (
+      practiceCategory: f.practiceCategory,
+      state: f.state,
+      extras: CaseFeedExtras(
+        period: _periodWire(f.period),
+        budgetMin: f.budgetMin,
+        budgetMax: f.budgetMax,
+        budgetUnknown: f.budgetUnknown,
+        noBids: f.noBids,
+      ),
+    );
+
+/// Audit 2026-10-01: every Posts filter goes to the server.
+ExplorePostsKey _postsKey(SearchFilters f) => (
+      state: f.state,
+      practice: f.practiceCategory,
+      period: _periodWire(f.period),
+      withPhotos: f.withPhotos,
+      popular: f.postSort == PostSort.popular,
+    );
+
+/// "Show more" under an explore grid.
+class _MoreButton extends ConsumerWidget {
+  const _MoreButton({required this.hasMore, required this.onMore});
+
+  final bool hasMore;
+  final VoidCallback onMore;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (!hasMore) return const SliverToBoxAdapter(child: SizedBox.shrink());
+    final t = ref.watch(translatorProvider);
+    return SliverToBoxAdapter(
+      child: Center(
+        child: TextButton(
+          key: const ValueKey('search-explore-more'),
+          onPressed: onMore,
+          child: Text(t.t('search.more')),
+        ),
+      ),
+    );
   }
-  return items;
 }
 
 List<String> _sortedPractices(

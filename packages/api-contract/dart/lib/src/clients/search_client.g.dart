@@ -170,6 +170,7 @@ class _SearchClient implements SearchClient {
     Period? period = Period.all,
     Sort2? sort = Sort2.relevance,
     String? cursor,
+    String? practice,
     String? tag,
     String? state,
     bool? withPhotos,
@@ -182,6 +183,7 @@ class _SearchClient implements SearchClient {
       r'period': period?.toJson(),
       r'sort': sort?.toJson(),
       r'cursor': cursor,
+      r'practice': practice,
       r'tag': tag,
       r'state': state,
       r'withPhotos': withPhotos,
@@ -312,21 +314,27 @@ class _SearchClient implements SearchClient {
 
   @override
   Future<PostListEnvelope> latestPosts({
+    Period? period = Period.all,
     String? cursor,
     String? state,
     String? practice,
     String? tag,
     PostKind? kind,
+    bool? withPhotos,
+    LatestPostsSort? sort,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
     _extra.addAll(extras ?? <String, dynamic>{});
     final queryParameters = <String, dynamic>{
+      r'period': period?.toJson(),
       r'cursor': cursor,
       r'state': state,
       r'practice': practice,
       r'tag': tag,
       r'kind': kind?.toJson(),
+      r'withPhotos': withPhotos,
+      r'sort': sort?.toJson(),
     };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};

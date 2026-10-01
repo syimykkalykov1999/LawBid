@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
@@ -30,6 +31,38 @@ class BidInput {
   final StartAvailability startAvailability;
   final DateTime? startDate;
   final int? estimatedDurationDays;
+}
+
+/// Audit 2026-10-01: Search-tab case filters the server applies.
+@immutable
+class CaseFeedExtras {
+  const CaseFeedExtras({
+    this.period,
+    this.budgetMin,
+    this.budgetMax,
+    this.budgetUnknown = false,
+    this.noBids = false,
+  });
+
+  /// `24h` · `7d` · `30d` · null = all.
+  final String? period;
+  final int? budgetMin;
+  final int? budgetMax;
+  final bool budgetUnknown;
+  final bool noBids;
+
+  @override
+  bool operator ==(Object other) =>
+      other is CaseFeedExtras &&
+      other.period == period &&
+      other.budgetMin == budgetMin &&
+      other.budgetMax == budgetMax &&
+      other.budgetUnknown == budgetUnknown &&
+      other.noBids == noBids;
+
+  @override
+  int get hashCode =>
+      Object.hash(period, budgetMin, budgetMax, budgetUnknown, noBids);
 }
 
 /// docs/04 cases & bids for the app (§3–§12). Throws [ApiException].
@@ -68,6 +101,7 @@ abstract interface class CasesRepository {
     String? practiceAreaId,
     String? practiceCategory,
     String? state,
+    CaseFeedExtras extras = const CaseFeedExtras(),
   });
   Future<FeedCase> attorneyCase(String caseId);
   Future<void> recordView(String caseId);
@@ -304,6 +338,7 @@ class ApiCasesRepository implements CasesRepository {
     String? practiceAreaId,
     String? practiceCategory,
     String? state,
+    CaseFeedExtras extras = const CaseFeedExtras(),
   }) async {
     final env = await guardApiCall(
       () => _cases.listCaseFeed(
@@ -315,6 +350,14 @@ class ApiCasesRepository implements CasesRepository {
         // not.
         practice: practiceCategory,
         state: state,
+        // Audit 2026-10-01: the Search tab's filters, on the server.
+        period: extras.period == null
+            ? null
+            : api.Period.fromJson(extras.period!),
+        budgetMin: extras.budgetMin,
+        budgetMax: extras.budgetMax,
+        budgetUnknown: extras.budgetUnknown ? true : null,
+        noBids: extras.noBids ? true : null,
       ),
     );
     return CursorPage(

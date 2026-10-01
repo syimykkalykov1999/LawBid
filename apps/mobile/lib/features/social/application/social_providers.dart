@@ -242,6 +242,47 @@ class FilteredPostsNotifier extends PagedNotifier<Post> {
   Object idOf(Post item) => item.id;
 }
 
+/// Audit 2026-10-01: the Search tab's Posts explore grid — practice,
+/// state, period, photos only and "popular" all applied on the server.
+typedef ExplorePostsKey = ({
+  String? state,
+  String? practice,
+  String? period,
+  bool withPhotos,
+  bool popular,
+});
+
+class ExplorePostsNotifier extends PagedNotifier<Post> {
+  ExplorePostsNotifier(this.key);
+
+  final ExplorePostsKey key;
+
+  @override
+  Future<CursorPage<Post>> fetch(String? cursor) {
+    final practice = key.practice;
+    return ref.read(socialRepositoryProvider).latestPosts(
+          key.state,
+          cursor: cursor,
+          practice: practice,
+          tag: practice == null
+              ? null
+              : topicTagFor(practice.split('.').first),
+          period: key.period,
+          withPhotos: key.withPhotos,
+          popular: key.popular,
+        );
+  }
+
+  @override
+  Object idOf(Post item) => item.id;
+}
+
+final explorePostsProvider = AsyncNotifierProvider.autoDispose
+    .family<ExplorePostsNotifier, PaginatedList<Post>, ExplorePostsKey>(
+  ExplorePostsNotifier.new,
+  retry: _noRetry,
+);
+
 final filteredPostsProvider = AsyncNotifierProvider.autoDispose
     .family<FilteredPostsNotifier, PaginatedList<Post>, FilteredPostsKey>(
   FilteredPostsNotifier.new,

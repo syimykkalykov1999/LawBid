@@ -105,11 +105,12 @@ export class SearchCasesQueryDto extends SearchTextQueryDto {
   @IsIn(SEARCH_PERIODS)
   period?: SearchPeriod;
 
-  // OQ-036: the Cases filter of the Search tab.
+  // OQ-036: the Cases filter of the Search tab. Audit 2026-10-01: a
+  // category (with its subcategories) or one subcategory.
   @ApiPropertyOptional({ example: 'family_law' })
   @IsOptional()
   @IsString()
-  @Matches(/^[a-z0-9_]{2,64}$/)
+  @Matches(/^[a-z0-9_]{2,64}(\.[a-z0-9_]{2,64})?$/)
   practiceCategory?: string;
 
   @ApiPropertyOptional({ minimum: 0, description: 'Whole dollars.' })
@@ -156,6 +157,15 @@ export type PostSort = (typeof POST_SORTS)[number];
 
 /** GET /search/posts (docs/05 §7.5; filters OQ-036). */
 export class SearchPostsQueryDto extends SearchTextQueryDto {
+  @ApiPropertyOptional({
+    description:
+      'Audit 2026-10-01: a qualification code — its posts (and its subcategories); older posts without one by `tag`.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  practice?: string;
+
   @ApiPropertyOptional({ description: 'Only posts with this hashtag (topic).' })
   @IsOptional()
   @IsString()
@@ -271,4 +281,32 @@ export class LatestPostsQueryDto extends CursorQueryDto {
   @IsOptional()
   @IsIn(['post', 'news'])
   kind?: 'post' | 'news';
+
+  // Audit 2026-10-01: the Search tab's post filters on the server.
+  @ApiPropertyOptional({ enum: SEARCH_PERIODS, default: 'all' })
+  @IsOptional()
+  @IsIn(SEARCH_PERIODS)
+  period?: SearchPeriod;
+
+  @ApiPropertyOptional({ description: 'Only posts with photos.' })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === true || value === 'true'
+      ? true
+      : value === false || value === 'false'
+        ? false
+        : value,
+  )
+  @IsBoolean()
+  withPhotos?: boolean;
+
+  @ApiPropertyOptional({
+    enum: ['newest', 'popular'],
+    enumName: 'LatestPostsSort',
+    default: 'newest',
+    description: 'popular = likes + comments, then newest (offset cursor).',
+  })
+  @IsOptional()
+  @IsIn(['newest', 'popular'])
+  sort?: 'newest' | 'popular';
 }

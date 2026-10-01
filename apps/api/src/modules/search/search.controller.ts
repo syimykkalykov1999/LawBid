@@ -155,6 +155,9 @@ export class SearchController {
       practice: q.practice,
       tag: q.tag,
       kind: q.kind,
+      period: q.period,
+      withPhotos: q.withPhotos,
+      sort: q.sort,
     });
   }
 }

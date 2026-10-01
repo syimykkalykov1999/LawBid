@@ -7,6 +7,7 @@ import 'package:retrofit/retrofit.dart';
 
 import '../models/attorney_list_item_list_envelope.dart';
 import '../models/case_feed_item_list_envelope.dart';
+import '../models/latest_posts_sort.dart';
 import '../models/period.dart';
 import '../models/person_item_list_envelope.dart';
 import '../models/post_kind.dart';
@@ -92,6 +93,8 @@ abstract class SearchClient {
   ///
   /// [q] - Search text, at least 2 characters (§7.1).
   ///
+  /// [practice] - Audit 2026-10-01: a qualification code — its posts (and its subcategories); older posts without one by `tag`.
+  ///
   /// [tag] - Only posts with this hashtag (topic).
   ///
   /// [state] - Only posts of attorneys licensed in this state.
@@ -103,6 +106,7 @@ abstract class SearchClient {
     @Query('period') Period? period = Period.all,
     @Query('sort') Sort2? sort = Sort2.relevance,
     @Query('cursor') String? cursor,
+    @Query('practice') String? practice,
     @Query('tag') String? tag,
     @Query('state') String? state,
     @Query('withPhotos') bool? withPhotos,
@@ -146,13 +150,20 @@ abstract class SearchClient {
   /// [tag] - Older posts without a qualification match by their topic hashtag.
   ///
   /// [kind] - Owner 2026-09-30: only News (or only regular posts).
+  ///
+  /// [withPhotos] - Only posts with photos.
+  ///
+  /// [sort] - popular = likes + comments, then newest (offset cursor).
   @GET('/search/latest-posts')
   Future<PostListEnvelope> latestPosts({
+    @Query('period') Period? period = Period.all,
     @Query('cursor') String? cursor,
     @Query('state') String? state,
     @Query('practice') String? practice,
     @Query('tag') String? tag,
     @Query('kind') PostKind? kind,
+    @Query('withPhotos') bool? withPhotos,
+    @Query('sort') LatestPostsSort? sort,
     @Extras() Map<String, dynamic>? extras,
   });
 }

@@ -166,6 +166,10 @@ export interface PracticeCasesQueryInput {
   state?: string;
   cursor?: FeedCursor;
   limit: number;
+  /** Audit 2026-10-01: search uses the same rule (text, period, extras). */
+  text?: string;
+  since?: Date;
+  extra?: Prisma.Sql;
 }
 
 /**
@@ -178,7 +182,15 @@ export interface PracticeCasesQueryInput {
 export function buildPracticeCasesSql(
   input: PracticeCasesQueryInput,
 ): Prisma.Sql {
-  const { attorneyId, practice, state, cursor, limit } = input;
+  const { attorneyId, practice, state, cursor, limit, text, since, extra } =
+    input;
+  const searchFilter = Prisma.sql`${
+    text
+      ? Prisma.sql`AND c.search_tsv @@ plainto_tsquery('english', ${text})`
+      : Prisma.empty
+  } ${since ? Prisma.sql`AND c.created_at >= ${since}` : Prisma.empty} ${
+    extra ?? Prisma.empty
+  }`;
   const stateFilter = state
     ? Prisma.sql`AND (c.primary_state_code = ${state}
         OR EXISTS (SELECT 1 FROM case_states s2
@@ -200,6 +212,7 @@ export function buildPracticeCasesSql(
         WHERE cs.case_id = c.id AND l.attorney_id = ${attorneyId}::UUID
           AND l.license_status = 'verified')
       ${stateFilter}
+      ${searchFilter}
       ${cursorFilter}
     ORDER BY c.created_at DESC, c.id DESC
     LIMIT ${limit}`;

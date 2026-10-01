@@ -22,4 +22,16 @@ export async function ensurePostPractices(prisma: PrismaService) {
     'Arbitration and Mediation Representation',
     civil.id,
   );
+  // Audit 2026-10-01: the wizard's "Not sure" choice and its category.
+  const general = await upsert('general_practice', 'General Practice');
+  await upsert(
+    'general_practice.general_practice',
+    'General Practice',
+    general.id,
+  );
+  await upsert(
+    'general_practice.not_sure_or_other',
+    'Not Sure or Other',
+    general.id,
+  );
 }

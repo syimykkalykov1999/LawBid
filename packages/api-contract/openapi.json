@@ -15291,6 +15291,59 @@
               "example": "civil_litigation.arbitration_and_mediation_representation",
               "type": "string"
             }
+          },
+          {
+            "name": "period",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "all",
+              "type": "string",
+              "enum": [
+                "24h",
+                "7d",
+                "30d",
+                "all"
+              ]
+            }
+          },
+          {
+            "name": "budgetMin",
+            "required": false,
+            "in": "query",
+            "description": "Whole dollars.",
+            "schema": {
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          {
+            "name": "budgetMax",
+            "required": false,
+            "in": "query",
+            "description": "Whole dollars.",
+            "schema": {
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          {
+            "name": "budgetUnknown",
+            "required": false,
+            "in": "query",
+            "description": "Only cases with \"clarify later\".",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "noBids",
+            "required": false,
+            "in": "query",
+            "description": "Only cases nobody has bid on yet.",
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -25333,7 +25386,7 @@
             "required": false,
             "in": "query",
             "schema": {
-              "pattern": "^[a-z0-9_]{2,64}$",
+              "pattern": "^[a-z0-9_]{2,64}(\\.[a-z0-9_]{2,64})?$",
               "example": "family_law",
               "type": "string"
             }
@@ -25481,6 +25534,16 @@
             "description": "Search text, at least 2 characters (§7.1).",
             "schema": {
               "maxLength": 100,
+              "type": "string"
+            }
+          },
+          {
+            "name": "practice",
+            "required": false,
+            "in": "query",
+            "description": "Audit 2026-10-01: a qualification code — its posts (and its subcategories); older posts without one by `tag`.",
+            "schema": {
+              "maxLength": 120,
               "type": "string"
             }
           },
@@ -25950,6 +26013,39 @@
             "description": "Owner 2026-09-30: only News (or only regular posts).",
             "schema": {
               "$ref": "#/components/schemas/PostKind"
+            }
+          },
+          {
+            "name": "period",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "all",
+              "type": "string",
+              "enum": [
+                "24h",
+                "7d",
+                "30d",
+                "all"
+              ]
+            }
+          },
+          {
+            "name": "withPhotos",
+            "required": false,
+            "in": "query",
+            "description": "Only posts with photos.",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "description": "popular = likes + comments, then newest (offset cursor).",
+            "schema": {
+              "$ref": "#/components/schemas/LatestPostsSort"
             }
           }
         ],
@@ -43174,6 +43270,13 @@
         },
         "required": [
           "data"
+        ]
+      },
+      "LatestPostsSort": {
+        "type": "string",
+        "enum": [
+          "newest",
+          "popular"
         ]
       },
       "ConversationCounterpartDto": {

@@ -58,7 +58,7 @@ export class SubscriptionAlertsService {
   async attorneysForCase(caseId: string): Promise<number> {
     const rows = await this.prisma.$queryRaw<{ id: string }[]>`
       WITH c AS (
-        SELECT c.id, c.client_id, c.practice_area_id, pa.parent_id
+        SELECT c.id, c.client_id, c.practice_area_id, pa.parent_id, pa.code
         FROM cases c
         JOIN practice_areas pa ON pa.id = c.practice_area_id
         WHERE c.id = ${caseId}::UUID
@@ -77,6 +77,12 @@ export class SubscriptionAlertsService {
       FROM c
       JOIN chosen ch ON ch.practice_area_id = c.practice_area_id
                      OR ch.practice_area_id = c.parent_id
+                     -- Audit 2026-10-01: like the case feed (§4.1), "Not
+                     -- sure" cases also go to General Practice attorneys.
+                     OR (c.code = 'general_practice.not_sure_or_other'
+                         AND ch.practice_area_id = (
+                           SELECT id FROM practice_areas
+                           WHERE code = 'general_practice.general_practice'))
       JOIN attorney_profiles p ON p.user_id = ch.attorney_id
        AND p.verification_status = 'verified'
       JOIN case_states cs ON cs.case_id = c.id

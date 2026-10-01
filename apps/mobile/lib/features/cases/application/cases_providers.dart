@@ -127,6 +127,38 @@ final caseFeedProvider = AsyncNotifierProvider.autoDispose
   retry: _noRetry,
 );
 
+/// Audit 2026-10-01: the Search tab's Cases explore grid — every filter
+/// applied on the server (no client-side filtering of one page).
+typedef ExploreCasesKey = ({
+  String? practiceCategory,
+  String? state,
+  CaseFeedExtras extras,
+});
+
+class ExploreCasesNotifier extends PagedNotifier<FeedCase> {
+  ExploreCasesNotifier(this.key);
+
+  final ExploreCasesKey key;
+
+  @override
+  Future<CursorPage<FeedCase>> fetch(String? cursor) =>
+      ref.read(casesRepositoryProvider).feed(
+            cursor: cursor,
+            practiceCategory: key.practiceCategory,
+            state: key.state,
+            extras: key.extras,
+          );
+
+  @override
+  Object idOf(FeedCase item) => item.id;
+}
+
+final exploreCasesProvider = AsyncNotifierProvider.autoDispose
+    .family<ExploreCasesNotifier, PaginatedList<FeedCase>, ExploreCasesKey>(
+  ExploreCasesNotifier.new,
+  retry: _noRetry,
+);
+
 final attorneyCaseProvider =
     FutureProvider.autoDispose.family<FeedCase, String>(
   (ref, id) => ref.watch(casesRepositoryProvider).attorneyCase(id),

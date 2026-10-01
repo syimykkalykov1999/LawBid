@@ -56,22 +56,32 @@ class _CasesClient implements CasesClient {
   @override
   Future<CaseFeedItemListEnvelope> listCaseFeed({
     int? limit = 20,
+    Period? period = Period.all,
     String? cursor,
     String? practiceAreaId,
     String? state,
     String? practiceCategory,
     String? practice,
+    num? budgetMin,
+    num? budgetMax,
+    bool? budgetUnknown,
+    bool? noBids,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
     _extra.addAll(extras ?? <String, dynamic>{});
     final queryParameters = <String, dynamic>{
       r'limit': limit,
+      r'period': period?.toJson(),
       r'cursor': cursor,
       r'practiceAreaId': practiceAreaId,
       r'state': state,
       r'practiceCategory': practiceCategory,
       r'practice': practice,
+      r'budgetMin': budgetMin,
+      r'budgetMax': budgetMax,
+      r'budgetUnknown': budgetUnknown,
+      r'noBids': noBids,
     };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};

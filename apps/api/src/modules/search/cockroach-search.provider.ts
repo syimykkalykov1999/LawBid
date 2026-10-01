@@ -1,7 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
-import { buildVisibleCasesSql } from '../cases/queries/cases-visible.sql';
+import {
+  buildPracticeCasesSql,
+  buildVisibleCasesSql,
+} from '../cases/queries/cases-visible.sql';
 import type {
   AttorneySearchFilters,
   PostSearchFilters,
@@ -71,9 +74,12 @@ export class CockroachSearchProvider implements SearchProvider {
     const filters = Prisma.sql`
       ${
         f.practiceAreaId
-          ? Prisma.sql`AND EXISTS (SELECT 1 FROM attorney_practice_areas x
+          ? // Audit 2026-10-01: a category also matches its subcategories.
+            Prisma.sql`AND EXISTS (SELECT 1 FROM attorney_practice_areas x
+              JOIN practice_areas xp ON xp.id = x.practice_area_id
               WHERE x.attorney_id = a.user_id
-                AND x.practice_area_id = ${f.practiceAreaId}::UUID)`
+                AND (x.practice_area_id = ${f.practiceAreaId}::UUID
+                     OR xp.parent_id = ${f.practiceAreaId}::UUID))`
           : Prisma.empty
       }
       ${
@@ -171,6 +177,28 @@ export class CockroachSearchProvider implements SearchProvider {
     q: string,
     p: CaseSearchParams,
   ): Promise<{ id: string; created_at: Date }[]> {
+    const extra = Prisma.sql`
+          ${p.budgetMinCents !== undefined ? Prisma.sql`AND c.budget_cents >= ${p.budgetMinCents}` : Prisma.empty}
+          ${p.budgetMaxCents !== undefined ? Prisma.sql`AND c.budget_cents <= ${p.budgetMaxCents}` : Prisma.empty}
+          ${p.budgetUnknown ? Prisma.sql`AND c.budget_mode = 'clarify_later'` : Prisma.empty}
+          ${p.noBids ? Prisma.sql`AND c.bids_count = 0` : Prisma.empty}`;
+    // Audit 2026-10-01: a qualification in search works like the feed's
+    // topic — any qualification (category → its subcategories) in the
+    // attorney's licensed states, not only their own practices.
+    if (p.practiceCategory) {
+      return this.prisma.$queryRaw<{ id: string; created_at: Date }[]>(
+        buildPracticeCasesSql({
+          attorneyId: p.attorneyId,
+          practice: p.practiceCategory,
+          state: p.state,
+          cursor: p.cursor,
+          limit: p.limit + 1,
+          text: q,
+          since: p.since,
+          extra,
+        }),
+      );
+    }
     return this.prisma.$queryRaw<{ id: string; created_at: Date }[]>(
       buildVisibleCasesSql({
         attorneyId: p.attorneyId,
@@ -180,12 +208,7 @@ export class CockroachSearchProvider implements SearchProvider {
         limit: p.limit + 1,
         text: q,
         since: p.since,
-        practiceCategory: p.practiceCategory,
-        extra: Prisma.sql`
-          ${p.budgetMinCents !== undefined ? Prisma.sql`AND c.budget_cents >= ${p.budgetMinCents}` : Prisma.empty}
-          ${p.budgetMaxCents !== undefined ? Prisma.sql`AND c.budget_cents <= ${p.budgetMaxCents}` : Prisma.empty}
-          ${p.budgetUnknown ? Prisma.sql`AND c.budget_mode = 'clarify_later'` : Prisma.empty}
-          ${p.noBids ? Prisma.sql`AND c.bids_count = 0` : Prisma.empty}`,
+        extra,
       }),
     );
   }
@@ -196,7 +219,19 @@ export class CockroachSearchProvider implements SearchProvider {
     f: PostSearchFilters = {},
   ): Promise<string[]> {
     const where = Prisma.sql`
-      ${f.tag ? Prisma.sql`AND EXISTS (SELECT 1 FROM post_tags pt JOIN tags t ON t.id = pt.tag_id WHERE pt.post_id = p.id AND t.tag_lower = ${f.tag})` : Prisma.empty}
+      ${
+        // Audit 2026-10-01: a qualification matches posts of it (and its
+        // subcategories) — older posts without one by the topic hashtag.
+        f.practice
+          ? Prisma.sql`AND (EXISTS (SELECT 1 FROM practice_areas pa WHERE pa.id = p.practice_area_id AND (pa.code = ${f.practice} OR pa.code LIKE ${`${f.practice}.%`}))${
+              f.tag
+                ? Prisma.sql` OR (p.practice_area_id IS NULL AND EXISTS (SELECT 1 FROM post_tags pt JOIN tags t ON t.id = pt.tag_id WHERE pt.post_id = p.id AND t.tag_lower = ${f.tag}))`
+                : Prisma.empty
+            })`
+          : f.tag
+            ? Prisma.sql`AND EXISTS (SELECT 1 FROM post_tags pt JOIN tags t ON t.id = pt.tag_id WHERE pt.post_id = p.id AND t.tag_lower = ${f.tag})`
+            : Prisma.empty
+      }
       ${f.state ? Prisma.sql`AND EXISTS (SELECT 1 FROM attorney_licenses l WHERE l.attorney_id = p.author_id AND l.state_code = ${f.state} AND l.license_status = 'verified')` : Prisma.empty}
       ${f.since ? Prisma.sql`AND p.created_at >= ${f.since}` : Prisma.empty}
       ${f.withPhotos ? Prisma.sql`AND EXISTS (SELECT 1 FROM post_media pm WHERE pm.post_id = p.id)` : Prisma.empty}`;

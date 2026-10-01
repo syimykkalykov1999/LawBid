@@ -1,6 +1,6 @@
 import { CasePhotosService } from './case-photos.service';
 import { ForbiddenException, Injectable, Optional } from '@nestjs/common';
-import type { Case, PracticeArea } from '@prisma/client';
+import { Prisma, type Case, type PracticeArea } from '@prisma/client';
 import {
   decodeCursor,
   encodeCursor,
@@ -83,6 +83,21 @@ export class CasesFeedService {
     const limit = query.limit ?? CASES_FEED_PAGE_DEFAULT;
     const cursor = query.cursor ? decodeCursor(query.cursor) : undefined;
 
+    // Audit 2026-10-01: the Search tab's filters on the server.
+    const spanMs =
+      query.period === '24h'
+        ? 24 * 3600e3
+        : query.period === '7d'
+          ? 7 * 24 * 3600e3
+          : query.period === '30d'
+            ? 30 * 24 * 3600e3
+            : null;
+    const since = spanMs ? new Date(Date.now() - spanMs) : undefined;
+    const extra = Prisma.sql`
+      ${query.budgetMin !== undefined ? Prisma.sql`AND c.budget_cents >= ${query.budgetMin * 100}` : Prisma.empty}
+      ${query.budgetMax !== undefined ? Prisma.sql`AND c.budget_cents <= ${query.budgetMax * 100}` : Prisma.empty}
+      ${query.budgetUnknown ? Prisma.sql`AND c.budget_mode = 'clarify_later'` : Prisma.empty}
+      ${query.noBids ? Prisma.sql`AND c.bids_count = 0` : Prisma.empty}`;
     const rows = await this.prisma.$queryRaw<
       { id: string; created_at: Date }[]
     >(
@@ -93,6 +108,8 @@ export class CasesFeedService {
             state: query.state,
             cursor,
             limit: limit + 1,
+            since,
+            extra,
           })
         : buildVisibleCasesSql({
             attorneyId: viewer.userId,
@@ -101,6 +118,8 @@ export class CasesFeedService {
             state: query.state,
             cursor,
             limit: limit + 1,
+            since,
+            extra,
           }),
     );
     const page = rows.slice(0, limit);
