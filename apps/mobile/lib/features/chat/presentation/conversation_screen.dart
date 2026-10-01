@@ -1168,7 +1168,7 @@ class _ComposerState extends ConsumerState<_Composer> {
         filled: true,
         fillColor: colors.bg,
         contentPadding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.lg, vertical: AppSpacing.md),
+            horizontal: AppSpacing.md, vertical: AppSpacing.md),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(24),
           borderSide: BorderSide(color: colors.border),
@@ -1262,14 +1262,19 @@ class _ComposerState extends ConsumerState<_Composer> {
       child: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide,
-              AppSpacing.sm, AppSpacing.sm, AppSpacing.sm),
+          // Owner 2026-09-30: the paperclip and the field sit close to the
+          // left edge.
+          padding: EdgeInsets.fromLTRB(
+              widget.onAttach != null ? AppSpacing.xs : AppSpacing.sm,
+              AppSpacing.sm,
+              AppSpacing.sm,
+              AppSpacing.sm),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               if (widget.onAttach != null && !_recording)
                 Padding(
-                  padding: const EdgeInsets.only(right: AppSpacing.xs),
+                  padding: EdgeInsets.zero,
                   child: AppIconButton(
                     plain: true,
                     icon:
