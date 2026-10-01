@@ -25751,7 +25751,7 @@
             "name": "folder",
             "required": false,
             "in": "query",
-            "description": "OQ-043: \"requests\" = message requests sent to me.",
+            "description": "Owner 2026-10-01: all · primary (case chats by default) · general · waiting (marked \"waiting for my answer\") · requests (OQ-043, message requests sent to me).",
             "schema": {
               "$ref": "#/components/schemas/ConversationFolder"
             }
@@ -25825,6 +25825,73 @@
           }
         ],
         "summary": "My conversations, newest first (§8.1)",
+        "tags": [
+          "chat"
+        ]
+      }
+    },
+    "/conversations/folders/counts": {
+      "get": {
+        "operationId": "folderCounts",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatFolderCountsEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Waiting / Requests folder badges (owner 2026-10-01)",
         "tags": [
           "chat"
         ]
@@ -26704,6 +26771,113 @@
           }
         ],
         "summary": "Mark read up to a message (§8.4)",
+        "tags": [
+          "chat"
+        ]
+      }
+    },
+    "/conversations/{id}/organize": {
+      "patch": {
+        "operationId": "organizeConversation",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrganizeConversationDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CONVERSATION_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "My folder (primary/general/auto), \"waiting for my answer\", a pinned note, pin to top",
         "tags": [
           "chat"
         ]
@@ -42212,6 +42386,13 @@
           "createdAt"
         ]
       },
+      "ChatFolder": {
+        "type": "string",
+        "enum": [
+          "primary",
+          "general"
+        ]
+      },
       "ConversationKind": {
         "type": "string",
         "enum": [
@@ -42292,6 +42473,31 @@
             "format": "date-time",
             "type": "string"
           },
+          "folder": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ChatFolder"
+              }
+            ]
+          },
+          "folderAuto": {
+            "type": "boolean",
+            "description": "true = the folder is chosen automatically."
+          },
+          "waitingSince": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          },
+          "pinnedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
           "kind": {
             "description": "OQ-043: a case chat or a direct chat from a profile.",
             "allOf": [
@@ -42319,6 +42525,8 @@
           "counterpart",
           "unreadCount",
           "updatedAt",
+          "folder",
+          "folderAuto",
           "kind",
           "requestStatus",
           "requestedByMe"
@@ -42327,7 +42535,10 @@
       "ConversationFolder": {
         "type": "string",
         "enum": [
+          "all",
           "primary",
+          "general",
+          "waiting",
           "requests"
         ]
       },
@@ -42339,6 +42550,35 @@
             "items": {
               "$ref": "#/components/schemas/ConversationDto"
             }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "ChatFolderCountsDto": {
+        "type": "object",
+        "properties": {
+          "waiting": {
+            "type": "number"
+          },
+          "requests": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "waiting",
+          "requests"
+        ]
+      },
+      "ChatFolderCountsEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ChatFolderCountsDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
@@ -42530,6 +42770,34 @@
         "required": [
           "data"
         ]
+      },
+      "OrganizeConversationDto": {
+        "type": "object",
+        "properties": {
+          "folder": {
+            "enum": [
+              "primary",
+              "general",
+              "auto"
+            ],
+            "type": "string",
+            "description": "auto = case chats Primary, direct chats General."
+          },
+          "waiting": {
+            "type": "boolean",
+            "description": "\"Waiting for my answer\" on / off."
+          },
+          "note": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 280,
+            "description": "A note pinned on the chat; \"\" or null clears it."
+          },
+          "pinned": {
+            "type": "boolean",
+            "description": "Pinned to the top of my list."
+          }
+        }
       },
       "MuteConversationDto": {
         "type": "object",

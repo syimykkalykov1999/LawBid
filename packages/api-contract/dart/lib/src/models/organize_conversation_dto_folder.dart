@@ -4,25 +4,22 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+/// auto = case chats Primary, direct chats General.
 @JsonEnum()
-enum ConversationFolder {
-  @JsonValue('all')
-  all('all'),
+enum OrganizeConversationDtoFolder {
   @JsonValue('primary')
   primary('primary'),
   @JsonValue('general')
   general('general'),
-  @JsonValue('waiting')
-  waiting('waiting'),
-  @JsonValue('requests')
-  requests('requests'),
+  @JsonValue('auto')
+  auto('auto'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);
 
-  const ConversationFolder(this.json);
+  const OrganizeConversationDtoFolder(this.json);
 
-  factory ConversationFolder.fromJson(String json) =>
+  factory OrganizeConversationDtoFolder.fromJson(String json) =>
       values.firstWhere((e) => e.json == json, orElse: () => $unknown);
 
   final String? json;
@@ -41,6 +38,6 @@ enum ConversationFolder {
   String toString() => json?.toString() ?? super.toString();
 
   /// Returns all defined enum values excluding the $unknown value.
-  static List<ConversationFolder> get $valuesDefined =>
+  static List<OrganizeConversationDtoFolder> get $valuesDefined =>
       values.where((value) => value != $unknown).toList();
 }

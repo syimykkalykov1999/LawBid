@@ -34,6 +34,8 @@ import {
   StartDirectChatDto,
   type ConversationPage,
   type MessagePage,
+  ChatFolderCountsDto,
+  OrganizeConversationDto,
 } from './chat.dto';
 import { ChatService } from './chat.service';
 import { RequiresDuty } from '../auth/assistant/assistant-context';
@@ -57,6 +59,15 @@ export class ChatController {
     @Query() q: ConversationsQueryDto,
   ): Promise<ConversationPage> {
     return this.chat.list(user, q.cursor, q.updatedSince, q.folder);
+  }
+
+  @Get('folders/counts')
+  @ApiOperation({
+    summary: 'Waiting / Requests folder badges (owner 2026-10-01)',
+  })
+  @ApiEnvelopeResponse(ChatFolderCountsDto)
+  folderCounts(@CurrentUser() user: RequestUser): Promise<ChatFolderCountsDto> {
+    return this.chat.folderCounts(user);
   }
 
   @Get('requests/count')
@@ -179,6 +190,24 @@ export class ChatController {
     @Body() dto: ReadConversationDto,
   ): Promise<{ lastReadMessageId: string | null }> {
     return this.chat.read(user, p.id, dto.lastReadMessageId);
+  }
+
+  @Patch(':id/organize')
+  @ApiOperation({
+    summary:
+      'My folder (primary/general/auto), "waiting for my answer", a pinned note, pin to top',
+  })
+  @ApiEnvelopeResponse(ConversationDto)
+  @ApiErrors({
+    400: [ErrorCode.VALIDATION_ERROR],
+    404: [ErrorCode.CONVERSATION_NOT_FOUND],
+  })
+  organizeConversation(
+    @CurrentUser() user: RequestUser,
+    @Param() p: ConversationIdParamDto,
+    @Body() dto: OrganizeConversationDto,
+  ): Promise<ConversationDto> {
+    return this.chat.organize(user, p.id, dto);
   }
 
   @Patch(':id/mute')

@@ -86,6 +86,45 @@ final messageRequestsProvider = AsyncNotifierProvider.autoDispose<
   retry: _noRetry,
 );
 
+/// Owner 2026-10-01: one chat folder (All · Primary · General · Waiting).
+class FolderConversationsNotifier extends ConversationsNotifier {
+  FolderConversationsNotifier(this.folder);
+
+  final ChatListFolder folder;
+
+  @override
+  Future<CursorPage<Conversation>> fetch(String? cursor) => ref
+      .read(chatRepositoryProvider)
+      .conversations(cursor: cursor, folder: folder);
+}
+
+final folderConversationsProvider = AsyncNotifierProvider.autoDispose
+    .family<FolderConversationsNotifier, PaginatedList<Conversation>,
+        ChatListFolder>(
+  FolderConversationsNotifier.new,
+  retry: _noRetry,
+);
+
+/// Waiting / Requests badges; re-read on chat events.
+final chatFolderCountsProvider =
+    FutureProvider.autoDispose<({int waiting, int requests})>((ref) {
+  final sub = ref.watch(realtimeEventsProvider).listen((e) {
+    if (e.name == 'message:new' || e.name == 'conversation:update') {
+      ref.invalidateSelf();
+    }
+  });
+  ref.onDispose(sub.cancel);
+  return ref.watch(chatRepositoryProvider).folderCounts();
+}, retry: _noRetry);
+
+/// After organizing a chat every folder list and the badges reload.
+void refreshChatFolders(WidgetRef ref) {
+  ref
+    ..invalidate(folderConversationsProvider)
+    ..invalidate(conversationsProvider)
+    ..invalidate(chatFolderCountsProvider);
+}
+
 /// How many requests wait for me — the "Requests · N" row; re-read on new
 /// messages and chat updates.
 final messageRequestsCountProvider = FutureProvider.autoDispose<int>((ref) {

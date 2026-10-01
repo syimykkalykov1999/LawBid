@@ -32,6 +32,9 @@ import {
   type MessageDto,
   type MessagePage,
   type SendMessageDto,
+  ChatFolderCountsDto,
+  type ConversationFolderName,
+  OrganizeConversationDto,
 } from './chat.dto';
 
 const CONVERSATIONS_PAGE = 20;
@@ -89,31 +92,103 @@ export class ChatService {
     private readonly blocks: BlocksService,
   ) {}
 
+  /**
+   * Owner 2026-10-01: the folder filter. "all" = everything but requests
+   * sent to me; primary / general by my choice or automatically (case
+   * chats are Primary); waiting = marked "waiting for my answer".
+   */
+  private folderWhere(
+    me: string,
+    folder: ConversationFolderName,
+  ): Prisma.ConversationWhereInput[] {
+    // OQ-043: requests sent to me wait in "Requests".
+    if (folder === 'requests') {
+      return [{ request_status: 'pending', requested_by: { not: me } }];
+    }
+    const notRequest: Prisma.ConversationWhereInput = {
+      OR: [
+        { request_status: { in: ['none', 'accepted'] } },
+        { requested_by: me },
+      ],
+    };
+    const mine = (w: Prisma.ConversationParticipantWhereInput) => ({
+      participants: { some: { user_id: me, ...w } },
+    });
+    switch (folder) {
+      case 'primary':
+        return [
+          notRequest,
+          {
+            OR: [
+              mine({ folder: 'primary' }),
+              { case_id: { not: null }, ...mine({ folder: null }) },
+            ],
+          },
+        ];
+      case 'general':
+        return [
+          notRequest,
+          {
+            OR: [
+              mine({ folder: 'general' }),
+              { case_id: null, ...mine({ folder: null }) },
+            ],
+          },
+        ];
+      case 'waiting':
+        return [notRequest, mine({ waiting_since: { not: null } })];
+      default:
+        return [notRequest];
+    }
+  }
+
   async list(
     user: RequestUser,
     cursor?: string,
     updatedSince?: string,
-    folder: 'primary' | 'requests' = 'primary',
+    folder: ConversationFolderName = 'all',
   ): Promise<ConversationPage> {
     if (!this.sideOf(user)) return { items: [], nextCursor: null };
     const c = cursor ? decodeCursor(cursor) : undefined;
+    const filters = this.folderWhere(user.sub, folder);
+    // Pinned chats lead the first page; the paged list skips them.
+    const firstPage = !c && !updatedSince;
+    const pinnedFilter: Prisma.ConversationWhereInput = {
+      participants: { some: { user_id: user.sub, pinned_at: { not: null } } },
+    };
+    const pinned = firstPage
+      ? await this.prisma.conversation.findMany({
+          where: {
+            AND: [
+              { OR: [{ client_id: user.sub }, { attorney_id: user.sub }] },
+              ...filters,
+              pinnedFilter,
+            ],
+            last_message_at: { not: null },
+          },
+          take: 50,
+        })
+      : [];
+    const pinnedAt = new Map(
+      (
+        await this.prisma.conversationParticipant.findMany({
+          where: {
+            user_id: user.sub,
+            conversation_id: { in: pinned.map((p) => p.id) },
+          },
+          select: { conversation_id: true, pinned_at: true },
+        })
+      ).map((p) => [p.conversation_id, p.pinned_at?.getTime() ?? 0]),
+    );
+    pinned.sort(
+      (a, b) => (pinnedAt.get(b.id) ?? 0) - (pinnedAt.get(a.id) ?? 0),
+    );
     const rows = await this.prisma.conversation.findMany({
       where: {
         AND: [
           { OR: [{ client_id: user.sub }, { attorney_id: user.sub }] },
-          // OQ-043: requests sent to me wait in "Requests"; everything
-          // else (case chats, accepted chats, my own requests) is primary.
-          folder === 'requests'
-            ? {
-                request_status: 'pending',
-                requested_by: { not: user.sub },
-              }
-            : {
-                OR: [
-                  { request_status: { in: ['none', 'accepted'] } },
-                  { requested_by: user.sub },
-                ],
-              },
+          ...filters,
+          ...(updatedSince ? [] : [{ NOT: pinnedFilter }]),
         ],
         // A chat appears in the list once it has a message (§8.1).
         last_message_at: { not: null },
@@ -135,12 +210,74 @@ export class ChatService {
     const page = rows.slice(0, CONVERSATIONS_PAGE);
     const last = page[page.length - 1];
     return {
-      items: await this.present(page, user.sub),
+      items: await this.present([...pinned, ...page], user.sub),
       nextCursor:
         rows.length > CONVERSATIONS_PAGE && last?.last_message_at
           ? encodeCursor({ createdAt: last.last_message_at, id: last.id })
           : null,
     };
+  }
+
+  /** Owner 2026-10-01: folder, "waiting for my answer", note, pin. */
+  async organize(
+    user: RequestUser,
+    id: string,
+    dto: OrganizeConversationDto,
+  ): Promise<ConversationDto> {
+    await this.load(user, id);
+    const current = await this.prisma.conversationParticipant.findUnique({
+      where: {
+        conversation_id_user_id: { conversation_id: id, user_id: user.sub },
+      },
+      select: { waiting_since: true, pinned_at: true },
+    });
+    const data: Prisma.ConversationParticipantUncheckedUpdateInput = {
+      ...(dto.folder !== undefined
+        ? { folder: dto.folder === 'auto' ? null : dto.folder }
+        : {}),
+      ...(dto.waiting !== undefined
+        ? {
+            waiting_since: dto.waiting
+              ? (current?.waiting_since ?? new Date())
+              : null,
+          }
+        : {}),
+      ...(dto.note !== undefined ? { note: dto.note ? dto.note : null } : {}),
+      ...(dto.pinned !== undefined
+        ? {
+            pinned_at: dto.pinned ? (current?.pinned_at ?? new Date()) : null,
+          }
+        : {}),
+    };
+    await this.prisma.conversationParticipant.upsert({
+      where: {
+        conversation_id_user_id: { conversation_id: id, user_id: user.sub },
+      },
+      create: {
+        ...(data as Prisma.ConversationParticipantUncheckedCreateInput),
+        conversation_id: id,
+        user_id: user.sub,
+      },
+      update: data,
+    });
+    return this.get(user, id);
+  }
+
+  /** Owner 2026-10-01: badges of the Waiting and Requests folders. */
+  async folderCounts(user: RequestUser): Promise<ChatFolderCountsDto> {
+    if (!this.sideOf(user)) return { waiting: 0, requests: 0 };
+    const [waiting, requests] = await Promise.all([
+      this.prisma.conversation.count({
+        where: {
+          AND: [
+            { OR: [{ client_id: user.sub }, { attorney_id: user.sub }] },
+            ...this.folderWhere(user.sub, 'waiting'),
+          ],
+        },
+      }),
+      this.requestsCount(user),
+    ]);
+    return { waiting, requests: requests.count };
   }
 
   async get(user: RequestUser, id: string): Promise<ConversationDto> {
@@ -865,6 +1002,10 @@ export class ChatService {
             user_id: true,
             last_read_message_id: true,
             muted_until: true,
+            folder: true,
+            waiting_since: true,
+            note: true,
+            pinned_at: true,
           },
         }),
         this.prisma.$queryRaw<{ id: string; n: bigint }[]>`
@@ -946,6 +1087,16 @@ export class ChatService {
         requestStatus: c.request_status,
         requestedByMe: c.requested_by === viewerId,
         updatedAt: c.updated_at,
+        ...(() => {
+          const me = partOf.get(`${c.id}:${viewerId}`);
+          return {
+            folder: me?.folder ?? (c.case_id ? 'primary' : 'general'),
+            folderAuto: !me?.folder,
+            waitingSince: me?.waiting_since ?? null,
+            note: me?.note ?? null,
+            pinnedAt: me?.pinned_at ?? null,
+          };
+        })(),
       });
     }
     return out;

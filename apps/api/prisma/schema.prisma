@@ -1698,6 +1698,14 @@ model Conversation {
   @@map("conversations")
 }
 
+/// Owner 2026-10-01: a member's own chat folder.
+enum ChatFolder {
+  primary
+  general
+
+  @@map("chat_folder")
+}
+
 model ConversationParticipant {
   conversation_id      String       @db.Uuid
   conversation         Conversation @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
@@ -1705,6 +1713,14 @@ model ConversationParticipant {
   user                 User         @relation(fields: [user_id], references: [id], onDelete: Cascade)
   last_read_message_id String?      @db.Uuid
   muted_until          DateTime?    @db.Timestamptz
+  /// Owner 2026-10-01: my folder for this chat; null = automatic (a case
+  /// chat is Primary, a direct chat General).
+  folder               ChatFolder?
+  /// "Waiting for my answer" since (the Waiting folder).
+  waiting_since        DateTime?    @db.Timestamptz
+  /// My note pinned on the chat ("send him the documents").
+  note                 String?      @db.String(280)
+  pinned_at            DateTime?    @db.Timestamptz
   created_at           DateTime     @default(now()) @db.Timestamptz
   updated_at           DateTime     @updatedAt @db.Timestamptz
 

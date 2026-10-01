@@ -51,7 +51,28 @@ class Conversation {
     this.isDirect = false,
     this.request = MessageRequest.none,
     this.requestedByMe = false,
+    this.folder = ChatFolder.general,
+    this.folderAuto = true,
+    this.waitingSince,
+    this.note,
+    this.pinnedAt,
   });
+
+  /// Owner 2026-10-01: my folder (case chats Primary by default).
+  final ChatFolder folder;
+
+  /// true = chosen automatically (not moved by me).
+  final bool folderAuto;
+
+  /// "Waiting for my answer" since — the Waiting folder.
+  final DateTime? waitingSince;
+
+  /// My note pinned on the chat ("send him the documents").
+  final String? note;
+  final DateTime? pinnedAt;
+
+  bool get waiting => waitingSince != null;
+  bool get pinned => pinnedAt != null;
 
   /// OQ-043: started from a profile ("Message"), not from a case.
   final bool isDirect;
@@ -89,6 +110,12 @@ class Conversation {
   bool get muted => mutedUntil != null && mutedUntil!.isAfter(DateTime.now());
   bool get closed => status == ConversationStatus.closed;
 }
+
+/// Owner 2026-10-01: Instagram-like folders of the chat list.
+enum ChatFolder { primary, general }
+
+/// The chat list's sub-tabs: All · Primary · General · Waiting · Requests.
+enum ChatListFolder { all, primary, general, waiting, requests }
 
 // OQ-047: `attachment` — a photo or a document after acceptance.
 enum MessageKind { text, system, voice, call, attachment }

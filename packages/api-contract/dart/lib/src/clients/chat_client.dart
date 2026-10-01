@@ -5,6 +5,7 @@
 import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
+import '../models/chat_folder_counts_envelope.dart';
 import '../models/conversation_envelope.dart';
 import '../models/conversation_folder.dart';
 import '../models/conversation_list_envelope.dart';
@@ -12,6 +13,7 @@ import '../models/message_envelope.dart';
 import '../models/message_list_envelope.dart';
 import '../models/messages_filter.dart';
 import '../models/mute_conversation_dto.dart';
+import '../models/organize_conversation_dto.dart';
 import '../models/read_conversation_dto.dart';
 import '../models/read_result_envelope.dart';
 import '../models/requests_count_envelope.dart';
@@ -30,12 +32,18 @@ abstract class ChatClient {
   ///
   /// [updatedSince] - Only conversations changed since (ISO time) — catch-up after a reconnect (§8.5).
   ///
-  /// [folder] - OQ-043: "requests" = message requests sent to me.
+  /// [folder] - Owner 2026-10-01: all · primary (case chats by default) · general · waiting (marked "waiting for my answer") · requests (OQ-043, message requests sent to me).
   @GET('/conversations')
   Future<ConversationListEnvelope> listConversations({
     @Query('cursor') String? cursor,
     @Query('updatedSince') String? updatedSince,
     @Query('folder') ConversationFolder? folder,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Waiting / Requests folder badges (owner 2026-10-01)
+  @GET('/conversations/folders/counts')
+  Future<ChatFolderCountsEnvelope> folderCounts({
     @Extras() Map<String, dynamic>? extras,
   });
 
@@ -110,6 +118,14 @@ abstract class ChatClient {
   Future<ReadResultEnvelope> readConversation({
     @Path('id') required String id,
     @Body() required ReadConversationDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// My folder (primary/general/auto), "waiting for my answer", a pinned note, pin to top
+  @PATCH('/conversations/{id}/organize')
+  Future<ConversationEnvelope> organizeConversation({
+    @Path('id') required String id,
+    @Body() required OrganizeConversationDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

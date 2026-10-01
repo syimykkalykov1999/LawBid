@@ -12,8 +12,26 @@ import 'package:lawbid/shared/domain/cursor_page.dart';
 
 /// docs/05 §8 chats for the app. Throws [ApiException].
 abstract interface class ChatRepository {
-  Future<CursorPage<Conversation>> conversations(
-      {String? cursor, DateTime? updatedSince, bool requests = false});
+  Future<CursorPage<Conversation>> conversations({
+    String? cursor,
+    DateTime? updatedSince,
+    bool requests = false,
+    ChatListFolder folder = ChatListFolder.all,
+  });
+
+  /// Owner 2026-10-01: move to a folder (null = automatic), "waiting for
+  /// my answer", a pinned note ("" clears), pin to the top.
+  Future<Conversation> organize(
+    String id, {
+    ChatFolder? folder,
+    bool resetFolder = false,
+    bool? waiting,
+    String? note,
+    bool? pinned,
+  });
+
+  /// Badges of the Waiting and Requests folders.
+  Future<({int waiting, int requests})> folderCounts();
 
   /// OQ-043: the direct chat with [userId] ("Message" on a profile).
   Future<Conversation> startDirect(String userId);
@@ -279,17 +297,56 @@ class ApiChatRepository implements ChatRepository {
           .data);
 
   @override
-  Future<CursorPage<Conversation>> conversations(
-      {String? cursor, DateTime? updatedSince, bool requests = false}) async {
+  Future<CursorPage<Conversation>> conversations({
+    String? cursor,
+    DateTime? updatedSince,
+    bool requests = false,
+    ChatListFolder folder = ChatListFolder.all,
+  }) async {
+    final f = requests ? ChatListFolder.requests : folder;
     final env = await guardApiCall(() => _chat.listConversations(
           cursor: cursor,
           updatedSince: updatedSince?.toUtc().toIso8601String(),
-          folder: requests ? api.ConversationFolder.requests : null,
+          folder: f == ChatListFolder.all
+              ? null
+              : api.ConversationFolder.fromJson(f.name),
         ));
     return CursorPage(
       items: env.data.map(ChatMappers.conversation).toList(),
       nextCursor: env.meta?.nextCursor,
     );
+  }
+
+  @override
+  Future<Conversation> organize(
+    String id, {
+    ChatFolder? folder,
+    bool resetFolder = false,
+    bool? waiting,
+    String? note,
+    bool? pinned,
+  }) async =>
+      ChatMappers.conversation((await guardApiCall(() => _chat
+              .organizeConversation(
+                id: id,
+                body: api.OrganizeConversationDto(
+                  folder: resetFolder
+                      ? api.OrganizeConversationDtoFolder.auto
+                      : folder == null
+                          ? null
+                          : api.OrganizeConversationDtoFolder.fromJson(
+                              folder.name),
+                  waiting: waiting,
+                  note: note,
+                  pinned: pinned,
+                ),
+              )))
+          .data);
+
+  @override
+  Future<({int waiting, int requests})> folderCounts() async {
+    final d = (await guardApiCall(_chat.folderCounts)).data;
+    return (waiting: d.waiting.toInt(), requests: d.requests.toInt());
   }
 
   @override
@@ -483,6 +540,13 @@ abstract final class ChatMappers {
           _ => MessageRequest.none,
         },
         requestedByMe: d.requestedByMe,
+        folder: d.folder == api.ChatFolder.primary
+            ? ChatFolder.primary
+            : ChatFolder.general,
+        folderAuto: d.folderAuto,
+        waitingSince: d.waitingSince,
+        note: d.note,
+        pinnedAt: d.pinnedAt,
       );
 
   /// A realtime `message:new` payload (same shape as MessageDto).

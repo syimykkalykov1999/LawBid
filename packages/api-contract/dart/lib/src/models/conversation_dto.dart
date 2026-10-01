@@ -4,6 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'chat_folder.dart';
 import 'conversation_counterpart_dto.dart';
 import 'conversation_dto_status.dart';
 import 'conversation_kind.dart';
@@ -21,6 +22,8 @@ class ConversationDto {
     required this.counterpart,
     required this.unreadCount,
     required this.updatedAt,
+    required this.folder,
+    required this.folderAuto,
     required this.kind,
     required this.requestStatus,
     required this.requestedByMe,
@@ -30,6 +33,9 @@ class ConversationDto {
     this.lastMessageAt,
     this.mutedUntil,
     this.counterpartLastReadMessageId,
+    this.waitingSince,
+    this.note,
+    this.pinnedAt,
   });
 
   factory ConversationDto.fromJson(Map<String, Object?> json) =>
@@ -51,6 +57,13 @@ class ConversationDto {
   /// For "Seen" on own messages (§8.2).
   final String? counterpartLastReadMessageId;
   final DateTime updatedAt;
+  final ChatFolder folder;
+
+  /// true = the folder is chosen automatically.
+  final bool folderAuto;
+  final DateTime? waitingSince;
+  final String? note;
+  final DateTime? pinnedAt;
 
   /// OQ-043: a case chat or a direct chat from a profile.
   final ConversationKind kind;

@@ -8,6 +8,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
+import 'package:lawbid/features/chat/presentation/chat_folders.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/calls/presentation/call_log_entry.dart'
     show callLogKey;
@@ -38,7 +39,13 @@ class InboxScreen extends ConsumerStatefulWidget {
 }
 
 class _InboxScreenState extends ConsumerState<InboxScreen> {
-  late InboxTab _tab = widget.initialTab;
+  // Owner 2026-10-01: Requests live inside Chats as a folder.
+  late InboxTab _tab = widget.initialTab == InboxTab.requests
+      ? InboxTab.chats
+      : widget.initialTab;
+  late ChatListFolder _folder = widget.initialTab == InboxTab.requests
+      ? ChatListFolder.requests
+      : ChatListFolder.all;
 
   @override
   Widget build(BuildContext context) {
@@ -76,11 +83,10 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                   _InboxTabs(
                     value: tab,
                     tabs: [
-                      (InboxTab.chats, t.t('inbox.tab.chats'), badges.chats),
                       (
-                        InboxTab.requests,
-                        t.t('inbox.tab.requests'),
-                        requests,
+                        InboxTab.chats,
+                        t.t('inbox.tab.chats'),
+                        badges.chats + requests,
                       ),
                       if (showTeam)
                         (InboxTab.team, t.t('inbox.tab.team'), teamPending),
@@ -133,9 +139,13 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
               child: IndexedStack(
                 index: tab.index,
                 children: [
-                  const ConversationsView(),
+                  ConversationsView(
+                    folder: _folder,
+                    onFolder: (f) => setState(() => _folder = f),
+                  ),
                   const NotificationsView(),
-                  const MessageRequestsView(),
+                  // Requests moved into Chats (kept for the stack index).
+                  const SizedBox.shrink(),
                   if (showTeam) const TeamInboxTab(),
                 ],
               ),
@@ -334,29 +344,75 @@ String messagePreview(Translator t, ChatMessage m, {String? me}) {
 /// docs/05 §8.3 marker the server puts in place of a hidden contact.
 const kContactMask = '[контакт скрыт]';
 
-/// docs/05 §8.1 chats list.
+/// docs/05 §8.1 chats list. Owner 2026-10-01: Instagram-like folders on
+/// top — All · Primary · General · Waiting · Requests.
 class ConversationsView extends ConsumerWidget {
-  const ConversationsView({super.key});
+  const ConversationsView({
+    this.folder = ChatListFolder.all,
+    this.onFolder,
+    super.key,
+  });
+
+  final ChatListFolder folder;
+  final ValueChanged<ChatListFolder>? onFolder;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translatorProvider);
-    final value = ref.watch(conversationsProvider);
-    final n = ref.read(conversationsProvider.notifier);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final attorney = ref.watch(actsAsAttorneyProvider);
-    return PagedListBody<Conversation>(
-      value: value,
-      t: t,
-      itemKey: (c) => c.id,
-      itemBuilder: (context, c, _) => ConversationRow(conversation: c),
-      empty: AppEmptyState(
-        icon: Icons.forum_outlined,
-        title: t.t('chat.empty.title'),
-        message: t.t(attorney ? 'chat.empty.attorney' : 'chat.empty.client'),
-      ),
-      onRefresh: n.refresh,
-      onLoadMore: n.loadMore,
-      onRetryMore: n.retryLoadMore,
+    Widget body;
+    if (folder == ChatListFolder.requests) {
+      body = const MessageRequestsView();
+    } else {
+      final provider = folder == ChatListFolder.all
+          ? conversationsProvider
+          : folderConversationsProvider(folder);
+      final value = ref.watch(provider);
+      final n = ref.read(provider.notifier);
+      body = PagedListBody<Conversation>(
+        value: value,
+        t: t,
+        itemKey: (c) => c.id,
+        itemBuilder: (context, c, _) => ConversationRow(conversation: c),
+        header: folder == ChatListFolder.waiting
+            ? Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                child: Text(t.t('chat.folder.waiting.explain'),
+                    style:
+                        type.bodySmall.copyWith(color: colors.textSecondary)),
+              )
+            : null,
+        empty: folder == ChatListFolder.all
+            ? AppEmptyState(
+                icon: Icons.forum_outlined,
+                title: t.t('chat.empty.title'),
+                message: t.t(
+                    attorney ? 'chat.empty.attorney' : 'chat.empty.client'),
+              )
+            : AppEmptyState(
+                icon: folder == ChatListFolder.waiting
+                    ? Icons.hourglass_empty_rounded
+                    : Icons.forum_outlined,
+                message: t.t('chat.folder.${folder.name}.empty'),
+              ),
+        onRefresh: () async {
+          ref.invalidate(chatFolderCountsProvider);
+          await n.refresh();
+        },
+        onLoadMore: n.loadMore,
+        onRetryMore: n.retryLoadMore,
+      );
+    }
+    return Column(
+      children: [
+        if (onFolder != null) ...[
+          ChatFolderPills(value: folder, onChanged: onFolder!),
+          const SizedBox(height: AppSpacing.sm),
+        ],
+        Expanded(child: body),
+      ],
     );
   }
 }
@@ -463,16 +519,34 @@ class ConversationRow extends ConsumerWidget {
                               Icon(Icons.notifications_off_outlined,
                                   size: 14, color: colors.textSecondary),
                             ],
+                            if (c.pinned) ...[
+                              const SizedBox(width: AppSpacing.xs),
+                              Icon(Icons.push_pin,
+                                  size: 14, color: colors.goldDark),
+                            ],
                           ],
                         ),
                       ),
-                      const SizedBox(width: AppSpacing.xs),
-                      if (c.lastMessageAt != null)
-                        Text(
-                          SocialFormat.ago(t, f, c.lastMessageAt!),
-                          style: type.caption.copyWith(
-                            color:
-                                unread ? colors.goldDark : colors.textSecondary,
+                      // Owner 2026-10-01: the chat's menu at the top right —
+                      // pin, move to a folder, waiting + a note.
+                      if (!c.awaitingMyAnswer)
+                        Semantics(
+                          button: true,
+                          label: t.t('chat.organize.title'),
+                          child: InkResponse(
+                            key: ValueKey('chat-organize-${c.id}'),
+                            radius: 22,
+                            onTap: () =>
+                                showChatOrganizeSheet(context, ref, c),
+                            child: Padding(
+                              padding: const EdgeInsets.only(left: 6),
+                              child: SizedBox(
+                                width: 32,
+                                height: 28,
+                                child: Icon(Icons.more_horiz_rounded,
+                                    color: colors.textSecondary),
+                              ),
+                            ),
                           ),
                         ),
                     ],
@@ -499,24 +573,91 @@ class ConversationRow extends ConsumerWidget {
                       ],
                     ],
                   ),
-                  if (c.caseTitle != null) ...[
+                  // Owner 2026-10-01: my note on the chat, visible without
+                  // opening it ("send him the documents").
+                  if (c.note != null && c.note!.isNotEmpty) ...[
                     const SizedBox(height: AppSpacing.xs),
-                    _CaseChip(title: c.caseTitle!, closed: c.closed),
-                  ] else if (c.isDirect && c.counterpart.username != null) ...[
-                    // OQ-043: a direct chat is labelled with the @username.
-                    const SizedBox(height: AppSpacing.xs),
-                    _CaseChip(
-                      // Owner 2026-09-30: my unanswered request says so.
-                      title: c.myRequestPending
-                          ? '@${c.counterpart.username} · '
-                              '${t.t('chat.requests.sent')}'
-                          : '@${c.counterpart.username}',
-                      closed: false,
-                      icon: c.myRequestPending
-                          ? Icons.schedule_send_outlined
-                          : Icons.person_outline_rounded,
+                    Container(
+                      key: ValueKey('chat-note-${c.id}'),
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.sm, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: colors.goldTint,
+                        borderRadius: BorderRadius.circular(AppRadii.field),
+                        border: Border(
+                          left: BorderSide(color: colors.gold, width: 2),
+                        ),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(Icons.sticky_note_2_outlined,
+                              size: 14, color: colors.goldDark),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              c.note!,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style:
+                                  type.caption.copyWith(color: colors.text),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
+                  const SizedBox(height: AppSpacing.xs),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Wrap(
+                          spacing: AppSpacing.xs,
+                          runSpacing: AppSpacing.xs,
+                          children: [
+                            if (c.caseTitle != null)
+                              _CaseChip(title: c.caseTitle!, closed: c.closed)
+                            else if (c.isDirect &&
+                                c.counterpart.username != null)
+                              // OQ-043: a direct chat is labelled with the
+                              // @username.
+                              _CaseChip(
+                                // Owner 2026-09-30: my unanswered request.
+                                title: c.myRequestPending
+                                    ? '@${c.counterpart.username} · '
+                                        '${t.t('chat.requests.sent')}'
+                                    : '@${c.counterpart.username}',
+                                closed: false,
+                                icon: c.myRequestPending
+                                    ? Icons.schedule_send_outlined
+                                    : Icons.person_outline_rounded,
+                              ),
+                            if (c.waiting)
+                              _CaseChip(
+                                key: ValueKey('chat-waiting-${c.id}'),
+                                title: t.t('chat.waiting.chip', {
+                                  'ago': SocialFormat.ago(t, f, c.waitingSince!),
+                                }),
+                                closed: false,
+                                icon: Icons.hourglass_top_rounded,
+                              ),
+                          ],
+                        ),
+                      ),
+                      // Owner 2026-10-01: the time at the bottom right.
+                      if (c.lastMessageAt != null) ...[
+                        const SizedBox(width: AppSpacing.sm),
+                        Text(
+                          SocialFormat.ago(t, f, c.lastMessageAt!),
+                          style: type.caption.copyWith(
+                            color:
+                                unread ? colors.goldDark : colors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -528,7 +669,12 @@ class ConversationRow extends ConsumerWidget {
 }
 
 class _CaseChip extends StatelessWidget {
-  const _CaseChip({required this.title, required this.closed, this.icon});
+  const _CaseChip({
+    required this.title,
+    required this.closed,
+    this.icon,
+    super.key,
+  });
 
   final String title;
   final bool closed;

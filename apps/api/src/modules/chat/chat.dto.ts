@@ -1,6 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import {
   ArrayMaxSize,
+  IsBoolean,
   IsIn,
   IsInt,
   IsISO8601,
@@ -37,6 +39,15 @@ export class MessageIdParamDto {
   messageId!: string;
 }
 
+export const CONVERSATION_FOLDERS = [
+  'all',
+  'primary',
+  'general',
+  'waiting',
+  'requests',
+] as const;
+export type ConversationFolderName = (typeof CONVERSATION_FOLDERS)[number];
+
 export class ConversationsQueryDto {
   @ApiPropertyOptional({ description: 'meta.nextCursor of the previous page.' })
   @IsOptional()
@@ -53,14 +64,55 @@ export class ConversationsQueryDto {
   updatedSince?: string;
 
   @ApiPropertyOptional({
-    enum: ['primary', 'requests'],
+    enum: CONVERSATION_FOLDERS,
     enumName: 'ConversationFolder',
-    default: 'primary',
-    description: 'OQ-043: "requests" = message requests sent to me.',
+    default: 'all',
+    description:
+      'Owner 2026-10-01: all · primary (case chats by default) · general · waiting (marked "waiting for my answer") · requests (OQ-043, message requests sent to me).',
   })
   @IsOptional()
-  @IsIn(['primary', 'requests'])
-  folder?: 'primary' | 'requests';
+  @IsIn(CONVERSATION_FOLDERS)
+  folder?: ConversationFolderName;
+}
+
+/** Owner 2026-10-01: my own organisation of a chat. */
+export class OrganizeConversationDto {
+  @ApiPropertyOptional({
+    enum: ['primary', 'general', 'auto'],
+    description: 'auto = case chats Primary, direct chats General.',
+  })
+  @IsOptional()
+  @IsIn(['primary', 'general', 'auto'])
+  folder?: 'primary' | 'general' | 'auto';
+
+  @ApiPropertyOptional({ description: '"Waiting for my answer" on / off.' })
+  @IsOptional()
+  @IsBoolean()
+  waiting?: boolean;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    maxLength: 280,
+    description: 'A note pinned on the chat; "" or null clears it.',
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
+  @IsString()
+  @MaxLength(280)
+  note?: string | null;
+
+  @ApiPropertyOptional({ description: 'Pinned to the top of my list.' })
+  @IsOptional()
+  @IsBoolean()
+  pinned?: boolean;
+}
+
+export class ChatFolderCountsDto {
+  @ApiProperty() waiting!: number;
+  @ApiProperty() requests!: number;
 }
 
 export class MessagesQueryDto {
@@ -361,6 +413,22 @@ export class ConversationDto {
 
   @ApiProperty()
   updatedAt!: Date;
+
+  // Owner 2026-10-01: my organisation of this chat.
+  @ApiProperty({ enum: ['primary', 'general'], enumName: 'ChatFolder' })
+  folder!: 'primary' | 'general';
+
+  @ApiProperty({ description: 'true = the folder is chosen automatically.' })
+  folderAuto!: boolean;
+
+  @ApiPropertyOptional({ type: Date, nullable: true })
+  waitingSince!: Date | null;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  note!: string | null;
+
+  @ApiPropertyOptional({ type: Date, nullable: true })
+  pinnedAt!: Date | null;
 
   @ApiProperty({
     enum: ['case', 'direct'],
