@@ -103,6 +103,15 @@ String? notificationRoute({
 /// The row text: the `notif.list.<type>` template with the actor's name
 /// and, for aggregated rows, "and N more" (§9.4).
 String notificationText(Translator t, AppNotification n) {
+  // Owner 2026-09-30: a message from the LawBid team carries its own text.
+  if (n.type == 'admin_broadcast') {
+    final title = n.payload['title'];
+    final body = n.payload['body'];
+    return [
+      if (title is String) title,
+      if (body is String) body,
+    ].join(' — ');
+  }
   final name = n.actor?.displayName ?? '';
   final others = n.aggregateCount - 1;
   if (others > 0) {
@@ -128,6 +137,7 @@ IconData _icon(AppNotification n) => switch (n.type) {
       'verification_update' => Icons.verified_rounded,
       'moderation_notice' => Icons.policy_rounded,
       'assistant_request' => Icons.fact_check_rounded,
+      'admin_broadcast' => Icons.campaign_rounded,
       'assistant_task' => Icons.event_note_rounded,
       'assistant_joined' || 'assistant_result' => Icons.support_agent_rounded,
       _ => switch (n.category) {

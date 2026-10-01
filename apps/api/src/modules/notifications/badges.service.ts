@@ -52,6 +52,16 @@ export class BadgesService {
     return shape(chats, notifs);
   }
 
+  /** OQ-048: an assistant sees the attorney's chats but their own
+   * notifications. */
+  async forAssistant(attorneyId: string, assistantId: string): Promise<Badges> {
+    const [chats, mine] = await Promise.all([
+      this.get(attorneyId),
+      this.get(assistantId),
+    ]);
+    return shape(chats.chatsUnread, mine.notificationsUnread);
+  }
+
   /** A notification row was written (maybe not committed yet): drop the
    * cached count so the next read recounts; the delivery job recounts
    * and publishes after commit. */

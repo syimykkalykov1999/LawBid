@@ -79,7 +79,9 @@ export class NotificationsApiController {
   @ApiOperation({ summary: 'Unread chats + notifications (§10)' })
   @ApiEnvelopeResponse(BadgesDto)
   getBadges(@CurrentUser() user: RequestUser): Promise<Badges> {
-    return this.badges.get(user.sub);
+    return user.assistant
+      ? this.badges.forAssistant(user.sub, user.assistant.userId)
+      : this.badges.get(user.sub);
   }
 
   // OQ-048: an assistant has their own notifications and devices.
