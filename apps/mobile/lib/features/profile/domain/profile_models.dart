@@ -494,11 +494,26 @@ class ClientReview {
     this.attorneyAvatarUrl,
     this.attorneyVerified = false,
     this.isMine = false,
+    this.authorIsClient = false,
+    this.canAppeal = false,
+    this.appealStatus,
   });
 
   final String id;
-  final String caseId;
-  final String caseTitle;
+
+  /// Owner 2026-09-30: null for a review written without a shared case.
+  final String? caseId;
+  final String? caseTitle;
+
+  /// The author is a client (anyone may review a client).
+  final bool authorIsClient;
+
+  /// The viewer is the reviewed client and may appeal it once.
+  final bool canAppeal;
+
+  /// `pending` | `accepted` | `rejected` | `auto_removed` — for the client
+  /// and the author only.
+  final String? appealStatus;
   final int rating;
   final String? body;
   final String attorneyId;

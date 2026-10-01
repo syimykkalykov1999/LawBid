@@ -122,7 +122,9 @@ class StarRatingInput extends StatelessWidget {
                     child: AnimatedSwitcher(
                       duration: reduce ? Duration.zero : AppMotion.stateChange,
                       child: Icon(
-                        n <= value ? Icons.star_rounded : Icons.star_outline_rounded,
+                        n <= value
+                            ? Icons.star_rounded
+                            : Icons.star_outline_rounded,
                         key: ValueKey(n <= value),
                         size: AppSizes.iconLg + AppSpacing.sm,
                         color: n <= value ? colors.gold : colors.textSecondary,

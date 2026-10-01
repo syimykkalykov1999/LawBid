@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/features/social/presentation/screens/create_post_screen.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'package:lawbid/core/config/app_environment.dart';
@@ -165,78 +166,15 @@ Future<void> showReportSheet(
   );
 }
 
-/// "Редактировать текст" (§3.3): text only, photos stay.
+/// Owner 2026-09-30: "Edit" opens the "+" form with the post's title,
+/// text and qualification (photos stay as published).
 Future<void> showEditPostSheet(BuildContext context, WidgetRef ref, Post post) {
-  return showAppBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    builder: (_) => _EditPostSheet(post: post),
+  return Navigator.of(context).push<void>(
+    MaterialPageRoute(
+      fullscreenDialog: true,
+      builder: (_) => CreatePostScreen(editing: post),
+    ),
   );
-}
-
-class _EditPostSheet extends ConsumerStatefulWidget {
-  const _EditPostSheet({required this.post});
-
-  final Post post;
-
-  @override
-  ConsumerState<_EditPostSheet> createState() => _EditPostSheetState();
-}
-
-class _EditPostSheetState extends ConsumerState<_EditPostSheet> {
-  late final _text = TextEditingController(text: widget.post.body);
-  bool _saving = false;
-
-  @override
-  void dispose() {
-    _text.dispose();
-    super.dispose();
-  }
-
-  Future<void> _save() async {
-    final t = ref.read(translatorProvider);
-    final body = _text.text.trim();
-    if (body.isEmpty || _saving) return;
-    setState(() => _saving = true);
-    final error =
-        await ref.read(socialActionsProvider).editPost(widget.post, body);
-    if (!mounted) return;
-    setState(() => _saving = false);
-    if (error != null) {
-      showAppSnackBar(context, errorText(t, error));
-      return;
-    }
-    Navigator.of(context).pop();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final t = ref.watch(translatorProvider);
-    final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    return Padding(
-      padding: EdgeInsets.only(
-        left: AppSpacing.screenSide,
-        right: AppSpacing.screenSide,
-        bottom: MediaQuery.viewInsetsOf(context).bottom + AppSpacing.lg,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const AppSheetHandle(),
-          Text(t.t('post.menu.edit'), style: type.titleMedium),
-          const SizedBox(height: AppSpacing.md),
-          PostTextField(controller: _text, autofocus: true),
-          const SizedBox(height: AppSpacing.lg),
-          AppButton(
-            label: t.t('common.save'),
-            isLoading: _saving,
-            onPressed: _save,
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 /// Multi-line post text with a live "n / 2200" counter.

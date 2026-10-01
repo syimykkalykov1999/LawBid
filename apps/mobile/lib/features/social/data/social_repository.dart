@@ -19,6 +19,27 @@ const kPostMaxPhotos = 9;
 /// docs/05 §3.1: post text limit (server-enforced too).
 const kPostMaxChars = 2200;
 
+/// Owner 2026-09-30: the card title limit (server-enforced too).
+const kPostTitleMaxChars = 120;
+
+/// What "+" publishes (owner 2026-09-30): title, text, the qualification,
+/// Post or News (attorneys), photos in order.
+class PostDraft {
+  const PostDraft({
+    required this.title,
+    required this.body,
+    required this.practiceCode,
+    this.isNews = false,
+    this.mediaFileIds = const [],
+  });
+
+  final String title;
+  final String body;
+  final String practiceCode;
+  final bool isNews;
+  final List<String> mediaFileIds;
+}
+
 /// docs/05 §5.1: comment length 1–1000.
 const kCommentMaxChars = 1000;
 
@@ -69,7 +90,13 @@ abstract interface class SocialRepository {
   /// The last first page seen online (docs/05 §2.2.6), for offline.
   Future<CursorPage<Post>?> cachedFeed();
   Future<Post> post(String id);
-  Future<CursorPage<Post>> attorneyPosts(String attorneyId, {String? cursor});
+
+  /// [newsOnly]: the profile's News tab (owner 2026-09-30).
+  Future<CursorPage<Post>> attorneyPosts(
+    String attorneyId, {
+    String? cursor,
+    bool newsOnly = false,
+  });
   Future<CursorPage<Post>> tagPosts(
     String tag,
     TagSort sort, {
@@ -77,10 +104,23 @@ abstract interface class SocialRepository {
     String? state,
   });
 
-  /// OQ-034: newest posts (of attorneys licensed in [state] when given).
-  Future<CursorPage<Post>> latestPosts(String? state, {String? cursor});
-  Future<Post> createPost(String body, List<String> mediaFileIds);
-  Future<Post> updatePost(String id, String body);
+  /// OQ-034: newest posts (of attorneys licensed in [state] when given);
+  /// owner 2026-09-30: of a qualification ([practice], a category with its
+  /// subcategories; older posts by their topic [tag]) and only News.
+  Future<CursorPage<Post>> latestPosts(
+    String? state, {
+    String? cursor,
+    String? practice,
+    String? tag,
+    bool newsOnly = false,
+  });
+  Future<Post> createPost(PostDraft draft);
+  Future<Post> updatePost(
+    String id, {
+    required String body,
+    String? title,
+    String? practiceCode,
+  });
   Future<void> deletePost(String id);
   Future<void> setLiked(String postId, {required bool liked});
 
@@ -196,9 +236,14 @@ class ApiSocialRepository implements SocialRepository {
   Future<CursorPage<Post>> attorneyPosts(
     String attorneyId, {
     String? cursor,
+    bool newsOnly = false,
   }) async {
     final env = await guardApiCall(
-      () => _posts.listAttorneyPosts(id: attorneyId, cursor: cursor),
+      () => _posts.listAttorneyPosts(
+        id: attorneyId,
+        cursor: cursor,
+        kind: newsOnly ? api.PostKind.news : null,
+      ),
     );
     return CursorPage(
       items: env.data.map(SocialMappers.post).toList(),
@@ -228,9 +273,21 @@ class ApiSocialRepository implements SocialRepository {
   }
 
   @override
-  Future<CursorPage<Post>> latestPosts(String? state, {String? cursor}) async {
+  Future<CursorPage<Post>> latestPosts(
+    String? state, {
+    String? cursor,
+    String? practice,
+    String? tag,
+    bool newsOnly = false,
+  }) async {
     final env = await guardApiCall(
-      () => _search.latestPosts(state: state, cursor: cursor),
+      () => _search.latestPosts(
+        state: state,
+        cursor: cursor,
+        practice: practice,
+        tag: tag,
+        kind: newsOnly ? api.PostKind.news : null,
+      ),
     );
     return CursorPage(
       items: env.data.map(SocialMappers.post).toList(),
@@ -239,13 +296,16 @@ class ApiSocialRepository implements SocialRepository {
   }
 
   @override
-  Future<Post> createPost(String body, List<String> mediaFileIds) async =>
-      SocialMappers.post(
+  Future<Post> createPost(PostDraft draft) async => SocialMappers.post(
         (await guardApiCall(
           () => _posts.createPost(
             body: api.CreatePostDto(
-              body: body,
-              mediaFileIds: mediaFileIds.isEmpty ? null : mediaFileIds,
+              title: draft.title,
+              practiceCode: draft.practiceCode,
+              kind: draft.isNews ? api.PostKind.news : api.PostKind.post,
+              body: draft.body,
+              mediaFileIds:
+                  draft.mediaFileIds.isEmpty ? null : draft.mediaFileIds,
             ),
             extras: _createsResource,
           ),
@@ -254,9 +314,22 @@ class ApiSocialRepository implements SocialRepository {
       );
 
   @override
-  Future<Post> updatePost(String id, String body) async => SocialMappers.post(
+  Future<Post> updatePost(
+    String id, {
+    required String body,
+    String? title,
+    String? practiceCode,
+  }) async =>
+      SocialMappers.post(
         (await guardApiCall(
-          () => _posts.updatePost(id: id, body: api.UpdatePostDto(body: body)),
+          () => _posts.updatePost(
+            id: id,
+            body: api.UpdatePostDto(
+              body: body,
+              title: title,
+              practiceCode: practiceCode,
+            ),
+          ),
         ))
             .data,
       );
@@ -620,6 +693,16 @@ abstract final class SocialMappers {
         ],
         tags: d.tags,
         mentions: [for (final m in d.mentions) SocialMappers.mention(m)],
+        title: d.title,
+        isNews: d.kind == api.PostKind.news,
+        practice: d.practice == null
+            ? null
+            : PostPractice(
+                code: d.practice!.code,
+                categoryCode: d.practice!.categoryCode,
+                nameEn: d.practice!.nameEn,
+                i18nKey: d.practice!.i18nKey,
+              ),
         likeCount: d.likeCount,
         commentCount: d.commentCount,
         shareCount: d.shareCount.toInt(),

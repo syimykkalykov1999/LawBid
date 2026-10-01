@@ -172,6 +172,9 @@ abstract final class ProfileMappers {
         attorneyVerified: d.attorney.verifiedBadge,
         isMine: d.isMine,
         createdAt: DateTime.parse(d.createdAt).toLocal(),
+        authorIsClient: d.attorney.role == api.ClientReviewAuthorDtoRole.client,
+        canAppeal: d.canAppeal,
+        appealStatus: d.appealStatus?.json,
       );
 
   static ClientProfileDetails client(api.ClientProfileDto d) =>

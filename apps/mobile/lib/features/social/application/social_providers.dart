@@ -1,6 +1,8 @@
 import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/features/feed/application/feed_topics.dart'
+    show topicTagFor;
 
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
@@ -145,6 +147,22 @@ final attorneyPostsProvider = AsyncNotifierProvider.autoDispose
   retry: _noRetry,
 );
 
+/// Owner 2026-09-30: the profile's News tab.
+class AttorneyNewsNotifier extends AttorneyPostsNotifier {
+  AttorneyNewsNotifier(super.attorneyId);
+
+  @override
+  Future<CursorPage<Post>> fetch(String? cursor) => ref
+      .read(socialRepositoryProvider)
+      .attorneyPosts(attorneyId, cursor: cursor, newsOnly: true);
+}
+
+final attorneyNewsProvider = AsyncNotifierProvider.autoDispose
+    .family<AttorneyPostsNotifier, PaginatedList<Post>, String>(
+  AttorneyNewsNotifier.new,
+  retry: _noRetry,
+);
+
 /// [state] (OQ-034): only posts of attorneys licensed there.
 typedef TagPostsKey = ({String tag, TagSort sort, String? state});
 
@@ -187,6 +205,41 @@ class LatestPostsNotifier extends PagedNotifier<Post> {
 final latestPostsProvider = AsyncNotifierProvider.autoDispose
     .family<LatestPostsNotifier, PaginatedList<Post>, String>(
   LatestPostsNotifier.new,
+  retry: _noRetry,
+);
+
+/// Owner 2026-09-30: the feed of one qualification (a category with its
+/// subcategories, or a subcategory) and/or only News, optionally of
+/// attorneys licensed in a state.
+typedef FilteredPostsKey = ({String? state, String? practice, bool news});
+
+class FilteredPostsNotifier extends PagedNotifier<Post> {
+  FilteredPostsNotifier(this.key);
+
+  final FilteredPostsKey key;
+
+  @override
+  Future<CursorPage<Post>> fetch(String? cursor) {
+    final practice = key.practice;
+    return ref.read(socialRepositoryProvider).latestPosts(
+          key.state,
+          cursor: cursor,
+          practice: practice,
+          // Older posts without a qualification: the category's hashtag.
+          tag: practice != null && !practice.contains('.')
+              ? topicTagFor(practice)
+              : null,
+          newsOnly: key.news,
+        );
+  }
+
+  @override
+  Object idOf(Post item) => item.id;
+}
+
+final filteredPostsProvider = AsyncNotifierProvider.autoDispose
+    .family<FilteredPostsNotifier, PaginatedList<Post>, FilteredPostsKey>(
+  FilteredPostsNotifier.new,
   retry: _noRetry,
 );
 
@@ -424,9 +477,20 @@ class SocialActions {
         _ref.read(deletedPostsProvider.notifier).add(post.id);
       });
 
-  Future<Object?> editPost(Post post, String body) =>
+  /// Owner 2026-09-30: title, text and qualification.
+  Future<Object?> editPost(
+    Post post, {
+    required String body,
+    String? title,
+    String? practiceCode,
+  }) =>
       _guard('edit:${post.id}', () async {
-        final updated = await _repo.updatePost(post.id, body);
+        final updated = await _repo.updatePost(
+          post.id,
+          body: body,
+          title: title,
+          practiceCode: practiceCode,
+        );
         _ref.read(postOverridesProvider.notifier).put(
               updated.copyWith(
                 likedByMe: _latest(post).likedByMe,

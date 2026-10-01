@@ -198,6 +198,13 @@ class _Body extends ConsumerWidget {
               ? StatusPill(label: t.t('cases.card.new'), tone: StatusTone.gold)
               : null,
         ),
+        // Owner 2026-09-30: another practice — bidding is allowed and the
+        // client is told.
+        if (!c.inMyPractice && c.ownBidId == null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.md),
+            child: OutsidePracticeNote(t: t, forClient: false),
+          ),
         if (c.ownBidId != null)
           DetailSection(
             title: t.t('cases.detail.yourBid'),

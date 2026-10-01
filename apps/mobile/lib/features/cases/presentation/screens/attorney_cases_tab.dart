@@ -106,6 +106,7 @@ class _AttorneyCasesTabState extends ConsumerState<AttorneyCasesTab> {
           onCategory: (v) => setState(() => _category = v),
           stateCode: _state,
           onState: (v) => setState(() => _state = v),
+          showNews: false,
         ),
         Expanded(
           child: LayoutBuilder(builder: (context, box) {

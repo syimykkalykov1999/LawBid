@@ -139,6 +139,11 @@ const kDefaultFeedTopicCategories = <String>[
 
 const _prefsKey = 'feed.topics.v1';
 
+/// Owner 2026-09-30: the "News" topic in the slider (not a practice code).
+const kNewsTopic = '@news';
+
+final _codeShape = RegExp(r'^[a-z0-9_]+(\.[a-z0-9_]+)?$');
+
 /// The categories in this user's topic slider, in catalog order; kept on
 /// the device (a per-viewer convenience).
 class FeedTopicsNotifier extends Notifier<List<String>> {
@@ -148,9 +153,11 @@ class FeedTopicsNotifier extends Notifier<List<String>> {
       final saved =
           ref.read(sharedPreferencesProvider).getStringList(_prefsKey);
       if (saved != null) {
+        // Owner 2026-09-30: any category or subcategory, in the order
+        // picked.
         return [
-          for (final c in kPracticeCategoryCodes)
-            if (saved.contains(c)) c,
+          for (final c in saved)
+            if (_codeShape.hasMatch(c)) c,
         ];
       }
     } on Object {
@@ -159,10 +166,12 @@ class FeedTopicsNotifier extends Notifier<List<String>> {
     return kDefaultFeedTopicCategories;
   }
 
-  void set(Set<String> categories) {
+  void set(Set<String> codes) {
     state = [
-      for (final c in kPracticeCategoryCodes)
-        if (categories.contains(c)) c,
+      for (final c in state)
+        if (codes.contains(c)) c,
+      for (final c in codes)
+        if (!state.contains(c) && _codeShape.hasMatch(c)) c,
     ];
     try {
       ref.read(sharedPreferencesProvider).setStringList(_prefsKey, state);

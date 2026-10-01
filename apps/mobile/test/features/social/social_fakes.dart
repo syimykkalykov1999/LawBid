@@ -95,7 +95,7 @@ class FakeSocialRepository implements SocialRepository {
 
   @override
   Future<CursorPage<Post>> attorneyPosts(String attorneyId,
-          {String? cursor}) async =>
+          {String? cursor, bool newsOnly = false}) async =>
       CursorPage(items: posts);
 
   @override

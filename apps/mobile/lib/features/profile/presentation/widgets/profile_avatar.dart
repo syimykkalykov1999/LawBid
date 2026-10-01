@@ -6,7 +6,8 @@ import 'package:lawbid/core/design_system/design_system.dart';
 
 /// Hero tag shared by every place an attorney's photo appears, so a list
 /// row (search, file 05) → profile → editor flies the same avatar.
-String attorneyAvatarHeroTag(String username) => 'attorney-avatar-${username.toLowerCase()}';
+String attorneyAvatarHeroTag(String username) =>
+    'attorney-avatar-${username.toLowerCase()}';
 
 /// Profile photo: [preview] bytes (a photo being uploaded) → [url] → the
 /// navy/gold initials seal. With [progress] a gold ring shows the upload.
@@ -56,7 +57,8 @@ class ProfileAvatar extends StatelessWidget {
           dimension: size + AppSpacing.sm,
           child: TweenAnimationBuilder<double>(
             tween: Tween(end: progress!.clamp(0, 1)),
-            duration: context.reduceMotion ? Duration.zero : AppMotion.stateChange,
+            duration:
+                context.reduceMotion ? Duration.zero : AppMotion.stateChange,
             builder: (context, v, _) => CircularProgressIndicator(
               value: v == 0 ? null : v,
               strokeWidth: AppSizes.footerSpinnerStroke + 1,
@@ -72,7 +74,8 @@ class ProfileAvatar extends StatelessWidget {
 
 /// Blue check (docs/03 §6.3). Status blue from docs/01 §8.1 (`info`).
 class VerifiedBadge extends StatelessWidget {
-  const VerifiedBadge({required this.semanticLabel, super.key, this.size = AppSizes.iconSm});
+  const VerifiedBadge(
+      {required this.semanticLabel, super.key, this.size = AppSizes.iconSm});
 
   final String semanticLabel;
   final double size;

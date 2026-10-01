@@ -19,9 +19,12 @@ class FakeCasesRepository implements CasesRepository {
   CursorPage<T> _empty<T>() => CursorPage<T>(items: const []);
 
   @override
-  Future<CursorPage<CaseSummary>> myCases(MyCasesFilter filter, {String? cursor}) async {
+  Future<CursorPage<CaseSummary>> myCases(MyCasesFilter filter, {String? cursor, MineSearch search = const MineSearch()}) async {
     calls.add('myCases:${filter.name}');
-    return CursorPage(items: filter == MyCasesFilter.active ? myCasesItems : const []);
+    return CursorPage(
+        items: filter == MyCasesFilter.active || filter == MyCasesFilter.open
+            ? myCasesItems
+            : const []);
   }
 
   @override
@@ -31,13 +34,13 @@ class FakeCasesRepository implements CasesRepository {
   Future<CursorPage<FeedCase>> feed({String? cursor, String? practiceAreaId, String? practiceCategory, String? state}) async => _empty();
 
   @override
-  Future<CursorPage<MyBid>> myBids(MyBidsFilter filter, {String? cursor}) async => _empty();
+  Future<CursorPage<MyBid>> myBids(MyBidsFilter filter, {String? cursor, MineSearch search = const MineSearch()}) async => _empty();
 
   @override
-  Future<CursorPage<WorkItem>> myWork(WorkFilter filter, {String? cursor}) async => _empty();
+  Future<CursorPage<WorkItem>> myWork(WorkFilter filter, {String? cursor, MineSearch search = const MineSearch()}) async => _empty();
 
   @override
-  Future<CursorPage<SavedCase>> savedCases({String? cursor}) async => _empty();
+  Future<CursorPage<SavedCase>> savedCases({String? cursor, MineSearch search = const MineSearch()}) async => _empty();
 
   @override
   Future<CursorPage<HistoryCase>> history(String reauthToken, {String? cursor}) async => _empty();

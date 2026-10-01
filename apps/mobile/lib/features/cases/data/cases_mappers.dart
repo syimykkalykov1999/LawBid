@@ -26,6 +26,7 @@ abstract final class CasesMappers {
 
   static CaseSummary summary(api.CaseSummaryDto c) => CaseSummary(
         id: c.id,
+        coverUrl: c.coverUrl,
         title: c.title,
         practice: practiceRef(c.practiceArea),
         primaryStateCode: c.primaryStateCode,
@@ -110,6 +111,7 @@ abstract final class CasesMappers {
         createdAt: b.createdAt.toLocal(),
         decidedAt: b.decidedAt?.toLocal(),
         attorney: attorney(b.attorney),
+        outsidePractice: b.outsidePractice,
       );
 
   static CaseBid bid(api.BidDto b) => CaseBid(
@@ -128,6 +130,7 @@ abstract final class CasesMappers {
         createdAt: b.createdAt.toLocal(),
         decidedAt: b.decidedAt?.toLocal(),
         offers: b.offers.map(offer).toList(growable: false),
+        outsidePractice: b.outsidePractice,
       );
 
   static FeedCase feedCase(api.CaseFeedItemDto c) => FeedCase(
@@ -174,6 +177,7 @@ abstract final class CasesMappers {
         photosCount: c.photosCount.toInt(),
         commentCount: c.commentCount.toInt(),
         shareCount: c.shareCount.toInt(),
+        inMyPractice: c.inMyPractice,
       );
 
   static MyBid myBid(api.MyBidItemDto b) => MyBid(
@@ -201,10 +205,12 @@ abstract final class CasesMappers {
         casePracticeCode: b.caseValue.practiceAreaCode,
         primaryStateCode: b.caseValue.primaryStateCode,
         lastOffer: offer(b.lastOffer),
+        coverUrl: b.coverUrl,
       );
 
   static WorkItem workItem(api.WorkItemDto w) => WorkItem(
         caseId: w.caseId,
+        coverUrl: w.coverUrl,
         bidId: w.bidId,
         title: w.title,
         status: w.status,

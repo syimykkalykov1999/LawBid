@@ -15,6 +15,8 @@ class ClientReviewsRepository {
 
   final api.ClientReviewsClient _api;
 
+  api.ClientReviewsClient get client => _api;
+
   Future<CursorPage<ClientReview>> list(
     String clientId, {
     String? cursor,
@@ -71,6 +73,50 @@ class ClientReviewsRepository {
       );
 }
 
+extension OpenClientReviews on ClientReviewsRepository {
+  /// Owner 2026-09-30: anyone reviews a client once (an edit replaces it).
+  Future<ClientReview> saveOpen(String clientId,
+          {required int rating, String? body}) async =>
+      ProfileMappers.clientReview(
+        (await guardApiCall(
+          () => client.upsertOpenClientReview(
+            id: clientId,
+            body: api.UpsertClientReviewDto(
+              rating: rating,
+              body: (body ?? '').trim().isEmpty ? null : body!.trim(),
+            ),
+          ),
+        ))
+            .data,
+      );
+
+  /// My review of that client, or null.
+  Future<ClientReview?> mineFor(String clientId) async {
+    try {
+      final env =
+          await guardApiCall(() => client.getMyOpenClientReview(id: clientId));
+      return ProfileMappers.clientReview(env.data);
+    } on Object {
+      return null;
+    }
+  }
+
+  Future<void> delete(String reviewId) =>
+      guardApiCall(() => client.deleteClientReview(id: reviewId));
+
+  /// The reviewed client asks admins to remove it.
+  Future<ClientReview> appeal(String reviewId, String reason) async =>
+      ProfileMappers.clientReview(
+        (await guardApiCall(
+          () => client.appealClientReview(
+            id: reviewId,
+            body: api.AppealClientReviewDto(reason: reason.trim()),
+          ),
+        ))
+            .data,
+      );
+}
+
 final clientReviewsRepositoryProvider = Provider<ClientReviewsRepository>(
   (ref) => ClientReviewsRepository(ref.watch(dioProvider)),
 );
@@ -113,5 +159,13 @@ final clientReviewSummaryProvider =
 final myClientReviewProvider =
     FutureProvider.autoDispose.family<ClientReview?, String>(
   (ref, caseId) => ref.watch(clientReviewsRepositoryProvider).mine(caseId),
+  retry: (_, __) => null,
+);
+
+/// My review of a client (the profile's "Write a review" / "Edit").
+final myOpenClientReviewProvider =
+    FutureProvider.autoDispose.family<ClientReview?, String>(
+  (ref, clientId) =>
+      ref.watch(clientReviewsRepositoryProvider).mineFor(clientId),
   retry: (_, __) => null,
 );

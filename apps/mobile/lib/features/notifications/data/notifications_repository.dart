@@ -5,8 +5,19 @@ import 'package:lawbid_api/lawbid_api.dart' as api;
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 
-// Owner 2026-09-30: `calls` — incoming and missed calls.
-enum NotifCategory { messages, calls, bids, cases, social, system, marketing }
+// Owner 2026-09-30: `calls` — incoming and missed calls; `following` and
+// `newCases` — opt-in alerts (off until turned on).
+enum NotifCategory {
+  messages,
+  calls,
+  bids,
+  cases,
+  social,
+  following,
+  newCases,
+  system,
+  marketing,
+}
 
 @immutable
 class NotifActor {
@@ -137,9 +148,13 @@ class ApiNotificationsRepository implements NotificationsRepository {
 
   final api.NotificationsClient _api;
 
-  static NotifCategory _cat(String name) =>
-      NotifCategory.values.firstWhere((c) => c.name == name,
-          orElse: () => NotifCategory.system);
+  /// `new_cases` → [NotifCategory.newCases].
+  static NotifCategory _cat(String name) {
+    final key = name.replaceAllMapped(
+        RegExp('_([a-z])'), (m) => m.group(1)!.toUpperCase());
+    return NotifCategory.values.firstWhere((c) => c.name == key,
+        orElse: () => NotifCategory.system);
+  }
 
   static NotificationSettings _settings(api.NotificationSettingsDto d) =>
       NotificationSettings(

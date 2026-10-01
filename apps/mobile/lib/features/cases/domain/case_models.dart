@@ -82,7 +82,12 @@ class CaseSummary {
     required this.bidsCount,
     required this.createdAt,
     required this.lastActivityAt,
+    this.coverUrl,
   });
+
+  /// Owner 2026-09-30: the first photo (the Mine grid) when this viewer
+  /// may see photos; else the qualification's art is shown.
+  final String? coverUrl;
 
   final String id;
   final String title;
@@ -247,7 +252,12 @@ class CaseBid {
     this.decidedAt,
     this.attorney,
     this.offers = const [],
+    this.outsidePractice = false,
   });
+
+  /// Owner 2026-09-30: the case's practice is outside the attorney's own —
+  /// the client is told to discuss it before accepting.
+  final bool outsidePractice;
 
   final String id;
   final String caseId;
@@ -303,7 +313,12 @@ class FeedCase {
     this.photosCount = 0,
     this.commentCount = 0,
     this.shareCount = 0,
+    this.inMyPractice = true,
   });
+
+  /// Owner 2026-09-30: the case's practice is one of this attorney's
+  /// (detail only; a bid from outside them warns the client).
+  final bool inMyPractice;
 
   /// OQ-034: comments under the case.
   final int commentCount;
@@ -377,7 +392,12 @@ class MyBid {
     required this.primaryStateCode,
     required this.lastOffer,
     this.casePracticeCode,
+    this.coverUrl,
   });
+
+  /// Owner 2026-09-30: the first photo (the Mine grid) when this viewer
+  /// may see photos; else the qualification's art is shown.
+  final String? coverUrl;
 
   final CaseBid bid;
   final String caseId;
@@ -410,7 +430,12 @@ class WorkItem {
     this.practiceCode,
     this.practiceI18nKey,
     this.practiceNameEn,
+    this.coverUrl,
   });
+
+  /// Owner 2026-09-30: the first photo (the Mine grid) when this viewer
+  /// may see photos; else the qualification's art is shown.
+  final String? coverUrl;
 
   final String caseId;
   final String bidId;
@@ -593,7 +618,45 @@ class HistoryExport {
 }
 
 /// Filters of "Мои кейсы" (docs/04 §11.1).
-enum MyCasesFilter { active, archived, closed }
+/// Owner 2026-09-30: `open` and `inProgress` are the Mine tabs; `active`
+/// (both) stays for the profile grid and search.
+enum MyCasesFilter { active, open, inProgress, archived, closed }
+
+/// Owner 2026-09-30: search and filters of the "Mine" lists.
+@immutable
+class MineSearch {
+  const MineSearch({this.q = '', this.practice, this.state});
+
+  final String q;
+  final String? practice;
+  final String? state;
+
+  bool get isEmpty => q.trim().isEmpty && practice == null && state == null;
+
+  /// How many filters (not the text) are on — the filter button's badge.
+  int get filterCount => (practice == null ? 0 : 1) + (state == null ? 0 : 1);
+
+  MineSearch copyWith({
+    String? q,
+    String? Function()? practice,
+    String? Function()? state,
+  }) =>
+      MineSearch(
+        q: q ?? this.q,
+        practice: practice == null ? this.practice : practice(),
+        state: state == null ? this.state : state(),
+      );
+
+  @override
+  bool operator ==(Object other) =>
+      other is MineSearch &&
+      other.q == q &&
+      other.practice == practice &&
+      other.state == state;
+
+  @override
+  int get hashCode => Object.hash(q, practice, state);
+}
 
 /// Sort of a case's bid list (docs/04 §5.2).
 enum BidsSort { newest, lowestPrice, highestRating }

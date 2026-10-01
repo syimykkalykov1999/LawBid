@@ -76,11 +76,13 @@ class AvatarUploadController extends Notifier<AvatarUploadState> {
     final bytes = _bytes!;
     final repo = ref.read(avatarUploadRepositoryProvider);
     final cancellation = _cancellation = UploadCancellation();
-    state = AvatarUploadState(stage: AvatarUploadStage.preparing, preview: bytes);
+    state =
+        AvatarUploadState(stage: AvatarUploadStage.preparing, preview: bytes);
     try {
       final mime = sniffImageMime(bytes);
       if (mime == null) throw _local(ApiErrorCodes.fileTypeNotAllowed);
-      if (bytes.length > kAvatarMaxBytes) throw _local(ApiErrorCodes.fileTooLarge);
+      if (bytes.length > kAvatarMaxBytes)
+        throw _local(ApiErrorCodes.fileTooLarge);
       final target = await repo.presign(
         mime: mime,
         sizeBytes: bytes.length,
@@ -103,16 +105,19 @@ class AvatarUploadController extends Notifier<AvatarUploadState> {
         outcome = await repo.scanStatus(target.fileId);
       }
       if (cancellation.isCancelled) return;
-      if (outcome != ScanOutcome.clean) throw _local(ApiErrorCodes.fileNotAttachable);
+      if (outcome != ScanOutcome.clean)
+        throw _local(ApiErrorCodes.fileNotAttachable);
       final me = await repo.attach(target.fileId);
       if (!ref.mounted) return;
       ref.read(currentUserControllerProvider.notifier).apply(me);
-      state = AvatarUploadState(stage: AvatarUploadStage.done, progress: 1, preview: bytes);
+      state = AvatarUploadState(
+          stage: AvatarUploadStage.done, progress: 1, preview: bytes);
     } on UploadCancelledException {
       return;
     } catch (e) {
       if (ref.mounted && !cancellation.isCancelled) {
-        state = AvatarUploadState(stage: AvatarUploadStage.failed, preview: bytes, error: e);
+        state = AvatarUploadState(
+            stage: AvatarUploadStage.failed, preview: bytes, error: e);
       }
     } finally {
       if (identical(_cancellation, cancellation)) _cancellation = null;
@@ -121,7 +126,8 @@ class AvatarUploadController extends Notifier<AvatarUploadState> {
 
   void _set(AvatarUploadStage stage, double progress) {
     if (!ref.mounted) return;
-    state = AvatarUploadState(stage: stage, progress: progress, preview: state.preview);
+    state = AvatarUploadState(
+        stage: stage, progress: progress, preview: state.preview);
   }
 }
 

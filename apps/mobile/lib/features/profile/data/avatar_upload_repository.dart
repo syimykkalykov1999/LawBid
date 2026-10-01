@@ -22,7 +22,10 @@ const kAvatarMaxBytes = 5 * 1024 * 1024;
 /// Real image type from the first bytes (docs/03 §4.1: JPEG/PNG/HEIC), or
 /// null for anything else. The server re-checks magic bytes on confirm.
 String? sniffImageMime(Uint8List bytes) {
-  if (bytes.length >= 3 && bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF) {
+  if (bytes.length >= 3 &&
+      bytes[0] == 0xFF &&
+      bytes[1] == 0xD8 &&
+      bytes[2] == 0xFF) {
     return 'image/jpeg';
   }
   if (bytes.length >= 8 &&
@@ -32,16 +35,19 @@ String? sniffImageMime(Uint8List bytes) {
       bytes[3] == 0x47) {
     return 'image/png';
   }
-  if (bytes.length >= 12 && String.fromCharCodes(bytes.sublist(4, 8)) == 'ftyp') {
+  if (bytes.length >= 12 &&
+      String.fromCharCodes(bytes.sublist(4, 8)) == 'ftyp') {
     final brand = String.fromCharCodes(bytes.sublist(8, 12));
-    if (const {'heic', 'heix', 'hevc', 'mif1', 'msf1'}.contains(brand)) return 'image/heic';
+    if (const {'heic', 'heix', 'hevc', 'mif1', 'msf1'}.contains(brand))
+      return 'image/heic';
   }
   return null;
 }
 
 /// A presigned S3 POST (`POST /files/presign`).
 class PresignedUpload {
-  const PresignedUpload({required this.fileId, required this.url, required this.fields});
+  const PresignedUpload(
+      {required this.fileId, required this.url, required this.fields});
   final String fileId;
   final String url;
   final Map<String, String> fields;
@@ -109,7 +115,8 @@ class ApiAvatarUploadRepository implements AvatarUploadRepository {
       ),
     ))
         .data;
-    return PresignedUpload(fileId: dto.fileId, url: dto.upload.url, fields: dto.upload.fields);
+    return PresignedUpload(
+        fileId: dto.fileId, url: dto.upload.url, fields: dto.upload.fields);
   }
 
   @override
@@ -120,7 +127,8 @@ class ApiAvatarUploadRepository implements AvatarUploadRepository {
     void Function(double progress)? onProgress,
     UploadCancellation? cancellation,
   }) async {
-    if (cancellation?.isCancelled ?? false) throw const UploadCancelledException();
+    if (cancellation?.isCancelled ?? false)
+      throw const UploadCancelledException();
     final token = CancelToken();
     cancellation?.onCancel(token.cancel);
     final parts = mime.split('/');
@@ -146,7 +154,9 @@ class ApiAvatarUploadRepository implements AvatarUploadRepository {
       if (CancelToken.isCancel(e)) throw const UploadCancelledException();
       // Storage answers in XML, never our error envelope.
       throw ApiException(
-        code: e.response == null ? ApiException.networkErrorCode : ApiErrorCodes.fileNotUploaded,
+        code: e.response == null
+            ? ApiException.networkErrorCode
+            : ApiErrorCodes.fileNotUploaded,
         message: 'Upload to storage failed.',
         statusCode: e.response?.statusCode,
       );
@@ -154,12 +164,14 @@ class ApiAvatarUploadRepository implements AvatarUploadRepository {
   }
 
   @override
-  Future<ScanOutcome> confirm(String fileId) async =>
-      _outcome((await guardApiCall(() => _files.confirm(id: fileId))).data.scanStatus);
+  Future<ScanOutcome> confirm(String fileId) async => _outcome(
+      (await guardApiCall(() => _files.confirm(id: fileId))).data.scanStatus);
 
   @override
   Future<ScanOutcome> scanStatus(String fileId) async =>
-      _outcome((await guardApiCall(() => _files.getFilesId(id: fileId))).data.scanStatus);
+      _outcome((await guardApiCall(() => _files.getFilesId(id: fileId)))
+          .data
+          .scanStatus);
 
   @override
   Future<CurrentUser> attach(String fileId) async => CurrentUserMapper.fromDto(

@@ -122,10 +122,13 @@ class _TopicFeedState extends State<_TopicFeed> {
           onState: (v) => setState(() => _state = v),
         ),
         Expanded(
+          // Owner 2026-09-30: News, or one qualification (with its
+          // subcategories), optionally in a state.
           child: category != null
-              ? TopicPostsView(
+              ? FilteredPostsView(
                   key: ValueKey('$category|$state'),
-                  tag: topicTagFor(category),
+                  practice: category == kNewsTopic ? null : category,
+                  newsOnly: category == kNewsTopic,
                   stateCode: state,
                 )
               : state != null

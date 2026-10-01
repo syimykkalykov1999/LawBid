@@ -24,7 +24,16 @@ class AppListRow extends StatefulWidget {
     this.selected = false,
     this.showChevron = true,
     this.flush = false,
+    this.subtitle,
+    this.indent = 0,
   });
+
+  /// A quiet second line under the label (e.g. a subcategory's category).
+  final String? subtitle;
+
+  /// Extra left inset for nested options (a subcategory under its
+  /// category in a picker).
+  final double indent;
 
   final String label;
   final VoidCallback? onTap;
@@ -114,13 +123,27 @@ class _AppListRowState extends State<AppListRow> {
                 ),
                 const SizedBox(width: AppSpacing.md),
               ],
+              if (widget.indent > 0) SizedBox(width: widget.indent),
               Expanded(
-                child: Text(
-                  widget.label,
-                  style: typography.body.copyWith(
-                    color: labelColor,
-                    fontWeight: FontWeight.w500,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      widget.label,
+                      style: typography.body.copyWith(
+                        color: labelColor,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    if (widget.subtitle != null)
+                      Text(
+                        widget.subtitle!,
+                        style: typography.caption.copyWith(
+                          color: colors.textSecondary,
+                        ),
+                      ),
+                  ],
                 ),
               ),
               if (widget.trailingText != null) ...[

@@ -9,6 +9,12 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/l10n/api_error_text.dart';
+import 'package:lawbid/features/cases/presentation/widgets/client_review_sheet.dart';
+import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
+    show showConfirmSheet;
+import 'package:lawbid/features/social/application/social_providers.dart'
+    show currentUserIdProvider;
 import 'package:lawbid/features/profile/data/client_reviews_repository.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart'
     show ReviewsSort;
@@ -28,9 +34,10 @@ enum _Tab { posts, reviews }
 
 /// Owner 2026-09-30 (OQ-038): the client profile like Instagram, for the
 /// client and for anyone opening it — avatar with posts / followers /
-/// following, name, state, Edit or Follow, then two tabs: Posts and Reviews. Reviews
-/// (attorneys about this client) are shown only to attorneys and the
-/// client themself.
+/// following, name, state, Edit or Follow, then two tabs: Posts and Reviews.
+/// Owner 2026-09-30: anyone — attorney or client — may review a client to
+/// warn others and everyone signed in reads them; the author edits or
+/// deletes theirs; the client appeals one through "…".
 class ClientSocialProfile extends ConsumerStatefulWidget {
   const ClientSocialProfile({
     required this.profile,
@@ -305,19 +312,69 @@ class _ReviewsListState extends ConsumerState<_ReviewsList> {
     final value = ref.watch(clientReviewsProvider(key));
     final summary = ref.watch(clientReviewSummaryProvider(clientId)).value ??
         const ReviewSummary.empty();
+    final me = ref.watch(currentUserIdProvider);
+    final isSelf = me == clientId;
+    final mine =
+        isSelf ? null : ref.watch(myOpenClientReviewProvider(clientId)).value;
+    void refresh() {
+      ref
+        ..invalidate(clientReviewsProvider)
+        ..invalidate(clientReviewSummaryProvider(clientId))
+        ..invalidate(myOpenClientReviewProvider(clientId));
+    }
+
+    Future<void> write() async {
+      final saved = await showClientReviewSheet(
+        context,
+        rating: mine?.rating ?? 0,
+        body: mine?.body ?? '',
+        onSave: (rating, body) => ref
+            .read(clientReviewsRepositoryProvider)
+            .saveOpen(clientId, rating: rating, body: body),
+      );
+      if (saved == true && context.mounted) {
+        refresh();
+        showAppSnackBar(context, t.t('client.review.saved'));
+      }
+    }
+
     final note = Padding(
       padding: const EdgeInsets.fromLTRB(
           AppSpacing.screenSide, AppSpacing.sm, AppSpacing.screenSide, 0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Icon(Icons.lock_outline_rounded,
-              size: AppSizes.iconSm, color: colors.goldDark),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: Text(t.t('client.reviews.private'),
-                style: type.caption.copyWith(color: colors.textSecondary)),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.info_outline_rounded,
+                  size: AppSizes.iconSm, color: colors.goldDark),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
+                    t.t(isSelf
+                        ? 'client.reviews.selfNote'
+                        : 'client.reviews.publicNote'),
+                    style: type.caption.copyWith(color: colors.textSecondary)),
+              ),
+            ],
           ),
+          if (!isSelf) ...[
+            const SizedBox(height: AppSpacing.md),
+            AppButton(
+              label: t.t(mine == null
+                  ? 'client.reviews.write'
+                  : 'client.reviews.editMine'),
+              icon: mine == null
+                  ? Icons.rate_review_outlined
+                  : Icons.edit_outlined,
+              variant: mine == null
+                  ? AppButtonVariant.primary
+                  : AppButtonVariant.secondary,
+              height: AppSizes.touchTarget,
+              onPressed: write,
+            ),
+          ],
         ],
       ),
     );
@@ -370,8 +427,9 @@ class _ReviewsListState extends ConsumerState<_ReviewsList> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   AppPressable(
-                    onTap: () =>
-                        context.push(AppRoutes.lawyer(r.attorneyUsername)),
+                    onTap: () => context.push(r.authorIsClient
+                        ? AppRoutes.client(r.attorneyUsername)
+                        : AppRoutes.lawyer(r.attorneyUsername)),
                     child: Row(
                       children: [
                         GoldRingAvatar(
@@ -409,16 +467,35 @@ class _ReviewsListState extends ConsumerState<_ReviewsList> {
                               ),
                           ],
                         ),
+                        // Owner 2026-09-30: "…" — delete my review, or
+                        // appeal one about me.
+                        if (r.isMine || r.canAppeal)
+                          AppIconButton(
+                            plain: true,
+                            icon: Icon(Icons.more_horiz_rounded,
+                                color: colors.textSecondary),
+                            semanticLabel: t.t('client.reviews.menu'),
+                            onPressed: () => _reviewMenu(r, refresh),
+                          ),
                       ],
                     ),
                   ),
+                  if (r.appealStatus != null) ...[
+                    const SizedBox(height: AppSpacing.sm),
+                    _AppealChip(status: r.appealStatus!),
+                  ],
                   if ((r.body ?? '').isNotEmpty) ...[
                     const SizedBox(height: AppSpacing.sm),
                     Text(r.body!,
                         style: type.body.copyWith(color: colors.text)),
                   ],
                   const SizedBox(height: AppSpacing.sm),
-                  Text(t.t('client.review.case', {'title': r.caseTitle}),
+                  Text(
+                      r.caseTitle != null
+                          ? t.t('client.review.case', {'title': r.caseTitle!})
+                          : t.t(r.authorIsClient
+                              ? 'client.review.byClient'
+                              : 'client.review.byAttorney'),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style:
@@ -427,6 +504,161 @@ class _ReviewsListState extends ConsumerState<_ReviewsList> {
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+extension on _ReviewsListState {
+  Future<void> _reviewMenu(ClientReview r, VoidCallback refresh) async {
+    final t = ref.read(translatorProvider);
+    final choice = await showAppBottomSheet<String>(
+      context: context,
+      builder: (sheet) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const AppSheetHandle(),
+            if (r.isMine)
+              AppListRow(
+                icon: Icons.delete_outline_rounded,
+                label: t.t('client.reviews.delete'),
+                destructive: true,
+                onTap: () => Navigator.of(sheet).pop('delete'),
+              ),
+            if (r.canAppeal)
+              AppListRow(
+                icon: Icons.gavel_rounded,
+                label: t.t('client.reviews.appeal'),
+                onTap: () => Navigator.of(sheet).pop('appeal'),
+              ),
+            const SizedBox(height: AppSpacing.md),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || choice == null) return;
+    final repo = ref.read(clientReviewsRepositoryProvider);
+    if (choice == 'delete') {
+      final ok = await showConfirmSheet(
+        context,
+        t: t,
+        title: t.t('client.reviews.deleteTitle'),
+        message: t.t('client.reviews.deleteMessage'),
+        confirmLabel: t.t('client.reviews.delete'),
+        destructive: true,
+      );
+      if (!ok) return;
+      try {
+        await repo.delete(r.id);
+        refresh();
+        if (mounted) showAppSnackBar(context, t.t('client.reviews.deleted'));
+      } on Object catch (e) {
+        if (mounted) showAppSnackBar(context, errorText(t, e));
+      }
+      return;
+    }
+    final reason = await showAppBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => const _AppealSheet(),
+    );
+    if (reason == null || reason.trim().isEmpty || !mounted) return;
+    try {
+      await repo.appeal(r.id, reason);
+      refresh();
+      if (mounted) showAppSnackBar(context, t.t('client.reviews.appealSent'));
+    } on Object catch (e) {
+      if (mounted) showAppSnackBar(context, errorText(t, e));
+    }
+  }
+}
+
+/// Why the review should go (sent to the moderators).
+class _AppealSheet extends ConsumerStatefulWidget {
+  const _AppealSheet();
+
+  @override
+  ConsumerState<_AppealSheet> createState() => _AppealSheetState();
+}
+
+class _AppealSheetState extends ConsumerState<_AppealSheet> {
+  final _text = TextEditingController();
+
+  @override
+  void dispose() {
+    _text.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ref.watch(translatorProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+          AppSpacing.screenSide,
+          AppSpacing.md,
+          AppSpacing.screenSide,
+          AppSpacing.lg + MediaQuery.viewInsetsOf(context).bottom),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const AppSheetHandle(),
+          Text(t.t('client.reviews.appealTitle'),
+              style: type.titleMedium.copyWith(color: colors.text)),
+          const SizedBox(height: AppSpacing.xs),
+          Text(t.t('client.reviews.appealHint'),
+              style: type.bodySmall.copyWith(color: colors.textSecondary)),
+          const SizedBox(height: AppSpacing.md),
+          AppTextField(
+            controller: _text,
+            hintText: t.t('client.reviews.appealReason'),
+            semanticLabel: t.t('client.reviews.appealReason'),
+            maxLength: 1000,
+            maxLines: 5,
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          AppButton(
+            label: t.t('client.reviews.appealSend'),
+            height: AppSizes.touchTarget,
+            onPressed: _text.text.trim().isEmpty
+                ? null
+                : () => Navigator.of(context).pop(_text.text),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// "Under review by moderators" / "Kept" on an appealed review.
+class _AppealChip extends ConsumerWidget {
+  const _AppealChip({required this.status});
+
+  final String status;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding:
+            const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 2),
+        decoration: BoxDecoration(
+          color: colors.goldTint,
+          borderRadius: BorderRadius.circular(AppRadii.pill),
+        ),
+        child: Text(
+          t.t('client.reviews.appeal.$status'),
+          style: type.caption.copyWith(color: colors.goldDark),
+        ),
       ),
     );
   }

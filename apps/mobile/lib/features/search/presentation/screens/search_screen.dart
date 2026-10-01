@@ -589,7 +589,13 @@ class _BeforeTyping extends ConsumerWidget {
 List<CaseSummary> _myCases(WidgetRef ref, String query, SearchFilters f) {
   final q = query.toLowerCase();
   final statuses =
-      f.caseStatus == null ? MyCasesFilter.values : [f.caseStatus!];
+      f.caseStatus == null
+          ? const [
+              MyCasesFilter.active,
+              MyCasesFilter.archived,
+              MyCasesFilter.closed,
+            ]
+          : [f.caseStatus!];
   final all = [
     for (final s in statuses) ...?ref.watch(myCasesProvider(s)).value?.items,
   ];

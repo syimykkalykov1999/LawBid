@@ -1000,6 +1000,53 @@ class AttorneyLine extends StatelessWidget {
 }
 
 /// A bid in the client's list (docs/04 §5.2).
+/// Owner 2026-09-30: a bid on a case outside the attorney's practices —
+/// the client is asked to discuss it first; the attorney is told the
+/// client will see this.
+class OutsidePracticeNote extends StatelessWidget {
+  const OutsidePracticeNote({
+    required this.t,
+    required this.forClient,
+    super.key,
+  });
+
+  final Translator t;
+  final bool forClient;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
+    return Semantics(
+      container: true,
+      child: Container(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        decoration: BoxDecoration(
+          color: colors.goldTint,
+          borderRadius: BorderRadius.circular(AppRadii.field),
+          border: Border.all(color: colors.goldStroke),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.info_outline_rounded,
+                size: AppSizes.iconSm, color: colors.goldDark),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Text(
+                t.t(forClient
+                    ? 'cases.outsidePractice.client'
+                    : 'cases.outsidePractice.attorney'),
+                style: typography.bodySmall.copyWith(color: colors.text),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class BidCard extends StatelessWidget {
   const BidCard({
     required this.bid,
@@ -1042,6 +1089,10 @@ class BidCard extends StatelessWidget {
               formats: formats,
               onTap: onAttorneyTap,
             ),
+          if (bid.outsidePractice) ...[
+            const SizedBox(height: AppSpacing.sm),
+            OutsidePracticeNote(t: t, forClient: true),
+          ],
           const SizedBox(height: AppSpacing.md),
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,

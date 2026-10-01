@@ -7,8 +7,8 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/profile/data/client_reviews_repository.dart';
 
 /// OQ-038: "Review the client" on a case in work — the hired attorney
-/// rates the client (1–5 stars + optional text). Editable; visible only to
-/// attorneys and the client.
+/// rates the client (1–5 stars + optional text). Editable; every signed-in
+/// user sees client reviews (owner 2026-09-30).
 class ClientReviewAction extends ConsumerWidget {
   const ClientReviewAction({required this.caseId, super.key});
 
@@ -23,14 +23,13 @@ class ClientReviewAction extends ConsumerWidget {
       label: t.t('client.review.action'),
       trailingText: mine == null ? null : '★ ${mine.rating}',
       onTap: () async {
-        final saved = await showAppBottomSheet<bool>(
-          context: context,
-          isScrollControlled: true,
-          builder: (_) => _Sheet(
-            caseId: caseId,
-            rating: mine?.rating ?? 0,
-            body: mine?.body ?? '',
-          ),
+        final saved = await showClientReviewSheet(
+          context,
+          rating: mine?.rating ?? 0,
+          body: mine?.body ?? '',
+          onSave: (rating, body) => ref
+              .read(clientReviewsRepositoryProvider)
+              .save(caseId, rating: rating, body: body),
         );
         if (saved == true && context.mounted) {
           ref.invalidate(myClientReviewProvider(caseId));
@@ -41,12 +40,28 @@ class ClientReviewAction extends ConsumerWidget {
   }
 }
 
-class _Sheet extends ConsumerStatefulWidget {
-  const _Sheet({required this.caseId, required this.rating, required this.body});
+/// Owner 2026-09-30: the star + text form, shared by the case ("Review
+/// the client") and the client's profile (anyone reviews a client).
+/// True when saved.
+Future<bool?> showClientReviewSheet(
+  BuildContext context, {
+  required int rating,
+  required String body,
+  required Future<Object?> Function(int rating, String body) onSave,
+}) =>
+    showAppBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => _Sheet(rating: rating, body: body, onSave: onSave),
+    );
 
-  final String caseId;
+class _Sheet extends ConsumerStatefulWidget {
+  const _Sheet(
+      {required this.rating, required this.body, required this.onSave});
+
   final int rating;
   final String body;
+  final Future<Object?> Function(int rating, String body) onSave;
 
   @override
   ConsumerState<_Sheet> createState() => _SheetState();
@@ -67,9 +82,7 @@ class _SheetState extends ConsumerState<_Sheet> {
     final t = ref.read(translatorProvider);
     setState(() => _busy = true);
     try {
-      await ref
-          .read(clientReviewsRepositoryProvider)
-          .save(widget.caseId, rating: _rating, body: _text.text);
+      await widget.onSave(_rating, _text.text);
       if (mounted) Navigator.of(context).pop(true);
     } on Object catch (e) {
       if (mounted) {
@@ -85,7 +98,9 @@ class _SheetState extends ConsumerState<_Sheet> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     return Padding(
-      padding: EdgeInsets.fromLTRB(AppSpacing.screenSide, AppSpacing.md,
+      padding: EdgeInsets.fromLTRB(
+          AppSpacing.screenSide,
+          AppSpacing.md,
           AppSpacing.screenSide,
           AppSpacing.lg + MediaQuery.viewInsetsOf(context).bottom),
       child: Column(

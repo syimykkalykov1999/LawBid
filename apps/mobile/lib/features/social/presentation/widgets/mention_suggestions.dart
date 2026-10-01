@@ -43,8 +43,7 @@ class MentionSuggestions extends ConsumerStatefulWidget {
   final TextEditingController controller;
 
   @override
-  ConsumerState<MentionSuggestions> createState() =>
-      _MentionSuggestionsState();
+  ConsumerState<MentionSuggestions> createState() => _MentionSuggestionsState();
 }
 
 class _MentionSuggestionsState extends ConsumerState<MentionSuggestions> {

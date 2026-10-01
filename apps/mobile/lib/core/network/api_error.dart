@@ -66,6 +66,7 @@ abstract final class ApiErrorCodes {
   static const reviewCaseNotClosed = 'REVIEW_CASE_NOT_CLOSED';
   static const reviewNoAcceptedBid = 'REVIEW_NO_ACCEPTED_BID';
   static const reviewAlreadyExists = 'REVIEW_ALREADY_EXISTS';
+  static const reviewAppealExists = 'REVIEW_APPEAL_EXISTS';
   static const reviewEditWindowExpired = 'REVIEW_EDIT_WINDOW_EXPIRED';
   static const reviewNotEditable = 'REVIEW_NOT_EDITABLE';
   // Practices and profiles (docs/03 §3–§4, stages 3.5–3.6)
@@ -193,6 +194,7 @@ abstract final class ApiErrorCodes {
     reviewCaseNotClosed,
     reviewNoAcceptedBid,
     reviewAlreadyExists,
+    reviewAppealExists,
     reviewEditWindowExpired,
     reviewNotEditable,
     attorneyNotVerified,

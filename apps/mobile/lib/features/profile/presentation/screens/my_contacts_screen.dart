@@ -35,7 +35,8 @@ class MyContactsScreen extends ConsumerWidget {
     Widget body;
     if (user == null) {
       body = userState.isOffline
-          ? AppOfflineState(title: t.t('offline.title'), message: t.t('offline.message'))
+          ? AppOfflineState(
+              title: t.t('offline.title'), message: t.t('offline.message'))
           : const ProfileEditSkeleton();
     } else {
       Widget contactTile(ContactType type) {
@@ -43,24 +44,38 @@ class MyContactsScreen extends ConsumerWidget {
         final value = isPhone ? user.phone : user.email;
         final verified = isPhone ? user.phoneVerified : user.emailVerified;
         return AccountTile(
-          icon: isPhone ? Icons.phone_iphone_rounded : Icons.alternate_email_rounded,
-          title: t.t(isPhone ? 'account.contact.phone' : 'account.contact.email'),
-          subtitle: value == null ? t.t('account.contact.notSet') : (isPhone ? UsPhone.format(value) : value),
+          icon: isPhone
+              ? Icons.phone_iphone_rounded
+              : Icons.alternate_email_rounded,
+          title:
+              t.t(isPhone ? 'account.contact.phone' : 'account.contact.email'),
+          subtitle: value == null
+              ? t.t('account.contact.notSet')
+              : (isPhone ? UsPhone.format(value) : value),
           badge: value == null
               ? null
               : AccountBadge(
-                  label: t.t(verified ? 'account.identifier.verified' : 'account.contact.unverified'),
-                  tone: verified ? AccountBadgeTone.success : AccountBadgeTone.warning,
+                  label: t.t(verified
+                      ? 'account.identifier.verified'
+                      : 'account.contact.unverified'),
+                  tone: verified
+                      ? AccountBadgeTone.success
+                      : AccountBadgeTone.warning,
                 ),
-          actionLabel: t.t(verified ? 'account.contact.change' : 'account.contact.add'),
-          onTap: () => context.push(AccountRoutes.contact(type, AccountContactMode.primary)),
+          actionLabel:
+              t.t(verified ? 'account.contact.change' : 'account.contact.add'),
+          onTap: () => context
+              .push(AccountRoutes.contact(type, AccountContactMode.primary)),
         );
       }
 
       final sections = <Widget>[
         AppListSection(
           title: t.t('contacts.section.confirmed'),
-          children: [contactTile(ContactType.phone), contactTile(ContactType.email)],
+          children: [
+            contactTile(ContactType.phone),
+            contactTile(ContactType.email)
+          ],
         ),
         _Hint(text: t.t('account.contacts.reauthHint')),
         if (user.isClient) const _ContactPreferencesSection(),
@@ -73,7 +88,8 @@ class MyContactsScreen extends ConsumerWidget {
         },
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide, AppSpacing.sm, AppSpacing.screenSide, AppSpacing.xxl),
+          padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide,
+              AppSpacing.sm, AppSpacing.screenSide, AppSpacing.xxl),
           children: [
             for (var i = 0; i < sections.length; i++) ...[
               if (i > 0) const SizedBox(height: AppSpacing.section),
@@ -88,7 +104,9 @@ class MyContactsScreen extends ConsumerWidget {
       backgroundColor: colors.bg,
       appBar: AppTopBar(
         title: Text(t.t('contacts.title')),
-        leading: AppBackButton(semanticLabel: t.t('common.back'), onPressed: () => Navigator.of(context).maybePop()),
+        leading: AppBackButton(
+            semanticLabel: t.t('common.back'),
+            onPressed: () => Navigator.of(context).maybePop()),
       ),
       body: body,
     );
@@ -107,9 +125,13 @@ class _Hint extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(Icons.lock_outline_rounded, size: AppSpacing.lg, color: colors.textSecondary),
+        Icon(Icons.lock_outline_rounded,
+            size: AppSpacing.lg, color: colors.textSecondary),
         const SizedBox(width: AppSpacing.sm),
-        Expanded(child: Text(text, style: typography.caption.copyWith(color: colors.textSecondary))),
+        Expanded(
+            child: Text(text,
+                style:
+                    typography.caption.copyWith(color: colors.textSecondary))),
       ],
     );
   }
@@ -123,11 +145,14 @@ class _ContactPreferencesSection extends ConsumerWidget {
     final t = ref.watch(translatorProvider);
     final profile = ref.watch(clientProfileProvider);
     return profile.when(
-      loading: () => const AppSkeleton(height: 160, borderRadius: AppRadii.card),
+      loading: () =>
+          const AppSkeleton(height: 160, borderRadius: AppRadii.card),
       error: (error, _) => AppCard(
         child: Column(
           children: [
-            Text(t.t(isOfflineError(error) ? 'offline.message' : 'contacts.prefs.error')),
+            Text(t.t(isOfflineError(error)
+                ? 'offline.message'
+                : 'contacts.prefs.error')),
             const SizedBox(height: AppSpacing.md),
             AppButton(
               label: t.t('error.retry'),
@@ -156,7 +181,8 @@ class _PreferencesForm extends ConsumerStatefulWidget {
 
 class _PreferencesFormState extends ConsumerState<_PreferencesForm> {
   late ContactPreference? _method = widget.profile.contactMethod;
-  late final _note = TextEditingController(text: widget.profile.contactNote ?? '');
+  late final _note =
+      TextEditingController(text: widget.profile.contactNote ?? '');
   bool _saving = false;
 
   @override
@@ -169,7 +195,9 @@ class _PreferencesFormState extends ConsumerState<_PreferencesForm> {
     final t = widget.t;
     setState(() => _saving = true);
     try {
-      await ref.read(clientProfileRepositoryProvider).updateContactPreferences(method: _method, note: _note.text);
+      await ref
+          .read(clientProfileRepositoryProvider)
+          .updateContactPreferences(method: _method, note: _note.text);
       if (!mounted) return;
       ref.invalidate(clientProfileProvider);
       showAppSnackBar(context, t.t('contacts.prefs.saved'));
@@ -191,7 +219,9 @@ class _PreferencesFormState extends ConsumerState<_PreferencesForm> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              ContactPreferenceChips(value: _method, onChanged: (m) => setState(() => _method = m)),
+              ContactPreferenceChips(
+                  value: _method,
+                  onChanged: (m) => setState(() => _method = m)),
               const SizedBox(height: AppSpacing.lg),
               AppTextField(
                 controller: _note,

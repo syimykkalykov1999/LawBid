@@ -28,7 +28,8 @@ import 'package:lawbid/features/social/presentation/screens/social_screens.dart'
 import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart';
 import 'package:lawbid/features/social/social_routes.dart';
 
-enum AttorneyProfileTab { posts, reviews }
+// Owner 2026-09-30: News — the attorney's news posts, apart.
+enum AttorneyProfileTab { posts, news, reviews }
 
 /// Public link of an attorney profile (docs/03 §4.2 «Поделиться», deep
 /// link of docs/01 §12).
@@ -212,13 +213,23 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
     var items = const <Review>[];
     if (!reviewsTab) {
       // docs/05: the attorney's posts as a grid (text posts as tiles).
-      footer = ProfilePostsGrid(
-        attorneyId: p.id,
-        emptyTitle: t.t('profile.posts.empty.title'),
-        emptyMessage: t.t(p.isSelf
-            ? 'profile.posts.empty.self'
-            : 'profile.posts.empty.other'),
-      );
+      footer = _tab == AttorneyProfileTab.news
+          ? ProfilePostsGrid(
+              key: const ValueKey('news'),
+              attorneyId: p.id,
+              newsOnly: true,
+              emptyTitle: t.t('profile.news.empty.title'),
+              emptyMessage: t.t(p.isSelf
+                  ? 'profile.news.empty.self'
+                  : 'profile.news.empty.other'),
+            )
+          : ProfilePostsGrid(
+              attorneyId: p.id,
+              emptyTitle: t.t('profile.posts.empty.title'),
+              emptyMessage: t.t(p.isSelf
+                  ? 'profile.posts.empty.self'
+                  : 'profile.posts.empty.other'),
+            );
     } else if (reviews == null || reviews.isLoading && state == null) {
       footer = const Column(
         children: [
@@ -924,6 +935,11 @@ class _Tabs extends ConsumerWidget {
         Icons.grid_on_rounded
       ),
       (
+        AttorneyProfileTab.news,
+        t.t('profile.tab.news'),
+        Icons.newspaper_rounded
+      ),
+      (
         AttorneyProfileTab.reviews,
         t.t('profile.tab.reviews'),
         Icons.star_border_rounded
@@ -965,13 +981,15 @@ class _Tabs extends ConsumerWidget {
           ),
           Positioned.fill(
             child: AnimatedAlign(
-              alignment: selected == AttorneyProfileTab.posts
-                  ? Alignment.bottomLeft
-                  : Alignment.bottomRight,
+              alignment: switch (selected) {
+                AttorneyProfileTab.posts => Alignment.bottomLeft,
+                AttorneyProfileTab.news => Alignment.bottomCenter,
+                AttorneyProfileTab.reviews => Alignment.bottomRight,
+              },
               duration: reduce ? Duration.zero : AppMotion.stateChange,
               curve: AppMotion.enterCurve,
               child: FractionallySizedBox(
-                widthFactor: 0.5,
+                widthFactor: 1 / 3,
                 child: Container(height: 2, color: colors.gold),
               ),
             ),

@@ -8,9 +8,9 @@ import 'package:lawbid/features/onboarding/application/current_user_controller.d
 import 'package:lawbid/features/social/presentation/screens/create_post_screen.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 
-/// The "+" full-screen creation flow (file 07 §3.4). Attorneys: "Пост в
-/// ленту" (docs/05). Clients (owner 2026-09-30, OQ-038): a choice between
-/// a new case (docs/04) and a post — clients publish posts too.
+/// The "+" full-screen creation flow (file 07 §3.4). Clients (OQ-038): a
+/// new case (docs/04) or a post. Attorneys (owner 2026-09-30): a post or
+/// News in a qualification.
 class CreateScreen extends ConsumerStatefulWidget {
   const CreateScreen({super.key});
 
@@ -18,28 +18,31 @@ class CreateScreen extends ConsumerStatefulWidget {
   ConsumerState<CreateScreen> createState() => _CreateScreenState();
 }
 
-enum _Kind { caseKind, post }
+enum _Kind { caseKind, post, news }
 
 class _CreateScreenState extends ConsumerState<CreateScreen> {
   _Kind? _kind;
 
   @override
   Widget build(BuildContext context) {
-    if (ref.watch(currentUserRoleProvider) != UserRole.client) {
-      return const CreatePostScreen();
-    }
+    final attorney = ref.watch(currentUserRoleProvider) != UserRole.client;
     return switch (_kind) {
       _Kind.caseKind => const CreateCaseScreen(),
       _Kind.post => const CreatePostScreen(),
-      null => _Chooser(onPick: (k) => setState(() => _kind = k)),
+      _Kind.news => const CreatePostScreen(news: true),
+      null => _Chooser(
+          attorney: attorney,
+          onPick: (k) => setState(() => _kind = k),
+        ),
     };
   }
 }
 
 class _Chooser extends ConsumerWidget {
-  const _Chooser({required this.onPick});
+  const _Chooser({required this.onPick, required this.attorney});
 
   final ValueChanged<_Kind> onPick;
+  final bool attorney;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -108,13 +111,21 @@ class _Chooser extends ConsumerWidget {
       ),
       body: ListView(
         padding: const EdgeInsets.all(AppSpacing.screenSide),
-        children: [
-          option(_Kind.caseKind, Icons.gavel_rounded, t.t('create.case'),
-              t.t('create.case.sub')),
-          const SizedBox(height: AppSpacing.md),
-          option(_Kind.post, Icons.edit_note_rounded, t.t('create.post'),
-              t.t('create.post.sub')),
-        ],
+        children: attorney
+            ? [
+                option(_Kind.post, Icons.edit_note_rounded, t.t('create.post'),
+                    t.t('create.post.subAttorney')),
+                const SizedBox(height: AppSpacing.md),
+                option(_Kind.news, Icons.newspaper_rounded, t.t('create.news'),
+                    t.t('create.news.sub')),
+              ]
+            : [
+                option(_Kind.caseKind, Icons.gavel_rounded, t.t('create.case'),
+                    t.t('create.case.sub')),
+                const SizedBox(height: AppSpacing.md),
+                option(_Kind.post, Icons.edit_note_rounded, t.t('create.post'),
+                    t.t('create.post.sub')),
+              ],
       ),
     );
   }

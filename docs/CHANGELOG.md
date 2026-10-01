@@ -5,6 +5,12 @@ All notable changes to this project are documented here, per
 .cursorrules (each stage ends with a CHANGELOG update + commit on
 branch cursor/stage-X-Y-description).
 
+## Owner pass 9 (2026-09-30) — OQ-046
+
+- API: post title / qualification / kind (migration `20261001010000_owner_post_title_practice_kind`), `search/latest-posts?practice&tag&kind`, `attorneys/:id/posts?kind`; case feed `?practice` (any qualification in licensed states), `inMyPractice`, bids `outsidePractice` (migration `20261001020000_owner_bid_outside_practice`); opt-in `following` / `new_cases` categories and `followed_post` / `new_case` alerts (migration `20261001030000_owner_follow_and_case_alerts`); open client reviews, delete, appeal, admin bulk decisions and the hourly `review-appeals.sweep` (migration `20261001040000_owner_client_reviews_open_appeals`); Mine `q/practice/state` filters, `open` / `in_progress` client filters and cover photos. e2e: `owner-post-practice`, `owner-subscription-alerts`, `owner-mine-filters`, client-review appeals in `owner-client-profile`.
+- App: new "+" composer (title, description, qualification picker with suggestions, Post/News, 9 photos, art preview, edit mode); cards show the qualification chip, News badge and qualification art; topic slider with every qualification and News; News tab on attorney profiles; outside-practice notes; notification categories Following / New cases; client-review write/edit/delete/appeal; Mine tabs with grid, search and filters.
+- Admin: "Review appeals" page with bulk accept / reject.
+
 ## Owner pass 8 (2026-09-30) — OQ-045
 
 - Flush "Comments" row under a case description; full names in the chat list; centred case photos and files.

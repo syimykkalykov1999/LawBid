@@ -37,8 +37,10 @@ class DeleteAccountController extends _$DeleteAccountController {
   /// the reauth-phone step knows whether to show the Face ID/Touch ID
   /// affordance at all.
   Future<void> acknowledgeWarning() async {
-    final available = await ref.read(biometricAuthServiceProvider).isAvailable();
-    state = state.copyWith(step: DeleteAccountStep.reauthPhone, biometricAvailable: available);
+    final available =
+        await ref.read(biometricAuthServiceProvider).isAvailable();
+    state = state.copyWith(
+        step: DeleteAccountStep.reauthPhone, biometricAvailable: available);
   }
 
   /// Local biometric gate (see `BiometricAuthService`'s doc comment for
@@ -122,13 +124,17 @@ class DeleteAccountController extends _$DeleteAccountController {
   Future<bool> submitDeletion() async {
     final token = state.reauthToken;
     if (token == null) return false;
-    state = state.copyWith(isSubmitting: true, errorMessage: null, step: DeleteAccountStep.submitting);
+    state = state.copyWith(
+        isSubmitting: true,
+        errorMessage: null,
+        step: DeleteAccountStep.submitting);
     final result = await _repo.deleteAccount(reauthToken: token);
     var succeeded = false;
     result.when(
       success: () {
         succeeded = true;
-        state = state.copyWith(isSubmitting: false, step: DeleteAccountStep.done);
+        state =
+            state.copyWith(isSubmitting: false, step: DeleteAccountStep.done);
       },
       // Both reauthRequired and reauthInvalid mean the armed token expired
       // or was already used (5-minute TTL, single-use — ReauthGuard)

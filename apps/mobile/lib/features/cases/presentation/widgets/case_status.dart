@@ -108,33 +108,7 @@ class BidStatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (label, tone) = switch (bid.status) {
-      BidStatus.active when bid.turn == viewer => (
-          t.t('cases.bid.yourTurn'),
-          StatusTone.gold,
-        ),
-      BidStatus.active => (
-          viewer == PartyRole.client
-              ? t.t('cases.bid.waitingAttorney')
-              : t.t('cases.bid.waitingClient'),
-          StatusTone.info,
-        ),
-      BidStatus.accepted => (t.t('cases.bid.accepted'), StatusTone.success),
-      BidStatus.rejectedByClient => (
-          t.t('cases.bid.rejectedByClient'),
-          StatusTone.danger,
-        ),
-      BidStatus.rejectedAuto => (
-          t.t('cases.bid.rejectedAuto'),
-          StatusTone.neutral,
-        ),
-      BidStatus.withdrawn => (t.t('cases.bid.withdrawn'), StatusTone.neutral),
-      BidStatus.failedNegotiation => (
-          t.t('cases.bid.failed'),
-          StatusTone.warning,
-        ),
-      _ => (t.t('cases.bid.unknown'), StatusTone.neutral),
-    };
+    final (label, tone) = bidStatusOf(t, bid, viewer);
     return StatusPill(label: label, tone: tone);
   }
 }
@@ -189,3 +163,33 @@ class RoundCounter extends StatelessWidget {
     );
   }
 }
+
+/// A bid's status label and tone for [viewer] (pill, Mine grid).
+(String, StatusTone) bidStatusOf(Translator t, CaseBid bid, PartyRole viewer) =>
+    switch (bid.status) {
+      BidStatus.active when bid.turn == viewer => (
+          t.t('cases.bid.yourTurn'),
+          StatusTone.gold,
+        ),
+      BidStatus.active => (
+          viewer == PartyRole.client
+              ? t.t('cases.bid.waitingAttorney')
+              : t.t('cases.bid.waitingClient'),
+          StatusTone.info,
+        ),
+      BidStatus.accepted => (t.t('cases.bid.accepted'), StatusTone.success),
+      BidStatus.rejectedByClient => (
+          t.t('cases.bid.rejectedByClient'),
+          StatusTone.danger,
+        ),
+      BidStatus.rejectedAuto => (
+          t.t('cases.bid.rejectedAuto'),
+          StatusTone.neutral,
+        ),
+      BidStatus.withdrawn => (t.t('cases.bid.withdrawn'), StatusTone.neutral),
+      BidStatus.failedNegotiation => (
+          t.t('cases.bid.failed'),
+          StatusTone.warning,
+        ),
+      _ => (t.t('cases.bid.unknown'), StatusTone.neutral),
+    };

@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/features/practice/practice_options.dart' as practices;
 import 'package:go_router/go_router.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -112,6 +113,71 @@ class LatestPostsView extends ConsumerWidget {
         onRetryMore: notifier.retryLoadMore,
       );
     });
+  }
+}
+
+/// Owner 2026-09-30: posts of a qualification and/or only News (the topic
+/// slider, a practice chip on a card, the profile's News tab).
+class FilteredPostsView extends ConsumerWidget {
+  const FilteredPostsView({
+    this.practice,
+    this.stateCode,
+    this.newsOnly = false,
+    super.key,
+  });
+
+  final String? practice;
+  final String? stateCode;
+  final bool newsOnly;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final key = (state: stateCode, practice: practice, news: newsOnly);
+    final notifier = ref.read(filteredPostsProvider(key).notifier);
+    return LayoutBuilder(builder: (context, box) {
+      final height = feedCardHeight(box.maxHeight);
+      return PagedListBody<Post>(
+        value: _withoutDeleted(ref.watch(filteredPostsProvider(key)),
+            ref.watch(deletedPostsProvider)),
+        t: t,
+        edgeToEdge: true,
+        skeleton: const PostListSkeleton(),
+        itemKey: (p) => p.id,
+        itemBuilder: (context, p, _) => PostCard(post: p, feedHeight: height),
+        empty: AppEmptyState(
+          icon: newsOnly ? Icons.newspaper_rounded : Icons.tag_rounded,
+          message: t.t(newsOnly ? 'feed.news.empty' : 'feed.practice.empty'),
+        ),
+        onRefresh: notifier.refresh,
+        onLoadMore: notifier.loadMore,
+        onRetryMore: notifier.retryLoadMore,
+      );
+    });
+  }
+}
+
+/// A qualification's posts on their own screen (a practice chip's tap).
+class PracticePostsScreen extends ConsumerWidget {
+  const PracticePostsScreen({required this.practice, super.key});
+
+  final String practice;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    return Scaffold(
+      backgroundColor: colors.bg,
+      appBar: AppTopBar(
+        leading: AppBackButton(
+          semanticLabel: t.t('common.back'),
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
+        title: Text(practices.practiceLabel(ref, practice)),
+      ),
+      body: FilteredPostsView(practice: practice),
+    );
   }
 }
 
@@ -515,12 +581,21 @@ class ProfilePostsGrid extends ConsumerWidget {
     required this.attorneyId,
     required this.emptyTitle,
     required this.emptyMessage,
+    this.newsOnly = false,
     super.key,
   });
+
+  /// Owner 2026-09-30: the profile's News tab.
+  final bool newsOnly;
 
   final String attorneyId;
   final String emptyTitle;
   final String emptyMessage;
+
+  AsyncNotifierProvider<AttorneyPostsNotifier, PaginatedList<Post>>
+      get _provider => newsOnly
+          ? attorneyNewsProvider(attorneyId)
+          : attorneyPostsProvider(attorneyId);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -528,7 +603,7 @@ class ProfilePostsGrid extends ConsumerWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final deleted = ref.watch(deletedPostsProvider);
-    final value = ref.watch(attorneyPostsProvider(attorneyId));
+    final value = ref.watch(_provider);
     return value.when(
       skipLoadingOnReload: true,
       loading: () => GridView.count(
@@ -541,7 +616,7 @@ class ProfilePostsGrid extends ConsumerWidget {
       ),
       error: (_, __) => Center(
         child: TextButton(
-          onPressed: () => ref.invalidate(attorneyPostsProvider(attorneyId)),
+          onPressed: () => ref.invalidate(_provider),
           child: Text(t.t('error.retry')),
         ),
       ),
@@ -615,7 +690,7 @@ class ProfilePostsGrid extends ConsumerWidget {
             if (page.canLoadMore)
               TextButton(
                 onPressed: () => ref
-                    .read(attorneyPostsProvider(attorneyId).notifier)
+                    .read(_provider.notifier)
                     .loadMore(),
                 child: Text(t.t('pagination.loadingMore')),
               ),

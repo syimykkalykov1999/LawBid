@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
+import 'package:lawbid/shared/domain/user_role.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -101,6 +103,7 @@ class _NotificationSettingsScreenState
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final remote = ref.watch(notificationSettingsProvider);
+    final attorney = ref.watch(currentUserRoleProvider) == UserRole.attorney;
     return Scaffold(
       backgroundColor: colors.bg,
       appBar: AppTopBar(
@@ -133,7 +136,9 @@ class _NotificationSettingsScreenState
                     style: type.titleMedium.copyWith(color: colors.text)),
                 const SizedBox(height: AppSpacing.sm),
                 for (final c in s.categories)
-                  if (c.category != NotifCategory.marketing)
+                  if (c.category != NotifCategory.marketing &&
+                      // New-case alerts are for attorneys.
+                      (c.category != NotifCategory.newCases || attorney))
                     Container(
                       margin: const EdgeInsets.only(bottom: AppSpacing.sm),
                       padding: const EdgeInsets.symmetric(
@@ -164,6 +169,13 @@ class _NotificationSettingsScreenState
                           ),
                           if (c.locked)
                             Text(t.t('notif.settings.locked'),
+                                style: type.caption
+                                    .copyWith(color: colors.textSecondary)),
+                          // Owner 2026-09-30: what the opt-in alerts are.
+                          if (c.category == NotifCategory.following ||
+                              c.category == NotifCategory.newCases)
+                            Text(
+                                t.t('notif.category.${c.category.name}.hint'),
                                 style: type.caption
                                     .copyWith(color: colors.textSecondary)),
                           SwitchListTile.adaptive(

@@ -3,22 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
-import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 import 'package:lawbid/features/feed/application/feed_topics.dart';
 import 'package:lawbid/features/onboarding/domain/us_states.dart';
 import 'package:lawbid/features/onboarding/presentation/widgets/option_picker_sheet.dart';
-import 'package:lawbid/features/profile/application/profile_providers.dart';
+import 'package:lawbid/features/practice/practice_options.dart';
 
-/// A category's display name: the localized practice tree when loaded,
-/// otherwise the English seed name.
-String topicName(WidgetRef ref, String code) {
-  final t = ref.read(translatorProvider);
-  final tree = ref.watch(practiceTreeProvider).value;
-  final cat = tree?.where((c) => c.i18nKey == 'practice.$code').firstOrNull;
-  if (cat != null) return CaseFormat.practice(t, cat.i18nKey, cat.nameEn);
-  return kPracticeCategoryNamesEn[code] ?? code;
-}
+/// A qualification's display name (category or subcategory).
+String topicName(WidgetRef ref, String code) => practiceLabel(ref, code);
 
 /// Owner 2026-09-30 (OQ-034): the topic slider above the post feed and
 /// the attorney's case feed. The filter button on the left opens "Topics"
@@ -31,8 +23,12 @@ class TopicFilterBar extends ConsumerWidget {
     required this.onCategory,
     required this.stateCode,
     required this.onState,
+    this.showNews = true,
     super.key,
   });
+
+  /// The "News" pill (the post feed; not the attorney's case feed).
+  final bool showNews;
 
   final String? category;
   final ValueChanged<String?> onCategory;
@@ -41,21 +37,23 @@ class TopicFilterBar extends ConsumerWidget {
 
   Future<void> _pickTopics(BuildContext context, WidgetRef ref) async {
     final t = ref.read(translatorProvider);
+    // Owner 2026-09-30: every category and subcategory, with suggestions
+    // while typing.
     final picked = await OptionPickerSheet.show(
       context,
       title: t.t('feed.topics.pick'),
       multi: true,
+      searchHint: t.t('practice.search.hint'),
       initial: ref.read(feedTopicsProvider).toSet(),
-      options: [
-        for (final c in kPracticeCategoryCodes)
-          PickerOption(value: c, label: topicName(ref, c)),
-      ],
+      options: practiceOptions(ref),
     );
     if (picked == null) return;
     ref.read(feedTopicsProvider.notifier).set(picked);
     // The open topic was removed from the slider: back to "All".
     final open = category;
-    if (open != null && !picked.contains(open)) onCategory(null);
+    if (open != null && open != kNewsTopic && !picked.contains(open)) {
+      onCategory(null);
+    }
   }
 
   Future<void> _pickState(BuildContext context, WidgetRef ref) async {
@@ -211,11 +209,20 @@ class TopicFilterBar extends ConsumerWidget {
             selected: category == null,
             onTap: () => onCategory(null),
           ),
+          if (showNews) ...[
+            const SizedBox(width: AppSpacing.sm),
+            pill(
+              label: t.t('feed.topics.news'),
+              icon: Icons.newspaper_rounded,
+              selected: category == kNewsTopic,
+              onTap: () => onCategory(kNewsTopic),
+            ),
+          ],
           for (final c in topics) ...[
             const SizedBox(width: AppSpacing.sm),
             pill(
               label: topicName(ref, c),
-              icon: practiceGlyph(c),
+              icon: practiceGlyph(practiceCategoryOf(c)),
               selected: category == c,
               onTap: () => onCategory(c),
             ),

@@ -25,7 +25,9 @@ class VerificationRequiredView extends ConsumerWidget {
       key: const ValueKey('verification-required'),
       icon: Icons.verified_user_outlined,
       title: t.t('gate.verify.title'),
-      message: t.t(reason == VerificationGateReason.post ? 'gate.verify.post' : 'gate.verify.cases'),
+      message: t.t(reason == VerificationGateReason.post
+          ? 'gate.verify.post'
+          : 'gate.verify.cases'),
       action: AppButton(
         label: t.t('gate.verify.cta'),
         height: AppSizes.touchTarget,
@@ -54,10 +56,12 @@ class VerificationRequiredScreen extends ConsumerWidget {
             label: t.t('common.close'),
             excludeSemantics: true,
             child: AppPressable(
-              onTap: () => context.canPop() ? context.pop() : context.go(AppRoutes.feed),
+              onTap: () =>
+                  context.canPop() ? context.pop() : context.go(AppRoutes.feed),
               child: SizedBox.square(
                 dimension: AppSizes.touchTarget,
-                child: Icon(Icons.close_rounded, color: colors.text, size: AppSizes.iconMd),
+                child: Icon(Icons.close_rounded,
+                    color: colors.text, size: AppSizes.iconMd),
               ),
             ),
           ),

@@ -11,14 +11,19 @@ import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_cards.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
+import 'package:lawbid/features/mine/presentation/widgets/mine_grid.dart';
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart';
 
-enum _ClientTab { cases, saved }
+enum _ClientTab { open, inProgress, completed, saved }
 
-enum _AttorneyTab { bids, work, saved }
+enum _AttorneyTab { bids, work, completed, saved }
 
-/// docs/04 §11.1 — client "Моё": "Мои кейсы" (Active / Archive / Closed)
-/// and "Сохранённое" (posts, docs/05).
+/// Owner 2026-09-30 — client "Mine": Open (with Archive), In progress,
+/// Completed and Saved (posts). Cases show as an Instagram-like grid —
+/// the first photo or our art of the qualification, a short title and the
+/// status — with search by title and filters (qualification, state), so a
+/// long history is never scrolled through.
 class ClientMineView extends ConsumerStatefulWidget {
   const ClientMineView({super.key});
 
@@ -27,18 +32,57 @@ class ClientMineView extends ConsumerStatefulWidget {
 }
 
 class _ClientMineViewState extends ConsumerState<ClientMineView> {
-  _ClientTab _tab = _ClientTab.cases;
-  MyCasesFilter _filter = MyCasesFilter.active;
+  _ClientTab _tab = _ClientTab.open;
+  bool _archived = false;
+  MineSearch _search = const MineSearch();
 
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
+    final filter = switch (_tab) {
+      _ClientTab.open =>
+        _archived ? MyCasesFilter.archived : MyCasesFilter.open,
+      _ClientTab.inProgress => MyCasesFilter.inProgress,
+      _ClientTab.completed => MyCasesFilter.closed,
+      _ClientTab.saved => MyCasesFilter.active,
+    };
+    final Widget body = _tab == _ClientTab.saved
+        ? const SavedPostsList(key: ValueKey('saved'))
+        : Column(
+            key: ValueKey('cases-${_tab.name}'),
+            children: [
+              MineSearchBar(
+                search: _search,
+                onChanged: (v) => setState(() => _search = v),
+              ),
+              MineActiveFilters(
+                search: _search,
+                onChanged: (v) => setState(() => _search = v),
+              ),
+              if (_tab == _ClientTab.open) ...[
+                const SizedBox(height: AppSpacing.sm),
+                FilterChips<bool>(
+                  value: _archived,
+                  options: [
+                    (false, t.t('mine.filter.open')),
+                    (true, t.t('mine.filter.archived')),
+                  ],
+                  onChanged: (v) => setState(() => _archived = v),
+                ),
+              ],
+              const SizedBox(height: AppSpacing.sm),
+              Expanded(
+                  child: _ClientCasesGrid(filter: filter, search: _search)),
+            ],
+          );
     return Column(
       children: [
         PillTabs<_ClientTab>(
           value: _tab,
           tabs: [
-            (_ClientTab.cases, t.t('mine.tab.myCases')),
+            (_ClientTab.open, t.t('mine.tab.open')),
+            (_ClientTab.inProgress, t.t('mine.tab.inWork')),
+            (_ClientTab.completed, t.t('mine.tab.completed')),
             (_ClientTab.saved, t.t('mine.tab.saved')),
           ],
           onChanged: (v) => setState(() => _tab = v),
@@ -47,27 +91,59 @@ class _ClientMineViewState extends ConsumerState<ClientMineView> {
           child: AnimatedSwitcher(
             duration:
                 context.reduceMotion ? Duration.zero : AppMotion.stateChange,
-            child: _tab == _ClientTab.cases
-                ? Column(
-                    key: const ValueKey('cases'),
-                    children: [
-                      const SizedBox(height: AppSpacing.sm),
-                      FilterChips<MyCasesFilter>(
-                        value: _filter,
-                        options: [
-                          (MyCasesFilter.active, t.t('mine.filter.active')),
-                          (MyCasesFilter.archived, t.t('mine.filter.archived')),
-                          (MyCasesFilter.closed, t.t('mine.filter.closed')),
-                        ],
-                        onChanged: (v) => setState(() => _filter = v),
-                      ),
-                      Expanded(child: MyCasesList(filter: _filter)),
-                    ],
-                  )
-                : const SavedPostsList(key: ValueKey('saved')),
+            child: body,
           ),
         ),
       ],
+    );
+  }
+}
+
+class _ClientCasesGrid extends ConsumerWidget {
+  const _ClientCasesGrid({required this.filter, required this.search});
+
+  final MyCasesFilter filter;
+  final MineSearch search;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final key = (filter: filter, search: search);
+    final value = ref.watch(mineCasesProvider(key));
+    final n = ref.read(mineCasesProvider(key).notifier);
+    final ids = value.value?.items.map((c) => c.id).join(',') ?? '';
+    final seen = ref.watch(seenBidCountsProvider(ids)).value ?? const {};
+    final firstOpen = filter == MyCasesFilter.open && search.isEmpty;
+    return MinePagedGrid<CaseSummary>(
+      value: value,
+      onRefresh: n.refresh,
+      onLoadMore: n.loadMore,
+      onRetryMore: n.retryLoadMore,
+      empty: AppEmptyState(
+        icon: Icons.folder_open_rounded,
+        title: firstOpen ? t.t('mine.cases.emptyTitle') : null,
+        message: firstOpen
+            ? t.t('mine.cases.emptyMessage')
+            : mineEmpty(t, search, 'mine.cases.emptyFiltered'),
+        action: firstOpen
+            ? AppButton(
+                label: t.t('mine.cases.create'),
+                icon: Icons.add_rounded,
+                height: AppSizes.touchTarget,
+                onPressed: () => context.push(AppRoutes.create),
+              )
+            : null,
+      ),
+      tileOf: (c) => MineTileData(
+        title: c.title,
+        statusLabel: caseStatusLabel(t, c.status),
+        statusTone: caseTone(c.status),
+        coverUrl: c.coverUrl,
+        practiceCode: c.practice.code,
+        categoryCode: c.practice.categoryCode,
+        badge: (c.bidsCount - (seen[c.id] ?? 0)).clamp(0, c.bidsCount),
+        onTap: () => context.push(AppRoutes.myCase(c.id)),
+      ),
     );
   }
 }
@@ -121,7 +197,8 @@ class MyCasesList extends ConsumerWidget {
   }
 }
 
-/// docs/04 §11.2 — attorney "Моё": "Мои биды", "В работе", "Сохранённое".
+/// Owner 2026-09-30 — attorney "Mine": My bids, In progress, Completed
+/// and Saved, each a searchable, filterable grid of case squares.
 class AttorneyMineView extends ConsumerStatefulWidget {
   const AttorneyMineView({super.key});
 
@@ -132,15 +209,28 @@ class AttorneyMineView extends ConsumerStatefulWidget {
 class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
   _AttorneyTab _tab = _AttorneyTab.bids;
   MyBidsFilter _bids = MyBidsFilter.active;
+  MineSearch _search = const MineSearch();
 
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
-    final formats = ref.watch(l10nFormatsProvider);
+    final search = Column(
+      children: [
+        MineSearchBar(
+          search: _search,
+          onChanged: (v) => setState(() => _search = v),
+        ),
+        MineActiveFilters(
+          search: _search,
+          onChanged: (v) => setState(() => _search = v),
+        ),
+      ],
+    );
     final Widget body = switch (_tab) {
       _AttorneyTab.bids => Column(
           key: const ValueKey('bids'),
           children: [
+            search,
             const SizedBox(height: AppSpacing.sm),
             FilterChips<MyBidsFilter>(
               value: _bids,
@@ -150,91 +240,30 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
               ],
               onChanged: (v) => setState(() => _bids = v),
             ),
+            const SizedBox(height: AppSpacing.sm),
+            Expanded(child: _BidsGrid(filter: _bids, search: _search)),
+          ],
+        ),
+      _AttorneyTab.work || _AttorneyTab.completed => Column(
+          key: ValueKey(_tab.name),
+          children: [
+            search,
+            const SizedBox(height: AppSpacing.sm),
             Expanded(
-              child: Consumer(
-                builder: (context, ref, _) {
-                  final value = ref.watch(myBidsProvider(_bids));
-                  final n = ref.read(myBidsProvider(_bids).notifier);
-                  return PagedListBody<MyBid>(
-                    value: value,
-                    t: t,
-                    itemKey: (b) => b.bid.id,
-                    onRefresh: n.refresh,
-                    onLoadMore: n.loadMore,
-                    onRetryMore: n.retryLoadMore,
-                    empty: AppEmptyState(
-                      icon: Icons.gavel_rounded,
-                      message: t.t(_bids == MyBidsFilter.active
-                          ? 'mine.bids.emptyActive'
-                          : 'mine.bids.emptyFinished'),
-                      action: _bids == MyBidsFilter.active
-                          ? AppButton(
-                              label: t.t('mine.bids.findCases'),
-                              height: AppSizes.touchTarget,
-                              variant: AppButtonVariant.secondary,
-                              onPressed: () => context.go(AppRoutes.feed),
-                            )
-                          : null,
-                    ),
-                    itemBuilder: (context, b, _) => MyBidCard(
-                      item: b,
-                      t: t,
-                      formats: formats,
-                      onTap: () => context.push(AppRoutes.bid(b.bid.id)),
-                    ),
-                  );
-                },
+              child: _WorkGrid(
+                filter: _tab == _AttorneyTab.work
+                    ? WorkFilter.active
+                    : WorkFilter.closed,
+                search: _search,
               ),
             ),
           ],
         ),
-      _AttorneyTab.work => Consumer(
-          key: const ValueKey('work'),
-          builder: (context, ref, _) {
-            final value = ref.watch(myWorkProvider(WorkFilter.active));
-            final n = ref.read(myWorkProvider(WorkFilter.active).notifier);
-            final showCompleted = Padding(
-              padding: const EdgeInsets.only(top: AppSpacing.md),
-              child: AppButton(
-                label: t.t('mine.work.showCompleted'),
-                icon: Icons.history_rounded,
-                variant: AppButtonVariant.secondary,
-                height: AppSizes.touchTarget,
-                onPressed: () => context.push(AppRoutes.completedWork),
-              ),
-            );
-            return PagedListBody<WorkItem>(
-              value: value,
-              t: t,
-              itemKey: (w) => w.caseId,
-              onRefresh: n.refresh,
-              onLoadMore: n.loadMore,
-              onRetryMore: n.retryLoadMore,
-              header: const SizedBox(height: AppSpacing.xs),
-              empty: AppEmptyState(
-                icon: Icons.work_outline_rounded,
-                message: t.t('mine.work.empty'),
-                action: showCompleted,
-              ),
-              itemBuilder: (context, w, i) => Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  WorkCard(
-                    item: w,
-                    t: t,
-                    formats: formats,
-                    onTap: () => context.push(AppRoutes.workCase(w.caseId)),
-                  ),
-                  if (value.value != null &&
-                      i == value.value!.items.length - 1 &&
-                      !value.value!.hasMore)
-                    showCompleted,
-                ],
-              ),
-            );
-          },
+      _AttorneyTab.saved => _AttorneySaved(
+          key: const ValueKey('saved'),
+          search: _search,
+          searchBar: search,
         ),
-      _AttorneyTab.saved => const _AttorneySaved(key: ValueKey('saved')),
     };
     return Column(
       children: [
@@ -243,6 +272,7 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
           tabs: [
             (_AttorneyTab.bids, t.t('mine.tab.myBids')),
             (_AttorneyTab.work, t.t('mine.tab.inWork')),
+            (_AttorneyTab.completed, t.t('mine.tab.completed')),
             (_AttorneyTab.saved, t.t('mine.tab.saved')),
           ],
           onChanged: (v) => setState(() => _tab = v),
@@ -259,11 +289,107 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
   }
 }
 
+class _BidsGrid extends ConsumerWidget {
+  const _BidsGrid({required this.filter, required this.search});
+
+  final MyBidsFilter filter;
+  final MineSearch search;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final key = (filter: filter, search: search);
+    final value = ref.watch(mineBidsProvider(key));
+    final n = ref.read(mineBidsProvider(key).notifier);
+    return MinePagedGrid<MyBid>(
+      value: value,
+      onRefresh: n.refresh,
+      onLoadMore: n.loadMore,
+      onRetryMore: n.retryLoadMore,
+      empty: AppEmptyState(
+        icon: Icons.gavel_rounded,
+        message: mineEmpty(
+            t,
+            search,
+            filter == MyBidsFilter.active
+                ? 'mine.bids.emptyActive'
+                : 'mine.bids.emptyFinished'),
+        action: filter == MyBidsFilter.active && search.isEmpty
+            ? AppButton(
+                label: t.t('mine.bids.findCases'),
+                height: AppSizes.touchTarget,
+                variant: AppButtonVariant.secondary,
+                onPressed: () => context.go(AppRoutes.feed),
+              )
+            : null,
+      ),
+      tileOf: (b) {
+        final (label, tone) = bidStatusOf(t, b.bid, PartyRole.attorney);
+        return MineTileData(
+          title: b.caseTitle,
+          statusLabel: label,
+          statusTone: tone,
+          coverUrl: b.coverUrl,
+          practiceCode: b.casePracticeCode,
+          onTap: () => context.push(AppRoutes.bid(b.bid.id)),
+        );
+      },
+    );
+  }
+}
+
+class _WorkGrid extends ConsumerWidget {
+  const _WorkGrid({required this.filter, required this.search});
+
+  final WorkFilter filter;
+  final MineSearch search;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final key = (filter: filter, search: search);
+    final value = ref.watch(mineWorkProvider(key));
+    final n = ref.read(mineWorkProvider(key).notifier);
+    return MinePagedGrid<WorkItem>(
+      value: value,
+      onRefresh: n.refresh,
+      onLoadMore: n.loadMore,
+      onRetryMore: n.retryLoadMore,
+      empty: AppEmptyState(
+        icon: filter == WorkFilter.active
+            ? Icons.work_outline_rounded
+            : Icons.history_rounded,
+        message: mineEmpty(
+            t,
+            search,
+            filter == WorkFilter.active
+                ? 'mine.work.empty'
+                : 'mine.work.completedEmpty'),
+      ),
+      tileOf: (w) => MineTileData(
+        title: w.title,
+        statusLabel: caseStatusLabel(t, w.status),
+        statusTone: caseTone(w.status),
+        coverUrl: w.coverUrl,
+        practiceCode: w.practiceCode,
+        onTap: () => context.push(AppRoutes.workCase(w.caseId)),
+      ),
+    );
+  }
+}
+
 enum _SavedKind { cases, posts }
 
-/// "Сохранённое" for attorneys: saved cases (docs/04) and posts (docs/05).
+/// "Saved" for attorneys: saved cases (a grid, searchable) and posts.
 class _AttorneySaved extends ConsumerStatefulWidget {
-  const _AttorneySaved({super.key});
+  const _AttorneySaved({
+    required this.search,
+    required this.searchBar,
+    super.key,
+  });
+
+  final MineSearch search;
+  final Widget searchBar;
 
   @override
   ConsumerState<_AttorneySaved> createState() => _AttorneySavedState();
@@ -277,6 +403,7 @@ class _AttorneySavedState extends ConsumerState<_AttorneySaved> {
     final t = ref.watch(translatorProvider);
     return Column(
       children: [
+        if (_kind == _SavedKind.cases) widget.searchBar,
         const SizedBox(height: AppSpacing.sm),
         FilterChips<_SavedKind>(
           value: _kind,
@@ -286,12 +413,57 @@ class _AttorneySavedState extends ConsumerState<_AttorneySaved> {
           ],
           onChanged: (v) => setState(() => _kind = v),
         ),
+        const SizedBox(height: AppSpacing.sm),
         Expanded(
           child: _kind == _SavedKind.cases
-              ? const SavedCasesList()
+              ? _SavedGrid(search: widget.search)
               : const SavedPostsList(),
         ),
       ],
+    );
+  }
+}
+
+class _SavedGrid extends ConsumerWidget {
+  const _SavedGrid({required this.search});
+
+  final MineSearch search;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final value = ref.watch(mineSavedProvider(search));
+    final n = ref.read(mineSavedProvider(search).notifier);
+    return MinePagedGrid<SavedCase>(
+      value: value,
+      onRefresh: n.refresh,
+      onLoadMore: n.loadMore,
+      onRetryMore: n.retryLoadMore,
+      empty: AppEmptyState(
+        icon: Icons.bookmark_outline_rounded,
+        message: mineEmpty(t, search, 'mine.saved.empty'),
+      ),
+      tileOf: (sv) {
+        final card = sv.card;
+        final ok = sv.available && card != null;
+        return MineTileData(
+          title: card?.title ?? sv.title ?? '—',
+          statusLabel: ok
+              ? caseStatusLabel(t, card.status)
+              : t.t('mine.saved.unavailable'),
+          statusTone: ok ? caseTone(card.status) : StatusTone.neutral,
+          practiceCode: card?.practice.code,
+          categoryCode: card?.practice.categoryCode,
+          onTap: ok
+              ? () => context.push(AppRoutes.caseDetail(sv.caseId))
+              : () async {
+                  await ref
+                      .read(caseActionsProvider)
+                      .setSaved(sv.caseId, saved: false);
+                  n.removeWhere((x) => x.caseId == sv.caseId);
+                },
+        );
+      },
     );
   }
 }

@@ -64,6 +64,7 @@ const _keys = <String, String>{
   ApiErrorCodes.reviewCaseNotClosed: 'error.api.REVIEW_CASE_NOT_CLOSED',
   ApiErrorCodes.reviewNoAcceptedBid: 'error.api.REVIEW_NO_ACCEPTED_BID',
   ApiErrorCodes.reviewAlreadyExists: 'error.api.REVIEW_ALREADY_EXISTS',
+  ApiErrorCodes.reviewAppealExists: 'error.api.REVIEW_APPEAL_EXISTS',
   ApiErrorCodes.reviewEditWindowExpired: 'error.api.REVIEW_EDIT_WINDOW_EXPIRED',
   ApiErrorCodes.reviewNotEditable: 'error.api.REVIEW_NOT_EDITABLE',
   // Uploads (docs/03 §2.2). A checksum mismatch or a missing upload means

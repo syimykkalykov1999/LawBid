@@ -62,11 +62,13 @@ class SocialLocalDatabase extends _$SocialLocalDatabase {
           ?.json;
 
   Future<void> savePage(String key, String json) =>
-      into(cachedPages).insertOnConflictUpdate(CachedPagesCompanion.insert(
-        key: key,
-        json: json,
-        updatedAt: DateTime.now(),
-      ),);
+      into(cachedPages).insertOnConflictUpdate(
+        CachedPagesCompanion.insert(
+          key: key,
+          json: json,
+          updatedAt: DateTime.now(),
+        ),
+      );
 
   // --- chat outbox ----------------------------------------------------
 
@@ -76,29 +78,35 @@ class SocialLocalDatabase extends _$SocialLocalDatabase {
     required String conversationId,
     required String body,
   }) =>
-      into(chatOutbox).insertOnConflictUpdate(ChatOutboxCompanion.insert(
-        clientMessageId: clientMessageId,
-        ownerId: ownerId,
-        conversationId: conversationId,
-        body: body,
-        createdAt: DateTime.now(),
-      ),);
+      into(chatOutbox).insertOnConflictUpdate(
+        ChatOutboxCompanion.insert(
+          clientMessageId: clientMessageId,
+          ownerId: ownerId,
+          conversationId: conversationId,
+          body: body,
+          createdAt: DateTime.now(),
+        ),
+      );
 
   Future<List<OutboxRow>> pending(String ownerId, {String? conversationId}) =>
       (select(chatOutbox)
-            ..where((o) =>
-                o.ownerId.equals(ownerId) &
-                (conversationId == null
-                    ? const Constant(true)
-                    : o.conversationId.equals(conversationId)),)
+            ..where(
+              (o) =>
+                  o.ownerId.equals(ownerId) &
+                  (conversationId == null
+                      ? const Constant(true)
+                      : o.conversationId.equals(conversationId)),
+            )
             ..orderBy([(o) => OrderingTerm.asc(o.createdAt)]))
           .get();
 
   Stream<List<OutboxRow>> watchPending(String ownerId, String conversationId) =>
       (select(chatOutbox)
-            ..where((o) =>
-                o.ownerId.equals(ownerId) &
-                o.conversationId.equals(conversationId),)
+            ..where(
+              (o) =>
+                  o.ownerId.equals(ownerId) &
+                  o.conversationId.equals(conversationId),
+            )
             ..orderBy([(o) => OrderingTerm.asc(o.createdAt)]))
           .watch();
 

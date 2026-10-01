@@ -75,8 +75,7 @@ class _CreateCaseScreenState extends ConsumerState<CreateCaseScreen> {
 
     final Widget step = switch (d.step) {
       0 => PracticeStep(draft: d, onChange: _c.update),
-      1 =>
-        EssenceStep(
+      1 => EssenceStep(
           draft: d,
           onChange: _c.update,
           contactError: contactError,

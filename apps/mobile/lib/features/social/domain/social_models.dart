@@ -87,6 +87,24 @@ class Mention {
 }
 
 @immutable
+
+/// Owner 2026-09-30: a post's qualification (a practice category or
+/// subcategory).
+@immutable
+class PostPractice {
+  const PostPractice({
+    required this.code,
+    required this.categoryCode,
+    required this.nameEn,
+    required this.i18nKey,
+  });
+
+  final String code;
+  final String categoryCode;
+  final String nameEn;
+  final String i18nKey;
+}
+
 class Post {
   const Post({
     required this.id,
@@ -104,7 +122,20 @@ class Post {
     this.status = 'published',
     this.shareCount = 0,
     this.mentions = const [],
+    this.title,
+    this.isNews = false,
+    this.practice,
   });
+
+  /// Owner 2026-09-30: the card title; null on older posts (the body's
+  /// first line is shown instead).
+  final String? title;
+
+  /// Owner 2026-09-30: News (attorneys only) rather than a regular post.
+  final bool isNews;
+
+  /// Owner 2026-09-30: the qualification; null on older posts.
+  final PostPractice? practice;
 
   /// OQ-037: completed shares.
   final int shareCount;
@@ -132,6 +163,8 @@ class Post {
   bool get pendingReview => isMine && status == 'hidden';
 
   Post copyWith({
+    String? title,
+    PostPractice? practice,
     String? body,
     List<String>? tags,
     int? likeCount,
@@ -157,6 +190,9 @@ class Post {
         status: status,
         shareCount: shareCount ?? this.shareCount,
         mentions: mentions,
+        title: title ?? this.title,
+        isNews: isNews,
+        practice: practice ?? this.practice,
       );
 }
 

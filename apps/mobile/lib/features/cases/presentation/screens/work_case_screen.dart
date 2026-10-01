@@ -49,8 +49,7 @@ class _WorkCaseScreenState extends ConsumerState<WorkCaseScreen> {
           await ref.read(caseActionsProvider).openConversation(widget.caseId);
       if (mounted) await context.push(ChatRoutes.conversation(conv.id));
     } on Object catch (e) {
-      if (mounted &&
-          !routeSubscriptionError(context, e, reason: 'chat')) {
+      if (mounted && !routeSubscriptionError(context, e, reason: 'chat')) {
         showAppSnackBar(context, errorText(t, e));
       }
     } finally {

@@ -109,13 +109,15 @@ class _FiltersSheetState extends ConsumerState<_FiltersSheet> {
     final picked = await OptionPickerSheet.show(
       context,
       title: t.t('search.filter.practice'),
+      // Owner 2026-09-30: suggestions while typing.
+      searchHint: t.t('practice.search.hint'),
       options: [
         for (final c in tree)
           for (final l in c.children)
             PickerOption(
               value: l.id,
               label: labels[l.id] = CaseFormat.practice(t, l.i18nKey, l.nameEn),
-              sublabel: CaseFormat.practice(t, c.i18nKey, c.nameEn),
+              group: CaseFormat.practice(t, c.i18nKey, c.nameEn),
             ),
       ],
       initial: {if (_f.practiceAreaId != null) _f.practiceAreaId!},
@@ -129,6 +131,7 @@ class _FiltersSheetState extends ConsumerState<_FiltersSheet> {
     final picked = await OptionPickerSheet.show(
       context,
       title: title,
+      searchHint: ref.read(translatorProvider).t('practice.search.hint'),
       options: [
         for (final c in kPracticeCategoryCodes)
           PickerOption(value: c, label: topicName(ref, c)),

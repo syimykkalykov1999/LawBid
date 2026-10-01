@@ -17,10 +17,13 @@ enum AvatarSource { camera, gallery }
 /// Picks a photo and returns its bytes (null = cancelled). Downscaled on
 /// device to 1024 px (docs/03 §4.1: "сжатие до 1024 px"); the server makes
 /// the square centre crop. Overridden in tests.
-final avatarImagePickerProvider = Provider<Future<Uint8List?> Function(AvatarSource)>(
+final avatarImagePickerProvider =
+    Provider<Future<Uint8List?> Function(AvatarSource)>(
   (ref) => (source) async {
     final file = await ImagePicker().pickImage(
-      source: source == AvatarSource.camera ? ImageSource.camera : ImageSource.gallery,
+      source: source == AvatarSource.camera
+          ? ImageSource.camera
+          : ImageSource.gallery,
       maxWidth: 1024,
       maxHeight: 1024,
       imageQuality: 88,
@@ -35,7 +38,8 @@ final avatarImagePickerProvider = Provider<Future<Uint8List?> Function(AvatarSou
 /// progress ring, a status line, and Retry on failure. Visually a plain
 /// form row so it fits the onboarding step's existing style.
 class AvatarPickerField extends ConsumerWidget {
-  const AvatarPickerField({super.key, this.initials, this.heroTag, this.label, this.requiredError});
+  const AvatarPickerField(
+      {super.key, this.initials, this.heroTag, this.label, this.requiredError});
 
   final String? initials;
   final String? heroTag;
@@ -53,7 +57,8 @@ class AvatarPickerField extends ConsumerWidget {
       builder: (sheetContext) => SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide, AppSpacing.md, AppSpacing.screenSide, AppSpacing.lg),
+          padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide,
+              AppSpacing.md, AppSpacing.screenSide, AppSpacing.lg),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -62,14 +67,16 @@ class AvatarPickerField extends ConsumerWidget {
                 icon: Icons.photo_camera_outlined,
                 label: t.t('profile.photo.camera'),
                 showChevron: false,
-                onTap: () => Navigator.of(sheetContext).pop(AvatarSource.camera),
+                onTap: () =>
+                    Navigator.of(sheetContext).pop(AvatarSource.camera),
               ),
               const SizedBox(height: AppSpacing.xs),
               AppListRow(
                 icon: Icons.photo_library_outlined,
                 label: t.t('profile.photo.gallery'),
                 showChevron: false,
-                onTap: () => Navigator.of(sheetContext).pop(AvatarSource.gallery),
+                onTap: () =>
+                    Navigator.of(sheetContext).pop(AvatarSource.gallery),
               ),
             ],
           ),
@@ -81,7 +88,8 @@ class AvatarPickerField extends ConsumerWidget {
     try {
       bytes = await ref.read(avatarImagePickerProvider)(source);
     } catch (_) {
-      if (context.mounted) showAppSnackBar(context, t.t('profile.photo.pickFailed'));
+      if (context.mounted)
+        showAppSnackBar(context, t.t('profile.photo.pickFailed'));
       return;
     }
     if (bytes == null) return;
@@ -94,18 +102,29 @@ class AvatarPickerField extends ConsumerWidget {
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final t = ref.watch(translatorProvider);
     final upload = ref.watch(avatarUploadControllerProvider);
-    final url = ref.watch(currentUserControllerProvider.select((s) => s.user?.avatarUrl));
+    final url = ref
+        .watch(currentUserControllerProvider.select((s) => s.user?.avatarUrl));
     final hasPhoto = url != null || upload.preview != null;
 
     final (String status, Color statusColor) = switch (upload.stage) {
-      AvatarUploadStage.preparing => (t.t('profile.photo.preparing'), colors.textSecondary),
+      AvatarUploadStage.preparing => (
+          t.t('profile.photo.preparing'),
+          colors.textSecondary
+        ),
       AvatarUploadStage.uploading => (
-          t.t('profile.photo.uploading', {'percent': '${(upload.progress * 100).round()}'}),
+          t.t('profile.photo.uploading',
+              {'percent': '${(upload.progress * 100).round()}'}),
           colors.textSecondary,
         ),
-      AvatarUploadStage.checking => (t.t('profile.photo.checking'), colors.textSecondary),
+      AvatarUploadStage.checking => (
+          t.t('profile.photo.checking'),
+          colors.textSecondary
+        ),
       AvatarUploadStage.done => (t.t('profile.photo.done'), colors.success),
-      AvatarUploadStage.failed => (errorText(t, upload.error ?? Object()), colors.dangerText),
+      AvatarUploadStage.failed => (
+          errorText(t, upload.error ?? Object()),
+          colors.dangerText
+        ),
       AvatarUploadStage.idle => requiredError != null
           ? (requiredError!, colors.dangerText)
           : (t.t('profile.photo.hint'), colors.textSecondary),
@@ -127,11 +146,14 @@ class AvatarPickerField extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label ?? t.t('profile.photo.label'), style: typography.bodySmall.copyWith(color: colors.text, fontWeight: FontWeight.w600)),
+              Text(label ?? t.t('profile.photo.label'),
+                  style: typography.bodySmall.copyWith(
+                      color: colors.text, fontWeight: FontWeight.w600)),
               const SizedBox(height: AppSpacing.xs),
               Semantics(
                 liveRegion: true,
-                child: Text(status, style: typography.caption.copyWith(color: statusColor)),
+                child: Text(status,
+                    style: typography.caption.copyWith(color: statusColor)),
               ),
               const SizedBox(height: AppSpacing.xs),
               Wrap(
@@ -142,11 +164,15 @@ class AvatarPickerField extends ConsumerWidget {
                       key: const ValueKey('avatar-retry'),
                       label: t.t('error.retry'),
                       icon: Icons.refresh_rounded,
-                      onTap: () => ref.read(avatarUploadControllerProvider.notifier).retry(),
+                      onTap: () => ref
+                          .read(avatarUploadControllerProvider.notifier)
+                          .retry(),
                     ),
                   _TextAction(
                     key: const ValueKey('avatar-pick'),
-                    label: t.t(hasPhoto ? 'profile.photo.change' : 'profile.photo.add'),
+                    label: t.t(hasPhoto
+                        ? 'profile.photo.change'
+                        : 'profile.photo.add'),
                     icon: Icons.photo_camera_outlined,
                     onTap: upload.busy ? null : () => _pick(context, ref, t),
                   ),
@@ -161,7 +187,11 @@ class AvatarPickerField extends ConsumerWidget {
 }
 
 class _TextAction extends StatelessWidget {
-  const _TextAction({required this.label, required this.icon, required this.onTap, super.key});
+  const _TextAction(
+      {required this.label,
+      required this.icon,
+      required this.onTap,
+      super.key});
 
   final String label;
   final IconData icon;

@@ -340,6 +340,12 @@ class _BidBody extends StatelessWidget {
             ),
           ),
         ],
+        if (bid.outsidePractice)
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.md),
+            child: OutsidePracticeNote(
+                t: t, forClient: viewer == PartyRole.client),
+          ),
         DetailSection(
           title: t.t('cases.bid.message'),
           child: Text(bid.message,

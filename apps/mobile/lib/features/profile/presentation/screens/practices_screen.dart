@@ -12,7 +12,10 @@ import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 
 /// Tree + current selection, loaded together for the editor.
-typedef PracticesData = ({List<PracticeCategory> tree, List<SelectedPractice> selected});
+typedef PracticesData = ({
+  List<PracticeCategory> tree,
+  List<SelectedPractice> selected
+});
 
 final practicesEditorDataProvider = FutureProvider.autoDispose<PracticesData>(
   (ref) async {
@@ -90,7 +93,10 @@ class PracticesScreen extends ConsumerWidget {
                 icon: Icons.gavel_rounded,
                 message: t.t('practices.emptyTree'),
               )
-            : PracticesEditor(key: const ValueKey('editor'), tree: d.tree, initial: d.selected),
+            : PracticesEditor(
+                key: const ValueKey('editor'),
+                tree: d.tree,
+                initial: d.selected),
       );
     }
 
@@ -134,20 +140,28 @@ class _PracticesEditorState extends ConsumerState<PracticesEditor> {
     super.dispose();
   }
 
-  bool get _dirty => _selected.length != _saved.length || !_selected.containsAll(_saved);
+  bool get _dirty =>
+      _selected.length != _saved.length || !_selected.containsAll(_saved);
 
   Future<void> _save(Translator t) async {
     if (_saving || !_dirty) return;
     setState(() => _saving = true);
     try {
-      final saved = await ref.read(practicesRepositoryProvider).replace(_selected.toList());
+      final saved = await ref
+          .read(practicesRepositoryProvider)
+          .replace(_selected.toList());
       if (!mounted) return;
       setState(() {
         _saved = {for (final p in saved) p.id};
         _selected = {..._saved};
       });
-      final username = ref.read(currentUserControllerProvider).user?.attorneyProfile?.username;
-      if (username != null) ref.invalidate(publicAttorneyProfileProvider(username));
+      final username = ref
+          .read(currentUserControllerProvider)
+          .user
+          ?.attorneyProfile
+          ?.username;
+      if (username != null)
+        ref.invalidate(publicAttorneyProfileProvider(username));
       showAppSnackBar(context, t.t('practices.saved'));
     } catch (e) {
       if (mounted) showAppSnackBar(context, errorText(t, e));
@@ -185,27 +199,35 @@ class _PracticesEditorState extends ConsumerState<PracticesEditor> {
       if (query.isEmpty || catName(c).toLowerCase().contains(query)) {
         visible.add((c, c.children));
       } else {
-        final leaves = c.children.where((l) => leafName(l).toLowerCase().contains(query)).toList();
+        final leaves = c.children
+            .where((l) => leafName(l).toLowerCase().contains(query))
+            .toList();
         if (leaves.isNotEmpty) visible.add((c, leaves));
       }
     }
 
-    final leafById = {for (final c in widget.tree) for (final l in c.children) l.id: l};
+    final leafById = {
+      for (final c in widget.tree)
+        for (final l in c.children) l.id: l
+    };
     final selectedLeaves = [
       for (final id in _selected)
         if (leafById[id] != null) leafById[id]!,
     ]..sort((a, b) => leafName(a).compareTo(leafName(b)));
 
     final list = ListView(
-      padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide, AppSpacing.sm, AppSpacing.screenSide, AppSpacing.xxl),
+      padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide, AppSpacing.sm,
+          AppSpacing.screenSide, AppSpacing.xxl),
       children: [
-        Text(t.t('practices.intro'), style: typography.body.copyWith(color: colors.textSecondary)),
+        Text(t.t('practices.intro'),
+            style: typography.body.copyWith(color: colors.textSecondary)),
         const SizedBox(height: AppSpacing.lg),
         AppTextField(
           controller: _search,
           hintText: t.t('practices.search'),
           semanticLabel: t.t('practices.search'),
-          leading: Icon(Icons.search_rounded, color: colors.textSecondary, size: AppSizes.iconSm),
+          leading: Icon(Icons.search_rounded,
+              color: colors.textSecondary, size: AppSizes.iconSm),
           textInputAction: TextInputAction.search,
           onChanged: (_) => setState(() {}),
         ),
@@ -222,7 +244,9 @@ class _PracticesEditorState extends ConsumerState<PracticesEditor> {
             padding: const EdgeInsets.symmetric(vertical: AppSpacing.xxl),
             child: Column(
               children: [
-                const AppIconMedallion(icon: Icons.search_off_rounded, tone: AppMedallionTone.neutral),
+                const AppIconMedallion(
+                    icon: Icons.search_off_rounded,
+                    tone: AppMedallionTone.neutral),
                 const SizedBox(height: AppSpacing.md),
                 Text(
                   t.t('practices.noResults'),
@@ -243,7 +267,8 @@ class _PracticesEditorState extends ConsumerState<PracticesEditor> {
                 name: catName(visible[i].$1),
                 leafName: leafName,
                 selected: _selected,
-                expanded: query.isNotEmpty || _expanded.contains(visible[i].$1.id),
+                expanded:
+                    query.isNotEmpty || _expanded.contains(visible[i].$1.id),
                 onExpand: () => setState(() {
                   final id = visible[i].$1.id;
                   if (!_expanded.remove(id)) _expanded.add(id);
@@ -268,7 +293,8 @@ class _PracticesEditorState extends ConsumerState<PracticesEditor> {
           child: SafeArea(
             top: false,
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide, AppSpacing.md, AppSpacing.screenSide, AppSpacing.md),
+              padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide,
+                  AppSpacing.md, AppSpacing.screenSide, AppSpacing.md),
               child: AppButton(
                 key: const ValueKey('practices-save'),
                 label: t.t('practices.save'),
@@ -319,7 +345,9 @@ class _SelectedChips extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.sm),
           if (leaves.isEmpty)
-            Text(t.t('practices.selected.none'), style: typography.bodySmall.copyWith(color: colors.textSecondary))
+            Text(t.t('practices.selected.none'),
+                style:
+                    typography.bodySmall.copyWith(color: colors.textSecondary))
           else
             Wrap(
               spacing: AppSpacing.sm,
@@ -336,7 +364,8 @@ class _SelectedChips extends StatelessWidget {
                       child: AppChip(
                         label: nameOf(l),
                         selected: true,
-                        trailing: Icon(Icons.close_rounded, size: AppSpacing.lg, color: colors.textSecondary),
+                        trailing: Icon(Icons.close_rounded,
+                            size: AppSpacing.lg, color: colors.textSecondary),
                         onTap: () => onRemove(l.id),
                       ),
                     ),
@@ -401,7 +430,8 @@ class _CategoryCard extends StatelessWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final reduce = context.reduceMotion;
-    final picked = category.children.where((l) => selected.contains(l.id)).length;
+    final picked =
+        category.children.where((l) => selected.contains(l.id)).length;
     final allPicked = picked == category.children.length && picked > 0;
 
     return AnimatedContainer(
@@ -409,14 +439,17 @@ class _CategoryCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: colors.surface,
         borderRadius: BorderRadius.circular(AppRadii.card),
-        border: Border.all(color: picked > 0 ? colors.goldStroke : colors.border),
+        border:
+            Border.all(color: picked > 0 ? colors.goldStroke : colors.border),
       ),
       child: Column(
         children: [
           Semantics(
             button: true,
             expanded: expanded,
-            label: picked > 0 ? '$name. ${t.t('practices.pickedCount', {'count': '$picked'})}' : name,
+            label: picked > 0
+                ? '$name. ${t.t('practices.pickedCount', {'count': '$picked'})}'
+                : name,
             excludeSemantics: true,
             onTap: onExpand,
             child: InkWell(
@@ -424,23 +457,37 @@ class _CategoryCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(AppRadii.card),
               onTap: onExpand,
               child: ConstrainedBox(
-                constraints: const BoxConstraints(minHeight: AppSizes.hitTarget + AppSpacing.sm),
+                constraints: const BoxConstraints(
+                    minHeight: AppSizes.hitTarget + AppSpacing.sm),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
                   child: Row(
                     children: [
-                      Expanded(child: Text(name, style: typography.roleTitle.copyWith(color: colors.text))),
+                      Expanded(
+                          child: Text(name,
+                              style: typography.roleTitle
+                                  .copyWith(color: colors.text))),
                       if (picked > 0)
                         Container(
                           margin: const EdgeInsets.only(right: AppSpacing.sm),
-                          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xs / 2),
-                          decoration: BoxDecoration(color: colors.gold, borderRadius: BorderRadius.circular(AppRadii.pill)),
-                          child: Text('$picked', style: typography.badge.copyWith(color: colors.navy)),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.sm,
+                              vertical: AppSpacing.xs / 2),
+                          decoration: BoxDecoration(
+                              color: colors.gold,
+                              borderRadius:
+                                  BorderRadius.circular(AppRadii.pill)),
+                          child: Text('$picked',
+                              style: typography.badge
+                                  .copyWith(color: colors.navy)),
                         ),
                       AnimatedRotation(
                         turns: expanded ? 0.5 : 0,
-                        duration: reduce ? Duration.zero : AppMotion.stateChange,
-                        child: Icon(Icons.expand_more_rounded, color: colors.textSecondary),
+                        duration:
+                            reduce ? Duration.zero : AppMotion.stateChange,
+                        child: Icon(Icons.expand_more_rounded,
+                            color: colors.textSecondary),
                       ),
                     ],
                   ),
@@ -455,13 +502,16 @@ class _CategoryCard extends StatelessWidget {
             child: !expanded
                 ? const SizedBox(width: double.infinity)
                 : Padding(
-                    padding: const EdgeInsets.fromLTRB(AppSpacing.sm, 0, AppSpacing.sm, AppSpacing.sm),
+                    padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.sm, 0, AppSpacing.sm, AppSpacing.sm),
                     child: Column(
                       children: [
                         Divider(height: 1, color: colors.border),
                         _CheckRow(
                           key: ValueKey('select-all-${category.id}'),
-                          label: t.t(allPicked ? 'practices.clearAll' : 'practices.selectAll'),
+                          label: t.t(allPicked
+                              ? 'practices.clearAll'
+                              : 'practices.selectAll'),
                           checked: allPicked,
                           emphasized: true,
                           onTap: onToggleAll,
@@ -523,15 +573,21 @@ class _CheckRow extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: checked ? colors.accent : colors.surface,
                     borderRadius: BorderRadius.circular(AppSpacing.xs + 2),
-                    border: Border.all(color: checked ? colors.accent : colors.textSecondary, width: 1.5),
+                    border: Border.all(
+                        color: checked ? colors.accent : colors.textSecondary,
+                        width: 1.5),
                   ),
-                  child: checked ? Icon(Icons.check_rounded, size: AppSpacing.lg, color: colors.onAccent) : null,
+                  child: checked
+                      ? Icon(Icons.check_rounded,
+                          size: AppSpacing.lg, color: colors.onAccent)
+                      : null,
                 ),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: Text(
                     label,
-                    style: (emphasized ? typography.button : typography.body).copyWith(
+                    style: (emphasized ? typography.button : typography.body)
+                        .copyWith(
                       color: emphasized ? colors.goldStroke : colors.text,
                     ),
                   ),
@@ -551,14 +607,17 @@ class _PracticesSkeleton extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ListView(
         physics: const NeverScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide, AppSpacing.sm, AppSpacing.screenSide, AppSpacing.xxl),
+        padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide, AppSpacing.sm,
+            AppSpacing.screenSide, AppSpacing.xxl),
         children: [
           const AppSkeleton(height: AppSpacing.md),
           const SizedBox(height: AppSpacing.lg),
           const AppSkeleton(height: 52, borderRadius: AppRadii.field),
           const SizedBox(height: AppSpacing.xl),
           for (var i = 0; i < 6; i++) ...[
-            const AppSkeleton(height: AppSizes.hitTarget + AppSpacing.sm, borderRadius: AppRadii.card),
+            const AppSkeleton(
+                height: AppSizes.hitTarget + AppSpacing.sm,
+                borderRadius: AppRadii.card),
             const SizedBox(height: AppSpacing.sm),
           ],
         ],

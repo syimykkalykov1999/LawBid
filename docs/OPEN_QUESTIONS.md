@@ -787,3 +787,40 @@ Differs from OQ-014 / docs/04 §9 (chats only from a case).
 - A direct chat whose request is not accepted yet has no call button, and
   my own pending request is labelled "@username · Request sent" in the
   list. Case chats keep docs/04 (calls once the bid is accepted).
+
+## OQ-046 — Qualifications everywhere, News, outside-practice bids, opt-in alerts, open client reviews, Mine grid (owner, 2026-09-30)
+
+Differs from docs/04 §4.1–4.2 (attorneys see only their own practices),
+docs/05 §3 (a post is text + photos) and OQ-038 (only the hired attorney
+reviews a client).
+- Every filter and picker lists all qualifications — the 42 categories and
+  every subcategory (e.g. Civil Litigation → Arbitration) — with
+  suggestions while typing (best match first, every word must match, a
+  subcategory also matches by its category).
+- Posts: "+" asks for a title, a description, the qualification (required,
+  category or subcategory) and up to 9 photos; without photos the card
+  shows our art of that qualification (stored with the post, not guessed
+  from hashtags). Attorneys choose Post or News; News is attorneys only.
+  Older posts keep working (title from the first line, topic by hashtag).
+- The topic slider (posts) has "News" for everyone and any qualification;
+  a category includes its subcategories. Attorney profiles get a News tab.
+- Attorney case feed: "All" stays their own practices; a qualification
+  picked in the slider shows every open case of it in the attorney's
+  verified-license states. They may bid outside their practices: the bid
+  is marked and the client sees "outside the attorney's practices —
+  discuss before accepting"; the attorney is told before bidding.
+- Opt-in notifications (off by default, Settings → Notifications):
+  "Following" — new posts / news of people I follow; "New cases"
+  (attorneys) — a new case in my practices and licensed states.
+- Client reviews: any attorney or client may review a client once
+  (editable), with or without a shared case; every signed-in user reads
+  them. The author deletes theirs at any time. The reviewed client may
+  appeal once ("…" → Appeal); admins accept (remove) or reject (keep),
+  one by one or in bulk (admin "Review appeals"); an appeal nobody decided
+  in 30 days removes the review automatically (hourly job). Reviews of
+  attorneys stay as they were (only clients who worked with them).
+- "Mine": client tabs Open (with Archive) · In progress · Completed ·
+  Saved; attorney tabs My bids · In progress · Completed · Saved. Cases
+  show as a 3-column grid of squares (first photo, or the qualification's
+  art; short title; status), with search by title and filters
+  (qualification, state) so long lists need no scrolling.

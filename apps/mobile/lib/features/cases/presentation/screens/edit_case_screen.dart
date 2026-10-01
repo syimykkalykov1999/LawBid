@@ -93,7 +93,8 @@ class _EditFormState extends ConsumerState<_EditForm> {
           .updateCase(widget.original, _draft);
       ref
         ..invalidate(ownerCaseProvider(widget.original.id))
-        ..invalidate(myCasesProvider);
+        ..invalidate(myCasesProvider)
+        ..invalidate(mineCasesProvider);
       if (!mounted) return;
       showAppSnackBar(context, t.t('cases.edit.saved'));
       context.pop();

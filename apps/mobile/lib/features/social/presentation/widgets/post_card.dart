@@ -11,6 +11,9 @@ import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 import 'package:lawbid/features/feed/application/feed_topics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/features/social/presentation/screens/social_screens.dart'
+    show PracticePostsScreen;
+import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -116,7 +119,7 @@ class PostCard extends ConsumerWidget {
     required bool fill,
   }) {
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    final (title, rest) = _split(p.body);
+    final (title, rest) = _titleAndRest(p);
     void open() => context.push(SocialRoutes.post(p.id));
     // Owner 2026-09-30: the author's photos (up to 9) or, when there are
     // none, the default art of the post's practice — full card width.
@@ -132,19 +135,27 @@ class PostCard extends ConsumerWidget {
                 .like(p)),
           )
         : PracticePhoto(
-            categoryCode: p.tags
-                .map(topicCategory)
-                .firstWhere((c) => c != null, orElse: () => null),
+            // Owner 2026-09-30: the post's qualification; older posts by
+            // their topic hashtag.
+            categoryCode: p.practice?.categoryCode ??
+                p.tags
+                    .map(topicCategory)
+                    .firstWhere((c) => c != null, orElse: () => null),
+            practiceCode: p.practice?.code,
           );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _AuthorRow(post: p),
-        if (p.tags.isNotEmpty)
+        if (p.tags.isNotEmpty || p.practice != null || p.isNews)
           Padding(
             padding: const EdgeInsets.fromLTRB(
                 AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.sm),
-            child: _TopicChips(tags: p.tags),
+            child: _TopicChips(
+              tags: p.tags,
+              practice: p.practice,
+              news: p.isNews,
+            ),
           ),
         AppPressable(
           onTap: open,
@@ -209,6 +220,16 @@ class PostCard extends ConsumerWidget {
     );
   }
 
+  /// Owner 2026-09-30: the post's own title and its whole text; older
+  /// posts split their text.
+  static (String, String) _titleAndRest(Post p) {
+    final title = p.title;
+    if (title != null && title.trim().isNotEmpty) {
+      return (title.trim(), p.body.trim());
+    }
+    return _split(p.body);
+  }
+
   /// "Title" = the first line (or sentence) of the post, the rest below.
   static (String, String) _split(String body) {
     final text = body.trim();
@@ -238,16 +259,20 @@ class PostCard extends ConsumerWidget {
     Future<void> Function(Future<Object?> Function()) run,
   ) {
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    final (title, rest) = _split(p.body);
+    final (title, rest) = _titleAndRest(p);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _AuthorRow(post: p),
-        if (p.tags.isNotEmpty)
+        if (p.tags.isNotEmpty || p.practice != null || p.isNews)
           Padding(
             padding: const EdgeInsets.fromLTRB(
                 AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.md),
-            child: _TopicChips(tags: p.tags),
+            child: _TopicChips(
+              tags: p.tags,
+              practice: p.practice,
+              news: p.isNews,
+            ),
           ),
         _TimeLine(post: p),
         Padding(
@@ -456,54 +481,105 @@ String topicLabel(String tag) {
   return tag.isEmpty ? tag : tag[0].toUpperCase() + tag.substring(1);
 }
 
-/// Topic chips: the first tag gold, up to two more quiet (owner design).
-class _TopicChips extends StatelessWidget {
-  const _TopicChips({required this.tags});
+/// Topic chips (owner design): the post's qualification as the main navy
+/// pill (tap → that qualification's posts), "News" when it is news, then
+/// up to three quiet hashtag pills (tap → the topic page).
+class _TopicChips extends ConsumerWidget {
+  const _TopicChips({required this.tags, this.practice, this.news = false});
 
   final List<String> tags;
+  final PostPractice? practice;
+  final bool news;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    // Owner 2026-09-30 design: the main topic is a filled navy pill with
-    // an icon, the others quiet grey pills. Tap → the topic page.
-    Widget chip(String tag, {required bool main}) => AppPressable(
-          onTap: () => context.push(SocialRoutes.tag(tag)),
+    Widget pill({
+      required String label,
+      required bool main,
+      required VoidCallback onTap,
+      IconData? icon,
+      bool gold = false,
+    }) =>
+        AppPressable(
+          onTap: onTap,
           child: Container(
             padding: const EdgeInsets.symmetric(
                 horizontal: AppSpacing.md, vertical: AppSpacing.xs + 2),
             decoration: BoxDecoration(
-              color: main
-                  ? colors.navy
-                  : colors.textSecondary.withValues(alpha: 0.10),
+              color: gold
+                  ? colors.goldTint
+                  : (main
+                      ? colors.navy
+                      : colors.textSecondary.withValues(alpha: 0.10)),
               borderRadius: BorderRadius.circular(AppRadii.pill),
+              border: gold ? Border.all(color: colors.goldStroke) : null,
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (main) ...[
-                  Icon(practiceGlyph(topicCategory(tag)),
-                      size: 15, color: colors.goldLight),
+                if (icon != null) ...[
+                  Icon(icon,
+                      size: 15,
+                      color: gold ? colors.goldDark : colors.goldLight),
                   const SizedBox(width: AppSpacing.xs),
                 ],
-                Text(
-                  topicLabel(tag),
-                  style: typography.caption.copyWith(
-                    color: main ? Colors.white : colors.textSecondary,
-                    fontWeight: main ? FontWeight.w600 : FontWeight.w500,
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: typography.caption.copyWith(
+                      color: gold
+                          ? colors.goldDark
+                          : (main ? Colors.white : colors.textSecondary),
+                      fontWeight:
+                          main || gold ? FontWeight.w600 : FontWeight.w500,
+                    ),
                   ),
                 ),
               ],
             ),
           ),
         );
+    final pr = practice;
+    final quietTags = pr == null ? tags.skip(1).take(3) : tags.take(3);
     return Wrap(
       spacing: AppSpacing.sm,
       runSpacing: AppSpacing.xs,
       children: [
-        for (var i = 0; i < tags.length && i < 4; i++)
-          chip(tags[i], main: i == 0),
+        if (pr != null)
+          pill(
+            label: CaseFormat.practice(t, pr.i18nKey, pr.nameEn),
+            main: true,
+            icon: practiceGlyph(pr.categoryCode),
+            onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
+              builder: (_) => PracticePostsScreen(practice: pr.code),
+            )),
+          )
+        else if (tags.isNotEmpty)
+          pill(
+            label: topicLabel(tags.first),
+            main: true,
+            icon: practiceGlyph(topicCategory(tags.first)),
+            onTap: () => context.push(SocialRoutes.tag(tags.first)),
+          ),
+        if (news)
+          pill(
+            label: t.t('post.kind.news'),
+            main: false,
+            gold: true,
+            icon: Icons.newspaper_rounded,
+            onTap: () {},
+          ),
+        for (final tag in quietTags)
+          pill(
+            label: topicLabel(tag),
+            main: false,
+            onTap: () => context.push(SocialRoutes.tag(tag)),
+          ),
       ],
     );
   }

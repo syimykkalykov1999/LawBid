@@ -188,6 +188,94 @@ final savedCasesProvider = AsyncNotifierProvider.autoDispose<SavedCasesNotifier,
   retry: _noRetry,
 );
 
+// --- Owner 2026-09-30: "Mine" with search and filters -------------------
+
+typedef MineCasesKey = ({MyCasesFilter filter, MineSearch search});
+
+class MineCasesNotifier extends PagedNotifier<CaseSummary> {
+  MineCasesNotifier(this.key);
+
+  final MineCasesKey key;
+
+  @override
+  Future<CursorPage<CaseSummary>> fetch(String? cursor) => ref
+      .read(casesRepositoryProvider)
+      .myCases(key.filter, cursor: cursor, search: key.search);
+
+  @override
+  Object idOf(CaseSummary item) => item.id;
+}
+
+final mineCasesProvider = AsyncNotifierProvider.autoDispose
+    .family<MineCasesNotifier, PaginatedList<CaseSummary>, MineCasesKey>(
+  MineCasesNotifier.new,
+  retry: _noRetry,
+);
+
+typedef MineBidsKey = ({MyBidsFilter filter, MineSearch search});
+
+class MineBidsNotifier extends PagedNotifier<MyBid> {
+  MineBidsNotifier(this.key);
+
+  final MineBidsKey key;
+
+  @override
+  Future<CursorPage<MyBid>> fetch(String? cursor) => ref
+      .read(casesRepositoryProvider)
+      .myBids(key.filter, cursor: cursor, search: key.search);
+
+  @override
+  Object idOf(MyBid item) => item.bid.id;
+}
+
+final mineBidsProvider = AsyncNotifierProvider.autoDispose
+    .family<MineBidsNotifier, PaginatedList<MyBid>, MineBidsKey>(
+  MineBidsNotifier.new,
+  retry: _noRetry,
+);
+
+typedef MineWorkKey = ({WorkFilter filter, MineSearch search});
+
+class MineWorkNotifier extends PagedNotifier<WorkItem> {
+  MineWorkNotifier(this.key);
+
+  final MineWorkKey key;
+
+  @override
+  Future<CursorPage<WorkItem>> fetch(String? cursor) => ref
+      .read(casesRepositoryProvider)
+      .myWork(key.filter, cursor: cursor, search: key.search);
+
+  @override
+  Object idOf(WorkItem item) => item.caseId;
+}
+
+final mineWorkProvider = AsyncNotifierProvider.autoDispose
+    .family<MineWorkNotifier, PaginatedList<WorkItem>, MineWorkKey>(
+  MineWorkNotifier.new,
+  retry: _noRetry,
+);
+
+class MineSavedNotifier extends PagedNotifier<SavedCase> {
+  MineSavedNotifier(this.search);
+
+  final MineSearch search;
+
+  @override
+  Future<CursorPage<SavedCase>> fetch(String? cursor) => ref
+      .read(casesRepositoryProvider)
+      .savedCases(cursor: cursor, search: search);
+
+  @override
+  Object idOf(SavedCase item) => item.caseId;
+}
+
+final mineSavedProvider = AsyncNotifierProvider.autoDispose
+    .family<MineSavedNotifier, PaginatedList<SavedCase>, MineSearch>(
+  MineSavedNotifier.new,
+  retry: _noRetry,
+);
+
 final clientContactsProvider =
     FutureProvider.autoDispose.family<ClientContacts, String>(
   (ref, caseId) => ref.watch(casesRepositoryProvider).contacts(caseId),

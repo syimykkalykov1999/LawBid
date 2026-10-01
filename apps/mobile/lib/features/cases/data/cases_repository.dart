@@ -44,7 +44,7 @@ abstract interface class CasesRepository {
   /// only when they changed (the server refuses those once bids exist).
   Future<void> updateCase(OwnerCase original, CaseDraft draft);
   Future<CursorPage<CaseSummary>> myCases(MyCasesFilter filter,
-      {String? cursor});
+      {String? cursor, MineSearch search = const MineSearch()});
   Future<OwnerCase> ownerCase(String caseId);
   Future<CursorPage<CaseBid>> caseBids(String caseId, BidsSort sort,
       {String? cursor});
@@ -73,9 +73,12 @@ abstract interface class CasesRepository {
   Future<void> recordView(String caseId);
   Future<void> setSaved(String caseId, {required bool saved});
   Future<CaseBid> placeBid(String caseId, BidInput input);
-  Future<CursorPage<MyBid>> myBids(MyBidsFilter filter, {String? cursor});
-  Future<CursorPage<WorkItem>> myWork(WorkFilter filter, {String? cursor});
-  Future<CursorPage<SavedCase>> savedCases({String? cursor});
+  Future<CursorPage<MyBid>> myBids(MyBidsFilter filter,
+      {String? cursor, MineSearch search = const MineSearch()});
+  Future<CursorPage<WorkItem>> myWork(WorkFilter filter,
+      {String? cursor, MineSearch search = const MineSearch()});
+  Future<CursorPage<SavedCase>> savedCases(
+      {String? cursor, MineSearch search = const MineSearch()});
   Future<ClientContacts> contacts(String caseId);
   Future<void> reportContactIssue(
       String caseId, ContactIssueType type, String? note);
@@ -177,6 +180,7 @@ class ApiCasesRepository implements CasesRepository {
   Future<CursorPage<CaseSummary>> myCases(
     MyCasesFilter filter, {
     String? cursor,
+    MineSearch search = const MineSearch(),
   }) async {
     final env = await guardApiCall(
       () => _cases.listMyCases(
@@ -184,9 +188,14 @@ class ApiCasesRepository implements CasesRepository {
         limit: pageSize,
         filter: switch (filter) {
           MyCasesFilter.active => api.Filter.active,
+          MyCasesFilter.open => api.Filter.open,
+          MyCasesFilter.inProgress => api.Filter.inProgress,
           MyCasesFilter.archived => api.Filter.archived,
           MyCasesFilter.closed => api.Filter.closed,
         },
+        q: _q(search),
+        practice: search.practice,
+        state: search.state,
       ),
     );
     return CursorPage(
@@ -301,7 +310,10 @@ class ApiCasesRepository implements CasesRepository {
         limit: pageSize,
         cursor: cursor,
         practiceAreaId: practiceAreaId,
-        practiceCategory: practiceCategory,
+        // Owner 2026-09-30: any qualification picked in the topic filter
+        // (category or subcategory) — every case of it, own practice or
+        // not.
+        practice: practiceCategory,
         state: state,
       ),
     );
@@ -356,11 +368,14 @@ class ApiCasesRepository implements CasesRepository {
 
   @override
   Future<CursorPage<MyBid>> myBids(MyBidsFilter filter,
-      {String? cursor}) async {
+      {String? cursor, MineSearch search = const MineSearch()}) async {
     final env = await guardApiCall(
       () => _mine.listMyBids(
         limit: pageSize,
         cursor: cursor,
+        q: _q(search),
+        practice: search.practice,
+        state: search.state,
         filter: filter == MyBidsFilter.active
             ? api.Filter2.active
             : api.Filter2.finished,
@@ -374,11 +389,14 @@ class ApiCasesRepository implements CasesRepository {
 
   @override
   Future<CursorPage<WorkItem>> myWork(WorkFilter filter,
-      {String? cursor}) async {
+      {String? cursor, MineSearch search = const MineSearch()}) async {
     final env = await guardApiCall(
       () => _mine.listMyWork(
         limit: pageSize,
         cursor: cursor,
+        q: _q(search),
+        practice: search.practice,
+        state: search.state,
         filter: filter == WorkFilter.active
             ? api.Filter3.active
             : api.Filter3.closed,
@@ -391,12 +409,16 @@ class ApiCasesRepository implements CasesRepository {
   }
 
   @override
-  Future<CursorPage<SavedCase>> savedCases({String? cursor}) async {
+  Future<CursorPage<SavedCase>> savedCases(
+      {String? cursor, MineSearch search = const MineSearch()}) async {
     final env = await guardApiCall(
       () => _mine.listSavedItems(
         type: api.Type.valueCase,
         limit: pageSize,
         cursor: cursor,
+        q: _q(search),
+        practice: search.practice,
+        state: search.state,
       ),
     );
     return CursorPage(
@@ -404,6 +426,8 @@ class ApiCasesRepository implements CasesRepository {
       nextCursor: env.meta?.nextCursor,
     );
   }
+
+  static String? _q(MineSearch s) => s.q.trim().isEmpty ? null : s.q.trim();
 
   @override
   Future<ClientContacts> contacts(String caseId) async => CasesMappers.contacts(

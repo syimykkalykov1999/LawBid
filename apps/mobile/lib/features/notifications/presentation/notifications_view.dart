@@ -56,6 +56,11 @@ String? notificationRoute({
       return attorney ? AppRoutes.workCase(caseId) : AppRoutes.myCase(caseId);
     case 'review_requested':
       return caseId == null ? null : AppRoutes.reviewFormFor(caseId);
+    // Owner 2026-09-30 (opt-in alerts).
+    case 'followed_post':
+      return postId == null ? null : SocialRoutes.post(postId);
+    case 'new_case':
+      return caseId == null ? null : AppRoutes.caseDetail(caseId);
     case 'review_received':
       return AppRoutes.profile;
     case 'new_follower':
@@ -121,6 +126,8 @@ IconData _icon(AppNotification n) => switch (n.type) {
           NotifCategory.cases => Icons.folder_rounded,
           NotifCategory.messages => Icons.chat_bubble_rounded,
           NotifCategory.calls => Icons.call_rounded,
+          NotifCategory.following => Icons.dynamic_feed_rounded,
+          NotifCategory.newCases => Icons.work_outline_rounded,
           NotifCategory.system => Icons.shield_rounded,
           _ => Icons.notifications_rounded,
         },
