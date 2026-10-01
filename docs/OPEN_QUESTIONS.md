@@ -909,3 +909,33 @@ reviews a client).
   the right; My bids shows only bids waiting for the client (accepted →
   In progress, finished → Completed); News is the first item of the
   topics picker and on by default.
+
+## OQ-049 — Access switches with the attorney's responsibility, one device per account, Planner (owner, 2026-10-01)
+
+- Every assistant access (calls, chats, files, cases, bid drafts,
+  publications for approval, tasks, profile, **bids and negotiation**,
+  **publishing without approval**) is a switch the attorney turns on in
+  Team. Turning one on shows a warning: the attorney accepts full
+  responsibility for the assistant's actions; LawBid is a bulletin board,
+  not a law firm, and is not responsible for assistants; state ethics rules
+  on supervising non-lawyer staff apply. A tick is required. Each grant and
+  withdrawal is stored append-only (`assistant_liability_acceptances`: who,
+  which duties, terms version, IP, device, time). New assistants start with
+  no access; admins can only take access away.
+- With "bids" an assistant places bids and counters / accepts / declines /
+  withdraws in the attorney's name; with "publish" they post / comment
+  directly. Without them: drafts and approval requests as before.
+- One phone + one website per account at a time (attorneys, assistants,
+  clients). Signing in on another phone first asks "This account is open on
+  another device (name, last active) — continue and sign out there?"; the
+  other phone is then signed out with a clear message and stops getting
+  pushes. A website sign-in never signs the phone out (and vice versa).
+- Mine: two tabs — My bids (Active · In progress · Completed · Saved) and
+  Planner (19 task kinds incl. consultation, hearing prep, deposition,
+  mediation, filing, review, email, signing, payment, research, facility
+  visit). Task cards: colour strip by status, big time, place / contact /
+  case, status mark bottom-right; a double tap marks done.
+- Files: no count limit in chats and tasks (25 MB each, common formats,
+  scanned); publications and cases keep 9 photos.
+- The client sees an assistant's message as "Assistant of <attorney>"
+  (and the push says "Attorney's assistant:").
