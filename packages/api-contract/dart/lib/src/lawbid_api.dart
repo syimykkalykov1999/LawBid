@@ -35,6 +35,7 @@ import 'clients/attorneys_client.dart';
 import 'clients/profiles_client.dart';
 import 'clients/clients_client.dart';
 import 'clients/blocks_client.dart';
+import 'clients/admin_content_client.dart';
 import 'clients/i18n_client.dart';
 import 'clients/admin_i18n_client.dart';
 import 'clients/case_history_client.dart';
@@ -92,6 +93,7 @@ class LawbidApi {
   ProfilesClient? _profiles;
   ClientsClient? _clients;
   BlocksClient? _blocks;
+  AdminContentClient? _adminContent;
   I18nClient? _i18n;
   AdminI18nClient? _adminI18n;
   CaseHistoryClient? _caseHistory;
@@ -190,6 +192,9 @@ class LawbidApi {
       _clients ??= ClientsClient(_dio, baseUrl: _baseUrl);
 
   BlocksClient get blocks => _blocks ??= BlocksClient(_dio, baseUrl: _baseUrl);
+
+  AdminContentClient get adminContent =>
+      _adminContent ??= AdminContentClient(_dio, baseUrl: _baseUrl);
 
   I18nClient get i18n => _i18n ??= I18nClient(_dio, baseUrl: _baseUrl);
 

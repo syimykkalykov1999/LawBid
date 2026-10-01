@@ -840,3 +840,72 @@ reviews a client).
   lists every photo and document of the chat. Pushes say "📎 File" without
   the file name. Reports show the moderator a link to the file; deleting
   an account deletes the files it sent.
+
+## OQ-048 — Plans, Stripe page checkout, attorney assistants, Tasks, admin sections (owner, 2026-09-30)
+
+**Plans and payment**
+- Two plans: **Monthly** $399 + $100 per assistant seat (0–6, picked on the
+  plan screen, chosen by default) and **Yearly** $9,590 (attorney + all six
+  seats, −20%) shown below it. The 7-day trial applies to both.
+- Payment is Stripe's hosted page in the in-app browser (store-compliant,
+  only Stripe's fee); the app waits for the session and applies it
+  (`POST /subscriptions/checkout`, `/checkout/complete`; webhook
+  `checkout.session.completed`). Branding: logo/colours in the Stripe
+  Dashboard + `custom_text`. Env: `STRIPE_PRICE_SEAT_ID`,
+  `STRIPE_PRICE_YEARLY_ID` (see KEYS_SETUP). The in-app card sheet
+  (SetupIntent) stays in the API for older builds, the app no longer uses it.
+- Monthly seats change later from Subscription → "Your plan"
+  (`POST /subscriptions/seats`, prorated by Stripe); fewer seats than
+  assistants is refused (`ASSISTANT_SEATS_IN_USE`).
+
+**Assistants**
+- New role "Attorney's assistant" (onboarding: phone + name). An assistant
+  has no profile or subscription of their own: after joining they use the
+  attorney's account (the server swaps the account per request; their own
+  login, notifications and devices stay theirs).
+- Joining: a phone the attorney added (at purchase or in Team) joins with
+  one tap; otherwise a code goes to the **attorney's** phone and the
+  attorney tells it.
+- Duties per assistant (one duty to many assistants, many to one): calls,
+  chats, files, cases, bid drafts, publications, tasks, profile. New
+  assistants get everything but calls.
+- Never: bids (they save a **bid draft** the attorney sees on the bid form
+  and sends), billing, verification, team, deleting publications.
+  Publications, comments and profile edits go to the attorney as
+  **approval requests**; approved ones are published in the attorney's
+  name.
+- Chats: messages show "Assistant · Name"; files need the "files" duty.
+  Calls to the attorney also ring assistants with "calls".
+- Every change an assistant makes is logged (Inbox → **Team** → Activity,
+  hidden from assistants); requests are approved/rejected there too; a
+  badge shows pending requests.
+
+**Tasks** (Mine → «Задачи» — named "Tasks", not "Plans": clearer)
+- The attorney and assistants add tasks from "+ Add task" (also "+" →
+  Task): kind (call, meeting, court, deadline, documents, print, visit,
+  other), title, date/time, place, contact, case, notes, documents.
+- Calendar list by day (Overdue · Today · Tomorrow · dates · No date) with
+  round checkboxes: tap = done; a task opens with Take / Done / Not done
+  (+ note, + move to another time — it stays open at the new time) /
+  Cancel. The assistant who set a task gets the result (push + "Results").
+
+**Admin**
+- New sections: Teams (seats, members, duties, remove with reason,
+  activity), Content (posts/news, post and case comments, reviews — remove
+  or hide with a reason, the author gets a moderation notice), Bids,
+  Qualifications (rename, reorder, switch off, add), Broadcasts (push +
+  in-app to all / attorneys / clients / assistants, optional state), CSV
+  exports (users, cases, bids, payments, posts, teams), dashboard numbers
+  (plans, seats, revenue 30 d, assistants, tasks, chats, calls).
+- Not done yet (in REMAINING): support tickets, promo codes and refunds
+  from the panel, editable push/email templates (push texts are already
+  editable via Localization keys `notif.*`).
+
+**Also in this pass**
+- Rate limit counts per signed-in user instead of per IP (an attorney and
+  six assistants often share one office IP); anonymous requests per IP.
+- UI: News badge and "NEW" flush right; Search — sections on top, field
+  below; Mine — filter button inside the field on the left, magnifier on
+  the right; My bids shows only bids waiting for the client (accepted →
+  In progress, finished → Completed); News is the first item of the
+  topics picker and on by default.

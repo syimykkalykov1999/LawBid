@@ -43,6 +43,7 @@ export const NOTIFICATION_CATEGORY: Record<
   assistant_task: 'cases',
   assistant_joined: 'system',
   assistant_result: 'messages',
+  admin_broadcast: 'system',
   new_case: 'new_cases',
   comment_reply: 'social',
   comment_like: 'social',

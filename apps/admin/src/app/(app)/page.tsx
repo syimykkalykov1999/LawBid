@@ -14,6 +14,12 @@ export default function DashboardPage() {
     refetchInterval: 60_000,
   });
   const d = q.data;
+  // Owner 2026-09-30: plans, assistants, tasks, chats and calls.
+  const o = useQuery({
+    queryKey: ['admin-overview'],
+    queryFn: async () => (await api.GET('/admin/overview')).data!.data,
+    refetchInterval: 60_000,
+  }).data;
   const usd = (n: number) =>
     new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -63,7 +69,38 @@ export default function DashboardPage() {
             hint={`жалобы ${d.openReports} · споры ${d.openDisputes} · «не могу связаться» ${d.openContactIssues}`}
           />
         </div>
-      ) : (
+      ) : null}
+      {o ? (
+        <>
+          <h2 className="mb-3 mt-8 text-sm font-semibold uppercase tracking-wide text-muted">
+            Пользователи, планы и команды
+          </h2>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <Stat title="Клиенты" value={o.clients} />
+            <Stat title="Адвокаты" value={o.attorneys} hint={`верифицировано: ${o.attorneysVerified}`} />
+            <Stat
+              title="Подписки"
+              value={o.subscriptionsMonthly + o.subscriptionsYearly}
+              hint={`месячных ${o.subscriptionsMonthly} · годовых ${o.subscriptionsYearly}`}
+            />
+            <Stat title="Выручка за 30 дней" value={usd(o.revenue30dCents / 100)} />
+            <Stat title="Помощники работают" value={o.assistants} hint={`мест оплачено: ${o.assistantSeats}`} />
+            <Stat title="Открытые задачи" value={o.tasksOpen} hint={`выполнено за 30 дней: ${o.tasksDone30d}`} />
+            <Stat title="Ждут одобрения адвоката" value={o.requestsPending} />
+          </div>
+          <h2 className="mb-3 mt-8 text-sm font-semibold uppercase tracking-wide text-muted">
+            Активность за 7 дней
+          </h2>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <Stat title="Новые кейсы" value={o.cases7d} />
+            <Stat title="Ставки" value={o.bids7d} />
+            <Stat title="Публикации" value={o.posts7d} />
+            <Stat title="Сообщения в чатах" value={o.messages7d} />
+            <Stat title="Звонки" value={o.calls7d} hint={`пропущено: ${o.callsMissed7d}`} />
+          </div>
+        </>
+      ) : null}
+      {d ? null : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-busy>
           {Array.from({ length: 8 }).map((_, i) => (
             <Card key={i} className="h-28 animate-pulse" />

@@ -199,8 +199,14 @@ export class PushDispatcher
       }
     }
 
-    const text = await this.templates.render(n.type, n.user.ui_language);
     const payload = (n.payload ?? {}) as Record<string, unknown>;
+    // Owner 2026-09-30: an admin broadcast carries its own text.
+    const text =
+      n.type === 'admin_broadcast' &&
+      typeof payload.title === 'string' &&
+      typeof payload.body === 'string'
+        ? { title: payload.title, body: payload.body }
+        : await this.templates.render(n.type, n.user.ui_language);
     const deepLink: Record<string, string> = {
       notificationId: n.id,
       type: n.type,

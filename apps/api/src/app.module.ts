@@ -1,12 +1,12 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
-import { ThrottlerGuard } from '@nestjs/throttler';
 import { LoggerModule } from 'nestjs-pino';
 import type { Options as PinoHttpOptions } from 'pino-http';
 import { ConfigModule } from './config/config.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RedisModule } from './redis/redis.module';
 import { ThrottlerModule } from './throttler/throttler.module';
+import { UserThrottlerGuard } from './throttler/user-throttler.guard';
 import { HealthModule } from './modules/health/health.module';
 import { FeatureFlagsModule } from './modules/feature-flags/feature-flags.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -51,6 +51,7 @@ import { AdminDataRequestsModule } from './modules/admin-data-requests/admin-dat
 import { AdminConfigModule } from './modules/admin-config/admin-config.module';
 import { BillingModule } from './modules/billing/billing.module';
 import { AssistantsModule } from './modules/assistants/assistants.module';
+import { AdminContentModule } from './modules/admin-content/admin-content.module';
 import { PrivacyModule } from './modules/privacy/privacy.module';
 import { CostGuardModule } from './common/cost-guard/cost-guard.module';
 import { JobsModule } from './jobs/jobs.module';
@@ -147,6 +148,7 @@ const isDev =
     // docs/06 §1 (stage 6.7): Stripe subscriptions, webhooks, admin extend.
     BillingModule.register({ mode: 'api' }),
     AssistantsModule,
+    AdminContentModule,
     // docs/06 §5 (stage 6.9): data export endpoint + privacy services.
     PrivacyModule.register({ mode: 'api' }),
     UsersModule,
@@ -198,7 +200,8 @@ const isDev =
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
     { provide: APP_INTERCEPTOR, useClass: ResponseInterceptor },
-    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    // OQ-048: per signed-in user (assistants share an office IP).
+    { provide: APP_GUARD, useClass: UserThrottlerGuard },
   ],
 })
 export class AppModule implements NestModule {

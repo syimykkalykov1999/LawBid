@@ -5,6 +5,15 @@ All notable changes to this project are documented here, per
 .cursorrules (each stage ends with a CHANGELOG update + commit on
 branch cursor/stage-X-Y-description).
 
+## Owner pass 11 (2026-09-30) — OQ-048
+
+- Plans: migration `20261001060000_owner_plans_and_assistants` (`subscriptions.plan/assistant_seats`), Stripe Checkout sessions with seat / yearly line items, `checkout`, `checkout/complete`, `seats`, dev payment page for the fake provider; app plan picker (monthly default, yearly below, seats, assistant phones) and Stripe page flow.
+- Assistants: `assistant` role, memberships, duties, join by added phone or attorney-phone code, per-request account swap in `JwtAuthGuard` and the realtime gateway, `@AttorneyOnly` on bids/billing/verification/profile/publication routes, approval requests (post, comment, case comment, profile edit), bid drafts (migration `20261001072000_owner_bid_drafts`), assistant-labelled messages (`20261001071000`), calls ringing assistants, global activity interceptor, results notifications (`20261001070000`), admin Teams API. App: role card, join screen, assistant mode (attorney's app, banner, "+" with Task / Publication for approval, drafts instead of bids, requests instead of publishing), Team screen, Inbox → Team (requests + activity), Mine → Tasks (calendar, checkboxes, take / done / not done + note + reschedule, Results).
+- Admin: Content, Teams, Bids, Qualifications, Broadcasts (migration `20261001080000_owner_admin_broadcasts`), CSV exports, overview numbers.
+- Per-user rate limit (`UserThrottlerGuard`).
+- Demo data: `apps/api/scripts/seed-demo-team.mjs` (attorney +13125550301, assistant +13125550302, client +13125550303; code 000000).
+- e2e: `owner-assistants`, `owner-admin-content`, plans in `stage-6-7`. App tests: subscription plans, team/tasks/join.
+
 ## Owner pass 10 (2026-09-30) — OQ-047
 
 - Chat attachments after acceptance: migration `20261001050000_owner_chat_attachments` (`chat_attachment` purpose, `attachment` message type, `messages.file_name`), 13 new verified formats (magic bytes; OLE/ZIP/ODF/text families), 25 MB limit, `?only=attachment`, push/moderation/anonymization; app paperclip (photos, camera, documents), photo and document bubbles with progress and Retry, "Files and photos" screen. e2e `owner-chat-attachments`; unit tests for the new formats.

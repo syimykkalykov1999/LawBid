@@ -242,6 +242,11 @@ export const NOTIFICATION_TEMPLATES: Partial<
       body: 'Откройте «Результаты», чтобы увидеть решение.',
     },
   },
+  admin_broadcast: {
+    group: 'system',
+    en: { title: 'LawBid', body: 'A message from the LawBid team.' },
+    ru: { title: 'LawBid', body: 'Сообщение от команды LawBid.' },
+  },
   // OQ-041.
   missed_call: {
     group: 'messages',
