@@ -281,7 +281,7 @@ class TaskRow extends StatelessWidget {
                                 color: colors.textSecondary,
                               ),
                               const SizedBox(width: 4),
-                              Flexible(
+                              Expanded(
                                 child: Text(
                                   task.createdByName == null
                                       ? t.t('tasks.byMe')
@@ -303,7 +303,6 @@ class TaskRow extends StatelessWidget {
                                       .copyWith(color: colors.textSecondary),
                                 ),
                               ],
-                              const Spacer(),
                               if (overdue && !finished)
                                 Padding(
                                   padding: const EdgeInsets.only(right: 6),
