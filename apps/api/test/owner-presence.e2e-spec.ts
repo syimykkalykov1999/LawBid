@@ -190,6 +190,28 @@ describe('Online / last seen (e2e, owner 2026-10-01)', () => {
     ).toBe(false);
   });
 
+  it('"typing…" reaches the other side\'s chat list (chat not open)', async () => {
+    const c = await chat();
+    const attorneySock = await connect(c.attorney.token);
+    const clientSock = await connect(c.client.token);
+    // The handshake may still be finishing: retry like the app does.
+    let joined = false;
+    for (let i = 0; i < 10 && !joined; i++) {
+      joined = (
+        (await clientSock.emitWithAck('conversation:join', {
+          conversationId: c.id,
+        })) as { ok: boolean }
+      ).ok;
+      if (!joined) await new Promise((r) => setTimeout(r, 150));
+    }
+    expect(joined).toBe(true);
+    const typing = new Promise<{ conversationId: string; typing: boolean }>(
+      (resolve) => attorneySock.once('typing', resolve),
+    );
+    clientSock.emit('typing:start', { conversationId: c.id });
+    expect(await typing).toEqual({ conversationId: c.id, typing: true });
+  });
+
   it('nothing across a block; strangers cannot watch', async () => {
     const c = await chat();
     await connect(c.attorney.token);

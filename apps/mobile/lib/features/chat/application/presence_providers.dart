@@ -115,3 +115,52 @@ final activityStatusProvider =
     AsyncNotifierProvider.autoDispose<ActivityStatusNotifier, bool>(
   ActivityStatusNotifier.new,
 );
+
+/// Owner 2026-10-01: chats where the other side is typing right now (the
+/// chat list shows "typing…"); an entry goes out after a few quiet seconds.
+class ListTypingNotifier extends Notifier<Set<String>> {
+  final Map<String, Timer> _timers = {};
+
+  @override
+  Set<String> build() {
+    final sub = ref.watch(realtimeEventsProvider).listen(_onEvent);
+    ref.onDispose(() {
+      unawaited(sub.cancel());
+      for (final t in _timers.values) {
+        t.cancel();
+      }
+      _timers.clear();
+    });
+    return const {};
+  }
+
+  void _onEvent(RealtimeEvent e) {
+    final d = e.data;
+    // A new message ends "typing" at once.
+    if (e.name == 'message:new' && d is Map) {
+      final id = d['conversationId'];
+      if (id is String) _set(id, typing: false);
+      return;
+    }
+    if (e.name != 'typing' || d is! Map) return;
+    final id = d['conversationId'];
+    if (id is! String) return;
+    _set(id, typing: d['typing'] == true);
+  }
+
+  void _set(String id, {required bool typing}) {
+    _timers.remove(id)?.cancel();
+    if (typing) {
+      _timers[id] = Timer(const Duration(seconds: 6), () {
+        _timers.remove(id);
+        if (ref.mounted) state = {...state}..remove(id);
+      });
+      if (!state.contains(id)) state = {...state, id};
+    } else if (state.contains(id)) {
+      state = {...state}..remove(id);
+    }
+  }
+}
+
+final listTypingProvider =
+    NotifierProvider<ListTypingNotifier, Set<String>>(ListTypingNotifier.new);

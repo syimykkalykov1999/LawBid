@@ -18,8 +18,21 @@ Conversation _conv(
   String? note,
   DateTime? waitingSince,
   ChatFolder folder = ChatFolder.general,
+  bool mineLast = false,
+  bool read = false,
 }) =>
     Conversation(
+      lastMessage: mineLast
+          ? ChatMessage(
+              id: 'm-$id',
+              conversationId: id,
+              kind: MessageKind.text,
+              body: 'See you at 10',
+              createdAt: DateTime(2026),
+              senderId: 'me',
+            )
+          : null,
+      counterpartLastReadId: read ? 'm-$id' : null,
       id: id,
       caseId: caseTitle == null ? null : 'case-$id',
       caseTitle: caseTitle,
@@ -61,8 +74,12 @@ class _Chats implements ChatRepository {
           _conv('p', caseTitle: 'Custody', folder: ChatFolder.primary),
         ],
       _ => [
-          _conv('p', caseTitle: 'Custody', folder: ChatFolder.primary),
-          _conv('w', note: 'Send him the retainer documents'),
+          _conv('p',
+              caseTitle: 'Custody',
+              folder: ChatFolder.primary,
+              mineLast: true,
+              read: true),
+          _conv('w', note: 'Send him the retainer documents', mineLast: true),
         ],
     });
   }
@@ -125,6 +142,9 @@ void main() {
     // The note is visible without opening the chat; time bottom-right.
     expect(find.text('Send him the retainer documents'), findsOneWidget);
     expect(find.text('10 h ago'), findsNWidgets(2));
+    // Owner 2026-10-01: gold ✓✓ = read, ✓ = sent.
+    expect(find.byKey(const ValueKey('chat-read-p')), findsOneWidget);
+    expect(find.byKey(const ValueKey('chat-sent-w')), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('chat-folder-waiting')));
     await tester.pumpAndSettle();

@@ -49,6 +49,9 @@ interface SocketState {
   revocationTimer?: NodeJS.Timeout;
   lastTypingAt?: number;
   viewing: Set<string>;
+  /** Owner 2026-10-01: the other members of each open chat — "typing…"
+   * also reaches their chat list. */
+  peers?: Map<string, string[]>;
 }
 
 const presenceRoom = (userId: string) => `presence:${userId}`;
@@ -270,6 +273,14 @@ export class RealtimeGateway
     if (!member) return { ok: false };
     await socket.join(conversationRoom(id));
     state(socket).viewing.add(id);
+    const others = await this.prisma.conversationParticipant.findMany({
+      where: { conversation_id: id, user_id: { not: uid } },
+      select: { user_id: true },
+    });
+    (state(socket).peers ??= new Map()).set(
+      id,
+      others.map((o) => o.user_id),
+    );
     await this.redis
       .multi()
       .sadd(viewingKey(uid, id), socket.id)
@@ -380,8 +391,11 @@ export class RealtimeGateway
       return;
     }
     if (typing) s.lastTypingAt = now;
+    // The open chat and the other members' chat lists (one delivery per
+    // socket even when it is in both rooms).
+    const peers = s.peers?.get(id) ?? [];
     socket
-      .to(conversationRoom(id))
+      .to([conversationRoom(id), ...peers.map(userRoom)])
       .emit('typing', { conversationId: id, typing });
   }
 

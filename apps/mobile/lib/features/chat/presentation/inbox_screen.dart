@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/features/chat/application/presence_providers.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -496,6 +497,8 @@ class ConversationRow extends ConsumerWidget {
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final me = ref.watch(currentUserIdProvider);
     final c = conversation;
+    final typing =
+        ref.watch(listTypingProvider.select((ids) => ids.contains(c.id)));
     final who = counterpartName(t, c);
     final last = c.lastMessage;
     final unread = c.unreadCount > 0;
@@ -581,18 +584,47 @@ class ConversationRow extends ConsumerWidget {
                   const SizedBox(height: 2),
                   Row(
                     children: [
-                      Expanded(
-                        child: Text(
-                          last == null
-                              ? ''
-                              : '${last.senderId == me ? '${t.t('chat.you')}: ' : ''}'
-                                  '${messagePreview(t, last, me: me)}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: type.bodySmall.copyWith(
-                            color: unread ? colors.text : colors.textSecondary,
-                          ),
+                      // Owner 2026-10-01: ✓ sent / gold ✓✓ read on my
+                      // last message, "typing…" while the other side types.
+                      if (!typing && last != null && last.senderId == me) ...[
+                        AppIcon(
+                          c.counterpartLastReadId == last.id
+                              ? AppIcons.doneAllRounded
+                              : AppIcons.doneRounded,
+                          key: ValueKey(c.counterpartLastReadId == last.id
+                              ? 'chat-read-${c.id}'
+                              : 'chat-sent-${c.id}'),
+                          size: 16,
+                          color: c.counterpartLastReadId == last.id
+                              ? colors.gold
+                              : colors.textSecondary,
                         ),
+                        const SizedBox(width: 4),
+                      ],
+                      Expanded(
+                        child: typing
+                            ? Text(
+                                t.t('chat.typing'),
+                                key: ValueKey('chat-typing-${c.id}'),
+                                maxLines: 1,
+                                style: type.bodySmall.copyWith(
+                                  color: colors.gold,
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              )
+                            : Text(
+                                last == null
+                                    ? ''
+                                    : '${last.senderId == me ? '${t.t('chat.you')}: ' : ''}'
+                                        '${messagePreview(t, last, me: me)}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: type.bodySmall.copyWith(
+                                  color: unread
+                                      ? colors.text
+                                      : colors.textSecondary,
+                                ),
+                              ),
                       ),
                       if (unread) ...[
                         const SizedBox(width: AppSpacing.sm),
