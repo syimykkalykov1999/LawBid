@@ -212,6 +212,8 @@ describe('Profiles onboarding (e2e) — client_profiles / attorney_profiles', ()
 
     const me = await api().get('/api/v1/users/me').set(auth).expect(200);
     expect(me.body.data.profile).toEqual({
+      // OQ-026: every client gets a generated @username.
+      username: expect.any(String),
       stateCode: 'DC',
       languages: ['en', 'es'],
       contactMethod: null,
@@ -298,6 +300,8 @@ describe('Profiles onboarding (e2e) — client_profiles / attorney_profiles', ()
       username: 'avery.quill',
       bio,
       firmName: 'Quill & Partners LLP',
+      // OQ-032: several firms; the first is firmName.
+      firms: ['Quill & Partners LLP'],
       languages: ['en', 'fr'],
       licensedStates: ['CA', 'NY'],
       verificationStatus: 'unverified',
@@ -449,6 +453,7 @@ describe('Profiles onboarding (e2e) — client_profiles / attorney_profiles', ()
       .set(auth)
       .expect(200);
     expect(done.body.data.profile).toEqual({
+      username: expect.any(String),
       stateCode: 'TX',
       languages: ['es'],
       contactMethod: 'in_app_chat',

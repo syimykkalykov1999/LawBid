@@ -685,7 +685,7 @@ describe('Profiles and practices (e2e) — docs/03 stages 3.5–3.6', () => {
       );
     });
 
-    it("a verified attorney's name change sends the profile to re-check (pending)", async () => {
+    it("OQ-029: a verified attorney's name change keeps verified (no re-check)", async () => {
       const a = await attorney({
         status: 'verified',
         licenses: [{ state: 'NY' }],
@@ -697,16 +697,14 @@ describe('Profiles and practices (e2e) — docs/03 stages 3.5–3.6', () => {
         .expect(200);
       expect(res.body.data).toMatchObject({
         lastName: 'McGill',
-        verificationStatus: 'pending',
-        verifiedBadge: false,
+        verificationStatus: 'verified',
+        verifiedBadge: true,
       });
-      const requests = await prisma.verificationRequest.findMany({
-        where: { attorney_id: a.userId },
-      });
-      expect(requests).toHaveLength(1);
-      expect(requests[0].status).toBe('submitted');
-      expect(requests[0].admin_note).toContain('Saul Goodman');
-      expect(requests[0].admin_note).toContain('Saul McGill');
+      expect(
+        await prisma.verificationRequest.count({
+          where: { attorney_id: a.userId },
+        }),
+      ).toBe(0);
 
       // The same rule applies through PATCH /users/me.
       const b = await attorney({
@@ -724,7 +722,7 @@ describe('Profiles and practices (e2e) — docs/03 stages 3.5–3.6', () => {
             where: { user_id: b.userId },
           })
         ).verification_status,
-      ).toBe('pending');
+      ).toBe('verified');
 
       // Bio-only edits of a verified attorney don't.
       const c = await attorney({

@@ -4,6 +4,7 @@ import { ConfigModule } from '../config/config.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { RedisModule } from '../redis/redis.module';
 import { AppSettingsModule } from '../common/app-settings/app-settings.module';
+import { CostGuardModule } from '../common/cost-guard/cost-guard.module';
 import { JobsModule } from './jobs.module';
 import { NotificationsModule } from '../modules/notifications/notifications.module';
 import { FilesWorkerModule } from '../modules/files/files-worker.module';
@@ -36,6 +37,9 @@ import { PrivacyModule } from '../modules/privacy/privacy.module';
     RedisModule,
     // LicenseExpiryJob: typed app_config reads + the notifications seam.
     AppSettingsModule,
+    // Global paid-provider caps: FilesService (calls, client reviews in
+    // the cron jobs) injects CostGuardService.
+    CostGuardModule,
     NotificationsModule,
     JobsModule.register({ mode: 'worker' }),
     // docs/03 stage 3.2: antivirus scan + image processing (`files` queue).

@@ -176,16 +176,20 @@ describe('People search + client usernames (e2e, OQ-026)', () => {
       ),
     ).toBe(true);
 
-    // Any attorney filter → attorneys only.
+    // OQ-036: the state filter fits both — attorneys licensed there and
+    // clients living there.
     const filtered = await api()
       .get('/api/v1/search/people')
       .query({ q: token, state: 'NY' })
       .set(att.auth);
     expect(filtered.status).toBe(200);
     expect(
-      (filtered.body.data as { role: string }[]).every(
-        (i) => i.role === 'attorney',
-      ),
+      (
+        filtered.body.data as {
+          role: string;
+          client: { stateCode: string } | null;
+        }[]
+      ).every((i) => i.role === 'attorney' || i.client?.stateCode === 'NY'),
     ).toBe(true);
   });
 
