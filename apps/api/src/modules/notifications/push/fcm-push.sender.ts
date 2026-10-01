@@ -1,5 +1,4 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { JWT } from 'google-auth-library';
 import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
@@ -23,23 +22,23 @@ export class FcmTemporaryError extends Error {}
  * already got it, so a partial failure never duplicates on the others.
  * UNREGISTERED / invalid tokens are deleted. Logs ids only.
  */
+import { SecretsService } from '../../../common/secrets/secrets.service';
 @Injectable()
 export class FcmPushSender implements PushSender {
   private readonly jwt: JWT;
   private readonly url: string;
 
   constructor(
-    config: ConfigService,
+    creds: { projectId: string; clientEmail: string; privateKey: string },
     private readonly tokens: PushTokensService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     private readonly logger: PinoLogger,
   ) {
     this.logger.setContext(FcmPushSender.name);
-    const project = config.getOrThrow<string>('FCM_PROJECT_ID');
-    this.url = `https://fcm.googleapis.com/v1/projects/${project}/messages:send`;
+    this.url = `https://fcm.googleapis.com/v1/projects/${creds.projectId}/messages:send`;
     this.jwt = new JWT({
-      email: config.getOrThrow<string>('FCM_CLIENT_EMAIL'),
-      key: config.getOrThrow<string>('FCM_PRIVATE_KEY').replace(/\\n/g, '\n'),
+      email: creds.clientEmail,
+      key: creds.privateKey.replace(/\\n/g, '\n'),
       scopes: [SCOPE],
     });
   }
@@ -144,5 +143,46 @@ export class FcmPushSender implements PushSender {
     if (temporary > 0) {
       throw new FcmTemporaryError(`${temporary} device(s) failed`);
     }
+  }
+}
+
+/**
+ * Owner 2026-10-01: the FCM service account can be changed in the admin
+ * (Integrations). Each send uses the current keys (the sender is rebuilt
+ * only when they changed); without keys pushes are only logged.
+ */
+export class DynamicPushSender implements PushSender {
+  private cached?: { fingerprint: string; sender: FcmPushSender };
+
+  constructor(
+    private readonly secrets: SecretsService,
+    private readonly tokens: PushTokensService,
+    private readonly redis: Redis,
+    private readonly logger: PinoLogger,
+    private readonly fallback: PushSender,
+  ) {}
+
+  async send(message: PushMessage, dedupeKey: string): Promise<void> {
+    const c = await this.secrets.get('fcm');
+    const f = c?.fields ?? {};
+    if (!c || !f.projectId || !f.clientEmail || !f.privateKey) {
+      return this.fallback.send(message, dedupeKey);
+    }
+    if (this.cached?.fingerprint !== c.fingerprint) {
+      this.cached = {
+        fingerprint: c.fingerprint,
+        sender: new FcmPushSender(
+          {
+            projectId: f.projectId,
+            clientEmail: f.clientEmail,
+            privateKey: f.privateKey,
+          },
+          this.tokens,
+          this.redis,
+          this.logger,
+        ),
+      };
+    }
+    return this.cached.sender.send(message, dedupeKey);
   }
 }

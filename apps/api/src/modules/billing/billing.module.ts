@@ -14,7 +14,8 @@ import {
 import { BillingRunner } from './billing.runner';
 import { FakeCheckoutController } from './fake-checkout.controller';
 import { FakePaymentProvider } from './fake-payment.provider';
-import { StripePaymentProvider } from './stripe-payment.provider';
+import { DynamicPaymentProvider } from './dynamic-payment.provider';
+import { SecretsService } from '../../common/secrets/secrets.service';
 import { StripeWebhookController } from './stripe-webhook.controller';
 import { StripeWebhookIntakeService } from './stripe-webhook.intake';
 import { SubscriptionSyncService } from './subscription-sync.service';
@@ -60,24 +61,17 @@ export class BillingModule {
         { provide: BILLING_OPTIONS, useValue: options },
         {
           provide: PAYMENT_PROVIDER,
-          inject: [ConfigService],
-          useFactory: (config: ConfigService) => {
-            const key = config.get<string>('STRIPE_SECRET_KEY');
-            const nodeEnv = config.get<string>('NODE_ENV');
-            if (!key && (nodeEnv === 'production' || nodeEnv === 'staging')) {
-              throw new Error(
-                `STRIPE_SECRET_KEY is required in NODE_ENV=: the fake payment provider is dev/test only`,
-              );
-            }
-            return key
-              ? new StripePaymentProvider(
-                  key,
-                  config.get<string>('STRIPE_WEBHOOK_SECRET'),
-                )
-              : Object.assign(new FakePaymentProvider(), {
-                  checkoutBaseUrl: `http://localhost:${config.get<number>('PORT') ?? 3000}/api/v1/subscriptions/fake-checkout`,
-                });
-          },
+          inject: [ConfigService, SecretsService],
+          // Owner 2026-10-01: Stripe keys from the admin or the env, read
+          // at call time (a key change needs no restart).
+          useFactory: (config: ConfigService, secrets: SecretsService) =>
+            new DynamicPaymentProvider(
+              secrets,
+              config,
+              Object.assign(new FakePaymentProvider(), {
+                checkoutBaseUrl: `http://localhost:${config.get<number>('PORT') ?? 3000}/api/v1/subscriptions/fake-checkout`,
+              }),
+            ).asProvider(),
         },
         SubscriptionSyncService,
         SubscriptionsService,

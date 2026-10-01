@@ -1,5 +1,3 @@
-import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { PinoLogger } from 'nestjs-pino';
 import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
 import type { EmailMessage, EmailProvider } from './email-provider.interface';
@@ -14,20 +12,16 @@ import type { EmailMessage, EmailProvider } from './email-provider.interface';
  * Untested against a real SES account in this environment (docs/
  * CHANGELOG.md, same caveat as the Twilio provider).
  */
-@Injectable()
 export class SesEmailProvider implements EmailProvider {
   private readonly client: SESClient;
   private readonly fromAddress: string;
 
   constructor(
-    private readonly config: ConfigService,
+    creds: { region: string; fromAddress: string },
     private readonly logger: PinoLogger,
   ) {
-    this.logger.setContext(SesEmailProvider.name);
-    this.client = new SESClient({
-      region: this.config.getOrThrow<string>('SES_REGION'),
-    });
-    this.fromAddress = this.config.getOrThrow<string>('SES_FROM_ADDRESS');
+    this.client = new SESClient({ region: creds.region });
+    this.fromAddress = creds.fromAddress;
   }
 
   async sendEmail(message: EmailMessage): Promise<void> {

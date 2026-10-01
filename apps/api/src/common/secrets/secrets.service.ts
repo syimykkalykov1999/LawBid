@@ -212,6 +212,7 @@ export class SecretsService implements OnModuleInit, OnModuleDestroy {
           (r) => r.provider === d.id && r.status === 'pending',
         );
         const resolved = await this.get(d.id);
+        const source: 'db' | 'env' | 'none' = resolved?.source ?? 'none';
         return {
           provider: d.id,
           label: d.label,
@@ -226,7 +227,7 @@ export class SecretsService implements OnModuleInit, OnModuleDestroy {
             required: f.required,
             hint: f.patternHint ?? null,
           })),
-          source: resolved?.source ?? 'none',
+          source,
           configured: await this.has(d.id),
           active: active ? this.summary(active) : null,
           pending: pending ? this.summary(pending) : null,

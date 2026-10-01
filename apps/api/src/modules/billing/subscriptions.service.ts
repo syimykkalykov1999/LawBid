@@ -6,6 +6,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -53,17 +54,15 @@ const PAYMENTS_PAGE = 20;
  * and per card fingerprint), me, payments, portal, cancel. Everything
  * after creation is driven by webhooks (SubscriptionSyncService).
  */
+import { SecretsService } from '../../common/secrets/secrets.service';
+import { refreshProvider } from './dynamic-payment.provider';
 @Injectable()
 export class SubscriptionsService {
   private readonly logger = new Logger(SubscriptionsService.name);
 
-  private readonly priceId: string | undefined;
   private readonly portalReturnUrl: string;
   /** Where Stripe Checkout returns (the website's pages / app links). */
   private readonly checkoutReturnBase: string;
-  /** OQ-048 prices (fake ids without Stripe). */
-  private readonly seatPriceId: string;
-  private readonly yearlyPriceId: string;
   private queue?: Queue;
 
   constructor(
@@ -71,18 +70,12 @@ export class SubscriptionsService {
     @Inject(PAYMENT_PROVIDER) private readonly provider: PaymentProvider,
     private readonly access: SubscriptionAccessService,
     private readonly sync: SubscriptionSyncService,
-    config: ConfigService,
+    private readonly config: ConfigService,
+    @Optional() private readonly secrets?: SecretsService,
   ) {
-    this.priceId =
-      config.get<string>('STRIPE_PRICE_ID') ??
-      (this.provider.name === 'fake' ? 'price_fake_399' : undefined);
     this.portalReturnUrl =
       config.get<string>('STRIPE_PORTAL_RETURN_URL') ??
       `${config.get<string>('APP_LINK_BASE_URL') ?? 'https://lawbid.app'}/subscription`;
-    this.seatPriceId =
-      config.get<string>('STRIPE_PRICE_SEAT_ID') ?? 'price_fake_seat_100';
-    this.yearlyPriceId =
-      config.get<string>('STRIPE_PRICE_YEARLY_ID') ?? 'price_fake_yearly_9590';
     this.checkoutReturnBase =
       config.get<string>('APP_LINK_BASE_URL') ?? 'https://lawbid.app';
     const url = config.get<string>('REDIS_URL');
@@ -92,7 +85,7 @@ export class SubscriptionsService {
 
   async start(user: RequestUser): Promise<StartSubscriptionResultDto> {
     const attorney = await this.verifiedAttorney(user);
-    this.assertConfigured();
+    await this.assertConfigured();
     const existing = await this.prisma.subscription.findUnique({
       where: { user_id: user.sub },
     });
@@ -125,7 +118,7 @@ export class SubscriptionsService {
     req: CheckoutRequestDto = {},
   ): Promise<CheckoutSessionDto> {
     const attorney = await this.verifiedAttorney(user);
-    const priceId = this.assertConfigured();
+    const priceId = await this.assertConfigured();
     const plan = req.plan ?? 'monthly';
     const seats =
       plan === 'yearly' ? MAX_ASSISTANT_SEATS : (req.assistantSeats ?? 0);
@@ -139,11 +132,11 @@ export class SubscriptionsService {
     }
     const lineItems =
       plan === 'yearly'
-        ? [{ priceId: this.yearlyPriceId, quantity: 1 }]
+        ? [{ priceId: (await this.prices()).yearly, quantity: 1 }]
         : [
             { priceId, quantity: 1 },
             ...(seats > 0
-              ? [{ priceId: this.seatPriceId, quantity: seats }]
+              ? [{ priceId: (await this.prices()).seat, quantity: seats }]
               : []),
           ];
     const existing = await this.prisma.subscription.findUnique({
@@ -353,7 +346,7 @@ export class SubscriptionsService {
     }
     await this.provider.switchToYearly(
       row.stripe_subscription_id,
-      this.yearlyPriceId,
+      (await this.prices()).yearly,
     );
     await this.prisma.subscription.update({
       where: { id: row.id },
@@ -400,7 +393,7 @@ export class SubscriptionsService {
     }
     await this.provider.setSeatQuantity(
       row.stripe_subscription_id,
-      this.seatPriceId,
+      (await this.prices()).seat,
       seats,
     );
     await this.prisma.subscription.update({
@@ -420,7 +413,7 @@ export class SubscriptionsService {
     chargeNow: boolean,
   ): Promise<SubscriptionMeDto> {
     await this.verifiedAttorney(user);
-    const priceId = this.assertConfigured();
+    const priceId = await this.assertConfigured();
     const customerId = await this.customerId(user.sub, null);
     const si = await this.provider.retrieveSetupIntent(setupIntentId);
     if (
@@ -558,7 +551,7 @@ export class SubscriptionsService {
 
   async portalSession(user: RequestUser): Promise<{ url: string }> {
     await this.verifiedAttorney(user);
-    this.assertConfigured();
+    await this.assertConfigured();
     const customerId = await this.customerId(user.sub, null);
     return {
       url: await this.provider.createPortalSession(
@@ -703,14 +696,43 @@ export class SubscriptionsService {
     return { email: u.email };
   }
 
-  private assertConfigured(): string {
-    if (!this.priceId) {
+  /**
+   * Owner 2026-10-01: price ids from the admin (Integrations → Stripe) or
+   * the env, read per call; fake ids while on the fake provider.
+   */
+  private async prices(): Promise<{
+    monthly: string | undefined;
+    seat: string;
+    yearly: string;
+  }> {
+    await refreshProvider(this.provider);
+    const f = (await this.secrets?.get('stripe'))?.fields ?? {};
+    const fake = this.provider.name === 'fake';
+    return {
+      monthly:
+        f.priceId ??
+        this.config.get<string>('STRIPE_PRICE_ID') ??
+        (fake ? 'price_fake_399' : undefined),
+      seat:
+        f.priceSeatId ??
+        this.config.get<string>('STRIPE_PRICE_SEAT_ID') ??
+        'price_fake_seat_100',
+      yearly:
+        f.priceYearlyId ??
+        this.config.get<string>('STRIPE_PRICE_YEARLY_ID') ??
+        'price_fake_yearly_9590',
+    };
+  }
+
+  private async assertConfigured(): Promise<string> {
+    const priceId = (await this.prices()).monthly;
+    if (!priceId) {
       throw new ServiceUnavailableException({
         code: ErrorCode.PAYMENTS_NOT_CONFIGURED,
         message: 'Payments are not configured on this server.',
       });
     }
-    return this.priceId;
+    return priceId;
   }
 }
 

@@ -542,11 +542,6 @@ export const envSchema = z
       blankToUndefined,
       z.string().min(8).optional(),
     ),
-    MUX_TOKEN_ID: z.preprocess(blankToUndefined, z.string().min(8).optional()),
-    MUX_TOKEN_SECRET: z.preprocess(
-      blankToUndefined,
-      z.string().min(8).optional(),
-    ),
     // docs/06 §1.4: where the Stripe Customer Portal returns to (a deep
     // link of the app); defaults to APP_LINK_BASE_URL + /subscription.
     STRIPE_PORTAL_RETURN_URL: z.preprocess(
@@ -601,6 +596,9 @@ export const envSchema = z
     ] as const;
     for (const { modeKey, realName, selection } of selections) {
       if (!selection.fatal) continue;
+      // Owner 2026-10-01: with the admin key store on, the keys may live
+      // in the admin (Integrations); a send without keys then fails loudly.
+      if (env.SECRETS_MASTER_KEYS && env[modeKey] !== 'mock') continue;
       if (env[modeKey] === 'mock') {
         ctx.addIssue({
           code: 'custom',
@@ -663,7 +661,8 @@ export const envSchema = z
         'STRIPE_WEBHOOK_SECRET',
         'STRIPE_PRICE_ID',
       ] as const) {
-        if (!env[key]) {
+        // Owner 2026-10-01: or in the admin (Integrations).
+        if (!env[key] && !env.SECRETS_MASTER_KEYS) {
           ctx.addIssue({
             code: 'custom',
             path: [key],

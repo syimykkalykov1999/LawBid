@@ -23,7 +23,8 @@ import { ReauthVerifier } from './services/reauth-verifier.service';
 import { SMS_PROVIDER, EMAIL_PROVIDER } from './providers/provider.tokens';
 import type { SmsProvider } from './providers/sms/sms-provider.interface';
 import { MockSmsProvider } from './providers/sms/mock-sms.provider';
-import { TwilioSmsProvider } from './providers/sms/twilio-sms.provider';
+import { DynamicSmsProvider } from './providers/sms/twilio-sms.provider';
+import { SecretsService } from '../../common/secrets/secrets.service';
 import { createEmailProvider } from './providers/email/email-provider.factory';
 import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
 import { NotificationsModule } from '../notifications/notifications.module';
@@ -129,7 +130,13 @@ import { resolveSmsProvider } from '../../config/provider-selection';
     AssistantContextService,
     {
       provide: SMS_PROVIDER,
-      useFactory: (config: ConfigService, logger: PinoLogger): SmsProvider => {
+      // Owner 2026-10-01: keys from the admin (Integrations) or the env,
+      // read at send time — a key change needs no restart.
+      useFactory: (
+        config: ConfigService,
+        logger: PinoLogger,
+        secrets: SecretsService,
+      ): SmsProvider => {
         const { provider, missing } = resolveSmsProvider({
           NODE_ENV: config.getOrThrow<AppEnv['NODE_ENV']>('NODE_ENV'),
           SMS_PROVIDER:
@@ -141,17 +148,20 @@ import { resolveSmsProvider } from '../../config/provider-selection';
             'TWILIO_MESSAGING_SERVICE_SID',
           ),
         });
-        logger.info({ provider, missing }, 'SMS provider selected');
-        return provider === 'twilio'
-          ? new TwilioSmsProvider(config, logger)
-          : new MockSmsProvider(logger);
+        logger.info({ provider, missing }, 'SMS provider selected at boot');
+        return new DynamicSmsProvider(
+          config,
+          logger,
+          secrets,
+          new MockSmsProvider(logger),
+        );
       },
-      inject: [ConfigService, PinoLogger],
+      inject: [ConfigService, PinoLogger, SecretsService],
     },
     {
       provide: EMAIL_PROVIDER,
       useFactory: createEmailProvider,
-      inject: [ConfigService, PinoLogger],
+      inject: [ConfigService, PinoLogger, SecretsService],
     },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
   ],

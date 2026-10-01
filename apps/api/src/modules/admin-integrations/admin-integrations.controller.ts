@@ -59,7 +59,7 @@ export class AdminIntegrationsController {
   @Get()
   @ApiOperation({ summary: 'Every integration: source, masked keys, tests' })
   @ApiEnvelopeResponse(IntegrationsOverviewDto)
-  async list(): Promise<IntegrationsOverviewDto> {
+  async listIntegrations(): Promise<IntegrationsOverviewDto> {
     return {
       storageEnabled: this.secrets.enabled,
       items: await this.secrets.overview(),
@@ -69,7 +69,9 @@ export class AdminIntegrationsController {
   @Get(':provider/versions')
   @ApiOperation({ summary: 'Versions of one integration (masked)' })
   @ApiEnvelopeResponse(IntegrationVersionDto, { isArray: true })
-  versions(@Param() p: ProviderParamDto): Promise<IntegrationVersionDto[]> {
+  listIntegrationVersions(
+    @Param() p: ProviderParamDto,
+  ): Promise<IntegrationVersionDto[]> {
     return this.secrets.versions(p.provider);
   }
 
@@ -83,7 +85,7 @@ export class AdminIntegrationsController {
     403: [E.ADMIN_STEP_UP_REQUIRED],
     503: [E.INTEGRATIONS_NOT_CONFIGURED],
   })
-  async create(
+  async createIntegrationVersion(
     @CurrentAdmin() admin: AdminActor,
     @Param() p: ProviderParamDto,
     @Body() dto: CreateIntegrationVersionDto,
@@ -102,7 +104,7 @@ export class AdminIntegrationsController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Test connection with this version' })
   @ApiEnvelopeResponse(IntegrationVersionDto)
-  async test(
+  async testIntegrationVersion(
     @CurrentAdmin() admin: AdminActor,
     @Param() p: VersionParamDto,
   ): Promise<IntegrationVersionDto> {
@@ -120,7 +122,7 @@ export class AdminIntegrationsController {
   @ApiOperation({ summary: 'Make this version live (needs step-up)' })
   @ApiEnvelopeResponse(IntegrationVersionDto)
   @ApiErrors({ 409: [E.INTEGRATION_CONFLICT] })
-  async activate(
+  async activateIntegrationVersion(
     @CurrentAdmin() admin: AdminActor,
     @Param() p: VersionParamDto,
     @Body() dto: ActivateIntegrationDto,
@@ -142,7 +144,7 @@ export class AdminIntegrationsController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Back to the previous version (needs step-up)' })
   @ApiEnvelopeResponse(IntegrationVersionDto)
-  async rollback(
+  async rollbackIntegration(
     @CurrentAdmin() admin: AdminActor,
     @Param() p: ProviderParamDto,
   ): Promise<IntegrationVersionDto> {
@@ -157,7 +159,7 @@ export class AdminIntegrationsController {
   @ApiOperation({
     summary: 'Stop using the keys saved here (back to the server env)',
   })
-  async remove(
+  async removeIntegration(
     @CurrentAdmin() admin: AdminActor,
     @Param() p: ProviderParamDto,
     @Body() dto: RemoveIntegrationDto,
@@ -178,7 +180,7 @@ export class AdminIntegrationsController {
   @ApiOperation({
     summary: 'Re-encrypt every key under the active master key',
   })
-  async reencrypt(
+  async reencryptIntegrations(
     @CurrentAdmin() admin: AdminActor,
   ): Promise<{ reencrypted: number }> {
     await this.guard(admin);

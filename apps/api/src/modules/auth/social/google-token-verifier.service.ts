@@ -1,9 +1,11 @@
 import {
+  Optional,
   Injectable,
   ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { SecretsService } from '../../../common/secrets/secrets.service';
 import { OAuth2Client } from 'google-auth-library';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import type {
@@ -27,16 +29,30 @@ import { nonceClaimMatches } from './nonce.util';
 @Injectable()
 export class GoogleTokenVerifier implements SocialTokenVerifier {
   private readonly client: OAuth2Client;
-  private readonly audiences: string[];
 
-  constructor(private readonly config: ConfigService) {
+  constructor(
+    private readonly config: ConfigService,
+    @Optional() private readonly secrets?: SecretsService,
+  ) {
     this.client = new OAuth2Client();
-    const raw = this.config.get<string>('GOOGLE_CLIENT_IDS');
-    this.audiences = raw ? raw.split(',').map((s) => s.trim()) : [];
+  }
+
+  /** Owner 2026-10-01: the client ids can be changed in the admin. */
+  private async audiences(): Promise<string[]> {
+    const raw =
+      (await this.secrets?.field('google_signin', 'clientIds')) ??
+      this.config.get<string>('GOOGLE_CLIENT_IDS');
+    return raw
+      ? raw
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : [];
   }
 
   async verify(idToken: string, nonce: string): Promise<SocialVerifyResult> {
-    if (this.audiences.length === 0) {
+    const audiences = await this.audiences();
+    if (audiences.length === 0) {
       throw new ServiceUnavailableException({
         code: ErrorCode.AUTH_PROVIDER_DISABLED,
         message:
@@ -47,7 +63,7 @@ export class GoogleTokenVerifier implements SocialTokenVerifier {
     try {
       ticket = await this.client.verifyIdToken({
         idToken,
-        audience: this.audiences,
+        audience: audiences,
       });
     } catch {
       throw new UnauthorizedException({

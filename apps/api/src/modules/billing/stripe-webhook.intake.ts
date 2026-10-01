@@ -23,6 +23,7 @@ export interface StripeWebhookJobData {
 }
 
 /** Verifies, stores (idempotently) and queues a webhook event. */
+import { refreshProvider } from './dynamic-payment.provider';
 @Injectable()
 export class StripeWebhookIntakeService
   implements OnApplicationBootstrap, OnModuleDestroy
@@ -51,6 +52,7 @@ export class StripeWebhookIntakeService
     rawBody: Buffer,
     signature: string | undefined,
   ): Promise<boolean> {
+    await refreshProvider(this.provider);
     const event = this.provider.constructWebhookEvent(rawBody, signature);
     try {
       await this.prisma.stripeWebhookEvent.create({

@@ -3,6 +3,7 @@ import {
   ConflictException,
   Inject,
   Injectable,
+  Optional,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -38,12 +39,36 @@ export const CONFIG_AUDIT = {
 
 /** docs/06 §2.3 item 7: flags that bill a third party and the env keys
  * that prove the provider is configured. */
-export const PAID_FLAGS: Record<string, string[]> = {
-  stripe_identity: ['STRIPE_SECRET_KEY'],
-  persona_verification: ['PERSONA_API_KEY'],
-  profile_promotion: ['STRIPE_SECRET_KEY', 'STRIPE_PRICE_ID'],
-  video_posts: ['MUX_TOKEN_ID', 'MUX_TOKEN_SECRET'],
-  auto_bar_check: ['BAR_LOOKUP_API_KEY'],
+/**
+ * Features that bill a third-party service: they can be switched on only
+ * once the service's keys are set — in the admin (Integrations) or the
+ * server env (owner 2026-10-01: Bunny Stream replaces Mux for video).
+ */
+import { SecretsService } from '../../common/secrets/secrets.service';
+export const PAID_FLAGS: Record<
+  string,
+  { integration?: string; keys: string[] }
+> = {
+  stripe_identity: { integration: 'stripe', keys: ['STRIPE_SECRET_KEY'] },
+  persona_verification: {
+    integration: 'persona',
+    keys: ['PERSONA_API_KEY'],
+  },
+  profile_promotion: {
+    integration: 'stripe',
+    keys: ['STRIPE_SECRET_KEY', 'STRIPE_PRICE_ID'],
+  },
+  video_posts: {
+    integration: 'bunny_stream',
+    keys: [
+      'BUNNY_LIBRARY_ID',
+      'BUNNY_CDN_HOSTNAME',
+      'BUNNY_API_KEY',
+      'BUNNY_TOKEN_AUTH_KEY',
+      'BUNNY_WEBHOOK_TOKEN',
+    ],
+  },
+  auto_bar_check: { keys: ['BAR_LOOKUP_API_KEY'] },
 };
 
 /**
@@ -62,6 +87,7 @@ export class AdminConfigService {
     private readonly flags: FeatureFlagsService,
     private readonly bootstrap: BootstrapService,
     private readonly audit: AuditLogService,
+    @Optional() private readonly secrets?: SecretsService,
   ) {}
 
   // ---- flags ----------------------------------------------------------
@@ -70,7 +96,7 @@ export class AdminConfigService {
     const rows = await this.prisma.featureFlag.findMany({
       orderBy: { key: 'asc' },
     });
-    return rows.map((r) => this.presentFlag(r));
+    return Promise.all(rows.map((r) => this.presentFlag(r)));
   }
 
   async updateFlag(
@@ -81,7 +107,7 @@ export class AdminConfigService {
     const before = await this.prisma.featureFlag.findUnique({ where: { key } });
     if (!before) throw notFound('Feature flag');
     const enabling = dto.enabled === true && !before.enabled;
-    const missing = this.missingKeys(key);
+    const missing = await this.missingKeys(key);
     if (enabling && missing.length > 0) {
       throw new ConflictException({
         code: ErrorCode.FLAG_PROVIDER_KEYS_MISSING,
@@ -124,22 +150,28 @@ export class AdminConfigService {
       return updated;
     });
     await this.flags.invalidate();
-    return this.presentFlag(after);
+    return await this.presentFlag(after);
   }
 
-  private missingKeys(flag: string): string[] {
-    return (PAID_FLAGS[flag] ?? []).filter((k) => !this.config.get<string>(k));
+  /** Empty once the keys are set in the admin (Integrations) or env. */
+  async missingKeys(flag: string): Promise<string[]> {
+    const paid = PAID_FLAGS[flag];
+    if (!paid) return [];
+    if (paid.integration && (await this.secrets?.has(paid.integration))) {
+      return [];
+    }
+    return paid.keys.filter((k) => !this.config.get<string>(k));
   }
 
-  private presentFlag(r: {
+  private async presentFlag(r: {
     key: string;
     enabled: boolean;
     rollout_percent: number;
     description: string | null;
     updated_by: string | null;
     updated_at: Date;
-  }): FeatureFlagAdminDto {
-    const required = PAID_FLAGS[r.key] ?? [];
+  }): Promise<FeatureFlagAdminDto> {
+    const required = PAID_FLAGS[r.key]?.keys ?? [];
     return {
       key: r.key,
       enabled: r.enabled,
@@ -147,7 +179,7 @@ export class AdminConfigService {
       description: r.description,
       paid: required.length > 0,
       requiredKeys: required,
-      missingKeys: this.missingKeys(r.key),
+      missingKeys: await this.missingKeys(r.key),
       updatedBy: r.updated_by,
       updatedAt: r.updated_at.toISOString(),
     };

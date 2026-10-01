@@ -1,5 +1,6 @@
 import { createHmac } from 'node:crypto';
 import {
+  Optional,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -9,6 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import type { Call, CallStatus, Conversation } from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
+import { SecretsService } from '../../common/secrets/secrets.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { BlocksService } from '../blocks/blocks.service';
@@ -68,6 +70,7 @@ export class CallsService {
     private readonly notifications: NotificationsService,
     private readonly push: PushQueueService,
     private readonly realtime: RealtimePublisher,
+    @Optional() private readonly secrets?: SecretsService,
   ) {}
 
   /** POST /conversations/:id/calls */
@@ -217,9 +220,13 @@ export class CallsService {
   /** GET /calls/ice-servers — STUN + short-lived TURN login (RFC 7635
    * style "TURN REST API": username = expiry:userId, password =
    * base64(HMAC-SHA1(TURN_SECRET, username))). */
-  iceServers(user: RequestUser): IceServersDto {
+  async iceServers(user: RequestUser): Promise<IceServersDto> {
+    // Owner 2026-10-01: TURN / STUN can be changed in the admin.
+    const turnKeys = (await this.secrets?.get('turn'))?.fields ?? {};
     const stun = (
-      this.config.get<string>('STUN_URLS') ?? 'stun:stun.l.google.com:19302'
+      turnKeys.stunUrls ??
+      this.config.get<string>('STUN_URLS') ??
+      'stun:stun.l.google.com:19302'
     )
       .split(',')
       .map((u) => u.trim())
@@ -228,11 +235,11 @@ export class CallsService {
       iceServers: [{ urls: stun, username: null, credential: null }],
       ttlSec: TURN_TTL_SEC,
     };
-    const turn = (this.config.get<string>('TURN_URLS') ?? '')
+    const turn = (turnKeys.urls ?? this.config.get<string>('TURN_URLS') ?? '')
       .split(',')
       .map((u) => u.trim())
       .filter(Boolean);
-    const secret = this.config.get<string>('TURN_SECRET');
+    const secret = turnKeys.secret ?? this.config.get<string>('TURN_SECRET');
     if (turn.length > 0 && secret) {
       const username = `${Math.floor(Date.now() / 1000) + TURN_TTL_SEC}:${user.sub}`;
       out.iceServers.push({

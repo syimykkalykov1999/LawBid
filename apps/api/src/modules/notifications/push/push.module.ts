@@ -5,7 +5,8 @@ import { PinoLogger } from 'nestjs-pino';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
 import { createEmailProvider } from '../../auth/providers/email/email-provider.factory';
 import { NotificationsModule } from '../notifications.module';
-import { FcmPushSender } from './fcm-push.sender';
+import { DynamicPushSender } from './fcm-push.sender';
+import { SecretsService } from '../../../common/secrets/secrets.service';
 import { LoggingPushSender } from './logging-push.sender';
 import { NotificationTemplateService } from './notification-template.service';
 import { PushDispatcher, type PushModuleOptions } from './push-dispatcher';
@@ -32,20 +33,25 @@ export class PushModule {
         PushTokensService,
         {
           provide: PUSH_SENDER,
-          inject: [ConfigService, PushTokensService, REDIS_CLIENT, PinoLogger],
+          inject: [SecretsService, PushTokensService, REDIS_CLIENT, PinoLogger],
+          // Owner 2026-10-01: FCM keys from the admin or the env, per send.
           useFactory: (
-            config: ConfigService,
+            secrets: SecretsService,
             tokens: PushTokensService,
             redis: Redis,
             logger: PinoLogger,
           ): PushSender =>
-            config.get<string>('FCM_PROJECT_ID')
-              ? new FcmPushSender(config, tokens, redis, logger)
-              : new LoggingPushSender(logger),
+            new DynamicPushSender(
+              secrets,
+              tokens,
+              redis,
+              logger,
+              new LoggingPushSender(logger),
+            ),
         },
         {
           provide: NOTIFICATION_EMAIL,
-          inject: [ConfigService, PinoLogger],
+          inject: [ConfigService, PinoLogger, SecretsService],
           useFactory: createEmailProvider,
         },
         NotificationTemplateService,

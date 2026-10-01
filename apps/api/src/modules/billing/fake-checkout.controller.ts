@@ -46,10 +46,9 @@ export class FakeCheckoutController {
   ) {}
 
   private fake(): FakePaymentProvider {
-    if (!(this.provider instanceof FakePaymentProvider)) {
-      throw new NotFoundException();
-    }
-    return this.provider;
+    // The provider is a dynamic proxy (owner 2026-10-01): check by name.
+    if (this.provider.name !== 'fake') throw new NotFoundException();
+    return this.provider as unknown as FakePaymentProvider;
   }
 
   @Get(':id')

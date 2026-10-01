@@ -53,7 +53,7 @@ export class CallsController {
   @Get('calls/ice-servers')
   @ApiOperation({ summary: 'STUN/TURN servers for WebRTC' })
   @ApiEnvelopeResponse(IceServersDto)
-  callIceServers(@CurrentUser() user: RequestUser): IceServersDto {
+  callIceServers(@CurrentUser() user: RequestUser): Promise<IceServersDto> {
     return this.calls.iceServers(user);
   }
 
