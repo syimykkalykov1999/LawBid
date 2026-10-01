@@ -939,3 +939,30 @@ reviews a client).
   scanned); publications and cases keep 9 photos.
 - The client sees an assistant's message as "Assistant of <attorney>"
   (and the push says "Attorney's assistant:").
+
+## OQ-050 — Checklists in tasks, Prime switch, phone changes by support, share to social networks (owner, 2026-10-01)
+
+- One task holds any number of steps (5 calls, 6 meetings, several
+  addresses) instead of a card per item. Each step has its own time, place
+  and contact; the attorney checks steps off one by one; the task is done
+  when every step is checked (all done → done, any not done → not done).
+  Assistants plan steps (add / move / note) but never check them off.
+  Technical cap: 100 steps per task.
+- Task cards use only the brand palette (navy medallion, gold icon and
+  progress, ink for "not done"); red is kept only for an overdue time.
+- An active monthly plan can switch to yearly "Prime" from the
+  subscription screen; the difference is charged at once (Stripe
+  `always_invoice`).
+- Phone change: users change their phone themselves (code to the new
+  number). When the old phone is lost, a **super admin** changes it from
+  the admin panel after checking identity; the reason is mandatory, the
+  old number stops working, every session is signed out and the user gets
+  a push + email. New states: an attorney adds a license with its bar
+  document in Verification; admins approve or reject per state.
+- Share: Instagram and TikTok have no link-share API — the link is copied
+  and the app opened with "paste it in …".
+- Spending protection: SMS only to US mobiles, per-number / per-IP /
+  per-account limits on every SMS (incl. the assistant join code), global
+  SMS / email / storage budgets (fail closed), one data export a day.
+  Deployed environments must set `TRUST_PROXY_HOPS=1` (startup refuses 0).
+

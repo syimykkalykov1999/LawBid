@@ -5,6 +5,19 @@ All notable changes to this project are documented here, per
 .cursorrules (each stage ends with a CHANGELOG update + commit on
 branch cursor/stage-X-Y-description).
 
+## Owner pass 12 (2026-10-01) — OQ-049 / OQ-050
+
+- Tasks: task form fields follow the kind (whom to call + phone, address to write to, where to go…; `attorney_tasks.contact_email`); **checklists** — migration `20261001120000_owner_task_steps` (`attorney_task_steps`), `steps[]` on create, `POST/PATCH/DELETE /tasks/:id/steps[/:stepId]`; every step has its own time / place / contact, the attorney checks steps off one by one (card box, double tap = next step, sheet menu: done / not done + note + move / call / write / map / remove), the last check finishes the task, unchecking or adding reopens it, removing the last open step finishes it; assistants add / move steps with the tasks duty, no checkmarks. Cards redesigned in brand navy + gold (no coloured strips), gold progress line. Codes `TASK_CLOSED`, `TASK_STEPS_LIMIT` (100 steps).
+- Billing: `POST /subscriptions/plan/yearly` — an active monthly plan switches to yearly "Prime" (all 6 seats, difference charged); Prime card under the current plan.
+- Inbox: notifications became a bell at the right edge; segments Chats · Requests · Team.
+- Profile: post / news grids sit flush under the tabs; no comment button inside a post (the field is right below).
+- Settings → "Assistants & access" (Team: seats and every access switch). Role choice: the assistant role sits inside the attorney card ("I'm the attorney" / "I'm an attorney's assistant").
+- Share everywhere (posts, cases, profiles): one LawBid sheet — WhatsApp, Telegram, Instagram, TikTok (link copied + app opened), Facebook, Messenger, X, LinkedIn, Viber, SMS, email, copy link, system "More".
+- Gestures: swipe back on every pushed screen (also plain routes), every sheet and bottom-rising screen closes with a pull down (not from inside a text field), a tap outside any text field hides the keyboard (chat / comment composers keep it). Search bars 44 visible / 48 tap.
+- Admin: "Change phone" on a user's card (super admin only; real US mobile; reason required; old number removed, sessions signed out, user notified by push + email `security_phone_changed` — migration `20261001130000_owner_phone_changed_notice`; audited with masked numbers; 10 a day per admin). New states already go through Verification (bar document per state, decision per license).
+- Security audit fixes: join-code SMS limits (3/h, 6/day per account + 5/h per number), per-IP OTP verify limit (`OTP_VERIFY_LIMIT_PER_IP_PER_HOUR`, 30), staging/production refuse `TRUST_PROXY_HOPS=0`, notification and data-export emails under the email cost guard, one data export a day, atomic pending-login redeem (GETDEL), step notes need the tasks duty.
+- e2e: steps, step sync / cancelled, join-code limits, admin phone change, Prime switch; app tests: steps, Prime card, share sheet.
+
 ## Owner pass 11 (2026-09-30) — OQ-048
 
 - Plans: migration `20261001060000_owner_plans_and_assistants` (`subscriptions.plan/assistant_seats`), Stripe Checkout sessions with seat / yearly line items, `checkout`, `checkout/complete`, `seats`, dev payment page for the fake provider; app plan picker (monthly default, yearly below, seats, assistant phones) and Stripe page flow.

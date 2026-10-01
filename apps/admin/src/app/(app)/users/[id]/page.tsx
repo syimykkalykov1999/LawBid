@@ -152,9 +152,12 @@ export default function UserCardPage() {
               </Button>
               {canSanction ? (
                 <>
-                  <Button variant="outline" size="sm" disabled={act.isPending} onClick={() => act.mutate('phone')}>
-                    Сменить телефон
-                  </Button>
+                  {me?.role === 'super_admin' ? (
+                    // The API allows phone changes to super admins only.
+                    <Button variant="outline" size="sm" disabled={act.isPending} onClick={() => act.mutate('phone')}>
+                      Сменить телефон
+                    </Button>
+                  ) : null}
                   <Button variant="outline" size="sm" disabled={act.isPending} onClick={() => act.mutate('warn')}>
                     Предупредить
                   </Button>

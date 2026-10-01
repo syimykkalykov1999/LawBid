@@ -236,7 +236,7 @@ export class TasksService {
     // Same technical cap as on creation (security audit 2026-10-01).
     if (t.steps.length >= MAX_STEPS) {
       throw new ConflictException({
-        code: ErrorCode.TASK_CLOSED,
+        code: ErrorCode.TASK_STEPS_LIMIT,
         message: `A task holds up to ${MAX_STEPS} steps.`,
         details: { max: MAX_STEPS },
       });
@@ -282,6 +282,7 @@ export class TasksService {
     dto: UpdateTaskStepDto,
   ): Promise<TaskDto> {
     const t = await this.own(user, id);
+    if (t.status === 'cancelled') throw this.closed();
     const step = t.steps.find((x) => x.id === stepId);
     if (!step) throw this.stepNotFound();
     if (dto.status && user.assistant) {
@@ -309,7 +310,11 @@ export class TasksService {
           : {}),
       },
     });
-    if (dto.status) await this.syncTaskWithSteps(t, stepId, dto.status);
+    if (dto.status) {
+      await this.syncTaskWithSteps(t, (x) =>
+        x.id === stepId ? dto.status! : x.status,
+      );
+    }
     if (user.assistant) {
       await this.assistants.log(user, 'task.step.move', {
         type: 'task',
@@ -327,8 +332,14 @@ export class TasksService {
   ): Promise<TaskDto> {
     this.assertMayPlan(user);
     const t = await this.own(user, id);
+    if (t.status === 'cancelled') throw this.closed();
     if (!t.steps.some((x) => x.id === stepId)) throw this.stepNotFound();
     await this.prisma.attorneyTaskStep.delete({ where: { id: stepId } });
+    // Removing the last open step can finish the task.
+    await this.syncTaskWithSteps(
+      { ...t, steps: t.steps.filter((x) => x.id !== stepId) },
+      (x) => x.status,
+    );
     if (user.assistant) {
       await this.assistants.log(user, 'task.step.remove', {
         type: 'task',
@@ -342,12 +353,10 @@ export class TasksService {
   /** All steps checked → the task is done (the assistant hears back). */
   private async syncTaskWithSteps(
     t: TaskRow,
-    changedId: string,
-    changedTo: 'open' | 'done' | 'not_done',
+    statusOf: (step: TaskRow['steps'][number]) => string,
   ): Promise<void> {
-    const statuses = t.steps.map((x) =>
-      x.id === changedId ? changedTo : x.status,
-    );
+    if (t.status === 'cancelled' || t.steps.length === 0) return;
+    const statuses = t.steps.map(statusOf);
     const allChecked = statuses.every((x) => x === 'done' || x === 'not_done');
     if (allChecked && t.status !== 'done' && t.status !== 'not_done') {
       const status = statuses.every((x) => x === 'done') ? 'done' : 'not_done';

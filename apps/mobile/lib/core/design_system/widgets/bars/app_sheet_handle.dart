@@ -79,6 +79,11 @@ class _PullDownToCloseState extends State<PullDownToClose> {
 
   bool _onScroll(ScrollNotification n) {
     if (n.metrics.axis != Axis.vertical || _closing) return false;
+    // A multiline field's own scrolling never closes the sheet (it would
+    // lose what was typed).
+    if (n.context?.findAncestorWidgetOfExactType<EditableText>() != null) {
+      return false;
+    }
     if (n is OverscrollNotification &&
         n.dragDetails != null &&
         n.overscroll < 0 &&

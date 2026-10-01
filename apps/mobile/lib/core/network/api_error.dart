@@ -80,6 +80,7 @@ abstract final class ApiErrorCodes {
   static const assistantInviteNotFound = 'ASSISTANT_INVITE_NOT_FOUND';
   static const assistantLiabilityRequired = 'ASSISTANT_LIABILITY_REQUIRED';
   static const taskClosed = 'TASK_CLOSED';
+  static const taskStepsLimit = 'TASK_STEPS_LIMIT';
   static const reviewEditWindowExpired = 'REVIEW_EDIT_WINDOW_EXPIRED';
   static const reviewNotEditable = 'REVIEW_NOT_EDITABLE';
   // Practices and profiles (docs/03 §3–§4, stages 3.5–3.6)
@@ -219,6 +220,7 @@ abstract final class ApiErrorCodes {
     assistantInviteNotFound,
     assistantLiabilityRequired,
     taskClosed,
+    taskStepsLimit,
     reviewEditWindowExpired,
     reviewNotEditable,
     attorneyNotVerified,

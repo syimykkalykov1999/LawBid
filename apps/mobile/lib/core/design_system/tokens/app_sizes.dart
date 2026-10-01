@@ -62,7 +62,9 @@ abstract final class AppSizes {
   static const double segmentedTabs = 44;
 
   /// The big search field at the top of the Search tab (owner 2026-09-29).
-  static const double searchField = 56;
+  // Owner 2026-10-01: "the search bar is huge" — 44 visible (the bar keeps
+  // a 48 tap row, FlipSearchBar).
+  static const double searchField = 44;
 
   /// Bottom nav: rounded top corners (owner 2026-09-29).
   static const double bottomNavRadius = 18;

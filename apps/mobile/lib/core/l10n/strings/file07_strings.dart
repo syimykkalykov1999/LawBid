@@ -138,6 +138,8 @@ const file07Ru = <String, String>{
   'team.noAccess':
       'У помощника пока нет доступов. Включите нужные — ответственность за его действия несёте вы.',
   'team.liabilityAccepted': 'Ответственность принята: {date}',
+  'error.api.TASK_CLOSED': 'Задача отменена — её нельзя менять',
+  'error.api.TASK_STEPS_LIMIT': 'В одной задаче до 100 шагов — создайте ещё одну',
   'error.api.ASSISTANT_LIABILITY_REQUIRED':
       'Чтобы включить доступ, примите ответственность за действия помощника.',
   'common.delete': 'Удалить',
@@ -537,6 +539,8 @@ const file07En = <String, String>{
   'team.noAccess':
       'This assistant has no access yet. Switch on what they need — you are responsible for their actions.',
   'team.liabilityAccepted': 'Responsibility accepted: {date}',
+  'error.api.TASK_CLOSED': 'This task was cancelled and can no longer change',
+  'error.api.TASK_STEPS_LIMIT': 'A task holds up to 100 steps — start another one',
   'error.api.ASSISTANT_LIABILITY_REQUIRED':
       "To switch access on, accept responsibility for your assistant's actions.",
   'common.delete': 'Delete',

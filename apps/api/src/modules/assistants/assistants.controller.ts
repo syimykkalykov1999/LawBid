@@ -291,7 +291,7 @@ export class AssistantsController {
   @ApiErrors({
     403: [E.ASSISTANT_NOT_ALLOWED],
     404: [E.NOT_FOUND],
-    409: [E.TASK_CLOSED],
+    409: [E.TASK_CLOSED, E.TASK_STEPS_LIMIT],
   })
   addTaskStep(
     @CurrentUser() user: RequestUser,
@@ -304,7 +304,11 @@ export class AssistantsController {
   @Patch('tasks/:id/steps/:stepId')
   @ApiOperation({ summary: 'Check a step off / move it to another time' })
   @ApiEnvelopeResponse(TaskDto)
-  @ApiErrors({ 403: [E.ASSISTANT_NOT_ALLOWED], 404: [E.NOT_FOUND] })
+  @ApiErrors({
+    403: [E.ASSISTANT_NOT_ALLOWED],
+    404: [E.NOT_FOUND],
+    409: [E.TASK_CLOSED],
+  })
   updateTaskStep(
     @CurrentUser() user: RequestUser,
     @Param() p: TaskStepParamDto,
@@ -316,7 +320,11 @@ export class AssistantsController {
   @Delete('tasks/:id/steps/:stepId')
   @ApiOperation({ summary: 'Remove a step' })
   @ApiEnvelopeResponse(TaskDto)
-  @ApiErrors({ 403: [E.ASSISTANT_NOT_ALLOWED], 404: [E.NOT_FOUND] })
+  @ApiErrors({
+    403: [E.ASSISTANT_NOT_ALLOWED],
+    404: [E.NOT_FOUND],
+    409: [E.TASK_CLOSED],
+  })
   removeTaskStep(
     @CurrentUser() user: RequestUser,
     @Param() p: TaskStepParamDto,

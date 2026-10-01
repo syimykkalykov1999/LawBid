@@ -116,6 +116,8 @@ enum ErrorCode {
   assistantLiabilityRequired('ASSISTANT_LIABILITY_REQUIRED'),
   @JsonValue('TASK_CLOSED')
   taskClosed('TASK_CLOSED'),
+  @JsonValue('TASK_STEPS_LIMIT')
+  taskStepsLimit('TASK_STEPS_LIMIT'),
   @JsonValue('ATTORNEY_NOT_VERIFIED')
   attorneyNotVerified('ATTORNEY_NOT_VERIFIED'),
   @JsonValue('USERNAME_TAKEN')

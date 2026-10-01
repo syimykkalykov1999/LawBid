@@ -426,6 +426,55 @@ describe('Assistants (e2e, OQ-048)', () => {
 
   // OQ-049 (owner 2026-10-01): every access is switched on by the attorney,
   // who accepts responsibility; bids and direct publishing included.
+  it('steps: removing the last open one finishes; a cancelled task stays cancelled', async () => {
+    const att = await attorney(0);
+    const t = await api()
+      .post('/api/v1/tasks')
+      .set(att.auth)
+      .send({
+        kind: 'other',
+        title: 'Errands',
+        steps: [{ title: 'A' }, { title: 'B' }],
+      })
+      .expect(201);
+    const id = t.body.data.id as string;
+    const [a, b] = t.body.data.steps as { id: string }[];
+    await api()
+      .patch(`/api/v1/tasks/${id}/steps/${a.id}`)
+      .set(att.auth)
+      .send({ status: 'done' })
+      .expect(200);
+    const removed = await api()
+      .delete(`/api/v1/tasks/${id}/steps/${b.id}`)
+      .set(att.auth)
+      .expect(200);
+    expect(removed.body.data.status).toBe('done');
+    // Not done + move in one call: open again at the new time.
+    const later = new Date(Date.now() + 86_400_000).toISOString();
+    const moved = await api()
+      .patch(`/api/v1/tasks/${id}/steps/${a.id}`)
+      .set(att.auth)
+      .send({ status: 'open', dueAt: later, note: 'No answer' })
+      .expect(200);
+    expect(moved.body.data.status).toBe('open');
+    expect(moved.body.data.steps[0]).toMatchObject({
+      status: 'open',
+      dueAt: later,
+      note: 'No answer',
+    });
+    await api()
+      .patch(`/api/v1/tasks/${id}/status`)
+      .set(att.auth)
+      .send({ status: 'cancelled' })
+      .expect(200);
+    const blocked = await api()
+      .patch(`/api/v1/tasks/${id}/steps/${a.id}`)
+      .set(att.auth)
+      .send({ status: 'done' })
+      .expect(409);
+    expect(blocked.body.error.code).toBe('TASK_CLOSED');
+  });
+
   it('join codes are rate-limited (no SMS flood to an attorney)', async () => {
     const att = await attorney(2);
     const asst = await assistantUser();

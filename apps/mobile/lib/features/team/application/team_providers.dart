@@ -322,6 +322,25 @@ class TasksController extends AsyncNotifier<List<TaskItem>> {
     }
   }
 
+  /// "Not done — move it": one request — the step stays open at the new
+  /// time with the note (no "task failed" in between).
+  Future<TaskItem> rescheduleStep(
+    TaskItem task,
+    TaskStep step,
+    DateTime to, {
+    String? note,
+  }) async {
+    final updated = await ref.read(teamRepositoryProvider).updateTaskStep(
+          task.id,
+          step.id,
+          status: TaskStatus.open,
+          note: note,
+          dueAt: to,
+        );
+    _put(updated);
+    return updated;
+  }
+
   Future<TaskItem> moveStep(TaskItem task, TaskStep step, DateTime to) async {
     final updated = await ref
         .read(teamRepositoryProvider)

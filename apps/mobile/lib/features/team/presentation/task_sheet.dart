@@ -315,6 +315,13 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
     final t = ref.read(translatorProvider);
     final assistant = ref.read(isAssistantProvider);
     final active = _task.status.active;
+    final hasAny = (!assistant && active) ||
+        (canPlan && active) ||
+        (step.contactPhone?.isNotEmpty ?? false) ||
+        (step.contactEmail?.isNotEmpty ?? false) ||
+        (step.location?.isNotEmpty ?? false);
+    // Nothing to offer (e.g. an assistant without the tasks duty).
+    if (!hasAny) return;
     final choice = await showAppBottomSheet<String>(
       context: context,
       builder: (ctx) => SafeArea(
@@ -383,20 +390,11 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
       case 'not':
         final r = await askTaskOutcome(context, t, done: false);
         if (r == null || !mounted) return;
-        await _stepOp(() => _ctrl.checkStep(
-              _task,
-              step,
-              TaskStatus.notDone,
-              note: r.note,
-            ));
-        if (r.rescheduleTo != null && mounted) {
-          // "Not done, move it": the step opens again at the new time.
-          final moved = _task.steps.firstWhere((s) => s.id == step.id);
-          await _stepOp(() => _ctrl.checkStep(_task, moved, TaskStatus.open));
-          if (mounted) {
-            await _stepOp(() => _ctrl.moveStep(_task, moved, r.rescheduleTo!));
-          }
-        }
+        final to = r.rescheduleTo;
+        await _stepOp(() => to == null
+            ? _ctrl.checkStep(_task, step, TaskStatus.notDone, note: r.note)
+            // "Not done, move it": one request, the step stays open.
+            : _ctrl.rescheduleStep(_task, step, to, note: r.note));
       case 'move':
         final at = await pickDateTime(context, initial: step.dueAt);
         if (at != null && mounted) {
