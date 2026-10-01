@@ -5,7 +5,8 @@ import 'package:lawbid_api/lawbid_api.dart' as api;
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 
-enum NotifCategory { messages, bids, cases, social, system, marketing }
+// Owner 2026-09-30: `calls` — incoming and missed calls.
+enum NotifCategory { messages, calls, bids, cases, social, system, marketing }
 
 @immutable
 class NotifActor {

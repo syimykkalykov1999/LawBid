@@ -17,6 +17,7 @@ import {
 
 export const CATEGORIES = [
   'messages',
+  'calls',
   'bids',
   'cases',
   'social',

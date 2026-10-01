@@ -197,7 +197,12 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
         actions: [
           // OQ-041: an in-app audio call (after acceptance).
           // OQ-043: a direct chat gets calls once the request is accepted.
-          if (c != null && !c.closed)
+          // Owner 2026-09-30: no call button until a request is accepted.
+          if (c != null &&
+              !c.closed &&
+              !c.myRequestPending &&
+              !c.awaitingMyAnswer &&
+              !c.myRequestDeclined)
             AppIconButton(
               plain: true,
               icon: Icon(

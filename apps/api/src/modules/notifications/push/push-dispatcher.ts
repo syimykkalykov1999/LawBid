@@ -129,7 +129,7 @@ export class PushDispatcher
     });
     if (!call || call.callee.status !== 'active') return 'no_user';
     if (call.status !== 'ringing') return 'no_push';
-    if (!(await this.pushAllowed(data.recipientId, 'messages'))) {
+    if (!(await this.pushAllowed(data.recipientId, 'calls'))) {
       return 'disabled';
     }
     const name =

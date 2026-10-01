@@ -34792,6 +34792,7 @@
           "category": {
             "enum": [
               "messages",
+              "calls",
               "bids",
               "cases",
               "social",
@@ -34935,6 +34936,7 @@
           "category": {
             "enum": [
               "messages",
+              "calls",
               "bids",
               "cases",
               "social",
@@ -35026,6 +35028,7 @@
           "category": {
             "enum": [
               "messages",
+              "calls",
               "bids",
               "cases",
               "social",

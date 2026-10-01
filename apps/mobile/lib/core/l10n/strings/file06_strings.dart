@@ -14,6 +14,7 @@ const file06Ru = <String, String>{
   'chat.requests.privacy':
       'Примите, чтобы переписываться. Удалить — сообщения исчезнут, человек больше не сможет писать.',
   'chat.requests.accept': 'Принять',
+  'chat.requests.sent': 'Запрос отправлен',
   'chat.requests.delete': 'Удалить',
   'chat.requests.block': 'Блок',
   'chat.requests.sentNote':
@@ -345,6 +346,7 @@ const file06En = <String, String>{
   'chat.requests.privacy':
       "Accept to chat. Delete removes the request and they can't message you again.",
   'chat.requests.accept': 'Accept',
+  'chat.requests.sent': 'Request sent',
   'chat.requests.delete': 'Delete',
   'chat.requests.block': 'Block',
   'chat.requests.sentNote':

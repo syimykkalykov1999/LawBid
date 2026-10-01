@@ -120,6 +120,7 @@ IconData _icon(AppNotification n) => switch (n.type) {
           NotifCategory.bids => Icons.gavel_rounded,
           NotifCategory.cases => Icons.folder_rounded,
           NotifCategory.messages => Icons.chat_bubble_rounded,
+          NotifCategory.calls => Icons.call_rounded,
           NotifCategory.system => Icons.shield_rounded,
           _ => Icons.notifications_rounded,
         },

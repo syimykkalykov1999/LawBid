@@ -773,3 +773,17 @@ Differs from OQ-014 / docs/04 §9 (chats only from a case).
 - Top bars: the back arrow and right-hand icons sit near the screen edges
   (chat, profiles, every screen with a back arrow); welcome/login screens
   untouched.
+
+## OQ-045 — Layout polish, "Calls" notification category, clearer message requests (owner, 2026-09-30)
+
+- Rows placed straight on a screen (e.g. "Comments" under a case
+  description) line up with the text above — no left inset.
+- Chat list: the name takes all the room the time leaves; only long names
+  get an ellipsis.
+- Case photos and files sit centred (wizard and case cards, client and
+  attorney); more than fit scroll sideways.
+- Notification settings get a separate "Calls" category (incoming-call
+  ring push and missed calls), on by default; it was part of "Messages".
+- A direct chat whose request is not accepted yet has no call button, and
+  my own pending request is labelled "@username · Request sent" in the
+  list. Case chats keep docs/04 (calls once the bid is accepted).

@@ -312,6 +312,7 @@ class _OwnerCaseBody extends ConsumerWidget {
           AppListRow(
             icon: Icons.mode_comment_outlined,
             label: t.t('cases.comments.title'),
+            flush: true,
             onTap: () => context.push(AppRoutes.caseComments(c.id)),
           ),
           DetailSection(

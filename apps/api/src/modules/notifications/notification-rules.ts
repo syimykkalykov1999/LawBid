@@ -35,6 +35,7 @@ export const LOCKED_CATEGORIES: ReadonlySet<NotificationCategory> = new Set([
  * off until the marketing_push consent). */
 export const DEFAULT_PUSH: Record<NotificationCategory, boolean> = {
   messages: true,
+  calls: true,
   bids: true,
   cases: true,
   social: true,

@@ -397,28 +397,39 @@ class ConversationRow extends ConsumerWidget {
                 children: [
                   Row(
                     children: [
-                      Flexible(
-                        child: Text(
-                          who,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: type.body.copyWith(
-                            color: colors.text,
-                            fontWeight:
-                                unread ? FontWeight.w700 : FontWeight.w600,
-                          ),
+                      // The name takes all the room the time leaves, so a
+                      // full name like "Syimyk Kalykov" fits; only long
+                      // names get an ellipsis.
+                      Expanded(
+                        child: Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                who,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: type.body.copyWith(
+                                  color: colors.text,
+                                  fontWeight: unread
+                                      ? FontWeight.w700
+                                      : FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            if (c.counterpart.verified) ...[
+                              const SizedBox(width: 3),
+                              VerifiedCheck(
+                                  label: t.t('post.verified'), size: 14),
+                            ],
+                            if (c.muted) ...[
+                              const SizedBox(width: AppSpacing.xs),
+                              Icon(Icons.notifications_off_outlined,
+                                  size: 14, color: colors.textSecondary),
+                            ],
+                          ],
                         ),
                       ),
-                      if (c.counterpart.verified) ...[
-                        const SizedBox(width: 3),
-                        VerifiedCheck(label: t.t('post.verified'), size: 14),
-                      ],
-                      if (c.muted) ...[
-                        const SizedBox(width: AppSpacing.xs),
-                        Icon(Icons.notifications_off_outlined,
-                            size: 14, color: colors.textSecondary),
-                      ],
-                      const Spacer(),
+                      const SizedBox(width: AppSpacing.xs),
                       if (c.lastMessageAt != null)
                         Text(
                           SocialFormat.ago(t, f, c.lastMessageAt!),
@@ -458,7 +469,11 @@ class ConversationRow extends ConsumerWidget {
                     // OQ-043: a direct chat is labelled with the @username.
                     const SizedBox(height: AppSpacing.xs),
                     _CaseChip(
-                      title: '@${c.counterpart.username}',
+                      // Owner 2026-09-30: my unanswered request says so.
+                      title: c.myRequestPending
+                          ? '@${c.counterpart.username} · '
+                              '${t.t('chat.requests.sent')}'
+                          : '@${c.counterpart.username}',
                       closed: false,
                       icon: c.myRequestPending
                           ? Icons.schedule_send_outlined

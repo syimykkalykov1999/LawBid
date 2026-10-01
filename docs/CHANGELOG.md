@@ -5,6 +5,12 @@ All notable changes to this project are documented here, per
 .cursorrules (each stage ends with a CHANGELOG update + commit on
 branch cursor/stage-X-Y-description).
 
+## Owner pass 8 (2026-09-30) — OQ-045
+
+- Flush "Comments" row under a case description; full names in the chat list; centred case photos and files.
+- "Calls" notification category (migration `20261001000000_owner_calls_notification_category`): incoming-call push and missed calls follow it.
+- Pending direct requests: no call button; "Request sent" on my own request row.
+
 ## Owner pass 7 (2026-09-30) — OQ-038 follow-up, OQ-040
 
 - Client profile counters sized like the attorney's; rating moved into the Reviews tab with the 5→1 distribution, star filter and date sort (`GET /clients/:id/reviews/summary`, `?rating&sort`).

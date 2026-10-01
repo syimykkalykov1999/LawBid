@@ -8,6 +8,8 @@ import 'package:json_annotation/json_annotation.dart';
 enum NotificationDtoCategory {
   @JsonValue('messages')
   messages('messages'),
+  @JsonValue('calls')
+  calls('calls'),
   @JsonValue('bids')
   bids('bids'),
   @JsonValue('cases')

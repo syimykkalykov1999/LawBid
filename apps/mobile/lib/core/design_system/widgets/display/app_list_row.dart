@@ -23,6 +23,7 @@ class AppListRow extends StatefulWidget {
     this.destructive = false,
     this.selected = false,
     this.showChevron = true,
+    this.flush = false,
   });
 
   final String label;
@@ -34,6 +35,10 @@ class AppListRow extends StatefulWidget {
   /// Selected option in a picker (shows a gold check instead of chevron).
   final bool selected;
   final bool showChevron;
+
+  /// Owner 2026-09-30: a row placed straight on a screen (not inside a
+  /// card or a sheet) lines up with the text above — no side inset.
+  final bool flush;
 
   @override
   State<AppListRow> createState() => _AppListRowState();
@@ -90,8 +95,8 @@ class _AppListRowState extends State<AppListRow> {
           constraints: const BoxConstraints(
             minHeight: AppSizes.touchTarget + AppSpacing.md,
           ),
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.md,
+          padding: EdgeInsets.symmetric(
+            horizontal: widget.flush ? 0 : AppSpacing.md,
             vertical: AppSpacing.sm,
           ),
           decoration: BoxDecoration(

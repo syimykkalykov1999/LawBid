@@ -222,6 +222,7 @@ class _Body extends ConsumerWidget {
         AppListRow(
           icon: Icons.mode_comment_outlined,
           label: t.t('cases.comments.title'),
+          flush: true,
           trailingText: c.commentCount > 0
               ? SocialFormat.count(formats, c.commentCount)
               : null,

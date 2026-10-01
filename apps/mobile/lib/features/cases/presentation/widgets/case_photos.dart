@@ -8,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/cases/application/create_case_controller.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 
@@ -77,7 +78,9 @@ class CasePhotosPicker extends ConsumerWidget {
         Text(t.t('cases.photos.privacy'),
             style: type.caption.copyWith(color: colors.textSecondary)),
         const SizedBox(height: AppSpacing.sm),
+        // Tiles sit centred, not against the left edge.
         Wrap(
+          alignment: WrapAlignment.center,
           spacing: AppSpacing.sm,
           runSpacing: AppSpacing.sm,
           children: [
@@ -210,63 +213,77 @@ class CasePhotosStrip extends ConsumerWidget {
         ],
       );
     }
+    // Centred when they fit; a horizontal scroll when there are more.
     return SizedBox(
       height: 112,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: photos.length,
-        separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.sm),
-        itemBuilder: (context, i) {
-          final p = photos[i];
-          // OQ-034: documents open in the system viewer.
-          if (!p.isImage) {
-            final pdf = p.mime == 'application/pdf';
-            return AppPressable(
-              onTap: () => openCaseDocument(p.url),
-              child: Semantics(
-                button: true,
-                label: t.t('cases.files.open'),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(AppRadii.field),
-                  child: SizedBox.square(
-                    dimension: 112,
-                    child: _DocTile(
-                      name: '${t.t('cases.files.document')} ${i + 1}'
-                          '${pdf ? '.pdf' : '.docx'}',
-                    ),
-                  ),
-                ),
-              ),
-            );
-          }
-          final images = [
-            for (final x in photos)
-              if (x.isImage) x.url,
-          ];
-          return AppPressable(
-            onTap: () => showPhotoGallery(
-              context,
-              urls: images,
-              initial: images.indexOf(p.url),
-              closeLabel: t.t('common.close'),
+      child: LayoutBuilder(
+        builder: (context, box) => SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minWidth: box.maxWidth),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                for (var i = 0; i < photos.length; i++) ...[
+                  if (i > 0) const SizedBox(width: AppSpacing.sm),
+                  _tile(context, t, i),
+                ],
+              ],
             ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(AppRadii.field),
-              child: Image.network(
-                p.previewUrl,
-                width: 112,
-                height: 112,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Image.network(
-                  p.url,
-                  width: 112,
-                  height: 112,
-                  fit: BoxFit.cover,
-                ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _tile(BuildContext context, Translator t, int i) {
+    final p = photos[i];
+    // OQ-034: documents open in the system viewer.
+    if (!p.isImage) {
+      final pdf = p.mime == 'application/pdf';
+      return AppPressable(
+        onTap: () => openCaseDocument(p.url),
+        child: Semantics(
+          button: true,
+          label: t.t('cases.files.open'),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(AppRadii.field),
+            child: SizedBox.square(
+              dimension: 112,
+              child: _DocTile(
+                name: '${t.t('cases.files.document')} ${i + 1}'
+                    '${pdf ? '.pdf' : '.docx'}',
               ),
             ),
-          );
-        },
+          ),
+        ),
+      );
+    }
+    final images = [
+      for (final x in photos)
+        if (x.isImage) x.url,
+    ];
+    return AppPressable(
+      onTap: () => showPhotoGallery(
+        context,
+        urls: images,
+        initial: images.indexOf(p.url),
+        closeLabel: t.t('common.close'),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppRadii.field),
+        child: Image.network(
+          p.previewUrl,
+          width: 112,
+          height: 112,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => Image.network(
+            p.url,
+            width: 112,
+            height: 112,
+            fit: BoxFit.cover,
+          ),
+        ),
       ),
     );
   }

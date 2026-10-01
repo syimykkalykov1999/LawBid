@@ -430,6 +430,8 @@ enum NotificationType {
 
 enum NotificationCategory {
   messages
+  // Owner 2026-09-30: incoming calls and missed calls.
+  calls
   bids
   cases
   social

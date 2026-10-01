@@ -32,8 +32,8 @@ export const NOTIFICATION_CATEGORY: Record<
   post_like: 'social',
   post_comment: 'social',
   case_comment: 'bids',
-  // OQ-041: a call nobody answered.
-  missed_call: 'messages',
+  // OQ-041: a call nobody answered (own category, owner 2026-09-30).
+  missed_call: 'calls',
   // OQ-042.
   mention: 'social',
   comment_reply: 'social',
