@@ -124,10 +124,14 @@ void main() {
   testWidgets('TaskEditorScreen: kind, title → created', (tester) async {
     await pump(tester, const TaskEditorScreen());
     await tester.tap(find.byKey(const ValueKey('task-kind-court')));
-    await tester.pump();
+    await tester.pumpAndSettle();
+    // Owner 2026-10-01: the fields open once a kind is picked.
+    expect(find.byKey(const ValueKey('task-kind-picked')), findsOneWidget);
     final save = find.byKey(const ValueKey('task-save'));
     await tester.scrollUntilVisible(save, 300,
         scrollable: find.byType(Scrollable).first);
+    await tester.ensureVisible(save);
+    await tester.pumpAndSettle();
     await tester.tap(save);
     await tester.pump();
     await tester.scrollUntilVisible(
@@ -162,18 +166,26 @@ void main() {
       ]),
     ));
     await tester.pump();
+    // Only "What to do" until a kind is picked.
+    expect(find.byKey(const ValueKey('task-title')), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('task-kind-call')));
+    await tester.pump();
     // Call: whom + phone, no address / email.
     expect(find.text('Whom to call'), findsOneWidget);
     expect(find.byKey(const ValueKey('task-contact-phone')), findsOneWidget);
     expect(find.byKey(const ValueKey('task-location')), findsNothing);
     expect(find.byKey(const ValueKey('task-contact-email')), findsNothing);
-    // Email: whom + address.
+    // Email: whom + address ("Change" opens the kinds again).
+    await tester.tap(find.byKey(const ValueKey('task-kind-change')));
+    await tester.pump();
     await tester.tap(find.byKey(const ValueKey('task-kind-email')));
     await tester.pump();
     expect(find.text('Whom to write to'), findsOneWidget);
     expect(find.byKey(const ValueKey('task-contact-email')), findsOneWidget);
     expect(find.byKey(const ValueKey('task-contact-phone')), findsNothing);
     // Visit: where to go.
+    await tester.tap(find.byKey(const ValueKey('task-kind-change')));
+    await tester.pump();
     await tester.ensureVisible(find.byKey(const ValueKey('task-kind-visit')));
     await tester.tap(find.byKey(const ValueKey('task-kind-visit')));
     await tester.pump();
@@ -357,6 +369,8 @@ void main() {
         ]),
       ));
       await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('task-kind-call')));
+      await tester.pump();
       await tester.enterText(
           find.byKey(const ValueKey('task-title')), 'Monday calls');
       for (final name in ['Brown', 'Lee']) {
@@ -397,10 +411,6 @@ void main() {
         (tester) async {
       repo.requestList = [makeRequest('r1'), makeRequest('r2')];
       await pump(tester, const TeamInboxTab());
-      // Activity opens first (owner 2026-10-01); Requests is next to it.
-      await tester.tap(find.byKey(const ValueKey('team-view-requests')));
-      await tester.pump();
-      await tester.pump();
       expect(find.text('Custody basics'), findsNWidgets(2));
       await tester.tap(find.byKey(const ValueKey('request-approve-r1')));
       await tester.pump();

@@ -36,6 +36,10 @@ typedef _Attachment = ({String name, String? fileId, bool failed});
 class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
   late TaskKind _kind =
       widget.existing?.kind ?? widget.initialKind ?? TaskKind.call;
+
+  /// Owner 2026-10-01: a new task first shows only "What to do"; the
+  /// fields of the chosen kind open after a tap (editing: open at once).
+  late bool _picked = widget.existing != null || widget.initialKind != null;
   late final _title = TextEditingController(text: widget.existing?.title);
   late final _location = TextEditingController(text: widget.existing?.location);
   late final _contactName =
@@ -374,176 +378,249 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
         children: [
           Text(t.t('tasks.field.kind'), style: label),
           const SizedBox(height: AppSpacing.sm),
-          GridView.count(
-            crossAxisCount: 4,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: AppSpacing.sm,
-            crossAxisSpacing: AppSpacing.sm,
-            childAspectRatio: 0.82,
-            children: [
-              for (final k in TaskKind.values)
-                _KindTile(
-                  key: ValueKey('task-kind-${k.wire}'),
-                  icon: taskKindIcon(k),
-                  label: taskKindLabel(t, k),
-                  selected: _kind == k,
-                  onTap: () {
-                    HapticFeedback.selectionClick();
-                    setState(() => _kind = k);
-                  },
-                ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          // Owner 2026-10-01: the fields below follow the kind of task.
-          ..._fields(t, formats, label),
-          // Owner 2026-10-01: several calls / meetings / addresses go into
-          // this one task as steps, each with its own time. (Editing: steps
-          // are managed on the task itself.)
-          if (widget.existing == null) ...[
-            Row(
+          if (!_picked) ...[
+            GridView.count(
+              crossAxisCount: 4,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              mainAxisSpacing: AppSpacing.sm,
+              crossAxisSpacing: AppSpacing.sm,
+              childAspectRatio: 0.82,
               children: [
-                Expanded(child: Text(t.t('tasks.steps.title'), style: label)),
-                TextButton.icon(
-                  key: const ValueKey('task-editor-step-add'),
-                  onPressed: () async {
-                    FocusScope.of(context).unfocus();
-                    final d = await showStepEditor(context, taskKind: _kind);
-                    if (d != null && mounted) setState(() => _steps.add(d));
-                  },
-                  icon: AppIcon(AppIcons.addRounded, color: colors.goldDark),
-                  label: Text(
-                    t.t('tasks.steps.add'),
-                    style: TextStyle(color: colors.goldDark),
+                for (final k in TaskKind.values)
+                  _KindTile(
+                    key: ValueKey('task-kind-${k.wire}'),
+                    icon: taskKindIcon(k),
+                    label: taskKindLabel(t, k),
+                    selected: _kind == k,
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      setState(() {
+                        _kind = k;
+                        _picked = true;
+                      });
+                    },
                   ),
-                ),
               ],
             ),
-            if (_steps.isEmpty)
-              Text(
-                t.t('tasks.steps.editorHint'),
-                style:
-                    typography.bodySmall.copyWith(color: colors.textSecondary),
-              )
-            else
-              AppCard(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.md,
-                  vertical: AppSpacing.xs,
-                ),
-                child: ReorderableListView(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  buildDefaultDragHandles: false,
-                  onReorder: (from, to) => setState(() {
-                    final s = _steps.removeAt(from);
-                    _steps.insert(to > from ? to - 1 : to, s);
-                  }),
-                  children: [
-                    for (final (i, d) in _steps.indexed)
-                      Row(
-                        key: ValueKey('draft-step-$i-${d.title}'),
-                        children: [
-                          ReorderableDragStartListener(
-                            index: i,
-                            child: Padding(
-                              padding: const EdgeInsets.all(AppSpacing.xs),
-                              child: AppIcon(AppIcons.dragIndicatorRounded,
-                                  size: 20, color: colors.textSecondary),
-                            ),
-                          ),
-                          Expanded(
-                            child: TaskStepTile(
-                              step: TaskStep(
-                                id: 'draft-$i',
-                                title: d.title,
-                                kind: d.kind,
-                                dueAt: d.dueAt,
-                                location: d.location,
-                                contactName: d.contactName,
-                                contactPhone: d.contactPhone,
-                                contactEmail: d.contactEmail,
-                              ),
-                              t: t,
-                              formats: formats,
-                              now: DateTime.now(),
-                            ),
-                          ),
-                          AppIconButton(
-                            icon: const AppIcon(AppIcons.closeRounded),
-                            semanticLabel: t.t('common.delete'),
-                            onPressed: () => setState(() => _steps.removeAt(i)),
-                          ),
-                        ],
-                      ),
-                  ],
-                ),
-              ),
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              t.t('tasks.pickKind'),
+              textAlign: TextAlign.center,
+              style: typography.bodySmall.copyWith(color: colors.textSecondary),
+            ),
+          ] else
+            _PickedKind(
+              icon: taskKindIcon(_kind),
+              label: taskKindLabel(t, _kind),
+              changeLabel: t.t('tasks.kindChange'),
+              onChange: () => setState(() => _picked = false),
+            ),
+          if (_picked) ...[
             const SizedBox(height: AppSpacing.lg),
-          ],
-          if (TaskKindForm.of(_kind).files) ...[
-            Text(t.t('tasks.field.files'), style: label),
-            const SizedBox(height: AppSpacing.sm),
-            for (final (i, f) in _files.indexed)
-              Padding(
-                padding: const EdgeInsets.only(bottom: AppSpacing.xs),
-                child: Row(
-                  children: [
-                    AppIcon(
-                      f.failed
-                          ? AppIcons.errorOutlineRounded
-                          : f.fileId == null
-                              ? AppIcons.cloudUploadOutlined
-                              : AppIcons.checkCircleOutlineRounded,
-                      size: AppSizes.iconSm,
-                      color: f.failed
-                          ? colors.dangerText
-                          : f.fileId == null
-                              ? colors.textSecondary
-                              : colors.success,
+            // Owner 2026-10-01: the fields below follow the kind of task.
+            ..._fields(t, formats, label),
+            // Owner 2026-10-01: several calls / meetings / addresses go into
+            // this one task as steps, each with its own time. (Editing: steps
+            // are managed on the task itself.)
+            if (widget.existing == null) ...[
+              Row(
+                children: [
+                  Expanded(child: Text(t.t('tasks.steps.title'), style: label)),
+                  TextButton.icon(
+                    key: const ValueKey('task-editor-step-add'),
+                    onPressed: () async {
+                      FocusScope.of(context).unfocus();
+                      final d = await showStepEditor(context, taskKind: _kind);
+                      if (d != null && mounted) setState(() => _steps.add(d));
+                    },
+                    icon: AppIcon(AppIcons.addRounded, color: colors.goldDark),
+                    label: Text(
+                      t.t('tasks.steps.add'),
+                      style: TextStyle(color: colors.goldDark),
                     ),
-                    const SizedBox(width: AppSpacing.sm),
-                    Expanded(
-                      child: Text(
-                        f.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style:
-                            typography.bodySmall.copyWith(color: colors.text),
+                  ),
+                ],
+              ),
+              if (_steps.isEmpty)
+                Text(
+                  t.t('tasks.steps.editorHint'),
+                  style: typography.bodySmall
+                      .copyWith(color: colors.textSecondary),
+                )
+              else
+                AppCard(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md,
+                    vertical: AppSpacing.xs,
+                  ),
+                  child: ReorderableListView(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    buildDefaultDragHandles: false,
+                    onReorder: (from, to) => setState(() {
+                      final s = _steps.removeAt(from);
+                      _steps.insert(to > from ? to - 1 : to, s);
+                    }),
+                    children: [
+                      for (final (i, d) in _steps.indexed)
+                        Row(
+                          key: ValueKey('draft-step-$i-${d.title}'),
+                          children: [
+                            ReorderableDragStartListener(
+                              index: i,
+                              child: Padding(
+                                padding: const EdgeInsets.all(AppSpacing.xs),
+                                child: AppIcon(AppIcons.dragIndicatorRounded,
+                                    size: 20, color: colors.textSecondary),
+                              ),
+                            ),
+                            Expanded(
+                              child: TaskStepTile(
+                                step: TaskStep(
+                                  id: 'draft-$i',
+                                  title: d.title,
+                                  kind: d.kind,
+                                  dueAt: d.dueAt,
+                                  location: d.location,
+                                  contactName: d.contactName,
+                                  contactPhone: d.contactPhone,
+                                  contactEmail: d.contactEmail,
+                                ),
+                                t: t,
+                                formats: formats,
+                                now: DateTime.now(),
+                              ),
+                            ),
+                            AppIconButton(
+                              icon: const AppIcon(AppIcons.closeRounded),
+                              semanticLabel: t.t('common.delete'),
+                              onPressed: () =>
+                                  setState(() => _steps.removeAt(i)),
+                            ),
+                          ],
+                        ),
+                    ],
+                  ),
+                ),
+              const SizedBox(height: AppSpacing.lg),
+            ],
+            if (TaskKindForm.of(_kind).files) ...[
+              Text(t.t('tasks.field.files'), style: label),
+              const SizedBox(height: AppSpacing.sm),
+              for (final (i, f) in _files.indexed)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+                  child: Row(
+                    children: [
+                      AppIcon(
+                        f.failed
+                            ? AppIcons.errorOutlineRounded
+                            : f.fileId == null
+                                ? AppIcons.cloudUploadOutlined
+                                : AppIcons.checkCircleOutlineRounded,
+                        size: AppSizes.iconSm,
+                        color: f.failed
+                            ? colors.dangerText
+                            : f.fileId == null
+                                ? colors.textSecondary
+                                : colors.success,
                       ),
-                    ),
-                    if (f.fileId == null && !f.failed)
-                      const SizedBox.square(
-                        dimension: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    else
-                      AppIconButton(
-                        icon: const AppIcon(AppIcons.closeRounded),
-                        semanticLabel: t.t('common.delete'),
-                        onPressed: () => setState(() => _files.removeAt(i)),
+                      const SizedBox(width: AppSpacing.sm),
+                      Expanded(
+                        child: Text(
+                          f.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style:
+                              typography.bodySmall.copyWith(color: colors.text),
+                        ),
                       ),
-                  ],
+                      if (f.fileId == null && !f.failed)
+                        const SizedBox.square(
+                          dimension: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      else
+                        AppIconButton(
+                          icon: const AppIcon(AppIcons.closeRounded),
+                          semanticLabel: t.t('common.delete'),
+                          onPressed: () => setState(() => _files.removeAt(i)),
+                        ),
+                    ],
+                  ),
+                ),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  key: const ValueKey('task-attach'),
+                  onPressed: _attach,
+                  icon: const AppIcon(AppIcons.attachFileRounded),
+                  label: Text(t.t('tasks.field.attach')),
                 ),
               ),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton.icon(
-                key: const ValueKey('task-attach'),
-                onPressed: _attach,
-                icon: const AppIcon(AppIcons.attachFileRounded),
-                label: Text(t.t('tasks.field.attach')),
-              ),
+            ],
+            const SizedBox(height: AppSpacing.xl),
+            AppButton(
+              key: const ValueKey('task-save'),
+              label: t.t('tasks.save'),
+              icon: AppIcons.checkRounded,
+              isLoading: _saving || _uploading > 0,
+              onPressed: _save,
             ),
           ],
-          const SizedBox(height: AppSpacing.xl),
-          AppButton(
-            key: const ValueKey('task-save'),
-            label: t.t('tasks.save'),
-            icon: AppIcons.checkRounded,
-            isLoading: _saving || _uploading > 0,
-            onPressed: _save,
+        ],
+      ),
+    );
+  }
+}
+
+/// The chosen kind, collapsed to one line with "Change".
+class _PickedKind extends StatelessWidget {
+  const _PickedKind({
+    required this.icon,
+    required this.label,
+    required this.changeLabel,
+    required this.onChange,
+  });
+
+  final IconData icon;
+  final String label;
+  final String changeLabel;
+  final VoidCallback onChange;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
+    return Container(
+      key: const ValueKey('task-kind-picked'),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(AppRadii.card),
+        border: Border.all(color: colors.gold),
+      ),
+      child: Row(
+        children: [
+          AppIcon(icon, color: colors.gold, size: 26),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Text(
+              label,
+              style: typography.body.copyWith(
+                color: colors.text,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          TextButton(
+            key: const ValueKey('task-kind-change'),
+            onPressed: onChange,
+            child: Text(changeLabel),
           ),
         ],
       ),

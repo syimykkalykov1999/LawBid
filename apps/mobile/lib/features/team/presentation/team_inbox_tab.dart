@@ -9,7 +9,7 @@ import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/features/team/presentation/team_widgets.dart';
 
-enum _TeamView { activity, requests }
+enum _TeamView { requests, activity }
 
 /// OQ-048 (owner 2026-09-30) — Inbox → «Команда» (the attorney only):
 /// approval requests from assistants (approve publishes in the attorney's
@@ -22,7 +22,7 @@ class TeamInboxTab extends ConsumerStatefulWidget {
 }
 
 class _TeamInboxTabState extends ConsumerState<TeamInboxTab> {
-  _TeamView _view = _TeamView.activity;
+  _TeamView _view = _TeamView.requests;
   final Set<String> _busy = {};
 
   Future<void> _decide(AssistantRequest r, {required bool approve}) async {
@@ -61,7 +61,7 @@ class _TeamInboxTabState extends ConsumerState<TeamInboxTab> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     return Column(
       children: [
-        // Owner 2026-10-01: Activity · Requests centred; the team settings
+        // Owner 2026-10-01: Requests · Activity centred; the team settings
         // live in the header where the bell is in Chats.
         Padding(
           padding: const EdgeInsets.only(
@@ -74,16 +74,16 @@ class _TeamInboxTabState extends ConsumerState<TeamInboxTab> {
             runSpacing: AppSpacing.xs,
             children: [
               AppChip(
-                key: const ValueKey('team-view-activity'),
-                label: t.t('team.activity'),
-                selected: _view == _TeamView.activity,
-                onTap: () => setState(() => _view = _TeamView.activity),
-              ),
-              AppChip(
                 key: const ValueKey('team-view-requests'),
                 label: t.t('team.requests'),
                 selected: _view == _TeamView.requests,
                 onTap: () => setState(() => _view = _TeamView.requests),
+              ),
+              AppChip(
+                key: const ValueKey('team-view-activity'),
+                label: t.t('team.activity'),
+                selected: _view == _TeamView.activity,
+                onTap: () => setState(() => _view = _TeamView.activity),
               ),
             ],
           ),
