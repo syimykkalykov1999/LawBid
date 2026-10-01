@@ -263,7 +263,7 @@ class _BidBody extends StatelessWidget {
               alignment: Alignment.centerLeft,
               child: TextButton.icon(
                 onPressed: () => context.push(AppRoutes.caseDetail(bid.caseId)),
-                icon: Icon(Icons.description_outlined, color: colors.goldDark),
+                icon: AppIcon(AppIcons.descriptionOutlined, color: colors.goldDark),
                 label: Text(
                   t.t('cases.bid.openCase'),
                   style: typography.bodySmall.copyWith(
@@ -323,7 +323,7 @@ class _BidBody extends StatelessWidget {
             index: 2,
             child: Row(
               children: [
-                Icon(Icons.schedule_rounded,
+                AppIcon(AppIcons.scheduleRounded,
                     size: AppSpacing.lg, color: colors.info),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
@@ -456,7 +456,7 @@ class _CounterSheetState extends State<_CounterSheet> {
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(Icons.gavel_rounded,
+                      AppIcon(AppIcons.gavelRounded,
                           size: AppSizes.iconSm, color: colors.goldDark),
                       const SizedBox(width: AppSpacing.sm),
                       Expanded(

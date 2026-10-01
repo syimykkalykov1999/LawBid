@@ -84,7 +84,7 @@ class InfoRow extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, size: AppSizes.iconSm, color: colors.goldDark),
+            AppIcon(icon, size: AppSizes.iconSm, color: colors.goldDark),
             const SizedBox(width: AppSpacing.md),
             Expanded(
               child: Column(
@@ -223,8 +223,8 @@ Future<bool> showConfirmSheet(
               const SizedBox(height: AppSpacing.lg),
               AppIconMedallion(
                 icon: destructive
-                    ? Icons.warning_amber_rounded
-                    : Icons.gavel_rounded,
+                    ? AppIcons.warningAmberRounded
+                    : AppIcons.gavelRounded,
                 tone: destructive
                     ? AppMedallionTone.danger
                     : AppMedallionTone.gold,
@@ -297,7 +297,7 @@ class TopBarIcon extends StatelessWidget {
           onTap: onTap,
           child: SizedBox.square(
             dimension: AppSizes.touchTarget,
-            child: Icon(
+            child: AppIcon(
               icon,
               color: color ?? colors.text,
               size: AppSizes.iconMd,

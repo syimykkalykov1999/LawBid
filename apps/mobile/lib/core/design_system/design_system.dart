@@ -1,6 +1,8 @@
 // Barrel export for LawBid's design system (file 07). Feature code should
 // import this single file rather than reaching into tokens/theme/widgets
 // subfolders directly.
+export 'icons/app_icon.dart';
+export 'icons/app_icons.dart';
 export 'theme/app_color_tokens.dart';
 export 'theme/app_theme.dart';
 export 'theme/app_typography_tokens.dart';

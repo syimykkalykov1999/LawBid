@@ -39,14 +39,14 @@ class StarRatingDisplay extends StatelessWidget {
     Widget star(int i) {
       final IconData icon;
       if (rounded >= i + 1) {
-        icon = Icons.star_rounded;
+        icon = AppIcons.starRounded;
       } else if (rounded >= i + 0.5) {
-        icon = Icons.star_half_rounded;
+        icon = AppIcons.starHalfRounded;
       } else {
-        icon = Icons.star_outline_rounded;
+        icon = AppIcons.starOutlineRounded;
       }
-      final filled = icon != Icons.star_outline_rounded;
-      final glyph = Icon(icon, size: size, color: filled ? fill : empty);
+      final filled = icon != AppIcons.starOutlineRounded;
+      final glyph = AppIcon(icon, size: size, color: filled ? fill : empty);
       if (reduce || !filled) return glyph;
       return TweenAnimationBuilder<double>(
         tween: Tween(begin: 0, end: 1),
@@ -121,10 +121,10 @@ class StarRatingInput extends StatelessWidget {
                     curve: AppMotion.enterCurve,
                     child: AnimatedSwitcher(
                       duration: reduce ? Duration.zero : AppMotion.stateChange,
-                      child: Icon(
+                      child: AppIcon(
                         n <= value
-                            ? Icons.star_rounded
-                            : Icons.star_outline_rounded,
+                            ? AppIcons.starRounded
+                            : AppIcons.starOutlineRounded,
                         key: ValueKey(n <= value),
                         size: AppSizes.iconLg + AppSpacing.sm,
                         color: n <= value ? colors.gold : colors.textSecondary,

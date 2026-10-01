@@ -9,6 +9,8 @@ import 'package:lawbid/core/design_system/tokens/app_sizes.dart';
 import 'package:lawbid/core/design_system/tokens/app_spacing.dart';
 import 'package:lawbid/core/design_system/widgets/buttons/app_button.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_entrance.dart';
+import 'package:lawbid/core/design_system/icons/app_icon.dart';
+import 'package:lawbid/core/design_system/icons/app_icons.dart';
 
 /// State of the "next page" slot at the end of a paginated list
 /// (docs/01 §8.3 "Pagination-loader").
@@ -116,8 +118,8 @@ class AppPaginationFooter extends StatelessWidget {
                   child: Row(
                     children: [
                       ExcludeSemantics(
-                        child: Icon(
-                          Icons.error_outline_rounded,
+                        child: AppIcon(
+                          AppIcons.errorOutlineRounded,
                           size: AppSizes.iconSm,
                           color: colors.danger,
                         ),
@@ -136,7 +138,7 @@ class AppPaginationFooter extends StatelessWidget {
                 const SizedBox(height: AppSpacing.sm),
                 AppButton(
                   label: labels.retry,
-                  icon: Icons.refresh_rounded,
+                  icon: AppIcons.refreshRounded,
                   variant: AppButtonVariant.secondary,
                   height: AppSizes.touchTarget,
                   onPressed: onRetry,

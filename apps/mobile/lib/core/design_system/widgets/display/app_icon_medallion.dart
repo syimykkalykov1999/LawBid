@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
 import 'package:lawbid/core/design_system/tokens/app_sizes.dart';
+import 'package:lawbid/core/design_system/icons/app_icon.dart';
 
 /// Tone of an [AppIconMedallion].
 enum AppMedallionTone { gold, danger, success, neutral }
@@ -44,7 +45,7 @@ class AppIconMedallion extends StatelessWidget {
           border: Border.all(color: foreground.withValues(alpha: 0.35)),
         ),
         alignment: Alignment.center,
-        child: Icon(icon, size: iconSize, color: foreground),
+        child: AppIcon(icon, size: iconSize, color: foreground),
       ),
     );
   }

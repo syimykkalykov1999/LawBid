@@ -50,7 +50,7 @@ class PracticesScreen extends ConsumerWidget {
     if (locked) {
       body = AppEmptyState(
         key: const ValueKey('locked'),
-        icon: Icons.lock_outline_rounded,
+        icon: AppIcons.lockOutlineRounded,
         title: t.t('practices.locked.title'),
         message: t.t('practices.locked.body'),
         action: AppButton(
@@ -76,7 +76,7 @@ class PracticesScreen extends ConsumerWidget {
                 message: t.t('offline.message'),
                 action: AppButton(
                   label: t.t('error.retry'),
-                  icon: Icons.refresh_rounded,
+                  icon: AppIcons.refreshRounded,
                   variant: AppButtonVariant.secondary,
                   height: AppSizes.touchTarget,
                   onPressed: retry,
@@ -91,7 +91,7 @@ class PracticesScreen extends ConsumerWidget {
         data: (d) => d.tree.isEmpty
             ? AppEmptyState(
                 key: const ValueKey('empty'),
-                icon: Icons.gavel_rounded,
+                icon: AppIcons.gavelRounded,
                 message: t.t('practices.emptyTree'),
               )
             : PracticesEditor(
@@ -235,7 +235,7 @@ class _PracticesEditorState extends ConsumerState<PracticesEditor> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.notifications_active_outlined,
+              AppIcon(AppIcons.notificationsActiveOutlined,
                   size: AppSizes.iconSm, color: colors.goldDark),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
@@ -269,7 +269,7 @@ class _PracticesEditorState extends ConsumerState<PracticesEditor> {
           controller: _search,
           hintText: t.t('practices.search'),
           semanticLabel: t.t('practices.search'),
-          leading: Icon(Icons.search_rounded,
+          leading: AppIcon(AppIcons.searchRounded,
               color: colors.textSecondary, size: AppSizes.iconSm),
           textInputAction: TextInputAction.search,
           onChanged: (_) => setState(() {}),
@@ -288,7 +288,7 @@ class _PracticesEditorState extends ConsumerState<PracticesEditor> {
             child: Column(
               children: [
                 const AppIconMedallion(
-                    icon: Icons.search_off_rounded,
+                    icon: AppIcons.searchOffRounded,
                     tone: AppMedallionTone.neutral),
                 const SizedBox(height: AppSpacing.md),
                 Text(
@@ -407,7 +407,7 @@ class _SelectedChips extends StatelessWidget {
                       child: AppChip(
                         label: nameOf(l),
                         selected: true,
-                        trailing: Icon(Icons.close_rounded,
+                        trailing: AppIcon(AppIcons.closeRounded,
                             size: AppSpacing.lg, color: colors.textSecondary),
                         onTap: () => onRemove(l.id),
                       ),
@@ -529,7 +529,7 @@ class _CategoryCard extends StatelessWidget {
                         turns: expanded ? 0.5 : 0,
                         duration:
                             reduce ? Duration.zero : AppMotion.stateChange,
-                        child: Icon(Icons.expand_more_rounded,
+                        child: AppIcon(AppIcons.expandMoreRounded,
                             color: colors.textSecondary),
                       ),
                     ],
@@ -621,7 +621,7 @@ class _CheckRow extends StatelessWidget {
                         width: 1.5),
                   ),
                   child: checked
-                      ? Icon(Icons.check_rounded,
+                      ? AppIcon(AppIcons.checkRounded,
                           size: AppSpacing.lg, color: colors.onAccent)
                       : null,
                 ),

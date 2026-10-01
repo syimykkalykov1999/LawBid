@@ -155,7 +155,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       textColor: colors.navy,
       child: AppIconButton(
         plain: true,
-        icon: Icon(Icons.tune_rounded, color: colors.text),
+        icon: AppIcon(AppIcons.tuneRounded, color: colors.text),
         semanticLabel: t.t('search.filters'),
         onPressed: () => _openFilters(kind),
       ),
@@ -174,7 +174,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       leading: filterButton,
       trailing: AppIconButton(
         plain: true,
-        icon: Icon(Icons.search_rounded, color: colors.goldDark),
+        icon: AppIcon(AppIcons.searchRounded, color: colors.goldDark),
         semanticLabel: t.t('search.open'),
         onPressed: _onMagnifier,
       ),
@@ -254,7 +254,7 @@ class _Results extends ConsumerWidget {
     final t = ref.watch(translatorProvider);
     final attorney = ref.watch(actsAsAttorneyProvider);
     final nothing = AppEmptyState(
-      icon: Icons.search_off_rounded,
+      icon: AppIcons.searchOffRounded,
       title: t.t('search.empty.title'),
       message: t.t('search.empty.message', {'query': query}),
     );
@@ -520,7 +520,7 @@ class _BeforeTyping extends ConsumerWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.info_outline_rounded,
+                  AppIcon(AppIcons.infoOutlineRounded,
                       size: AppSizes.iconSm, color: colors.goldDark),
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
@@ -584,7 +584,7 @@ class _BeforeTyping extends ConsumerWidget {
                   itemBuilder: (context, i) => AppChip(
                     label: recent[i],
                     leading:
-                        const Icon(Icons.history_rounded, size: AppSpacing.lg),
+                        const AppIcon(AppIcons.historyRounded, size: AppSpacing.lg),
                     onTap: () => onRecent(recent[i]),
                   ),
                 ),

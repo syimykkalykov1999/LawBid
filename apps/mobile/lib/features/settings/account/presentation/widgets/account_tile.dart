@@ -104,7 +104,7 @@ class _AccountTileState extends State<AccountTile> {
               ),
             ),
           )
-        : AppIconMedallion(icon: widget.icon ?? Icons.person_outline_rounded);
+        : AppIconMedallion(icon: widget.icon ?? AppIcons.personOutlineRounded);
 
     final semantic = [
       widget.title,
@@ -197,8 +197,8 @@ class _AccountTileState extends State<AccountTile> {
                   ),
                 ],
                 const SizedBox(width: AppSpacing.xs),
-                Icon(
-                  Icons.chevron_right_rounded,
+                AppIcon(
+                  AppIcons.chevronRightRounded,
                   size: AppSizes.iconSm,
                   color: colors.textSecondary,
                 ),

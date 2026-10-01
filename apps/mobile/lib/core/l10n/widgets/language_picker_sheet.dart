@@ -106,7 +106,7 @@ class _LanguagePickerSheetState extends ConsumerState<LanguagePickerSheet> {
               AppTextField(
                 controller: _searchController,
                 leading:
-                    Icon(Icons.search, size: 20, color: colors.textSecondary),
+                    AppIcon(AppIcons.search, size: 20, color: colors.textSecondary),
                 hintText: t.t('lang.picker.search.hint'),
                 autofocus: true,
                 onChanged: (value) => setState(() => _query = value),
@@ -116,7 +116,7 @@ class _LanguagePickerSheetState extends ConsumerState<LanguagePickerSheet> {
               Expanded(
                 child: results.isEmpty
                     ? AppEmptyState(
-                        icon: Icons.search_off_rounded,
+                        icon: AppIcons.searchOffRounded,
                         message: t.t('lang.picker.empty'),
                       )
                     : ListView.separated(
@@ -227,8 +227,8 @@ class _LanguageRow extends StatelessWidget {
                   ),
                 ),
                 if (isCurrent)
-                  Icon(
-                    Icons.check_circle_rounded,
+                  AppIcon(
+                    AppIcons.checkCircleRounded,
                     size: AppSizes.iconSm,
                     color: colors.goldStroke,
                   )

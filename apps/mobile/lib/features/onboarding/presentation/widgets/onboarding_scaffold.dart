@@ -205,8 +205,8 @@ class ActionErrorBanner extends ConsumerWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(
-                offline ? Icons.wifi_off_rounded : Icons.error_outline_rounded,
+              AppIcon(
+                offline ? AppIcons.wifiOffRounded : AppIcons.errorOutlineRounded,
                 size: AppSizes.iconSm,
                 color: offline ? colors.goldDark : colors.danger,
               ),

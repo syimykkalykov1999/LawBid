@@ -165,7 +165,7 @@ class _ActiveDevicesScreenState extends ConsumerState<ActiveDevicesScreen> {
                       message: t.t('offline.message'),
                       action: AppButton(
                         label: t.t('error.retry'),
-                        icon: Icons.refresh_rounded,
+                        icon: AppIcons.refreshRounded,
                         variant: AppButtonVariant.secondary,
                         height: AppSizes.touchTarget,
                         onPressed: _controller.refresh,
@@ -224,7 +224,7 @@ class _DevicesList extends StatelessWidget {
         backgroundColor: colors.surface,
         onRefresh: onRefresh,
         child: AppEmptyState(
-          icon: Icons.devices_rounded,
+          icon: AppIcons.devicesRounded,
           message: t.t('devices.empty'),
         ),
       );
@@ -266,7 +266,7 @@ class _DevicesList extends StatelessWidget {
         padding: const EdgeInsets.only(top: AppSpacing.sm),
         child: AppButton(
           label: t.t('devices.logoutAll'),
-          icon: Icons.logout_rounded,
+          icon: AppIcons.logoutRounded,
           variant: AppButtonVariant.secondary,
           onPressed: onLogoutAll,
         ),
@@ -386,8 +386,8 @@ class _DeviceRow extends StatelessWidget {
                     ),
                   )
                 : IconButton(
-                    icon: Icon(
-                      Icons.logout_rounded,
+                    icon: AppIcon(
+                      AppIcons.logoutRounded,
                       color: colors.danger,
                       size: AppSizes.iconSm,
                     ),
@@ -401,10 +401,10 @@ class _DeviceRow extends StatelessWidget {
   }
 
   IconData _platformIcon(DevicePlatform platform) => switch (platform) {
-        DevicePlatform.ios => Icons.phone_iphone,
-        DevicePlatform.android => Icons.phone_android,
-        DevicePlatform.web => Icons.computer,
-        DevicePlatform.unknown => Icons.devices_other,
+        DevicePlatform.ios => AppIcons.phoneIphone,
+        DevicePlatform.android => AppIcons.phoneAndroid,
+        DevicePlatform.web => AppIcons.computer,
+        DevicePlatform.unknown => AppIcons.devicesOther,
       };
 
   String _formatTimestamp(DateTime utc) {

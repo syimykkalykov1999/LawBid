@@ -164,7 +164,7 @@ class _MentionSuggestionsState extends ConsumerState<MentionSuggestions> {
                                 ),
                               ),
                               if (_verified(p))
-                                Icon(Icons.verified_rounded,
+                                AppIcon(AppIcons.verifiedRounded,
                                     size: 16, color: colors.info),
                             ],
                           ),

@@ -47,7 +47,7 @@ class ReauthGateView extends ConsumerWidget {
           scale: true,
           child: Center(
             child: AppIconMedallion(
-              icon: Icons.lock_person_outlined,
+              icon: AppIcons.lockPersonOutlined,
               size: AppSizes.stateMedallion,
             ),
           ),

@@ -26,7 +26,7 @@ class ClientReviewAction extends ConsumerWidget {
     final t = ref.watch(translatorProvider);
     final mine = ref.watch(myClientReviewProvider(caseId)).value;
     return AppListRow(
-      icon: Icons.star_outline_rounded,
+      icon: AppIcons.starOutlineRounded,
       label: t.t('client.review.action'),
       trailingText: mine == null ? null : '★ ${mine.rating}',
       onTap: () async {
@@ -199,10 +199,10 @@ class _SheetState extends ConsumerState<_Sheet> {
                   child: IconButton(
                     iconSize: 40,
                     onPressed: () => setState(() => _rating = i),
-                    icon: Icon(
+                    icon: AppIcon(
                       i <= _rating
-                          ? Icons.star_rounded
-                          : Icons.star_outline_rounded,
+                          ? AppIcons.starRounded
+                          : AppIcons.starOutlineRounded,
                       color: colors.gold,
                     ),
                   ),
@@ -238,7 +238,7 @@ class _SheetState extends ConsumerState<_Sheet> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.add_a_photo_outlined,
+                            AppIcon(AppIcons.addAPhotoOutlined,
                                 color: colors.goldDark),
                             const SizedBox(height: 2),
                             Text(t.t('reviews.photos.add'),
@@ -276,7 +276,7 @@ class _SheetState extends ConsumerState<_Sheet> {
                             child: const CircleAvatar(
                               radius: 11,
                               backgroundColor: Colors.black54,
-                              child: Icon(Icons.close_rounded,
+                              child: AppIcon(AppIcons.closeRounded,
                                   size: 14, color: Colors.white),
                             ),
                           ),

@@ -84,7 +84,7 @@ class _Chooser extends ConsumerWidget {
                       shape: BoxShape.circle,
                       border: Border.all(color: colors.goldStroke),
                     ),
-                    child: Icon(icon, color: colors.goldDark, size: 28),
+                    child: AppIcon(icon, color: colors.goldDark, size: 28),
                   ),
                   const SizedBox(width: AppSpacing.lg),
                   Expanded(
@@ -101,7 +101,7 @@ class _Chooser extends ConsumerWidget {
                       ],
                     ),
                   ),
-                  Icon(Icons.chevron_right_rounded,
+                  AppIcon(AppIcons.chevronRightRounded,
                       color: colors.textSecondary),
                 ],
               ),
@@ -113,7 +113,7 @@ class _Chooser extends ConsumerWidget {
       backgroundColor: colors.bg,
       appBar: AppTopBar(
         leading: AppIconButton(
-          icon: const Icon(Icons.close_rounded),
+          icon: const AppIcon(AppIcons.closeRounded),
           semanticLabel: t.t('common.close'),
           onPressed: () => Navigator.of(context).maybePop(),
         ),
@@ -124,7 +124,7 @@ class _Chooser extends ConsumerWidget {
         children: assistant
             ? [
                 if (canTask) ...[
-                  option(_Kind.task, Icons.event_note_outlined,
+                  option(_Kind.task, AppIcons.eventNoteOutlined,
                       t.t('assistant.plus.task'),
                       t.t('assistant.plus.task.hint')),
                   const SizedBox(height: AppSpacing.md),
@@ -132,7 +132,7 @@ class _Chooser extends ConsumerWidget {
                 if (canPost) ...[
                   option(
                       _Kind.post,
-                      Icons.edit_note_rounded,
+                      AppIcons.editNoteRounded,
                       t.t('create.post'),
                       t.t(direct
                           ? 'create.post.subAttorney'
@@ -140,7 +140,7 @@ class _Chooser extends ConsumerWidget {
                   const SizedBox(height: AppSpacing.md),
                   option(
                       _Kind.news,
-                      Icons.newspaper_rounded,
+                      AppIcons.newspaperRounded,
                       t.t('create.news'),
                       t.t(direct
                           ? 'create.news.sub'
@@ -149,20 +149,20 @@ class _Chooser extends ConsumerWidget {
               ]
             : attorney
             ? [
-                option(_Kind.post, Icons.edit_note_rounded, t.t('create.post'),
+                option(_Kind.post, AppIcons.editNoteRounded, t.t('create.post'),
                     t.t('create.post.subAttorney')),
                 const SizedBox(height: AppSpacing.md),
-                option(_Kind.news, Icons.newspaper_rounded, t.t('create.news'),
+                option(_Kind.news, AppIcons.newspaperRounded, t.t('create.news'),
                     t.t('create.news.sub')),
                 const SizedBox(height: AppSpacing.md),
-                option(_Kind.task, Icons.event_note_outlined,
+                option(_Kind.task, AppIcons.eventNoteOutlined,
                     t.t('tasks.forMe'), t.t('assistant.plus.task.hint')),
               ]
             : [
-                option(_Kind.caseKind, Icons.gavel_rounded, t.t('create.case'),
+                option(_Kind.caseKind, AppIcons.gavelRounded, t.t('create.case'),
                     t.t('create.case.sub')),
                 const SizedBox(height: AppSpacing.md),
-                option(_Kind.post, Icons.edit_note_rounded, t.t('create.post'),
+                option(_Kind.post, AppIcons.editNoteRounded, t.t('create.post'),
                     t.t('create.post.sub')),
               ],
       ),

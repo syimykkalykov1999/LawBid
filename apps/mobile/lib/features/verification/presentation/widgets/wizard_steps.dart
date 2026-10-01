@@ -86,7 +86,7 @@ class PrivacyNote extends StatelessWidget {
   @override
   Widget build(BuildContext context) => InlineNotice(
         tone: NoticeTone.info,
-        icon: Icons.lock_outline_rounded,
+        icon: AppIcons.lockOutlineRounded,
         message: t.t('verification.privacy'),
       );
 }
@@ -104,11 +104,11 @@ class IntroStep extends StatelessWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final items = [
-      (Icons.balance_rounded, 'verification.intro.item.license'),
+      (AppIcons.balanceRounded, 'verification.intro.item.license'),
       if (identityRequired) ...[
-        (Icons.badge_outlined, 'verification.intro.item.id'),
+        (AppIcons.badgeOutlined, 'verification.intro.item.id'),
         (
-          Icons.face_retouching_natural_outlined,
+          AppIcons.faceRetouchingNaturalOutlined,
           'verification.intro.item.selfie'
         ),
       ],
@@ -200,7 +200,7 @@ class LicensesStep extends StatelessWidget {
             child: Column(
               children: [
                 const AppIconMedallion(
-                  icon: Icons.account_balance_outlined,
+                  icon: AppIcons.accountBalanceOutlined,
                   size: AppSizes.stateMedallion - AppSpacing.xl,
                   iconSize: AppSizes.iconLg,
                 ),
@@ -222,7 +222,7 @@ class LicensesStep extends StatelessWidget {
           label: licenses.isEmpty
               ? t.t('verification.licenses.addFirst')
               : t.t('verification.licenses.addAnother'),
-          icon: Icons.add_rounded,
+          icon: AppIcons.addRounded,
           variant: AppButtonVariant.secondary,
           onPressed: actions.addLicense,
         ),
@@ -301,7 +301,7 @@ class _LicenseBlock extends StatelessWidget {
                 semanticLabel: t.t('verification.license.remove',
                     {'state': license.stateName}),
                 onPressed: () => actions.removeLicense(license),
-                icon: Icon(Icons.delete_outline_rounded,
+                icon: AppIcon(AppIcons.deleteOutlineRounded,
                     color: colors.textSecondary),
               ),
           ],
@@ -311,7 +311,7 @@ class _LicenseBlock extends StatelessWidget {
           t: t,
           title: t.t('verification.license.doc.title'),
           subtitle: t.t('verification.license.doc.subtitle'),
-          icon: Icons.workspace_premium_outlined,
+          icon: AppIcons.workspacePremiumOutlined,
           documents: state.request.docsFor(slot),
           tasks: state.tasksFor(slot),
           canAdd: state.canAddTo(slot),
@@ -322,12 +322,12 @@ class _LicenseBlock extends StatelessWidget {
           actions: [
             SlotAction(
               label: t.t('verification.source.camera'),
-              icon: Icons.photo_camera_outlined,
+              icon: AppIcons.photoCameraOutlined,
               onTap: () => actions.addFile(slot, FileOrigin.cameraCard),
             ),
             SlotAction(
               label: t.t('verification.source.file'),
-              icon: Icons.upload_file_rounded,
+              icon: AppIcons.uploadFileRounded,
               onTap: () => actions.addFile(slot, FileOrigin.file),
             ),
           ],
@@ -381,7 +381,7 @@ class IdentityStep extends StatelessWidget {
               : 'verification.id.back.hint',
         ),
         icon:
-            side == DocSide.front ? Icons.badge_outlined : Icons.flip_outlined,
+            side == DocSide.front ? AppIcons.badgeOutlined : AppIcons.flipOutlined,
         documents: state.request.docsFor(slot),
         tasks: state.tasksFor(slot),
         canAdd: state.canAddTo(slot),
@@ -392,12 +392,12 @@ class IdentityStep extends StatelessWidget {
         actions: [
           SlotAction(
             label: t.t('verification.source.camera'),
-            icon: Icons.photo_camera_outlined,
+            icon: AppIcons.photoCameraOutlined,
             onTap: () => actions.addFile(slot, guide),
           ),
           SlotAction(
             label: t.t('verification.source.library'),
-            icon: Icons.photo_library_outlined,
+            icon: AppIcons.photoLibraryOutlined,
             onTap: () => actions.addFile(slot, FileOrigin.library),
           ),
         ],
@@ -486,8 +486,8 @@ class SelfieStep extends StatelessWidget {
             child: Stack(
               alignment: Alignment.center,
               children: [
-                Icon(
-                  Icons.person_rounded,
+                AppIcon(
+                  AppIcons.personRounded,
                   size: illustration * 0.5,
                   color: colors.goldStroke.withValues(alpha: 0.5),
                 ),
@@ -504,15 +504,15 @@ class SelfieStep extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.xl),
         for (final (icon, key) in [
-          (Icons.face_outlined, 'verification.selfie.tip.face'),
-          (Icons.wb_sunny_outlined, 'verification.selfie.tip.light'),
-          (Icons.visibility_outlined, 'verification.selfie.tip.clear'),
+          (AppIcons.faceOutlined, 'verification.selfie.tip.face'),
+          (AppIcons.wbSunnyOutlined, 'verification.selfie.tip.light'),
+          (AppIcons.visibilityOutlined, 'verification.selfie.tip.clear'),
         ])
           Padding(
             padding: const EdgeInsets.only(bottom: AppSpacing.md),
             child: Row(
               children: [
-                Icon(icon, size: AppSizes.iconSm, color: colors.goldDark),
+                AppIcon(icon, size: AppSizes.iconSm, color: colors.goldDark),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: Text(t.t(key),
@@ -526,7 +526,7 @@ class SelfieStep extends StatelessWidget {
           t: t,
           title: t.t('verification.selfie.card'),
           subtitle: t.t('verification.selfie.cameraOnly'),
-          icon: Icons.face_retouching_natural_outlined,
+          icon: AppIcons.faceRetouchingNaturalOutlined,
           documents: state.request.docsFor(slot),
           tasks: state.tasksFor(slot),
           canAdd: state.canAddTo(slot),
@@ -537,7 +537,7 @@ class SelfieStep extends StatelessWidget {
           actions: [
             SlotAction(
               label: t.t('verification.selfie.take'),
-              icon: Icons.photo_camera_front_outlined,
+              icon: AppIcons.photoCameraFrontOutlined,
               onTap: () => actions.addFile(slot, FileOrigin.cameraSelfie),
             ),
           ],
@@ -592,7 +592,7 @@ class ReviewStep extends StatelessWidget {
         if (state.isSupplement && message != null) ...[
           InlineNotice(
             tone: NoticeTone.warning,
-            icon: Icons.mark_email_unread_outlined,
+            icon: AppIcons.markEmailUnreadOutlined,
             title: t.t('verification.needsInfo.messageTitle'),
             message: message,
           ),
@@ -600,7 +600,7 @@ class ReviewStep extends StatelessWidget {
         ],
         _SummaryRow(
           t: t,
-          icon: Icons.balance_rounded,
+          icon: AppIcons.balanceRounded,
           title: t.t('verification.review.licenses'),
           detail: r.pendingLicenses.isEmpty
               ? t.t('verification.review.none')
@@ -612,7 +612,7 @@ class ReviewStep extends StatelessWidget {
           const SizedBox(height: AppSpacing.md),
           _SummaryRow(
             t: t,
-            icon: Icons.badge_outlined,
+            icon: AppIcons.badgeOutlined,
             title: t.t('verification.review.id'),
             detail: t.t(IdentityStep.typeKey(r.identityType ?? idType)),
             complete: r.identityComplete,
@@ -621,7 +621,7 @@ class ReviewStep extends StatelessWidget {
           const SizedBox(height: AppSpacing.md),
           _SummaryRow(
             t: t,
-            icon: Icons.face_retouching_natural_outlined,
+            icon: AppIcons.faceRetouchingNaturalOutlined,
             title: t.t('verification.review.selfie'),
             detail: t.t(
               r.selfieComplete
@@ -636,7 +636,7 @@ class ReviewStep extends StatelessWidget {
           const SizedBox(height: AppSpacing.lg),
           InlineNotice(
             tone: NoticeTone.danger,
-            icon: Icons.block_rounded,
+            icon: AppIcons.blockRounded,
             title: t.t('verification.review.blocked'),
             message: {
               if (blockMessage != null) blockMessage!,
@@ -709,7 +709,7 @@ class _SummaryRow extends StatelessWidget {
       child: Row(
         children: [
           AppIconMedallion(
-            icon: complete ? Icons.check_rounded : icon,
+            icon: complete ? AppIcons.checkRounded : icon,
             tone:
                 complete ? AppMedallionTone.success : AppMedallionTone.neutral,
           ),

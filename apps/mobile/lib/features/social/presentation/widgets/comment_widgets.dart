@@ -89,7 +89,7 @@ class _CommentTileState extends ConsumerState<CommentTile> {
             const AppSheetHandle(),
             if (_c.canDelete)
               AppListRow(
-                icon: Icons.delete_outline_rounded,
+                icon: AppIcons.deleteOutlineRounded,
                 label: t.t('comment.delete'),
                 destructive: true,
                 showChevron: false,
@@ -120,7 +120,7 @@ class _CommentTileState extends ConsumerState<CommentTile> {
               ),
             if (!_c.isMine)
               AppListRow(
-                icon: Icons.flag_outlined,
+                icon: AppIcons.flagOutlined,
                 label: t.t('post.menu.report'),
                 showChevron: false,
                 onTap: () {
@@ -265,8 +265,8 @@ class _CommentTileState extends ConsumerState<CommentTile> {
                   children: [
                     BounceIcon(
                       active: _c.likedByMe,
-                      icon: Icons.favorite_border_rounded,
-                      activeIcon: Icons.favorite_rounded,
+                      icon: AppIcons.favoriteBorderRounded,
+                      activeIcon: AppIcons.favoriteRounded,
                       activeColor: colors.danger,
                       size: 18,
                       label: t.t(_c.likedByMe ? 'post.unlike' : 'post.like'),
@@ -461,7 +461,7 @@ class _CommentComposerState extends ConsumerState<CommentComposer> {
                       ),
                     ),
                     AppIconButton(
-                      icon: const Icon(Icons.close_rounded, size: 18),
+                      icon: const AppIcon(AppIcons.closeRounded, size: 18),
                       semanticLabel: t.t('common.cancel'),
                       onPressed: widget.onClearReply,
                     ),
@@ -520,8 +520,8 @@ class _CommentComposerState extends ConsumerState<CommentComposer> {
                     builder: (context, v, _) {
                       final enabled = v.text.trim().isNotEmpty && !_sending;
                       return AppIconButton(
-                        icon: Icon(
-                          Icons.arrow_upward_rounded,
+                        icon: AppIcon(
+                          AppIcons.arrowUpwardRounded,
                           color: enabled ? colors.gold : colors.textSecondary,
                         ),
                         isLoading: _sending,

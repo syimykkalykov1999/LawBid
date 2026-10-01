@@ -161,8 +161,8 @@ class _CameraCaptureScreenState extends ConsumerState<CameraCaptureScreen>
     if (_error != null) {
       body = AppStateLayout(
         icon: _error == _CameraError.denied
-            ? Icons.no_photography_outlined
-            : Icons.videocam_off_outlined,
+            ? AppIcons.noPhotographyOutlined
+            : AppIcons.videocamOffOutlined,
         tone: AppMedallionTone.danger,
         title: t.t(
           _error == _CameraError.denied
@@ -219,8 +219,8 @@ class _CameraCaptureScreenState extends ConsumerState<CameraCaptureScreen>
                       AppIconButton(
                         semanticLabel: t.t('common.close'),
                         onPressed: () => Navigator.of(context).pop(),
-                        icon: Icon(
-                          Icons.close_rounded,
+                        icon: AppIcon(
+                          AppIcons.closeRounded,
                           color: colors.goldLight,
                         ),
                       ),
@@ -255,7 +255,7 @@ class _CameraCaptureScreenState extends ConsumerState<CameraCaptureScreen>
                               child: AppButton(
                                 label: t.t('verification.camera.retake'),
                                 variant: AppButtonVariant.secondary,
-                                icon: Icons.refresh_rounded,
+                                icon: AppIcons.refreshRounded,
                                 onPressed: _retake,
                               ),
                             ),
@@ -263,7 +263,7 @@ class _CameraCaptureScreenState extends ConsumerState<CameraCaptureScreen>
                             Expanded(
                               child: AppButton(
                                 label: t.t('verification.camera.use'),
-                                icon: Icons.check_rounded,
+                                icon: AppIcons.checkRounded,
                                 onPressed: _use,
                               ),
                             ),

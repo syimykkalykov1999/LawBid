@@ -102,7 +102,7 @@ class _TeamInboxTabState extends ConsumerState<TeamInboxTab> {
                     padding: const EdgeInsets.only(right: AppSpacing.xs),
                     child: AppIconButton(
                       key: const ValueKey('team-settings'),
-                      icon: const Icon(Icons.manage_accounts_outlined),
+                      icon: const AppIcon(AppIcons.manageAccountsOutlined),
                       semanticLabel: t.t('team.title'),
                       onPressed: () => context.push(TeamRoutes.team),
                     ),
@@ -137,7 +137,7 @@ class _TeamInboxTabState extends ConsumerState<TeamInboxTab> {
     if (items.isEmpty) {
       return PullableState(
         child: AppEmptyState(
-          icon: Icons.fact_check_outlined,
+          icon: AppIcons.factCheckOutlined,
           message: ref.read(translatorProvider).t('team.requests.empty'),
         ),
       );
@@ -193,7 +193,7 @@ class _TeamInboxTabState extends ConsumerState<TeamInboxTab> {
     if (items.isEmpty) {
       return PullableState(
         child: AppEmptyState(
-          icon: Icons.history_rounded,
+          icon: AppIcons.historyRounded,
           message: tr.t('team.activity.empty'),
         ),
       );

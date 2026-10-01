@@ -30,17 +30,17 @@ Future<List<PickedChatFile>> pickChatFiles(
         children: [
           const AppSheetHandle(),
           AppListRow(
-            icon: Icons.photo_library_outlined,
+            icon: AppIcons.photoLibraryOutlined,
             label: t.t('chat.attach.photos'),
             onTap: () => Navigator.of(sheet).pop('photos'),
           ),
           AppListRow(
-            icon: Icons.photo_camera_outlined,
+            icon: AppIcons.photoCameraOutlined,
             label: t.t('chat.attach.camera'),
             onTap: () => Navigator.of(sheet).pop('camera'),
           ),
           AppListRow(
-            icon: Icons.description_outlined,
+            icon: AppIcons.descriptionOutlined,
             label: t.t('chat.attach.files'),
             onTap: () => Navigator.of(sheet).pop('files'),
           ),
@@ -114,23 +114,23 @@ String fileSizeLabel(int? bytes) {
 /// A document's colour and icon by its type.
 ({IconData icon, Color color}) docLook(String ext) => switch (ext) {
       'pdf' => (
-          icon: Icons.picture_as_pdf_rounded,
+          icon: AppIcons.pictureAsPdfRounded,
           color: const Color(0xFFC62828)
         ),
       'doc' || 'docx' || 'odt' || 'rtf' => (
-          icon: Icons.description_rounded,
+          icon: AppIcons.descriptionRounded,
           color: const Color(0xFF1E5AA8)
         ),
       'xls' || 'xlsx' || 'ods' || 'csv' => (
-          icon: Icons.table_chart_rounded,
+          icon: AppIcons.tableChartRounded,
           color: const Color(0xFF1E7B45)
         ),
       'ppt' || 'pptx' || 'odp' => (
-          icon: Icons.slideshow_rounded,
+          icon: AppIcons.slideshowRounded,
           color: const Color(0xFFC75B12)
         ),
       _ => (
-          icon: Icons.insert_drive_file_rounded,
+          icon: AppIcons.insertDriveFileRounded,
           color: const Color(0xFF5B6478)
         ),
     };
@@ -239,7 +239,7 @@ class AttachmentMessageBody extends ConsumerWidget {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(look.icon, size: 20, color: Colors.white),
+                          AppIcon(look.icon, size: 20, color: Colors.white),
                           if (a.extension.isNotEmpty)
                             Text(
                               a.extension.toUpperCase(),
@@ -279,7 +279,7 @@ class AttachmentMessageBody extends ConsumerWidget {
                       ),
                     ),
                     if (a.url != null)
-                      Icon(Icons.open_in_new_rounded,
+                      AppIcon(AppIcons.openInNewRounded,
                           size: 18, color: fg.withValues(alpha: 0.75)),
                   ],
                 ),
@@ -411,7 +411,7 @@ class _ChatFilesScreenState extends ConsumerState<ChatFilesScreen> {
                   TextButton(onPressed: _load, child: Text(t.t('error.retry'))))
           : !_loading && _items.isEmpty
               ? AppEmptyState(
-                  icon: Icons.folder_open_rounded,
+                  icon: AppIcons.folderOpenRounded,
                   message: t.t('chat.files.empty'),
                 )
               : NotificationListener<ScrollNotification>(
@@ -469,7 +469,7 @@ class _ChatFilesScreenState extends ConsumerState<ChatFilesScreen> {
                                   color: look.color,
                                   borderRadius: BorderRadius.circular(8),
                                 ),
-                                child: Icon(look.icon,
+                                child: AppIcon(look.icon,
                                     color: Colors.white, size: 20),
                               ),
                               title: Text(a.name,
@@ -482,7 +482,7 @@ class _ChatFilesScreenState extends ConsumerState<ChatFilesScreen> {
                                   '${fileSizeLabel(a.sizeBytes)} · ${f.date(m.createdAt)}',
                                   style: type.caption
                                       .copyWith(color: colors.textSecondary)),
-                              trailing: Icon(Icons.open_in_new_rounded,
+                              trailing: AppIcon(AppIcons.openInNewRounded,
                                   color: colors.textSecondary),
                               onTap: a.url == null
                                   ? null

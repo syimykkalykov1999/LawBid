@@ -136,7 +136,7 @@ void main() {
               Row(
                 children: [
                   AppIconButton(
-                    icon: const Icon(Icons.mail_outline_rounded),
+                    icon: const Icon(AppIcons.mailOutlineRounded),
                     semanticLabel: 'Email',
                     onPressed: () {},
                   ),
@@ -172,7 +172,7 @@ void main() {
                 children: [
                   AppAvatar(initials: 'JD', semanticLabel: 'Jane Doe'),
                   SizedBox(width: AppSpacing.md),
-                  AppIconMedallion(icon: Icons.gavel_rounded),
+                  AppIconMedallion(icon: AppIcons.gavelRounded),
                 ],
               ),
               const SizedBox(height: AppSpacing.md),
@@ -188,12 +188,12 @@ void main() {
               ),
               const SizedBox(height: AppSpacing.md),
               AppListRow(
-                icon: Icons.language_rounded,
+                icon: AppIcons.languageRounded,
                 label: 'Language',
                 onTap: () {},
               ),
               AppListRow(
-                icon: Icons.delete_outline_rounded,
+                icon: AppIcons.deleteOutlineRounded,
                 label: 'Delete account',
                 destructive: true,
                 onTap: () {},
@@ -233,26 +233,26 @@ void main() {
               AppTabConfig(
                 key: AppTabKey.feed,
                 label: 'Feed',
-                icon: Icons.home_outlined,
-                activeIcon: Icons.home_rounded,
+                icon: AppIcons.homeOutlined,
+                activeIcon: AppIcons.homeRounded,
               ),
               AppTabConfig(
                 key: AppTabKey.search,
                 label: 'Search',
-                icon: Icons.search_rounded,
-                activeIcon: Icons.search_rounded,
+                icon: AppIcons.searchRounded,
+                activeIcon: AppIcons.searchRounded,
               ),
               AppTabConfig(
                 key: AppTabKey.mine,
                 label: 'Mine',
-                icon: Icons.work_outline_rounded,
-                activeIcon: Icons.work_rounded,
+                icon: AppIcons.workOutlineRounded,
+                activeIcon: AppIcons.workRounded,
               ),
               AppTabConfig(
                 key: AppTabKey.profile,
                 label: 'Profile',
-                icon: Icons.person_outline_rounded,
-                activeIcon: Icons.person_rounded,
+                icon: AppIcons.personOutlineRounded,
+                activeIcon: AppIcons.personRounded,
               ),
             ],
             currentIndex: 0,

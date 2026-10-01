@@ -69,7 +69,7 @@ class _CaseCommentsScreenState extends ConsumerState<CaseCommentsScreen> {
                           AppSpacing.md, AppSpacing.screenSide, 0),
                       child: Row(
                         children: [
-                          Icon(Icons.lock_outline_rounded,
+                          AppIcon(AppIcons.lockOutlineRounded,
                               size: AppSizes.iconSm,
                               color: colors.textSecondary),
                           const SizedBox(width: AppSpacing.sm),

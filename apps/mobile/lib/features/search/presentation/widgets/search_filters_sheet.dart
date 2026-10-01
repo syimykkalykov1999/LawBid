@@ -203,7 +203,7 @@ class _FiltersSheetState extends ConsumerState<_FiltersSheet> {
             label: label,
             selected: selected,
             trailing:
-                const Icon(Icons.expand_more_rounded, size: AppSpacing.lg),
+                const AppIcon(AppIcons.expandMoreRounded, size: AppSpacing.lg),
             onTap: onTap,
           ),
         );

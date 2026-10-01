@@ -148,7 +148,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
             // OQ-047: every photo and document of this chat.
             if (c.contactsUnlocked)
               AppListRow(
-                icon: Icons.folder_open_rounded,
+                icon: AppIcons.folderOpenRounded,
                 label: t.t('chat.files.title'),
                 onTap: () {
                   Navigator.of(sheet).pop();
@@ -159,8 +159,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
               ),
             AppListRow(
               icon: c.muted
-                  ? Icons.notifications_active_outlined
-                  : Icons.notifications_off_outlined,
+                  ? AppIcons.notificationsActiveOutlined
+                  : AppIcons.notificationsOffOutlined,
               label: t.t(c.muted ? 'chat.unmute' : 'chat.mute'),
               showChevron: false,
               onTap: () async {
@@ -188,7 +188,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
               ),
             if (c.counterpart.id != null)
               AppListRow(
-                icon: Icons.flag_outlined,
+                icon: AppIcons.flagOutlined,
                 label: t.t('post.menu.report'),
                 showChevron: false,
                 onTap: () {
@@ -237,8 +237,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
               !c.myRequestDeclined)
             AppIconButton(
               plain: true,
-              icon: Icon(
-                Icons.call_outlined,
+              icon: AppIcon(
+                AppIcons.callOutlined,
                 color: c.contactsUnlocked ? colors.text : colors.textSecondary,
               ),
               semanticLabel: t.t('call.button'),
@@ -247,7 +247,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
           if (c != null)
             AppIconButton(
               plain: true,
-              icon: Icon(Icons.more_horiz_rounded, color: colors.text),
+              icon: AppIcon(AppIcons.moreHorizRounded, color: colors.text),
               semanticLabel: t.t('chat.menu'),
               onPressed: () => _menu(s),
             ),
@@ -261,7 +261,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                   children: [
                     if (c != null && c.closed)
                       _Banner(
-                        icon: Icons.lock_outline_rounded,
+                        icon: AppIcons.lockOutlineRounded,
                         text: t.t('chat.closed'),
                       ),
                     Expanded(
@@ -285,7 +285,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                       _RequestPanel(conversation: c, thread: _thread)
                     else if (c != null && c.myRequestDeclined)
                       _Banner(
-                        icon: Icons.block_rounded,
+                        icon: AppIcons.blockRounded,
                         text: t.t('chat.requests.declinedForYou'),
                       )
                     else if (c != null && !c.closed)
@@ -298,7 +298,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                                 children: [
                                   if (c.myRequestPending)
                                     _Banner(
-                                      icon: Icons.schedule_send_outlined,
+                                      icon: AppIcons.scheduleSendOutlined,
                                       text: t.t('chat.requests.sentNote'),
                                     )
                                   else if (!c.contactsUnlocked)
@@ -407,7 +407,7 @@ class _MessageList extends ConsumerWidget {
     final items = state.all;
     if (items.isEmpty) {
       return AppEmptyState(
-        icon: Icons.chat_bubble_outline_rounded,
+        icon: AppIcons.chatBubbleOutlineRounded,
         message: t.t('chat.thread.empty'),
       );
     }
@@ -546,7 +546,7 @@ class _SystemMessage extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.gavel_rounded, size: 14, color: colors.goldDark),
+              AppIcon(AppIcons.gavelRounded, size: 14, color: colors.goldDark),
               const SizedBox(width: AppSpacing.xs),
               Flexible(
                 child: Text(
@@ -649,12 +649,12 @@ class _Bubble extends ConsumerWidget {
               ),
               if (mine) ...[
                 const SizedBox(width: 4),
-                Icon(
+                AppIcon(
                   switch (m.delivery) {
-                    DeliveryState.sending => Icons.schedule_rounded,
-                    DeliveryState.failed => Icons.error_outline_rounded,
+                    DeliveryState.sending => AppIcons.scheduleRounded,
+                    DeliveryState.failed => AppIcons.errorOutlineRounded,
                     DeliveryState.sent =>
-                      seen ? Icons.done_all_rounded : Icons.done_rounded,
+                      seen ? AppIcons.doneAllRounded : AppIcons.doneRounded,
                   },
                   size: 14,
                   color: failed
@@ -683,7 +683,7 @@ class _Bubble extends ConsumerWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.support_agent_rounded,
+                  AppIcon(AppIcons.supportAgentRounded,
                       size: 12, color: colors.gold),
                   const SizedBox(width: 3),
                   Text(
@@ -847,7 +847,7 @@ class _Banner extends StatelessWidget {
       color: colors.goldTint,
       child: Row(
         children: [
-          Icon(icon, size: AppSizes.iconSm, color: colors.goldDark),
+          AppIcon(icon, size: AppSizes.iconSm, color: colors.goldDark),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child:
@@ -887,7 +887,7 @@ class _MaskingHintState extends ConsumerState<_MaskingHint> {
       ),
       child: Row(
         children: [
-          Icon(Icons.privacy_tip_outlined,
+          AppIcon(AppIcons.privacyTipOutlined,
               size: AppSizes.iconSm, color: colors.info),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
@@ -895,7 +895,7 @@ class _MaskingHintState extends ConsumerState<_MaskingHint> {
                 style: type.caption.copyWith(color: colors.text)),
           ),
           AppIconButton(
-            icon: Icon(Icons.close_rounded,
+            icon: AppIcon(AppIcons.closeRounded,
                 size: 18, color: colors.textSecondary),
             semanticLabel: t.t('common.close'),
             onPressed: () async {
@@ -1257,7 +1257,7 @@ class _ComposerState extends ConsumerState<_Composer> {
           if (_locked)
             AppIconButton(
               plain: true,
-              icon: Icon(Icons.delete_outline_rounded, color: colors.danger),
+              icon: AppIcon(AppIcons.deleteOutlineRounded, color: colors.danger),
               semanticLabel: t.t('chat.voice.cancel'),
               onPressed: () => _finish(send: false),
             ),
@@ -1287,7 +1287,7 @@ class _ComposerState extends ConsumerState<_Composer> {
                 shape: BoxShape.circle,
                 color: on ? colors.gold : colors.border,
               ),
-              child: Icon(icon, color: on ? colors.navy : colors.textSecondary),
+              child: AppIcon(icon, color: on ? colors.navy : colors.textSecondary),
             ),
           ),
         );
@@ -1315,7 +1315,7 @@ class _ComposerState extends ConsumerState<_Composer> {
                   child: AppIconButton(
                     plain: true,
                     icon:
-                        Icon(Icons.attach_file_rounded, color: colors.goldDark),
+                        AppIcon(AppIcons.attachFileRounded, color: colors.goldDark),
                     semanticLabel: t.t('chat.attach.button'),
                     onPressed: widget.onAttach,
                   ),
@@ -1335,7 +1335,7 @@ class _ComposerState extends ConsumerState<_Composer> {
                     return AppPressable(
                       onTap: widget.onSend,
                       child: circle(
-                        icon: Icons.arrow_upward_rounded,
+                        icon: AppIcons.arrowUpwardRounded,
                         on: true,
                         label: t.t('chat.send'),
                       ),
@@ -1345,7 +1345,7 @@ class _ComposerState extends ConsumerState<_Composer> {
                     return AppPressable(
                       onTap: () => _finish(send: true),
                       child: circle(
-                        icon: Icons.arrow_upward_rounded,
+                        icon: AppIcons.arrowUpwardRounded,
                         on: true,
                         label: t.t('chat.voice.sendNow'),
                       ),
@@ -1369,7 +1369,7 @@ class _ComposerState extends ConsumerState<_Composer> {
                                     BorderRadius.circular(AppRadii.pill),
                                 border: Border.all(color: colors.border),
                               ),
-                              child: Icon(Icons.lock_outline_rounded,
+                              child: AppIcon(AppIcons.lockOutlineRounded,
                                   size: 18, color: colors.goldDark),
                             ),
                           ),
@@ -1393,7 +1393,7 @@ class _ComposerState extends ConsumerState<_Composer> {
                               ? Offset(math.min(0, _drag.dx) * 0.5, 0)
                               : Offset.zero,
                           child: circle(
-                            icon: Icons.mic_rounded,
+                            icon: AppIcons.micRounded,
                             on: true,
                             label: t.t('chat.voice.record'),
                             scale: _recording ? 1.25 : 1,

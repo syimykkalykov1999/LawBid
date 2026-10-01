@@ -10,6 +10,7 @@ import 'package:lawbid/core/design_system/widgets/buttons/gavel_strike_button.da
     show GavelStrikeButton;
 import 'package:lawbid/core/design_system/widgets/motion/app_entrance.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_tap_target.dart';
+import 'package:lawbid/core/design_system/icons/app_icon.dart';
 
 enum AppButtonVariant {
   primary,
@@ -123,7 +124,7 @@ class _AppButtonState extends State<AppButton> {
             mainAxisSize: MainAxisSize.min,
             children: [
               if (widget.icon != null) ...[
-                Icon(widget.icon, size: 20, color: foreground),
+                AppIcon(widget.icon, size: 20, color: foreground),
                 const SizedBox(width: AppSpacing.sm),
               ],
               Flexible(

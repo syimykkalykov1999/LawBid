@@ -45,8 +45,8 @@ class MyContactsScreen extends ConsumerWidget {
         final verified = isPhone ? user.phoneVerified : user.emailVerified;
         return AccountTile(
           icon: isPhone
-              ? Icons.phone_iphone_rounded
-              : Icons.alternate_email_rounded,
+              ? AppIcons.phoneIphoneRounded
+              : AppIcons.alternateEmailRounded,
           title:
               t.t(isPhone ? 'account.contact.phone' : 'account.contact.email'),
           subtitle: value == null
@@ -125,7 +125,7 @@ class _Hint extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(Icons.lock_outline_rounded,
+        AppIcon(AppIcons.lockOutlineRounded,
             size: AppSpacing.lg, color: colors.textSecondary),
         const SizedBox(width: AppSpacing.sm),
         Expanded(
@@ -156,7 +156,7 @@ class _ContactPreferencesSection extends ConsumerWidget {
             const SizedBox(height: AppSpacing.md),
             AppButton(
               label: t.t('error.retry'),
-              icon: Icons.refresh_rounded,
+              icon: AppIcons.refreshRounded,
               variant: AppButtonVariant.secondary,
               height: AppSizes.touchTarget,
               onPressed: () => ref.invalidate(clientProfileProvider),

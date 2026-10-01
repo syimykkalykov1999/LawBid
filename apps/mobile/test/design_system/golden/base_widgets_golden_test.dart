@@ -115,7 +115,7 @@ void main() {
         Row(
           children: [
             AppIconButton(
-              icon: const Icon(Icons.mail_outline_rounded),
+              icon: const Icon(AppIcons.mailOutlineRounded),
               semanticLabel: 'Email',
               onPressed: () {},
             ),
@@ -145,8 +145,8 @@ void main() {
             AppChip(label: 'Family law', selected: true, onTap: () {}),
             const AppChip(
               label: '+1',
-              leading: Icon(Icons.flag_outlined, size: AppSizes.iconSm),
-              trailing: Icon(Icons.expand_more_rounded, size: 15),
+              leading: Icon(AppIcons.flagOutlined, size: AppSizes.iconSm),
+              trailing: Icon(AppIcons.expandMoreRounded, size: 15),
             ),
           ],
         ),
@@ -210,7 +210,7 @@ void main() {
           title: const Text('Active devices'),
           actions: [
             AppIconButton(
-              icon: const Icon(Icons.more_horiz_rounded),
+              icon: const Icon(AppIcons.moreHorizRounded),
               semanticLabel: 'More',
               onPressed: () {},
             ),

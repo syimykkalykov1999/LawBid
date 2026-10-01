@@ -88,7 +88,7 @@ class SearchTileFrame extends StatelessWidget {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(kindIcon, size: 13, color: colors.goldLight),
+                        AppIcon(kindIcon, size: 13, color: colors.goldLight),
                         const SizedBox(width: 4),
                         Flexible(
                           child: Text(
@@ -168,7 +168,7 @@ class SearchPostTile extends ConsumerWidget {
         [t.t('search.kind.post'), if (practice != null) practice].join(' · ');
     return SearchTileFrame(
       picture: picture,
-      kindIcon: Icons.article_rounded,
+      kindIcon: AppIcons.articleRounded,
       kindLabel: kind,
       title: title,
       footer: post.author.displayName,
@@ -200,7 +200,7 @@ class SearchCaseTile extends ConsumerWidget {
         categoryCode: item.practice.artCode,
         practiceCode: item.practice.code,
       ),
-      kindIcon: Icons.work_rounded,
+      kindIcon: AppIcons.workRounded,
       kindLabel: kind,
       title: item.title,
       footer: footer,
@@ -235,7 +235,7 @@ class SearchMyCaseTile extends ConsumerWidget {
         categoryCode: item.practice.artCode,
         practiceCode: item.practice.code,
       ),
-      kindIcon: Icons.folder_rounded,
+      kindIcon: AppIcons.folderRounded,
       kindLabel: kind,
       title: item.title,
       footer: footer,
@@ -314,7 +314,7 @@ class PagedTileGrid<T> extends StatelessWidget {
       AsyncError() => Center(
           child: TextButton(
             onPressed: onRefresh,
-            child: const Icon(Icons.refresh_rounded),
+            child: const AppIcon(AppIcons.refreshRounded),
           ),
         ),
       _ => GridView.builder(
@@ -368,7 +368,7 @@ class TopicRow extends StatelessWidget {
                       ? ColoredBox(
                           color: colors.goldTint,
                           child:
-                              Icon(Icons.tag_rounded, color: colors.goldDark),
+                              AppIcon(AppIcons.tagRounded, color: colors.goldDark),
                         )
                       : PracticePhoto(categoryCode: categoryCode),
                 ),
@@ -396,7 +396,7 @@ class TopicRow extends StatelessWidget {
                   ],
                 ),
               ),
-              Icon(Icons.chevron_right_rounded, color: colors.textSecondary),
+              AppIcon(AppIcons.chevronRightRounded, color: colors.textSecondary),
             ],
           ),
         ),

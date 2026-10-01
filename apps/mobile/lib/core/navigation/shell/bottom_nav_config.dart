@@ -1,8 +1,8 @@
-import 'package:flutter/material.dart';
 
 import '../../../shared/domain/user_role.dart';
 import '../../design_system/widgets/bars/app_bottom_nav.dart';
 import '../../l10n/translator.dart';
+import 'package:lawbid/core/design_system/design_system.dart';
 
 /// Role affects bottom-nav CONTENT only, never route topology (file 01 §3):
 /// both roles get the same 4 shell branches (Лента/Поиск/Моё/Профиль), just
@@ -17,26 +17,26 @@ List<AppTabConfig> tabsForRole(UserRole? role, Translator t) {
   return [
     AppTabConfig(
       key: AppTabKey.feed,
-      icon: Icons.article_outlined,
-      activeIcon: Icons.article,
+      icon: AppIcons.articleOutlined,
+      activeIcon: AppIcons.article,
       label: t.t('nav.tab.feed'),
     ),
     AppTabConfig(
       key: AppTabKey.search,
-      icon: Icons.search_outlined,
-      activeIcon: Icons.search,
+      icon: AppIcons.searchOutlined,
+      activeIcon: AppIcons.search,
       label: t.t('nav.tab.search'),
     ),
     AppTabConfig(
       key: AppTabKey.mine,
-      icon: Icons.folder_outlined,
-      activeIcon: Icons.folder,
+      icon: AppIcons.folderOutlined,
+      activeIcon: AppIcons.folder,
       label: t.t('nav.tab.mine'),
     ),
     AppTabConfig(
       key: AppTabKey.profile,
-      icon: Icons.person_outline,
-      activeIcon: Icons.person,
+      icon: AppIcons.personOutline,
+      activeIcon: AppIcons.person,
       label: t.t('nav.tab.profile'),
     ),
   ];

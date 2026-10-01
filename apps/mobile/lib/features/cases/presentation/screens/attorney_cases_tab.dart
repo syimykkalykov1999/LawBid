@@ -72,7 +72,7 @@ class _AttorneyCasesTabState extends ConsumerState<AttorneyCasesTab> {
     ];
     if (licensed.isEmpty) {
       return AppEmptyState(
-        icon: Icons.workspace_premium_outlined,
+        icon: AppIcons.workspacePremiumOutlined,
         title: t.t('cases.feed.noLicenseTitle'),
         message: t.t('cases.feed.noLicenseMessage'),
         action: AppButton(
@@ -84,7 +84,7 @@ class _AttorneyCasesTabState extends ConsumerState<AttorneyCasesTab> {
     }
     if (myPractices.isEmpty) {
       return AppEmptyState(
-        icon: Icons.balance_rounded,
+        icon: AppIcons.balanceRounded,
         title: t.t('cases.feed.noPracticesTitle'),
         message: t.t('cases.feed.noPracticesMessage'),
         action: AppButton(
@@ -127,12 +127,12 @@ class _AttorneyCasesTabState extends ConsumerState<AttorneyCasesTab> {
               // and offers to clear them.
               empty: _category == null && _state == null
                   ? AppEmptyState(
-                      icon: Icons.inbox_outlined,
+                      icon: AppIcons.inboxOutlined,
                       title: t.t('cases.feed.emptyTitle'),
                       message: t.t('cases.feed.emptyMessage'),
                     )
                   : AppEmptyState(
-                      icon: Icons.filter_alt_off_outlined,
+                      icon: AppIcons.filterAltOffOutlined,
                       title: t.t('cases.feed.emptyFiltered'),
                       message: [
                         if (_category != null)

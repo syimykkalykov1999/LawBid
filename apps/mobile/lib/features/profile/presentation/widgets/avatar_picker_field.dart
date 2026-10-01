@@ -64,7 +64,7 @@ class AvatarPickerField extends ConsumerWidget {
             children: [
               const AppSheetHandle(),
               AppListRow(
-                icon: Icons.photo_camera_outlined,
+                icon: AppIcons.photoCameraOutlined,
                 label: t.t('profile.photo.camera'),
                 showChevron: false,
                 onTap: () =>
@@ -72,7 +72,7 @@ class AvatarPickerField extends ConsumerWidget {
               ),
               const SizedBox(height: AppSpacing.xs),
               AppListRow(
-                icon: Icons.photo_library_outlined,
+                icon: AppIcons.photoLibraryOutlined,
                 label: t.t('profile.photo.gallery'),
                 showChevron: false,
                 onTap: () =>
@@ -163,7 +163,7 @@ class AvatarPickerField extends ConsumerWidget {
                     _TextAction(
                       key: const ValueKey('avatar-retry'),
                       label: t.t('error.retry'),
-                      icon: Icons.refresh_rounded,
+                      icon: AppIcons.refreshRounded,
                       onTap: () => ref
                           .read(avatarUploadControllerProvider.notifier)
                           .retry(),
@@ -173,7 +173,7 @@ class AvatarPickerField extends ConsumerWidget {
                     label: t.t(hasPhoto
                         ? 'profile.photo.change'
                         : 'profile.photo.add'),
-                    icon: Icons.photo_camera_outlined,
+                    icon: AppIcons.photoCameraOutlined,
                     onTap: upload.busy ? null : () => _pick(context, ref, t),
                   ),
                 ],
@@ -215,7 +215,7 @@ class _TextAction extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, size: AppSpacing.lg + 2, color: color),
+              AppIcon(icon, size: AppSpacing.lg + 2, color: color),
               const SizedBox(width: AppSpacing.xs),
               Text(label, style: typography.button.copyWith(color: color)),
             ],

@@ -196,7 +196,7 @@ class _AccountContactFlowScreenState
         return _StageLayout(
           content: [
             const AppIconMedallion(
-              icon: Icons.edit_note_rounded,
+              icon: AppIcons.editNoteRounded,
               size: AppSizes.stateMedallion,
               iconSize: AppSizes.stateIcon,
             ),
@@ -244,8 +244,8 @@ class _AccountContactFlowScreenState
           content: [
             AppIconMedallion(
               icon: confirming
-                  ? Icons.verified_user_outlined
-                  : Icons.sms_outlined,
+                  ? AppIcons.verifiedUserOutlined
+                  : AppIcons.smsOutlined,
               size: AppSizes.stateMedallion,
               iconSize: AppSizes.stateIcon,
             ),
@@ -313,7 +313,7 @@ class _AccountContactFlowScreenState
         return _StageLayout(
           content: [
             const AppIconMedallion(
-              icon: Icons.check_rounded,
+              icon: AppIcons.checkRounded,
               tone: AppMedallionTone.success,
               size: AppSizes.stateMedallion,
               iconSize: AppSizes.stateIcon,

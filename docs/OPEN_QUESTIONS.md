@@ -994,3 +994,5 @@ reviews a client).
   once; if Stripe already charged it, support refunds that first invoice
   (the server logs the ids). A scheduled cancel can be undone in the app.
 - Like / follow toggles notify the person once a day.
+- Icons: the owner rejected colourful / cartoon 3D art and chose Phosphor
+  Light (thin, serious lines) for the whole app; colour follows the theme.

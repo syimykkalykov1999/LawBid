@@ -138,10 +138,10 @@ class _NewCaseAlertsSectionState extends ConsumerState<NewCaseAlertsSection> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(
+                  AppIcon(
                     selected
-                        ? Icons.radio_button_checked_rounded
-                        : Icons.radio_button_unchecked_rounded,
+                        ? AppIcons.radioButtonCheckedRounded
+                        : AppIcons.radioButtonUncheckedRounded,
                     color: selected ? colors.goldDark : colors.textSecondary,
                   ),
                   const SizedBox(width: AppSpacing.sm),
@@ -228,7 +228,7 @@ class _NewCaseAlertsSectionState extends ConsumerState<NewCaseAlertsSection> {
               key: const ValueKey('alerts-choose'),
               onPressed:
                   _saving || tree.isEmpty ? null : () => _choose(a, tree),
-              icon: Icon(Icons.tune_rounded, color: colors.goldDark),
+              icon: AppIcon(AppIcons.tuneRounded, color: colors.goldDark),
               label: Text(
                 t.t('notif.newCases.choose'),
                 style: TextStyle(color: colors.goldDark),
@@ -237,7 +237,7 @@ class _NewCaseAlertsSectionState extends ConsumerState<NewCaseAlertsSection> {
             TextButton.icon(
               key: const ValueKey('alerts-edit-profile'),
               onPressed: () => context.push(AppRoutes.practices),
-              icon: Icon(Icons.edit_outlined, color: colors.textSecondary),
+              icon: AppIcon(AppIcons.editOutlined, color: colors.textSecondary),
               label: Text(
                 t.t('notif.newCases.editProfile'),
                 style: TextStyle(color: colors.textSecondary),

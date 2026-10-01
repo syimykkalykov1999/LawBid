@@ -172,7 +172,7 @@ class _NotificationSettingsScreenState
                                 ),
                               ),
                               if (c.locked)
-                                Icon(Icons.lock_outline_rounded,
+                                AppIcon(AppIcons.lockOutlineRounded,
                                     size: AppSizes.iconSm,
                                     color: colors.textSecondary),
                             ],
@@ -241,7 +241,7 @@ class _NotificationSettingsScreenState
                       Expanded(
                         child: AppChip(
                           label: '${t.t('notif.settings.from')} ${q.start}',
-                          leading: const Icon(Icons.nightlight_round,
+                          leading: const AppIcon(AppIcons.nightlightRound,
                               size: AppSpacing.lg),
                           onTap: () => _pickTime(s, start: true),
                         ),
@@ -250,7 +250,7 @@ class _NotificationSettingsScreenState
                       Expanded(
                         child: AppChip(
                           label: '${t.t('notif.settings.to')} ${q.end}',
-                          leading: const Icon(Icons.wb_sunny_outlined,
+                          leading: const AppIcon(AppIcons.wbSunnyOutlined,
                               size: AppSpacing.lg),
                           onTap: () => _pickTime(s, start: false),
                         ),

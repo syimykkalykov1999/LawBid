@@ -57,7 +57,7 @@ class ClientPublicProfileScreen extends ConsumerWidget {
                   ref.invalidate(publicClientProfileProvider(username)),
             ),
             AppListRow(
-              icon: Icons.flag_outlined,
+              icon: AppIcons.flagOutlined,
               label: t.t('post.menu.report'),
               showChevron: false,
               onTap: () {
@@ -91,7 +91,7 @@ class ClientPublicProfileScreen extends ConsumerWidget {
           if (profile.value case final p? when !p.isSelf)
             AppIconButton(
               plain: true,
-              icon: Icon(Icons.more_horiz_rounded, color: colors.text),
+              icon: AppIcon(AppIcons.moreHorizRounded, color: colors.text),
               semanticLabel: t.t('chat.menu'),
               onPressed: () => _more(context, ref, p),
             ),
@@ -120,7 +120,7 @@ class ClientPublicProfileScreen extends ConsumerWidget {
                   message: t.t('offline.message'),
                   action: AppButton(
                     label: t.t('error.retry'),
-                    icon: Icons.refresh_rounded,
+                    icon: AppIcons.refreshRounded,
                     variant: AppButtonVariant.secondary,
                     height: AppSizes.touchTarget,
                     onPressed: retry,

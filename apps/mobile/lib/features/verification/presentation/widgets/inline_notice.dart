@@ -44,7 +44,7 @@ class InlineNotice extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             ExcludeSemantics(
-                child: Icon(icon, size: AppSizes.iconSm, color: fg)),
+                child: AppIcon(icon, size: AppSizes.iconSm, color: fg)),
             const SizedBox(width: AppSpacing.md),
             Expanded(
               child: Column(

@@ -60,14 +60,14 @@ class _TourStepScreenState extends ConsumerState<TourStepScreen> {
     final previous = OnboardingStepId.tour.previousFor(role)!;
     const icons = {
       'client': [
-        Icons.edit_note_rounded,
-        Icons.local_offer_outlined,
-        Icons.handshake_outlined
+        AppIcons.editNoteRounded,
+        AppIcons.localOfferOutlined,
+        AppIcons.handshakeOutlined
       ],
       'attorney': [
-        Icons.verified_user_outlined,
-        Icons.travel_explore_rounded,
-        Icons.send_rounded
+        AppIcons.verifiedUserOutlined,
+        AppIcons.travelExploreRounded,
+        AppIcons.sendRounded
       ],
     };
     final last = _index == TourStepScreen.pageCount - 1;

@@ -106,13 +106,13 @@ class TopicFilterBar extends ConsumerWidget {
           children: [
             const AppSheetHandle(),
             AppListRow(
-              icon: Icons.grid_view_rounded,
+              icon: AppIcons.gridViewRounded,
               label: t.t('feed.topics.pick'),
               trailingText: '$count',
               onTap: () => Navigator.of(sheet).pop('topics'),
             ),
             AppListRow(
-              icon: Icons.map_outlined,
+              icon: AppIcons.mapOutlined,
               label: t.t('feed.state.pick'),
               trailingText: stateCode ?? t.t('cases.feed.allStates'),
               onTap: () => Navigator.of(sheet).pop('state'),
@@ -166,7 +166,7 @@ class TopicFilterBar extends ConsumerWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(icon,
+                  AppIcon(icon,
                       size: 18,
                       color: selected ? colors.goldLight : colors.text),
                   const SizedBox(width: AppSpacing.xs + 2),
@@ -211,7 +211,7 @@ class TopicFilterBar extends ConsumerWidget {
                   ),
                 ),
                 child:
-                    Icon(Icons.tune_rounded, size: 20, color: colors.goldDark),
+                    AppIcon(AppIcons.tuneRounded, size: 20, color: colors.goldDark),
               ),
             ),
           ),
@@ -219,17 +219,17 @@ class TopicFilterBar extends ConsumerWidget {
             const SizedBox(width: AppSpacing.sm),
             pill(
               label: usStateByCode(stateCode)?.name ?? stateCode!,
-              icon: Icons.place_outlined,
+              icon: AppIcons.placeOutlined,
               selected: true,
               onTap: () => onState(null),
-              trailing: const Icon(Icons.close_rounded,
+              trailing: const AppIcon(AppIcons.closeRounded,
                   size: 16, color: Colors.white),
             ),
           ],
           const SizedBox(width: AppSpacing.sm),
           pill(
             label: t.t('feed.topics.all'),
-            icon: Icons.grid_view_rounded,
+            icon: AppIcons.gridViewRounded,
             selected: category == null,
             onTap: () => onCategory(null),
           ),
@@ -238,7 +238,7 @@ class TopicFilterBar extends ConsumerWidget {
             pill(
               key: const ValueKey('topic-not-sure'),
               label: t.t('feed.topics.notSure'),
-              icon: Icons.help_outline_rounded,
+              icon: AppIcons.helpOutlineRounded,
               selected: category == kNotSureTopic,
               onTap: () => onCategory(kNotSureTopic),
             ),
@@ -247,7 +247,7 @@ class TopicFilterBar extends ConsumerWidget {
             const SizedBox(width: AppSpacing.sm),
             pill(
               label: t.t('feed.topics.news'),
-              icon: Icons.newspaper_rounded,
+              icon: AppIcons.newspaperRounded,
               selected: category == kNewsTopic,
               onTap: () => onCategory(kNewsTopic),
             ),

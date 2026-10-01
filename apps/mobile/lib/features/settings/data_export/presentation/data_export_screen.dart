@@ -96,7 +96,7 @@ class _ExportBody extends ConsumerWidget {
               children: [
                 Row(
                   children: [
-                    const AppIconMedallion(icon: Icons.folder_zip_outlined),
+                    const AppIconMedallion(icon: AppIcons.folderZipOutlined),
                     const SizedBox(width: AppSpacing.md),
                     Expanded(
                       child: Text(
@@ -121,8 +121,8 @@ class _ExportBody extends ConsumerWidget {
                       Padding(
                         padding: const EdgeInsets.only(top: 2),
                         child: ExcludeSemantics(
-                          child: Icon(
-                            Icons.check_rounded,
+                          child: AppIcon(
+                            AppIcons.checkRounded,
                             size: AppSizes.iconSm,
                             color: colors.gold,
                           ),
@@ -184,7 +184,7 @@ class _ExportBody extends ConsumerWidget {
                   ? 'dataExport.request'
                   : 'dataExport.requestAgain',
             ),
-            icon: Icons.download_rounded,
+            icon: AppIcons.downloadRounded,
             isLoading: busy,
             onPressed: busy
                 ? null
@@ -269,7 +269,7 @@ class _StatusCard extends StatelessWidget {
             AppButton(
               key: const ValueKey('download-export'),
               label: t.t('dataExport.download'),
-              icon: Icons.open_in_new_rounded,
+              icon: AppIcons.openInNewRounded,
               variant: AppButtonVariant.secondary,
               height: AppSizes.touchTarget,
               onPressed: () => onDownload(job.url!),
@@ -280,7 +280,7 @@ class _StatusCard extends StatelessWidget {
             AppButton(
               key: const ValueKey('refresh-export'),
               label: t.t('subscription.action.refresh'),
-              icon: Icons.refresh_rounded,
+              icon: AppIcons.refreshRounded,
               variant: AppButtonVariant.secondary,
               height: AppSizes.touchTarget,
               onPressed: onRefresh,

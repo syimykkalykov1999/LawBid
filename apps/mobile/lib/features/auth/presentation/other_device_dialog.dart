@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/design_system/design_system.dart';
 import '../../../core/l10n/l10n_formats.dart';
 import '../../../core/l10n/translator.dart';
+import 'package:lawbid/core/design_system/design_system.dart';
 
 /// Owner 2026-10-01: one phone + one website per account. Before signing
 /// in on top of another device, say which one and that it will be signed
@@ -28,8 +29,8 @@ Future<bool> showOtherDeviceDialog(
     barrierDismissible: false,
     builder: (ctx) => AlertDialog(
       backgroundColor: colors.surface,
-      icon: Icon(
-        web ? Icons.computer_rounded : Icons.phone_iphone_rounded,
+      icon: AppIcon(
+        web ? AppIcons.computerRounded : AppIcons.phoneIphoneRounded,
         color: colors.gold,
       ),
       title: Text(t.t('otherDevice.title')),

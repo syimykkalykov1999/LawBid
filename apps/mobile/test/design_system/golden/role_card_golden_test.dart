@@ -15,7 +15,7 @@ void main() {
         Padding(
           padding: const EdgeInsets.all(16),
           child: RoleCard(
-            icon: Icons.person_outline,
+            icon: AppIcons.personOutline,
             title: 'Клиент',
             description: 'Опубликуйте кейс и выбирайте предложения адвокатов.',
             isSelected: true,
@@ -33,7 +33,7 @@ void main() {
         Padding(
           padding: const EdgeInsets.all(16),
           child: RoleCard(
-            icon: Icons.gavel,
+            icon: AppIcons.gavel,
             title: 'Адвокат',
             description: 'Лицензированный юрист: находите клиентов по своей практике и штату.',
             isSelected: false,

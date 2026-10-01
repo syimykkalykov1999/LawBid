@@ -8,16 +8,16 @@ String dutyLabel(Translator t, AssistantDuty d) => t.t('duty.${d.wire}');
 String dutyHint(Translator t, AssistantDuty d) => t.t('duty.${d.wire}.hint');
 
 IconData dutyIcon(AssistantDuty d) => switch (d) {
-      AssistantDuty.calls => Icons.call_outlined,
-      AssistantDuty.chats => Icons.chat_bubble_outline_rounded,
-      AssistantDuty.files => Icons.attach_file_rounded,
-      AssistantDuty.cases => Icons.work_outline_rounded,
-      AssistantDuty.bidDrafts => Icons.edit_note_rounded,
-      AssistantDuty.posts => Icons.campaign_outlined,
-      AssistantDuty.tasks => Icons.event_note_outlined,
-      AssistantDuty.profile => Icons.badge_outlined,
-      AssistantDuty.bids => Icons.gavel_rounded,
-      AssistantDuty.publish => Icons.campaign_rounded,
+      AssistantDuty.calls => AppIcons.callOutlined,
+      AssistantDuty.chats => AppIcons.chatBubbleOutlineRounded,
+      AssistantDuty.files => AppIcons.attachFileRounded,
+      AssistantDuty.cases => AppIcons.workOutlineRounded,
+      AssistantDuty.bidDrafts => AppIcons.editNoteRounded,
+      AssistantDuty.posts => AppIcons.campaignOutlined,
+      AssistantDuty.tasks => AppIcons.eventNoteOutlined,
+      AssistantDuty.profile => AppIcons.badgeOutlined,
+      AssistantDuty.bids => AppIcons.gavelRounded,
+      AssistantDuty.publish => AppIcons.campaignRounded,
     };
 
 String requestKindLabel(Translator t, RequestKind k) =>
@@ -57,7 +57,7 @@ class AddTaskButton extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.add_rounded, size: 20, color: colors.onCtaBright),
+              AppIcon(AppIcons.addRounded, size: 20, color: colors.onCtaBright),
               const SizedBox(width: 4),
               Text(
                 label,
@@ -151,7 +151,7 @@ class RequestCard extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               if (icon != null) ...[
-                Icon(icon,
+                AppIcon(icon,
                     size: 13, color: gold ? colors.goldDark : colors.gold),
                 const SizedBox(width: 4),
               ],
@@ -234,10 +234,10 @@ class RequestCard extends StatelessWidget {
               runSpacing: 6,
               children: [
                 if (r.practiceName != null)
-                  chip(r.practiceName!, icon: Icons.balance_rounded),
+                  chip(r.practiceName!, icon: AppIcons.balanceRounded),
                 if (r.isNews)
                   chip(t.t('post.kind.news'),
-                      gold: true, icon: Icons.newspaper_rounded),
+                      gold: true, icon: AppIcons.newspaperRounded),
               ],
             ),
           if (post) const SizedBox(height: AppSpacing.sm),
@@ -279,7 +279,7 @@ class RequestCard extends StatelessWidget {
                     errorBuilder: (_, __, ___) => Container(
                       width: 72,
                       color: colors.goldTint,
-                      child: Icon(Icons.image_outlined, color: colors.gold),
+                      child: AppIcon(AppIcons.imageOutlined, color: colors.gold),
                     ),
                   ),
                 ),
@@ -315,7 +315,7 @@ class RequestCard extends StatelessWidget {
                   child: AppButton(
                     key: ValueKey('request-approve-${r.id}'),
                     label: t.t('team.approve'),
-                    icon: Icons.check_rounded,
+                    icon: AppIcons.checkRounded,
                     height: 44,
                     isLoading: busy,
                     onPressed: onApprove,
@@ -447,7 +447,7 @@ class AssistantBanner extends StatelessWidget {
         // Owner 2026-10-01: centred.
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.support_agent_rounded,
+          AppIcon(AppIcons.supportAgentRounded,
               size: AppSizes.iconSm, color: colors.gold),
           const SizedBox(width: AppSpacing.sm),
           Flexible(
@@ -522,7 +522,7 @@ class _LiabilityDialogState extends State<_LiabilityDialog> {
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     return AlertDialog(
       backgroundColor: colors.surface,
-      icon: Icon(Icons.gavel_rounded, color: colors.gold),
+      icon: AppIcon(AppIcons.gavelRounded, color: colors.gold),
       title: Text(t.t('liability.title')),
       content: SingleChildScrollView(
         child: Column(

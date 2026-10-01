@@ -230,7 +230,7 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.edit_note_rounded, color: colors.gold),
+                  AppIcon(AppIcons.editNoteRounded, color: colors.gold),
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
                     child: Text(
@@ -353,7 +353,7 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
             AppButton(
               key: const ValueKey('bid-draft-save'),
               label: t.t('bidDraft.save'),
-              icon: Icons.save_outlined,
+              icon: AppIcons.saveOutlined,
               isLoading: _busy,
               onPressed: _saveDraft,
             )

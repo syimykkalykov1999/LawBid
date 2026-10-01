@@ -77,7 +77,7 @@ class BlockListRow extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translatorProvider);
     return AppListRow(
-      icon: currentlyBlocked ? Icons.lock_open_rounded : Icons.block_flipped,
+      icon: currentlyBlocked ? AppIcons.lockOpenRounded : AppIcons.blockFlipped,
       label: t.t(currentlyBlocked ? 'block.unblock' : 'block.action'),
       showChevron: false,
       onTap: () async {

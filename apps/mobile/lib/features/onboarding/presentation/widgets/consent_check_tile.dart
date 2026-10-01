@@ -59,7 +59,7 @@ class ConsentCheckTile extends StatelessWidget {
                     child: AnimatedOpacity(
                       duration: duration,
                       opacity: value ? 1 : 0,
-                      child: Icon(Icons.check_rounded,
+                      child: AppIcon(AppIcons.checkRounded,
                           size: AppSizes.iconSm, color: colors.navy),
                     ),
                   ),

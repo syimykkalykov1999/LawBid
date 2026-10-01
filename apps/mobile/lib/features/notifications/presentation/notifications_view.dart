@@ -122,34 +122,34 @@ String notificationText(Translator t, AppNotification n) {
 }
 
 IconData _icon(AppNotification n) => switch (n.type) {
-      'post_like' || 'comment_like' => Icons.favorite_rounded,
+      'post_like' || 'comment_like' => AppIcons.favoriteRounded,
       'post_comment' ||
       'comment_reply' ||
       'case_comment' =>
-        Icons.mode_comment_rounded,
-      'new_follower' => Icons.person_add_alt_1_rounded,
+        AppIcons.modeCommentRounded,
+      'new_follower' => AppIcons.personAddAlt1Rounded,
       // OQ-041.
-      'missed_call' => Icons.phone_missed_rounded,
+      'missed_call' => AppIcons.phoneMissedRounded,
       // OQ-042.
-      'mention' => Icons.alternate_email_rounded,
-      'review_requested' || 'review_received' => Icons.star_rounded,
-      'security_new_device' => Icons.devices_rounded,
-      'security_phone_changed' => Icons.phonelink_lock_rounded,
-      'verification_update' => Icons.verified_rounded,
-      'moderation_notice' => Icons.policy_rounded,
-      'assistant_request' => Icons.fact_check_rounded,
-      'admin_broadcast' => Icons.campaign_rounded,
-      'assistant_task' => Icons.event_note_rounded,
-      'assistant_joined' || 'assistant_result' => Icons.support_agent_rounded,
+      'mention' => AppIcons.alternateEmailRounded,
+      'review_requested' || 'review_received' => AppIcons.starRounded,
+      'security_new_device' => AppIcons.devicesRounded,
+      'security_phone_changed' => AppIcons.phonelinkLockRounded,
+      'verification_update' => AppIcons.verifiedRounded,
+      'moderation_notice' => AppIcons.policyRounded,
+      'assistant_request' => AppIcons.factCheckRounded,
+      'admin_broadcast' => AppIcons.campaignRounded,
+      'assistant_task' => AppIcons.eventNoteRounded,
+      'assistant_joined' || 'assistant_result' => AppIcons.supportAgentRounded,
       _ => switch (n.category) {
-          NotifCategory.bids => Icons.gavel_rounded,
-          NotifCategory.cases => Icons.folder_rounded,
-          NotifCategory.messages => Icons.chat_bubble_rounded,
-          NotifCategory.calls => Icons.call_rounded,
-          NotifCategory.following => Icons.dynamic_feed_rounded,
-          NotifCategory.newCases => Icons.work_outline_rounded,
-          NotifCategory.system => Icons.shield_rounded,
-          _ => Icons.notifications_rounded,
+          NotifCategory.bids => AppIcons.gavelRounded,
+          NotifCategory.cases => AppIcons.folderRounded,
+          NotifCategory.messages => AppIcons.chatBubbleRounded,
+          NotifCategory.calls => AppIcons.callRounded,
+          NotifCategory.following => AppIcons.dynamicFeedRounded,
+          NotifCategory.newCases => AppIcons.workOutlineRounded,
+          NotifCategory.system => AppIcons.shieldRounded,
+          _ => AppIcons.notificationsRounded,
         },
     };
 
@@ -181,7 +181,7 @@ class NotificationsView extends ConsumerWidget {
         );
       },
       empty: AppEmptyState(
-        icon: Icons.notifications_none_rounded,
+        icon: AppIcons.notificationsNoneRounded,
         message: t.t('notif.empty'),
       ),
       onRefresh: n.refresh,
@@ -293,7 +293,7 @@ class _NotificationRow extends ConsumerWidget {
                     shape: BoxShape.circle,
                     color: colors.accent,
                   ),
-                  child: Icon(_icon(n), size: 20, color: colors.gold),
+                  child: AppIcon(_icon(n), size: 20, color: colors.gold),
                 ),
               const SizedBox(width: AppSpacing.md),
               Expanded(

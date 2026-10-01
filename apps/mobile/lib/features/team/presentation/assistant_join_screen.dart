@@ -104,7 +104,7 @@ class _AssistantJoinScreenState extends ConsumerState<AssistantJoinScreen> {
                 color: colors.goldTint,
                 border: Border.all(color: colors.gold),
               ),
-              child: Icon(Icons.support_agent_rounded,
+              child: AppIcon(AppIcons.supportAgentRounded,
                   size: 40, color: colors.gold),
             ),
           ),
@@ -119,7 +119,7 @@ class _AssistantJoinScreenState extends ConsumerState<AssistantJoinScreen> {
             AppButton(
               key: const ValueKey('join-accept'),
               label: t.t('assistant.join.accept'),
-              icon: Icons.login_rounded,
+              icon: AppIcons.loginRounded,
               isLoading: _busy,
               onPressed: () => _run(repo.acceptInvite),
             ),
@@ -149,7 +149,7 @@ class _AssistantJoinScreenState extends ConsumerState<AssistantJoinScreen> {
             hintText: '+13125550123',
             keyboardType: TextInputType.phone,
             enabled: !_codeSent,
-            leading: const Icon(Icons.gavel_rounded),
+            leading: const AppIcon(AppIcons.gavelRounded),
             inputFormatters: [
               FilteringTextInputFormatter.allow(RegExp('[+0-9]')),
             ],

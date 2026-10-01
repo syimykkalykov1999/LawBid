@@ -178,7 +178,7 @@ class _PlanPickerState extends State<PlanPicker> {
         const SizedBox(height: AppSpacing.md),
         PlanTierCard(
           key: const ValueKey('plan-yearly'),
-          icon: Icons.diamond_outlined,
+          icon: AppIcons.diamondOutlined,
           title: t.t('plans.yearly'),
           price: _price(_p.yearlyCents),
           period: t.t('plans.perYear'),
@@ -216,7 +216,7 @@ class _PlanPickerState extends State<PlanPicker> {
               '${t.t(yearly ? 'plans.total.year' : 'plans.total.month', {
                 'price': _price(total)
               })}',
-          icon: Icons.lock_outline_rounded,
+          icon: AppIcons.lockOutlineRounded,
           isLoading: widget.state.busy,
           isEnabled: o.canStart,
           dimWhenDisabled: true,
@@ -263,8 +263,8 @@ class _PlanPickerState extends State<PlanPicker> {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(
-              Icons.verified_user_outlined,
+            AppIcon(
+              AppIcons.verifiedUserOutlined,
               size: AppSizes.iconSm,
               color: colors.textSecondary,
             ),
@@ -339,11 +339,11 @@ class _PhonesSection extends StatelessWidget {
                   inputFormatters: [
                     FilteringTextInputFormatter.allow(RegExp('[+0-9]')),
                   ],
-                  leading: const Icon(Icons.phone_outlined),
+                  leading: const AppIcon(AppIcons.phoneOutlined),
                 ),
               ),
               AppIconButton(
-                icon: const Icon(Icons.close_rounded),
+                icon: const AppIcon(AppIcons.closeRounded),
                 semanticLabel: t.t('common.delete'),
                 onPressed: () => onRemove(i),
               ),
@@ -357,7 +357,7 @@ class _PhonesSection extends StatelessWidget {
             child: TextButton.icon(
               key: const ValueKey('plan-phone-add'),
               onPressed: onAdd,
-              icon: const Icon(Icons.add_rounded),
+              icon: const AppIcon(AppIcons.addRounded),
               label: Text(t.t('plans.phones.add')),
             ),
           ),
@@ -458,7 +458,7 @@ class _ActivePlansState extends State<ActivePlans> {
     final teamButton = AppButton(
       key: const ValueKey('team-row'),
       label: t.t('plans.team'),
-      icon: Icons.groups_2_outlined,
+      icon: AppIcons.groups2Outlined,
       variant: AppButtonVariant.secondary,
       onPressed: widget.onTeam,
     );
@@ -496,7 +496,7 @@ class _ActivePlansState extends State<ActivePlans> {
                         label: t.t('plans.seats.saveCta', {
                           'price': _price(_p.monthlyTotal(seats)),
                         }),
-                        icon: Icons.check_rounded,
+                        icon: AppIcons.checkRounded,
                         isLoading: _saving,
                         onPressed: () => _save(seats),
                       ),
@@ -509,7 +509,7 @@ class _ActivePlansState extends State<ActivePlans> {
         const SizedBox(height: AppSpacing.md),
         PlanTierCard(
           key: const ValueKey('plan-yearly'),
-          icon: Icons.diamond_outlined,
+          icon: AppIcons.diamondOutlined,
           title: t.t('plans.yearly'),
           price: _price(_p.yearlyCents),
           period: t.t('plans.perYear'),
@@ -526,7 +526,7 @@ class _ActivePlansState extends State<ActivePlans> {
                   : AppButton(
                       key: const ValueKey('prime-switch'),
                       label: t.t('prime.cta'),
-                      icon: Icons.diamond_outlined,
+                      icon: AppIcons.diamondOutlined,
                       isLoading: widget.primeBusy,
                       onPressed: widget.onSwitchToPrime,
                     ),

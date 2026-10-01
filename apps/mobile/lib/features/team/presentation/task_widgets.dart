@@ -6,25 +6,25 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 
 IconData taskKindIcon(TaskKind k) => switch (k) {
-      TaskKind.call => Icons.call_outlined,
-      TaskKind.meeting => Icons.groups_outlined,
-      TaskKind.court => Icons.gavel_rounded,
-      TaskKind.deadline => Icons.timer_outlined,
-      TaskKind.documents => Icons.description_outlined,
-      TaskKind.print => Icons.print_outlined,
-      TaskKind.visit => Icons.directions_car_outlined,
-      TaskKind.other => Icons.push_pin_outlined,
-      TaskKind.consultation => Icons.support_agent_outlined,
-      TaskKind.hearingPrep => Icons.menu_book_outlined,
-      TaskKind.deposition => Icons.record_voice_over_outlined,
-      TaskKind.mediation => Icons.handshake_outlined,
-      TaskKind.filing => Icons.upload_file_outlined,
-      TaskKind.review => Icons.plagiarism_outlined,
-      TaskKind.email => Icons.mail_outline_rounded,
-      TaskKind.sign => Icons.draw_outlined,
-      TaskKind.payment => Icons.payments_outlined,
-      TaskKind.research => Icons.travel_explore_outlined,
-      TaskKind.jailVisit => Icons.account_balance_outlined,
+      TaskKind.call => AppIcons.callOutlined,
+      TaskKind.meeting => AppIcons.groupsOutlined,
+      TaskKind.court => AppIcons.gavelRounded,
+      TaskKind.deadline => AppIcons.timerOutlined,
+      TaskKind.documents => AppIcons.descriptionOutlined,
+      TaskKind.print => AppIcons.printOutlined,
+      TaskKind.visit => AppIcons.directionsCarOutlined,
+      TaskKind.other => AppIcons.pushPinOutlined,
+      TaskKind.consultation => AppIcons.supportAgentOutlined,
+      TaskKind.hearingPrep => AppIcons.menuBookOutlined,
+      TaskKind.deposition => AppIcons.recordVoiceOverOutlined,
+      TaskKind.mediation => AppIcons.handshakeOutlined,
+      TaskKind.filing => AppIcons.uploadFileOutlined,
+      TaskKind.review => AppIcons.plagiarismOutlined,
+      TaskKind.email => AppIcons.mailOutlineRounded,
+      TaskKind.sign => AppIcons.drawOutlined,
+      TaskKind.payment => AppIcons.paymentsOutlined,
+      TaskKind.research => AppIcons.travelExploreOutlined,
+      TaskKind.jailVisit => AppIcons.accountBalanceOutlined,
     };
 
 String taskKindLabel(Translator t, TaskKind k) => t.t('tasks.kind.${k.wire}');
@@ -128,7 +128,7 @@ class TaskRow extends StatelessWidget {
           padding: const EdgeInsets.only(top: 6),
           child: Row(
             children: [
-              Icon(icon, size: 15, color: colors.goldDark),
+              AppIcon(icon, size: 15, color: colors.goldDark),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -281,14 +281,14 @@ class TaskRow extends StatelessWidget {
                       ),
                   ] else ...[
                     if (task.location?.isNotEmpty ?? false)
-                      line(Icons.place_outlined, task.location!),
+                      line(AppIcons.placeOutlined, task.location!),
                     if (contact.isNotEmpty)
-                      line(Icons.person_outline_rounded, contact),
+                      line(AppIcons.personOutlineRounded, contact),
                     if (task.contactEmail?.isNotEmpty ?? false)
-                      line(Icons.mail_outline_rounded, task.contactEmail!),
+                      line(AppIcons.mailOutlineRounded, task.contactEmail!),
                   ],
                   if (task.caseTitle?.isNotEmpty ?? false)
-                    line(Icons.work_outline_rounded, task.caseTitle!),
+                    line(AppIcons.workOutlineRounded, task.caseTitle!),
                   if (task.outcomeNote?.isNotEmpty ?? false) ...[
                     const SizedBox(height: AppSpacing.sm),
                     Container(
@@ -318,10 +318,10 @@ class TaskRow extends StatelessWidget {
                   const SizedBox(height: AppSpacing.sm),
                   Row(
                     children: [
-                      Icon(
+                      AppIcon(
                         task.createdByName == null
-                            ? Icons.person_outline_rounded
-                            : Icons.support_agent_rounded,
+                            ? AppIcons.personOutlineRounded
+                            : AppIcons.supportAgentRounded,
                         size: 14,
                         color: colors.textSecondary,
                       ),
@@ -338,7 +338,7 @@ class TaskRow extends StatelessWidget {
                         ),
                       ),
                       if (task.files.isNotEmpty) ...[
-                        Icon(Icons.attach_file_rounded,
+                        AppIcon(AppIcons.attachFileRounded,
                             size: 14, color: colors.textSecondary),
                         Text(
                           '${task.files.length}',
@@ -383,7 +383,7 @@ class TaskKindMedallion extends StatelessWidget {
         borderRadius: BorderRadius.circular(size * 0.3),
         border: Border.all(color: colors.gold.withValues(alpha: 0.55)),
       ),
-      child: Icon(taskKindIcon(kind), size: size * 0.5, color: colors.gold),
+      child: AppIcon(taskKindIcon(kind), size: size * 0.5, color: colors.gold),
     );
   }
 }
@@ -603,10 +603,10 @@ class TaskStepCheck extends StatelessWidget {
         duration: dur,
         transitionBuilder: (c, a) => ScaleTransition(scale: a, child: c),
         child: done
-            ? const Icon(Icons.check_rounded,
+            ? const AppIcon(AppIcons.checkRounded,
                 key: ValueKey('d'), size: 16, color: AppColorsLight.navy)
             : notDone
-                ? Icon(Icons.close_rounded,
+                ? AppIcon(AppIcons.closeRounded,
                     key: const ValueKey('n'), size: 15, color: colors.surface)
                 : const SizedBox.shrink(key: ValueKey('o')),
       ),
@@ -664,19 +664,19 @@ class TaskMark extends StatelessWidget {
       TaskStatus.done => (
           colors.gold,
           colors.gold,
-          const Icon(Icons.check_rounded,
+          const AppIcon(AppIcons.checkRounded,
               key: ValueKey('done'), size: 16, color: AppColorsLight.navy),
         ),
       TaskStatus.notDone => (
           colors.text,
           colors.text,
-          Icon(Icons.close_rounded,
+          AppIcon(AppIcons.closeRounded,
               key: const ValueKey('not'), size: 15, color: colors.surface),
         ),
       TaskStatus.cancelled => (
           colors.textSecondary,
           Colors.transparent,
-          Icon(Icons.remove_rounded,
+          AppIcon(AppIcons.removeRounded,
               key: const ValueKey('x'), size: 15, color: colors.textSecondary),
         ),
       TaskStatus.taken => (

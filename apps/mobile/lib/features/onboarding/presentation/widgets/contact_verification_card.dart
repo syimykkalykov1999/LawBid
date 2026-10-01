@@ -99,7 +99,7 @@ class _ContactVerificationCardState
         label: t.t('onboarding.contacts.status.verified'),
         color: colors.success,
         background: colors.successTint,
-        icon: Icons.verified_rounded,
+        icon: AppIcons.verifiedRounded,
       );
     } else if (widget.requirement == ContactRequirement.required) {
       status = _StatusPill(
@@ -231,8 +231,8 @@ class _ContactVerificationCardState
             children: [
               AppIconMedallion(
                 icon: _isPhone
-                    ? Icons.phone_iphone_rounded
-                    : Icons.alternate_email_rounded,
+                    ? AppIcons.phoneIphoneRounded
+                    : AppIcons.alternateEmailRounded,
                 tone:
                     verified ? AppMedallionTone.success : AppMedallionTone.gold,
               ),
@@ -300,7 +300,7 @@ class _StatusPill extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (icon != null) ...[
-            Icon(icon, size: AppSpacing.lg, color: color),
+            AppIcon(icon, size: AppSpacing.lg, color: color),
             const SizedBox(width: AppSpacing.xs),
           ],
           Text(label, style: typography.caption.copyWith(color: color)),

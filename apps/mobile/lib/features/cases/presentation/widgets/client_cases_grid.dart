@@ -53,7 +53,7 @@ class ClientCasesGrid extends ConsumerWidget {
                       children: [
                         Row(
                           children: [
-                            Icon(Icons.lock_outline_rounded,
+                            AppIcon(AppIcons.lockOutlineRounded,
                                 size: AppSpacing.md + 2,
                                 color: colors.goldDark),
                             const Spacer(),

@@ -117,8 +117,8 @@ class _AttorneyCaseScreenState extends ConsumerState<AttorneyCaseScreen> {
           if (c != null)
             TopBarIcon(
               icon: saved
-                  ? Icons.bookmark_rounded
-                  : Icons.bookmark_border_rounded,
+                  ? AppIcons.bookmarkRounded
+                  : AppIcons.bookmarkBorderRounded,
               color: saved ? colors.gold : null,
               label: t.t(saved ? 'cases.saved.remove' : 'cases.saved.add'),
               onTap: () => _toggleSave(c),
@@ -146,12 +146,12 @@ class _AttorneyCaseScreenState extends ConsumerState<AttorneyCaseScreen> {
                 if (c.ownBidId == null)
                   AppButton(
                     label: t.t('cases.bidForm.cta'),
-                    icon: Icons.gavel_rounded,
+                    icon: AppIcons.gavelRounded,
                     onPressed: () => context.push(AppRoutes.placeBid(c.id)),
                   ),
                 AppButton(
                   label: t.t('cases.detail.messageClient'),
-                  icon: Icons.chat_bubble_outline_rounded,
+                  icon: AppIcons.chatBubbleOutlineRounded,
                   variant: AppButtonVariant.secondary,
                   isLoading: _messaging,
                   onPressed: () => _message(c),
@@ -227,7 +227,7 @@ class _Body extends ConsumerWidget {
           ),
         // OQ-034: questions and answers under the case.
         AppListRow(
-          icon: Icons.mode_comment_outlined,
+          icon: AppIcons.modeCommentOutlined,
           label: t.t('cases.comments.title'),
           flush: true,
           trailingText: c.commentCount > 0
@@ -240,21 +240,21 @@ class _Body extends ConsumerWidget {
           child: FactsCard(
             rows: [
               InfoRow(
-                icon: Icons.payments_outlined,
+                icon: AppIcons.paymentsOutlined,
                 label: t.t('cases.card.budget'),
                 value: CaseFormat.budget(t, formats, c.budget),
               ),
               InfoRow(
-                  icon: Icons.map_outlined,
+                  icon: AppIcons.mapOutlined,
                   label: t.t('cases.field.states'),
                   value: states),
               if (c.city != null && c.city!.trim().isNotEmpty)
                 InfoRow(
-                    icon: Icons.place_outlined,
+                    icon: AppIcons.placeOutlined,
                     label: t.t('cases.field.city'),
                     value: c.city!),
               InfoRow(
-                icon: Icons.insights_outlined,
+                icon: AppIcons.insightsOutlined,
                 label: t.t('cases.detail.activity'),
                 value: t.t('cases.detail.activityValue', {
                   'views': SocialFormat.count(formats, c.viewCount),
@@ -268,7 +268,7 @@ class _Body extends ConsumerWidget {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(Icons.lock_outline_rounded,
+            AppIcon(AppIcons.lockOutlineRounded,
                 size: AppSpacing.lg, color: colors.textSecondary),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
@@ -325,7 +325,7 @@ class _OwnBidCard extends ConsumerWidget {
                     style: typography.bodySmall.copyWith(
                         color: colors.goldDark, fontWeight: FontWeight.w600),
                   ),
-                  Icon(Icons.chevron_right_rounded,
+                  AppIcon(AppIcons.chevronRightRounded,
                       color: colors.goldDark, size: AppSizes.iconSm),
                 ],
               ),

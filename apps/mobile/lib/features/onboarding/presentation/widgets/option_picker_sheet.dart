@@ -165,7 +165,7 @@ class _OptionPickerSheetState extends ConsumerState<OptionPickerSheet> {
                 controller: _search,
                 hintText: widget.searchHint ?? t.t('common.search'),
                 semanticLabel: widget.searchHint ?? t.t('common.search'),
-                leading: Icon(Icons.search_rounded,
+                leading: AppIcon(AppIcons.searchRounded,
                     size: AppSizes.iconSm, color: colors.textSecondary),
                 onChanged: (v) => setState(() => _query = v),
               ),

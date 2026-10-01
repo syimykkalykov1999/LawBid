@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:lawbid/core/design_system/widgets/display/app_icon_medallion.dart';
 import 'package:lawbid/core/design_system/widgets/feedback/app_state_layout.dart';
+import 'package:lawbid/core/design_system/icons/app_icons.dart';
 
 /// Empty-state placeholder (file 01 §15; `.cursorrules` requires this on
 /// every screen alongside loading/error/offline/pagination). Gold-seal
@@ -12,7 +13,7 @@ class AppEmptyState extends StatelessWidget {
     required this.message,
     super.key,
     this.title,
-    this.icon = Icons.inbox_outlined,
+    this.icon = AppIcons.inboxOutlined,
     this.action,
     this.illustration,
   });
@@ -57,7 +58,7 @@ class AppOfflineState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AppStateLayout(
-      icon: Icons.wifi_off_rounded,
+      icon: AppIcons.wifiOffRounded,
       tone: AppMedallionTone.neutral,
       title: title,
       message: message,

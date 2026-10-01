@@ -155,7 +155,7 @@ class _StepEditorSheetState extends ConsumerState<StepEditorSheet> {
             hintText: hint,
             semanticLabel: hint,
             keyboardType: type,
-            leading: icon == null ? null : Icon(icon, size: 18),
+            leading: icon == null ? null : AppIcon(icon, size: 18),
           ),
         );
     return Padding(
@@ -195,10 +195,10 @@ class _StepEditorSheetState extends ConsumerState<StepEditorSheet> {
             ),
             const SizedBox(height: AppSpacing.md),
             field('step-title', _title, t.t('tasks.steps.titleHint'),
-                icon: Icons.short_text_rounded),
+                icon: AppIcons.shortTextRounded),
             AppListRow(
               key: const ValueKey('step-when'),
-              icon: Icons.schedule_rounded,
+              icon: AppIcons.scheduleRounded,
               label: _at == null
                   ? t.t('tasks.steps.pickTime')
                   : formats.dateTime(_at!),
@@ -210,14 +210,14 @@ class _StepEditorSheetState extends ConsumerState<StepEditorSheet> {
             ),
             const SizedBox(height: AppSpacing.sm),
             field('step-place', _place, t.t('tasks.steps.placeHint'),
-                icon: Icons.place_outlined),
+                icon: AppIcons.placeOutlined),
             field('step-name', _name, t.t('tasks.steps.whoHint'),
-                icon: Icons.person_outline_rounded),
+                icon: AppIcons.personOutlineRounded),
             field('step-phone', _phone, '+1 312 555 0123',
-                type: TextInputType.phone, icon: Icons.call_outlined),
+                type: TextInputType.phone, icon: AppIcons.callOutlined),
             field('step-email', _email, 'name@example.com',
                 type: TextInputType.emailAddress,
-                icon: Icons.mail_outline_rounded),
+                icon: AppIcons.mailOutlineRounded),
             if (_error != null)
               Padding(
                 padding: const EdgeInsets.only(bottom: AppSpacing.sm),
@@ -231,7 +231,7 @@ class _StepEditorSheetState extends ConsumerState<StepEditorSheet> {
             AppButton(
               key: const ValueKey('step-save'),
               label: t.t('tasks.steps.add'),
-              icon: Icons.add_rounded,
+              icon: AppIcons.addRounded,
               onPressed: _save,
             ),
           ],
@@ -337,8 +337,8 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
               AppListRow(
                 key: const ValueKey('step-act-done'),
                 icon: step.status == TaskStatus.done
-                    ? Icons.undo_rounded
-                    : Icons.check_rounded,
+                    ? AppIcons.undoRounded
+                    : AppIcons.checkRounded,
                 label: step.status == TaskStatus.done
                     ? t.t('tasks.steps.reopen')
                     : t.t('tasks.done'),
@@ -347,7 +347,7 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
               if (step.status != TaskStatus.notDone)
                 AppListRow(
                   key: const ValueKey('step-act-not'),
-                  icon: Icons.close_rounded,
+                  icon: AppIcons.closeRounded,
                   label: t.t('tasks.notDone'),
                   onTap: () => Navigator.of(ctx).pop('not'),
                 ),
@@ -355,32 +355,32 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
             if (canPlan && active && !step.checked)
               AppListRow(
                 key: const ValueKey('step-act-move'),
-                icon: Icons.schedule_rounded,
+                icon: AppIcons.scheduleRounded,
                 label: t.t('tasks.steps.move'),
                 onTap: () => Navigator.of(ctx).pop('move'),
               ),
             if (step.contactPhone?.isNotEmpty ?? false)
               AppListRow(
-                icon: Icons.call_outlined,
+                icon: AppIcons.callOutlined,
                 label: '${t.t('tasks.call')} · ${step.contactPhone}',
                 onTap: () => Navigator.of(ctx).pop('call'),
               ),
             if (step.contactEmail?.isNotEmpty ?? false)
               AppListRow(
-                icon: Icons.mail_outline_rounded,
+                icon: AppIcons.mailOutlineRounded,
                 label: '${t.t('tasks.write')} · ${step.contactEmail}',
                 onTap: () => Navigator.of(ctx).pop('mail'),
               ),
             if (step.location?.isNotEmpty ?? false)
               AppListRow(
-                icon: Icons.map_outlined,
+                icon: AppIcons.mapOutlined,
                 label: t.t('tasks.map'),
                 onTap: () => Navigator.of(ctx).pop('map'),
               ),
             if (canPlan && active)
               AppListRow(
                 key: const ValueKey('step-act-remove'),
-                icon: Icons.delete_outline_rounded,
+                icon: AppIcons.deleteOutlineRounded,
                 label: t.t('tasks.steps.remove'),
                 onTap: () => Navigator.of(ctx).pop('remove'),
               ),
@@ -536,13 +536,13 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
           const SizedBox(height: AppSpacing.lg),
           if (task.dueAt != null)
             _InfoRow(
-              icon: Icons.event_outlined,
+              icon: AppIcons.eventOutlined,
               text: formats.dateTime(task.dueAt!),
               danger: task.isOverdue(DateTime.now()),
             ),
           if (task.location?.isNotEmpty ?? false)
             _InfoRow(
-              icon: Icons.place_outlined,
+              icon: AppIcons.placeOutlined,
               text: task.location!,
               action: t.t('tasks.map'),
               onAction: () => launchUrl(
@@ -553,7 +553,7 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
           if ((task.contactName?.isNotEmpty ?? false) ||
               (task.contactPhone?.isNotEmpty ?? false))
             _InfoRow(
-              icon: Icons.person_outline_rounded,
+              icon: AppIcons.personOutlineRounded,
               text: [task.contactName, task.contactPhone]
                   .whereType<String>()
                   .where((s) => s.isNotEmpty)
@@ -567,7 +567,7 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
             ),
           if (task.contactEmail?.isNotEmpty ?? false)
             _InfoRow(
-              icon: Icons.mail_outline_rounded,
+              icon: AppIcons.mailOutlineRounded,
               text: task.contactEmail!,
               action: t.t('tasks.write'),
               onAction: () => launchUrl(
@@ -579,7 +579,7 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
               ),
             ),
           if (task.caseTitle?.isNotEmpty ?? false)
-            _InfoRow(icon: Icons.work_outline_rounded, text: task.caseTitle!),
+            _InfoRow(icon: AppIcons.workOutlineRounded, text: task.caseTitle!),
           if (task.notes?.isNotEmpty ?? false) ...[
             const SizedBox(height: AppSpacing.sm),
             Text(
@@ -606,7 +606,7 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
                   TextButton.icon(
                     key: const ValueKey('task-step-add'),
                     onPressed: _addStep,
-                    icon: Icon(Icons.add_rounded,
+                    icon: AppIcon(AppIcons.addRounded,
                         size: 18, color: colors.goldDark),
                     label: Text(
                       t.t('tasks.steps.add'),
@@ -683,7 +683,7 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.chat_bubble_outline_rounded,
+                  AppIcon(AppIcons.chatBubbleOutlineRounded,
                       size: AppSizes.iconSm, color: colors.gold),
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
@@ -709,7 +709,7 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
               AppButton(
                 key: const ValueKey('task-take'),
                 label: t.t('tasks.take'),
-                icon: Icons.play_arrow_rounded,
+                icon: AppIcons.playArrowRounded,
                 variant: AppButtonVariant.secondary,
                 isLoading: _busy,
                 onPressed: () => _set(TaskStatus.taken),
@@ -719,7 +719,7 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
             AppButton(
               key: const ValueKey('task-done'),
               label: t.t('tasks.done'),
-              icon: Icons.check_rounded,
+              icon: AppIcons.checkRounded,
               isLoading: _busy,
               onPressed: () => _finish(true),
             ),
@@ -727,7 +727,7 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
             AppButton(
               key: const ValueKey('task-not-done'),
               label: t.t('tasks.notDone'),
-              icon: Icons.close_rounded,
+              icon: AppIcons.closeRounded,
               variant: AppButtonVariant.secondary,
               isLoading: _busy,
               onPressed: () => _finish(false),
@@ -745,7 +745,7 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
                     child: AppButton(
                       key: const ValueKey('task-edit'),
                       label: t.t('tasks.edit'),
-                      icon: Icons.edit_outlined,
+                      icon: AppIcons.editOutlined,
                       variant: AppButtonVariant.secondary,
                       onPressed: _busy
                           ? null
@@ -764,7 +764,7 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
                       child: AppButton(
                         key: const ValueKey('task-delete'),
                         label: t.t('tasks.delete'),
-                        icon: Icons.delete_outline_rounded,
+                        icon: AppIcons.deleteOutlineRounded,
                         variant: AppButtonVariant.secondary,
                         onPressed: _busy ? null : _delete,
                       ),
@@ -778,7 +778,7 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
             AppButton(
               key: const ValueKey('task-reopen'),
               label: t.t('tasks.reopen'),
-              icon: Icons.undo_rounded,
+              icon: AppIcons.undoRounded,
               variant: AppButtonVariant.secondary,
               isLoading: _busy,
               onPressed: () => _set(TaskStatus.open),
@@ -824,7 +824,7 @@ class _InfoRow extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: AppSpacing.sm),
       child: Row(
         children: [
-          Icon(icon,
+          AppIcon(icon,
               size: AppSizes.iconSm,
               color: danger ? colors.dangerText : colors.textSecondary),
           const SizedBox(width: AppSpacing.sm),
@@ -869,7 +869,7 @@ class _FileTile extends StatelessWidget {
               : Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.description_outlined, color: colors.gold),
+                    AppIcon(AppIcons.descriptionOutlined, color: colors.gold),
                     const SizedBox(height: 4),
                     Text('#$index',
                         style: TextStyle(color: colors.textSecondary)),
@@ -942,7 +942,7 @@ class _OutcomeSheetState extends ConsumerState<_OutcomeSheet> {
             const SizedBox(height: AppSpacing.sm),
             AppListRow(
               key: const ValueKey('task-reschedule'),
-              icon: Icons.event_repeat_rounded,
+              icon: AppIcons.eventRepeatRounded,
               label: t.t('tasks.reschedule'),
               subtitle: _move == null ? null : formats.dateTime(_move!),
               flush: true,

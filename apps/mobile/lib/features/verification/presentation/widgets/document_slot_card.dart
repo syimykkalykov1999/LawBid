@@ -83,7 +83,7 @@ class DocumentSlotCard extends StatelessWidget {
           Row(
             children: [
               AppIconMedallion(
-                icon: done ? Icons.check_rounded : icon,
+                icon: done ? AppIcons.checkRounded : icon,
                 tone: blocked
                     ? AppMedallionTone.danger
                     : done
@@ -184,7 +184,7 @@ class _DropZone extends StatelessWidget {
                   AppChip(
                     label: a.label,
                     height: AppSizes.touchTarget,
-                    leading: Icon(a.icon,
+                    leading: AppIcon(a.icon,
                         size: AppSizes.iconSm, color: colors.goldDark),
                     onTap: a.onTap,
                   ),
@@ -253,7 +253,7 @@ class _AttachedRow extends StatelessWidget {
         padding: const EdgeInsets.only(top: AppSpacing.md),
         child: Row(
           children: [
-            Icon(Icons.verified_rounded,
+            AppIcon(AppIcons.verifiedRounded,
                 size: AppSizes.iconSm, color: colors.success),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
@@ -266,7 +266,7 @@ class _AttachedRow extends StatelessWidget {
               AppIconButton(
                 semanticLabel: t.t('verification.upload.remove'),
                 onPressed: onRemove,
-                icon: Icon(Icons.delete_outline_rounded,
+                icon: AppIcon(AppIcons.deleteOutlineRounded,
                     color: colors.textSecondary),
               ),
           ],
@@ -317,14 +317,14 @@ class _TaskRow extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(
+                AppIcon(
                   infected
-                      ? Icons.gpp_bad_outlined
+                      ? AppIcons.gppBadOutlined
                       : failed
-                          ? Icons.error_outline_rounded
+                          ? AppIcons.errorOutlineRounded
                           : task.document.isPdf
-                              ? Icons.picture_as_pdf_outlined
-                              : Icons.image_outlined,
+                              ? AppIcons.pictureAsPdfOutlined
+                              : AppIcons.imageOutlined,
                   size: AppSizes.iconSm,
                   color:
                       infected || failed ? colors.dangerText : colors.goldDark,
@@ -358,17 +358,17 @@ class _TaskRow extends StatelessWidget {
                   AppIconButton(
                     semanticLabel: t.t('verification.upload.retry'),
                     onPressed: onRetry,
-                    icon: Icon(Icons.refresh_rounded, color: colors.goldDark),
+                    icon: AppIcon(AppIcons.refreshRounded, color: colors.goldDark),
                   ),
                 AppIconButton(
                   semanticLabel: task.isActive
                       ? t.t('verification.upload.cancel')
                       : t.t('verification.upload.remove'),
                   onPressed: onCancel,
-                  icon: Icon(
+                  icon: AppIcon(
                     task.isActive
-                        ? Icons.close_rounded
-                        : Icons.delete_outline_rounded,
+                        ? AppIcons.closeRounded
+                        : AppIcons.deleteOutlineRounded,
                     color: colors.textSecondary,
                   ),
                 ),

@@ -35,7 +35,7 @@ class BlockedUsersScreen extends ConsumerWidget {
         onRetry: () => ref.invalidate(blockedUsersProvider),
         builder: (users) => users.isEmpty
             ? AppEmptyState(
-                icon: Icons.block_flipped,
+                icon: AppIcons.blockFlipped,
                 message: t.t('blocked.empty'),
               )
             : ListView.builder(

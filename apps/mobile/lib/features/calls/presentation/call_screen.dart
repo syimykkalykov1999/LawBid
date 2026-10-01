@@ -89,7 +89,7 @@ class _CallScreenState extends ConsumerState<CallScreen>
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.lock_outline_rounded,
+                      AppIcon(AppIcons.lockOutlineRounded,
                           size: 14, color: colors.goldLight),
                       const SizedBox(width: AppSpacing.xs),
                       Text(
@@ -154,13 +154,13 @@ class _CallScreenState extends ConsumerState<CallScreen>
                             mainAxisAlignment: MainAxisAlignment.spaceAround,
                             children: [
                               _RoundButton(
-                                icon: Icons.call_end_rounded,
+                                icon: AppIcons.callEndRounded,
                                 label: t.t('call.decline'),
                                 color: colors.danger,
                                 onTap: c.decline,
                               ),
                               _RoundButton(
-                                icon: Icons.call_rounded,
+                                icon: AppIcons.callRounded,
                                 label: t.t('call.accept'),
                                 color: colors.success,
                                 onTap: c.accept,
@@ -172,8 +172,8 @@ class _CallScreenState extends ConsumerState<CallScreen>
                             children: [
                               _RoundButton(
                                 icon: s.muted
-                                    ? Icons.mic_off_rounded
-                                    : Icons.mic_rounded,
+                                    ? AppIcons.micOffRounded
+                                    : AppIcons.micRounded,
                                 label: t.t('call.mute'),
                                 color: Colors.white
                                     .withValues(alpha: s.muted ? 0.9 : 0.14),
@@ -182,13 +182,13 @@ class _CallScreenState extends ConsumerState<CallScreen>
                                 onTap: s.busy ? c.toggleMute : null,
                               ),
                               _RoundButton(
-                                icon: Icons.call_end_rounded,
+                                icon: AppIcons.callEndRounded,
                                 label: t.t('call.end'),
                                 color: colors.danger,
                                 onTap: s.busy ? c.hangUp : null,
                               ),
                               _RoundButton(
-                                icon: Icons.volume_up_rounded,
+                                icon: AppIcons.volumeUpRounded,
                                 label: t.t('call.speaker'),
                                 color: Colors.white
                                     .withValues(alpha: s.speaker ? 0.9 : 0.14),
@@ -360,7 +360,7 @@ class _RoundButton extends StatelessWidget {
               width: 72,
               height: 72,
               decoration: BoxDecoration(shape: BoxShape.circle, color: color),
-              child: Icon(icon, color: iconColor, size: 32),
+              child: AppIcon(icon, color: iconColor, size: 32),
             ),
           ),
           const SizedBox(height: AppSpacing.sm),

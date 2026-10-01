@@ -1,5 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:lawbid/core/design_system/icons/app_icon.dart';
+import 'package:lawbid/core/design_system/icons/app_icons.dart';
 
 /// Owner 2026-09-30: full-screen photos — swipe between them, pinch to
 /// zoom, a counter and a close button. Used by posts and case photos.
@@ -64,8 +66,8 @@ class _GalleryState extends State<_Gallery> {
                 child: CachedNetworkImage(
                   imageUrl: widget.urls[i],
                   fit: BoxFit.contain,
-                  errorWidget: (_, __, ___) => const Icon(
-                    Icons.image_not_supported_outlined,
+                  errorWidget: (_, __, ___) => const AppIcon(
+                    AppIcons.imageNotSupportedOutlined,
                     color: Colors.white54,
                   ),
                 ),
@@ -79,7 +81,7 @@ class _GalleryState extends State<_Gallery> {
                 children: [
                   IconButton(
                     tooltip: widget.closeLabel,
-                    icon: const Icon(Icons.close_rounded, color: Colors.white),
+                    icon: const AppIcon(AppIcons.closeRounded, color: Colors.white),
                     onPressed: () => Navigator.of(context).pop(),
                   ),
                   const Spacer(),

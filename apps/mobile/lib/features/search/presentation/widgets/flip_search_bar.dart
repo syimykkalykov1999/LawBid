@@ -164,8 +164,8 @@ class _FlipSearchBarState extends State<FlipSearchBar> {
                 AnimatedRotation(
                   turns: focused ? -0.06 : 0,
                   duration: d,
-                  child: Icon(
-                    Icons.search_rounded,
+                  child: AppIcon(
+                    AppIcons.searchRounded,
                     color: focused ? colors.goldDark : colors.textSecondary,
                   ),
                 ),
@@ -230,8 +230,8 @@ class _FlipSearchBarState extends State<FlipSearchBar> {
                 duration: d,
                 curve: Curves.easeOutBack,
                 child: AppIconButton(
-                  icon: Icon(
-                    Icons.cancel_rounded,
+                  icon: AppIcon(
+                    AppIcons.cancelRounded,
                     color: colors.textSecondary,
                     size: 20,
                   ),

@@ -194,7 +194,7 @@ class _AddLicenseSheetState extends ConsumerState<AddLicenseSheet> {
                 const SizedBox(height: AppSpacing.md),
                 InlineNotice(
                   tone: NoticeTone.danger,
-                  icon: Icons.error_outline_rounded,
+                  icon: AppIcons.errorOutlineRounded,
                   message: _serverError!,
                 ),
               ],

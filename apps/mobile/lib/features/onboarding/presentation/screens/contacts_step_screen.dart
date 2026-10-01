@@ -91,8 +91,8 @@ class _ContactsStepScreenState extends ConsumerState<ContactsStepScreen> {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(
-              Icons.lock_outline_rounded,
+            AppIcon(
+              AppIcons.lockOutlineRounded,
               size: AppSizes.iconSm,
               color:
                   Theme.of(context).extension<AppColorTokens>()!.textSecondary,

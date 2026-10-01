@@ -74,7 +74,7 @@ class AttorneyProfileEditScreen extends ConsumerWidget {
                 message: t.t('offline.message'),
                 action: AppButton(
                   label: t.t('error.retry'),
-                  icon: Icons.refresh_rounded,
+                  icon: AppIcons.refreshRounded,
                   variant: AppButtonVariant.secondary,
                   height: AppSizes.touchTarget,
                   onPressed: retry,
@@ -355,7 +355,7 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
                   AppChip(
                     label: f,
                     trailing:
-                        const Icon(Icons.close_rounded, size: AppSizes.iconSm),
+                        const AppIcon(AppIcons.closeRounded, size: AppSizes.iconSm),
                     onTap: () =>
                         setState(() => _firms = [..._firms]..remove(f)),
                   ),
@@ -401,7 +401,7 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
                   padding: const EdgeInsets.only(top: 4),
                   child: AppIconButton(
                     plain: false,
-                    icon: const Icon(Icons.add_rounded),
+                    icon: const AppIcon(AppIcons.addRounded),
                     semanticLabel: t.t('profile.edit.firms.add'),
                     onPressed: _addFirm,
                   ),
@@ -439,7 +439,7 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
         title: t.t('profile.edit.section.practice'),
         children: [
           AppListRow(
-            icon: Icons.gavel_rounded,
+            icon: AppIcons.gavelRounded,
             label: t.t('practices.title'),
             onTap: () => context.push(AppRoutes.practices),
           ),
@@ -494,7 +494,7 @@ class _Licenses extends StatelessWidget {
       title: t.t('profile.edit.section.licenses'),
       children: [
         AppListRow(
-          icon: Icons.add_location_alt_outlined,
+          icon: AppIcons.addLocationAltOutlined,
           label: t.t('profile.edit.addState'),
           onTap: onAddState,
         ),
@@ -504,7 +504,7 @@ class _Licenses extends StatelessWidget {
                 horizontal: AppSpacing.lg, vertical: AppSpacing.md),
             child: Row(
               children: [
-                Icon(Icons.account_balance_outlined,
+                AppIcon(AppIcons.accountBalanceOutlined,
                     size: AppSizes.iconSm, color: colors.goldStroke),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(

@@ -53,7 +53,7 @@ class ProfileScreen extends ConsumerWidget {
       body = const ClientProfileView();
     } else {
       body = AppEmptyState(
-        icon: Icons.person_outline_rounded,
+        icon: AppIcons.personOutlineRounded,
         message: t.t('empty.default.message'),
       );
     }
@@ -85,7 +85,7 @@ class ProfileScreen extends ConsumerWidget {
               onTap: () => context.push(AppRoutes.profileSettings),
               child: SizedBox.square(
                 dimension: AppSizes.touchTarget,
-                child: Icon(Icons.settings_outlined,
+                child: AppIcon(AppIcons.settingsOutlined,
                     color: colors.text, size: AppSizes.iconMd),
               ),
             ),

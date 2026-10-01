@@ -140,7 +140,7 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
                     )
                   : items.isEmpty
                       ? AppEmptyState(
-                          icon: Icons.work_outline_rounded,
+                          icon: AppIcons.workOutlineRounded,
                           message: t.t(attorney
                               ? 'mine.work.empty'
                               : 'tasks.casesEmpty'),
@@ -151,14 +151,14 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
                             if (_case != null)
                               AppListRow(
                                 key: const ValueKey('task-case-clear'),
-                                icon: Icons.link_off_rounded,
+                                icon: AppIcons.linkOffRounded,
                                 label: t.t('tasks.field.caseNone'),
                                 onTap: () =>
                                     Navigator.of(ctx).pop((id: '', title: '')),
                               ),
                             for (final w in items)
                               AppListRow(
-                                icon: Icons.work_outline_rounded,
+                                icon: AppIcons.workOutlineRounded,
                                 label: w.title,
                                 selected: _case?.id == w.id,
                                 onTap: () => Navigator.of(ctx).pop(w),
@@ -251,7 +251,7 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
         padding: EdgeInsets.zero,
         child: AppListRow(
           key: const ValueKey('task-when'),
-          icon: Icons.event_outlined,
+          icon: AppIcons.eventOutlined,
           label:
               _due == null ? t.t('tasks.field.date') : formats.dateTime(_due!),
           trailingText: _due == null ? null : '✕',
@@ -271,7 +271,7 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
           key: const ValueKey('task-location'),
           controller: _location,
           label: k(f.where!),
-          leading: const Icon(Icons.place_outlined),
+          leading: const AppIcon(AppIcons.placeOutlined),
           maxLength: 300,
         ),
       ],
@@ -281,7 +281,7 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
           key: const ValueKey('task-contact-name'),
           controller: _contactName,
           label: k(f.contact!),
-          leading: const Icon(Icons.person_outline_rounded),
+          leading: const AppIcon(AppIcons.personOutlineRounded),
           textCapitalization: TextCapitalization.words,
           maxLength: 120,
         ),
@@ -292,7 +292,7 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
           key: const ValueKey('task-contact-phone'),
           controller: _contactPhone,
           label: t.t('tasks.field.contactPhone'),
-          leading: const Icon(Icons.phone_outlined),
+          leading: const AppIcon(AppIcons.phoneOutlined),
           keyboardType: TextInputType.phone,
           inputFormatters: [
             FilteringTextInputFormatter.allow(RegExp(r'[+0-9 ()\-]')),
@@ -306,7 +306,7 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
           key: const ValueKey('task-contact-email'),
           controller: _contactEmail,
           label: k('email'),
-          leading: const Icon(Icons.mail_outline_rounded),
+          leading: const AppIcon(AppIcons.mailOutlineRounded),
           keyboardType: TextInputType.emailAddress,
           errorText: emailBad ? t.t('tasks.emailInvalid') : null,
           maxLength: 254,
@@ -318,7 +318,7 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
           padding: EdgeInsets.zero,
           child: AppListRow(
             key: const ValueKey('task-case'),
-            icon: Icons.work_outline_rounded,
+            icon: AppIcons.workOutlineRounded,
             label: _case?.title ?? t.t('tasks.field.casePick'),
             subtitle: _case == null ? null : t.t('tasks.field.case'),
             onTap: _pickCase,
@@ -408,7 +408,7 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
                     final d = await showStepEditor(context, taskKind: _kind);
                     if (d != null && mounted) setState(() => _steps.add(d));
                   },
-                  icon: Icon(Icons.add_rounded, color: colors.goldDark),
+                  icon: AppIcon(AppIcons.addRounded, color: colors.goldDark),
                   label: Text(
                     t.t('tasks.steps.add'),
                     style: TextStyle(color: colors.goldDark),
@@ -445,7 +445,7 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
                             index: i,
                             child: Padding(
                               padding: const EdgeInsets.all(AppSpacing.xs),
-                              child: Icon(Icons.drag_indicator_rounded,
+                              child: AppIcon(AppIcons.dragIndicatorRounded,
                                   size: 20, color: colors.textSecondary),
                             ),
                           ),
@@ -467,7 +467,7 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
                             ),
                           ),
                           AppIconButton(
-                            icon: const Icon(Icons.close_rounded),
+                            icon: const AppIcon(AppIcons.closeRounded),
                             semanticLabel: t.t('common.delete'),
                             onPressed: () => setState(() => _steps.removeAt(i)),
                           ),
@@ -486,12 +486,12 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
                 padding: const EdgeInsets.only(bottom: AppSpacing.xs),
                 child: Row(
                   children: [
-                    Icon(
+                    AppIcon(
                       f.failed
-                          ? Icons.error_outline_rounded
+                          ? AppIcons.errorOutlineRounded
                           : f.fileId == null
-                              ? Icons.cloud_upload_outlined
-                              : Icons.check_circle_outline_rounded,
+                              ? AppIcons.cloudUploadOutlined
+                              : AppIcons.checkCircleOutlineRounded,
                       size: AppSizes.iconSm,
                       color: f.failed
                           ? colors.dangerText
@@ -516,7 +516,7 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
                       )
                     else
                       AppIconButton(
-                        icon: const Icon(Icons.close_rounded),
+                        icon: const AppIcon(AppIcons.closeRounded),
                         semanticLabel: t.t('common.delete'),
                         onPressed: () => setState(() => _files.removeAt(i)),
                       ),
@@ -528,7 +528,7 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
               child: TextButton.icon(
                 key: const ValueKey('task-attach'),
                 onPressed: _attach,
-                icon: const Icon(Icons.attach_file_rounded),
+                icon: const AppIcon(AppIcons.attachFileRounded),
                 label: Text(t.t('tasks.field.attach')),
               ),
             ),
@@ -537,7 +537,7 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
           AppButton(
             key: const ValueKey('task-save'),
             label: t.t('tasks.save'),
-            icon: Icons.check_rounded,
+            icon: AppIcons.checkRounded,
             isLoading: _saving || _uploading > 0,
             onPressed: _save,
           ),
@@ -587,7 +587,7 @@ class _KindTile extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, color: selected ? colors.gold : colors.textSecondary),
+              AppIcon(icon, color: selected ? colors.gold : colors.textSecondary),
               const SizedBox(height: 6),
               Text(
                 label,

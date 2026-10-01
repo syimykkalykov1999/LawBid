@@ -177,7 +177,7 @@ class _WarningStep extends ConsumerWidget {
     return _StepLayout(
       content: [
         const AppIconMedallion(
-          icon: Icons.warning_amber_rounded,
+          icon: AppIcons.warningAmberRounded,
           tone: AppMedallionTone.danger,
           size: AppSizes.stateMedallion,
           iconSize: AppSizes.stateIcon,
@@ -255,7 +255,7 @@ class _ReauthPhoneStep extends ConsumerWidget {
           AppButton(
             label: t.t('deleteAccount.reauth.biometric.button'),
             variant: AppButtonVariant.secondary,
-            icon: Icons.fingerprint,
+            icon: AppIcons.fingerprint,
             onPressed: useBiometric,
           ),
           const SizedBox(height: AppSpacing.md),
@@ -389,7 +389,7 @@ class _ConfirmPhraseStep extends ConsumerWidget {
       ],
       action: AppButton(
         label: t.t('deleteAccount.submit'),
-        icon: Icons.delete_forever_rounded,
+        icon: AppIcons.deleteForeverRounded,
         variant: AppButtonVariant.danger,
         isLoading: state.isSubmitting,
         isEnabled: matches && !state.isSubmitting,
@@ -423,7 +423,7 @@ class _DoneStep extends StatelessWidget {
     return _StepLayout(
       content: [
         const AppIconMedallion(
-          icon: Icons.check_rounded,
+          icon: AppIcons.checkRounded,
           tone: AppMedallionTone.success,
           size: AppSizes.stateMedallion,
           iconSize: AppSizes.stateIcon,

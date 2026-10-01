@@ -48,3 +48,8 @@ required — credited here as a courtesy).
 | `agriculture_and_gaming_law` | https://unsplash.com/photos/PoisoMav1Jg | Hannah Shedrow |
 | `legal_malpractice` | https://unsplash.com/photos/jKU2NneZAbI | Clarisse Meyer |
 | `general_practice` | https://unsplash.com/photos/iPheGw7_UaI | Vitaly Gariev |
+
+## Phosphor icons
+
+All app icons — Phosphor Icons (https://phosphoricons.com, package
+`phosphor_flutter`), MIT License © Phosphor Icons.

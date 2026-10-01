@@ -177,7 +177,7 @@ class _StatusDot extends StatelessWidget {
       ChecklistStatus.done => (
           colors.gold,
           colors.gold,
-          Icon(Icons.check_rounded, size: AppSizes.iconSm, color: colors.navy)
+          AppIcon(AppIcons.checkRounded, size: AppSizes.iconSm, color: colors.navy)
               as Widget,
         ),
       ChecklistStatus.next => (
@@ -190,7 +190,7 @@ class _StatusDot extends StatelessWidget {
       ChecklistStatus.locked => (
           colors.surface,
           colors.border,
-          Icon(Icons.lock_outline_rounded,
+          AppIcon(AppIcons.lockOutlineRounded,
               size: AppSpacing.lg, color: colors.textSecondary) as Widget,
         ),
     };

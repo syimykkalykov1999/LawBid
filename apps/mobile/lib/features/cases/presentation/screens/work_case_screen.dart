@@ -197,13 +197,13 @@ class _WorkCaseScreenState extends ConsumerState<WorkCaseScreen> {
               if (pending) ...[
                 const SizedBox(height: AppSpacing.lg),
                 NoticeCard(
-                    icon: Icons.hourglass_top_rounded,
+                    icon: AppIcons.hourglassTopRounded,
                     message: t.t('cases.work.pendingNotice')),
               ],
               if (c.status == CaseStatus.disputed) ...[
                 const SizedBox(height: AppSpacing.lg),
                 NoticeCard(
-                  icon: Icons.policy_outlined,
+                  icon: AppIcons.policyOutlined,
                   tone: StatusTone.danger,
                   message: t.t('cases.work.disputedNotice'),
                 ),
@@ -254,7 +254,7 @@ class _WorkCaseScreenState extends ConsumerState<WorkCaseScreen> {
                 if (pending)
                   AppButton(
                     label: t.t('cases.work.confirm'),
-                    icon: Icons.task_alt_rounded,
+                    icon: AppIcons.taskAltRounded,
                     isLoading: _busy,
                     onPressed: _confirm,
                   ),
@@ -266,7 +266,7 @@ class _WorkCaseScreenState extends ConsumerState<WorkCaseScreen> {
                   ),
                 AppButton(
                   label: t.t('cases.issue.button'),
-                  icon: Icons.phone_disabled_outlined,
+                  icon: AppIcons.phoneDisabledOutlined,
                   variant: AppButtonVariant.secondary,
                   onPressed: _busy ? null : _cantReach,
                 ),
@@ -295,7 +295,7 @@ class _TermsLine extends ConsumerWidget {
           Expanded(
               child: MoneyText(
                   CaseFormat.terms(t, formats, bid.feeType, bid.amountCents))),
-          Icon(Icons.chevron_right_rounded,
+          AppIcon(AppIcons.chevronRightRounded,
               color:
                   Theme.of(context).extension<AppColorTokens>()!.textSecondary),
         ],
@@ -352,17 +352,17 @@ class _ContactsBlock extends ConsumerWidget {
               const SizedBox(height: AppSpacing.md),
               if (value.phone != null)
                 InfoRow(
-                    icon: Icons.call_outlined,
+                    icon: AppIcons.callOutlined,
                     label: t.t('cases.contacts.phone'),
                     value: value.phone!),
               if (value.email != null)
                 InfoRow(
-                    icon: Icons.alternate_email_rounded,
+                    icon: AppIcons.alternateEmailRounded,
                     label: t.t('cases.contacts.email'),
                     value: value.email!),
               if (value.contactMethod != null)
                 InfoRow(
-                  icon: Icons.star_outline_rounded,
+                  icon: AppIcons.starOutlineRounded,
                   label: t.t('cases.contacts.preferred'),
                   value:
                       t.t('cases.contacts.method.${value.contactMethod!.json}'),
@@ -370,7 +370,7 @@ class _ContactsBlock extends ConsumerWidget {
               if (value.contactNote != null &&
                   value.contactNote!.trim().isNotEmpty)
                 InfoRow(
-                    icon: Icons.schedule_rounded,
+                    icon: AppIcons.scheduleRounded,
                     label: t.t('cases.contacts.note'),
                     value: value.contactNote!),
               const SizedBox(height: AppSpacing.md),
@@ -378,21 +378,21 @@ class _ContactsBlock extends ConsumerWidget {
                 children: [
                   for (final (icon, key, uri) in [
                     (
-                      Icons.call_rounded,
+                      AppIcons.callRounded,
                       'cases.contacts.call',
                       value.phone == null
                           ? null
                           : Uri(scheme: 'tel', path: value.phone)
                     ),
                     (
-                      Icons.sms_outlined,
+                      AppIcons.smsOutlined,
                       'cases.contacts.sms',
                       value.phone == null
                           ? null
                           : Uri(scheme: 'sms', path: value.phone)
                     ),
                     (
-                      Icons.mail_outline_rounded,
+                      AppIcons.mailOutlineRounded,
                       'cases.contacts.mail',
                       value.email == null
                           ? null
@@ -410,7 +410,7 @@ class _ContactsBlock extends ConsumerWidget {
                   ],
                   Expanded(
                     child: _ContactAction(
-                      icon: Icons.chat_bubble_outline_rounded,
+                      icon: AppIcons.chatBubbleOutlineRounded,
                       label: t.t('cases.chat.open'),
                       onTap: onOpenChat,
                     ),
@@ -424,7 +424,7 @@ class _ContactsBlock extends ConsumerWidget {
           when error is ApiException &&
               error.code == ApiErrorCodes.subscriptionRequired =>
         NoticeCard(
-          icon: Icons.lock_outline_rounded,
+          icon: AppIcons.lockOutlineRounded,
           message: t.t('cases.contacts.locked'),
           action: AppButton(
             label: t.t('cases.subscription.cta'),
@@ -474,7 +474,7 @@ class _ContactAction extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(icon, color: colors.goldDark, size: AppSizes.iconSm),
+                AppIcon(icon, color: colors.goldDark, size: AppSizes.iconSm),
                 const SizedBox(height: AppSpacing.xs),
                 Text(
                   label,

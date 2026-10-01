@@ -28,7 +28,7 @@ class CasesErrorView extends StatelessWidget {
         message: t.t('offline.message'),
         action: AppButton(
           label: t.t('error.retry'),
-          icon: Icons.refresh_rounded,
+          icon: AppIcons.refreshRounded,
           variant: AppButtonVariant.secondary,
           height: AppSizes.touchTarget,
           onPressed: onRetry,

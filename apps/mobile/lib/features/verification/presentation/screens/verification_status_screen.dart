@@ -78,7 +78,7 @@ class VerificationStatusScreen extends ConsumerWidget {
                       message: t.t('offline.message'),
                       action: AppButton(
                         label: t.t('error.retry'),
-                        icon: Icons.refresh_rounded,
+                        icon: AppIcons.refreshRounded,
                         variant: AppButtonVariant.secondary,
                         height: AppSizes.touchTarget,
                         onPressed: controller.refresh,
@@ -129,30 +129,30 @@ class _StatusBody extends StatelessWidget {
       case VerificationView.start:
         children.addAll([
           _Hero(
-            badge: const _HeroBadge.gold(Icons.verified_user_outlined),
+            badge: const _HeroBadge.gold(AppIcons.verifiedUserOutlined),
             title: t.t('verification.status.start.title'),
             body: t.t('verification.status.start.body'),
           ),
           _NeedList(t: t, identity: overview.identityRequired),
           primary(t.t('verification.status.start.cta'),
-              icon: Icons.arrow_forward_rounded),
+              icon: AppIcons.arrowForwardRounded),
         ]);
       case VerificationView.draft:
         final parts = _draftParts(r!, overview.identityRequired);
         children.addAll([
           _Hero(
-            badge: const _HeroBadge.gold(Icons.edit_note_rounded),
+            badge: const _HeroBadge.gold(AppIcons.editNoteRounded),
             title: t.t('verification.status.draft.title'),
             body: t.t('verification.status.draft.body'),
           ),
           _DraftProgress(t: t, done: parts.$1, total: parts.$2),
           primary(t.t('verification.status.draft.cta'),
-              icon: Icons.arrow_forward_rounded),
+              icon: AppIcons.arrowForwardRounded),
         ]);
       case VerificationView.pending:
         children.addAll([
           _Hero(
-            badge: const _HeroBadge.gold(Icons.hourglass_top_rounded),
+            badge: const _HeroBadge.gold(AppIcons.hourglassTopRounded),
             title: t.t('verification.status.pending.title'),
             body: t.t('verification.status.pending.body'),
           ),
@@ -162,19 +162,19 @@ class _StatusBody extends StatelessWidget {
       case VerificationView.needsMoreInfo:
         children.addAll([
           _Hero(
-            badge: const _HeroBadge.warning(Icons.mark_email_unread_outlined),
+            badge: const _HeroBadge.warning(AppIcons.markEmailUnreadOutlined),
             title: t.t('verification.status.needsInfo.title'),
             body: t.t('verification.status.needsInfo.body'),
           ),
           InlineNotice(
             tone: NoticeTone.warning,
-            icon: Icons.format_quote_rounded,
+            icon: AppIcons.formatQuoteRounded,
             title: t.t('verification.needsInfo.messageTitle'),
             message: r!.infoRequestMessage ??
                 t.t('verification.needsInfo.noMessage'),
           ),
           primary(t.t('verification.status.needsInfo.cta'),
-              icon: Icons.upload_file_rounded),
+              icon: AppIcons.uploadFileRounded),
           _Licenses(t: t, licenses: r.licenses),
         ]);
       case VerificationView.rejected:
@@ -182,13 +182,13 @@ class _StatusBody extends StatelessWidget {
         final limit = overview.submissionLimitReached;
         children.addAll([
           _Hero(
-            badge: const _HeroBadge.danger(Icons.gpp_bad_outlined),
+            badge: const _HeroBadge.danger(AppIcons.gppBadOutlined),
             title: t.t('verification.status.rejected.title'),
             body: t.t('verification.status.rejected.body'),
           ),
           InlineNotice(
             tone: NoticeTone.danger,
-            icon: Icons.info_outline_rounded,
+            icon: AppIcons.infoOutlineRounded,
             title: t.t('verification.status.rejected.reason'),
             message: [
               if (code != null) rejectText(t, code),
@@ -199,7 +199,7 @@ class _StatusBody extends StatelessWidget {
           _Licenses(t: t, licenses: r.licenses),
           primary(
             t.t('verification.status.rejected.cta'),
-            icon: Icons.restart_alt_rounded,
+            icon: AppIcons.restartAltRounded,
             enabled: !limit,
           ),
           Text(
@@ -233,7 +233,7 @@ class _StatusBody extends StatelessWidget {
               tone: r.status == RequestStatus.needsMoreInfo
                   ? NoticeTone.warning
                   : NoticeTone.info,
-              icon: Icons.add_location_alt_outlined,
+              icon: AppIcons.addLocationAltOutlined,
               title: t.t('verification.status.verified.openRequest'),
               message: r.status == RequestStatus.needsMoreInfo
                   ? (r.infoRequestMessage ??
@@ -259,21 +259,21 @@ class _StatusBody extends StatelessWidget {
           else
             AppButton(
               label: t.t('verification.status.verified.addState'),
-              icon: Icons.add_rounded,
+              icon: AppIcons.addRounded,
               variant: AppButtonVariant.secondary,
               onPressed: onOpenWizard,
             ),
           // docs/03 §8 step 6 / §3.3: verified attorneys pick practices next.
           AppButton(
             label: t.t('verification.status.verified.choosePractices'),
-            icon: Icons.work_outline_rounded,
+            icon: AppIcons.workOutlineRounded,
             onPressed: () => context.push(AppRoutes.practices),
           ),
         ]);
       case VerificationView.suspended:
         children.add(
           _Hero(
-            badge: const _HeroBadge.danger(Icons.pause_circle_outline_rounded),
+            badge: const _HeroBadge.danger(AppIcons.pauseCircleOutlineRounded),
             title: t.t('verification.status.suspended.title'),
             body: t.t('verification.status.suspended.body'),
           ),
@@ -328,7 +328,7 @@ class _HeroBadge {
   const _HeroBadge.warning(IconData icon) : this._(icon, _BadgeKind.warning);
   const _HeroBadge.danger(IconData icon) : this._(icon, _BadgeKind.danger);
   const _HeroBadge.verified()
-      : this._(Icons.verified_rounded, _BadgeKind.verified);
+      : this._(AppIcons.verifiedRounded, _BadgeKind.verified);
 
   final IconData icon;
   final _BadgeKind kind;
@@ -385,7 +385,7 @@ class _Hero extends StatelessWidget {
                         ),
                       ],
                     ),
-                    child: Icon(badge.icon,
+                    child: AppIcon(badge.icon,
                         size: AppSizes.stateIcon + AppSpacing.sm, color: fg),
                   ),
                 ),
@@ -424,11 +424,11 @@ class _NeedList extends StatelessWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final items = [
-      (Icons.balance_rounded, 'verification.intro.item.license'),
+      (AppIcons.balanceRounded, 'verification.intro.item.license'),
       if (identity) ...[
-        (Icons.badge_outlined, 'verification.intro.item.id'),
+        (AppIcons.badgeOutlined, 'verification.intro.item.id'),
         (
-          Icons.face_retouching_natural_outlined,
+          AppIcons.faceRetouchingNaturalOutlined,
           'verification.intro.item.selfie'
         ),
       ],
@@ -604,7 +604,7 @@ class _TimelineDot extends StatelessWidget {
           ),
         ),
         child: mark == _Mark.done
-            ? Icon(Icons.check_rounded, size: AppSpacing.lg, color: colors.navy)
+            ? AppIcon(AppIcons.checkRounded, size: AppSpacing.lg, color: colors.navy)
             : mark == _Mark.current
                 ? Center(
                     child: Container(
@@ -646,11 +646,11 @@ class _Licenses extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(
+                AppIcon(
                   switch (l.status) {
-                    LicenseStatus.verified => Icons.verified_rounded,
-                    LicenseStatus.pending => Icons.hourglass_top_rounded,
-                    _ => Icons.cancel_outlined,
+                    LicenseStatus.verified => AppIcons.verifiedRounded,
+                    LicenseStatus.pending => AppIcons.hourglassTopRounded,
+                    _ => AppIcons.cancelOutlined,
                   },
                   size: AppSizes.iconSm,
                   color: switch (l.status) {

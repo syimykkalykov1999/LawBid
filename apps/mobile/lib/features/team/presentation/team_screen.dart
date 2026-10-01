@@ -94,7 +94,7 @@ class TeamScreen extends ConsumerWidget {
                 SizedBox(
                   height: 300,
                   child: AppEmptyState(
-                    icon: Icons.groups_2_outlined,
+                    icon: AppIcons.groups2Outlined,
                     title: t.t('team.empty'),
                     message: t.t('team.empty.body'),
                   ),
@@ -120,7 +120,7 @@ class TeamScreen extends ConsumerWidget {
               AppButton(
                 key: const ValueKey('team-add'),
                 label: t.t('team.add'),
-                icon: Icons.person_add_alt_1_rounded,
+                icon: AppIcons.personAddAlt1Rounded,
                 onPressed: () => _add(context, ref, info),
               ),
               const SizedBox(height: AppSpacing.md),
@@ -159,7 +159,7 @@ class _SeatsCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.groups_2_rounded, color: AppColorsLight.gold),
+              const AppIcon(AppIcons.groups2Rounded, color: AppColorsLight.gold),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: Text(
@@ -238,7 +238,7 @@ class _MemberTile extends StatelessWidget {
           CircleAvatar(
             radius: 22,
             backgroundColor: colors.goldTint,
-            child: Icon(Icons.support_agent_rounded, color: colors.gold),
+            child: AppIcon(AppIcons.supportAgentRounded, color: colors.gold),
           ),
           const SizedBox(width: AppSpacing.md),
           Expanded(
@@ -295,7 +295,7 @@ class _MemberTile extends StatelessWidget {
                       if (member.duties.contains(d))
                         Tooltip(
                           message: dutyLabel(t, d),
-                          child: Icon(dutyIcon(d),
+                          child: AppIcon(dutyIcon(d),
                               size: 16, color: colors.textSecondary),
                         ),
                   ],
@@ -303,7 +303,7 @@ class _MemberTile extends StatelessWidget {
               ],
             ),
           ),
-          Icon(Icons.chevron_right_rounded, color: colors.textSecondary),
+          AppIcon(AppIcons.chevronRightRounded, color: colors.textSecondary),
         ],
       ),
     );
@@ -377,7 +377,7 @@ class _AddSheetState extends ConsumerState<_AddSheet> {
             hintText: '+13125550123',
             keyboardType: TextInputType.phone,
             autofocus: true,
-            leading: const Icon(Icons.phone_outlined),
+            leading: const AppIcon(AppIcons.phoneOutlined),
             inputFormatters: [
               FilteringTextInputFormatter.allow(RegExp('[+0-9]')),
             ],
@@ -569,7 +569,7 @@ class _MemberSheetState extends ConsumerState<_MemberSheet> {
             SwitchListTile.adaptive(
               key: ValueKey('duty-${d.wire}'),
               contentPadding: EdgeInsets.zero,
-              secondary: Icon(dutyIcon(d), color: colors.gold),
+              secondary: AppIcon(dutyIcon(d), color: colors.gold),
               title: Text(dutyLabel(t, d),
                   style: typography.body.copyWith(color: colors.text)),
               subtitle: Text(dutyHint(t, d),

@@ -35,7 +35,7 @@ class CaseHeader extends StatelessWidget {
         AppEntrance(
           child: Row(
             children: [
-              Icon(Icons.balance_rounded,
+              AppIcon(AppIcons.balanceRounded,
                   size: AppSpacing.lg, color: colors.goldDark),
               const SizedBox(width: AppSpacing.xs + 2),
               Expanded(
@@ -117,7 +117,7 @@ class NoticeCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(icon, color: fg, size: AppSizes.iconSm),
+              AppIcon(icon, color: fg, size: AppSizes.iconSm),
               const SizedBox(width: AppSpacing.md),
               Expanded(
                 child: Text(message,

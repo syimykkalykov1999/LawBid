@@ -13,7 +13,7 @@ class PlanTierCard extends StatelessWidget {
     required this.price,
     required this.period,
     required this.features,
-    this.icon = Icons.workspace_premium_outlined,
+    this.icon = AppIcons.workspacePremiumOutlined,
     this.status,
     this.statusFilled = false,
     this.highlighted = false,
@@ -85,7 +85,7 @@ class PlanTierCard extends StatelessWidget {
                   border:
                       Border.all(color: colors.gold.withValues(alpha: 0.55)),
                 ),
-                child: Icon(icon, size: 19, color: colors.gold),
+                child: AppIcon(icon, size: 19, color: colors.gold),
               ),
               const SizedBox(width: AppSpacing.md),
               Expanded(
@@ -111,7 +111,7 @@ class PlanTierCard extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       if (statusFilled) ...[
-                        const Icon(Icons.check_rounded,
+                        const AppIcon(AppIcons.checkRounded,
                             size: 14, color: AppColorsLight.navy),
                         const SizedBox(width: 4),
                       ],
@@ -158,7 +158,7 @@ class PlanTierCard extends StatelessWidget {
                 children: [
                   Padding(
                     padding: const EdgeInsets.only(top: 2),
-                    child: Icon(Icons.check_rounded,
+                    child: AppIcon(AppIcons.checkRounded,
                         size: 16, color: colors.goldDark),
                   ),
                   const SizedBox(width: AppSpacing.sm),
@@ -230,13 +230,13 @@ class AssistantSeatsControl extends StatelessWidget {
       return AppButton(
         key: const ValueKey('seats-add-first'),
         label: t.t('plans.assistants.add', {'price': seatPrice}),
-        icon: Icons.person_add_alt_1_rounded,
+        icon: AppIcons.personAddAlt1Rounded,
         variant: AppButtonVariant.secondary,
         onPressed: max > 0 ? () => onChanged(1) : null,
       );
     }
     Widget round(IconData icon, bool enabled, int to, String key) {
-      final plus = icon == Icons.add_rounded;
+      final plus = icon == AppIcons.addRounded;
       return Semantics(
         button: true,
         enabled: enabled,
@@ -264,7 +264,7 @@ class AssistantSeatsControl extends StatelessWidget {
                     color: plus ? colors.gold : Colors.transparent,
                     border: Border.all(color: colors.gold),
                   ),
-                  child: Icon(
+                  child: AppIcon(
                     icon,
                     size: 18,
                     color: plus ? AppColorsLight.navy : colors.text,
@@ -301,7 +301,7 @@ class AssistantSeatsControl extends StatelessWidget {
                 ],
               ),
             ),
-            round(Icons.remove_rounded, seats > min, seats - 1, 'seats-minus'),
+            round(AppIcons.removeRounded, seats > min, seats - 1, 'seats-minus'),
             SizedBox(
               width: 26,
               child: Text(
@@ -311,7 +311,7 @@ class AssistantSeatsControl extends StatelessWidget {
                 style: typography.titleMedium.copyWith(color: colors.text),
               ),
             ),
-            round(Icons.add_rounded, seats < max, seats + 1, 'seats-plus'),
+            round(AppIcons.addRounded, seats < max, seats + 1, 'seats-plus'),
           ],
         ),
         const SizedBox(height: AppSpacing.sm),

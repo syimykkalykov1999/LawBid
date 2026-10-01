@@ -134,7 +134,7 @@ class _ClientCasesGrid extends ConsumerWidget {
       onLoadMore: n.loadMore,
       onRetryMore: n.retryLoadMore,
       empty: AppEmptyState(
-        icon: Icons.folder_open_rounded,
+        icon: AppIcons.folderOpenRounded,
         title: firstOpen ? t.t('mine.cases.emptyTitle') : null,
         message: firstOpen
             ? t.t('mine.cases.emptyMessage')
@@ -142,7 +142,7 @@ class _ClientCasesGrid extends ConsumerWidget {
         action: firstOpen
             ? AppButton(
                 label: t.t('mine.cases.create'),
-                icon: Icons.add_rounded,
+                icon: AppIcons.addRounded,
                 height: AppSizes.touchTarget,
                 onPressed: () => context.push(AppRoutes.create),
               )
@@ -184,7 +184,7 @@ class MyCasesList extends ConsumerWidget {
       onLoadMore: notifier.loadMore,
       onRetryMore: notifier.retryLoadMore,
       empty: AppEmptyState(
-        icon: Icons.folder_open_rounded,
+        icon: AppIcons.folderOpenRounded,
         title: filter == MyCasesFilter.active
             ? t.t('mine.cases.emptyTitle')
             : null,
@@ -194,7 +194,7 @@ class MyCasesList extends ConsumerWidget {
         action: filter == MyCasesFilter.active
             ? AppButton(
                 label: t.t('mine.cases.create'),
-                icon: Icons.add_rounded,
+                icon: AppIcons.addRounded,
                 height: AppSizes.touchTarget,
                 onPressed: () => context.push(AppRoutes.create),
               )
@@ -338,7 +338,7 @@ class _BidsGrid extends ConsumerWidget {
       onLoadMore: n.loadMore,
       onRetryMore: n.retryLoadMore,
       empty: AppEmptyState(
-        icon: Icons.gavel_rounded,
+        icon: AppIcons.gavelRounded,
         message: mineEmpty(
             t,
             search,
@@ -388,8 +388,8 @@ class _WorkGrid extends ConsumerWidget {
       onRetryMore: n.retryLoadMore,
       empty: AppEmptyState(
         icon: filter == WorkFilter.active
-            ? Icons.work_outline_rounded
-            : Icons.history_rounded,
+            ? AppIcons.workOutlineRounded
+            : AppIcons.historyRounded,
         message: mineEmpty(
             t,
             search,
@@ -471,7 +471,7 @@ class _SavedGrid extends ConsumerWidget {
       onLoadMore: n.loadMore,
       onRetryMore: n.retryLoadMore,
       empty: AppEmptyState(
-        icon: Icons.bookmark_outline_rounded,
+        icon: AppIcons.bookmarkOutlineRounded,
         message: mineEmpty(t, search, 'mine.saved.empty'),
       ),
       tileOf: (sv) {
@@ -518,7 +518,7 @@ class SavedCasesList extends ConsumerWidget {
       onRetryMore: n.retryLoadMore,
       header: const SizedBox(height: AppSpacing.xs),
       empty: AppEmptyState(
-        icon: Icons.bookmark_outline_rounded,
+        icon: AppIcons.bookmarkOutlineRounded,
         message: t.t('mine.saved.empty'),
       ),
       itemBuilder: (context, s, _) => s.available && s.card != null
@@ -570,7 +570,7 @@ class CompletedWorkScreen extends ConsumerWidget {
         onLoadMore: n.loadMore,
         onRetryMore: n.retryLoadMore,
         empty: AppEmptyState(
-            icon: Icons.history_rounded,
+            icon: AppIcons.historyRounded,
             message: t.t('mine.work.completedEmpty')),
         itemBuilder: (context, w, _) => WorkCard(
           item: w,

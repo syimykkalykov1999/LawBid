@@ -126,7 +126,7 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(icon,
+                  AppIcon(icon,
                       size: 20,
                       color: selected ? colors.text : colors.textSecondary),
                   const SizedBox(width: AppSpacing.xs),
@@ -190,7 +190,7 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
           const SizedBox(height: 2),
           Row(
             children: [
-              Icon(Icons.location_on_outlined,
+              AppIcon(AppIcons.locationOnOutlined,
                   size: AppSpacing.lg, color: colors.goldStroke),
               const SizedBox(width: AppSpacing.xs),
               Flexible(
@@ -210,7 +210,7 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
           if (p.isSelf)
             AppButton(
               label: t.t('profile.action.edit'),
-              icon: Icons.edit_outlined,
+              icon: AppIcons.editOutlined,
               variant: AppButtonVariant.secondary,
               height: AppSizes.touchTarget,
               onPressed: () => context.push(AppRoutes.profileEdit),
@@ -244,9 +244,9 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
           Row(
             children: [
               tabButton(
-                  _Tab.posts, Icons.grid_on_rounded, t.t('client.tab.posts')),
+                  _Tab.posts, AppIcons.gridOnRounded, t.t('client.tab.posts')),
               if (p.canSeeReviews)
-                tabButton(_Tab.reviews, Icons.star_outline_rounded,
+                tabButton(_Tab.reviews, AppIcons.starOutlineRounded,
                     t.t('client.tab.reviews')),
             ],
           ),
@@ -356,7 +356,7 @@ class _ReviewsListState extends ConsumerState<_ReviewsList> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.info_outline_rounded,
+              AppIcon(AppIcons.infoOutlineRounded,
                   size: AppSizes.iconSm, color: colors.goldDark),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
@@ -375,8 +375,8 @@ class _ReviewsListState extends ConsumerState<_ReviewsList> {
                   ? 'client.reviews.write'
                   : 'client.reviews.editMine'),
               icon: mine == null
-                  ? Icons.rate_review_outlined
-                  : Icons.edit_outlined,
+                  ? AppIcons.rateReviewOutlined
+                  : AppIcons.editOutlined,
               variant: mine == null
                   ? AppButtonVariant.primary
                   : AppButtonVariant.secondary,
@@ -441,7 +441,7 @@ class _ReviewsListState extends ConsumerState<_ReviewsList> {
                   if (r.caseId != null)
                     ReviewBadge(
                       label: t.t('reviews.badge.case'),
-                      icon: Icons.verified_rounded,
+                      icon: AppIcons.verifiedRounded,
                     ),
                   ReviewBadge(label: t.t('reviews.role.${r.authorRole}')),
                 ],
@@ -484,18 +484,18 @@ extension on _ReviewsListState {
             if (r.canReply && r.reply == null)
               AppListRow(
                 key: const ValueKey('client-review-reply'),
-                icon: Icons.reply_rounded,
+                icon: AppIcons.replyRounded,
                 label: t.t('reviews.reply.action'),
                 onTap: () => Navigator.of(sheet).pop('reply'),
               ),
             if (r.isMine) ...[
               AppListRow(
-                icon: Icons.edit_outlined,
+                icon: AppIcons.editOutlined,
                 label: t.t('reviews.edit'),
                 onTap: () => Navigator.of(sheet).pop('edit'),
               ),
               AppListRow(
-                icon: Icons.delete_outline_rounded,
+                icon: AppIcons.deleteOutlineRounded,
                 label: t.t('client.reviews.delete'),
                 destructive: true,
                 onTap: () => Navigator.of(sheet).pop('delete'),
@@ -503,7 +503,7 @@ extension on _ReviewsListState {
             ] else
               AppListRow(
                 key: const ValueKey('client-review-report'),
-                icon: Icons.flag_outlined,
+                icon: AppIcons.flagOutlined,
                 label: t.t('reviews.report.action'),
                 onTap: () => Navigator.of(sheet).pop('report'),
               ),

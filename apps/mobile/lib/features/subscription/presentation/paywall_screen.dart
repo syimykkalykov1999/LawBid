@@ -35,22 +35,22 @@ class PaywallScreen extends ConsumerWidget {
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final (IconData icon, String title, String body) = switch (reason) {
       PaywallReason.bid => (
-          Icons.gavel_rounded,
+          AppIcons.gavelRounded,
           t.t('paywall.bid.title'),
           t.t('paywall.bid.body'),
         ),
       PaywallReason.chat => (
-          Icons.chat_bubble_outline_rounded,
+          AppIcons.chatBubbleOutlineRounded,
           t.t('paywall.chat.title'),
           t.t('paywall.chat.body'),
         ),
       PaywallReason.contacts => (
-          Icons.contact_phone_outlined,
+          AppIcons.contactPhoneOutlined,
           t.t('paywall.contacts.title'),
           t.t('paywall.contacts.body'),
         ),
       PaywallReason.generic => (
-          Icons.workspace_premium_outlined,
+          AppIcons.workspacePremiumOutlined,
           t.t('cases.subscription.title'),
           t.t('cases.subscription.message'),
         ),
@@ -74,7 +74,7 @@ class PaywallScreen extends ConsumerWidget {
             AppButton(
               key: const ValueKey('paywall-cta'),
               label: t.t('paywall.cta'),
-              icon: Icons.workspace_premium_outlined,
+              icon: AppIcons.workspacePremiumOutlined,
               height: AppSizes.touchTarget,
               onPressed: () =>
                   context.pushReplacement(SubscriptionRoutes.subscription),

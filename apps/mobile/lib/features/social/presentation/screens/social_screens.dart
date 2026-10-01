@@ -72,7 +72,7 @@ class PostsFeedView extends ConsumerWidget {
             SizedBox(
               height: 340,
               child: AppEmptyState(
-                icon: Icons.dynamic_feed_rounded,
+                icon: AppIcons.dynamicFeedRounded,
                 title: t.t('feed.empty.title'),
                 message: t.t('feed.empty.message'),
               ),
@@ -110,7 +110,7 @@ class LatestPostsView extends ConsumerWidget {
         itemKey: (p) => p.id,
         itemBuilder: (context, p, _) => PostCard(post: p, feedHeight: height),
         empty: AppEmptyState(
-          icon: Icons.map_outlined,
+          icon: AppIcons.mapOutlined,
           message: t.t('feed.state.empty'),
         ),
         onRefresh: notifier.refresh,
@@ -151,7 +151,7 @@ class FilteredPostsView extends ConsumerWidget {
         itemKey: (p) => p.id,
         itemBuilder: (context, p, _) => PostCard(post: p, feedHeight: height),
         empty: AppEmptyState(
-          icon: newsOnly ? Icons.newspaper_rounded : Icons.tag_rounded,
+          icon: newsOnly ? AppIcons.newspaperRounded : AppIcons.tagRounded,
           message: t.t(newsOnly ? 'feed.news.empty' : 'feed.practice.empty'),
         ),
         onRefresh: notifier.refresh,
@@ -212,7 +212,7 @@ class TopicPostsView extends ConsumerWidget {
         itemKey: (p) => p.id,
         itemBuilder: (context, p, _) => PostCard(post: p, feedHeight: height),
         empty: AppEmptyState(
-          icon: Icons.tag_rounded,
+          icon: AppIcons.tagRounded,
           message: t.t('tag.empty'),
         ),
         onRefresh: notifier.refresh,
@@ -267,7 +267,7 @@ class _PostScreenState extends ConsumerState<PostScreen> {
       ),
       body: deleted
           ? AppEmptyState(
-              icon: Icons.hide_source_rounded,
+              icon: AppIcons.hideSourceRounded,
               message: t.t('post.unavailable'),
             )
           : AsyncDetailBody<Post>(
@@ -468,7 +468,7 @@ class _TagScreenState extends ConsumerState<TagScreen> {
               itemKey: (p) => p.id,
               itemBuilder: (context, p, _) => PostCard(post: p),
               empty: AppEmptyState(
-                icon: Icons.tag_rounded,
+                icon: AppIcons.tagRounded,
                 message: t.t('tag.empty'),
               ),
               onRefresh: notifier.refresh,
@@ -530,7 +530,7 @@ class FollowListScreen extends ConsumerWidget {
         itemKey: (r) => r.id,
         itemBuilder: (context, r, _) => PersonTile(row: r),
         empty: AppEmptyState(
-          icon: Icons.people_outline_rounded,
+          icon: AppIcons.peopleOutlineRounded,
           message: t.t(kind == FollowListKind.followers
               ? 'follow.followers.empty'
               : 'follow.following.empty'),
@@ -578,7 +578,7 @@ class SavedPostsList extends ConsumerWidget {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.hide_source_rounded, color: colors.textSecondary),
+                  AppIcon(AppIcons.hideSourceRounded, color: colors.textSecondary),
                   const SizedBox(width: AppSpacing.md),
                   Text(t.t('post.unavailable'),
                       style: type.body.copyWith(color: colors.textSecondary)),
@@ -587,7 +587,7 @@ class SavedPostsList extends ConsumerWidget {
             )
           : PostCard(post: s.post!),
       empty: AppEmptyState(
-        icon: Icons.bookmark_border_rounded,
+        icon: AppIcons.bookmarkBorderRounded,
         message: t.t('mine.savedPosts.empty'),
       ),
       onRefresh: notifier.refresh,
@@ -653,7 +653,7 @@ class ProfilePostsGrid extends ConsumerWidget {
           return SizedBox(
             height: 280,
             child: AppEmptyState(
-              icon: Icons.article_outlined,
+              icon: AppIcons.articleOutlined,
               title: emptyTitle,
               message: emptyMessage,
             ),
@@ -719,7 +719,7 @@ class ProfilePostsGrid extends ConsumerWidget {
                                 const Positioned(
                                   top: 6,
                                   right: 6,
-                                  child: Icon(Icons.newspaper_rounded,
+                                  child: AppIcon(AppIcons.newspaperRounded,
                                       size: 16, color: Colors.white),
                                 ),
                             ],
@@ -752,7 +752,7 @@ class ProfilePostsGrid extends ConsumerWidget {
                                     const Positioned(
                                       top: 6,
                                       right: 6,
-                                      child: Icon(Icons.collections_rounded,
+                                      child: AppIcon(AppIcons.collectionsRounded,
                                           size: 16, color: Colors.white),
                                     ),
                                 ],

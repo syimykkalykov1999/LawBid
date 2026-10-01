@@ -44,7 +44,7 @@ class CaseHistoryScreen extends ConsumerWidget {
         actions: [
           if (access.isOpen)
             TopBarIcon(
-              icon: Icons.picture_as_pdf_outlined,
+              icon: AppIcons.pictureAsPdfOutlined,
               label: t.t('history.pdf.download'),
               onTap: () => _export(context, ref),
             ),
@@ -102,7 +102,7 @@ class _HistoryList extends ConsumerWidget {
       onLoadMore: n.loadMore,
       onRetryMore: n.retryLoadMore,
       empty: AppEmptyState(
-          icon: Icons.history_rounded, message: t.t('history.empty')),
+          icon: AppIcons.historyRounded, message: t.t('history.empty')),
       itemBuilder: (context, h, _) =>
           _HistoryTile(item: h, t: t, formats: formats),
     );
@@ -395,8 +395,8 @@ class _ExportSheetState extends ConsumerState<_ExportSheet> {
             else
               AppIconMedallion(
                 icon: _error == null
-                    ? Icons.check_rounded
-                    : Icons.error_outline_rounded,
+                    ? AppIcons.checkRounded
+                    : AppIcons.errorOutlineRounded,
                 tone: _error == null
                     ? AppMedallionTone.success
                     : AppMedallionTone.danger,

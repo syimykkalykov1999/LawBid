@@ -254,7 +254,7 @@ class _ShareSheet extends StatelessWidget {
                 for (final x in targets) tile(x.key, x.icon, x.label),
                 tile(
                   'more',
-                  const Icon(Icons.more_horiz_rounded,
+                  const AppIcon(AppIcons.moreHorizRounded,
                       color: AppColorsLight.navy),
                   t.t('share.more'),
                 ),
@@ -271,7 +271,7 @@ class _ShareSheet extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.link_rounded, size: 18, color: colors.goldDark),
+                  AppIcon(AppIcons.linkRounded, size: 18, color: colors.goldDark),
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
                     child: Text(

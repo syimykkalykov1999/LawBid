@@ -94,7 +94,7 @@ class RoleScreen extends ConsumerWidget {
                       lockable(
                         UserRole.client,
                         RoleCard(
-                          icon: Icons.person_outline,
+                          icon: AppIcons.personOutline,
                           title: t.t('onboarding.role.client.title'),
                           description: t.t('onboarding.role.client.desc'),
                           isSelected: selectedRole == UserRole.client,
@@ -108,7 +108,7 @@ class RoleScreen extends ConsumerWidget {
                       lockable(
                         attorneySide ? selectedRole : UserRole.attorney,
                         RoleCard(
-                          icon: Icons.gavel,
+                          icon: AppIcons.gavel,
                           title: t.t('onboarding.role.attorney.title'),
                           description: t.t('onboarding.role.attorney.desc'),
                           isSelected: attorneySide,
@@ -137,13 +137,13 @@ class RoleScreen extends ConsumerWidget {
                                     for (final (role, icon, title, body) in [
                                       (
                                         UserRole.attorney,
-                                        Icons.balance_rounded,
+                                        AppIcons.balanceRounded,
                                         t.t('onboarding.role.sub.attorney'),
                                         t.t('onboarding.role.sub.attorney.body'),
                                       ),
                                       (
                                         UserRole.assistant,
-                                        Icons.support_agent_rounded,
+                                        AppIcons.supportAgentRounded,
                                         t.t('onboarding.role.assistant.title'),
                                         t.t('onboarding.role.assistant.body'),
                                       ),
@@ -250,7 +250,7 @@ class _SubRole extends StatelessWidget {
           ),
           child: Row(
             children: [
-              Icon(icon, color: colors.goldDark),
+              AppIcon(icon, color: colors.goldDark),
               const SizedBox(width: AppSpacing.md),
               Expanded(
                 child: Column(
@@ -273,10 +273,10 @@ class _SubRole extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: AppSpacing.sm),
-              Icon(
+              AppIcon(
                 selected
-                    ? Icons.radio_button_checked_rounded
-                    : Icons.radio_button_unchecked_rounded,
+                    ? AppIcons.radioButtonCheckedRounded
+                    : AppIcons.radioButtonUncheckedRounded,
                 color: selected ? colors.goldDark : colors.textSecondary,
               ),
             ],

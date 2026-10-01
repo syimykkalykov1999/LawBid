@@ -72,7 +72,7 @@ class ReviewFormScreen extends ConsumerWidget {
                 message: t.t('offline.message'),
                 action: AppButton(
                   label: t.t('error.retry'),
-                  icon: Icons.refresh_rounded,
+                  icon: AppIcons.refreshRounded,
                   variant: AppButtonVariant.secondary,
                   height: AppSizes.touchTarget,
                   onPressed: retry,
@@ -239,7 +239,7 @@ class _Compose extends StatelessWidget {
         elevated: true,
         child: Column(
           children: [
-            const AppIconMedallion(icon: Icons.balance_rounded),
+            const AppIconMedallion(icon: AppIcons.balanceRounded),
             const SizedBox(height: AppSpacing.md),
             Semantics(
               header: true,
@@ -298,7 +298,7 @@ class _Compose extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(Icons.info_outline_rounded,
+            AppIcon(AppIcons.infoOutlineRounded,
                 size: AppSizes.iconSm, color: colors.goldStroke),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
@@ -321,10 +321,10 @@ class _Compose extends StatelessWidget {
                 borderRadius: BorderRadius.circular(AppRadii.field)),
             child: Row(
               children: [
-                Icon(
+                AppIcon(
                   isOfflineError(error)
-                      ? Icons.wifi_off_rounded
-                      : Icons.error_outline_rounded,
+                      ? AppIcons.wifiOffRounded
+                      : AppIcons.errorOutlineRounded,
                   size: AppSizes.iconSm,
                   color: colors.danger,
                 ),
@@ -389,7 +389,7 @@ class _Published extends StatelessWidget {
     final children = <Widget>[
       Row(
         children: [
-          Icon(Icons.check_circle_rounded,
+          AppIcon(AppIcons.checkCircleRounded,
               color: colors.success, size: AppSizes.iconMd),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
@@ -409,7 +409,7 @@ class _Published extends StatelessWidget {
         AppButton(
           key: const ValueKey('review-edit'),
           label: t.t('reviews.form.edit'),
-          icon: Icons.edit_outlined,
+          icon: AppIcons.editOutlined,
           variant: AppButtonVariant.secondary,
           onPressed: onEdit,
         ),

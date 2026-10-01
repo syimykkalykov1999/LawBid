@@ -48,7 +48,7 @@ Future<void> showPostMenu(BuildContext context, WidgetRef ref, Post post) {
             const AppSheetHandle(),
             if (post.isMine) ...[
               AppListRow(
-                icon: Icons.edit_outlined,
+                icon: AppIcons.editOutlined,
                 label: t.t('post.menu.edit'),
                 showChevron: false,
                 onTap: () {
@@ -57,7 +57,7 @@ Future<void> showPostMenu(BuildContext context, WidgetRef ref, Post post) {
                 },
               ),
               AppListRow(
-                icon: Icons.delete_outline_rounded,
+                icon: AppIcons.deleteOutlineRounded,
                 label: t.t('post.menu.delete'),
                 destructive: true,
                 showChevron: false,
@@ -85,7 +85,7 @@ Future<void> showPostMenu(BuildContext context, WidgetRef ref, Post post) {
               ),
             ] else
               AppListRow(
-                icon: Icons.flag_outlined,
+                icon: AppIcons.flagOutlined,
                 label: t.t('post.menu.report'),
                 showChevron: false,
                 onTap: () {
@@ -94,7 +94,7 @@ Future<void> showPostMenu(BuildContext context, WidgetRef ref, Post post) {
                 },
               ),
             AppListRow(
-              icon: Icons.link_rounded,
+              icon: AppIcons.linkRounded,
               label: t.t('post.menu.copyLink'),
               showChevron: false,
               onTap: () async {

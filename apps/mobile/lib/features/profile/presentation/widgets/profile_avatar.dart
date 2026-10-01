@@ -86,7 +86,7 @@ class VerifiedBadge extends StatelessWidget {
     return Semantics(
       label: semanticLabel,
       excludeSemantics: true,
-      child: Icon(Icons.verified_rounded, size: size, color: colors.info),
+      child: AppIcon(AppIcons.verifiedRounded, size: size, color: colors.info),
     );
   }
 }

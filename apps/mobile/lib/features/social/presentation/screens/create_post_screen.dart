@@ -216,7 +216,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
       backgroundColor: colors.bg,
       appBar: AppTopBar(
         leading: AppIconButton(
-          icon: const Icon(Icons.close_rounded),
+          icon: const AppIcon(AppIcons.closeRounded),
           semanticLabel: t.t('common.close'),
           onPressed: () => Navigator.of(context).pop(),
         ),
@@ -380,7 +380,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                                   canDoProvider(AssistantDuty.publish))
                           ? 'request.sendForApproval'
                           : (_news ? 'post.news.publish' : 'post.create.publish')),
-                  icon: _editing ? Icons.check_rounded : Icons.send_rounded,
+                  icon: _editing ? AppIcons.checkRounded : AppIcons.sendRounded,
                   isLoading: _publishing,
                   isEnabled:
                       !_publishing && _photos.every((p) => p.fileId != null),
@@ -434,7 +434,7 @@ class _KindToggle extends StatelessWidget {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(icon,
+                    AppIcon(icon,
                         size: 18,
                         color: selected ? colors.goldLight : colors.text),
                     const SizedBox(width: AppSpacing.xs),
@@ -460,8 +460,8 @@ class _KindToggle extends StatelessWidget {
       ),
       child: Row(
         children: [
-          seg(postLabel, Icons.edit_note_rounded, !news, false),
-          seg(newsLabel, Icons.newspaper_rounded, news, true),
+          seg(postLabel, AppIcons.editNoteRounded, !news, false),
+          seg(newsLabel, AppIcons.newspaperRounded, news, true),
         ],
       ),
     );
@@ -512,7 +512,7 @@ class _PracticeField extends StatelessWidget {
           ),
           child: Row(
             children: [
-              Icon(empty ? Icons.search_rounded : icon,
+              AppIcon(empty ? AppIcons.searchRounded : icon,
                   size: 20, color: colors.goldDark),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
@@ -534,7 +534,7 @@ class _PracticeField extends StatelessWidget {
                   ],
                 ),
               ),
-              Icon(Icons.expand_more_rounded, color: colors.textSecondary),
+              AppIcon(AppIcons.expandMoreRounded, color: colors.textSecondary),
             ],
           ),
         ),
@@ -566,7 +566,7 @@ class _AddPhotoTile extends StatelessWidget {
             borderRadius: BorderRadius.circular(AppRadii.card),
             border: Border.all(color: colors.goldStroke),
           ),
-          child: Icon(Icons.add_photo_alternate_outlined,
+          child: AppIcon(AppIcons.addPhotoAlternateOutlined,
               color: colors.goldDark, size: AppSizes.iconLg),
         ),
       ),
@@ -624,7 +624,7 @@ class _PhotoTile extends StatelessWidget {
                 child: Center(
                   child: AppIconButton(
                     icon:
-                        const Icon(Icons.refresh_rounded, color: Colors.white),
+                        const AppIcon(AppIcons.refreshRounded, color: Colors.white),
                     semanticLabel: retryLabel,
                     onPressed: onRetry,
                   ),
@@ -647,7 +647,7 @@ class _PhotoTile extends StatelessWidget {
               right: 0,
               top: 0,
               child: AppIconButton(
-                icon: const Icon(Icons.cancel_rounded, color: Colors.white),
+                icon: const AppIcon(AppIcons.cancelRounded, color: Colors.white),
                 semanticLabel: removeLabel,
                 onPressed: onRemove,
               ),

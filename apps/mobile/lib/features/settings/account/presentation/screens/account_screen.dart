@@ -84,7 +84,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
               message: t.t('offline.message'),
               action: AppButton(
                 label: t.t('error.retry'),
-                icon: Icons.refresh_rounded,
+                icon: AppIcons.refreshRounded,
                 variant: AppButtonVariant.secondary,
                 height: AppSizes.touchTarget,
                 onPressed: retry,
@@ -150,8 +150,8 @@ class _AccountBody extends StatelessWidget {
           : (isPhone ? UsPhone.format(value) : value);
       return AccountTile(
         icon: isPhone
-            ? Icons.phone_iphone_rounded
-            : Icons.alternate_email_rounded,
+            ? AppIcons.phoneIphoneRounded
+            : AppIcons.alternateEmailRounded,
         title: t.t(isPhone ? 'account.contact.phone' : 'account.contact.email'),
         subtitle: shown,
         badge: value == null
@@ -187,7 +187,7 @@ class _AccountBody extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(Icons.lock_outline_rounded,
+            AppIcon(AppIcons.lockOutlineRounded,
                 size: AppSpacing.lg, color: colors.textSecondary),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
@@ -208,7 +208,7 @@ class _AccountBody extends StatelessWidget {
                   child: Row(
                     children: [
                       const AppIconMedallion(
-                        icon: Icons.key_off_rounded,
+                        icon: AppIcons.keyOffRounded,
                         tone: AppMedallionTone.neutral,
                       ),
                       const SizedBox(width: AppSpacing.md),
@@ -232,7 +232,7 @@ class _AccountBody extends StatelessWidget {
         title: t.t('account.section.link'),
         children: [
           AccountTile(
-            icon: Icons.add_call,
+            icon: AppIcons.addCall,
             title: t.t('account.link.phone'),
             onTap: busy
                 ? null
@@ -244,7 +244,7 @@ class _AccountBody extends StatelessWidget {
                     ),
           ),
           AccountTile(
-            icon: Icons.mark_email_unread_outlined,
+            icon: AppIcons.markEmailUnreadOutlined,
             title: t.t('account.link.email'),
             onTap: busy
                 ? null
@@ -310,8 +310,8 @@ class _IdentifierTile extends StatelessWidget {
             : value);
     return AccountTile(
       icon: switch (i.provider) {
-        IdentifierProvider.phone => Icons.phone_iphone_rounded,
-        IdentifierProvider.email => Icons.alternate_email_rounded,
+        IdentifierProvider.phone => AppIcons.phoneIphoneRounded,
+        IdentifierProvider.email => AppIcons.alternateEmailRounded,
         _ => null,
       },
       glyph: switch (i.provider) {

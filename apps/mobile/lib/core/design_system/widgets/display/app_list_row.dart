@@ -8,6 +8,8 @@ import 'package:lawbid/core/design_system/tokens/app_sizes.dart';
 import 'package:lawbid/core/design_system/tokens/app_spacing.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_icon_medallion.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_entrance.dart';
+import 'package:lawbid/core/design_system/icons/app_icon.dart';
+import 'package:lawbid/core/design_system/icons/app_icons.dart';
 
 /// Tappable settings-style row (UI modernization pass, 2026-09-27):
 /// medallion icon, label, optional trailing value, chevron. Press shows a
@@ -70,14 +72,14 @@ class _AppListRowState extends State<AppListRow> {
 
     Widget? trailing;
     if (widget.selected) {
-      trailing = Icon(
-        Icons.check_rounded,
+      trailing = AppIcon(
+        AppIcons.checkRounded,
         size: AppSizes.iconSm,
         color: colors.goldStroke,
       );
     } else if (widget.showChevron && !widget.destructive) {
-      trailing = Icon(
-        Icons.chevron_right_rounded,
+      trailing = AppIcon(
+        AppIcons.chevronRightRounded,
         size: AppSizes.iconSm,
         color: colors.textSecondary,
       );

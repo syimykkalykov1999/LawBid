@@ -107,7 +107,6 @@ dependencies:
   flutter_webrtc: ^1.6.2+hotfix.3
   flutter_callkit_incoming: ^3.1.6
   font_awesome_flutter: ^11.0.0
-
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -145,6 +144,13 @@ flutter:
     - assets/sounds/
 
   fonts:
+    # Owner 2026-10-01: Phosphor icons (MIT, assets/fonts/LICENSE-Phosphor.txt).
+    - family: PhosphorLight
+      fonts:
+        - asset: assets/fonts/PhosphorLight.ttf
+    - family: PhosphorFill
+      fonts:
+        - asset: assets/fonts/PhosphorFill.ttf
     - family: Source Serif 4
       fonts:
         - asset: assets/fonts/SourceSerif4-Variable.ttf

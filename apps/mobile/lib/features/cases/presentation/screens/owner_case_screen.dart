@@ -92,13 +92,13 @@ class _OwnerCaseScreenState extends ConsumerState<OwnerCaseScreen> {
     showActionSheet(context, [
       if (canEdit)
         ActionSheetItem(
-          icon: Icons.edit_outlined,
+          icon: AppIcons.editOutlined,
           label: t.t('cases.owner.edit'),
           onTap: () => context.push(AppRoutes.myCaseEdit(c.id)),
         ),
       if (canClose)
         ActionSheetItem(
-          icon: Icons.do_not_disturb_on_outlined,
+          icon: AppIcons.doNotDisturbOnOutlined,
           label: t.t('cases.owner.close'),
           onTap: () => _confirm(
             title: 'cases.owner.closeTitle',
@@ -110,7 +110,7 @@ class _OwnerCaseScreenState extends ConsumerState<OwnerCaseScreen> {
         ),
       if (canDelete)
         ActionSheetItem(
-          icon: Icons.delete_outline_rounded,
+          icon: AppIcons.deleteOutlineRounded,
           label: t.t('cases.owner.delete'),
           destructive: true,
           onTap: () => _confirm(
@@ -148,7 +148,7 @@ class _OwnerCaseScreenState extends ConsumerState<OwnerCaseScreen> {
         actions: [
           if (hasMenu)
             TopBarIcon(
-              icon: Icons.more_horiz_rounded,
+              icon: AppIcons.moreHorizRounded,
               label: t.t('cases.owner.actions'),
               onTap: () => _openMenu(kase),
             ),
@@ -182,7 +182,7 @@ class _OwnerCaseScreenState extends ConsumerState<OwnerCaseScreen> {
       if (c.status == CaseStatus.inProgress)
         AppButton(
           label: t.t('cases.owner.complete'),
-          icon: Icons.task_alt_rounded,
+          icon: AppIcons.taskAltRounded,
           isLoading: _busy,
           onPressed: () => _confirm(
             title: 'cases.owner.completeTitle',
@@ -195,7 +195,7 @@ class _OwnerCaseScreenState extends ConsumerState<OwnerCaseScreen> {
       if (c.status == CaseStatus.archived)
         AppButton(
           label: t.t('cases.owner.restore'),
-          icon: Icons.unarchive_outlined,
+          icon: AppIcons.unarchiveOutlined,
           isLoading: _busy,
           onPressed: () => _run(() => actions.restoreCase(c.id),
               doneKey: 'cases.owner.restored'),
@@ -203,7 +203,7 @@ class _OwnerCaseScreenState extends ConsumerState<OwnerCaseScreen> {
       if (c.status == CaseStatus.closed && c.acceptedBid != null)
         AppButton(
           label: t.t('cases.owner.review'),
-          icon: Icons.star_outline_rounded,
+          icon: AppIcons.starOutlineRounded,
           variant: AppButtonVariant.secondary,
           onPressed: () => context.push(AppRoutes.reviewFormFor(c.id)),
         ),
@@ -267,7 +267,7 @@ class _OwnerCaseBody extends ConsumerWidget {
           if (c.status == CaseStatus.pendingCompletion) ...[
             const SizedBox(height: AppSpacing.lg),
             NoticeCard(
-              icon: Icons.hourglass_top_rounded,
+              icon: AppIcons.hourglassTopRounded,
               message: t.t('cases.owner.pendingNotice', {
                 'date':
                     c.autoCloseAt == null ? '' : formats.date(c.autoCloseAt!),
@@ -277,7 +277,7 @@ class _OwnerCaseBody extends ConsumerWidget {
           if (c.status == CaseStatus.disputed) ...[
             const SizedBox(height: AppSpacing.lg),
             NoticeCard(
-              icon: Icons.policy_outlined,
+              icon: AppIcons.policyOutlined,
               tone: StatusTone.danger,
               message: t.t('cases.owner.disputedNotice'),
             ),
@@ -285,7 +285,7 @@ class _OwnerCaseBody extends ConsumerWidget {
           if (c.status == CaseStatus.archived) ...[
             const SizedBox(height: AppSpacing.lg),
             NoticeCard(
-              icon: Icons.inventory_2_outlined,
+              icon: AppIcons.inventory2Outlined,
               message: t.t('cases.owner.archivedNotice'),
             ),
           ],
@@ -310,7 +310,7 @@ class _OwnerCaseBody extends ConsumerWidget {
             ),
           // OQ-034: attorneys' questions under the case; the owner answers.
           AppListRow(
-            icon: Icons.mode_comment_outlined,
+            icon: AppIcons.modeCommentOutlined,
             label: t.t('cases.comments.title'),
             flush: true,
             onTap: () => context.push(AppRoutes.caseComments(c.id)),
@@ -320,21 +320,21 @@ class _OwnerCaseBody extends ConsumerWidget {
             child: FactsCard(
               rows: [
                 InfoRow(
-                  icon: Icons.payments_outlined,
+                  icon: AppIcons.paymentsOutlined,
                   label: t.t('cases.card.budget'),
                   value: CaseFormat.budget(t, formats, c.budget),
                 ),
                 InfoRow(
-                    icon: Icons.map_outlined,
+                    icon: AppIcons.mapOutlined,
                     label: t.t('cases.field.states'),
                     value: states),
                 if (c.city != null && c.city!.trim().isNotEmpty)
                   InfoRow(
-                      icon: Icons.place_outlined,
+                      icon: AppIcons.placeOutlined,
                       label: t.t('cases.field.city'),
                       value: c.city!),
                 InfoRow(
-                  icon: Icons.visibility_outlined,
+                  icon: AppIcons.visibilityOutlined,
                   label: t.t('cases.detail.views'),
                   value: SocialFormat.count(formats, c.viewCount),
                 ),
@@ -399,7 +399,7 @@ class _BidsList extends ConsumerWidget {
       AsyncData(:final value) when value.items.isEmpty => Padding(
           padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
           child: AppEmptyState(
-            icon: Icons.gavel_rounded,
+            icon: AppIcons.gavelRounded,
             title: t.t('cases.bids.emptyTitle'),
             message: t.t('cases.bids.emptyMessage'),
           ),
@@ -514,7 +514,7 @@ class _AcceptedAttorneyCard extends StatelessWidget {
             ),
             right: AppButton(
               label: t.t('cases.chat.open'),
-              icon: Icons.chat_bubble_outline_rounded,
+              icon: AppIcons.chatBubbleOutlineRounded,
               height: AppSizes.touchTarget,
               onPressed: conversationId == null
                   ? () => showAppSnackBar(context, t.t('cases.chat.soon'))

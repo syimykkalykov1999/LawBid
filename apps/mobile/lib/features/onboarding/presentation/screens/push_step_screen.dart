@@ -37,9 +37,9 @@ class PushStepScreen extends ConsumerWidget {
         .advance(OnboardingStepId.push, {'pushOptIn': optIn});
 
     final benefits = [
-      (Icons.gavel_rounded, t.t('onboarding.push.benefit1.$variant')),
-      (Icons.chat_bubble_outline_rounded, t.t('onboarding.push.benefit2')),
-      (Icons.event_available_rounded, t.t('onboarding.push.benefit3')),
+      (AppIcons.gavelRounded, t.t('onboarding.push.benefit1.$variant')),
+      (AppIcons.chatBubbleOutlineRounded, t.t('onboarding.push.benefit2')),
+      (AppIcons.eventAvailableRounded, t.t('onboarding.push.benefit3')),
     ];
 
     return OnboardingScaffold(
@@ -62,7 +62,7 @@ class PushStepScreen extends ConsumerWidget {
           child: AppEntrance(
             scale: true,
             child: AppIconMedallion(
-              icon: Icons.notifications_active_outlined,
+              icon: AppIcons.notificationsActiveOutlined,
               size: AppSizes.stateMedallion,
               iconSize: AppSizes.stateIcon,
             ),

@@ -61,25 +61,25 @@ class SettingsScreen extends ConsumerWidget {
         title: t.t('settings.section.account'),
         children: [
           AppListRow(
-            icon: Icons.person_outline_rounded,
+            icon: AppIcons.personOutlineRounded,
             label: t.t('settings.account'),
             onTap: () => context.push(AccountRoutes.account),
           ),
           // docs/03 §5 (stage 3.9): confirmed contacts + contact preferences.
           AppListRow(
-            icon: Icons.contact_phone_outlined,
+            icon: AppIcons.contactPhoneOutlined,
             label: t.t('contacts.title'),
             onTap: () => context.push(AppRoutes.myContacts),
           ),
           AppListRow(
-            icon: Icons.shield_outlined,
+            icon: AppIcons.shieldOutlined,
             label: t.t('settings.security'),
             onTap: () => context.push(AppRoutes.activeDevices),
           ),
           // docs/01 §3.6 "Подписка (адвокат)" → docs/06 §1.7 screens.
           if (ref.watch(currentUserRoleProvider) == UserRole.attorney)
             AppListRow(
-              icon: Icons.workspace_premium_outlined,
+              icon: AppIcons.workspacePremiumOutlined,
               label: t.t('settings.subscription'),
               onTap: () => context.push(SubscriptionRoutes.subscription),
             ),
@@ -89,13 +89,13 @@ class SettingsScreen extends ConsumerWidget {
               !ref.watch(isAssistantProvider))
             AppListRow(
               key: const ValueKey('settings-assistants'),
-              icon: Icons.admin_panel_settings_outlined,
+              icon: AppIcons.adminPanelSettingsOutlined,
               label: t.t('settings.assistants'),
               subtitle: t.t('settings.assistants.hint'),
               onTap: () => context.push(TeamRoutes.team),
             ),
           AppListRow(
-            icon: Icons.history_rounded,
+            icon: AppIcons.historyRounded,
             label: t.t('settings.caseHistory'),
             onTap: () => context.push(AppRoutes.caseHistory),
           ),
@@ -105,18 +105,18 @@ class SettingsScreen extends ConsumerWidget {
         title: t.t('settings.section.preferences'),
         children: [
           AppListRow(
-            icon: Icons.language_rounded,
+            icon: AppIcons.languageRounded,
             label: t.t('settings.language'),
             onTap: () => LanguagePickerSheet.show(context),
           ),
           AppListRow(
-            icon: Icons.contrast_rounded,
+            icon: AppIcons.contrastRounded,
             label: t.t('settings.theme'),
             trailingText: themeLabel(themeMode),
             onTap: () => _ThemePickerSheet.show(context),
           ),
           AppListRow(
-            icon: Icons.notifications_none_rounded,
+            icon: AppIcons.notificationsNoneRounded,
             label: t.t('settings.notifications'),
             onTap: () => context.push(ChatRoutes.notificationSettings),
           ),
@@ -126,24 +126,24 @@ class SettingsScreen extends ConsumerWidget {
         title: t.t('settings.section.support'),
         children: [
           AppListRow(
-            icon: Icons.help_outline_rounded,
+            icon: AppIcons.helpOutlineRounded,
             label: t.t('settings.help'),
             onTap: showNotBuiltYet,
           ),
           AppListRow(
-            icon: Icons.balance_rounded,
+            icon: AppIcons.balanceRounded,
             label: t.t('settings.legal'),
             onTap: () => context.push(AppRoutes.legalDoc('terms')),
           ),
           // OQ-028: who I blocked, with Unblock.
           AppListRow(
-            icon: Icons.block_flipped,
+            icon: AppIcons.blockFlipped,
             label: t.t('settings.blocked'),
             onTap: () => context.push(AppRoutes.blockedUsers),
           ),
           // file 01 §10.7 → docs/06 §5.2: the background ZIP/JSON export.
           AppListRow(
-            icon: Icons.download_rounded,
+            icon: AppIcons.downloadRounded,
             label: t.t('settings.downloadData'),
             onTap: () => context.push(AppRoutes.dataExport),
           ),
@@ -153,14 +153,14 @@ class SettingsScreen extends ConsumerWidget {
         title: t.t('settings.section.session'),
         children: [
           AppListRow(
-            icon: Icons.logout_rounded,
+            icon: AppIcons.logoutRounded,
             label: t.t('settings.logout'),
             destructive: true,
             // AppRouterGuard sends the signed-out user to /welcome.
             onTap: () => signOut(ref),
           ),
           AppListRow(
-            icon: Icons.delete_outline_rounded,
+            icon: AppIcons.deleteOutlineRounded,
             label: t.t('settings.deleteAccount'),
             destructive: true,
             onTap: () => context.push(AppRoutes.deleteAccount),
@@ -225,10 +225,10 @@ class _ThemePickerSheet extends ConsumerWidget {
       (
         ThemeMode.system,
         t.t('settings.theme.system'),
-        Icons.smartphone_rounded
+        AppIcons.smartphoneRounded
       ),
-      (ThemeMode.light, t.t('settings.theme.light'), Icons.light_mode_outlined),
-      (ThemeMode.dark, t.t('settings.theme.dark'), Icons.dark_mode_outlined),
+      (ThemeMode.light, t.t('settings.theme.light'), AppIcons.lightModeOutlined),
+      (ThemeMode.dark, t.t('settings.theme.dark'), AppIcons.darkModeOutlined),
     ];
 
     return SafeArea(

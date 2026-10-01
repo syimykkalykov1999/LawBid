@@ -33,7 +33,7 @@ class ChatsIconButton extends ConsumerWidget {
               clipBehavior: Clip.none,
               alignment: Alignment.center,
               children: [
-                Icon(Icons.forum_outlined,
+                AppIcon(AppIcons.forumOutlined,
                     color: colors.text, size: AppSizes.iconMd),
                 if (total > 0)
                   Positioned(

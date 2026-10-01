@@ -88,7 +88,7 @@ class CategoryBand extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(Icons.balance_rounded,
+            AppIcon(AppIcons.balanceRounded,
                 size: AppSpacing.lg, color: colors.goldLight),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
@@ -137,7 +137,7 @@ class _IconStat extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: AppSpacing.lg, color: colors.textSecondary),
+        AppIcon(icon, size: AppSpacing.lg, color: colors.textSecondary),
         const SizedBox(width: AppSpacing.xs),
         Text(value,
             style: typography.bodySmall.copyWith(color: colors.textSecondary)),
@@ -275,7 +275,7 @@ class FeedCaseCard extends StatelessWidget {
                                 Flexible(
                                   flex: 3,
                                   child: _PlainChip(
-                                    icon: Icons.place_outlined,
+                                    icon: AppIcons.placeOutlined,
                                     label: place,
                                   ),
                                 ),
@@ -321,7 +321,7 @@ class FeedCaseCard extends StatelessWidget {
                       const SizedBox(height: AppSpacing.md),
                       Row(
                         children: [
-                          Icon(Icons.payments_outlined,
+                          AppIcon(AppIcons.paymentsOutlined,
                               size: AppSizes.iconSm, color: colors.goldDark),
                           const SizedBox(width: AppSpacing.xs),
                           Expanded(
@@ -336,12 +336,12 @@ class FeedCaseCard extends StatelessWidget {
                             ),
                           ),
                           _IconStat(
-                              icon: Icons.visibility_outlined,
+                              icon: AppIcons.visibilityOutlined,
                               value:
                                   SocialFormat.count(formats, item.viewCount)),
                           const SizedBox(width: AppSpacing.md),
                           _IconStat(
-                              icon: Icons.gavel_rounded,
+                              icon: AppIcons.gavelRounded,
                               value:
                                   SocialFormat.count(formats, item.bidsCount)),
                         ],
@@ -444,7 +444,7 @@ class FeedCaseCard extends StatelessWidget {
                           ),
                           const SizedBox(width: AppSpacing.sm),
                           _PlainChip(
-                            icon: Icons.place_outlined,
+                            icon: AppIcons.placeOutlined,
                             label: place,
                           ),
                           const Spacer(),
@@ -490,7 +490,7 @@ class FeedCaseCard extends StatelessWidget {
                       const SizedBox(height: AppSpacing.md),
                       Row(
                         children: [
-                          Icon(Icons.payments_outlined,
+                          AppIcon(AppIcons.paymentsOutlined,
                               size: AppSizes.iconSm, color: colors.goldDark),
                           const SizedBox(width: AppSpacing.xs),
                           Expanded(
@@ -505,12 +505,12 @@ class FeedCaseCard extends StatelessWidget {
                             ),
                           ),
                           _IconStat(
-                              icon: Icons.visibility_outlined,
+                              icon: AppIcons.visibilityOutlined,
                               value:
                                   SocialFormat.count(formats, item.viewCount)),
                           const SizedBox(width: AppSpacing.md),
                           _IconStat(
-                              icon: Icons.gavel_rounded,
+                              icon: AppIcons.gavelRounded,
                               value:
                                   SocialFormat.count(formats, item.bidsCount)),
                         ],
@@ -565,7 +565,7 @@ class _GoldChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 15, color: colors.goldDark),
+          AppIcon(icon, size: 15, color: colors.goldDark),
           const SizedBox(width: AppSpacing.xs),
           Flexible(
             child: Text(
@@ -606,7 +606,7 @@ class _PlainChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: colors.textSecondary),
+          AppIcon(icon, size: 14, color: colors.textSecondary),
           const SizedBox(width: AppSpacing.xs),
           Text(
             label,
@@ -670,13 +670,13 @@ class ClientCaseCard extends StatelessWidget {
       status: CaseStatusPill(status: item.status, t: t),
       title: item.title,
       meta: [
-        _MineMeta(icon: Icons.place_outlined, label: place),
+        _MineMeta(icon: AppIcons.placeOutlined, label: place),
         _MineMeta(
-            icon: Icons.event_outlined, label: formats.date(item.createdAt)),
+            icon: AppIcons.eventOutlined, label: formats.date(item.createdAt)),
       ],
       footer: Row(
         children: [
-          Icon(Icons.gavel_rounded,
+          AppIcon(AppIcons.gavelRounded,
               size: AppSizes.iconSm, color: colors.goldDark),
           const SizedBox(width: AppSpacing.xs),
           Expanded(child: _FooterText(bids)),
@@ -684,7 +684,7 @@ class ClientCaseCard extends StatelessWidget {
             const SizedBox(width: AppSpacing.sm),
             StatusPill(label: fresh, tone: StatusTone.gold),
           ],
-          Icon(Icons.chevron_right_rounded, color: colors.textSecondary),
+          AppIcon(AppIcons.chevronRightRounded, color: colors.textSecondary),
         ],
       ),
     );
@@ -779,7 +779,7 @@ class _MineCardFrame extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(practiceGlyph(artCode),
+                    AppIcon(practiceGlyph(artCode),
                         size: 15, color: colors.goldLight),
                     const SizedBox(width: AppSpacing.xs),
                     Flexible(
@@ -863,7 +863,7 @@ class _MineMeta extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 15, color: colors.goldDark),
+        AppIcon(icon, size: 15, color: colors.goldDark),
         const SizedBox(width: AppSpacing.xs),
         Flexible(
           child: Text(
@@ -967,7 +967,7 @@ class AttorneyLine extends StatelessWidget {
                   ),
                   if (attorney.verifiedBadge) ...[
                     const SizedBox(width: AppSpacing.xs),
-                    Icon(Icons.verified_rounded,
+                    AppIcon(AppIcons.verifiedRounded,
                         size: AppSpacing.lg, color: colors.info),
                   ],
                 ],
@@ -975,7 +975,7 @@ class AttorneyLine extends StatelessWidget {
               Row(
                 children: [
                   if (attorney.ratingCount > 0) ...[
-                    Icon(Icons.star_rounded,
+                    AppIcon(AppIcons.starRounded,
                         size: AppSpacing.md + 2, color: colors.gold),
                     const SizedBox(width: 2),
                   ],
@@ -1036,7 +1036,7 @@ class OutsidePracticeNote extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(Icons.info_outline_rounded,
+            AppIcon(AppIcons.infoOutlineRounded,
                 size: AppSizes.iconSm, color: colors.goldDark),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
@@ -1171,14 +1171,14 @@ class MyBidCard extends StatelessWidget {
       status: BidStatusPill(bid: bid, viewer: PartyRole.attorney, t: t),
       title: re,
       meta: [
-        _MineMeta(icon: Icons.place_outlined, label: item.primaryStateCode),
+        _MineMeta(icon: AppIcons.placeOutlined, label: item.primaryStateCode),
         _MineMeta(
-            icon: Icons.schedule_rounded, label: formats.date(bid.createdAt)),
+            icon: AppIcons.scheduleRounded, label: formats.date(bid.createdAt)),
       ],
       note: lastMessage,
       footer: Row(
         children: [
-          Icon(Icons.payments_outlined,
+          AppIcon(AppIcons.paymentsOutlined,
               size: AppSizes.iconSm, color: colors.goldDark),
           const SizedBox(width: AppSpacing.xs),
           Expanded(child: MoneyText(terms)),
@@ -1236,22 +1236,22 @@ class WorkCard extends StatelessWidget {
       meta: [
         _MineMeta(
           icon: item.clientName == null
-              ? Icons.lock_outline_rounded
-              : Icons.person_outline_rounded,
+              ? AppIcons.lockOutlineRounded
+              : AppIcons.personOutlineRounded,
           label: client,
         ),
         if (item.primaryStateCode != null)
-          _MineMeta(icon: Icons.place_outlined, label: item.primaryStateCode!),
+          _MineMeta(icon: AppIcons.placeOutlined, label: item.primaryStateCode!),
         if (since != null)
-          _MineMeta(icon: Icons.event_outlined, label: formats.date(since)),
+          _MineMeta(icon: AppIcons.eventOutlined, label: formats.date(since)),
       ],
       footer: Row(
         children: [
-          Icon(Icons.payments_outlined,
+          AppIcon(AppIcons.paymentsOutlined,
               size: AppSizes.iconSm, color: colors.goldDark),
           const SizedBox(width: AppSpacing.xs),
           Expanded(child: MoneyText(terms)),
-          Icon(Icons.chevron_right_rounded, color: colors.textSecondary),
+          AppIcon(AppIcons.chevronRightRounded, color: colors.textSecondary),
         ],
       ),
     );
@@ -1281,7 +1281,7 @@ class UnavailableCaseCard extends StatelessWidget {
         child: Row(
           children: [
             const AppIconMedallion(
-                icon: Icons.block_rounded, tone: AppMedallionTone.neutral),
+                icon: AppIcons.blockRounded, tone: AppMedallionTone.neutral),
             const SizedBox(width: AppSpacing.md),
             Expanded(
               child: Column(
@@ -1311,7 +1311,7 @@ class UnavailableCaseCard extends StatelessWidget {
                   onTap: onRemove,
                   child: SizedBox.square(
                     dimension: AppSizes.touchTarget,
-                    child: Icon(Icons.bookmark_remove_outlined,
+                    child: AppIcon(AppIcons.bookmarkRemoveOutlined,
                         color: colors.textSecondary),
                   ),
                 ),

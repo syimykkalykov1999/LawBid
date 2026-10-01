@@ -79,7 +79,7 @@ class AttorneyTile extends ConsumerWidget {
                   const SizedBox(height: 2),
                   Row(
                     children: [
-                      Icon(Icons.star_rounded,
+                      AppIcon(AppIcons.starRounded,
                           size: AppSizes.iconSm, color: colors.gold),
                       const SizedBox(width: 2),
                       Text(
@@ -265,10 +265,10 @@ class FollowButton extends ConsumerWidget {
               key: ValueKey(following),
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
+                AppIcon(
                   following
-                      ? Icons.check_rounded
-                      : Icons.person_add_alt_1_rounded,
+                      ? AppIcons.checkRounded
+                      : AppIcons.personAddAlt1Rounded,
                   size: AppSizes.iconSm,
                   color: following ? colors.text : colors.onCtaBright,
                 ),

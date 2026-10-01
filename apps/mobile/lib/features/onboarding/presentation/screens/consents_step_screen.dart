@@ -91,7 +91,7 @@ class _ConsentsStepScreenState extends ConsumerState<ConsentsStepScreen> {
         // cards; optional consents (marketing, analytics) move to
         // Settings later and are not shown or sent here.
         ConsentCard(
-          icon: Icons.verified_user_outlined,
+          icon: AppIcons.verifiedUserOutlined,
           title: t.t('onboarding.consents.age18'),
           description: t.t('onboarding.consents.age18.desc'),
           value: _values[ConsentType.age18]!,
@@ -100,7 +100,7 @@ class _ConsentsStepScreenState extends ConsumerState<ConsentsStepScreen> {
         ),
         const SizedBox(height: AppSpacing.md),
         ConsentCard(
-          icon: Icons.gavel_rounded,
+          icon: AppIcons.gavelRounded,
           title: t.t('onboarding.consents.terms'),
           description: t.t('onboarding.consents.terms.desc'),
           value: termsAccepted,
@@ -109,7 +109,7 @@ class _ConsentsStepScreenState extends ConsumerState<ConsentsStepScreen> {
         ),
         const SizedBox(height: AppSpacing.md),
         ConsentCard(
-          icon: Icons.balance_rounded,
+          icon: AppIcons.balanceRounded,
           title: t.t('onboarding.consents.disclaimer.title'),
           description: t.t('onboarding.consents.disclaimer.body'),
           value: _values[ConsentType.disclaimer]!,
@@ -178,7 +178,7 @@ class _DocLink extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.description_outlined,
+                AppIcon(AppIcons.descriptionOutlined,
                     size: AppSizes.iconSm, color: colors.gold),
                 const SizedBox(width: AppSpacing.sm),
                 Flexible(

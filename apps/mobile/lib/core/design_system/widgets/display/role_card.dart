@@ -7,6 +7,8 @@ import 'package:lawbid/core/design_system/tokens/app_motion.dart';
 import 'package:lawbid/core/design_system/tokens/app_radii.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_entrance.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_pressable.dart';
+import 'package:lawbid/core/design_system/icons/app_icon.dart';
+import 'package:lawbid/core/design_system/icons/app_icons.dart';
 
 /// Role-selection card (file 07 §4 "RoleCard", used on `/onboarding/role`,
 /// file 07 §6.4 — that screen itself is built in stage 1.7; this widget is
@@ -105,7 +107,7 @@ class RoleCard extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        Icon(
+                        AppIcon(
                           icon,
                           size: 20,
                           color:
@@ -156,7 +158,7 @@ class RoleCard extends StatelessWidget {
                         shape: BoxShape.circle,
                       ),
                       alignment: Alignment.center,
-                      child: Icon(Icons.check, size: 13, color: colors.navy),
+                      child: AppIcon(AppIcons.check, size: 13, color: colors.navy),
                     ),
                   ),
                 ),

@@ -251,7 +251,7 @@ class _VerificationWizardScreenState
               AppIconButton(
                 semanticLabel: t.t('verification.wizard.close'),
                 onPressed: () => Navigator.of(context).maybePop(),
-                icon: Icon(Icons.close_rounded, color: colors.text),
+                icon: AppIcon(AppIcons.closeRounded, color: colors.text),
               ),
           ],
         ),
@@ -271,7 +271,7 @@ class _VerificationWizardScreenState
                         message: t.t('offline.message'),
                         action: AppButton(
                           label: t.t('error.retry'),
-                          icon: Icons.refresh_rounded,
+                          icon: AppIcons.refreshRounded,
                           variant: AppButtonVariant.secondary,
                           height: AppSizes.touchTarget,
                           onPressed: () =>
@@ -400,7 +400,7 @@ class _VerificationWizardScreenState
                         ),
                       _ => t.t('verification.next'),
                     },
-                    icon: isReview ? Icons.gavel_rounded : null,
+                    icon: isReview ? AppIcons.gavelRounded : null,
                     isLoading: _submitting,
                     onPressed: isReview ? () => _submit(s) : () => _next(s),
                   ),

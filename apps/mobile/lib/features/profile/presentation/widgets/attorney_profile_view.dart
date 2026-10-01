@@ -91,7 +91,7 @@ Future<void> showAttorneyMoreSheet(
                 ref.invalidate(publicAttorneyProfileProvider(p.username)),
           ),
           AppListRow(
-            icon: Icons.flag_outlined,
+            icon: AppIcons.flagOutlined,
             label: t.t('post.menu.report'),
             showChevron: false,
             onTap: () {
@@ -276,8 +276,8 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
                     ? 'reviews.write.action'
                     : 'reviews.write.edit'),
                 icon: mine == null
-                    ? Icons.rate_review_outlined
-                    : Icons.edit_outlined,
+                    ? AppIcons.rateReviewOutlined
+                    : AppIcons.editOutlined,
                 variant: mine == null
                     ? AppButtonVariant.primary
                     : AppButtonVariant.secondary,
@@ -347,7 +347,7 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
     } else if (reviews.hasError && state == null) {
       final offline = isOfflineError(reviews.error);
       footer = _TabMessage(
-        icon: offline ? Icons.wifi_off_rounded : Icons.error_outline_rounded,
+        icon: offline ? AppIcons.wifiOffRounded : AppIcons.errorOutlineRounded,
         title: t.t(offline ? 'offline.title' : 'error.default.title'),
         message: t.t(offline ? 'offline.message' : 'reviews.error'),
         actionLabel: t.t('error.retry'),
@@ -356,14 +356,14 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
     } else if (state != null && state.items.isEmpty) {
       footer = _stars != null
           ? _TabMessage(
-              icon: Icons.star_outline_rounded,
+              icon: AppIcons.starOutlineRounded,
               title: t.t('reviews.filter.emptyTitle', {'stars': '$_stars'}),
               message: t.t('reviews.filter.emptyMessage'),
               actionLabel: t.t('reviews.filter.showAll'),
               onAction: () => setState(() => _stars = null),
             )
           : _TabMessage(
-              icon: Icons.star_outline_rounded,
+              icon: AppIcons.starOutlineRounded,
               title: t.t('profile.rating.new'),
               message:
                   t.t(p.isSelf ? 'reviews.empty.self' : 'reviews.empty.other'),
@@ -443,7 +443,7 @@ class _VerificationBanner extends StatelessWidget {
         onTap: () => context.push(AppRoutes.verification),
         child: Row(
           children: [
-            const AppIconMedallion(icon: Icons.verified_user_outlined),
+            const AppIconMedallion(icon: AppIcons.verifiedUserOutlined),
             const SizedBox(width: AppSpacing.md),
             Expanded(
               child: Column(
@@ -459,7 +459,7 @@ class _VerificationBanner extends StatelessWidget {
                 ],
               ),
             ),
-            Icon(Icons.chevron_right_rounded, color: colors.textSecondary),
+            AppIcon(AppIcons.chevronRightRounded, color: colors.textSecondary),
           ],
         ),
       ),
@@ -610,7 +610,7 @@ class _Counter extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     if (star) ...[
-                      Icon(Icons.star_rounded, size: 16, color: colors.gold),
+                      AppIcon(AppIcons.starRounded, size: 16, color: colors.gold),
                       const SizedBox(width: 2),
                     ],
                     Flexible(
@@ -735,7 +735,7 @@ class _ChipRows extends ConsumerWidget {
               Semantics(
                 label: label,
                 child:
-                    Icon(icon, size: AppSizes.iconSm, color: colors.goldDark),
+                    AppIcon(icon, size: AppSizes.iconSm, color: colors.goldDark),
               ),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
@@ -768,10 +768,10 @@ class _ChipRows extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (firms.isNotEmpty)
-          row(t.t('profile.section.firm'), Icons.apartment_rounded,
+          row(t.t('profile.section.firm'), AppIcons.apartmentRounded,
               [for (final f in firms) AppChip(label: f)]),
         if (groups.isNotEmpty)
-          row(t.t('profile.section.practices'), Icons.gavel_rounded, [
+          row(t.t('profile.section.practices'), AppIcons.gavelRounded, [
             for (final g in groups)
               AppChip(
                 label: g.items.isEmpty
@@ -780,17 +780,17 @@ class _ChipRows extends ConsumerWidget {
                         {'name': g.label, 'count': '${g.items.length}'}),
                 trailing: g.items.isEmpty
                     ? null
-                    : Icon(Icons.expand_more_rounded,
+                    : AppIcon(AppIcons.expandMoreRounded,
                         size: AppSpacing.lg, color: colors.textSecondary),
                 onTap: g.items.isEmpty ? null : () => _showGroup(context, g),
               ),
           ]),
         if (profile.licensedStates.isNotEmpty)
-          row(t.t('profile.section.states'), Icons.account_balance_outlined, [
+          row(t.t('profile.section.states'), AppIcons.accountBalanceOutlined, [
             for (final s in profile.licensedStates) AppChip(label: s.name),
           ]),
         if (languages.isNotEmpty)
-          row(t.t('profile.section.languages'), Icons.translate_rounded, [
+          row(t.t('profile.section.languages'), AppIcons.translateRounded, [
             for (final l in languages) AppChip(label: l),
           ]),
       ],
@@ -848,7 +848,7 @@ class StepLabel extends StatelessWidget {
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     return Row(
       children: [
-        Icon(icon, size: AppSpacing.lg, color: colors.goldStroke),
+        AppIcon(icon, size: AppSpacing.lg, color: colors.goldStroke),
         const SizedBox(width: AppSpacing.xs),
         Flexible(
           child: Text(
@@ -874,7 +874,7 @@ class _BlockNotice extends StatelessWidget {
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     return Row(
       children: [
-        Icon(Icons.block_flipped, size: AppSizes.iconSm, color: colors.danger),
+        AppIcon(AppIcons.blockFlipped, size: AppSizes.iconSm, color: colors.danger),
         const SizedBox(width: AppSpacing.sm),
         Expanded(
           child: Text(text,
@@ -940,7 +940,7 @@ class _Actions extends ConsumerWidget {
         if (!blocked) const SizedBox(width: AppSpacing.sm),
         // Share as a small icon square (Instagram-style), full tap target.
         _IconSquare(
-          icon: Icons.ios_share_rounded,
+          icon: AppIcons.iosShareRounded,
           semanticLabel: t.t('profile.action.share'),
           onTap: onShare,
         ),
@@ -978,7 +978,7 @@ class _IconSquare extends StatelessWidget {
             borderRadius: BorderRadius.circular(AppRadii.field),
             border: Border.all(color: colors.border),
           ),
-          child: Icon(icon, size: AppSizes.iconSm, color: colors.text),
+          child: AppIcon(icon, size: AppSizes.iconSm, color: colors.text),
         ),
       ),
     );
@@ -1052,17 +1052,17 @@ class _Tabs extends ConsumerWidget {
       (
         AttorneyProfileTab.posts,
         t.t('profile.tab.posts'),
-        Icons.grid_on_rounded
+        AppIcons.gridOnRounded
       ),
       (
         AttorneyProfileTab.news,
         t.t('profile.tab.news'),
-        Icons.newspaper_rounded
+        AppIcons.newspaperRounded
       ),
       (
         AttorneyProfileTab.reviews,
         t.t('profile.tab.reviews'),
-        Icons.star_border_rounded
+        AppIcons.starBorderRounded
       ),
     ];
     return DecoratedBox(
@@ -1086,7 +1086,7 @@ class _Tabs extends ConsumerWidget {
                       onTap: () => onChanged(tab),
                       child: SizedBox(
                         height: AppSizes.touchTarget,
-                        child: Icon(
+                        child: AppIcon(
                           icon,
                           size: AppSizes.iconMd,
                           color: tab == selected
@@ -1163,7 +1163,7 @@ class _TabMessage extends StatelessWidget {
                 width: AppSizes.stateActionWidth,
                 child: AppButton(
                   label: actionLabel!,
-                  icon: Icons.refresh_rounded,
+                  icon: AppIcons.refreshRounded,
                   variant: AppButtonVariant.secondary,
                   height: AppSizes.touchTarget,
                   onPressed: onAction,
@@ -1233,7 +1233,7 @@ class ProfileUnavailableState extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translatorProvider);
     return AppEmptyState(
-      icon: Icons.person_off_outlined,
+      icon: AppIcons.personOffOutlined,
       title: t.t('profile.unavailable.title'),
       message: t.t('profile.unavailable.body'),
       action: onBack == null

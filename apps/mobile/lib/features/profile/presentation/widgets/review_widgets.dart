@@ -68,7 +68,7 @@ class ReviewCard extends ConsumerWidget {
         if (review.fromCase)
           ReviewBadge(
             label: t.t('reviews.badge.case'),
-            icon: Icons.verified_rounded,
+            icon: AppIcons.verifiedRounded,
           ),
         ReviewBadge(label: t.t('reviews.role.${review.authorRole}')),
       ],
@@ -98,21 +98,21 @@ extension on ReviewCard {
             if (onReply != null && review.reply == null)
               AppListRow(
                 key: const ValueKey('review-act-reply'),
-                icon: Icons.reply_rounded,
+                icon: AppIcons.replyRounded,
                 label: t.t('reviews.reply.action'),
                 onTap: () => Navigator.of(sheet).pop('reply'),
               ),
             if (onEdit != null)
               AppListRow(
                 key: const ValueKey('review-act-edit'),
-                icon: Icons.edit_outlined,
+                icon: AppIcons.editOutlined,
                 label: t.t('reviews.edit'),
                 onTap: () => Navigator.of(sheet).pop('edit'),
               ),
             if (onDelete != null)
               AppListRow(
                 key: const ValueKey('review-act-delete'),
-                icon: Icons.delete_outline_rounded,
+                icon: AppIcons.deleteOutlineRounded,
                 label: t.t('reviews.delete'),
                 destructive: true,
                 onTap: () => Navigator.of(sheet).pop('delete'),
@@ -120,7 +120,7 @@ extension on ReviewCard {
             if (onReport != null)
               AppListRow(
                 key: const ValueKey('review-act-report'),
-                icon: Icons.flag_outlined,
+                icon: AppIcons.flagOutlined,
                 label: t.t('reviews.report.action'),
                 onTap: () => Navigator.of(sheet).pop('report'),
               ),
@@ -341,8 +341,8 @@ class ReviewSummaryPanel extends ConsumerWidget {
                       child: SizedBox(
                         height: AppSizes.touchTarget - AppSpacing.sm,
                         width: AppSizes.touchTarget,
-                        child: Icon(
-                          Icons.tune_rounded,
+                        child: AppIcon(
+                          AppIcons.tuneRounded,
                           size: AppSizes.iconSm,
                           color: sort == ReviewsSort.newest
                               ? colors.textSecondary
@@ -394,7 +394,7 @@ class ReviewSummaryPanel extends ConsumerWidget {
                                         .copyWith(color: colors.textSecondary),
                                   ),
                                 ),
-                                Icon(Icons.star_rounded,
+                                AppIcon(AppIcons.starRounded,
                                     size: AppSpacing.md, color: colors.gold),
                                 const SizedBox(width: AppSpacing.sm),
                                 Expanded(
@@ -478,12 +478,12 @@ class ReviewSummaryPanel extends ConsumerWidget {
                 AppListRow(
                   key: ValueKey('reviews-sort-${v.name}'),
                   icon: switch (v) {
-                    ReviewsSort.relevant => Icons.auto_awesome_outlined,
-                    ReviewsSort.newest => Icons.arrow_downward_rounded,
-                    ReviewsSort.oldest => Icons.arrow_upward_rounded,
-                    ReviewsSort.highest => Icons.star_rounded,
-                    ReviewsSort.lowest => Icons.star_outline_rounded,
-                    ReviewsSort.helpful => Icons.thumb_up_alt_outlined,
+                    ReviewsSort.relevant => AppIcons.autoAwesomeOutlined,
+                    ReviewsSort.newest => AppIcons.arrowDownwardRounded,
+                    ReviewsSort.oldest => AppIcons.arrowUpwardRounded,
+                    ReviewsSort.highest => AppIcons.starRounded,
+                    ReviewsSort.lowest => AppIcons.starOutlineRounded,
+                    ReviewsSort.helpful => AppIcons.thumbUpAltOutlined,
                   },
                   label: t.t('reviews.sort.${v.name}'),
                   selected: v == sort,
@@ -586,7 +586,7 @@ class ReviewHelpfulButton extends ConsumerWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(mine ? Icons.thumb_up_alt_rounded : Icons.thumb_up_alt_outlined,
+          AppIcon(mine ? AppIcons.thumbUpAltRounded : AppIcons.thumbUpAltOutlined,
               size: 16, color: color),
           const SizedBox(width: 6),
           Text(label,
@@ -656,7 +656,7 @@ class ReviewReplyBlock extends ConsumerWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.reply_rounded, size: 16, color: colors.goldDark),
+              AppIcon(AppIcons.replyRounded, size: 16, color: colors.goldDark),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
@@ -673,7 +673,7 @@ class ReviewReplyBlock extends ConsumerWidget {
               if (onEdit != null)
                 AppIconButton(
                   plain: true,
-                  icon: Icon(Icons.more_horiz_rounded,
+                  icon: AppIcon(AppIcons.moreHorizRounded,
                       color: colors.textSecondary, size: 18),
                   semanticLabel: t.t('reviews.reply.menu'),
                   onPressed: () async {
@@ -685,12 +685,12 @@ class ReviewReplyBlock extends ConsumerWidget {
                           children: [
                             const AppSheetHandle(),
                             AppListRow(
-                              icon: Icons.edit_outlined,
+                              icon: AppIcons.editOutlined,
                               label: t.t('reviews.reply.edit'),
                               onTap: () => Navigator.of(sheet).pop('edit'),
                             ),
                             AppListRow(
-                              icon: Icons.delete_outline_rounded,
+                              icon: AppIcons.deleteOutlineRounded,
                               label: t.t('reviews.reply.delete'),
                               destructive: true,
                               onTap: () => Navigator.of(sheet).pop('delete'),
@@ -809,7 +809,7 @@ class ReviewBadge extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (icon != null) ...[
-            Icon(icon, size: 12, color: colors.goldDark),
+            AppIcon(icon, size: 12, color: colors.goldDark),
             const SizedBox(width: 3),
           ],
           Text(label, style: type.badge.copyWith(color: colors.goldDark)),
@@ -901,7 +901,7 @@ class _MapsReviewTileState extends ConsumerState<MapsReviewTile> {
               top: AppSpacing.sm,
               right: AppSpacing.sm,
               child: IconButton(
-                icon: const Icon(Icons.close_rounded, color: Colors.white),
+                icon: const AppIcon(AppIcons.closeRounded, color: Colors.white),
                 onPressed: () => Navigator.of(ctx).pop(),
               ),
             ),
@@ -994,7 +994,7 @@ class _MapsReviewTileState extends ConsumerState<MapsReviewTile> {
                 IconButton(
                   key: ValueKey('review-menu-${w.id}'),
                   tooltip: t.t('reviews.menu'),
-                  icon: Icon(Icons.more_vert_rounded,
+                  icon: AppIcon(AppIcons.moreVertRounded,
                       color: colors.textSecondary),
                   onPressed: w.onMenu,
                 ),

@@ -88,8 +88,8 @@ class _CaseActionsBarState extends ConsumerState<CaseActionsBar> {
         children: [
           BounceIcon(
             active: false,
-            icon: Icons.mode_comment_outlined,
-            activeIcon: Icons.mode_comment_outlined,
+            icon: AppIcons.modeCommentOutlined,
+            activeIcon: AppIcons.modeCommentOutlined,
             label: t.t('cases.comments.title'),
             onTap: () => context.push(AppRoutes.caseComments(widget.item.id)),
           ),
@@ -101,8 +101,8 @@ class _CaseActionsBarState extends ConsumerState<CaseActionsBar> {
             ),
           BounceIcon(
             active: false,
-            icon: Icons.send_outlined,
-            activeIcon: Icons.send_outlined,
+            icon: AppIcons.sendOutlined,
+            activeIcon: AppIcons.sendOutlined,
             label: t.t('post.share'),
             onTap: _share,
           ),
@@ -124,8 +124,8 @@ class _CaseActionsBarState extends ConsumerState<CaseActionsBar> {
           ),
           BounceIcon(
             active: saved,
-            icon: Icons.bookmark_border_rounded,
-            activeIcon: Icons.bookmark_rounded,
+            icon: AppIcons.bookmarkBorderRounded,
+            activeIcon: AppIcons.bookmarkRounded,
             activeColor: colors.gold,
             label: t.t(saved ? 'post.unsave' : 'post.save'),
             onTap: _toggleSave,

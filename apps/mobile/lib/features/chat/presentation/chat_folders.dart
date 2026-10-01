@@ -183,7 +183,7 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
             const AppSheetHandle(),
             AppListRow(
               key: const ValueKey('organize-pin'),
-              icon: c.pinned ? Icons.push_pin : Icons.push_pin_outlined,
+              icon: c.pinned ? AppIcons.pushPin : AppIcons.pushPinOutlined,
               label:
                   t.t(c.pinned ? 'chat.organize.unpin' : 'chat.organize.pin'),
               onTap: _busy
@@ -198,8 +198,8 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
             AppListRow(
               key: const ValueKey('organize-move'),
               icon: other == ChatFolder.primary
-                  ? Icons.star_outline_rounded
-                  : Icons.inbox_outlined,
+                  ? AppIcons.starOutlineRounded
+                  : AppIcons.inboxOutlined,
               label: t.t('chat.organize.moveTo', {
                 'folder': t.t('chat.folder.${other.name}'),
               }),
@@ -214,7 +214,7 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
             if (!c.folderAuto)
               AppListRow(
                 key: const ValueKey('organize-auto'),
-                icon: Icons.auto_mode_rounded,
+                icon: AppIcons.autoModeRounded,
                 label: t.t('chat.organize.auto'),
                 onTap: _busy
                     ? null
@@ -260,14 +260,14 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
                       semanticLabel: t.t('chat.organize.noteHint'),
                       maxLength: 280,
                       maxLines: 3,
-                      leading: Icon(Icons.sticky_note_2_outlined,
+                      leading: AppIcon(AppIcons.stickyNote2Outlined,
                           color: colors.goldDark),
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     AppButton(
                       key: const ValueKey('organize-save'),
                       label: t.t('common.save'),
-                      icon: Icons.check_rounded,
+                      icon: AppIcons.checkRounded,
                       isLoading: _busy,
                       onPressed: () => _run(
                         () => repo.organize(

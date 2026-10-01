@@ -108,7 +108,7 @@ class CasePhotosPicker extends ConsumerWidget {
                         child: AppIconButton(
                           plain: false,
                           icon:
-                              Icon(Icons.refresh_rounded, color: colors.danger),
+                              AppIcon(AppIcons.refreshRounded, color: colors.danger),
                           semanticLabel: t.t('error.retry'),
                           onPressed: () => c.retryPhoto(p.key),
                         ),
@@ -127,7 +127,7 @@ class CasePhotosPicker extends ConsumerWidget {
                               shape: BoxShape.circle,
                             ),
                             padding: const EdgeInsets.all(2),
-                            child: Icon(Icons.close_rounded,
+                            child: AppIcon(AppIcons.closeRounded,
                                 size: 18, color: colors.text),
                           ),
                         ),
@@ -150,7 +150,7 @@ class CasePhotosPicker extends ConsumerWidget {
                       borderRadius: BorderRadius.circular(AppRadii.field),
                       border: Border.all(color: colors.goldStroke),
                     ),
-                    child: Icon(Icons.add_photo_alternate_outlined,
+                    child: AppIcon(AppIcons.addPhotoAlternateOutlined,
                         color: colors.goldDark),
                   ),
                 ),
@@ -170,7 +170,7 @@ class CasePhotosPicker extends ConsumerWidget {
                       border: Border.all(color: colors.goldStroke),
                     ),
                     child:
-                        Icon(Icons.note_add_outlined, color: colors.goldDark),
+                        AppIcon(AppIcons.noteAddOutlined, color: colors.goldDark),
                   ),
                 ),
               ),
@@ -201,7 +201,7 @@ class CasePhotosStrip extends ConsumerWidget {
     if (photos.isEmpty) {
       return Row(
         children: [
-          Icon(Icons.lock_outline_rounded,
+          AppIcon(AppIcons.lockOutlineRounded,
               size: AppSizes.iconSm, color: colors.goldDark),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
@@ -306,7 +306,7 @@ class _DocTile extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(pdf ? Icons.picture_as_pdf_rounded : Icons.description_rounded,
+          AppIcon(pdf ? AppIcons.pictureAsPdfRounded : AppIcons.descriptionRounded,
               size: 36, color: colors.goldDark),
           const SizedBox(height: AppSpacing.xs),
           Text(

@@ -21,7 +21,7 @@ void main() {
                 width: 360,
                 height: 280,
                 child: AppEmptyState(
-                  icon: Icons.balance_rounded,
+                  icon: AppIcons.balanceRounded,
                   message: 'Nothing here yet',
                 ),
               ),

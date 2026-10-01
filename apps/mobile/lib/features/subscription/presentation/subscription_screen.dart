@@ -367,7 +367,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
         AppListSection(
           children: [
             AppListRow(
-              icon: Icons.receipt_long_outlined,
+              icon: AppIcons.receiptLongOutlined,
               label: t.t('subscription.action.payments'),
               onTap: () => context.push(SubscriptionRoutes.payments),
             ),
@@ -478,7 +478,7 @@ class SubscriptionStatusCard extends StatelessWidget {
     final manage = AppButton(
       key: const ValueKey('subscription-manage'),
       label: t.t('subscription.action.manage'),
-      icon: Icons.open_in_new_rounded,
+      icon: AppIcons.openInNewRounded,
       variant: AppButtonVariant.secondary,
       height: AppSizes.touchTarget,
       isLoading: portalBusy,
@@ -489,7 +489,7 @@ class SubscriptionStatusCard extends StatelessWidget {
         AppButton(
           key: const ValueKey('subscription-update-card'),
           label: t.t('subscription.action.updateCard'),
-          icon: Icons.credit_card_rounded,
+          icon: AppIcons.creditCardRounded,
           height: AppSizes.touchTarget,
           isLoading: portalBusy,
           onPressed: onManage,
@@ -498,7 +498,7 @@ class SubscriptionStatusCard extends StatelessWidget {
         AppButton(
           key: const ValueKey('subscription-refresh'),
           label: t.t('subscription.action.refresh'),
-          icon: Icons.refresh_rounded,
+          icon: AppIcons.refreshRounded,
           variant: AppButtonVariant.secondary,
           height: AppSizes.touchTarget,
           onPressed: onRefresh,
@@ -517,7 +517,7 @@ class SubscriptionStatusCard extends StatelessWidget {
           AppButton(
             key: const ValueKey('subscription-resume'),
             label: t.t('subscription.action.resume'),
-            icon: Icons.replay_rounded,
+            icon: AppIcons.replayRounded,
             height: AppSizes.touchTarget,
             onPressed: onResume,
           ),
@@ -596,8 +596,8 @@ class PaymentFailedCard extends StatelessWidget {
             Row(
               children: [
                 ExcludeSemantics(
-                  child: Icon(
-                    Icons.error_outline_rounded,
+                  child: AppIcon(
+                    AppIcons.errorOutlineRounded,
                     color: colors.dangerText,
                     size: AppSizes.iconMd,
                   ),
@@ -621,7 +621,7 @@ class PaymentFailedCard extends StatelessWidget {
             AppButton(
               key: const ValueKey('payment-failed-update-card'),
               label: t.t('subscription.action.updateCard'),
-              icon: Icons.credit_card_rounded,
+              icon: AppIcons.creditCardRounded,
               height: AppSizes.touchTarget,
               isLoading: busy,
               onPressed: onUpdateCard,
@@ -682,7 +682,7 @@ class SubscribeCta extends StatelessWidget {
         AppButton(
           key: const ValueKey('subscribe-cta'),
           label: label,
-          icon: Icons.workspace_premium_outlined,
+          icon: AppIcons.workspacePremiumOutlined,
           isLoading: state.busy,
           isEnabled: o.canStart,
           dimWhenDisabled: true,

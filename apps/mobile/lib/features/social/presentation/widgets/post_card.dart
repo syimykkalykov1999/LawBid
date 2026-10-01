@@ -196,7 +196,7 @@ class PostCard extends ConsumerWidget {
                           fontWeight: FontWeight.w600,
                         ),
                       ),
-                      Icon(Icons.chevron_right_rounded,
+                      AppIcon(AppIcons.chevronRightRounded,
                           size: 20, color: colors.goldDark),
                     ],
                   ),
@@ -341,7 +341,7 @@ class PostCard extends ConsumerWidget {
                 AppSpacing.lg, AppSpacing.xs, AppSpacing.lg, 0),
             child: Row(
               children: [
-                Icon(Icons.hourglass_top_rounded,
+                AppIcon(AppIcons.hourglassTopRounded,
                     size: 14, color: colors.textSecondary),
                 const SizedBox(width: AppSpacing.xs),
                 Flexible(
@@ -424,7 +424,7 @@ class _TimeLine extends ConsumerWidget {
           // readers) so the time is never cut.
           Semantics(
             label: t.t('post.public'),
-            child: Icon(Icons.public_rounded,
+            child: AppIcon(AppIcons.publicRounded,
                 size: 14, color: colors.textSecondary),
           ),
           if (!inline) ...[
@@ -523,7 +523,7 @@ class _TopicChips extends ConsumerWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (icon != null) ...[
-                  Icon(icon,
+                  AppIcon(icon,
                       size: 15,
                       color: gold ? colors.goldDark : colors.goldLight),
                   const SizedBox(width: AppSpacing.xs),
@@ -588,7 +588,7 @@ class _TopicChips extends ConsumerWidget {
           label: t.t('post.kind.news'),
           main: false,
           gold: true,
-          icon: Icons.newspaper_rounded,
+          icon: AppIcons.newspaperRounded,
           onTap: () {},
         ),
       ],
@@ -677,7 +677,7 @@ class _AuthorRow extends ConsumerWidget {
             const SizedBox(width: AppSpacing.xs),
           ],
           AppIconButton(
-            icon: const Icon(Icons.more_horiz_rounded),
+            icon: const AppIcon(AppIcons.moreHorizRounded),
             semanticLabel: t.t('post.menu'),
             onPressed: () => showPostMenu(context, ref, post),
           ),
@@ -699,7 +699,7 @@ class VerifiedCheck extends StatelessWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     return Semantics(
       label: label,
-      child: Icon(Icons.verified_rounded, size: size, color: colors.info),
+      child: AppIcon(AppIcons.verifiedRounded, size: size, color: colors.info),
     );
   }
 }
@@ -974,7 +974,7 @@ class _PostMediaCarouselState extends State<PostMediaCarousel>
                         ColoredBox(color: colors.skeletonBase),
                     errorWidget: (_, __, ___) => ColoredBox(
                       color: colors.skeletonBase,
-                      child: Icon(Icons.image_not_supported_outlined,
+                      child: AppIcon(AppIcons.imageNotSupportedOutlined,
                           color: colors.textSecondary),
                     ),
                   );
@@ -1091,8 +1091,8 @@ class _HeartBurst extends StatelessWidget {
             opacity: opacity.clamp(0, 1),
             child: Transform.scale(
               scale: scale,
-              child: Icon(
-                Icons.favorite_rounded,
+              child: AppIcon(
+                AppIcons.favoriteRounded,
                 size: 108,
                 color: Colors.white,
                 shadows: [
@@ -1169,8 +1169,8 @@ class _ActionsBar extends ConsumerWidget {
         children: [
           BounceIcon(
             active: post.likedByMe,
-            activeIcon: Icons.favorite_rounded,
-            icon: Icons.favorite_border_rounded,
+            activeIcon: AppIcons.favoriteRounded,
+            icon: AppIcons.favoriteBorderRounded,
             activeColor: colors.danger,
             label: t.t(post.likedByMe ? 'post.unlike' : 'post.like'),
             onTap: () => run(() => actions.toggleLike(post)),
@@ -1180,8 +1180,8 @@ class _ActionsBar extends ConsumerWidget {
           if (showComment) ...[
             BounceIcon(
               active: false,
-              activeIcon: Icons.mode_comment_outlined,
-              icon: Icons.mode_comment_outlined,
+              activeIcon: AppIcons.modeCommentOutlined,
+              icon: AppIcons.modeCommentOutlined,
               label: t.t('post.comments'),
               onTap: () => context.push(SocialRoutes.post(post.id)),
             ),
@@ -1189,8 +1189,8 @@ class _ActionsBar extends ConsumerWidget {
           ],
           BounceIcon(
             active: false,
-            activeIcon: Icons.send_outlined,
-            icon: Icons.send_outlined,
+            activeIcon: AppIcons.sendOutlined,
+            icon: AppIcons.sendOutlined,
             label: t.t('post.share'),
             onTap: () => sharePost(context, ref, post),
           ),
@@ -1206,8 +1206,8 @@ class _ActionsBar extends ConsumerWidget {
           ),
           BounceIcon(
             active: post.savedByMe,
-            activeIcon: Icons.bookmark_rounded,
-            icon: Icons.bookmark_border_rounded,
+            activeIcon: AppIcons.bookmarkRounded,
+            icon: AppIcons.bookmarkBorderRounded,
             activeColor: colors.gold,
             label: t.t(post.savedByMe ? 'post.unsave' : 'post.save'),
             onTap: () => run(() => actions.toggleSave(post)),
@@ -1317,7 +1317,7 @@ class _BounceIconState extends State<BounceIcon>
                       : const Duration(milliseconds: 160),
                   transitionBuilder: (child, a) =>
                       FadeTransition(opacity: a, child: child),
-                  child: Icon(
+                  child: AppIcon(
                     widget.active ? widget.activeIcon : widget.icon,
                     key: ValueKey(widget.active),
                     size: widget.size,
@@ -1388,7 +1388,7 @@ class PostDisclaimer extends ConsumerWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(Icons.info_outline_rounded,
+        AppIcon(AppIcons.infoOutlineRounded,
             size: AppSizes.iconSm, color: colors.textSecondary),
         const SizedBox(width: AppSpacing.sm),
         Expanded(

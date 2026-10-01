@@ -128,7 +128,7 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                       ),
                     AppIconButton(
                       plain: true,
-                      icon: Icon(Icons.tune_rounded, color: colors.text),
+                      icon: AppIcon(AppIcons.tuneRounded, color: colors.text),
                       semanticLabel: t.t('settings.notifications'),
                       onPressed: () =>
                           context.push(ChatRoutes.notificationSettings),
@@ -392,15 +392,15 @@ class ConversationsView extends ConsumerWidget {
             : null,
         empty: folder == ChatListFolder.all
             ? AppEmptyState(
-                icon: Icons.forum_outlined,
+                icon: AppIcons.forumOutlined,
                 title: t.t('chat.empty.title'),
                 message:
                     t.t(attorney ? 'chat.empty.attorney' : 'chat.empty.client'),
               )
             : AppEmptyState(
                 icon: folder == ChatListFolder.waiting
-                    ? Icons.hourglass_empty_rounded
-                    : Icons.forum_outlined,
+                    ? AppIcons.hourglassEmptyRounded
+                    : AppIcons.forumOutlined,
                 message: t.t('chat.folder.${folder.name}.empty'),
               ),
         onRefresh: () async {
@@ -448,7 +448,7 @@ class MessageRequestsView extends ConsumerWidget {
             style: type.bodySmall.copyWith(color: colors.textSecondary)),
       ),
       empty: AppEmptyState(
-        icon: Icons.mark_email_read_outlined,
+        icon: AppIcons.markEmailReadOutlined,
         message: t.t('chat.requests.empty'),
       ),
       onRefresh: () async {
@@ -522,12 +522,12 @@ class ConversationRow extends ConsumerWidget {
                             ],
                             if (c.muted) ...[
                               const SizedBox(width: AppSpacing.xs),
-                              Icon(Icons.notifications_off_outlined,
+                              AppIcon(AppIcons.notificationsOffOutlined,
                                   size: 14, color: colors.textSecondary),
                             ],
                             if (c.pinned) ...[
                               const SizedBox(width: AppSpacing.xs),
-                              Icon(Icons.push_pin,
+                              AppIcon(AppIcons.pushPin,
                                   size: 14, color: colors.goldDark),
                             ],
                           ],
@@ -548,7 +548,7 @@ class ConversationRow extends ConsumerWidget {
                               child: SizedBox(
                                 width: 32,
                                 height: 28,
-                                child: Icon(Icons.more_horiz_rounded,
+                                child: AppIcon(AppIcons.moreHorizRounded,
                                     color: colors.textSecondary),
                               ),
                             ),
@@ -597,7 +597,7 @@ class ConversationRow extends ConsumerWidget {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(Icons.sticky_note_2_outlined,
+                          AppIcon(AppIcons.stickyNote2Outlined,
                               size: 14, color: colors.goldDark),
                           const SizedBox(width: 6),
                           Expanded(
@@ -634,8 +634,8 @@ class ConversationRow extends ConsumerWidget {
                                     : '@${c.counterpart.username}',
                                 closed: false,
                                 icon: c.myRequestPending
-                                    ? Icons.schedule_send_outlined
-                                    : Icons.person_outline_rounded,
+                                    ? AppIcons.scheduleSendOutlined
+                                    : AppIcons.personOutlineRounded,
                               ),
                             if (c.waiting)
                               _CaseChip(
@@ -645,7 +645,7 @@ class ConversationRow extends ConsumerWidget {
                                       SocialFormat.ago(t, f, c.waitingSince!),
                                 }),
                                 closed: false,
-                                icon: Icons.hourglass_top_rounded,
+                                icon: AppIcons.hourglassTopRounded,
                               ),
                           ],
                         ),
@@ -701,9 +701,9 @@ class _CaseChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
+          AppIcon(
               icon ??
-                  (closed ? Icons.lock_outline_rounded : Icons.balance_rounded),
+                  (closed ? AppIcons.lockOutlineRounded : AppIcons.balanceRounded),
               size: 12,
               color: colors.goldDark),
           const SizedBox(width: 4),
@@ -752,7 +752,7 @@ class CounterpartAvatar extends StatelessWidget {
           color: colors.goldTint,
           border: Border.all(color: colors.goldStroke),
         ),
-        child: Icon(Icons.person_outline_rounded,
+        child: AppIcon(AppIcons.personOutlineRounded,
             color: colors.goldDark, size: size * 0.5),
       );
     }
@@ -797,10 +797,10 @@ class _Bell extends StatelessWidget {
           child: Stack(
             alignment: Alignment.center,
             children: [
-              Icon(
+              AppIcon(
                 selected
-                    ? Icons.notifications_rounded
-                    : Icons.notifications_none_rounded,
+                    ? AppIcons.notificationsRounded
+                    : AppIcons.notificationsNoneRounded,
                 color: selected ? colors.gold : colors.text,
                 size: 28,
               ),

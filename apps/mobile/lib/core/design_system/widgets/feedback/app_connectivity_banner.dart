@@ -14,6 +14,8 @@ import 'package:lawbid/core/design_system/tokens/app_spacing.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_entrance.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_pressable.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_tap_target.dart';
+import 'package:lawbid/core/design_system/icons/app_icon.dart';
+import 'package:lawbid/core/design_system/icons/app_icons.dart';
 
 /// What an [AppConnectivityBanner] is reporting.
 enum AppConnectivityBannerTone {
@@ -80,8 +82,8 @@ class AppConnectivityBanner extends StatelessWidget {
       AppConnectivityBannerTone.restored => colors.success,
     };
     final icon = switch (tone) {
-      AppConnectivityBannerTone.offline => Icons.wifi_off_rounded,
-      AppConnectivityBannerTone.restored => Icons.check_circle_rounded,
+      AppConnectivityBannerTone.offline => AppIcons.wifiOffRounded,
+      AppConnectivityBannerTone.restored => AppIcons.checkCircleRounded,
     };
 
     final band = Container(
@@ -103,7 +105,7 @@ class AppConnectivityBanner extends StatelessWidget {
         child: Row(
           children: [
             ExcludeSemantics(
-              child: Icon(icon, size: AppSizes.iconSm, color: accent),
+              child: AppIcon(icon, size: AppSizes.iconSm, color: accent),
             ),
             const SizedBox(width: AppSpacing.md),
             Expanded(

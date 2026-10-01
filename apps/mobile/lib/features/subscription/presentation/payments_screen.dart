@@ -41,7 +41,7 @@ class PaymentsScreen extends ConsumerWidget {
         ),
         itemKey: (p) => p.id,
         empty: AppEmptyState(
-          icon: Icons.receipt_long_outlined,
+          icon: AppIcons.receiptLongOutlined,
           title: t.t('payments.empty.title'),
           message: t.t('payments.empty.message'),
         ),
@@ -97,8 +97,8 @@ class PaymentCard extends StatelessWidget {
                 children: [
                   AppIconMedallion(
                     icon: payment.status == PaymentStatus.failed
-                        ? Icons.error_outline_rounded
-                        : Icons.receipt_long_outlined,
+                        ? AppIcons.errorOutlineRounded
+                        : AppIcons.receiptLongOutlined,
                     tone: switch (tone) {
                       StatusTone.danger => AppMedallionTone.danger,
                       StatusTone.success => AppMedallionTone.success,

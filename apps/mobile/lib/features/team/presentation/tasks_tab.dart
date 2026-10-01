@@ -233,13 +233,13 @@ class _TaskList extends ConsumerWidget {
     return switch (value) {
       AsyncData(:final value) when value.isEmpty => PullableState(
           child: AppEmptyState(
-            icon: Icons.event_available_outlined,
+            icon: AppIcons.eventAvailableOutlined,
             title: t.t('tasks.empty'),
             message: t.t('tasks.empty.body'),
             action: canAdd && !listKey.done
                 ? AppButton(
                     label: t.t('tasks.add'),
-                    icon: Icons.add_rounded,
+                    icon: AppIcons.addRounded,
                     height: AppSizes.touchTarget,
                     onPressed: onAdd,
                   )
@@ -356,7 +356,7 @@ class _ResultsList extends ConsumerWidget {
     if (tasks.isEmpty && requests.isEmpty) {
       return PullableState(
         child: AppEmptyState(
-          icon: Icons.mark_email_read_outlined,
+          icon: AppIcons.markEmailReadOutlined,
           title: t.t('tasks.results'),
           message: t.t('tasks.results.empty'),
         ),

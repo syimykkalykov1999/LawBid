@@ -23,7 +23,7 @@ class VerificationRequiredView extends ConsumerWidget {
     final t = ref.watch(translatorProvider);
     return AppEmptyState(
       key: const ValueKey('verification-required'),
-      icon: Icons.verified_user_outlined,
+      icon: AppIcons.verifiedUserOutlined,
       title: t.t('gate.verify.title'),
       message: t.t(reason == VerificationGateReason.post
           ? 'gate.verify.post'
@@ -60,7 +60,7 @@ class VerificationRequiredScreen extends ConsumerWidget {
                   context.canPop() ? context.pop() : context.go(AppRoutes.feed),
               child: SizedBox.square(
                 dimension: AppSizes.touchTarget,
-                child: Icon(Icons.close_rounded,
+                child: AppIcon(AppIcons.closeRounded,
                     color: colors.text, size: AppSizes.iconMd),
               ),
             ),

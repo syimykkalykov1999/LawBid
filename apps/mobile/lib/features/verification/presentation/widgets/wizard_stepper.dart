@@ -183,7 +183,7 @@ class _StepDot extends StatelessWidget {
             : null,
       ),
       child: state == _DotState.done
-          ? Icon(Icons.check_rounded, size: AppSizes.iconSm - 4, color: fg)
+          ? AppIcon(AppIcons.checkRounded, size: AppSizes.iconSm - 4, color: fg)
           : Text(
               '${index + 1}',
               style: typography.caption.copyWith(color: fg),

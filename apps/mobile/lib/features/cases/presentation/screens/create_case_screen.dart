@@ -103,7 +103,7 @@ class _CreateCaseScreenState extends ConsumerState<CreateCaseScreen> {
                 onTap: _close,
                 child: SizedBox.square(
                   dimension: AppSizes.touchTarget,
-                  child: Icon(Icons.close_rounded,
+                  child: AppIcon(AppIcons.closeRounded,
                       color: colors.text, size: AppSizes.iconMd),
                 ),
               ),
@@ -254,7 +254,7 @@ class _DraftBanner extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(Icons.history_edu_rounded,
+            AppIcon(AppIcons.historyEduRounded,
                 color: colors.goldDark, size: AppSizes.iconSm),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
@@ -369,7 +369,7 @@ class _ReviewStep extends ConsumerWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(icon, size: AppSizes.iconSm, color: colors.goldDark),
+                  AppIcon(icon, size: AppSizes.iconSm, color: colors.goldDark),
                   const SizedBox(width: AppSpacing.md),
                   Expanded(
                     child: Column(
@@ -385,7 +385,7 @@ class _ReviewStep extends ConsumerWidget {
                       ],
                     ),
                   ),
-                  Icon(Icons.edit_outlined,
+                  AppIcon(AppIcons.editOutlined,
                       size: AppSpacing.lg, color: colors.textSecondary),
                 ],
               ),
@@ -415,20 +415,20 @@ class _ReviewStep extends ConsumerWidget {
                 CaseFormat.practice(
                     t, d.practiceI18nKey ?? '', d.practiceNameEn ?? ''),
                 0,
-                Icons.balance_rounded,
+                AppIcons.balanceRounded,
               ),
               Divider(height: 1, color: colors.border),
               row(t.t('cases.field.title'), d.title.trim(), 1,
-                  Icons.title_rounded),
+                  AppIcons.titleRounded),
               Divider(height: 1, color: colors.border),
               row(t.t('cases.field.description'), d.description.trim(), 1,
-                  Icons.notes_rounded),
+                  AppIcons.notesRounded),
               Divider(height: 1, color: colors.border),
               row(
                 t.t('cases.field.place'),
                 d.city.trim().isEmpty ? states : '${d.city.trim()} · $states',
                 2,
-                Icons.place_outlined,
+                AppIcons.placeOutlined,
               ),
               Divider(height: 1, color: colors.border),
               row(
@@ -437,7 +437,7 @@ class _ReviewStep extends ConsumerWidget {
                     ? CaseFormat.money(formats, d.budgetDollars! * 100)
                     : t.t('cases.budget.clarifyLater'),
                 3,
-                Icons.payments_outlined,
+                AppIcons.paymentsOutlined,
               ),
             ],
           ),
@@ -446,7 +446,7 @@ class _ReviewStep extends ConsumerWidget {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(Icons.info_outline_rounded,
+            AppIcon(AppIcons.infoOutlineRounded,
                 size: AppSpacing.lg, color: colors.textSecondary),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
@@ -471,14 +471,14 @@ class _ReviewStep extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               for (final (icon, key) in const [
-                (Icons.visibility_off_outlined, 'cases.create.privacy.clients'),
-                (Icons.gavel_rounded, 'cases.create.privacy.attorneys'),
-                (Icons.lock_outline_rounded, 'cases.create.privacy.files'),
+                (AppIcons.visibilityOffOutlined, 'cases.create.privacy.clients'),
+                (AppIcons.gavelRounded, 'cases.create.privacy.attorneys'),
+                (AppIcons.lockOutlineRounded, 'cases.create.privacy.files'),
               ]) ...[
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(icon, size: AppSizes.iconSm, color: colors.goldDark),
+                    AppIcon(icon, size: AppSizes.iconSm, color: colors.goldDark),
                     const SizedBox(width: AppSpacing.sm),
                     Expanded(
                       child: Text(t.t(key),
@@ -551,7 +551,7 @@ class _ConsentBox extends StatelessWidget {
                       width: 1.5),
                 ),
                 child: checked
-                    ? Icon(Icons.check_rounded,
+                    ? AppIcon(AppIcons.checkRounded,
                         size: AppSpacing.lg, color: colors.navy)
                     : null,
               ),

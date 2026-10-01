@@ -6,6 +6,7 @@ import '../design_system/design_system.dart';
 import '../l10n/l10n_providers.dart';
 import '../navigation/app_routes.dart';
 import 'deep_link.dart';
+import 'package:lawbid/core/design_system/design_system.dart';
 
 /// Landing screen for a `lawbid.app/case/:id`, `/lawyer/:username` or
 /// `/post/:id` link (docs/01_FOUNDATION_AUTH.md §12) until the real
@@ -34,9 +35,9 @@ class DeepLinkPlaceholderScreen extends ConsumerWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final t = ref.watch(translatorProvider);
     final (titleKey, icon) = switch (kind) {
-      ContentKind.caseItem => ('deeplink.case.title', Icons.gavel_outlined),
-      ContentKind.lawyer => ('deeplink.lawyer.title', Icons.person_outline),
-      ContentKind.post => ('deeplink.post.title', Icons.article_outlined),
+      ContentKind.caseItem => ('deeplink.case.title', AppIcons.gavelOutlined),
+      ContentKind.lawyer => ('deeplink.lawyer.title', AppIcons.personOutline),
+      ContentKind.post => ('deeplink.post.title', AppIcons.articleOutlined),
     };
     return Scaffold(
       backgroundColor: colors.bg,

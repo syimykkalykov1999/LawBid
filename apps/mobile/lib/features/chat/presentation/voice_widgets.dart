@@ -71,10 +71,10 @@ class VoiceMessageBody extends ConsumerWidget {
                   child: CircularProgressIndicator(
                       strokeWidth: 2, color: colors.navy),
                 )
-              : Icon(
+              : AppIcon(
                   active && playback.playing
-                      ? Icons.pause_rounded
-                      : Icons.play_arrow_rounded,
+                      ? AppIcons.pauseRounded
+                      : AppIcons.playArrowRounded,
                   color: colors.navy,
                   size: 26,
                 ),

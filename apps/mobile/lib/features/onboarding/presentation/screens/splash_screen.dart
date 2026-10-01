@@ -134,7 +134,7 @@ class _RetryButton extends StatelessWidget {
       width: AppSizes.stateActionWidth,
       child: AppButton(
         label: label,
-        icon: Icons.refresh_rounded,
+        icon: AppIcons.refreshRounded,
         variant: AppButtonVariant.secondary,
         height: AppSizes.touchTarget,
         onPressed: onPressed,

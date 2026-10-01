@@ -40,7 +40,7 @@ class ClientProfileView extends ConsumerWidget {
                 message: t.t('offline.message'),
                 action: AppButton(
                   label: t.t('error.retry'),
-                  icon: Icons.refresh_rounded,
+                  icon: AppIcons.refreshRounded,
                   variant: AppButtonVariant.secondary,
                   height: AppSizes.touchTarget,
                   onPressed: retry,
@@ -150,7 +150,7 @@ class _ClientBody extends ConsumerWidget {
                 const SizedBox(height: AppSpacing.xs),
                 Row(
                   children: [
-                    Icon(Icons.location_on_outlined,
+                    AppIcon(AppIcons.locationOnOutlined,
                         size: AppSpacing.lg, color: colors.goldStroke),
                     const SizedBox(width: AppSpacing.xs),
                     Flexible(
@@ -169,14 +169,14 @@ class _ClientBody extends ConsumerWidget {
       ),
       AppButton(
         label: t.t('profile.action.edit'),
-        icon: Icons.edit_outlined,
+        icon: AppIcons.editOutlined,
         variant: AppButtonVariant.secondary,
         height: AppSizes.touchTarget,
         onPressed: () => context.push(AppRoutes.profileEdit),
       ),
       Row(
         children: [
-          Icon(Icons.folder_outlined,
+          AppIcon(AppIcons.folderOutlined,
               size: AppSizes.iconSm, color: colors.text),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
@@ -196,7 +196,7 @@ class _ClientBody extends ConsumerWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.lock_outline_rounded,
+                AppIcon(AppIcons.lockOutlineRounded,
                     size: AppSpacing.md + 2, color: colors.text),
                 const SizedBox(width: AppSpacing.xs),
                 Text(t.t('profile.client.onlyYou'),
@@ -215,7 +215,7 @@ class _ClientBody extends ConsumerWidget {
             child: Column(
               children: [
                 const AppIconMedallion(
-                    icon: Icons.lock_outline_rounded,
+                    icon: AppIcons.lockOutlineRounded,
                     size: AppSizes.stateMedallion - AppSpacing.xl,
                     iconSize: AppSizes.iconLg),
                 const SizedBox(height: AppSpacing.md),
@@ -241,7 +241,7 @@ class _ClientBody extends ConsumerWidget {
       // action on each closed case card.
       if (showReviewEntry)
         AppListRow(
-          icon: Icons.rate_review_outlined,
+          icon: AppIcons.rateReviewOutlined,
           label: t.t('reviews.placeholder.entry'),
           onTap: () => _openReviewPlaceholder(context, t),
         ),

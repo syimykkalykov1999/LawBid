@@ -346,7 +346,7 @@ class _MineSearchBarState extends ConsumerState<MineSearchBar> {
           children: [
             const AppSheetHandle(),
             AppListRow(
-              icon: Icons.grid_view_rounded,
+              icon: AppIcons.gridViewRounded,
               label: t.t('mine.search.practice'),
               trailingText: s.practice == null
                   ? t.t('mine.search.any')
@@ -354,14 +354,14 @@ class _MineSearchBarState extends ConsumerState<MineSearchBar> {
               onTap: () => Navigator.of(sheet).pop('practice'),
             ),
             AppListRow(
-              icon: Icons.map_outlined,
+              icon: AppIcons.mapOutlined,
               label: t.t('mine.search.state'),
               trailingText: s.state ?? t.t('mine.search.any'),
               onTap: () => Navigator.of(sheet).pop('state'),
             ),
             if (s.filterCount > 0)
               AppListRow(
-                icon: Icons.filter_alt_off_outlined,
+                icon: AppIcons.filterAltOffOutlined,
                 label: t.t('mine.search.clear'),
                 showChevron: false,
                 onTap: () => Navigator.of(sheet).pop('clear'),
@@ -436,14 +436,14 @@ class _MineSearchBarState extends ConsumerState<MineSearchBar> {
           child: AppIconButton(
             key: const ValueKey('mine-filters'),
             plain: true,
-            icon: Icon(Icons.tune_rounded, color: colors.text),
+            icon: AppIcon(AppIcons.tuneRounded, color: colors.text),
             semanticLabel: t.t('mine.search.filters'),
             onPressed: _filters,
           ),
         ),
         trailing: AppIconButton(
           plain: true,
-          icon: Icon(Icons.search_rounded, color: colors.goldDark),
+          icon: AppIcon(AppIcons.searchRounded, color: colors.goldDark),
           semanticLabel: t.t('mine.search.hint'),
           onPressed: () => _focus.requestFocus(),
         ),
@@ -488,7 +488,7 @@ class MineActiveFilters extends ConsumerWidget {
                       style: type.caption.copyWith(color: Colors.white)),
                 ),
                 const SizedBox(width: AppSpacing.xs),
-                const Icon(Icons.close_rounded, size: 14, color: Colors.white),
+                const AppIcon(AppIcons.closeRounded, size: 14, color: Colors.white),
               ],
             ),
           ),

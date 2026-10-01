@@ -10,6 +10,7 @@ import '../../../../core/navigation/app_routes.dart';
 import '../../application/onboarding_flow.dart';
 import '../../auth_routes.dart';
 import '../../domain/onboarding_step.dart';
+import 'package:lawbid/core/design_system/design_system.dart';
 
 /// `/welcome` (file 07 §6.1). Layout, 2026-09-22 revision (owner request,
 /// this conversation, after seeing it run on-device): title text first,
@@ -176,9 +177,9 @@ class WelcomeScreen extends ConsumerWidget {
                 children: [
                   AppIconButton(
                     plain: false,
-                    icon: Icon(isDark
-                        ? Icons.dark_mode_outlined
-                        : Icons.light_mode_outlined),
+                    icon: AppIcon(isDark
+                        ? AppIcons.darkModeOutlined
+                        : AppIcons.lightModeOutlined),
                     semanticLabel: t.t('theme.toggle.label'),
                     onPressed: () {
                       ref
@@ -189,7 +190,7 @@ class WelcomeScreen extends ConsumerWidget {
                   ),
                   AppIconButton(
                     plain: false,
-                    icon: const Icon(Icons.language),
+                    icon: const AppIcon(AppIcons.language),
                     semanticLabel: t.t('lang.toggle.label'),
                     onPressed: () => LanguagePickerSheet.show(context),
                   ),
@@ -231,7 +232,7 @@ class WelcomeScreen extends ConsumerWidget {
                             if (phoneLoginEnabled) ...[
                               GavelStrikeButton(
                                 label: t.t('auth.welcome.phone'),
-                                icon: Icons.call,
+                                icon: AppIcons.call,
                                 height: 48,
                                 // Brighter in dark theme only (owner follow-up,
                                 // 2026-09-22): gold read too dull here. Every

@@ -78,7 +78,7 @@ class _LegalDocumentScreenState extends ConsumerState<LegalDocumentScreen> {
           width: AppSizes.stateActionWidth,
           child: AppButton(
             label: t.t('error.retry'),
-            icon: Icons.refresh_rounded,
+            icon: AppIcons.refreshRounded,
             variant: AppButtonVariant.secondary,
             height: AppSizes.touchTarget,
             onPressed: () => unawaited(_retry()),
@@ -87,7 +87,7 @@ class _LegalDocumentScreenState extends ConsumerState<LegalDocumentScreen> {
       );
     } else if (doc == null) {
       body = AppEmptyState(
-          icon: Icons.description_outlined, message: t.t('legal.notFound'));
+          icon: AppIcons.descriptionOutlined, message: t.t('legal.notFound'));
     } else {
       body = ListView(
         padding: const EdgeInsets.fromLTRB(
@@ -120,7 +120,7 @@ class _LegalDocumentScreenState extends ConsumerState<LegalDocumentScreen> {
               ),
           if (doc.contentUrl != null)
             AppListRow(
-              icon: Icons.link_rounded,
+              icon: AppIcons.linkRounded,
               label: doc.contentUrl!,
               trailingText: t.t('legal.copyLink'),
               showChevron: false,

@@ -50,10 +50,10 @@ class CallLogEntry extends ConsumerWidget {
         !mine && (log.outcome == 'missed' || log.outcome == 'canceled');
     final label = t.t(callLogKey(log.outcome, outgoing: mine));
     final icon = missedHere
-        ? Icons.call_missed_rounded
+        ? AppIcons.callMissedRounded
         : mine
-            ? Icons.call_made_rounded
-            : Icons.call_received_rounded;
+            ? AppIcons.callMadeRounded
+            : AppIcons.callReceivedRounded;
     final fg = mine ? colors.onAccent : colors.text;
     final c = conversation;
     final canCall = c != null && !c.closed && c.contactsUnlocked;
@@ -99,7 +99,7 @@ class CallLogEntry extends ConsumerWidget {
               color: (missedHere ? colors.danger : colors.gold)
                   .withValues(alpha: mine ? 0.25 : 0.15),
             ),
-            child: Icon(
+            child: AppIcon(
               icon,
               size: 20,
               color: missedHere
@@ -131,7 +131,7 @@ class CallLogEntry extends ConsumerWidget {
           ),
           if (canCall) ...[
             const SizedBox(width: AppSpacing.md),
-            Icon(Icons.call_outlined,
+            AppIcon(AppIcons.callOutlined,
                 size: 20, color: mine ? colors.goldLight : colors.goldDark),
           ],
         ],

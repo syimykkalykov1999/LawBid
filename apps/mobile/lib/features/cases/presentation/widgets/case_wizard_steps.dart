@@ -115,7 +115,7 @@ class _PracticeStepState extends ConsumerState<PracticeStep> {
               controller: _search,
               label: t.t('cases.create.practice.search'),
               hintText: t.t('cases.create.practice.searchHint'),
-              leading: const Icon(Icons.search_rounded),
+              leading: const AppIcon(AppIcons.searchRounded),
               textInputAction: TextInputAction.search,
               onChanged: (v) => setState(() => _query = v),
             ),
@@ -124,7 +124,7 @@ class _PracticeStepState extends ConsumerState<PracticeStep> {
               _LeafTile(
                 label: t.t('cases.create.practice.notSure'),
                 caption: t.t('cases.create.practice.notSureHint'),
-                icon: Icons.help_outline_rounded,
+                icon: AppIcons.helpOutlineRounded,
                 selected: widget.draft.practiceAreaId == notSure.id,
                 onTap: () => _pick(notSure),
               ),
@@ -134,7 +134,7 @@ class _PracticeStepState extends ConsumerState<PracticeStep> {
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl),
                 child: AppEmptyState(
-                  icon: Icons.search_off_rounded,
+                  icon: AppIcons.searchOffRounded,
                   message: t.t('cases.create.practice.noMatch'),
                 ),
               ),
@@ -233,7 +233,7 @@ class _CategoryTile extends StatelessWidget {
                           turns: open ? 0.5 : 0,
                           duration: motion,
                           curve: AppMotion.enterCurve,
-                          child: Icon(Icons.expand_more_rounded,
+                          child: AppIcon(AppIcons.expandMoreRounded,
                               color: colors.textSecondary),
                         ),
                       ],
@@ -316,7 +316,7 @@ class _LeafTile extends StatelessWidget {
           child: Row(
             children: [
               if (icon != null) ...[
-                Icon(icon, color: colors.goldDark, size: AppSizes.iconSm),
+                AppIcon(icon, color: colors.goldDark, size: AppSizes.iconSm),
                 const SizedBox(width: AppSpacing.md),
               ],
               Expanded(
@@ -347,7 +347,7 @@ class _LeafTile extends StatelessWidget {
                     height: AppSizes.iconSm,
                     decoration: BoxDecoration(
                         color: colors.gold, shape: BoxShape.circle),
-                    child: Icon(Icons.check_rounded,
+                    child: AppIcon(AppIcons.checkRounded,
                         size: AppSpacing.md + 1, color: colors.navy),
                   ),
                 ),
@@ -522,7 +522,7 @@ class _StatePickerSheetState extends State<_StatePickerSheet> {
               AppTextField(
                 label: widget.t.t('cases.field.state'),
                 hintText: widget.t.t('cases.field.stateSearch'),
-                leading: const Icon(Icons.search_rounded),
+                leading: const AppIcon(AppIcons.searchRounded),
                 autofocus: true,
                 onChanged: (v) => setState(() => _q = v),
               ),
@@ -628,7 +628,7 @@ class PickerField extends StatelessWidget {
                             .copyWith(color: colors.text, fontSize: 16),
                       ),
                     ),
-                    Icon(Icons.expand_more_rounded,
+                    AppIcon(AppIcons.expandMoreRounded,
                         color: colors.textSecondary),
                   ],
                 ),
@@ -730,7 +730,7 @@ class _PlaceStepState extends ConsumerState<PlaceStep> {
                 selected: true,
                 trailing: locked
                     ? null
-                    : Icon(Icons.close_rounded,
+                    : AppIcon(AppIcons.closeRounded,
                         size: AppSpacing.lg, color: colors.textSecondary),
                 onTap: locked
                     ? null
@@ -747,7 +747,7 @@ class _PlaceStepState extends ConsumerState<PlaceStep> {
                 d.additionalStateCodes.length < CaseLimits.maxAdditionalStates)
               AppChip(
                 label: t.t('cases.field.addState'),
-                leading: Icon(Icons.add_rounded,
+                leading: AppIcon(AppIcons.addRounded,
                     size: AppSpacing.lg, color: colors.goldDark),
                 onTap: () async {
                   final code = await pickState(context, t, exclude: taken());
@@ -861,7 +861,7 @@ class _BudgetStepState extends ConsumerState<BudgetStep> {
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.forum_outlined, color: colors.goldDark),
+                      AppIcon(AppIcons.forumOutlined, color: colors.goldDark),
                       const SizedBox(width: AppSpacing.md),
                       Expanded(
                         child: Text(
