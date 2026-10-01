@@ -190,11 +190,25 @@ class _TeamInboxTabState extends ConsumerState<TeamInboxTab> {
           AppSpacing.xxl,
         ),
         itemCount: items.length,
-        itemBuilder: (_, i) => ActivityRow(
-          entry: items[i],
-          t: tr,
-          formats: formats,
-        ),
+        itemBuilder: (_, i) {
+          final day = DateUtils.dateOnly(items[i].createdAt.toLocal());
+          final prev = i == 0
+              ? null
+              : DateUtils.dateOnly(items[i - 1].createdAt.toLocal());
+          final today = DateUtils.dateOnly(DateTime.now());
+          final label = day == today
+              ? tr.t('tasks.today')
+              : day == today.subtract(const Duration(days: 1))
+                  ? tr.t('tasks.yesterday')
+                  : formats.dateLong(day);
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (prev != day) ActivityDayHeader(label: label),
+              ActivityRow(entry: items[i], t: tr, formats: formats),
+            ],
+          );
+        },
       ),
     );
   }

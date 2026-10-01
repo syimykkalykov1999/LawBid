@@ -134,12 +134,6 @@ class RequestCard extends StatelessWidget {
     final post = r.kind == RequestKind.post;
     final body = post ? r.text('body') : '';
     final pending = r.status == RequestStatus.pending;
-    final initials = r.assistantName
-        .split(' ')
-        .where((w) => w.isNotEmpty)
-        .take(2)
-        .map((w) => w[0].toUpperCase())
-        .join();
     Widget chip(String label, {bool gold = false, IconData? icon}) => Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           decoration: BoxDecoration(
@@ -169,16 +163,29 @@ class RequestCard extends StatelessWidget {
             ],
           ),
         );
+    final kindIcon = switch (r.kind) {
+      RequestKind.post =>
+        r.isNews ? AppIcons.newspaperRounded : AppIcons.editNoteRounded,
+      RequestKind.comment => AppIcons.modeCommentOutlined,
+      RequestKind.caseComment => AppIcons.gavelRounded,
+      RequestKind.profileEdit => AppIcons.manageAccountsOutlined,
+    };
+    final asks = t.t('team.req.ask.${r.kind.wire}');
+    // Owner 2026-10-01: a calmer, richer card — who asks for what, the
+    // content as a quoted panel with a gold rule, decision at the bottom.
     return Container(
+      key: ValueKey('request-card-${r.id}'),
       decoration: BoxDecoration(
         color: colors.surface,
         borderRadius: BorderRadius.circular(AppRadii.card),
-        border: Border.all(color: colors.border),
+        border: Border.all(
+          color: pending ? colors.goldStroke : colors.border,
+        ),
         boxShadow: [
           BoxShadow(
             color: colors.shadow,
-            blurRadius: 10,
-            offset: const Offset(0, 3),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -187,105 +194,142 @@ class RequestCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              CircleAvatar(
-                radius: 17,
-                backgroundColor: colors.goldTint,
-                child: Text(
-                  initials.isEmpty ? '•' : initials,
-                  style: typography.caption.copyWith(
-                    color: colors.goldDark,
-                    fontWeight: FontWeight.w700,
-                  ),
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: colors.navy,
+                  borderRadius: BorderRadius.circular(AppRadii.field),
+                  border: Border.all(color: colors.goldStroke),
                 ),
+                child: AppIcon(kindIcon, color: colors.gold, size: 22),
               ),
-              const SizedBox(width: AppSpacing.sm),
+              const SizedBox(width: AppSpacing.md),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      r.assistantName,
-                      maxLines: 1,
+                    Text.rich(
+                      TextSpan(children: [
+                        TextSpan(
+                          text: r.assistantName,
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        TextSpan(text: ' $asks'),
+                      ]),
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: typography.bodySmall.copyWith(
-                        color: colors.text,
-                        fontWeight: FontWeight.w700,
-                      ),
+                      style: typography.bodySmall.copyWith(color: colors.text),
                     ),
+                    const SizedBox(height: 2),
                     Text(
-                      '${requestKindLabel(t, r.kind)} · '
-                      '${formats.dateTime(r.decidedAt ?? r.createdAt)}',
+                      formats.dateTime(r.decidedAt ?? r.createdAt),
                       maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                       style: typography.caption
                           .copyWith(color: colors.textSecondary),
                     ),
                   ],
                 ),
               ),
+              const SizedBox(width: AppSpacing.sm),
               _StatusPillSmall(status: r.status, t: t),
             ],
           ),
           const SizedBox(height: AppSpacing.md),
-          if (post)
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: [
-                if (r.practiceName != null)
-                  chip(r.practiceName!, icon: AppIcons.balanceRounded),
-                if (r.isNews)
-                  chip(t.t('post.kind.news'),
-                      gold: true, icon: AppIcons.newspaperRounded),
-              ],
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.md,
+              AppSpacing.sm,
+              AppSpacing.md,
+              AppSpacing.md,
             ),
-          if (post) const SizedBox(height: AppSpacing.sm),
-          Text(
-            r.headline,
-            maxLines: 3,
-            overflow: TextOverflow.ellipsis,
-            style: typography.body.copyWith(
-              color: colors.text,
-              fontWeight: FontWeight.w700,
-              height: 1.3,
-            ),
-          ),
-          if (body.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Text(
-              body,
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-              style: typography.bodySmall
-                  .copyWith(color: colors.textSecondary, height: 1.4),
-            ),
-          ],
-          if (r.mediaUrls.isNotEmpty) ...[
-            const SizedBox(height: AppSpacing.sm),
-            SizedBox(
-              height: 72,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: r.mediaUrls.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 6),
-                itemBuilder: (_, i) => ClipRRect(
-                  borderRadius: BorderRadius.circular(AppRadii.field),
-                  child: Image.network(
-                    r.mediaUrls[i],
-                    width: 72,
-                    height: 72,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
-                      width: 72,
-                      color: colors.goldTint,
-                      child: AppIcon(AppIcons.imageOutlined, color: colors.gold),
-                    ),
-                  ),
-                ),
+            decoration: BoxDecoration(
+              color: colors.bg,
+              borderRadius: BorderRadius.circular(AppRadii.field),
+              border: Border(
+                left: BorderSide(color: colors.gold, width: 3),
               ),
             ),
-          ],
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (r.kind == RequestKind.profileEdit) ...[
+                  Text(
+                    t.t('team.req.newBio').toUpperCase(),
+                    style: typography.caption.copyWith(
+                      color: colors.goldDark,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                ],
+                if (post && (r.practiceName != null || r.isNews)) ...[
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      if (r.practiceName != null)
+                        chip(r.practiceName!, icon: AppIcons.balanceRounded),
+                      if (r.isNews)
+                        chip(t.t('post.kind.news'),
+                            gold: true, icon: AppIcons.newspaperRounded),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                ],
+                Text(
+                  r.headline,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: typography.body.copyWith(
+                    color: colors.text,
+                    fontWeight: post ? FontWeight.w700 : FontWeight.w500,
+                    height: 1.3,
+                  ),
+                ),
+                if (body.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    body,
+                    maxLines: 4,
+                    overflow: TextOverflow.ellipsis,
+                    style: typography.bodySmall
+                        .copyWith(color: colors.textSecondary, height: 1.4),
+                  ),
+                ],
+                if (r.mediaUrls.isNotEmpty) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  SizedBox(
+                    height: 72,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: r.mediaUrls.length,
+                      separatorBuilder: (_, __) => const SizedBox(width: 6),
+                      itemBuilder: (_, i) => ClipRRect(
+                        borderRadius: BorderRadius.circular(AppRadii.field),
+                        child: Image.network(
+                          r.mediaUrls[i],
+                          width: 72,
+                          height: 72,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(
+                            width: 72,
+                            color: colors.goldTint,
+                            child: AppIcon(AppIcons.imageOutlined,
+                                color: colors.gold),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
           if (r.note?.isNotEmpty ?? false) ...[
             const SizedBox(height: AppSpacing.sm),
             Text(
@@ -348,7 +392,26 @@ class RequestResultCard extends StatelessWidget {
       RequestCard(request: request, t: t, formats: formats);
 }
 
-/// One line of the hidden activity log.
+/// The icon of an activity code's family.
+IconData activityIcon(String action) {
+  final family = action.split('.').first;
+  return switch (family) {
+    'task' => AppIcons.factCheckOutlined,
+    'chat' => AppIcons.chatBubbleOutlineRounded,
+    'call' => AppIcons.callOutlined,
+    'file' => AppIcons.attachFileRounded,
+    'bid' => AppIcons.gavelRounded,
+    'case' => AppIcons.workOutlineRounded,
+    'post' => AppIcons.articleOutlined,
+    'user' => AppIcons.personOutlineRounded,
+    'report' => AppIcons.flagOutlined,
+    'liability' => AppIcons.verifiedUserOutlined,
+    _ => AppIcons.historyRounded,
+  };
+}
+
+/// Owner 2026-10-01: one entry of the activity log as a card — the
+/// action's icon, who did what, the subject, the time on the right.
 class ActivityRow extends StatelessWidget {
   const ActivityRow({
     required this.entry,
@@ -365,27 +428,27 @@ class ActivityRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    final initials = entry.assistantName
-        .split(' ')
-        .where((w) => w.isNotEmpty)
-        .take(2)
-        .map((w) => w[0].toUpperCase())
-        .join();
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(AppRadii.card),
+        border: Border.all(color: colors.border),
+      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CircleAvatar(
-            radius: 16,
-            backgroundColor: colors.goldTint,
-            child: Text(
-              initials.isEmpty ? '•' : initials,
-              style: typography.caption.copyWith(
-                color: colors.gold,
-                fontWeight: FontWeight.w700,
-              ),
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: colors.navy,
+              borderRadius: BorderRadius.circular(AppRadii.field),
+              border: Border.all(color: colors.goldStroke),
             ),
+            child: AppIcon(activityIcon(entry.action),
+                color: colors.gold, size: 20),
           ),
           const SizedBox(width: AppSpacing.md),
           Expanded(
@@ -402,25 +465,52 @@ class ActivityRow extends StatelessWidget {
                       TextSpan(text: ' ${activityLabel(t, entry.action)}'),
                     ],
                   ),
-                  style: typography.body.copyWith(color: colors.text),
+                  style: typography.bodySmall.copyWith(color: colors.text),
                 ),
-                if (entry.summary?.isNotEmpty ?? false)
+                if (entry.summary?.isNotEmpty ?? false) ...[
+                  const SizedBox(height: 2),
                   Text(
                     entry.summary!,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: typography.bodySmall
-                        .copyWith(color: colors.textSecondary),
+                    style: typography.bodySmall.copyWith(
+                      color: colors.textSecondary,
+                      height: 1.35,
+                    ),
                   ),
-                Text(
-                  formats.dateTime(entry.createdAt),
-                  style:
-                      typography.caption.copyWith(color: colors.textSecondary),
-                ),
+                ],
               ],
             ),
           ),
+          const SizedBox(width: AppSpacing.sm),
+          Text(
+            formats.time(entry.createdAt),
+            style: typography.caption.copyWith(color: colors.textSecondary),
+          ),
         ],
+      ),
+    );
+  }
+}
+
+/// A day heading over the activity cards ("Today", "Yesterday", a date).
+class ActivityDayHeader extends StatelessWidget {
+  const ActivityDayHeader({required this.label, super.key});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.sm, bottom: AppSpacing.sm),
+      child: Text(
+        label,
+        style: typography.body.copyWith(
+          color: colors.text,
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
   }
