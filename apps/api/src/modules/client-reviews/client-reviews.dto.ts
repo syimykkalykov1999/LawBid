@@ -1,6 +1,9 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  IsArray,
   IsIn,
   IsInt,
   IsOptional,
@@ -9,6 +12,7 @@ import {
   Max,
   MaxLength,
   Min,
+  MinLength,
 } from 'class-validator';
 
 export const CLIENT_REVIEW_BODY_MAX = 2000;
@@ -29,6 +33,24 @@ export class UpsertClientReviewDto {
   @IsString()
   @MaxLength(CLIENT_REVIEW_BODY_MAX)
   body?: string;
+}
+
+/** Owner 2026-09-30: POST /client-reviews/:id/appeal. */
+export class AppealClientReviewDto {
+  @ApiProperty({ minLength: 1, maxLength: 1000 })
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
+  @IsString()
+  @MinLength(1)
+  @MaxLength(1000)
+  reason!: string;
+}
+
+export class ClientReviewIdParamDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID('all')
+  id!: string;
 }
 
 export class ClientIdParamDto {
@@ -82,17 +104,22 @@ export class ClientReviewAuthorDto {
 
   @ApiProperty()
   verifiedBadge!: boolean;
+
+  /** Owner 2026-09-30: attorneys and clients review clients. */
+  @ApiProperty({ enum: ['attorney', 'client'] })
+  role!: 'attorney' | 'client';
 }
 
 export class ClientReviewDto {
   @ApiProperty({ format: 'uuid' })
   id!: string;
 
-  @ApiProperty({ format: 'uuid' })
-  caseId!: string;
+  /** Null for a review written without a shared case. */
+  @ApiPropertyOptional({ type: String, nullable: true, format: 'uuid' })
+  caseId!: string | null;
 
-  @ApiProperty()
-  caseTitle!: string;
+  @ApiPropertyOptional({ type: String, nullable: true })
+  caseTitle!: string | null;
 
   @ApiProperty({ type: 'integer' })
   rating!: number;
@@ -106,8 +133,105 @@ export class ClientReviewDto {
   @ApiProperty()
   isMine!: boolean;
 
+  /** The viewer is the reviewed client and may still appeal it. */
+  @ApiProperty()
+  canAppeal!: boolean;
+
+  /** Owner 2026-09-30: the appeal's state — shown to the client and the
+   * author only (null for others or without an appeal). */
+  @ApiPropertyOptional({
+    enum: ['pending', 'accepted', 'rejected', 'auto_removed'],
+    enumName: 'ReviewAppealStatus',
+    nullable: true,
+  })
+  appealStatus!: 'pending' | 'accepted' | 'rejected' | 'auto_removed' | null;
+
   @ApiProperty()
   createdAt!: string;
+}
+
+/** Admin: one appeal in the queue. */
+export class AdminReviewAppealDto {
+  @ApiProperty({ format: 'uuid' })
+  id!: string;
+
+  @ApiProperty({
+    enum: ['pending', 'accepted', 'rejected', 'auto_removed'],
+    enumName: 'ReviewAppealStatus',
+  })
+  status!: 'pending' | 'accepted' | 'rejected' | 'auto_removed';
+
+  @ApiProperty()
+  reason!: string;
+
+  @ApiProperty()
+  createdAt!: string;
+
+  @ApiProperty({ description: 'Removed automatically then unless decided.' })
+  autoRemoveAt!: string;
+
+  @ApiProperty({ format: 'uuid' })
+  reviewId!: string;
+
+  @ApiProperty({ type: 'integer' })
+  rating!: number;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  body!: string | null;
+
+  @ApiProperty()
+  authorName!: string;
+
+  @ApiProperty({ enum: ['attorney', 'client'] })
+  authorRole!: 'attorney' | 'client';
+
+  @ApiProperty({ format: 'uuid' })
+  clientId!: string;
+
+  @ApiProperty()
+  clientName!: string;
+}
+
+export class AdminReviewAppealsQueryDto {
+  @ApiPropertyOptional({
+    enum: ['pending', 'accepted', 'rejected', 'auto_removed'],
+    enumName: 'ReviewAppealStatus',
+    default: 'pending',
+  })
+  @IsOptional()
+  @IsIn(['pending', 'accepted', 'rejected', 'auto_removed'])
+  status?: 'pending' | 'accepted' | 'rejected' | 'auto_removed';
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  cursor?: string;
+}
+
+/** Admin: accept (remove the reviews) or reject (keep them), in bulk. */
+export class AdminReviewAppealsDecisionDto {
+  @ApiProperty({ type: [String], maxItems: 100 })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(100)
+  @IsUUID('all', { each: true })
+  ids!: string[];
+
+  @ApiProperty({ enum: ['accept', 'reject'] })
+  @IsIn(['accept', 'reject'])
+  decision!: 'accept' | 'reject';
+
+  @ApiPropertyOptional({ maxLength: 500 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  note?: string;
+}
+
+export class AdminReviewAppealsDecisionResultDto {
+  @ApiProperty({ type: 'integer' })
+  decided!: number;
 }
 
 export interface ClientReviewPage {

@@ -77,6 +77,16 @@ export class ListCasesFeedQueryDto {
   @IsString()
   @Matches(/^[a-z0-9_]{2,64}$/)
   practiceCategory?: string;
+
+  @ApiPropertyOptional({
+    example: 'civil_litigation.arbitration_and_mediation_representation',
+    description:
+      "Owner 2026-09-30: any qualification (category with its subcategories, or one subcategory) — every open case of it in the attorney's licensed states, own practices or not.",
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(/^[a-z0-9_.]{2,120}$/)
+  practice?: string;
 }
 
 /** POST/DELETE /saved-items (docs/04 §4.3, §11.2, §15). Only itemType
@@ -212,6 +222,11 @@ export class CaseDetailForAttorneyDto extends CaseFeedItemDto {
   /** OQ-031: how many photos the case has (shown to every attorney). */
   @ApiProperty()
   photosCount!: number;
+
+  /** Owner 2026-09-30: the case's practice is one of this attorney's —
+   * otherwise "Bid" warns that the client will be told. */
+  @ApiProperty()
+  inMyPractice!: boolean;
 }
 
 export interface CaseFeedPage {

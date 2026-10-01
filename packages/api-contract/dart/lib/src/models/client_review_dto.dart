@@ -5,6 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'client_review_author_dto.dart';
+import 'review_appeal_status.dart';
 
 part 'client_review_dto.g.dart';
 
@@ -12,25 +13,36 @@ part 'client_review_dto.g.dart';
 class ClientReviewDto {
   const ClientReviewDto({
     required this.id,
-    required this.caseId,
-    required this.caseTitle,
     required this.rating,
     required this.attorney,
     required this.isMine,
+    required this.canAppeal,
     required this.createdAt,
+    this.caseId,
+    this.caseTitle,
     this.body,
+    this.appealStatus,
   });
 
   factory ClientReviewDto.fromJson(Map<String, Object?> json) =>
       _$ClientReviewDtoFromJson(json);
 
   final String id;
-  final String caseId;
-  final String caseTitle;
+
+  /// Null for a review written without a shared case.
+  final String? caseId;
+  final String? caseTitle;
   final int rating;
   final String? body;
   final ClientReviewAuthorDto attorney;
   final bool isMine;
+
+  /// The viewer is the reviewed client and may still appeal it.
+  final bool canAppeal;
+
+  /// Owner 2026-09-30: the appeal's state — shown to the client and the.
+  /// author only (null for others or without an appeal).
+  final ReviewAppealStatus? appealStatus;
   final String createdAt;
 
   Map<String, Object?> toJson() => _$ClientReviewDtoToJson(this);

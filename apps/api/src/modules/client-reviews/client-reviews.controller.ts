@@ -1,5 +1,16 @@
 import { ReviewSummaryDto } from '../reviews/dto/review-responses.dto';
-import { Body, Controller, Get, Param, Put, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Post,
+  Put,
+  Query,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   ApiEnvelopeResponse,
@@ -13,7 +24,9 @@ import {
 } from '../auth/decorators/current-user.decorator';
 import { CaseIdParamDto } from '../cases/dto/cases-feed.dto';
 import {
+  AppealClientReviewDto,
   ClientIdParamDto,
+  ClientReviewIdParamDto,
   ClientReviewDto,
   ClientReviewsQueryDto,
   UpsertClientReviewDto,
@@ -56,9 +69,69 @@ export class ClientReviewsController {
     return this.reviews.mine(user, p.id);
   }
 
+  @Put('clients/:id/reviews/mine')
+  @ApiOperation({
+    summary:
+      'Review a client — any attorney or client, once (owner 2026-09-30)',
+  })
+  @ApiEnvelopeResponse(ClientReviewDto)
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR, E.CASE_CONTAINS_CONTACT_INFO],
+    403: [E.FORBIDDEN],
+    404: [E.NOT_FOUND],
+  })
+  upsertOpenClientReview(
+    @CurrentUser() user: RequestUser,
+    @Param() p: ClientIdParamDto,
+    @Body() dto: UpsertClientReviewDto,
+  ): Promise<ClientReviewDto> {
+    return this.reviews.upsertOpen(user, p.id, dto);
+  }
+
+  @Get('clients/:id/reviews/mine')
+  @ApiOperation({ summary: 'My review of this client, or null' })
+  @ApiEnvelopeResponse(ClientReviewDto)
+  getMyOpenClientReview(
+    @CurrentUser() user: RequestUser,
+    @Param() p: ClientIdParamDto,
+  ): Promise<ClientReviewDto | null> {
+    return this.reviews.mineFor(user, p.id);
+  }
+
+  @Delete('client-reviews/:id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Delete my review of a client' })
+  @ApiErrors({ 404: [E.NOT_FOUND] })
+  async deleteClientReview(
+    @CurrentUser() user: RequestUser,
+    @Param() p: ClientReviewIdParamDto,
+  ): Promise<void> {
+    await this.reviews.remove(user, p.id);
+  }
+
+  @Post('client-reviews/:id/appeal')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'The reviewed client asks to remove a review (admins decide; removed after 30 days if undecided)',
+  })
+  @ApiEnvelopeResponse(ClientReviewDto)
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    404: [E.NOT_FOUND],
+    409: [E.REVIEW_APPEAL_EXISTS],
+  })
+  appealClientReview(
+    @CurrentUser() user: RequestUser,
+    @Param() p: ClientReviewIdParamDto,
+    @Body() dto: AppealClientReviewDto,
+  ): Promise<ClientReviewDto> {
+    return this.reviews.appeal(user, p.id, dto.reason);
+  }
+
   @Get('clients/:id/reviews')
   @ApiOperation({
-    summary: 'Reviews of a client (attorneys and the client only)',
+    summary: 'Reviews of a client (every signed-in user)',
   })
   @ApiEnvelopeResponse(ClientReviewDto, { isArray: true })
   @ApiErrors({ 403: [E.FORBIDDEN], 404: [E.NOT_FOUND] })

@@ -23,6 +23,7 @@ class CaseSummaryDto {
     required this.bidsCount,
     required this.createdAt,
     required this.lastActivityAt,
+    this.coverUrl,
     this.city,
     this.budgetCents,
   });
@@ -31,6 +32,9 @@ class CaseSummaryDto {
       _$CaseSummaryDtoFromJson(json);
 
   final String id;
+
+  /// Owner 2026-09-30: the first photo (the "Mine" grid), else null.
+  final String? coverUrl;
   final String title;
   final PracticeAreaRefDto practiceArea;
   final String primaryStateCode;

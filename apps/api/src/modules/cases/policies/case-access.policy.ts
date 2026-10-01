@@ -16,7 +16,9 @@ export interface CaseViewer {
  *   (any status — their own bid history and work stay reachable);
  * - attorney_prospect: an open case the attorney may see per docs/04 §4.1
  *   / docs/02 §5.4 (verified attorney, verified license in one of the
- *   case's states, matching practice).
+ *   case's states). Owner 2026-09-30: any practice — `inPractice` says
+ *   whether it is one of the attorney's own (the client is warned on a
+ *   bid from outside them).
  *
  * `clientIdentityVisible` is false for every attorney access: the client's
  * name, photo and contacts are never part of a case view for an attorney.
@@ -28,6 +30,9 @@ export type CaseAccess =
   | {
       kind: 'attorney_participant' | 'attorney_prospect';
       clientIdentityVisible: false;
+      /** The case's practice is one of the attorney's own (or the §4.1
+       * General Practice exception). */
+      inPractice: boolean;
     };
 
 /** docs/04 §4.1 exception: not_sure_or_other cases are also shown to
@@ -74,7 +79,7 @@ export class CaseAccessPolicy {
     // 4.3) uses the index-friendly list shape (visibleQuery in
     // test/db-roles-indexes.e2e-spec.ts).
     const rows = await db.$queryRaw<
-      { participant: boolean; visible: boolean }[]
+      { participant: boolean; visible: boolean; in_practice: boolean }[]
     >`
       SELECT
         (EXISTS (SELECT 1 FROM bids b
@@ -89,26 +94,36 @@ export class CaseAccessPolicy {
          AND EXISTS (SELECT 1 FROM case_states cs
                      JOIN attorney_licenses l ON l.state_code = cs.state_code
                      WHERE cs.case_id = c.id AND l.attorney_id = ${a}::UUID
-                       AND l.license_status = 'verified')
-         AND EXISTS (SELECT 1 FROM attorney_practice_areas ap
-                     WHERE ap.attorney_id = ${a}::UUID
-                       AND (ap.practice_area_id = c.practice_area_id
-                            OR (pa.code = ${NOT_SURE_OR_OTHER_CODE}
-                                AND ap.practice_area_id IN (
-                                  SELECT id FROM practice_areas
-                                  WHERE code IN (${GENERAL_PRACTICE_CODES[0]},
-                                                 ${GENERAL_PRACTICE_CODES[1]}))))))
-          AS visible
+                       AND l.license_status = 'verified'))
+          AS visible,
+        EXISTS (SELECT 1 FROM attorney_practice_areas ap
+                WHERE ap.attorney_id = ${a}::UUID
+                  AND (ap.practice_area_id = c.practice_area_id
+                       OR (pa.code = ${NOT_SURE_OR_OTHER_CODE}
+                           AND ap.practice_area_id IN (
+                             SELECT id FROM practice_areas
+                             WHERE code IN (${GENERAL_PRACTICE_CODES[0]},
+                                            ${GENERAL_PRACTICE_CODES[1]})))))
+          AS in_practice
       FROM cases c
       JOIN practice_areas pa ON pa.id = c.practice_area_id
       WHERE c.id = ${caseId}::UUID AND c.deleted_at IS NULL`;
     const row = rows[0];
     if (!row) return null;
+    const inPractice = row.in_practice;
     if (row.participant) {
-      return { kind: 'attorney_participant', clientIdentityVisible: false };
+      return {
+        kind: 'attorney_participant',
+        clientIdentityVisible: false,
+        inPractice,
+      };
     }
     if (row.visible) {
-      return { kind: 'attorney_prospect', clientIdentityVisible: false };
+      return {
+        kind: 'attorney_prospect',
+        clientIdentityVisible: false,
+        inPractice,
+      };
     }
     return null;
   }
@@ -140,15 +155,7 @@ export class CaseAccessPolicy {
               AND EXISTS (SELECT 1 FROM case_states cs
                           JOIN attorney_licenses l ON l.state_code = cs.state_code
                           WHERE cs.case_id = c.id AND l.attorney_id = ${a}::UUID
-                            AND l.license_status = 'verified')
-              AND EXISTS (SELECT 1 FROM attorney_practice_areas ap
-                          WHERE ap.attorney_id = ${a}::UUID
-                            AND (ap.practice_area_id = c.practice_area_id
-                                 OR (pa.code = ${NOT_SURE_OR_OTHER_CODE}
-                                     AND ap.practice_area_id IN (
-                                       SELECT id FROM practice_areas
-                                       WHERE code IN (${GENERAL_PRACTICE_CODES[0]},
-                                                      ${GENERAL_PRACTICE_CODES[1]}))))))
+                            AND l.license_status = 'verified'))
         )`;
     return new Set(rows.map((r) => r.id));
   }

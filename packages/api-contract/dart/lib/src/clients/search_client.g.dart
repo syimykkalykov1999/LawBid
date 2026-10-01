@@ -314,6 +314,9 @@ class _SearchClient implements SearchClient {
   Future<PostListEnvelope> latestPosts({
     String? cursor,
     String? state,
+    String? practice,
+    String? tag,
+    PostKind? kind,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
@@ -321,6 +324,9 @@ class _SearchClient implements SearchClient {
     final queryParameters = <String, dynamic>{
       r'cursor': cursor,
       r'state': state,
+      r'practice': practice,
+      r'tag': tag,
+      r'kind': kind?.toJson(),
     };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};

@@ -92,6 +92,8 @@ enum ErrorCode {
   reviewEditWindowExpired('REVIEW_EDIT_WINDOW_EXPIRED'),
   @JsonValue('REVIEW_NOT_EDITABLE')
   reviewNotEditable('REVIEW_NOT_EDITABLE'),
+  @JsonValue('REVIEW_APPEAL_EXISTS')
+  reviewAppealExists('REVIEW_APPEAL_EXISTS'),
   @JsonValue('ATTORNEY_NOT_VERIFIED')
   attorneyNotVerified('ATTORNEY_NOT_VERIFIED'),
   @JsonValue('USERNAME_TAKEN')

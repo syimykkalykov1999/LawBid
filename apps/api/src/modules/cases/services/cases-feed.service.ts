@@ -23,7 +23,10 @@ import {
   CaseAccessPolicy,
   type CaseViewer,
 } from '../policies/case-access.policy';
-import { buildVisibleCasesSql } from '../queries/cases-visible.sql';
+import {
+  buildPracticeCasesSql,
+  buildVisibleCasesSql,
+} from '../queries/cases-visible.sql';
 import { CaseViewTrackingService } from './case-view-tracking.service';
 
 type CaseWithPracticeArea = Case & {
@@ -83,14 +86,22 @@ export class CasesFeedService {
     const rows = await this.prisma.$queryRaw<
       { id: string; created_at: Date }[]
     >(
-      buildVisibleCasesSql({
-        attorneyId: viewer.userId,
-        practiceAreaId: query.practiceAreaId,
-        practiceCategory: query.practiceCategory,
-        state: query.state,
-        cursor,
-        limit: limit + 1,
-      }),
+      query.practice
+        ? buildPracticeCasesSql({
+            attorneyId: viewer.userId,
+            practice: query.practice,
+            state: query.state,
+            cursor,
+            limit: limit + 1,
+          })
+        : buildVisibleCasesSql({
+            attorneyId: viewer.userId,
+            practiceAreaId: query.practiceAreaId,
+            practiceCategory: query.practiceCategory,
+            state: query.state,
+            cursor,
+            limit: limit + 1,
+          }),
     );
     const page = rows.slice(0, limit);
     const items = await this.hydrate(
@@ -113,7 +124,10 @@ export class CasesFeedService {
     attorneyId: string,
     caseId: string,
   ): Promise<CaseDetailForAttorneyDto> {
-    await this.access.assertVisibleToAttorney(attorneyId, caseId);
+    const access = await this.access.assertVisibleToAttorney(
+      attorneyId,
+      caseId,
+    );
     const [item] = await this.hydrate([caseId], attorneyId);
     // The access check and the hydrate read are not in the same
     // transaction; a case deleted/closed/moved in between is possible but
@@ -144,6 +158,7 @@ export class CasesFeedService {
       isSaved: !!saved,
       ownBidId: ownBid?.id ?? null,
       ...media,
+      inMyPractice: access.inPractice,
     };
   }
 

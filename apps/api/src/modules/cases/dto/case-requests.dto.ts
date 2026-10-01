@@ -1,3 +1,4 @@
+import { MineFilterFields } from '../mine/mine-filters';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { BudgetMode } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
@@ -212,15 +213,20 @@ export class UpdateCaseDto {
   budgetAmountDollars?: number;
 }
 
-export type MyCasesFilter = 'active' | 'archived' | 'closed';
+// Owner 2026-09-30: `open` and `in_progress` split the old `active`
+// for the Mine tabs; `active` stays for older app builds.
+export type MyCasesFilter =
+  'active' | 'open' | 'in_progress' | 'archived' | 'closed';
 export const MY_CASES_FILTERS: readonly MyCasesFilter[] = [
   'active',
+  'open',
+  'in_progress',
   'archived',
   'closed',
 ];
 
 /** GET /users/me/cases (docs/04 §11.1, §15). */
-export class ListMyCasesQueryDto {
+export class ListMyCasesQueryDto extends MineFilterFields {
   @ApiPropertyOptional({ enum: MY_CASES_FILTERS, default: 'active' })
   @IsOptional()
   @IsIn(MY_CASES_FILTERS)

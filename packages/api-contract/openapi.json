@@ -11567,6 +11567,17 @@
               "example": "family_law",
               "type": "string"
             }
+          },
+          {
+            "name": "practice",
+            "required": false,
+            "in": "query",
+            "description": "Owner 2026-09-30: any qualification (category with its subcategories, or one subcategory) — every open case of it in the attorney's licensed states, own practices or not.",
+            "schema": {
+              "pattern": "^[a-z0-9_.]{2,120}$",
+              "example": "civil_litigation.arbitration_and_mediation_representation",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -12295,6 +12306,33 @@
         "operationId": "listMyCases",
         "parameters": [
           {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "Words of the case title.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "practice",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "civil_litigation",
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "IL",
+              "type": "string"
+            }
+          },
+          {
             "name": "filter",
             "required": false,
             "in": "query",
@@ -12303,6 +12341,8 @@
               "type": "string",
               "enum": [
                 "active",
+                "open",
+                "in_progress",
                 "archived",
                 "closed"
               ]
@@ -12693,6 +12733,33 @@
       "get": {
         "operationId": "listSavedItems",
         "parameters": [
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "Words of the case title.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "practice",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "civil_litigation",
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "IL",
+              "type": "string"
+            }
+          },
           {
             "name": "cursor",
             "required": false,
@@ -13868,6 +13935,33 @@
         "operationId": "listMyBids",
         "parameters": [
           {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "Words of the case title.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "practice",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "civil_litigation",
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "IL",
+              "type": "string"
+            }
+          },
+          {
             "name": "cursor",
             "required": false,
             "in": "query",
@@ -13989,6 +14083,33 @@
       "get": {
         "operationId": "listMyWork",
         "parameters": [
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "Words of the case title.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "practice",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "civil_litigation",
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "IL",
+              "type": "string"
+            }
+          },
           {
             "name": "cursor",
             "required": false,
@@ -14546,7 +14667,7 @@
             "bearer": []
           }
         ],
-        "summary": "Edit the text of an own post (docs/05 §3.3)",
+        "summary": "Edit the title, text or qualification of an own post",
         "tags": [
           "posts"
         ]
@@ -14669,6 +14790,15 @@
               "maximum": 50,
               "default": 20,
               "type": "number"
+            }
+          },
+          {
+            "name": "kind",
+            "required": false,
+            "in": "query",
+            "description": "Owner 2026-09-30: only News / only regular posts (profile tabs).",
+            "schema": {
+              "$ref": "#/components/schemas/PostKind"
             }
           }
         ],
@@ -17334,6 +17464,395 @@
         ]
       }
     },
+    "/clients/{id}/reviews/mine": {
+      "put": {
+        "operationId": "upsertOpenClientReview",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertClientReviewDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientReviewEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR, CASE_CONTAINS_CONTACT_INFO",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Review a client — any attorney or client, once (owner 2026-09-30)",
+        "tags": [
+          "client-reviews"
+        ]
+      },
+      "get": {
+        "operationId": "getMyOpenClientReview",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientReviewEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "My review of this client, or null",
+        "tags": [
+          "client-reviews"
+        ]
+      }
+    },
+    "/client-reviews/{id}": {
+      "delete": {
+        "operationId": "deleteClientReview",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delete my review of a client",
+        "tags": [
+          "client-reviews"
+        ]
+      }
+    },
+    "/client-reviews/{id}/appeal": {
+      "post": {
+        "operationId": "appealClientReview",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppealClientReviewDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientReviewEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: REVIEW_APPEAL_EXISTS",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The reviewed client asks to remove a review (admins decide; removed after 30 days if undecided)",
+        "tags": [
+          "client-reviews"
+        ]
+      }
+    },
     "/clients/{id}/reviews": {
       "get": {
         "operationId": "listClientReviews",
@@ -17453,7 +17972,7 @@
             "bearer": []
           }
         ],
-        "summary": "Reviews of a client (attorneys and the client only)",
+        "summary": "Reviews of a client (every signed-in user)",
         "tags": [
           "client-reviews"
         ]
@@ -17553,6 +18072,208 @@
         "summary": "Average, count and per-star distribution of a client",
         "tags": [
           "client-reviews"
+        ]
+      }
+    },
+    "/admin/review-appeals": {
+      "get": {
+        "operationId": "listReviewAppeals",
+        "parameters": [
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/ReviewAppealStatus"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 300,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminReviewAppealListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Appeals by status, oldest first",
+        "tags": [
+          "admin-review-appeals"
+        ]
+      }
+    },
+    "/admin/review-appeals/decide": {
+      "post": {
+        "operationId": "decideReviewAppeals",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminReviewAppealsDecisionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminReviewAppealsDecisionResultEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Accept or reject appeals in bulk",
+        "tags": [
+          "admin-review-appeals"
         ]
       }
     },
@@ -20273,6 +20994,37 @@
               "example": "IL",
               "type": "string"
             }
+          },
+          {
+            "name": "practice",
+            "required": false,
+            "in": "query",
+            "description": "Owner 2026-09-30: a practice category or subcategory code; a\ncategory includes its subcategories.",
+            "schema": {
+              "maxLength": 120,
+              "example": "civil_litigation",
+              "type": "string"
+            }
+          },
+          {
+            "name": "tag",
+            "required": false,
+            "in": "query",
+            "description": "Older posts without a qualification match by their topic hashtag.",
+            "schema": {
+              "maxLength": 31,
+              "example": "civillitigation",
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "required": false,
+            "in": "query",
+            "description": "Owner 2026-09-30: only News (or only regular posts).",
+            "schema": {
+              "$ref": "#/components/schemas/PostKind"
+            }
           }
         ],
         "responses": {
@@ -20342,7 +21094,7 @@
             "bearer": []
           }
         ],
-        "summary": "Newest posts of attorneys licensed in a state (OQ-034)",
+        "summary": "Newest posts, by state (OQ-034), qualification and News (owner 2026-09-30)",
         "tags": [
           "search"
         ]
@@ -23401,6 +24153,7 @@
           "REVIEW_ALREADY_EXISTS",
           "REVIEW_EDIT_WINDOW_EXPIRED",
           "REVIEW_NOT_EDITABLE",
+          "REVIEW_APPEAL_EXISTS",
           "ATTORNEY_NOT_VERIFIED",
           "USERNAME_TAKEN",
           "USERNAME_RESERVED",
@@ -26599,6 +27352,10 @@
             "nullable": true,
             "format": "date-time"
           },
+          "outsidePractice": {
+            "type": "boolean",
+            "description": "Owner 2026-09-30: the case's practice is outside the attorney's\nown — the client is told to discuss it first."
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -26624,6 +27381,7 @@
           "roundCount",
           "turn",
           "decidedAt",
+          "outsidePractice",
           "createdAt",
           "offers"
         ]
@@ -29738,6 +30496,11 @@
             "type": "string",
             "format": "uuid"
           },
+          "coverUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "Owner 2026-09-30: the first photo (the \"Mine\" grid), else null."
+          },
           "title": {
             "type": "string"
           },
@@ -30111,6 +30874,10 @@
           "photosCount": {
             "type": "number",
             "description": "OQ-031: how many photos the case has (shown to every attorney)."
+          },
+          "inMyPractice": {
+            "type": "boolean",
+            "description": "Owner 2026-09-30: the case's practice is one of this attorney's —\notherwise \"Bid\" warns that the client will be told."
           }
         },
         "required": [
@@ -30132,7 +30899,8 @@
           "isSaved",
           "description",
           "photos",
-          "photosCount"
+          "photosCount",
+          "inMyPractice"
         ]
       },
       "CaseDetailForAttorneyEnvelope": {
@@ -30301,6 +31069,10 @@
             "nullable": true,
             "format": "date-time"
           },
+          "outsidePractice": {
+            "type": "boolean",
+            "description": "Owner 2026-09-30: the case's practice is outside the attorney's\nown — the client is told to discuss it first."
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -30323,6 +31095,7 @@
           "roundCount",
           "turn",
           "decidedAt",
+          "outsidePractice",
           "createdAt",
           "attorney"
         ]
@@ -30863,6 +31636,10 @@
             "nullable": true,
             "format": "date-time"
           },
+          "outsidePractice": {
+            "type": "boolean",
+            "description": "Owner 2026-09-30: the case's practice is outside the attorney's\nown — the client is told to discuss it first."
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -30872,6 +31649,11 @@
           },
           "lastOffer": {
             "$ref": "#/components/schemas/BidOfferDto"
+          },
+          "coverUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "Owner 2026-09-30: the case's first photo once this bid is accepted,\nelse null (the app shows the qualification's art)."
           }
         },
         "required": [
@@ -30888,6 +31670,7 @@
           "roundCount",
           "turn",
           "decidedAt",
+          "outsidePractice",
           "createdAt",
           "case",
           "lastOffer"
@@ -30970,6 +31753,11 @@
           "closedAt": {
             "type": "string",
             "nullable": true
+          },
+          "coverUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "Owner 2026-09-30: the case's first photo (the hired attorney sees\nthem), else null — the app shows the qualification's art."
           }
         },
         "required": [
@@ -31097,6 +31885,39 @@
         },
         "required": [
           "data"
+        ]
+      },
+      "PostKind": {
+        "type": "string",
+        "enum": [
+          "post",
+          "news"
+        ]
+      },
+      "PostPracticeDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "example": "civil_litigation.arbitration_and_mediation_representation"
+          },
+          "categoryCode": {
+            "type": "string",
+            "example": "civil_litigation"
+          },
+          "nameEn": {
+            "type": "string",
+            "example": "Arbitration and Mediation Representation"
+          },
+          "i18nKey": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "categoryCode",
+          "nameEn",
+          "i18nKey"
         ]
       },
       "PostAuthorDto": {
@@ -31233,6 +32054,27 @@
             "type": "string",
             "format": "uuid"
           },
+          "title": {
+            "type": "string",
+            "nullable": true,
+            "description": "Owner 2026-09-30; null on older posts (the app splits the body)."
+          },
+          "kind": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PostKind"
+              }
+            ]
+          },
+          "practice": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PostPracticeDto"
+              }
+            ]
+          },
           "author": {
             "$ref": "#/components/schemas/PostAuthorDto"
           },
@@ -31299,6 +32141,7 @@
         },
         "required": [
           "id",
+          "kind",
           "author",
           "body",
           "media",
@@ -31318,6 +32161,28 @@
       "CreatePostDto": {
         "type": "object",
         "properties": {
+          "title": {
+            "type": "string",
+            "description": "Owner 2026-09-30: the card's title.",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "practiceCode": {
+            "type": "string",
+            "description": "Owner 2026-09-30: the qualification — a practice category or\nsubcategory code (`civil_litigation`, `civil_litigation.appeals`…).",
+            "minLength": 2,
+            "maxLength": 120,
+            "example": "civil_litigation.arbitration_and_mediation_representation"
+          },
+          "kind": {
+            "description": "Owner 2026-09-30: News — attorneys only.",
+            "default": "post",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PostKind"
+              }
+            ]
+          },
           "body": {
             "type": "string",
             "minLength": 1,
@@ -31335,6 +32200,8 @@
           }
         },
         "required": [
+          "title",
+          "practiceCode",
           "body"
         ]
       },
@@ -31355,6 +32222,16 @@
       "UpdatePostDto": {
         "type": "object",
         "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "practiceCode": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 120
+          },
           "body": {
             "type": "string",
             "minLength": 1,
@@ -32440,14 +33317,33 @@
           },
           "verifiedBadge": {
             "type": "boolean"
+          },
+          "role": {
+            "description": "Owner 2026-09-30: attorneys and clients review clients.",
+            "enum": [
+              "attorney",
+              "client"
+            ],
+            "type": "string"
           }
         },
         "required": [
           "id",
           "username",
           "displayName",
-          "verifiedBadge"
+          "verifiedBadge",
+          "role"
         ]
+      },
+      "ReviewAppealStatus": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "accepted",
+          "rejected",
+          "auto_removed"
+        ],
+        "description": "Owner 2026-09-30: the appeal's state — shown to the client and the\nauthor only (null for others or without an appeal)."
       },
       "ClientReviewDto": {
         "type": "object",
@@ -32458,10 +33354,13 @@
           },
           "caseId": {
             "type": "string",
+            "nullable": true,
+            "description": "Null for a review written without a shared case.",
             "format": "uuid"
           },
           "caseTitle": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "rating": {
             "type": "integer"
@@ -32476,17 +33375,29 @@
           "isMine": {
             "type": "boolean"
           },
+          "canAppeal": {
+            "type": "boolean",
+            "description": "The viewer is the reviewed client and may still appeal it."
+          },
+          "appealStatus": {
+            "nullable": true,
+            "description": "Owner 2026-09-30: the appeal's state — shown to the client and the\nauthor only (null for others or without an appeal).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReviewAppealStatus"
+              }
+            ]
+          },
           "createdAt": {
             "type": "string"
           }
         },
         "required": [
           "id",
-          "caseId",
-          "caseTitle",
           "rating",
           "attorney",
           "isMine",
+          "canAppeal",
           "createdAt"
         ]
       },
@@ -32519,6 +33430,19 @@
         },
         "required": [
           "data"
+        ]
+      },
+      "AppealClientReviewDto": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "reason"
         ]
       },
       "ClientReviewsSort": {
@@ -32593,6 +33517,144 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/ReviewSummaryDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AdminReviewAppealDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReviewAppealStatus"
+              }
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "autoRemoveAt": {
+            "type": "string",
+            "description": "Removed automatically then unless decided."
+          },
+          "reviewId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "rating": {
+            "type": "integer"
+          },
+          "body": {
+            "type": "string",
+            "nullable": true
+          },
+          "authorName": {
+            "type": "string"
+          },
+          "authorRole": {
+            "enum": [
+              "attorney",
+              "client"
+            ],
+            "type": "string"
+          },
+          "clientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "clientName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "reason",
+          "createdAt",
+          "autoRemoveAt",
+          "reviewId",
+          "rating",
+          "authorName",
+          "authorRole",
+          "clientId",
+          "clientName"
+        ]
+      },
+      "AdminReviewAppealListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminReviewAppealDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AdminReviewAppealsDecisionResultDto": {
+        "type": "object",
+        "properties": {
+          "decided": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "decided"
+        ]
+      },
+      "AdminReviewAppealsDecisionDto": {
+        "type": "object",
+        "properties": {
+          "ids": {
+            "minItems": 1,
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "decision": {
+            "enum": [
+              "accept",
+              "reject"
+            ],
+            "type": "string"
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "ids",
+          "decision"
+        ]
+      },
+      "AdminReviewAppealsDecisionResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminReviewAppealsDecisionResultDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
@@ -34793,6 +35855,8 @@
             "enum": [
               "messages",
               "calls",
+              "following",
+              "new_cases",
               "bids",
               "cases",
               "social",
@@ -34937,6 +36001,8 @@
             "enum": [
               "messages",
               "calls",
+              "following",
+              "new_cases",
               "bids",
               "cases",
               "social",
@@ -35029,6 +36095,8 @@
             "enum": [
               "messages",
               "calls",
+              "following",
+              "new_cases",
               "bids",
               "cases",
               "social",

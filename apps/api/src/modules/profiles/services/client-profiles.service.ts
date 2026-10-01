@@ -262,7 +262,12 @@ export class ClientProfilesService {
       throw notFound();
     }
     const avatars = await this.files.avatarUrlsMany([row.user.avatar_file_id]);
-    const seeReviews = row.user_id === viewerId || viewerRole === 'attorney';
+    // Owner 2026-09-30: client reviews warn everyone — every signed-in
+    // attorney or client sees them.
+    const seeReviews =
+      row.user_id === viewerId ||
+      viewerRole === 'attorney' ||
+      viewerRole === 'client';
     return {
       id: row.user_id,
       username: row.username,

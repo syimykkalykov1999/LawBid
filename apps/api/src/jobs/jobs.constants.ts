@@ -49,6 +49,8 @@ export const CRON_JOBS = {
   opsBusinessMetrics: 'ops.business-metrics',
   /** OQ-041: unanswered calls → missed, abandoned ones → ended. */
   callsSweep: 'calls.sweep',
+  /** Owner 2026-09-30: undecided client-review appeals → removed. */
+  reviewAppealsSweep: 'review-appeals.sweep',
 } as const;
 
 export type CronJobName = (typeof CRON_JOBS)[keyof typeof CRON_JOBS];
@@ -90,6 +92,7 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.opsQueueMetrics, pattern: '* * * * *' },
   { name: CRON_JOBS.opsBusinessMetrics, pattern: '*/10 * * * *' },
   { name: CRON_JOBS.callsSweep, pattern: '* * * * *' },
+  { name: CRON_JOBS.reviewAppealsSweep, pattern: '40 * * * *' },
 ];
 
 export const DISPOSABLE_DOMAINS_FETCHER = Symbol('DISPOSABLE_DOMAINS_FETCHER');

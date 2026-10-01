@@ -90,7 +90,9 @@ export class PostsController {
   }
 
   @Patch('posts/:id')
-  @ApiOperation({ summary: 'Edit the text of an own post (docs/05 §3.3)' })
+  @ApiOperation({
+    summary: 'Edit the title, text or qualification of an own post',
+  })
   @ApiEnvelopeResponse(PostDto)
   @ApiErrors({
     400: [E.VALIDATION_ERROR],
@@ -102,7 +104,7 @@ export class PostsController {
     @Param() p: PostIdParamDto,
     @Body() dto: UpdatePostDto,
   ): Promise<PostDto> {
-    return this.posts.update(user, p.id, dto.body);
+    return this.posts.update(user, p.id, dto);
   }
 
   @Delete('posts/:id')

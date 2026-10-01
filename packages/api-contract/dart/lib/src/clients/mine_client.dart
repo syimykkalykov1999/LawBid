@@ -22,6 +22,8 @@ abstract class MineClient {
 
   /// Saved cases (docs/04 §11.2 "Сохранённое").
   ///
+  /// [q] - Words of the case title.
+  ///
   /// [cursor] - meta.nextCursor of the previous page.
   ///
   /// [type] - Posts arrive with docs/05.
@@ -29,6 +31,9 @@ abstract class MineClient {
   Future<SavedCaseItemListEnvelope> listSavedItems({
     @Query('type') required Type type,
     @Query('limit') num? limit = 20,
+    @Query('q') String? q,
+    @Query('practice') String? practice,
+    @Query('state') String? state,
     @Query('cursor') String? cursor,
     @Extras() Map<String, dynamic>? extras,
   });
@@ -42,22 +47,32 @@ abstract class MineClient {
 
   /// "My bids" (attorney, docs/04 §11.2).
   ///
+  /// [q] - Words of the case title.
+  ///
   /// [cursor] - meta.nextCursor of the previous page.
   @GET('/users/me/bids')
   Future<MyBidItemListEnvelope> listMyBids({
     @Query('limit') num? limit = 20,
     @Query('filter') Filter2? filter = Filter2.active,
+    @Query('q') String? q,
+    @Query('practice') String? practice,
+    @Query('state') String? state,
     @Query('cursor') String? cursor,
     @Extras() Map<String, dynamic>? extras,
   });
 
   /// "In progress" / "Completed" (attorney, §11.2).
   ///
+  /// [q] - Words of the case title.
+  ///
   /// [cursor] - meta.nextCursor of the previous page.
   @GET('/users/me/work')
   Future<WorkItemListEnvelope> listMyWork({
     @Query('limit') num? limit = 20,
     @Query('filter') Filter3? filter = Filter3.active,
+    @Query('q') String? q,
+    @Query('practice') String? practice,
+    @Query('state') String? state,
     @Query('cursor') String? cursor,
     @Extras() Map<String, dynamic>? extras,
   });

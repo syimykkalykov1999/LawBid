@@ -9,6 +9,7 @@ import '../models/attorney_list_item_list_envelope.dart';
 import '../models/case_feed_item_list_envelope.dart';
 import '../models/period.dart';
 import '../models/person_item_list_envelope.dart';
+import '../models/post_kind.dart';
 import '../models/post_list_envelope.dart';
 import '../models/role2.dart';
 import '../models/sort2.dart';
@@ -135,13 +136,23 @@ abstract class SearchClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Newest posts of attorneys licensed in a state (OQ-034).
+  /// Newest posts, by state (OQ-034), qualification and News (owner 2026-09-30).
   ///
   /// [cursor] - meta.nextCursor of the previous page.
+  ///
+  /// [practice] - Owner 2026-09-30: a practice category or subcategory code; a.
+  /// category includes its subcategories.
+  ///
+  /// [tag] - Older posts without a qualification match by their topic hashtag.
+  ///
+  /// [kind] - Owner 2026-09-30: only News (or only regular posts).
   @GET('/search/latest-posts')
   Future<PostListEnvelope> latestPosts({
     @Query('cursor') String? cursor,
     @Query('state') String? state,
+    @Query('practice') String? practice,
+    @Query('tag') String? tag,
+    @Query('kind') PostKind? kind,
     @Extras() Map<String, dynamic>? extras,
   });
 }

@@ -308,12 +308,42 @@ export class SearchService {
     user: RequestUser,
     state: string | undefined,
     cursor?: string,
+    filter: { practice?: string; tag?: string; kind?: 'post' | 'news' } = {},
   ): Promise<PostPage> {
     const c = cursor ? decodeCursor(cursor) : undefined;
+    const practice = filter.practice?.trim().toLowerCase();
+    const tag = filter.tag ? normalizeQuery(filter.tag) : '';
     const rows = await this.prisma.post.findMany({
       where: {
         ...VISIBLE_POST_WHERE,
         ...authorStateWhere(state),
+        ...(filter.kind ? { kind: filter.kind } : {}),
+        // Owner 2026-09-30: the qualification and its subcategories;
+        // older posts (no qualification) by their topic hashtag.
+        ...(practice
+          ? {
+              AND: [
+                {
+                  OR: [
+                    { practice_area: { code: practice } },
+                    {
+                      practice_area: {
+                        code: { startsWith: `${practice}.` },
+                      },
+                    },
+                    ...(tag
+                      ? [
+                          {
+                            practice_area_id: null,
+                            tags: { some: { tag: { tag_lower: tag } } },
+                          },
+                        ]
+                      : []),
+                  ],
+                },
+              ],
+            }
+          : {}),
         ...(c
           ? {
               OR: [

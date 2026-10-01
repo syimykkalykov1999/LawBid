@@ -67,10 +67,13 @@ export class BidsService {
     // it (§2, §4.1). Case status is re-checked below: a participant
     // (e.g. an existing withdrawn bid) can still "see" a since-closed
     // case, but must not be able to bid on it.
-    await this.caseAccess.assertCanView(
+    const access = await this.caseAccess.assertCanView(
       { userId: user.sub, role: 'attorney' },
       caseId,
     );
+    // Owner 2026-09-30: bids outside the attorney's practices are allowed
+    // and marked (the client is warned).
+    const outsidePractice = access.kind !== 'owner' && !access.inPractice;
     // §2: bidding needs an active subscription/trial.
     if (!(await this.subscriptions.isActive(user.sub))) {
       throw new ForbiddenException({
@@ -107,6 +110,7 @@ export class BidsService {
             estimated_duration_days: dto.estimatedDurationDays ?? null,
             round_count: 0,
             turn: 'client',
+            outside_practice: outsidePractice,
           },
         });
         const offer = await tx.bidOffer.create({
@@ -487,6 +491,7 @@ export function toBidDto(bid: BidWithOffers): BidDto {
     estimatedDurationDays: bid.estimated_duration_days,
     roundCount: bid.round_count,
     turn: bid.turn,
+    outsidePractice: bid.outside_practice,
     decidedAt: bid.decided_at?.toISOString() ?? null,
     createdAt: bid.created_at.toISOString(),
     offers: bid.offers

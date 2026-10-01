@@ -16,10 +16,12 @@ import { CaseBidItemDto } from '../../case-bids/dto/case-bids.dto';
 import { CaseFeedItemDto } from '../../dto/cases-feed.dto';
 import { CaseDto, CasePhotoDto } from '../../dto/case-responses.dto';
 
+import { MineFilterFields } from '../mine-filters';
+
 export const MINE_PAGE_DEFAULT = 20;
 export const MINE_PAGE_MAX = 50;
 
-class PageQuery {
+class PageQuery extends MineFilterFields {
   @ApiPropertyOptional({ description: 'meta.nextCursor of the previous page.' })
   @IsOptional()
   @IsString()
@@ -104,6 +106,11 @@ export class MyBidItemDto extends OmitType(BidDto, ['offers'] as const) {
 
   @ApiProperty({ type: BidOfferDto })
   lastOffer!: BidOfferDto;
+
+  /** Owner 2026-09-30: the case's first photo once this bid is accepted,
+   * else null (the app shows the qualification's art). */
+  @ApiPropertyOptional({ type: String, nullable: true })
+  coverUrl!: string | null;
 }
 
 /** A "В работе" row (docs/04 §11.2). */
@@ -154,6 +161,11 @@ export class WorkItemDto {
 
   @ApiPropertyOptional({ type: String, nullable: true })
   closedAt!: string | null;
+
+  /** Owner 2026-09-30: the case's first photo (the hired attorney sees
+   * them), else null — the app shows the qualification's art. */
+  @ApiPropertyOptional({ type: String, nullable: true })
+  coverUrl!: string | null;
 }
 
 export class SavedCaseItemDto {

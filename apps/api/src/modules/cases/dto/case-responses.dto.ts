@@ -113,6 +113,10 @@ export class CaseSummaryDto {
   @ApiProperty({ format: 'uuid' })
   id!: string;
 
+  /** Owner 2026-09-30: the first photo (the "Mine" grid), else null. */
+  @ApiPropertyOptional({ type: String, nullable: true })
+  coverUrl?: string | null;
+
   @ApiProperty()
   title!: string;
 

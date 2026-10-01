@@ -13,6 +13,7 @@ import { TokenService } from '../src/modules/auth/services/token.service';
 import { CounterAggregator } from '../src/modules/counters/counter-aggregator.service';
 import { withDeleted } from '../src/prisma/soft-delete.extension';
 import { adminSession } from './support/admin-login';
+import { ensurePostPractices } from './support/post-practices';
 
 jest.setTimeout(120_000);
 
@@ -50,6 +51,7 @@ describe('stage 6.4 — moderation (e2e)', () => {
     const port = (app.getHttpServer() as Server).address() as AddressInfo;
     baseUrl = `http://127.0.0.1:${port.port}`;
     prisma = app.get(PrismaService);
+    await ensurePostPractices(prisma);
     redis = app.get<Redis>(REDIS_CLIENT);
     tokens = app.get(TokenService);
     counters = app.get(CounterAggregator);
@@ -146,7 +148,11 @@ describe('stage 6.4 — moderation (e2e)', () => {
       .post('/api/v1/posts')
       .set(a.auth)
       .set('Idempotency-Key', randomUUID())
-      .send({ body: 'Free CASINO bonus for every client' })
+      .send({
+        title: 'A title',
+        practiceCode: 'family_law',
+        body: 'Free CASINO bonus for every client',
+      })
       .expect(422);
     expect((blocked.body as Body).error?.code).toBe('CONTENT_BLOCKED');
 
@@ -154,7 +160,11 @@ describe('stage 6.4 — moderation (e2e)', () => {
       .post('/api/v1/posts')
       .set(a.auth)
       .set('Idempotency-Key', randomUUID())
-      .send({ body: 'A guaranteed win, call me' })
+      .send({
+        title: 'A title',
+        practiceCode: 'family_law',
+        body: 'A guaranteed win, call me',
+      })
       .expect(201);
     expect((held.body as Body).data.status).toBe('hidden');
 
@@ -162,7 +172,11 @@ describe('stage 6.4 — moderation (e2e)', () => {
       .post('/api/v1/posts')
       .set(a.auth)
       .set('Idempotency-Key', randomUUID())
-      .send({ body: 'see https://a.io https://b.io https://c.io' })
+      .send({
+        title: 'A title',
+        practiceCode: 'family_law',
+        body: 'see https://a.io https://b.io https://c.io',
+      })
       .expect(201);
     expect((links.body as Body).data.status).toBe('hidden');
 
@@ -170,14 +184,22 @@ describe('stage 6.4 — moderation (e2e)', () => {
       .post('/api/v1/posts')
       .set(a.auth)
       .set('Idempotency-Key', randomUUID())
-      .send({ body: 'Plain advice about parking tickets' })
+      .send({
+        title: 'A title',
+        practiceCode: 'family_law',
+        body: 'Plain advice about parking tickets',
+      })
       .expect(201);
     expect((first.body as Body).data.status).toBe('published');
     const dup = await api()
       .post('/api/v1/posts')
       .set(a.auth)
       .set('Idempotency-Key', randomUUID())
-      .send({ body: 'Plain advice about PARKING tickets!' })
+      .send({
+        title: 'A title',
+        practiceCode: 'family_law',
+        body: 'Plain advice about PARKING tickets!',
+      })
       .expect(201);
     expect((dup.body as Body).data.status).toBe('hidden');
 

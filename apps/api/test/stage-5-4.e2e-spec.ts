@@ -7,6 +7,7 @@ import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
 import { CounterAggregator } from '../src/modules/counters/counter-aggregator.service';
+import { ensurePostPractices } from './support/post-practices';
 
 /**
  * docs/05 §16 stage 5.4 acceptance: a repeated like creates no duplicate;
@@ -39,6 +40,7 @@ describe('Likes, comments, saves, reports (e2e, docs/05 §4–§5, stage 5.4)', 
     await app.listen(0, '127.0.0.1');
     baseUrl = `http://127.0.0.1:${((app.getHttpServer() as Server).address() as AddressInfo).port}`;
     prisma = app.get(PrismaService);
+    await ensurePostPractices(prisma);
     tokens = app.get(TokenService);
   });
 

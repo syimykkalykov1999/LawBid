@@ -28,6 +28,7 @@ class CaseBidItemDto {
     required this.roundCount,
     required this.turn,
     required this.decidedAt,
+    required this.outsidePractice,
     required this.createdAt,
     required this.attorney,
   });
@@ -48,6 +49,10 @@ class CaseBidItemDto {
   final int roundCount;
   final PartyRole turn;
   final DateTime? decidedAt;
+
+  /// Owner 2026-09-30: the case's practice is outside the attorney's.
+  /// own — the client is told to discuss it first.
+  final bool outsidePractice;
   final DateTime createdAt;
   final BidAttorneySummaryDto attorney;
 

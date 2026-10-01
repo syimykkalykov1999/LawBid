@@ -8,6 +8,10 @@ import 'package:json_annotation/json_annotation.dart';
 enum Filter {
   @JsonValue('active')
   active('active'),
+  @JsonValue('open')
+  open('open'),
+  @JsonValue('in_progress')
+  inProgress('in_progress'),
   @JsonValue('archived')
   archived('archived'),
   @JsonValue('closed')

@@ -6,6 +6,7 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
+import { ensurePostPractices } from './support/post-practices';
 
 /**
  * docs/05 §16 stage 5.2 acceptance: a client and an unverified attorney
@@ -37,6 +38,7 @@ describe('Posts (e2e, docs/05 §3, stage 5.2)', () => {
     await app.listen(0, '127.0.0.1');
     baseUrl = `http://127.0.0.1:${((app.getHttpServer() as Server).address() as AddressInfo).port}`;
     prisma = app.get(PrismaService);
+    await ensurePostPractices(prisma);
     tokens = app.get(TokenService);
   });
 
@@ -95,7 +97,7 @@ describe('Posts (e2e, docs/05 §3, stage 5.2)', () => {
       .post('/api/v1/posts')
       .set(auth)
       .set('Idempotency-Key', randomUUID())
-      .send(body);
+      .send({ title: 'A title', practiceCode: 'family_law', ...body });
 
   it('only a verified attorney can post', async () => {
     const client = await user('client');

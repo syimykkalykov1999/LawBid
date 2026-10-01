@@ -36,6 +36,9 @@ export const LOCKED_CATEGORIES: ReadonlySet<NotificationCategory> = new Set([
 export const DEFAULT_PUSH: Record<NotificationCategory, boolean> = {
   messages: true,
   calls: true,
+  // Owner 2026-09-30: opt-in.
+  following: false,
+  new_cases: false,
   bids: true,
   cases: true,
   social: true,

@@ -78,6 +78,11 @@ export class BidDto {
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   decidedAt!: string | null;
 
+  /** Owner 2026-09-30: the case's practice is outside the attorney's
+   * own — the client is told to discuss it first. */
+  @ApiProperty()
+  outsidePractice!: boolean;
+
   @ApiProperty({ format: 'date-time' })
   createdAt!: string;
 

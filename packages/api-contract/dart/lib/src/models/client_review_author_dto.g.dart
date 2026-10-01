@@ -13,6 +13,7 @@ ClientReviewAuthorDto _$ClientReviewAuthorDtoFromJson(
   username: json['username'] as String,
   displayName: json['displayName'] as String,
   verifiedBadge: json['verifiedBadge'] as bool,
+  role: ClientReviewAuthorDtoRole.fromJson(json['role'] as String),
   avatarUrl: json['avatarUrl'] as String?,
 );
 
@@ -24,4 +25,5 @@ Map<String, dynamic> _$ClientReviewAuthorDtoToJson(
   'displayName': instance.displayName,
   'avatarUrl': ?instance.avatarUrl,
   'verifiedBadge': instance.verifiedBadge,
+  'role': instance.role.toJson(),
 };

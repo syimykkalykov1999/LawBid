@@ -1,8 +1,10 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Inject,
   Injectable,
+  Optional,
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
@@ -29,9 +31,11 @@ import {
 import {
   POSTS_PAGE_DEFAULT,
   type CreatePostDto,
+  type UpdatePostDto,
   type PostDto,
   type PostPage,
 } from './dto/posts.dto';
+import { SubscriptionAlertsService } from '../notifications/subscription-alerts.service';
 import { extractHashtags } from './hashtags';
 import { PostPresenter, VISIBLE_POST_WHERE } from './post-presenter.service';
 
@@ -57,13 +61,27 @@ export class PostsService {
     private readonly mentions: MentionsService,
     @Inject(CONTENT_MODERATION_HOOK)
     private readonly moderation: ContentModerationHook,
+    @Optional() private readonly alerts?: SubscriptionAlertsService,
   ) {}
 
   /** POST /posts (§3.1). */
   async create(user: RequestUser, dto: CreatePostDto): Promise<PostDto> {
     await this.assertCanPost(user);
+    // Owner 2026-09-30: News comes from attorneys only.
+    const kind = dto.kind ?? 'post';
+    if (kind === 'news' && user.role !== 'attorney') {
+      throw new ForbiddenException({
+        code: ErrorCode.POST_NOT_ALLOWED,
+        message: 'Only attorneys publish news.',
+      });
+    }
+    const practice = await this.practiceByCode(dto.practiceCode);
     await this.limits.consume('post_create', user.sub);
-    const status = await this.moderate(dto.body, user.sub, 'post');
+    const status = await this.moderate(
+      `${dto.title}\n${dto.body}`,
+      user.sub,
+      'post',
+    );
     const fileIds = dto.mediaFileIds ?? [];
     const files: File[] = [];
     for (const id of fileIds) {
@@ -88,7 +106,14 @@ export class PostsService {
     const tags = extractHashtags(dto.body);
     const post = await withTxRetry(this.prisma, async (tx) => {
       const created = await tx.post.create({
-        data: { author_id: user.sub, body: dto.body, status },
+        data: {
+          author_id: user.sub,
+          title: dto.title,
+          practice_area_id: practice.id,
+          kind,
+          body: dto.body,
+          status,
+        },
       });
       if (files.length > 0) {
         await tx.postMedia.createMany({
@@ -118,22 +143,41 @@ export class PostsService {
         text: post.body,
         postId: post.id,
       });
+      // Owner 2026-09-30: followers who turned "Following" alerts on.
+      const alerts = this.alerts;
+      alerts?.later(() => alerts.followersOfPost(user.sub, post.id));
     }
     return (await this.presenter.present([post], user.sub))[0];
   }
 
-  /** PATCH /posts/:id — text only, hashtags recomputed, "Изменено". */
-  async update(user: RequestUser, id: string, body: string): Promise<PostDto> {
+  /** PATCH /posts/:id — title, text and qualification; hashtags
+   * recomputed, "Изменено". */
+  async update(
+    user: RequestUser,
+    id: string,
+    dto: UpdatePostDto,
+  ): Promise<PostDto> {
     const current = await this.prisma.post.findFirst({
       where: { id, author_id: user.sub, deleted_at: null },
     });
     if (!current) throw postNotFound();
-    const verdict = await this.moderate(body, user.sub, 'post');
+    const body = dto.body;
+    const title = dto.title ?? current.title;
+    const practice = dto.practiceCode
+      ? await this.practiceByCode(dto.practiceCode)
+      : null;
+    const verdict = await this.moderate(
+      title ? `${title}\n${body}` : body,
+      user.sub,
+      'post',
+    );
     const post = await withTxRetry(this.prisma, async (tx) => {
       const updated = await tx.post.update({
         where: { id },
         data: {
           body,
+          title,
+          ...(practice ? { practice_area_id: practice.id } : {}),
           edited_at: new Date(),
           // A held edit hides the post; moderation never re-publishes here.
           ...(verdict === 'hidden' ? { status: 'hidden' as const } : {}),
@@ -202,7 +246,7 @@ export class PostsService {
   async listByAttorney(
     user: RequestUser,
     attorneyId: string,
-    query: { cursor?: string; limit?: number },
+    query: { cursor?: string; limit?: number; kind?: 'post' | 'news' },
   ): Promise<PostPage> {
     const limit = query.limit ?? POSTS_PAGE_DEFAULT;
     const c = query.cursor ? decodeCursor(query.cursor) : undefined;
@@ -210,6 +254,8 @@ export class PostsService {
     const rows = await this.prisma.post.findMany({
       where: {
         author_id: attorneyId,
+        // Owner 2026-09-30: the profile's News tab.
+        ...(query.kind ? { kind: query.kind } : {}),
         ...(own ? { deleted_at: null } : VISIBLE_POST_WHERE),
         ...(c
           ? {
@@ -232,6 +278,22 @@ export class PostsService {
           ? encodeCursor({ createdAt: last.created_at, id: last.id })
           : null,
     };
+  }
+
+  /** An active practice category or subcategory (owner 2026-09-30). */
+  private async practiceByCode(code: string): Promise<{ id: string }> {
+    const area = await this.prisma.practiceArea.findFirst({
+      where: { code, is_active: true },
+      select: { id: true },
+    });
+    if (!area) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message: 'practiceCode must be an active practice area.',
+        details: { field: 'practiceCode' },
+      });
+    }
+    return area;
   }
 
   private async assertCanPost(user: RequestUser): Promise<void> {

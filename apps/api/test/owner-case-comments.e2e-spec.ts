@@ -6,6 +6,7 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
+import { ensurePostPractices } from './support/post-practices';
 
 /**
  * Owner decision 2026-09-30 (docs/OPEN_QUESTIONS.md OQ-034): comments under
@@ -38,6 +39,7 @@ describe('Case comments, category filter, documents (e2e, OQ-034)', () => {
     await app.listen(0, '127.0.0.1');
     baseUrl = `http://127.0.0.1:${((app.getHttpServer() as Server).address() as AddressInfo).port}`;
     prisma = app.get(PrismaService);
+    await ensurePostPractices(prisma);
     tokens = app.get(TokenService);
     await prisma.state.upsert({
       where: { code: 'NY' },
@@ -315,7 +317,11 @@ describe('Case comments, category filter, documents (e2e, OQ-034)', () => {
       .post('/api/v1/posts')
       .set(att.auth)
       .set('Idempotency-Key', randomUUID())
-      .send({ body: 'Know your rights at a traffic stop #traffic' });
+      .send({
+        title: 'A title',
+        practiceCode: 'family_law',
+        body: 'Know your rights at a traffic stop #traffic',
+      });
     expect(post.status).toBe(201);
     const postId = post.body.data.id as string;
     expect(

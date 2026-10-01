@@ -29,9 +29,11 @@ class MyBidItemDto {
     required this.roundCount,
     required this.turn,
     required this.decidedAt,
+    required this.outsidePractice,
     required this.createdAt,
     required this.caseValue,
     required this.lastOffer,
+    this.coverUrl,
   });
 
   factory MyBidItemDto.fromJson(Map<String, Object?> json) =>
@@ -50,12 +52,20 @@ class MyBidItemDto {
   final int roundCount;
   final PartyRole turn;
   final DateTime? decidedAt;
+
+  /// Owner 2026-09-30: the case's practice is outside the attorney's.
+  /// own — the client is told to discuss it first.
+  final bool outsidePractice;
   final DateTime createdAt;
 
   /// The name has been replaced because it contains a keyword. Original name: `case`.
   @JsonKey(name: 'case')
   final BidCaseRefDto caseValue;
   final BidOfferDto lastOffer;
+
+  /// Owner 2026-09-30: the case's first photo once this bid is accepted,.
+  /// else null (the app shows the qualification's art).
+  final String? coverUrl;
 
   Map<String, Object?> toJson() => _$MyBidItemDtoToJson(this);
 }

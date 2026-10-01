@@ -424,14 +424,30 @@ enum NotificationType {
   missed_call
   // OQ-042: someone @mentioned you in a post or a comment.
   mention
+  // Owner 2026-09-30 (opt-in): a person I follow published a post / news.
+  followed_post
+  // Owner 2026-09-30 (opt-in, attorneys): a new case in my practices.
+  new_case
 
   @@map("notification_type")
+}
+
+/// Owner 2026-09-30: a regular post or News (attorneys only).
+enum PostKind {
+  post
+  news
+
+  @@map("post_kind")
 }
 
 enum NotificationCategory {
   messages
   // Owner 2026-09-30: incoming calls and missed calls.
   calls
+  // Owner 2026-09-30, opt-in: posts and news of people I follow.
+  following
+  // Owner 2026-09-30, opt-in (attorneys): new cases for me.
+  new_cases
   bids
   cases
   social
@@ -636,6 +652,7 @@ model User {
   case_shares              CaseShare[]               @relation("CaseSharer")
   client_reviews_given     ClientReview[]            @relation("ClientReviewAttorney")
   client_reviews_received  ClientReview[]            @relation("ClientReviewClient")
+  client_review_appeals    ClientReviewAppeal[]      @relation("ClientReviewAppellant")
 
   // Trigram GIN on full_name_lower is a *partial* index (raw SQL): Prisma's
   // CockroachDB connector can't declare gin_trgm_ops, and ignores partial
@@ -961,6 +978,7 @@ model PracticeArea {
   attorney_practice_areas AttorneyPracticeArea[]
 
   cases Case[]
+  posts Post[]
 
   @@index([parent_id])
   @@map("practice_areas")
@@ -1243,6 +1261,8 @@ model Bid {
   estimated_duration_days Int?
   round_count             Int               @default(0) @db.Int2
   turn                    PartyRole
+  // Owner 2026-09-30: the case's practice is not one of the attorney's.
+  outside_practice        Boolean           @default(false)
   decided_at              DateTime?         @db.Timestamptz
   created_at              DateTime          @default(now()) @db.Timestamptz
   updated_at              DateTime          @updatedAt @db.Timestamptz
@@ -1406,31 +1426,37 @@ model Review {
 // -----------------------------------------------------------------------
 
 model Post {
-  id            String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id               String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   // Attorneys only (checked in the service, file 05).
-  author_id     String                   @db.Uuid
-  author        User                     @relation("PostAuthor", fields: [author_id], references: [id], onDelete: Restrict)
+  author_id        String                   @db.Uuid
+  author           User                     @relation("PostAuthor", fields: [author_id], references: [id], onDelete: Restrict)
   // ≤2200 chars (§6.1), CHECK in the migration.
-  body          String
-  language      String?
-  status        ContentStatus            @default(published)
-  like_count    Int                      @default(0)
-  comment_count Int                      @default(0)
-  save_count    Int                      @default(0)
+  body             String
+  // Owner 2026-09-30: card title (≤120, CHECK in the migration), the
+  // qualification (category or subcategory) and Post / News.
+  title            String?
+  practice_area_id String?                  @db.Uuid
+  practice_area    PracticeArea?            @relation(fields: [practice_area_id], references: [id], onDelete: Restrict)
+  kind             PostKind                 @default(post)
+  language         String?
+  status           ContentStatus            @default(published)
+  like_count       Int                      @default(0)
+  comment_count    Int                      @default(0)
+  save_count       Int                      @default(0)
   // Owner 2026-09-30 (OQ-037): times shared (share sheet completed).
-  share_count   Int                      @default(0)
-  shares        PostShare[]
+  share_count      Int                      @default(0)
+  shares           PostShare[]
   // docs/05 §3.3, §14 (stage 5.1): "Изменено" after a text edit.
-  edited_at     DateTime?                @db.Timestamptz
-  deleted_at    DateTime?                @db.Timestamptz
+  edited_at        DateTime?                @db.Timestamptz
+  deleted_at       DateTime?                @db.Timestamptz
   // STORED computed column (§5.3): to_tsvector('english', body). Read-only.
-  search_tsv    Unsupported("tsvector")? @default(dbgenerated("to_tsvector('english'::STRING, body)"))
-  created_at    DateTime                 @default(now()) @db.Timestamptz
+  search_tsv       Unsupported("tsvector")? @default(dbgenerated("to_tsvector('english'::STRING, body)"))
+  created_at       DateTime                 @default(now()) @db.Timestamptz
   // Explicit write-shard 0..15 (docs/02 §1.1 hot-spot rule): STORED
   // computed column, indexed as (created_shard, created_at). Replaces a
   // USING HASH index, which crashes Prisma's introspection. Read-only.
-  created_shard Int                      @default(dbgenerated("mod(fnv32(id::STRING), 16)::INT2")) @db.Int2
-  updated_at    DateTime                 @updatedAt @db.Timestamptz
+  created_shard    Int                      @default(dbgenerated("mod(fnv32(id::STRING), 16)::INT2")) @db.Int2
+  updated_at       DateTime                 @updatedAt @db.Timestamptz
 
   media    PostMedia[]
   tags     PostTag[]
@@ -1440,6 +1466,8 @@ model Post {
   // GIN/inverted (trigram gin_trgm_ops or full-text), created by the stage 2.6
   // migration; declared so Prisma's diff matches the DB.
   @@index([search_tsv], map: "posts_search_tsv_idx", type: Gin)
+  @@index([practice_area_id, created_at(sort: Desc)])
+  @@index([kind, created_at(sort: Desc)])
   @@map("posts")
 }
 
@@ -2055,8 +2083,11 @@ model CaseShare {
 // client; never to other clients.
 model ClientReview {
   id          String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  case_id     String       @db.Uuid
-  case        Case         @relation(fields: [case_id], references: [id], onDelete: Restrict)
+  // Owner 2026-09-30: null for a review written without a shared case.
+  case_id     String?      @db.Uuid
+  case        Case?        @relation(fields: [case_id], references: [id], onDelete: Restrict)
+  // The author (owner 2026-09-30: any attorney or client, not only the
+  // hired attorney; the column keeps its original name).
   attorney_id String       @db.Uuid
   attorney    User         @relation("ClientReviewAttorney", fields: [attorney_id], references: [id], onDelete: Restrict)
   client_id   String       @db.Uuid
@@ -2067,7 +2098,42 @@ model ClientReview {
   created_at  DateTime     @default(now()) @db.Timestamptz
   updated_at  DateTime     @updatedAt @db.Timestamptz
 
+  appeal ClientReviewAppeal?
+
   @@unique([case_id, attorney_id])
   @@index([client_id, created_at(sort: Desc)])
+  @@index([client_id, attorney_id])
   @@map("client_reviews")
+}
+
+/// Owner 2026-09-30: the reviewed client asks to remove a review. Admins
+/// accept (remove) or reject (keep); undecided after 30 days → removed.
+model ClientReviewAppeal {
+  id             String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  review_id      String             @unique @db.Uuid
+  review         ClientReview       @relation(fields: [review_id], references: [id], onDelete: Cascade)
+  appellant_id   String             @db.Uuid
+  appellant      User               @relation("ClientReviewAppellant", fields: [appellant_id], references: [id], onDelete: Cascade)
+  // 1–1000 chars, CHECK in the migration.
+  reason         String
+  status         ReviewAppealStatus @default(pending)
+  auto_remove_at DateTime           @db.Timestamptz
+  decided_at     DateTime?          @db.Timestamptz
+  // Admin user id (admin_profiles) — no FK, like the audit log.
+  decided_by     String?            @db.Uuid
+  admin_note     String?
+  created_at     DateTime           @default(now()) @db.Timestamptz
+
+  @@index([status, created_at])
+  @@index([status, auto_remove_at])
+  @@map("client_review_appeals")
+}
+
+enum ReviewAppealStatus {
+  pending
+  accepted
+  rejected
+  auto_removed
+
+  @@map("review_appeal_status")
 }

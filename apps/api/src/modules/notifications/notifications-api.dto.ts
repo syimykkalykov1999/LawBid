@@ -18,6 +18,8 @@ import {
 export const CATEGORIES = [
   'messages',
   'calls',
+  'following',
+  'new_cases',
   'bids',
   'cases',
   'social',

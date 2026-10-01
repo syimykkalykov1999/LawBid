@@ -1,3 +1,8 @@
+import {
+  hasMineFilter,
+  mineCaseWhere,
+  type MineFilterFields,
+} from './mine-filters';
 import { CasePhotosService } from '../services/case-photos.service';
 import {
   ConflictException,
@@ -117,11 +122,14 @@ export class MineService {
     filter: MyBidsFilter,
     cursor: string | undefined,
     limit = MINE_PAGE_DEFAULT,
+    search: MineFilterFields = {},
   ): Promise<Page<MyBidItemDto>> {
     if (user.role !== 'attorney') throw forbidden('Attorneys only.');
     const rows = await this.prisma.bid.findMany({
       where: {
         attorney_id: user.sub,
+        // Owner 2026-09-30: search and filters in "Mine".
+        ...(hasMineFilter(search) ? { case: mineCaseWhere(search) } : {}),
         status: filter === 'active' ? 'active' : { in: FINISHED_BIDS },
         ...keyset(cursor),
       },
@@ -144,9 +152,14 @@ export class MineService {
     });
     const page = rows.slice(0, limit);
     const last = page[page.length - 1];
+    const covers = await this.photos.coverUrls(
+      page.map((b) => b.case.id),
+      user.sub,
+    );
     return {
       items: page.map((b) => ({
         ...bidFields(b),
+        coverUrl: covers.get(b.case.id) ?? null,
         case: {
           id: b.case.id,
           title: b.case.title,
@@ -172,6 +185,7 @@ export class MineService {
     filter: MyWorkFilter,
     cursor: string | undefined,
     limit = MINE_PAGE_DEFAULT,
+    search: MineFilterFields = {},
   ): Promise<Page<WorkItemDto>> {
     if (user.role !== 'attorney') throw forbidden('Attorneys only.');
     const c = cursor ? decodeCursor(cursor) : undefined;
@@ -182,7 +196,10 @@ export class MineService {
         where: {
           attorney_id: user.sub,
           status: 'accepted',
-          accepted_for_case: { status: { in: WORK_STATUSES[filter] } },
+          accepted_for_case: {
+            status: { in: WORK_STATUSES[filter] },
+            ...mineCaseWhere(search),
+          },
           ...(c
             ? {
                 OR: [
@@ -220,6 +237,12 @@ export class MineService {
     ]);
     const page = bids.slice(0, limit);
     const last = page[page.length - 1];
+    const covers = await this.photos.coverUrls(
+      page.flatMap((b) =>
+        b.accepted_for_case ? [b.accepted_for_case.id] : [],
+      ),
+      user.sub,
+    );
     return {
       items: page.flatMap((b) => {
         const k = b.accepted_for_case;
@@ -244,6 +267,7 @@ export class MineService {
             autoCloseAt: k.auto_close_at?.toISOString() ?? null,
             acceptedAt: b.decided_at?.toISOString() ?? null,
             closedAt: k.closed_at?.toISOString() ?? null,
+            coverUrl: covers.get(k.id) ?? null,
           },
         ];
       }),
@@ -260,12 +284,34 @@ export class MineService {
     user: RequestUser,
     cursor: string | undefined,
     limit = MINE_PAGE_DEFAULT,
+    search: MineFilterFields = {},
   ): Promise<Page<SavedCaseItemDto>> {
     const c = cursor ? decodeCursor(cursor) : undefined;
+    // Owner 2026-09-30: search and filters — the saved ids that match.
+    const matching = hasMineFilter(search)
+      ? (
+          await this.prisma.case.findMany({
+            where: {
+              id: {
+                in: (
+                  await this.prisma.savedItem.findMany({
+                    where: { user_id: user.sub, item_type: 'case' },
+                    select: { item_id: true },
+                    take: 2000,
+                  })
+                ).map((s) => s.item_id),
+              },
+              ...mineCaseWhere(search),
+            },
+            select: { id: true },
+          })
+        ).map((k) => k.id)
+      : null;
     const rows = await this.prisma.savedItem.findMany({
       where: {
         user_id: user.sub,
         item_type: 'case',
+        ...(matching ? { item_id: { in: matching } } : {}),
         ...(c
           ? {
               OR: [
@@ -407,6 +453,7 @@ function bidFields(b: Bid) {
     estimatedDurationDays: b.estimated_duration_days,
     roundCount: b.round_count,
     turn: b.turn,
+    outsidePractice: b.outside_practice,
     decidedAt: b.decided_at?.toISOString() ?? null,
     createdAt: b.created_at.toISOString(),
   };

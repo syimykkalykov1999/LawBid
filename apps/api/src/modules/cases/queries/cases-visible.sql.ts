@@ -157,3 +157,50 @@ export function buildVisibleCasesSql(
     ORDER BY created_at DESC, id DESC
     LIMIT ${limit}`;
 }
+
+export interface PracticeCasesQueryInput {
+  attorneyId: string;
+  /** A practice category or subcategory code; a category includes its
+   * subcategories. */
+  practice: string;
+  state?: string;
+  cursor?: FeedCursor;
+  limit: number;
+}
+
+/**
+ * Owner 2026-09-30: a qualification chosen in the attorney's topic filter
+ * shows every open case of it in the attorney's verified-license states,
+ * not only cases of their own practices (they may bid; the client is told
+ * the qualification is outside the attorney's practices). "All" keeps the
+ * §5.4 query above.
+ */
+export function buildPracticeCasesSql(
+  input: PracticeCasesQueryInput,
+): Prisma.Sql {
+  const { attorneyId, practice, state, cursor, limit } = input;
+  const stateFilter = state
+    ? Prisma.sql`AND (c.primary_state_code = ${state}
+        OR EXISTS (SELECT 1 FROM case_states s2
+                   WHERE s2.case_id = c.id AND s2.state_code = ${state}))`
+    : Prisma.empty;
+  const cursorFilter = cursor
+    ? Prisma.sql`AND (c.created_at < ${cursor.createdAt}
+        OR (c.created_at = ${cursor.createdAt} AND c.id < ${cursor.id}::UUID))`
+    : Prisma.empty;
+  return Prisma.sql`
+    SELECT c.id, c.created_at FROM cases c
+    WHERE c.status = 'open' AND c.deleted_at IS NULL
+      AND c.practice_area_id IN (
+        SELECT pa.id FROM practice_areas pa
+        WHERE pa.code = ${practice} OR pa.code LIKE ${`${practice}.%`})
+      AND EXISTS (
+        SELECT 1 FROM case_states cs
+        JOIN attorney_licenses l ON l.state_code = cs.state_code
+        WHERE cs.case_id = c.id AND l.attorney_id = ${attorneyId}::UUID
+          AND l.license_status = 'verified')
+      ${stateFilter}
+      ${cursorFilter}
+    ORDER BY c.created_at DESC, c.id DESC
+    LIMIT ${limit}`;
+}

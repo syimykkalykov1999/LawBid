@@ -84,6 +84,8 @@ export enum ErrorCode {
   REVIEW_EDIT_WINDOW_EXPIRED = 'REVIEW_EDIT_WINDOW_EXPIRED',
   // A moderator hid or removed the review; it can't be edited.
   REVIEW_NOT_EDITABLE = 'REVIEW_NOT_EDITABLE',
+  /** Owner 2026-09-30: a client review was already appealed. */
+  REVIEW_APPEAL_EXISTS = 'REVIEW_APPEAL_EXISTS',
   // Practices and profiles (docs/03_VERIFICATION_PROFILES.md §3–§4,
   // stages 3.5–3.6)
   // 403: the action needs verification_status = verified (practices).

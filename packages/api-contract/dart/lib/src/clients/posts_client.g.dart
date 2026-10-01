@@ -156,6 +156,7 @@ class _PostsClient implements PostsClient {
     required String id,
     num? limit = 20,
     String? cursor,
+    PostKind? kind,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
@@ -163,6 +164,7 @@ class _PostsClient implements PostsClient {
     final queryParameters = <String, dynamic>{
       r'limit': limit,
       r'cursor': cursor,
+      r'kind': kind?.toJson(),
     };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};

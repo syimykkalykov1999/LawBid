@@ -8,6 +8,7 @@ import 'package:retrofit/retrofit.dart';
 import '../models/create_post_dto.dart';
 import '../models/post_deleted_envelope.dart';
 import '../models/post_envelope.dart';
+import '../models/post_kind.dart';
 import '../models/post_list_envelope.dart';
 import '../models/saved_post_item_list_envelope.dart';
 import '../models/update_post_dto.dart';
@@ -32,7 +33,7 @@ abstract class PostsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Edit the text of an own post (docs/05 §3.3)
+  /// Edit the title, text or qualification of an own post
   @PATCH('/posts/{id}')
   Future<PostEnvelope> updatePost({
     @Path('id') required String id,
@@ -50,11 +51,14 @@ abstract class PostsClient {
   /// An attorney's posts, newest first (docs/05 §15).
   ///
   /// [cursor] - meta.nextCursor of the previous page.
+  ///
+  /// [kind] - Owner 2026-09-30: only News / only regular posts (profile tabs).
   @GET('/attorneys/{id}/posts')
   Future<PostListEnvelope> listAttorneyPosts({
     @Path('id') required String id,
     @Query('limit') num? limit = 20,
     @Query('cursor') String? cursor,
+    @Query('kind') PostKind? kind,
     @Extras() Map<String, dynamic>? extras,
   });
 

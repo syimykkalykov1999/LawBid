@@ -250,4 +250,25 @@ export class LatestPostsQueryDto extends CursorQueryDto {
   @IsString()
   @Length(2, 2)
   state?: string;
+
+  /** Owner 2026-09-30: a practice category or subcategory code; a
+   * category includes its subcategories. */
+  @ApiPropertyOptional({ example: 'civil_litigation' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  practice?: string;
+
+  /** Older posts without a qualification match by their topic hashtag. */
+  @ApiPropertyOptional({ example: 'civillitigation' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(31)
+  tag?: string;
+
+  /** Owner 2026-09-30: only News (or only regular posts). */
+  @ApiPropertyOptional({ enum: ['post', 'news'], enumName: 'PostKind' })
+  @IsOptional()
+  @IsIn(['post', 'news'])
+  kind?: 'post' | 'news';
 }

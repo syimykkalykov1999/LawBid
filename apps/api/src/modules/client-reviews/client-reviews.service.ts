@@ -1,4 +1,5 @@
 import {
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -16,6 +17,8 @@ import { NotificationsService } from '../notifications/notifications.service';
 import type { ReviewSummaryDto } from '../reviews/dto/review-responses.dto';
 import { displayRating } from '../reviews/review-rating';
 import type {
+  AdminReviewAppealDto,
+  AdminReviewAppealsDecisionDto,
   ClientReviewDto,
   ClientReviewPage,
   ClientReviewsQueryDto,
@@ -23,6 +26,9 @@ import type {
 } from './client-reviews.dto';
 
 const PAGE = 20;
+
+/** Owner 2026-09-30: an appeal nobody decided removes the review then. */
+export const REVIEW_APPEAL_AUTO_REMOVE_DAYS = 30;
 
 /** Cases in these states have a working relationship to review. */
 const REVIEWABLE = [
@@ -33,10 +39,13 @@ const REVIEWABLE = [
 ] as const;
 
 /**
- * Owner 2026-09-30 (OQ-038): attorneys review clients. Only the attorney
- * whose bid the client accepted reviews that client, once per case
- * (editable). Reviews are visible to attorneys and to the client, never
- * to other clients. The client's average feeds client_profiles.
+ * Owner 2026-09-30 (OQ-038, OQ-046): reviews of clients. The hired
+ * attorney reviews from the case; besides, anyone — attorney or client,
+ * with or without a shared case — may review a client once (editable) to
+ * warn others. Every signed-in user sees them. The author deletes theirs
+ * at any time; the reviewed client may appeal once: admins accept (the
+ * review goes) or reject (it stays), and an appeal nobody decided in 30
+ * days removes it. The client's average feeds client_profiles.
  */
 @Injectable()
 export class ClientReviewsService {
@@ -116,7 +125,278 @@ export class ClientReviewsService {
     return row ? (await this.present([row.id], user.sub))[0] : null;
   }
 
-  /** GET /clients/:id/reviews — attorneys and the client only. */
+  /** PUT /clients/:id/reviews/mine (owner 2026-09-30): any attorney or
+   * client reviews a client, once (an edit replaces it). */
+  async upsertOpen(
+    user: RequestUser,
+    clientId: string,
+    dto: UpsertClientReviewDto,
+  ): Promise<ClientReviewDto> {
+    if (user.sub === clientId) {
+      throw new ForbiddenException({
+        code: ErrorCode.FORBIDDEN,
+        message: 'You cannot review yourself.',
+      });
+    }
+    await this.assertCanWrite(user);
+    await this.assertCanSee(user, clientId);
+    const body = dto.body?.length ? dto.body : null;
+    if (body) assertNoContactInfo({ body });
+    const existing = await this.prisma.clientReview.findFirst({
+      where: {
+        client_id: clientId,
+        attorney_id: user.sub,
+        status: { not: 'removed' },
+      },
+      orderBy: { created_at: 'desc' },
+      select: { id: true },
+    });
+    const row = existing
+      ? await this.prisma.clientReview.update({
+          where: { id: existing.id },
+          data: { rating: dto.rating, body },
+        })
+      : await this.prisma.clientReview.create({
+          data: {
+            attorney_id: user.sub,
+            client_id: clientId,
+            rating: dto.rating,
+            body,
+          },
+        });
+    await this.recalc(clientId);
+    if (!existing) {
+      await this.notifications.emit({
+        type: 'review_received',
+        recipientId: clientId,
+        payload: { actorId: user.sub, clientReview: true, reviewId: row.id },
+      });
+    }
+    return (await this.present([row.id], user.sub))[0];
+  }
+
+  /** GET /clients/:id/reviews/mine — my review of that client, or null. */
+  async mineFor(
+    user: RequestUser,
+    clientId: string,
+  ): Promise<ClientReviewDto | null> {
+    const row = await this.prisma.clientReview.findFirst({
+      where: {
+        client_id: clientId,
+        attorney_id: user.sub,
+        status: { not: 'removed' },
+      },
+      orderBy: { created_at: 'desc' },
+      select: { id: true },
+    });
+    return row ? (await this.present([row.id], user.sub))[0] : null;
+  }
+
+  /** DELETE /client-reviews/:id — the author removes their review. */
+  async remove(user: RequestUser, reviewId: string): Promise<void> {
+    const r = await this.prisma.clientReview.findFirst({
+      where: {
+        id: reviewId,
+        attorney_id: user.sub,
+        status: { not: 'removed' },
+      },
+      select: { client_id: true },
+    });
+    if (!r) throw reviewNotFound();
+    await this.prisma.clientReview.update({
+      where: { id: reviewId },
+      data: { status: 'removed' },
+    });
+    await this.prisma.clientReviewAppeal.updateMany({
+      where: { review_id: reviewId, status: 'pending' },
+      data: { status: 'accepted', decided_at: new Date() },
+    });
+    await this.recalc(r.client_id);
+  }
+
+  /** POST /client-reviews/:id/appeal — the reviewed client, once. */
+  async appeal(
+    user: RequestUser,
+    reviewId: string,
+    reason: string,
+  ): Promise<ClientReviewDto> {
+    const r = await this.prisma.clientReview.findFirst({
+      where: { id: reviewId, client_id: user.sub, status: 'published' },
+      select: { id: true, appeal: { select: { id: true } } },
+    });
+    if (!r) throw reviewNotFound();
+    if (r.appeal) {
+      throw new ConflictException({
+        code: ErrorCode.REVIEW_APPEAL_EXISTS,
+        message: 'This review was already appealed.',
+      });
+    }
+    const now = new Date();
+    await this.prisma.clientReviewAppeal.create({
+      data: {
+        review_id: reviewId,
+        appellant_id: user.sub,
+        reason,
+        auto_remove_at: new Date(
+          now.getTime() + REVIEW_APPEAL_AUTO_REMOVE_DAYS * 24 * 3600 * 1000,
+        ),
+      },
+    });
+    return (await this.present([reviewId], user.sub))[0];
+  }
+
+  /** Admin queue (owner 2026-09-30), oldest first. */
+  async listAppeals(
+    status: 'pending' | 'accepted' | 'rejected' | 'auto_removed' = 'pending',
+    cursor?: string,
+  ): Promise<{ items: AdminReviewAppealDto[]; nextCursor: string | null }> {
+    const c = cursor ? decodeCursor(cursor) : undefined;
+    const rows = await this.prisma.clientReviewAppeal.findMany({
+      where: {
+        status,
+        ...(c
+          ? {
+              OR: [
+                { created_at: { gt: c.createdAt } },
+                { created_at: c.createdAt, id: { gt: c.id } },
+              ],
+            }
+          : {}),
+      },
+      orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+      take: PAGE + 1,
+      include: {
+        review: {
+          include: {
+            attorney: {
+              select: { first_name: true, last_name: true, role: true },
+            },
+            client: { select: { first_name: true, last_name: true } },
+          },
+        },
+      },
+    });
+    const page = rows.slice(0, PAGE);
+    const last = page[page.length - 1];
+    const name = (u: { first_name: string | null; last_name: string | null }) =>
+      [u.first_name, u.last_name].filter(Boolean).join(' ') || '—';
+    return {
+      items: page.map((a) => ({
+        id: a.id,
+        status: a.status,
+        reason: a.reason,
+        createdAt: a.created_at.toISOString(),
+        autoRemoveAt: a.auto_remove_at.toISOString(),
+        reviewId: a.review_id,
+        rating: a.review.rating,
+        body: a.review.body,
+        authorName: name(a.review.attorney),
+        authorRole: a.review.attorney.role === 'client' ? 'client' : 'attorney',
+        clientId: a.review.client_id,
+        clientName: name(a.review.client),
+      })),
+      nextCursor:
+        rows.length > PAGE && last
+          ? encodeCursor({ createdAt: last.created_at, id: last.id })
+          : null,
+    };
+  }
+
+  /** Admin: accept (remove the reviews) or reject (keep them), in bulk;
+   * only pending appeals change. */
+  async decideAppeals(
+    adminId: string,
+    dto: AdminReviewAppealsDecisionDto,
+  ): Promise<{ decided: number }> {
+    const pending = await this.prisma.clientReviewAppeal.findMany({
+      where: { id: { in: dto.ids }, status: 'pending' },
+      select: {
+        id: true,
+        review_id: true,
+        review: { select: { client_id: true } },
+      },
+    });
+    if (pending.length === 0) return { decided: 0 };
+    const now = new Date();
+    await this.prisma.$transaction([
+      this.prisma.clientReviewAppeal.updateMany({
+        where: { id: { in: pending.map((p) => p.id) }, status: 'pending' },
+        data: {
+          status: dto.decision === 'accept' ? 'accepted' : 'rejected',
+          decided_at: now,
+          decided_by: adminId,
+          admin_note: dto.note ?? null,
+        },
+      }),
+      ...(dto.decision === 'accept'
+        ? [
+            this.prisma.clientReview.updateMany({
+              where: { id: { in: pending.map((p) => p.review_id) } },
+              data: { status: 'removed' },
+            }),
+          ]
+        : []),
+    ]);
+    if (dto.decision === 'accept') {
+      for (const id of new Set(pending.map((p) => p.review.client_id))) {
+        await this.recalc(id);
+      }
+    }
+    return { decided: pending.length };
+  }
+
+  /** Cron: undecided appeals past their date remove the review. */
+  async sweepAppeals(now = new Date()): Promise<number> {
+    const due = await this.prisma.clientReviewAppeal.findMany({
+      where: { status: 'pending', auto_remove_at: { lte: now } },
+      select: {
+        id: true,
+        review_id: true,
+        review: { select: { client_id: true } },
+      },
+      take: 500,
+    });
+    if (due.length === 0) return 0;
+    await this.prisma.$transaction([
+      this.prisma.clientReviewAppeal.updateMany({
+        where: { id: { in: due.map((d) => d.id) }, status: 'pending' },
+        data: { status: 'auto_removed', decided_at: now },
+      }),
+      this.prisma.clientReview.updateMany({
+        where: { id: { in: due.map((d) => d.review_id) } },
+        data: { status: 'removed' },
+      }),
+    ]);
+    for (const id of new Set(due.map((d) => d.review.client_id))) {
+      await this.recalc(id);
+    }
+    return due.length;
+  }
+
+  private async assertCanWrite(user: RequestUser): Promise<void> {
+    const me = await this.prisma.user.findUnique({
+      where: { id: user.sub },
+      select: {
+        status: true,
+        role: true,
+        phone_verified_at: true,
+        attorney_profile: { select: { verification_status: true } },
+      },
+    });
+    const ok =
+      me?.status === 'active' &&
+      ((me.role === 'attorney' &&
+        me.attorney_profile?.verification_status === 'verified') ||
+        (me.role === 'client' && me.phone_verified_at != null));
+    if (!ok) {
+      throw new ForbiddenException({
+        code: ErrorCode.FORBIDDEN,
+        message: 'Verify your account to write reviews.',
+      });
+    }
+  }
+
+  /** GET /clients/:id/reviews — every signed-in user (owner 2026-09-30). */
   async list(
     user: RequestUser,
     clientId: string,
@@ -202,10 +482,10 @@ export class ClientReviewsService {
     user: RequestUser,
     clientId: string,
   ): Promise<void> {
-    if (user.role !== 'attorney' && user.sub !== clientId) {
+    if (user.role !== 'attorney' && user.role !== 'client') {
       throw new ForbiddenException({
         code: ErrorCode.FORBIDDEN,
-        message: 'Client reviews are visible to attorneys only.',
+        message: 'Sign in to see client reviews.',
       });
     }
     const client = await this.prisma.user.findFirst({
@@ -220,7 +500,7 @@ export class ClientReviewsService {
     }
   }
 
-  private async recalc(clientId: string): Promise<void> {
+  async recalc(clientId: string): Promise<void> {
     const agg = await this.prisma.clientReview.aggregate({
       where: { client_id: clientId, status: 'published' },
       _avg: { rating: true },
@@ -244,8 +524,10 @@ export class ClientReviewsService {
       where: { id: { in: ids } },
       include: {
         case: { select: { title: true } },
+        appeal: { select: { status: true } },
         attorney: {
           select: {
+            role: true,
             first_name: true,
             last_name: true,
             avatar_file_id: true,
@@ -268,7 +550,7 @@ export class ClientReviewsService {
         {
           id: r.id,
           caseId: r.case_id,
-          caseTitle: r.case.title,
+          caseTitle: r.case?.title ?? null,
           rating: r.rating,
           body: r.body,
           attorney: {
@@ -281,11 +563,26 @@ export class ClientReviewsService {
               ? (avatars.get(a.avatar_file_id)?.url256 ?? null)
               : null,
             verifiedBadge: a.phone_verified_at != null,
+            role:
+              a.role === 'client' ? ('client' as const) : ('attorney' as const),
           },
           isMine: r.attorney_id === viewerId,
+          canAppeal:
+            r.client_id === viewerId && r.status === 'published' && !r.appeal,
+          appealStatus:
+            r.client_id === viewerId || r.attorney_id === viewerId
+              ? (r.appeal?.status ?? null)
+              : null,
           createdAt: r.created_at.toISOString(),
         },
       ];
     });
   }
+}
+
+function reviewNotFound(): NotFoundException {
+  return new NotFoundException({
+    code: ErrorCode.NOT_FOUND,
+    message: 'Review not found.',
+  });
 }

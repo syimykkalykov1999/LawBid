@@ -10,6 +10,10 @@ enum CategorySettingDtoCategory {
   messages('messages'),
   @JsonValue('calls')
   calls('calls'),
+  @JsonValue('following')
+  following('following'),
+  @JsonValue('new_cases')
+  newCases('new_cases'),
   @JsonValue('bids')
   bids('bids'),
   @JsonValue('cases')

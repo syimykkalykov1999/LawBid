@@ -19,6 +19,7 @@ import { TrendingTagsJob } from '../modules/search/trending-tags.job';
 import { NotificationsRetentionJob } from './handlers/notifications-retention.job';
 import { OpsMetricsJob } from './handlers/ops-metrics.job';
 import { CallsService } from '../modules/calls/calls.service';
+import { ClientReviewsService } from '../modules/client-reviews/client-reviews.service';
 import { AccountAnonymizationService } from '../modules/privacy/account-anonymization.service';
 import { ExportsCleanupService } from '../modules/privacy/exports-cleanup.service';
 import { JournalIntegrityService } from '../modules/privacy/journal-integrity.service';
@@ -50,6 +51,7 @@ export class CronProcessor {
     private readonly exportsCleanup: ExportsCleanupService,
     private readonly opsMetrics: OpsMetricsJob,
     private readonly calls: CallsService,
+    private readonly clientReviews: ClientReviewsService,
   ) {}
 
   async process(name: string): Promise<unknown> {
@@ -98,6 +100,8 @@ export class CronProcessor {
         return this.opsMetrics.businessCounters();
       case CRON_JOBS.callsSweep:
         return this.calls.sweep();
+      case CRON_JOBS.reviewAppealsSweep:
+        return this.clientReviews.sweepAppeals();
       default:
         // A job left over from an older/newer release: fail it visibly
         // rather than "succeed" doing nothing.

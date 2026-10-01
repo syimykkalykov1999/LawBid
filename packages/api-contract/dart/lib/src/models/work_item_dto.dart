@@ -26,6 +26,7 @@ class WorkItemDto {
     this.autoCloseAt,
     this.acceptedAt,
     this.closedAt,
+    this.coverUrl,
   });
 
   factory WorkItemDto.fromJson(Map<String, Object?> json) =>
@@ -49,6 +50,10 @@ class WorkItemDto {
   final String? autoCloseAt;
   final String? acceptedAt;
   final String? closedAt;
+
+  /// Owner 2026-09-30: the case's first photo (the hired attorney sees.
+  /// them), else null — the app shows the qualification's art.
+  final String? coverUrl;
 
   Map<String, Object?> toJson() => _$WorkItemDtoToJson(this);
 }

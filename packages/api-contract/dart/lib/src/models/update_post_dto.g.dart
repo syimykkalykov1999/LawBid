@@ -7,7 +7,15 @@ part of 'update_post_dto.dart';
 // **************************************************************************
 
 UpdatePostDto _$UpdatePostDtoFromJson(Map<String, dynamic> json) =>
-    UpdatePostDto(body: json['body'] as String);
+    UpdatePostDto(
+      body: json['body'] as String,
+      title: json['title'] as String?,
+      practiceCode: json['practiceCode'] as String?,
+    );
 
 Map<String, dynamic> _$UpdatePostDtoToJson(UpdatePostDto instance) =>
-    <String, dynamic>{'body': instance.body};
+    <String, dynamic>{
+      'title': ?instance.title,
+      'practiceCode': ?instance.practiceCode,
+      'body': instance.body,
+    };

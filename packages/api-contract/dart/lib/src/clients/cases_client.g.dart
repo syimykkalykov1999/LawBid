@@ -60,6 +60,7 @@ class _CasesClient implements CasesClient {
     String? practiceAreaId,
     String? state,
     String? practiceCategory,
+    String? practice,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
@@ -70,6 +71,7 @@ class _CasesClient implements CasesClient {
       r'practiceAreaId': practiceAreaId,
       r'state': state,
       r'practiceCategory': practiceCategory,
+      r'practice': practice,
     };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};
@@ -291,17 +293,23 @@ class _CasesClient implements CasesClient {
 
   @override
   Future<CaseSummaryListEnvelope> listMyCases({
-    String? cursor,
     Filter? filter = Filter.active,
     int? limit = 20,
+    String? q,
+    String? practice,
+    String? state,
+    String? cursor,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
     _extra.addAll(extras ?? <String, dynamic>{});
     final queryParameters = <String, dynamic>{
-      r'cursor': cursor,
       r'filter': filter?.toJson(),
       r'limit': limit,
+      r'q': q,
+      r'practice': practice,
+      r'state': state,
+      r'cursor': cursor,
     };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};

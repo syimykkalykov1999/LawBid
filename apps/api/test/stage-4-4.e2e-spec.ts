@@ -265,13 +265,14 @@ describe('Bids and negotiation (e2e, docs/04 §5–§6, stage 4.4)', () => {
     expect(shortMessage.status).toBe(400);
     expect(shortMessage.body.error.code).toBe('VALIDATION_ERROR');
 
-    // Wrong practice area: not eligible to see or bid on this case.
+    // Owner 2026-09-30: another practice area may bid; the bid is marked
+    // so the client is warned.
     const wrongPractice = await user('attorney', {
       practiceAreaIds: [otherPracticeAreaId],
     });
-    const denied = await postBid(wrongPractice.auth, caseId, bidBody());
-    expect(denied.status).toBe(404);
-    expect(denied.body.error.code).toBe('CASE_NOT_FOUND');
+    const outside = await postBid(wrongPractice.auth, caseId, bidBody());
+    expect(outside.status).toBe(201);
+    expect(outside.body.data.outsidePractice).toBe(true);
 
     // A client can't bid.
     const asClient = await postBid(client.auth, caseId, bidBody());

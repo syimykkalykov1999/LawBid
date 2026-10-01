@@ -6,6 +6,7 @@ import {
   ArrayMaxSize,
   ArrayUnique,
   IsArray,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -17,6 +18,9 @@ import {
 } from 'class-validator';
 
 export const POST_BODY_MAX = 2200;
+export const POST_TITLE_MAX = 120;
+export const POST_KINDS = ['post', 'news'] as const;
+export type PostKindValue = (typeof POST_KINDS)[number];
 export const POST_MEDIA_MAX = 9;
 export const POSTS_PAGE_DEFAULT = 20;
 export const POSTS_PAGE_MAX = 50;
@@ -26,6 +30,34 @@ const trim = ({ value }: { value: unknown }) =>
 
 /** POST /posts (docs/05 §3.1). */
 export class CreatePostDto {
+  /** Owner 2026-09-30: the card's title. */
+  @ApiProperty({ minLength: 1, maxLength: POST_TITLE_MAX })
+  @Transform(trim)
+  @IsString()
+  @MinLength(1)
+  @MaxLength(POST_TITLE_MAX)
+  title!: string;
+
+  /** Owner 2026-09-30: the qualification — a practice category or
+   * subcategory code (`civil_litigation`, `civil_litigation.appeals`…). */
+  @ApiProperty({
+    example: 'civil_litigation.arbitration_and_mediation_representation',
+  })
+  @IsString()
+  @MinLength(2)
+  @MaxLength(120)
+  practiceCode!: string;
+
+  /** Owner 2026-09-30: News — attorneys only. */
+  @ApiPropertyOptional({
+    enum: POST_KINDS,
+    default: 'post',
+    enumName: 'PostKind',
+  })
+  @IsOptional()
+  @IsIn(POST_KINDS)
+  kind?: PostKindValue;
+
   @ApiProperty({ minLength: 1, maxLength: POST_BODY_MAX })
   @Transform(trim)
   @IsString()
@@ -46,8 +78,23 @@ export class CreatePostDto {
   mediaFileIds?: string[];
 }
 
-/** PATCH /posts/:id — only the text is editable (§3.3). */
+/** PATCH /posts/:id — the title, the text and the qualification. */
 export class UpdatePostDto {
+  @ApiPropertyOptional({ minLength: 1, maxLength: POST_TITLE_MAX })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MinLength(1)
+  @MaxLength(POST_TITLE_MAX)
+  title?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  @MaxLength(120)
+  practiceCode?: string;
+
   @ApiProperty({ minLength: 1, maxLength: POST_BODY_MAX })
   @Transform(trim)
   @IsString()
@@ -80,6 +127,12 @@ export class PostsPageQueryDto {
   @Min(1)
   @Max(POSTS_PAGE_MAX)
   limit?: number;
+
+  /** Owner 2026-09-30: only News / only regular posts (profile tabs). */
+  @ApiPropertyOptional({ enum: POST_KINDS, enumName: 'PostKind' })
+  @IsOptional()
+  @IsIn(POST_KINDS)
+  kind?: PostKindValue;
 }
 
 export class PostAuthorDto {
@@ -137,10 +190,37 @@ export class PostMediaDto {
   mediumUrl!: string;
 }
 
+/** The qualification of a post (owner 2026-09-30). */
+export class PostPracticeDto {
+  @ApiProperty({
+    example: 'civil_litigation.arbitration_and_mediation_representation',
+  })
+  code!: string;
+
+  @ApiProperty({ example: 'civil_litigation' })
+  categoryCode!: string;
+
+  @ApiProperty({ example: 'Arbitration and Mediation Representation' })
+  nameEn!: string;
+
+  @ApiProperty()
+  i18nKey!: string;
+}
+
 /** A post as the app shows it (docs/05 §2.4). */
 export class PostDto {
   @ApiProperty({ format: 'uuid' })
   id!: string;
+
+  /** Owner 2026-09-30; null on older posts (the app splits the body). */
+  @ApiPropertyOptional({ type: String, nullable: true })
+  title!: string | null;
+
+  @ApiProperty({ enum: POST_KINDS, enumName: 'PostKind' })
+  kind!: PostKindValue;
+
+  @ApiPropertyOptional({ type: PostPracticeDto, nullable: true })
+  practice!: PostPracticeDto | null;
 
   @ApiProperty({ type: PostAuthorDto })
   author!: PostAuthorDto;

@@ -10,6 +10,7 @@ import { NotificationsService } from '../src/modules/notifications/notifications
 import { PushDispatcher } from '../src/modules/notifications/push/push-dispatcher';
 import { PUSH_SENDER } from '../src/modules/notifications/push/push.constants';
 import { NotificationsRetentionJob } from '../src/jobs/handlers/notifications-retention.job';
+import { ensurePostPractices } from './support/post-practices';
 
 /**
  * docs/05 §16 stage 5.8 acceptance: `new_message` makes no list row but a
@@ -45,6 +46,7 @@ describe('Notifications, push, badges (e2e, docs/05 §9-§10, stage 5.8)', () =>
     await app.listen(0, '127.0.0.1');
     baseUrl = `http://127.0.0.1:${((app.getHttpServer() as Server).address() as AddressInfo).port}`;
     prisma = app.get(PrismaService);
+    await ensurePostPractices(prisma);
     tokens = app.get(TokenService);
     notifications = app.get(NotificationsService);
     dispatcher = app.get(PushDispatcher);
@@ -172,7 +174,11 @@ describe('Notifications, push, badges (e2e, docs/05 §9-§10, stage 5.8)', () =>
       .post('/api/v1/posts')
       .set(author.auth)
       .set('Idempotency-Key', randomUUID())
-      .send({ body: 'Know your rights' });
+      .send({
+        title: 'A title',
+        practiceCode: 'family_law',
+        body: 'Know your rights',
+      });
     const postId = post.body.data.id as string;
     for (let i = 0; i < 5; i++) {
       const fan = await user('client');

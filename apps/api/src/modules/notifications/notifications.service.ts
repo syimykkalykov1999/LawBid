@@ -36,6 +36,9 @@ export const NOTIFICATION_CATEGORY: Record<
   missed_call: 'calls',
   // OQ-042.
   mention: 'social',
+  // Owner 2026-09-30, opt-in.
+  followed_post: 'following',
+  new_case: 'new_cases',
   comment_reply: 'social',
   comment_like: 'social',
   verification_update: 'system',

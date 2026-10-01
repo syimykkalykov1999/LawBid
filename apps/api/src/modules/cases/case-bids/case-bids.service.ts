@@ -180,6 +180,7 @@ export class CaseBidsService {
       estimatedDurationDays: bid.estimated_duration_days,
       roundCount: bid.round_count,
       turn: bid.turn,
+      outsidePractice: bid.outside_practice,
       decidedAt: bid.decided_at?.toISOString() ?? null,
       createdAt: bid.created_at.toISOString(),
       attorney: {

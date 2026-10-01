@@ -23,6 +23,7 @@ import { TrendingTagsJob } from '../modules/search/trending-tags.job';
 import { NotificationsRetentionJob } from './handlers/notifications-retention.job';
 import { OpsMetricsJob } from './handlers/ops-metrics.job';
 import { CallsModule } from '../modules/calls/calls.module';
+import { ClientReviewsModule } from '../modules/client-reviews/client-reviews.module';
 import { CaseLifecycleModule } from '../modules/cases/lifecycle/case-lifecycle.module';
 import { BidsModule } from '../modules/bids/bids.module';
 import { SubscriptionsModule } from '../modules/subscriptions/subscriptions.module';
@@ -45,6 +46,7 @@ export class JobsModule {
       imports: [
         NotificationsModule,
         CallsModule,
+        ClientReviewsModule,
         SubscriptionsModule,
         BidsModule,
         CaseLifecycleModule,

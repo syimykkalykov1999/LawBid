@@ -33,6 +33,7 @@ class CaseDetailForAttorneyDto {
     required this.description,
     required this.photos,
     required this.photosCount,
+    required this.inMyPractice,
     this.city,
     this.ownBidId,
   });
@@ -79,6 +80,10 @@ class CaseDetailForAttorneyDto {
 
   /// OQ-031: how many photos the case has (shown to every attorney).
   final num photosCount;
+
+  /// Owner 2026-09-30: the case's practice is one of this attorney's —.
+  /// otherwise "Bid" warns that the client will be told.
+  final bool inMyPractice;
 
   Map<String, Object?> toJson() => _$CaseDetailForAttorneyDtoToJson(this);
 }

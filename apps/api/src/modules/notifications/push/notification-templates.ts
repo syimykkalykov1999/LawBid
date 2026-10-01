@@ -180,6 +180,29 @@ export const NOTIFICATION_TEMPLATES: Partial<
     },
     ru: { title: 'Вас отметили', body: 'Вас отметили в LawBid.' },
   },
+  // Owner 2026-09-30 (opt-in).
+  followed_post: {
+    group: 'social',
+    en: {
+      title: 'New from someone you follow',
+      body: 'A person you follow published something new.',
+    },
+    ru: {
+      title: 'Новое от тех, на кого вы подписаны',
+      body: 'Человек, на которого вы подписаны, опубликовал новое.',
+    },
+  },
+  new_case: {
+    group: 'cases',
+    en: {
+      title: 'New case for you',
+      body: 'A new case in your practice areas was published.',
+    },
+    ru: {
+      title: 'Новый кейс для вас',
+      body: 'Опубликован новый кейс по вашим практикам.',
+    },
+  },
   // OQ-041.
   missed_call: {
     group: 'messages',

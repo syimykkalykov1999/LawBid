@@ -7,7 +7,9 @@ import 'package:json_annotation/json_annotation.dart';
 import 'content_status.dart';
 import 'mention_dto.dart';
 import 'post_author_dto.dart';
+import 'post_kind.dart';
 import 'post_media_dto.dart';
+import 'post_practice_dto.dart';
 
 part 'post_dto.g.dart';
 
@@ -15,6 +17,7 @@ part 'post_dto.g.dart';
 class PostDto {
   const PostDto({
     required this.id,
+    required this.kind,
     required this.author,
     required this.body,
     required this.media,
@@ -29,6 +32,8 @@ class PostDto {
     required this.savedByMe,
     required this.isMine,
     required this.createdAt,
+    this.title,
+    this.practice,
     this.editedAt,
   });
 
@@ -36,6 +41,11 @@ class PostDto {
       _$PostDtoFromJson(json);
 
   final String id;
+
+  /// Owner 2026-09-30; null on older posts (the app splits the body).
+  final String? title;
+  final PostKind kind;
+  final PostPracticeDto? practice;
   final PostAuthorDto author;
   final String body;
   final List<PostMediaDto> media;

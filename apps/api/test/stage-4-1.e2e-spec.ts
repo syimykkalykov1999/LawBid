@@ -544,17 +544,23 @@ describe('Stage 4.1 — state machines, journal, access policy (e2e)', () => {
       const prospect = {
         kind: 'attorney_prospect',
         clientIdentityVisible: false,
+        inPractice: true,
       };
+      // Owner 2026-09-30: other practices are visible (and biddable) in
+      // licensed states, marked as outside the attorney's practices.
+      const outside = { ...prospect, inPractice: false };
 
       expect(await policy.decide(v(att), njSpeeding)).toEqual(prospect);
       expect(await policy.decide(v(att), nyPlusNj)).toEqual(prospect);
       expect(await policy.decide(v(att), nySpeeding)).toBeNull(); // pending NY license
-      expect(await policy.decide(v(att), njDui)).toBeNull(); // other practice
-      expect(await policy.decide(v(att), njNotSure)).toBeNull();
+      expect(await policy.decide(v(att), njDui)).toEqual(outside); // other practice
+      expect(await policy.decide(v(att), njNotSure)).toEqual(outside);
       expect(await policy.decide(v(generalist), njNotSure)).toEqual(prospect); // §4.1 exception
-      expect(await policy.decide(v(generalist), njSpeeding)).toBeNull();
+      expect(await policy.decide(v(generalist), njSpeeding)).toEqual(outside);
       expect(await policy.decide(v(unverified), njSpeeding)).toBeNull();
-      await expect(policy.assertCanView(v(att), njDui)).rejects.toMatchObject({
+      await expect(
+        policy.assertCanView(v(unverified), njDui),
+      ).rejects.toMatchObject({
         response: { code: 'CASE_NOT_FOUND' },
       });
 
@@ -567,6 +573,7 @@ describe('Stage 4.1 — state machines, journal, access policy (e2e)', () => {
       expect(await policy.decide(v(att), njDui)).toEqual({
         kind: 'attorney_participant',
         clientIdentityVisible: false,
+        inPractice: false,
       });
       await root.case.update({
         where: { id: njSpeeding },

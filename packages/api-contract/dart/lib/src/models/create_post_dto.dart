@@ -4,15 +4,32 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'post_kind.dart';
+
 part 'create_post_dto.g.dart';
 
 @JsonSerializable()
 class CreatePostDto {
-  const CreatePostDto({required this.body, this.mediaFileIds});
+  const CreatePostDto({
+    required this.title,
+    required this.practiceCode,
+    required this.body,
+    this.mediaFileIds,
+    this.kind = PostKind.post,
+  });
 
   factory CreatePostDto.fromJson(Map<String, Object?> json) =>
       _$CreatePostDtoFromJson(json);
 
+  /// Owner 2026-09-30: the card's title.
+  final String title;
+
+  /// Owner 2026-09-30: the qualification — a practice category or.
+  /// subcategory code (`civil_litigation`, `civil_litigation.appeals`…).
+  final String practiceCode;
+
+  /// Owner 2026-09-30: News — attorneys only.
+  final PostKind kind;
   final String body;
 
   /// Clean post_image file ids, in display order.

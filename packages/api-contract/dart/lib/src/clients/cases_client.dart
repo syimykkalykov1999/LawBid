@@ -43,6 +43,8 @@ abstract class CasesClient {
   /// [state] - Two-letter state code.
   ///
   /// [practiceCategory] - Practice category code: cases of any of its leaves (owner 2026-09-30, OQ-034 topic slider).
+  ///
+  /// [practice] - Owner 2026-09-30: any qualification (category with its subcategories, or one subcategory) — every open case of it in the attorney's licensed states, own practices or not.
   @GET('/cases')
   Future<CaseFeedItemListEnvelope> listCaseFeed({
     @Query('limit') int? limit = 20,
@@ -50,6 +52,7 @@ abstract class CasesClient {
     @Query('practiceAreaId') String? practiceAreaId,
     @Query('state') String? state,
     @Query('practiceCategory') String? practiceCategory,
+    @Query('practice') String? practice,
     @Extras() Map<String, dynamic>? extras,
   });
 
@@ -98,12 +101,17 @@ abstract class CasesClient {
 
   /// "My cases" tabs (client, docs/04 §11.1).
   ///
+  /// [q] - Words of the case title.
+  ///
   /// [cursor] - meta.nextCursor of the previous page.
   @GET('/users/me/cases')
   Future<CaseSummaryListEnvelope> listMyCases({
-    @Query('cursor') String? cursor,
     @Query('filter') Filter? filter = Filter.active,
     @Query('limit') int? limit = 20,
+    @Query('q') String? q,
+    @Query('practice') String? practice,
+    @Query('state') String? state,
+    @Query('cursor') String? cursor,
     @Extras() Map<String, dynamic>? extras,
   });
 

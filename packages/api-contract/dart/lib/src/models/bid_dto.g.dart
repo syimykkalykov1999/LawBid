@@ -26,6 +26,7 @@ BidDto _$BidDtoFromJson(Map<String, dynamic> json) => BidDto(
   decidedAt: json['decidedAt'] == null
       ? null
       : DateTime.parse(json['decidedAt'] as String),
+  outsidePractice: json['outsidePractice'] as bool,
   createdAt: DateTime.parse(json['createdAt'] as String),
   offers: (json['offers'] as List<dynamic>)
       .map((e) => BidOfferDto.fromJson(e as Map<String, dynamic>))
@@ -46,6 +47,7 @@ Map<String, dynamic> _$BidDtoToJson(BidDto instance) => <String, dynamic>{
   'roundCount': instance.roundCount,
   'turn': instance.turn.toJson(),
   'decidedAt': ?instance.decidedAt?.toIso8601String(),
+  'outsidePractice': instance.outsidePractice,
   'createdAt': instance.createdAt.toIso8601String(),
   'offers': instance.offers.map((e) => e.toJson()).toList(),
 };

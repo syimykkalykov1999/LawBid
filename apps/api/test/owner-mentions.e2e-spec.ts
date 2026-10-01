@@ -6,6 +6,7 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
+import { ensurePostPractices } from './support/post-practices';
 
 /** OQ-042: @username mentions in posts and comments. */
 jest.setTimeout(120_000);
@@ -34,6 +35,7 @@ describe('Mentions (e2e, OQ-042)', () => {
     await app.listen(0, '127.0.0.1');
     baseUrl = `http://127.0.0.1:${((app.getHttpServer() as Server).address() as AddressInfo).port}`;
     prisma = app.get(PrismaService);
+    await ensurePostPractices(prisma);
     tokens = app.get(TokenService);
     await prisma.state.upsert({
       where: { code: 'NY' },
@@ -164,6 +166,8 @@ describe('Mentions (e2e, OQ-042)', () => {
       .set(author.auth)
       .set('Idempotency-Key', randomUUID())
       .send({
+        title: 'A title',
+        practiceCode: 'family_law',
         body: `Great talk with @${clientHandle} and @${blockerHandle}, hi @nobody_here #law`,
       });
     expect(post.status).toBe(201);

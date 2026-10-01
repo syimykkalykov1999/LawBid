@@ -27,6 +27,7 @@ CaseBidItemDto _$CaseBidItemDtoFromJson(Map<String, dynamic> json) =>
       decidedAt: json['decidedAt'] == null
           ? null
           : DateTime.parse(json['decidedAt'] as String),
+      outsidePractice: json['outsidePractice'] as bool,
       createdAt: DateTime.parse(json['createdAt'] as String),
       attorney: BidAttorneySummaryDto.fromJson(
         json['attorney'] as Map<String, dynamic>,
@@ -48,6 +49,7 @@ Map<String, dynamic> _$CaseBidItemDtoToJson(CaseBidItemDto instance) =>
       'roundCount': instance.roundCount,
       'turn': instance.turn.toJson(),
       'decidedAt': ?instance.decidedAt?.toIso8601String(),
+      'outsidePractice': instance.outsidePractice,
       'createdAt': instance.createdAt.toIso8601String(),
       'attorney': instance.attorney.toJson(),
     };

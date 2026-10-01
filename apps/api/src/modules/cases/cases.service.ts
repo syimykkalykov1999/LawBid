@@ -4,7 +4,10 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Optional,
 } from '@nestjs/common';
+import { mineCaseWhere } from './mine/mine-filters';
+import { SubscriptionAlertsService } from '../notifications/subscription-alerts.service';
 import type { Case, CaseState, Prisma } from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
@@ -46,6 +49,8 @@ import type {
 const FILTER_STATUSES: Record<MyCasesFilter, Prisma.CaseWhereInput['status']> =
   {
     active: { in: ['open', 'in_progress', 'pending_completion', 'disputed'] },
+    open: 'open',
+    in_progress: { in: ['in_progress', 'pending_completion', 'disputed'] },
     archived: 'archived',
     closed: 'closed',
   };
@@ -196,6 +201,7 @@ export class CasesService {
     private readonly notifications: NotificationsService,
     private readonly chat: ChatSystemMessages,
     private readonly photos: CasePhotosService,
+    @Optional() private readonly alerts?: SubscriptionAlertsService,
   ) {}
 
   /** POST /cases (§3.1–§3.4). */
@@ -287,6 +293,9 @@ export class CasesService {
       }
       return kase;
     });
+    // Owner 2026-09-30: attorneys who turned "New cases" alerts on.
+    const alerts = this.alerts;
+    alerts?.later(() => alerts.attorneysForCase(created.id));
 
     return toCaseDto({
       ...created,
@@ -557,6 +566,8 @@ export class CasesService {
       where: {
         client_id: user.sub,
         status: FILTER_STATUSES[filter],
+        // Owner 2026-09-30: search and filters in "Mine".
+        ...mineCaseWhere(query),
         ...(cursor
           ? {
               OR: [
@@ -572,8 +583,15 @@ export class CasesService {
     });
     const page = rows.slice(0, limit);
     const last = page[page.length - 1];
+    const covers = await this.photos.coverUrls(
+      page.map((k) => k.id),
+      user.sub,
+    );
     return {
-      items: page.map(toSummaryDto),
+      items: page.map((k) => ({
+        ...toSummaryDto(k),
+        coverUrl: covers.get(k.id) ?? null,
+      })),
       nextCursor:
         rows.length > limit && last
           ? encodeCursor({ createdAt: last.created_at, id: last.id })

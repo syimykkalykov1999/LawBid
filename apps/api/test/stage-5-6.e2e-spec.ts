@@ -7,6 +7,7 @@ import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
 import { TrendingTagsJob } from '../src/modules/search/trending-tags.job';
+import { ensurePostPractices } from './support/post-practices';
 
 /**
  * docs/05 §16 stage 5.6 acceptance: a client never finds clients;
@@ -41,6 +42,7 @@ describe('Search (e2e, docs/05 §7, stage 5.6)', () => {
     await app.listen(0, '127.0.0.1');
     baseUrl = `http://127.0.0.1:${((app.getHttpServer() as Server).address() as AddressInfo).port}`;
     prisma = app.get(PrismaService);
+    await ensurePostPractices(prisma);
     tokens = app.get(TokenService);
     for (const [code, name] of [
       ['NJ', 'New Jersey'],
@@ -224,7 +226,7 @@ describe('Search (e2e, docs/05 §7, stage 5.6)', () => {
         .post('/api/v1/posts')
         .set(author.auth)
         .set('Idempotency-Key', randomUUID())
-        .send({ body });
+        .send({ title: 'A title', practiceCode: 'family_law', body });
       expect(r.status).toBe(201);
     }
     const viewer = await client('reader');

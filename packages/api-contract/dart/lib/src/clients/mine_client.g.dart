@@ -24,6 +24,9 @@ class _MineClient implements MineClient {
   Future<SavedCaseItemListEnvelope> listSavedItems({
     required Type type,
     num? limit = 20,
+    String? q,
+    String? practice,
+    String? state,
     String? cursor,
     Map<String, dynamic>? extras,
   }) async {
@@ -32,6 +35,9 @@ class _MineClient implements MineClient {
     final queryParameters = <String, dynamic>{
       r'type': type.toJson(),
       r'limit': limit,
+      r'q': q,
+      r'practice': practice,
+      r'state': state,
       r'cursor': cursor,
     };
     queryParameters.removeWhere((k, v) => v == null);
@@ -94,6 +100,9 @@ class _MineClient implements MineClient {
   Future<MyBidItemListEnvelope> listMyBids({
     num? limit = 20,
     Filter2? filter = Filter2.active,
+    String? q,
+    String? practice,
+    String? state,
     String? cursor,
     Map<String, dynamic>? extras,
   }) async {
@@ -102,6 +111,9 @@ class _MineClient implements MineClient {
     final queryParameters = <String, dynamic>{
       r'limit': limit,
       r'filter': filter?.toJson(),
+      r'q': q,
+      r'practice': practice,
+      r'state': state,
       r'cursor': cursor,
     };
     queryParameters.removeWhere((k, v) => v == null);
@@ -132,6 +144,9 @@ class _MineClient implements MineClient {
   Future<WorkItemListEnvelope> listMyWork({
     num? limit = 20,
     Filter3? filter = Filter3.active,
+    String? q,
+    String? practice,
+    String? state,
     String? cursor,
     Map<String, dynamic>? extras,
   }) async {
@@ -140,6 +155,9 @@ class _MineClient implements MineClient {
     final queryParameters = <String, dynamic>{
       r'limit': limit,
       r'filter': filter?.toJson(),
+      r'q': q,
+      r'practice': practice,
+      r'state': state,
       r'cursor': cursor,
     };
     queryParameters.removeWhere((k, v) => v == null);

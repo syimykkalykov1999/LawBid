@@ -142,7 +142,8 @@ export class SearchController {
 
   @Get('search/latest-posts')
   @ApiOperation({
-    summary: 'Newest posts of attorneys licensed in a state (OQ-034)',
+    summary:
+      'Newest posts, by state (OQ-034), qualification and News (owner 2026-09-30)',
   })
   @ApiEnvelopeResponse(PostDto, { isArray: true })
   @ApiErrors({ 400: [ErrorCode.VALIDATION_ERROR] })
@@ -150,6 +151,10 @@ export class SearchController {
     @CurrentUser() user: RequestUser,
     @Query() q: LatestPostsQueryDto,
   ): Promise<PostPage> {
-    return this.search.latestPosts(user, q.state, q.cursor);
+    return this.search.latestPosts(user, q.state, q.cursor, {
+      practice: q.practice,
+      tag: q.tag,
+      kind: q.kind,
+    });
   }
 }

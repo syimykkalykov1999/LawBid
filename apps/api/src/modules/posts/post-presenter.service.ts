@@ -130,7 +130,25 @@ export class PostPresenter {
     }
     const clamp = (n: number) => Math.max(0, n);
     const mentioned = await this.mentions.resolve(posts.map((p) => p.body));
+    // Owner 2026-09-30: each post's qualification.
+    const practiceIds = [
+      ...new Set(
+        posts.map((p) => p.practice_area_id).filter((x): x is string => !!x),
+      ),
+    ];
+    const practices = new Map(
+      (practiceIds.length
+        ? await this.prisma.practiceArea.findMany({
+            where: { id: { in: practiceIds } },
+            select: { id: true, code: true, name_en: true, i18n_key: true },
+          })
+        : []
+      ).map((a) => [a.id, a]),
+    );
     return posts.map((p) => {
+      const area = p.practice_area_id
+        ? practices.get(p.practice_area_id)
+        : undefined;
       const a = authorById.get(p.author_id);
       const prof = a?.attorney_profile;
       const isClient = a?.role === 'client';
@@ -152,6 +170,16 @@ export class PostPresenter {
               (prof.licenses.length ?? 0) > 0,
           isFollowing: followed.has(p.author_id),
         },
+        title: p.title ?? null,
+        kind: p.kind,
+        practice: area
+          ? {
+              code: area.code,
+              categoryCode: area.code.split('.')[0],
+              nameEn: area.name_en,
+              i18nKey: area.i18n_key,
+            }
+          : null,
         body: p.body,
         media: (mediaByPost.get(p.id) ?? []).flatMap((m) => {
           const u = urls.get(m.file_id);

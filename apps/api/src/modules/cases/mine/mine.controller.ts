@@ -70,6 +70,7 @@ export class MineController {
       query.filter ?? 'active',
       query.cursor,
       query.limit,
+      query,
     );
   }
 
@@ -86,6 +87,7 @@ export class MineController {
       query.filter ?? 'active',
       query.cursor,
       query.limit,
+      query,
     );
   }
 
@@ -97,7 +99,7 @@ export class MineController {
     @CurrentUser() user: RequestUser,
     @Query() query: ListSavedCasesQueryDto,
   ): Promise<Page<SavedCaseItemDto>> {
-    return this.mine.savedCases(user, query.cursor, query.limit);
+    return this.mine.savedCases(user, query.cursor, query.limit, query);
   }
 
   @Post('cases/:id/conversation')
