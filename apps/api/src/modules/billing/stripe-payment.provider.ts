@@ -180,6 +180,23 @@ export class StripePaymentProvider implements PaymentProvider {
     );
   }
 
+  async switchToYearly(
+    subscriptionId: string,
+    yearlyPriceId: string,
+  ): Promise<ProviderSubscription> {
+    const sub = await this.stripe.subscriptions.retrieve(subscriptionId);
+    const items: Stripe.SubscriptionUpdateParams.Item[] = [
+      ...sub.items.data.map((i) => ({ id: i.id, deleted: true })),
+      { price: yearlyPriceId, quantity: 1 },
+    ];
+    return mapSubscription(
+      await this.stripe.subscriptions.update(subscriptionId, {
+        items,
+        proration_behavior: 'always_invoice',
+      }),
+    );
+  }
+
   async endTrialNow(id: string): Promise<ProviderSubscription> {
     return mapSubscription(
       await this.stripe.subscriptions.update(id, { trial_end: 'now' }),

@@ -38,6 +38,29 @@ class SubscriptionScreen extends ConsumerStatefulWidget {
 class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
     with WidgetsBindingObserver {
   bool _portalBusy = false;
+  bool _primeBusy = false;
+
+  Future<void> _switchToPrime(SubscriptionOverview o) async {
+    final formats = ref.read(l10nFormatsProvider);
+    final ok = await _confirm(
+      title: _t.t('prime.confirm.title'),
+      body: _t.t('prime.confirm.body', {
+        'price': subscriptionPrice(formats, o.prices.yearlyCents),
+      }),
+      action: _t.t('prime.cta'),
+    );
+    if (!ok) return;
+    setState(() => _primeBusy = true);
+    try {
+      final next = await ref.read(subscriptionRepositoryProvider).switchToYearly();
+      ref.read(subscriptionOverviewProvider.notifier).apply(next);
+      if (mounted) showAppSnackBar(context, _t.t('prime.done'));
+    } on Object catch (e) {
+      if (mounted) showAppSnackBar(context, errorText(_t, e));
+    } finally {
+      if (mounted) setState(() => _primeBusy = false);
+    }
+  }
 
   @override
   void initState() {
@@ -398,6 +421,17 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
                 onTap: () => context.push(TeamRoutes.team),
               ),
             ],
+          ),
+        ),
+      // Owner 2026-10-01: an active monthly plan can move to yearly Prime.
+      if (s != null && s.isActive && s.plan == SubscriptionPlan.monthly)
+        section(
+          PrimeCard(
+            t: t,
+            price: subscriptionPrice(formats, o.prices.yearlyCents),
+            save: subscriptionPrice(formats, o.prices.yearlySavingsCents),
+            busy: _primeBusy,
+            onSwitch: () => _switchToPrime(o),
           ),
         ),
       if (showCta)
@@ -916,3 +950,81 @@ String subscriptionPrice(L10nFormats formats, int cents) => cents % 100 == 0
         locale: formats.locale,
         name: 'USD',
       ).format(cents / 100);
+
+/// Owner 2026-10-01: the yearly "Prime" offer under a monthly plan.
+class PrimeCard extends StatelessWidget {
+  const PrimeCard({
+    required this.t,
+    required this.price,
+    required this.save,
+    required this.busy,
+    required this.onSwitch,
+    super.key,
+  });
+
+  final Translator t;
+  final String price;
+  final String save;
+  final bool busy;
+  final VoidCallback onSwitch;
+
+  @override
+  Widget build(BuildContext context) {
+    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
+    return Container(
+      key: const ValueKey('prime-card'),
+      padding: const EdgeInsets.all(AppSpacing.xl),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [AppColorsFixed.attorneyCardNavy, Color(0xFF1C2E5C)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(AppRadii.card),
+        border: Border.all(color: AppColorsLight.gold, width: 1.4),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.diamond_rounded, color: AppColorsLight.gold),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
+                  t.t('prime.title'),
+                  style: typography.titleMedium.copyWith(
+                    color: AppColorsFixed.attorneyCardTitleText,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            t.t('plans.yearly.price', {'price': price}),
+            style: typography.titleLarge.copyWith(
+              color: AppColorsFixed.attorneyCardTitleText,
+              fontSize: 26,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            t.t('prime.line', {'save': save}),
+            style: typography.bodySmall.copyWith(
+              color: AppColorsFixed.attorneyCardDescriptionText,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          AppButton(
+            key: const ValueKey('prime-switch'),
+            label: t.t('prime.cta'),
+            icon: Icons.diamond_outlined,
+            isLoading: busy,
+            onPressed: onSwitch,
+          ),
+        ],
+      ),
+    );
+  }
+}

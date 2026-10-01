@@ -2,6 +2,12 @@
 // tasks — compiled-in strings merged into StaticTranslatorRu/En.
 
 const file07Ru = <String, String>{
+  'prime.title': 'Prime — годовой тариф',
+  'prime.line': 'Адвокат и все 6 помощников на год. Выгода {save} в год (−20%).',
+  'prime.cta': 'Перейти на Prime',
+  'prime.confirm.title': 'Перейти на Prime?',
+  'prime.confirm.body': 'Годовой тариф {price} в год. Разница с текущим месячным планом будет списана сейчас. Все 6 мест помощников сразу включены.',
+  'prime.done': 'Готово — у вас Prime',
   'tasks.emailInvalid': 'Проверьте email',
   'tasks.write': 'Написать',
   'tasks.f.callTitle': 'О чём звонок',
@@ -112,7 +118,7 @@ const file07Ru = <String, String>{
   'plans.monthly': 'Месячный',
   'plans.monthly.price': '{price} в месяц',
   'plans.monthly.line': 'Адвокат + помощники по {seat} в месяц за каждого',
-  'plans.yearly': 'Годовой',
+  'plans.yearly': 'Prime · годовой',
   'plans.yearly.price': '{price} в год',
   'plans.yearly.line': 'Адвокат + все 6 помощников. Выгода {save} в год (−20%)',
   'plans.yearly.badge': 'Выгодно',
@@ -138,7 +144,7 @@ const file07Ru = <String, String>{
   'plans.cantOpen': 'Не удалось открыть страницу оплаты',
   'plans.current': 'Ваш план',
   'plans.current.monthly': 'Месячный · помощников: {seats}',
-  'plans.current.yearly': 'Годовой · 6 помощников',
+  'plans.current.yearly': 'Prime · годовой · 6 помощников',
   'plans.seats.change': 'Изменить число мест',
   'plans.seats.saved': 'Мест для помощников: {seats}',
   'plans.team': 'Команда помощников',
@@ -367,6 +373,12 @@ const file07Ru = <String, String>{
 };
 
 const file07En = <String, String>{
+  'prime.title': 'Prime — the yearly plan',
+  'prime.line': 'The attorney and all 6 assistants for a year. Save {save} a year (−20%).',
+  'prime.cta': 'Switch to Prime',
+  'prime.confirm.title': 'Switch to Prime?',
+  'prime.confirm.body': 'The yearly plan is {price} per year. The difference from your monthly plan is charged now. All 6 assistant seats are included at once.',
+  'prime.done': "Done — you're on Prime",
   'tasks.emailInvalid': 'Check the email',
   'tasks.write': 'Write',
   'tasks.f.callTitle': 'What the call is about',
@@ -477,7 +489,7 @@ const file07En = <String, String>{
   'plans.monthly': 'Monthly',
   'plans.monthly.price': '{price} per month',
   'plans.monthly.line': 'Attorney + assistants at {seat} per month each',
-  'plans.yearly': 'Yearly',
+  'plans.yearly': 'Prime · yearly',
   'plans.yearly.price': '{price} per year',
   'plans.yearly.line': 'Attorney + all 6 assistants. Save {save} a year (−20%)',
   'plans.yearly.badge': 'Best value',
@@ -503,7 +515,7 @@ const file07En = <String, String>{
   'plans.cantOpen': "Couldn't open the payment page",
   'plans.current': 'Your plan',
   'plans.current.monthly': 'Monthly · assistants: {seats}',
-  'plans.current.yearly': 'Yearly · 6 assistants',
+  'plans.current.yearly': 'Prime · yearly · 6 assistants',
   'plans.seats.change': 'Change seats',
   'plans.seats.saved': 'Assistant seats: {seats}',
   'plans.team': 'Assistant team',

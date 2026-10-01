@@ -29,6 +29,12 @@ abstract class SubscriptionsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
+  /// Monthly → yearly "Prime" (attorney + 6 assistants)
+  @POST('/subscriptions/plan/yearly')
+  Future<SubscriptionMeEnvelope> switchToYearly({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
   /// Monthly plan: set the number of assistant seats (OQ-048)
   @POST('/subscriptions/seats')
   Future<SubscriptionMeEnvelope> setSeats({

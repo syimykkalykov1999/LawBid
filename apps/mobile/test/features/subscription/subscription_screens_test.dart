@@ -169,11 +169,11 @@ void main() {
       expect(repo.calls, contains('checkout:yearly:6:'));
       expect(find.text('Subscription active'), findsOneWidget);
       await tester.scrollUntilVisible(
-        find.text('Yearly · 6 assistants'),
+        find.text('Prime · yearly · 6 assistants'),
         300,
         scrollable: find.byType(Scrollable).first,
       );
-      expect(find.text('Yearly · 6 assistants'), findsOneWidget);
+      expect(find.text('Prime · yearly · 6 assistants'), findsOneWidget);
     });
 
     testWidgets('a bad phone is flagged, nothing is sent', (tester) async {
@@ -226,6 +226,27 @@ void main() {
       await tester.pumpAndSettle();
       expect(repo.calls, contains('seats:3'));
       expect(find.text('Assistant seats: 3'), findsOneWidget);
+    });
+
+    testWidgets('active monthly: Prime card switches to yearly',
+        (tester) async {
+      repo.current = makeOverview(
+        subscription: makeInfo(status: SubscriptionStatus.active),
+        trialEligible: false,
+      );
+      await pump(tester, const SubscriptionScreen());
+      final cta = find.byKey(const ValueKey('prime-switch'));
+      await tester.scrollUntilVisible(cta, 300,
+          scrollable: find.byType(Scrollable).first);
+      expect(find.text('Prime — the yearly plan'), findsOneWidget);
+      await tester.ensureVisible(cta);
+      await tester.pumpAndSettle();
+      await tester.tap(cta);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Switch to Prime').last);
+      await tester.pumpAndSettle();
+      expect(repo.calls, contains('yearly'));
+      expect(find.byKey(const ValueKey('prime-card')), findsNothing);
     });
 
     testWidgets('payment failed: notice with "Update card", no CTA',

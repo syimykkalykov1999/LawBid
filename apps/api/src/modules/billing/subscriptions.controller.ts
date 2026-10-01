@@ -68,6 +68,21 @@ export class SubscriptionsController {
     return this.subscriptions.checkout(user, dto);
   }
 
+  @Post('plan/yearly')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Monthly → yearly "Prime" (attorney + 6 assistants)',
+  })
+  @ApiEnvelopeResponse(SubscriptionMeDto)
+  @ApiErrors({
+    ...ATTORNEY_ERRORS,
+    404: [E.SUBSCRIPTION_NOT_FOUND],
+    409: [E.SUBSCRIPTION_PLAN_INCLUDES_SEATS],
+  })
+  switchToYearly(@CurrentUser() user: RequestUser): Promise<SubscriptionMeDto> {
+    return this.subscriptions.switchToYearly(user);
+  }
+
   @Post('seats')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({

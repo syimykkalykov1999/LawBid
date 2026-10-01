@@ -178,7 +178,9 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
           selected: _tab,
           onChanged: (tab) => setState(() => _tab = tab),
         ),
-        const SizedBox(height: AppSpacing.lg),
+        // Posts/News grids sit flush under the tabs (owner 2026-10-01);
+        // the reviews tab keeps its breathing room.
+        SizedBox(height: reviewsTab ? AppSpacing.lg : 2),
         if (reviewsTab && summary != null)
           summary.when(
             skipLoadingOnReload: true,

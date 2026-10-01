@@ -19,6 +19,9 @@ abstract interface class SubscriptionRepository {
   /// OQ-048: monthly plan — change the number of assistant seats.
   Future<SubscriptionOverview> setSeats(int seats);
 
+  /// Owner 2026-10-01: monthly → yearly Prime (the difference is charged).
+  Future<SubscriptionOverview> switchToYearly();
+
   /// Back from the browser: apply the paid session (no-op until paid).
   Future<SubscriptionOverview> completeCheckout(String sessionId);
 

@@ -71,18 +71,36 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                       ),
                     ),
                   ),
+                  // Owner 2026-10-01: Chats · Requests · Team as segments,
+                  // notifications as a bell at the right edge.
                   _InboxTabs(
                     value: tab,
-                    counts: (badges.chats, badges.notifications, requests),
-                    labels: (
-                      t.t('inbox.tab.chats'),
-                      t.t('inbox.tab.notifications'),
-                      t.t('inbox.tab.requests'),
-                    ),
-                    team: showTeam
-                        ? (t.t('inbox.tab.team'), teamPending)
-                        : null,
+                    tabs: [
+                      (InboxTab.chats, t.t('inbox.tab.chats'), badges.chats),
+                      (
+                        InboxTab.requests,
+                        t.t('inbox.tab.requests'),
+                        requests,
+                      ),
+                      if (showTeam)
+                        (InboxTab.team, t.t('inbox.tab.team'), teamPending),
+                    ],
                     onChanged: (v) => setState(() => _tab = v),
+                  ),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: Padding(
+                      padding: const EdgeInsets.only(right: AppSpacing.xs),
+                      child: _Bell(
+                        count: badges.notifications,
+                        selected: tab == InboxTab.notifications,
+                        label: t.t('inbox.tab.notifications'),
+                        onTap: () => setState(() => _tab =
+                            tab == InboxTab.notifications
+                                ? InboxTab.chats
+                                : InboxTab.notifications),
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -133,21 +151,17 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
 class _InboxTabs extends StatelessWidget {
   const _InboxTabs({
     required this.value,
-    required this.counts,
-    required this.labels,
+    required this.tabs,
     required this.onChanged,
-    this.team,
   });
 
   final InboxTab value;
-  final (int, int, int) counts;
-  final (String, String, String) labels;
 
-  /// OQ-048: the attorney's 4th segment (label, pending requests).
-  final (String, int)? team;
+  /// (tab, label, badge count).
+  final List<(InboxTab, String, int)> tabs;
   final ValueChanged<InboxTab> onChanged;
 
-  double get _segment => team == null ? 96.0 : 80.0;
+  double get _segment => tabs.length > 3 ? 72.0 : 88.0;
   static const _height = 36.0;
 
   @override
@@ -206,7 +220,8 @@ class _InboxTabs extends StatelessWidget {
           AnimatedPositioned(
             duration: d,
             curve: AppMotion.enterCurve,
-            left: _segment * value.index,
+            left: _segment *
+                tabs.indexWhere((x) => x.$1 == value).clamp(0, tabs.length),
             top: 0,
             child: Container(
               width: _segment,
@@ -221,10 +236,8 @@ class _InboxTabs extends StatelessWidget {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              segment(InboxTab.chats, labels.$1, counts.$1),
-              segment(InboxTab.notifications, labels.$2, counts.$2),
-              segment(InboxTab.requests, labels.$3, counts.$3),
-              if (team != null) segment(InboxTab.team, team!.$1, team!.$2),
+              for (final (tab, label, count) in tabs)
+                segment(tab, label, count),
             ],
           ),
         ],
@@ -598,6 +611,54 @@ class CounterpartAvatar extends StatelessWidget {
       initials: name.isEmpty ? '?' : name.substring(0, 1).toUpperCase(),
       size: size,
       ring: counterpart.verified,
+    );
+  }
+}
+
+/// The notifications bell at the right edge of Inbox (with the unread
+/// count); gold when the notifications list is open.
+class _Bell extends StatelessWidget {
+  const _Bell({
+    required this.count,
+    required this.selected,
+    required this.label,
+    required this.onTap,
+  });
+
+  final int count;
+  final bool selected;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: count > 0 ? '$label, $count' : label,
+      excludeSemantics: true,
+      child: AppPressable(
+        key: const ValueKey('inbox-bell'),
+        onTap: onTap,
+        child: SizedBox.square(
+          dimension: AppSizes.touchTarget,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Icon(
+                selected
+                    ? Icons.notifications_rounded
+                    : Icons.notifications_none_rounded,
+                color: selected ? colors.gold : colors.text,
+                size: 28,
+              ),
+              if (count > 0)
+                Positioned(top: 4, right: 2, child: _Dot(count: count)),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

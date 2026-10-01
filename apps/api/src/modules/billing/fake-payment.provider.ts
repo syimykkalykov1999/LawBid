@@ -56,6 +56,20 @@ export class FakePaymentProvider implements PaymentProvider {
     this.seats.set(subscriptionId, quantity);
     return Promise.resolve(strip(cur));
   }
+  /** Fake subscriptions moved to the yearly plan → its price id. */
+  readonly yearly = new Map<string, string>();
+
+  switchToYearly(
+    subscriptionId: string,
+    yearlyPriceId: string,
+  ): Promise<ProviderSubscription> {
+    const cur = this.subscriptions.get(subscriptionId);
+    if (!cur) throw new Error('no such subscription');
+    this.seats.delete(subscriptionId);
+    this.yearly.set(subscriptionId, yearlyPriceId);
+    return Promise.resolve(strip(cur));
+  }
+
   /** Where the dev "checkout page" lives (the API's own fake route). */
   checkoutBaseUrl = 'http://localhost:3000/api/v1/subscriptions/fake-checkout';
 

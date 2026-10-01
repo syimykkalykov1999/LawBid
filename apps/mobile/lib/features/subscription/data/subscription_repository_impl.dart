@@ -109,6 +109,10 @@ class ApiSubscriptionRepository implements SubscriptionRepository {
       );
 
   @override
+  Future<SubscriptionOverview> switchToYearly() async =>
+      _overview((await guardApiCall(_api.switchToYearly)).data);
+
+  @override
   Future<SubscriptionStart> start() async {
     final d = (await guardApiCall(_api.startSubscription)).data;
     return SubscriptionStart(

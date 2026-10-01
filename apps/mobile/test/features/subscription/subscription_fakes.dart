@@ -144,6 +144,19 @@ class FakeSubscriptionRepository implements SubscriptionRepository {
   }
 
   @override
+  Future<SubscriptionOverview> switchToYearly() async {
+    calls.add('yearly');
+    return current = makeOverview(
+      subscription: makeInfo(
+        status: SubscriptionStatus.active,
+        plan: SubscriptionPlan.yearly,
+        assistantSeats: 6,
+      ),
+      trialEligible: false,
+    );
+  }
+
+  @override
   Future<SubscriptionStart> start() async {
     calls.add('start');
     if (startError != null) throw startError!;

@@ -609,6 +609,9 @@ class ProfilePostsGrid extends ConsumerWidget {
     return value.when(
       skipLoadingOnReload: true,
       loading: () => GridView.count(
+        // No inherited safe-area padding: the grid sits flush under the
+        // tabs (owner 2026-10-01).
+        padding: EdgeInsets.zero,
         crossAxisCount: 3,
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
@@ -638,6 +641,7 @@ class ProfilePostsGrid extends ConsumerWidget {
         return Column(
           children: [
             GridView.builder(
+              padding: EdgeInsets.zero,
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(

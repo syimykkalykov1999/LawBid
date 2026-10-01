@@ -725,4 +725,41 @@ describe('stage 6.7 — Stripe subscriptions (e2e, fake provider)', () => {
         .subscription.assistantSeats,
     ).toBe(3);
   });
+
+  // Owner 2026-10-01: an active monthly subscription moves to yearly Prime.
+  it('monthly → yearly Prime', async () => {
+    const a = await attorney();
+    const c = (
+      (
+        await api()
+          .post('/api/v1/subscriptions/checkout')
+          .set(a.auth)
+          .send({ plan: 'monthly', assistantSeats: 1 })
+      ).body as Body
+    ).data as { sessionId: string };
+    await fake.payCheckout(c.sessionId, {
+      paymentMethodId: 'pm_prime',
+      fingerprint: 'fp_prime',
+    });
+    await api()
+      .post('/api/v1/subscriptions/checkout/complete')
+      .set(a.auth)
+      .send({ sessionId: c.sessionId })
+      .expect(200);
+    const up = await api()
+      .post('/api/v1/subscriptions/plan/yearly')
+      .set(a.auth)
+      .expect(200);
+    expect(
+      (
+        (up.body as Body).data as {
+          subscription: { plan: string; assistantSeats: number };
+        }
+      ).subscription,
+    ).toMatchObject({ plan: 'yearly', assistantSeats: 6 });
+    const again = await api()
+      .post('/api/v1/subscriptions/plan/yearly')
+      .set(a.auth);
+    expect(again.status).toBe(409);
+  });
 });

@@ -302,6 +302,45 @@ export class SubscriptionsService {
   }
 
   /** OQ-048: monthly plan — change the number of assistant seats. */
+  /** Owner 2026-10-01: monthly → yearly "Prime" (attorney + 6 assistants);
+   * Stripe invoices the difference now. */
+  async switchToYearly(user: RequestUser): Promise<SubscriptionMeDto> {
+    await this.verifiedAttorney(user);
+    const row = await this.prisma.subscription.findUnique({
+      where: { user_id: user.sub },
+    });
+    if (
+      !row ||
+      !SubscriptionAccessService.rowIsActive(row) ||
+      !row.stripe_subscription_id
+    ) {
+      throw new NotFoundException({
+        code: ErrorCode.SUBSCRIPTION_NOT_FOUND,
+        message: 'No active subscription.',
+      });
+    }
+    if (row.plan === 'yearly') {
+      throw new ConflictException({
+        code: ErrorCode.SUBSCRIPTION_PLAN_INCLUDES_SEATS,
+        message: 'Already on the yearly plan.',
+      });
+    }
+    await this.provider.switchToYearly(
+      row.stripe_subscription_id,
+      this.yearlyPriceId,
+    );
+    await this.prisma.subscription.update({
+      where: { id: row.id },
+      data: {
+        plan: 'yearly',
+        assistant_seats: MAX_ASSISTANT_SEATS,
+        price_cents: YEARLY_PRICE_CENTS,
+      },
+    });
+    await this.access.invalidate(user.sub);
+    return this.me(user);
+  }
+
   async setSeats(user: RequestUser, seats: number): Promise<SubscriptionMeDto> {
     await this.verifiedAttorney(user);
     const row = await this.prisma.subscription.findUnique({

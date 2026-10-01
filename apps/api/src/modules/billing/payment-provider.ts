@@ -128,6 +128,12 @@ export interface PaymentProvider {
     seatPriceId: string,
     quantity: number,
   ): Promise<ProviderSubscription>;
+  /** Owner 2026-10-01: monthly → yearly ("Prime"): every item replaced by
+   * the yearly price; the difference is invoiced now. */
+  switchToYearly(
+    subscriptionId: string,
+    yearlyPriceId: string,
+  ): Promise<ProviderSubscription>;
   retrieveInvoice(id: string): Promise<ProviderInvoice | null>;
   retrieveCharge(id: string): Promise<ProviderCharge | null>;
   /** Verifies the signature and parses the body; throws WebhookSignatureError. */
