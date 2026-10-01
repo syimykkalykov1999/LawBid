@@ -38,6 +38,11 @@ export const NOTIFICATION_CATEGORY: Record<
   mention: 'social',
   // Owner 2026-09-30, opt-in.
   followed_post: 'following',
+  // OQ-048: the attorney's team.
+  assistant_request: 'messages',
+  assistant_task: 'cases',
+  assistant_joined: 'system',
+  assistant_result: 'messages',
   new_case: 'new_cases',
   comment_reply: 'social',
   comment_like: 'social',

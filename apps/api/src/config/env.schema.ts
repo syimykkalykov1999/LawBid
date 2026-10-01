@@ -283,6 +283,15 @@ export const envSchema = z
       /^price_[A-Za-z0-9]+$/,
       'STRIPE_PRICE_ID must start with price_',
     ),
+    // OQ-048: $100 / month per assistant seat, and the yearly team plan.
+    STRIPE_PRICE_SEAT_ID: optionalMatching(
+      /^price_[A-Za-z0-9]+$/,
+      'STRIPE_PRICE_SEAT_ID must start with price_',
+    ),
+    STRIPE_PRICE_YEARLY_ID: optionalMatching(
+      /^price_[A-Za-z0-9]+$/,
+      'STRIPE_PRICE_YEARLY_ID must start with price_',
+    ),
     // S3 — docs/03_VERIFICATION_PROFILES.md §2 (documents); MinIO locally.
     S3_REGION: optionalMatching(
       awsRegionPattern,

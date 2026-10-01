@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Inject,
@@ -26,8 +27,14 @@ import {
   TRIAL_DAYS,
   TRIAL_REMINDER_DAYS_BEFORE,
   TRIAL_REMINDER_JOB,
+  ASSISTANT_SEAT_PRICE_CENTS,
+  MAX_ASSISTANT_SEATS,
+  YEARLY_PRICE_CENTS,
 } from './billing.constants';
+import { DEFAULT_DUTIES } from '../assistants/assistant-duties';
 import type {
+  CheckoutRequestDto,
+  CheckoutSessionDto,
   PaymentDto,
   PaymentsPage,
   StartSubscriptionResultDto,
@@ -49,6 +56,11 @@ const PAYMENTS_PAGE = 20;
 export class SubscriptionsService {
   private readonly priceId: string | undefined;
   private readonly portalReturnUrl: string;
+  /** Where Stripe Checkout returns (the website's pages / app links). */
+  private readonly checkoutReturnBase: string;
+  /** OQ-048 prices (fake ids without Stripe). */
+  private readonly seatPriceId: string;
+  private readonly yearlyPriceId: string;
   private queue?: Queue;
 
   constructor(
@@ -64,6 +76,12 @@ export class SubscriptionsService {
     this.portalReturnUrl =
       config.get<string>('STRIPE_PORTAL_RETURN_URL') ??
       `${config.get<string>('APP_LINK_BASE_URL') ?? 'https://lawbid.app'}/subscription`;
+    this.seatPriceId =
+      config.get<string>('STRIPE_PRICE_SEAT_ID') ?? 'price_fake_seat_100';
+    this.yearlyPriceId =
+      config.get<string>('STRIPE_PRICE_YEARLY_ID') ?? 'price_fake_yearly_9590';
+    this.checkoutReturnBase =
+      config.get<string>('APP_LINK_BASE_URL') ?? 'https://lawbid.app';
     const url = config.get<string>('REDIS_URL');
     if (url)
       this.queue = new Queue(SUBSCRIPTION_JOBS_QUEUE, { connection: { url } });
@@ -91,6 +109,244 @@ export class SubscriptionsService {
       priceCents: SUBSCRIPTION_PRICE_CENTS,
       trialDays: TRIAL_DAYS,
     };
+  }
+
+  /**
+   * POST /subscriptions/checkout (owner 2026-09-30): the subscription is
+   * paid on Stripe's hosted page in the browser — no card form in the app
+   * (store rules), Stripe's fee only. A 7-day trial when the attorney had
+   * none; the card rule is applied when the checkout completes.
+   */
+  async checkout(
+    user: RequestUser,
+    req: CheckoutRequestDto = {},
+  ): Promise<CheckoutSessionDto> {
+    const attorney = await this.verifiedAttorney(user);
+    const priceId = this.assertConfigured();
+    const plan = req.plan ?? 'monthly';
+    const seats =
+      plan === 'yearly' ? MAX_ASSISTANT_SEATS : (req.assistantSeats ?? 0);
+    const phones = [...new Set(req.assistantPhones ?? [])];
+    if (phones.length > seats) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message: 'More assistant phones than seats.',
+        details: { field: 'assistantPhones', max: seats },
+      });
+    }
+    const lineItems =
+      plan === 'yearly'
+        ? [{ priceId: this.yearlyPriceId, quantity: 1 }]
+        : [
+            { priceId, quantity: 1 },
+            ...(seats > 0
+              ? [{ priceId: this.seatPriceId, quantity: seats }]
+              : []),
+          ];
+    const existing = await this.prisma.subscription.findUnique({
+      where: { user_id: user.sub },
+    });
+    if (existing && SubscriptionAccessService.rowIsActive(existing)) {
+      throw new ConflictException({
+        code: ErrorCode.SUBSCRIPTION_ALREADY_ACTIVE,
+        message: 'A subscription is already active.',
+      });
+    }
+    const customerId = await this.customerId(user.sub, attorney.email);
+    // A row keyed to the customer, so the provider's webhooks find it.
+    if (!existing) {
+      await this.prisma.subscription.create({
+        data: {
+          user_id: user.sub,
+          status: 'incomplete',
+          price_cents: SUBSCRIPTION_PRICE_CENTS,
+        },
+      });
+    }
+    const eligible = await this.attorneyTrialEligible(user.sub);
+    const base = this.checkoutReturnBase;
+    const session = await this.provider.createCheckoutSession({
+      customerId,
+      lineItems,
+      trialDays: eligible ? TRIAL_DAYS : null,
+      successUrl: `${base}/subscription/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancelUrl: `${base}/subscription/cancel`,
+      metadata: {
+        userId: user.sub,
+        plan,
+        seats: String(seats),
+        phones: phones.join(','),
+      },
+    });
+    return {
+      url: session.url ?? '',
+      sessionId: session.id,
+      trialEligible: eligible,
+      priceCents:
+        plan === 'yearly'
+          ? YEARLY_PRICE_CENTS
+          : SUBSCRIPTION_PRICE_CENTS + seats * ASSISTANT_SEAT_PRICE_CENTS,
+      trialDays: TRIAL_DAYS,
+    };
+  }
+
+  /**
+   * POST /subscriptions/checkout/complete — the app, back from the
+   * browser, (and the `checkout.session.completed` webhook) apply the
+   * paid session: the subscription row, §1.1 one trial per card (a card
+   * that already had a trial is charged at once), the trial reminder.
+   * Idempotent; an unpaid session leaves everything as it was.
+   */
+  async completeCheckout(
+    user: RequestUser,
+    sessionId: string,
+  ): Promise<SubscriptionMeDto> {
+    await this.verifiedAttorney(user);
+    await this.applyCheckout(sessionId, user.sub);
+    return this.me(user);
+  }
+
+  /** Shared by the app call and the webhook; [userId] when known. */
+  async applyCheckout(sessionId: string, userId?: string): Promise<void> {
+    const session = await this.provider.retrieveCheckoutSession(sessionId);
+    const owner = userId ?? session?.metadata.userId;
+    if (
+      !session ||
+      !owner ||
+      session.metadata.userId !== owner ||
+      session.status !== 'complete' ||
+      !session.subscriptionId
+    ) {
+      return;
+    }
+    let remote = await this.provider.retrieveSubscription(
+      session.subscriptionId,
+    );
+    if (!remote) return;
+    const fingerprint = remote.defaultPaymentMethodId
+      ? await this.provider.paymentMethodFingerprint(
+          remote.defaultPaymentMethodId,
+        )
+      : null;
+    if (
+      remote.status === 'trialing' &&
+      !(await this.cardTrialEligible(fingerprint, owner))
+    ) {
+      // §1.1: this card already had a trial elsewhere — charge now.
+      remote = await this.provider.endTrialNow(remote.id);
+    }
+    const existing = await this.prisma.subscription.findUnique({
+      where: { user_id: owner },
+    });
+    const trialing = remote.status === 'trialing';
+    const plan = session.metadata.plan === 'yearly' ? 'yearly' : 'monthly';
+    const seats = Math.min(
+      MAX_ASSISTANT_SEATS,
+      Math.max(0, Number(session.metadata.seats ?? 0) || 0),
+    );
+    const priceCents =
+      plan === 'yearly'
+        ? YEARLY_PRICE_CENTS
+        : SUBSCRIPTION_PRICE_CENTS + seats * ASSISTANT_SEAT_PRICE_CENTS;
+    await this.prisma.subscription.upsert({
+      where: { user_id: owner },
+      create: {
+        user_id: owner,
+        stripe_subscription_id: remote.id,
+        status: 'incomplete',
+        price_cents: priceCents,
+        plan,
+        assistant_seats: seats,
+        trial_started_at: trialing ? new Date() : null,
+        card_fingerprint: fingerprint,
+      },
+      update: {
+        price_cents: priceCents,
+        plan,
+        assistant_seats: seats,
+        stripe_subscription_id: remote.id,
+        trial_started_at: trialing
+          ? (existing?.trial_started_at ?? new Date())
+          : (existing?.trial_started_at ?? null),
+        card_fingerprint: fingerprint,
+        cancel_at_period_end: false,
+        canceled_at: null,
+      },
+    });
+    const row = await this.sync.apply(remote);
+    if (row?.status === 'trialing' && row.trial_ends_at) {
+      await this.scheduleTrialReminder(row);
+    }
+    // OQ-048: assistants added at purchase join without the attorney's OTP.
+    const phones = (session.metadata.phones ?? '')
+      .split(',')
+      .filter((p) => /^\+[1-9][0-9]{7,14}$/.test(p))
+      .slice(0, seats);
+    for (const phone of phones) {
+      const live = await this.prisma.assistantMembership.findFirst({
+        where: { phone_e164: phone, status: { not: 'removed' } },
+        select: { id: true },
+      });
+      if (live) continue;
+      await this.prisma.assistantMembership.create({
+        data: {
+          attorney_id: owner,
+          phone_e164: phone,
+          approval: 'purchase',
+          status: 'invited',
+          duties: [...DEFAULT_DUTIES],
+        },
+      });
+    }
+    await this.access.invalidate(owner);
+  }
+
+  /** OQ-048: monthly plan — change the number of assistant seats. */
+  async setSeats(user: RequestUser, seats: number): Promise<SubscriptionMeDto> {
+    await this.verifiedAttorney(user);
+    const row = await this.prisma.subscription.findUnique({
+      where: { user_id: user.sub },
+    });
+    if (
+      !row ||
+      !SubscriptionAccessService.rowIsActive(row) ||
+      !row.stripe_subscription_id
+    ) {
+      throw new NotFoundException({
+        code: ErrorCode.SUBSCRIPTION_NOT_FOUND,
+        message: 'No active subscription.',
+      });
+    }
+    if (row.plan === 'yearly') {
+      throw new ConflictException({
+        code: ErrorCode.SUBSCRIPTION_PLAN_INCLUDES_SEATS,
+        message: 'The yearly plan already includes 6 assistants.',
+      });
+    }
+    const live = await this.prisma.assistantMembership.count({
+      where: { attorney_id: user.sub, status: { not: 'removed' } },
+    });
+    if (seats < live) {
+      throw new ConflictException({
+        code: ErrorCode.ASSISTANT_SEATS_IN_USE,
+        message: 'Remove assistants before lowering the number of seats.',
+        details: { inUse: live },
+      });
+    }
+    await this.provider.setSeatQuantity(
+      row.stripe_subscription_id,
+      this.seatPriceId,
+      seats,
+    );
+    await this.prisma.subscription.update({
+      where: { id: row.id },
+      data: {
+        assistant_seats: seats,
+        price_cents:
+          SUBSCRIPTION_PRICE_CENTS + seats * ASSISTANT_SEAT_PRICE_CENTS,
+      },
+    });
+    return this.me(user);
   }
 
   async confirm(
@@ -198,6 +454,12 @@ export class SubscriptionsService {
       canStart: profile?.verification_status === 'verified' && !isActive,
       trialEligible: await this.attorneyTrialEligible(user.sub),
       priceCents: SUBSCRIPTION_PRICE_CENTS,
+      prices: {
+        monthlyCents: SUBSCRIPTION_PRICE_CENTS,
+        seatCents: ASSISTANT_SEAT_PRICE_CENTS,
+        yearlyCents: YEARLY_PRICE_CENTS,
+        maxSeats: MAX_ASSISTANT_SEATS,
+      },
     };
   }
 
@@ -368,6 +630,8 @@ export function presentSubscription(s: Subscription): SubscriptionDto {
     status: s.status,
     isActive: SubscriptionAccessService.rowIsActive(s),
     priceCents: s.price_cents,
+    plan: s.plan,
+    assistantSeats: s.assistant_seats,
     trialEndsAt: s.trial_ends_at?.toISOString() ?? null,
     currentPeriodEnd: s.current_period_end?.toISOString() ?? null,
     cancelAtPeriodEnd: s.cancel_at_period_end,

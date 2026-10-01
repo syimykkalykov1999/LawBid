@@ -30,6 +30,7 @@ import {
   type CommentPage,
 } from './comments.dto';
 import { CommentsService } from './comments.service';
+import { AttorneyOnly } from '../auth/assistant/assistant-context';
 
 const E = ErrorCode;
 
@@ -65,6 +66,7 @@ export class CommentsController {
     return this.comments.replies(user.sub, p.id, q.cursor);
   }
 
+  @AttorneyOnly()
   @Post('posts/:id/comments')
   @ApiOperation({ summary: 'Comment or reply (docs/05 §5.1)' })
   @ApiEnvelopeResponse(CommentDto, { status: 201 })

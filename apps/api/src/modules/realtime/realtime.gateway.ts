@@ -12,6 +12,7 @@ import { createAdapter } from '@socket.io/redis-adapter';
 import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
 import type { Namespace, Socket } from 'socket.io';
+import { AssistantContextService } from '../auth/assistant/assistant-context';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { SessionRevocationService } from '../auth/services/session-revocation.service';
@@ -39,6 +40,8 @@ const REVOCATION_CHECK_MS = 45_000;
 
 interface SocketState {
   user: AccessTokenClaims;
+  /** OQ-048: an assistant's own id while `user.sub` is the attorney. */
+  selfId?: string;
   expiryTimer?: NodeJS.Timeout;
   /** Security review: a revoked session (logout, "log out all") must
    * stop receiving events before the access token expires. */
@@ -93,6 +96,7 @@ export class RealtimeGateway
     private readonly prisma: PrismaService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     private readonly logger: PinoLogger,
+    private readonly assistants: AssistantContextService,
   ) {
     this.logger.setContext(RealtimeGateway.name);
   }
@@ -156,6 +160,19 @@ export class RealtimeGateway
     }, REVOCATION_CHECK_MS);
     state(socket).revocationTimer?.unref?.();
     await socket.join(userRoom(claims.sub));
+    // OQ-048: an assistant with the "chats" (or "calls") duty hears the
+    // attorney's chats and calls live, acting as the attorney like REST.
+    if (claims.role === 'assistant') {
+      const ctx = await this.assistants.resolve(claims.sub);
+      if (
+        ctx &&
+        (ctx.duties.includes('chats') || ctx.duties.includes('calls'))
+      ) {
+        state(socket).selfId = claims.sub;
+        state(socket).user = { ...claims, sub: ctx.attorneyId };
+        await socket.join(userRoom(ctx.attorneyId));
+      }
+    }
     this.gauge();
   }
 
@@ -182,12 +199,13 @@ export class RealtimeGateway
   ): Promise<{ ok: boolean }> {
     const token = typeof body?.token === 'string' ? body.token : '';
     const claims = token ? await this.verify(token) : null;
-    if (!claims || claims.sub !== state(socket).user.sub) {
+    const s = state(socket);
+    if (!claims || claims.sub !== (s.selfId ?? s.user.sub)) {
       socket.emit('auth:error', { code: 'UNAUTHORIZED' });
       socket.disconnect(true);
       return { ok: false };
     }
-    state(socket).user = claims;
+    s.user = s.selfId ? { ...claims, sub: s.user.sub } : claims;
     this.armExpiry(socket, token);
     return { ok: true };
   }

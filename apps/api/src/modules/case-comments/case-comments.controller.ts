@@ -29,6 +29,7 @@ import {
 } from '../comments/comments.dto';
 import { CaseCommentDto, type CaseCommentPage } from './case-comments.dto';
 import { CaseCommentsService } from './case-comments.service';
+import { AttorneyOnly } from '../auth/assistant/assistant-context';
 
 const E = ErrorCode;
 
@@ -75,6 +76,7 @@ export class CaseCommentsController {
     return this.comments.replies(user, p.id, q.cursor);
   }
 
+  @AttorneyOnly()
   @Post('cases/:id/comments')
   @ApiOperation({ summary: 'Comment on a case or reply' })
   @ApiEnvelopeResponse(CaseCommentDto, { status: 201 })

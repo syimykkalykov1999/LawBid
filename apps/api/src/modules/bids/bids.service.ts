@@ -154,6 +154,10 @@ export class BidsService {
         );
         return { ...created, offers: [offer] };
       });
+      // OQ-048: the assistant's draft for this case is used up.
+      await this.prisma.bidDraft
+        .deleteMany({ where: { attorney_id: user.sub, case_id: caseId } })
+        .catch(() => undefined);
       return toBidDto(bid);
     } catch (error) {
       if (isUniqueViolation(error)) {

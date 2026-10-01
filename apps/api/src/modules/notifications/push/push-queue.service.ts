@@ -102,7 +102,8 @@ export class PushQueueService
           backoff: { type: 'fixed', delay: 1_000 },
           removeOnComplete: { count: 1000 },
           removeOnFail: { count: 1000 },
-          jobId: `c-${data.callId}`,
+          // OQ-048: one ring per recipient (the attorney and assistants).
+          jobId: `c-${data.callId}-${data.recipientId}`,
         },
       );
     } catch (error) {

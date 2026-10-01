@@ -461,6 +461,34 @@ export class FilesService {
     return out;
   }
 
+  /** OQ-048: short signed links to the documents of tasks. */
+  async taskFileUrls(
+    fileIds: string[],
+  ): Promise<Map<string, { url: string; mime: string }>> {
+    const out = new Map<string, { url: string; mime: string }>();
+    if (fileIds.length === 0 || !this.storage.configured) return out;
+    const files = await this.prisma.file.findMany({
+      where: {
+        id: { in: fileIds },
+        purpose: 'task_attachment',
+        scan_status: 'clean',
+        deleted_at: null,
+      },
+      select: { id: true, s3_bucket: true, s3_key: true, mime: true },
+    });
+    for (const f of files) {
+      out.set(f.id, {
+        url: await this.storage.signedGetUrl(
+          f.s3_bucket,
+          f.s3_key,
+          MEDIA_SIGNED_URL_TTL_SEC,
+        ),
+        mime: f.mime,
+      });
+    }
+    return out;
+  }
+
   /**
    * OQ-047: short signed links to clean chat attachments (documents
    * bucket), with a 320 px preview for photos. The caller has checked

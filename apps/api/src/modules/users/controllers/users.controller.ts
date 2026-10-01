@@ -46,6 +46,7 @@ import { ReauthRequired } from '../../auth/decorators/reauth-required.decorator'
 import { ReauthGuard } from '../../auth/guards/reauth.guard';
 import { ReauthVerifier } from '../../auth/services/reauth-verifier.service';
 import type { RequestMeta } from '../../auth/services/session.service';
+import { AssistantSelf } from '../../auth/assistant/assistant-context';
 
 const E = ErrorCode;
 /** docs/01 §11 step 3A: ReauthGuard / ReauthVerifier (header name =
@@ -75,6 +76,9 @@ const IdempotencyKeyHeader = ApiHeader({
 @ApiTags('users')
 @ApiBearerAuth()
 @ApiErrors(AUTHENTICATED_ERRORS)
+// OQ-048: an assistant's own account (name, contacts, onboarding) — the
+// attorney's account is reached through every other route.
+@AssistantSelf()
 @Controller('users/me')
 export class UsersController {
   constructor(

@@ -1,6 +1,11 @@
 /** docs/06 §1.1: "$399 в месяц, USD, единственный тариф; триал 7 дней". */
 export const SUBSCRIPTION_PRICE_CENTS = 39_900;
 export const SUBSCRIPTION_CURRENCY = 'usd';
+/** Owner 2026-09-30 (OQ-048): $100 / month per assistant, up to 6; the
+ * yearly plan covers the attorney and 6 assistants at 20 % off. */
+export const ASSISTANT_SEAT_PRICE_CENTS = 10_000;
+export const MAX_ASSISTANT_SEATS = 6;
+export const YEARLY_PRICE_CENTS = 959_000;
 export const TRIAL_DAYS = 7;
 /** §1.5: reminder "за 2 дня до окончания" of the trial. */
 export const TRIAL_REMINDER_DAYS_BEFORE = 2;

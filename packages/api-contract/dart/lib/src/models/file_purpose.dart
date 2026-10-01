@@ -26,6 +26,8 @@ enum FilePurpose {
   chatVoice('chat_voice'),
   @JsonValue('chat_attachment')
   chatAttachment('chat_attachment'),
+  @JsonValue('task_attachment')
+  taskAttachment('task_attachment'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

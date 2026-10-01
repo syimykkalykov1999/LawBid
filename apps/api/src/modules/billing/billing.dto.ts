@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
+  IsIn,
   IsInt,
   IsNotEmpty,
   IsOptional,
@@ -11,10 +12,71 @@ import {
   Max,
   MaxLength,
   Min,
+  IsArray,
+  ArrayMaxSize,
+  Matches,
 } from 'class-validator';
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
+
+/** Owner 2026-09-30: Stripe's hosted payment page for the subscription. */
+export class CheckoutSessionDto {
+  @ApiProperty({ description: 'Open in the browser.' })
+  url!: string;
+  @ApiProperty() sessionId!: string;
+  @ApiProperty() trialEligible!: boolean;
+  @ApiProperty({ type: 'integer' }) priceCents!: number;
+  @ApiProperty({ type: 'integer' }) trialDays!: number;
+}
+
+/** POST /subscriptions/checkout (OQ-048): the plan, seats and the phones
+ * of assistants added at purchase (they join without the attorney's OTP). */
+export class CheckoutRequestDto {
+  @ApiPropertyOptional({
+    enum: ['monthly', 'yearly'],
+    enumName: 'SubscriptionPlan',
+    default: 'monthly',
+  })
+  @IsOptional()
+  @IsIn(['monthly', 'yearly'])
+  plan?: 'monthly' | 'yearly';
+
+  @ApiPropertyOptional({ type: 'integer', minimum: 0, maximum: 6, default: 0 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(6)
+  assistantSeats?: number;
+
+  @ApiPropertyOptional({
+    type: [String],
+    maxItems: 6,
+    example: ['+13125550111'],
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(6)
+  @Matches(/^\+[1-9][0-9]{7,14}$/, { each: true })
+  assistantPhones?: string[];
+}
+
+export class SetSeatsDto {
+  @ApiProperty({ type: 'integer', minimum: 0, maximum: 6 })
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(6)
+  seats!: number;
+}
+
+export class CompleteCheckoutDto {
+  @ApiProperty()
+  @IsString()
+  @MaxLength(200)
+  sessionId!: string;
+}
 
 export class StartSubscriptionResultDto {
   @ApiProperty({
@@ -66,6 +128,9 @@ export class SubscriptionDto {
   })
   isActive!: boolean;
   @ApiProperty({ type: 'integer' }) priceCents!: number;
+  @ApiProperty({ enum: ['monthly', 'yearly'], enumName: 'SubscriptionPlan' })
+  plan!: 'monthly' | 'yearly';
+  @ApiProperty({ type: 'integer' }) assistantSeats!: number;
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   trialEndsAt!: string | null;
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
@@ -83,9 +148,19 @@ export class SubscriptionDto {
   @ApiProperty({ format: 'date-time' }) createdAt!: string;
 }
 
+/** OQ-048: the prices the paywall shows. */
+export class PlanPricesDto {
+  @ApiProperty({ type: 'integer' }) monthlyCents!: number;
+  @ApiProperty({ type: 'integer' }) seatCents!: number;
+  @ApiProperty({ type: 'integer' }) yearlyCents!: number;
+  @ApiProperty({ type: 'integer' }) maxSeats!: number;
+}
+
 export class SubscriptionMeDto {
   @ApiProperty({ type: SubscriptionDto, nullable: true })
   subscription!: SubscriptionDto | null;
+  @ApiProperty({ type: PlanPricesDto })
+  prices!: PlanPricesDto;
   @ApiProperty() isActive!: boolean;
   @ApiProperty({
     description: 'Verified attorney without a live subscription may start.',

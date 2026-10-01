@@ -12,6 +12,7 @@ import {
   PAYMENT_PROVIDER,
 } from './billing.constants';
 import { BillingRunner } from './billing.runner';
+import { FakeCheckoutController } from './fake-checkout.controller';
 import { FakePaymentProvider } from './fake-payment.provider';
 import { StripePaymentProvider } from './stripe-payment.provider';
 import { StripeWebhookController } from './stripe-webhook.controller';
@@ -51,6 +52,8 @@ export class BillingModule {
               SubscriptionsController,
               StripeWebhookController,
               AdminSubscriptionsController,
+              // Dev / e2e stand-in for Stripe's hosted page (404 with Stripe).
+              FakeCheckoutController,
             ]
           : [],
       providers: [
@@ -71,7 +74,9 @@ export class BillingModule {
                   key,
                   config.get<string>('STRIPE_WEBHOOK_SECRET'),
                 )
-              : new FakePaymentProvider();
+              : Object.assign(new FakePaymentProvider(), {
+                  checkoutBaseUrl: `http://localhost:${config.get<number>('PORT') ?? 3000}/api/v1/subscriptions/fake-checkout`,
+                });
           },
         },
         SubscriptionSyncService,

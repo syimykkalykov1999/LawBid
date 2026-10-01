@@ -553,4 +553,176 @@ describe('stage 6.7 — Stripe subscriptions (e2e, fake provider)', () => {
       }),
     ).toBe(1);
   });
+
+  // Owner 2026-09-30: the web payment page (Stripe Checkout).
+  it('web checkout: hosted page → paid → trialing; a used card pays now; idempotent', async () => {
+    const a = await attorney();
+    const start = await api()
+      .post('/api/v1/subscriptions/checkout')
+      .set(a.auth)
+      .expect(200);
+    const c = (start.body as Body).data as {
+      url: string;
+      sessionId: string;
+      trialEligible: boolean;
+    };
+    expect(c.trialEligible).toBe(true);
+    expect(c.url).toContain(`/subscriptions/fake-checkout/${c.sessionId}`);
+
+    // Not paid yet: complete changes nothing.
+    const early = await api()
+      .post('/api/v1/subscriptions/checkout/complete')
+      .set(a.auth)
+      .send({ sessionId: c.sessionId })
+      .expect(200);
+    expect((early.body as Body).data.isActive).toBe(false);
+
+    await fake.payCheckout(c.sessionId, {
+      paymentMethodId: 'pm_web_1',
+      fingerprint: 'fp_web_shared',
+    });
+    const done = await api()
+      .post('/api/v1/subscriptions/checkout/complete')
+      .set(a.auth)
+      .send({ sessionId: c.sessionId })
+      .expect(200);
+    const me = (done.body as Body).data as {
+      subscription: { status: string };
+      isActive: boolean;
+    };
+    expect(me.subscription.status).toBe('trialing');
+    expect(me.isActive).toBe(true);
+    // Twice is the same.
+    await api()
+      .post('/api/v1/subscriptions/checkout/complete')
+      .set(a.auth)
+      .send({ sessionId: c.sessionId })
+      .expect(200);
+    expect(await prisma.subscription.count({ where: { user_id: a.id } })).toBe(
+      1,
+    );
+    // A second checkout while active is refused.
+    const again = await api()
+      .post('/api/v1/subscriptions/checkout')
+      .set(a.auth);
+    expect(again.status).toBe(409);
+
+    // Another attorney with the same card: no second trial.
+    const b = await attorney();
+    const sb = (
+      (await api().post('/api/v1/subscriptions/checkout').set(b.auth))
+        .body as Body
+    ).data as { sessionId: string };
+    await fake.payCheckout(sb.sessionId, {
+      paymentMethodId: 'pm_web_2',
+      fingerprint: 'fp_web_shared',
+    });
+    const bMe = (
+      (
+        await api()
+          .post('/api/v1/subscriptions/checkout/complete')
+          .set(b.auth)
+          .send({ sessionId: sb.sessionId })
+      ).body as Body
+    ).data as { subscription: { status: string } };
+    expect(bMe.subscription.status).not.toBe('trialing');
+
+    // Someone else's session is ignored.
+    const other = await attorney();
+    const foreign = await api()
+      .post('/api/v1/subscriptions/checkout/complete')
+      .set(other.auth)
+      .send({ sessionId: c.sessionId })
+      .expect(200);
+    expect((foreign.body as Body).data.isActive).toBe(false);
+  });
+
+  it('the dev payment page renders and pays (fake provider only)', async () => {
+    const a = await attorney();
+    const c = (
+      (await api().post('/api/v1/subscriptions/checkout').set(a.auth))
+        .body as Body
+    ).data as { sessionId: string };
+    const pageRes = await api()
+      .get(`/api/v1/subscriptions/fake-checkout/${c.sessionId}`)
+      .expect(200);
+    expect(pageRes.text).toContain('Attorney subscription');
+    await api()
+      .post(`/api/v1/subscriptions/fake-checkout/${c.sessionId}/pay`)
+      .expect(201);
+    expect(await access.isActive(a.id)).toBe(true);
+  });
+
+  // OQ-048: plans — monthly + bought assistant seats, yearly with all six;
+  // phones given at purchase join without a code.
+  it('plans: yearly with assistant phones; monthly seats change later', async () => {
+    const a = await attorney();
+    const phoneA = '+13125550771';
+    const start = await api()
+      .post('/api/v1/subscriptions/checkout')
+      .set(a.auth)
+      .send({ plan: 'yearly', assistantPhones: [phoneA] })
+      .expect(200);
+    const c = (start.body as Body).data as {
+      sessionId: string;
+      priceCents: number;
+    };
+    expect(c.priceCents).toBe(959_000);
+    await fake.payCheckout(c.sessionId, {
+      paymentMethodId: 'pm_year',
+      fingerprint: 'fp_year',
+    });
+    const done = await api()
+      .post('/api/v1/subscriptions/checkout/complete')
+      .set(a.auth)
+      .send({ sessionId: c.sessionId })
+      .expect(200);
+    expect((done.body as Body).data.subscription).toMatchObject({
+      plan: 'yearly',
+    });
+    const team = await api().get('/api/v1/team').set(a.auth).expect(200);
+    expect((team.body as Body).data).toMatchObject({ seats: 6, used: 1 });
+    expect(
+      (
+        (team.body as Body).data as {
+          members: { phone: string; approval: string }[];
+        }
+      ).members[0],
+    ).toMatchObject({ phone: phoneA, approval: 'purchase' });
+    // Yearly already includes the seats.
+    const seats = await api()
+      .post('/api/v1/subscriptions/seats')
+      .set(a.auth)
+      .send({ seats: 2 });
+    expect(seats.status).toBe(409);
+
+    const m = await attorney();
+    const sm = (
+      (
+        await api()
+          .post('/api/v1/subscriptions/checkout')
+          .set(m.auth)
+          .send({ plan: 'monthly', assistantSeats: 2 })
+      ).body as Body
+    ).data as { sessionId: string; priceCents: number };
+    expect(sm.priceCents).toBe(39_900 + 2 * 10_000);
+    await fake.payCheckout(sm.sessionId, {
+      paymentMethodId: 'pm_month',
+      fingerprint: 'fp_month',
+    });
+    await api()
+      .post('/api/v1/subscriptions/checkout/complete')
+      .set(m.auth)
+      .send({ sessionId: sm.sessionId })
+      .expect(200);
+    const up = await api()
+      .post('/api/v1/subscriptions/seats')
+      .set(m.auth)
+      .send({ seats: 3 })
+      .expect(200);
+    expect(
+      ((up.body as Body).data as { subscription: { assistantSeats: number } })
+        .subscription.assistantSeats,
+    ).toBe(3);
+  });
 });

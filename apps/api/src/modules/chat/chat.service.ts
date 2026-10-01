@@ -220,6 +220,18 @@ export class ChatService {
     const voice = dto.type === 'voice';
     const attachment = dto.type === 'attachment';
     const body = voice ? '' : (dto.body ?? '').trim();
+    // OQ-048: an assistant sends documents/photos only with "files".
+    if (
+      attachment &&
+      user.assistant &&
+      !user.assistant.duties.includes('files')
+    ) {
+      throw new ForbiddenException({
+        code: ErrorCode.ASSISTANT_NOT_ALLOWED,
+        message: 'The attorney has not given you this duty.',
+        details: { duty: 'files' },
+      });
+    }
     if (attachment) {
       if (!dto.fileId || !dto.fileName?.trim()) {
         throw new BadRequestException({
@@ -376,6 +388,8 @@ export class ChatService {
           data: {
             conversation_id: id,
             sender_id: user.sub,
+            sent_by_membership_id: user.assistant?.membershipId ?? null,
+            sent_by_name: user.assistant?.name.slice(0, 80) ?? null,
             type: voice ? 'voice' : attachment ? 'attachment' : 'text',
             body_original: body,
             body_display: masked.text,
@@ -754,6 +768,7 @@ export class ChatService {
       id: m.id,
       conversationId: m.conversation_id,
       senderId: hideSender ? null : m.sender_id,
+      sentByAssistant: m.sent_by_name,
       type: m.type,
       voice:
         m.type === 'voice'

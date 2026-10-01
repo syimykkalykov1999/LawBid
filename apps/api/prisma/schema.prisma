@@ -43,6 +43,8 @@ enum UserRole {
   client
   attorney
   admin
+  // OQ-048: works inside an attorney's account (assistant_memberships).
+  assistant
 
   @@map("user_role")
 }
@@ -114,6 +116,8 @@ enum FilePurpose {
   chat_voice
   // OQ-047: chat photos and documents after acceptance, private bucket.
   chat_attachment
+  // OQ-048: files an assistant attaches to a task for the attorney.
+  task_attachment
 
   @@map("file_purpose")
 }
@@ -432,6 +436,11 @@ enum NotificationType {
   followed_post
   // Owner 2026-09-30 (opt-in, attorneys): a new case in my practices.
   new_case
+  // OQ-048: an assistant asks to publish / edit; set a task; joined.
+  assistant_request
+  assistant_task
+  assistant_joined
+  assistant_result
 
   @@map("notification_type")
 }
@@ -656,6 +665,10 @@ model User {
   case_shares              CaseShare[]               @relation("CaseSharer")
   client_reviews_given     ClientReview[]            @relation("ClientReviewAttorney")
   client_reviews_received  ClientReview[]            @relation("ClientReviewClient")
+  assistant_team           AssistantMembership[]     @relation("AssistantAttorney")
+  assistant_memberships    AssistantMembership[]     @relation("AssistantUser")
+  attorney_tasks           AttorneyTask[]            @relation("AttorneyTasks")
+  bid_drafts               BidDraft[]                @relation("BidDrafts")
   client_review_appeals    ClientReviewAppeal[]      @relation("ClientReviewAppellant")
 
   // Trigram GIN on full_name_lower is a *partial* index (raw SQL): Prisma's
@@ -1216,6 +1229,8 @@ model Case {
   states              CaseState[]
   // Owner 2026-09-30 (OQ-031): 0–9 photos; owner + accepted attorney only.
   photos              CasePhoto[]
+  attorney_tasks      AttorneyTask[]
+  bid_drafts          BidDraft[]
   bids                Bid[]                @relation("CaseBids")
   journal             CaseJournal[]
   contact_disclosures ContactDisclosure[]
@@ -1701,31 +1716,34 @@ model Call {
 }
 
 model Message {
-  id                String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  conversation_id   String       @db.Uuid
-  conversation      Conversation @relation(fields: [conversation_id], references: [id], onDelete: Restrict)
+  id                    String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversation_id       String       @db.Uuid
+  conversation          Conversation @relation(fields: [conversation_id], references: [id], onDelete: Restrict)
   // NULL for system messages.
-  sender_id         String?      @db.Uuid
-  sender            User?        @relation("MessageSender", fields: [sender_id], references: [id], onDelete: Restrict)
-  type              MessageType
+  sender_id             String?      @db.Uuid
+  sender                User?        @relation("MessageSender", fields: [sender_id], references: [id], onDelete: Restrict)
+  type                  MessageType
   // Server/moderation/legal only (§1.6).
-  body_original     String
-  body_display      String
-  contact_masked    Boolean      @default(false)
+  body_original         String
+  body_display          String
+  contact_masked        Boolean      @default(false)
   // Client-generated idempotency key.
-  client_message_id String
+  client_message_id     String
   // OQ-040 voice messages: the audio file, its length, 0–100 bars for the
   // bubble and when the recipient first played it (Telegram's blue dot).
-  file_id           String?      @db.Uuid
-  file              File?        @relation("MessageVoice", fields: [file_id], references: [id], onDelete: Restrict)
-  duration_ms       Int?
-  waveform          Int[]        @default([])
+  file_id               String?      @db.Uuid
+  file                  File?        @relation("MessageVoice", fields: [file_id], references: [id], onDelete: Restrict)
+  duration_ms           Int?
+  waveform              Int[]        @default([])
   // OQ-047: the original name of an attached document (≤200, CHECK).
-  file_name         String?
-  listened_at       DateTime?    @db.Timestamptz
-  deleted_at        DateTime?    @db.Timestamptz
-  created_at        DateTime     @default(now()) @db.Timestamptz
-  updated_at        DateTime     @updatedAt @db.Timestamptz
+  file_name             String?
+  // OQ-048: sent by an assistant on the attorney's behalf.
+  sent_by_membership_id String?      @db.Uuid
+  sent_by_name          String?      @db.String(80)
+  listened_at           DateTime?    @db.Timestamptz
+  deleted_at            DateTime?    @db.Timestamptz
+  created_at            DateTime     @default(now()) @db.Timestamptz
+  updated_at            DateTime     @updatedAt @db.Timestamptz
 
   @@unique([conversation_id, sender_id, client_message_id])
   @@index([file_id])
@@ -1819,6 +1837,10 @@ model Subscription {
   grace_ends_at          DateTime?          @db.Timestamptz
   // One card = one trial.
   card_fingerprint       String?
+  // OQ-048: monthly ($399 + $100 per seat) or yearly (6 seats, −20 %).
+  plan                   SubscriptionPlan   @default(monthly)
+  // 0–6 (CHECK in the migration).
+  assistant_seats        Int                @default(0) @db.Int2
   created_at             DateTime           @default(now()) @db.Timestamptz
   updated_at             DateTime           @updatedAt @db.Timestamptz
 
@@ -2142,4 +2164,171 @@ enum ReviewAppealStatus {
   auto_removed
 
   @@map("review_appeal_status")
+}
+
+/// OQ-048: plans.
+enum SubscriptionPlan {
+  monthly
+  yearly
+
+  @@map("subscription_plan")
+}
+
+enum AssistantStatus {
+  invited
+  active
+  removed
+
+  @@map("assistant_status")
+}
+
+enum AssistantApproval {
+  purchase
+  attorney_added
+  attorney_otp
+
+  @@map("assistant_approval")
+}
+
+/// OQ-048: an assistant in an attorney's team. Partial unique index on
+/// phone_e164 for live rows lives in the migration.
+model AssistantMembership {
+  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  attorney_id       String            @db.Uuid
+  attorney          User              @relation("AssistantAttorney", fields: [attorney_id], references: [id], onDelete: Cascade)
+  assistant_user_id String?           @db.Uuid
+  assistant_user    User?             @relation("AssistantUser", fields: [assistant_user_id], references: [id], onDelete: SetNull)
+  phone_e164        String
+  display_name      String?
+  status            AssistantStatus   @default(invited)
+  approval          AssistantApproval
+  duties            String[]          @default([])
+  created_at        DateTime          @default(now()) @db.Timestamptz
+  joined_at         DateTime?         @db.Timestamptz
+  removed_at        DateTime?         @db.Timestamptz
+
+  activity AssistantActivity[]
+  requests AssistantRequest[]
+  tasks    AttorneyTask[]
+
+  @@index([attorney_id, status])
+  @@index([phone_e164, status])
+  @@index([assistant_user_id])
+  @@map("assistant_memberships")
+}
+
+model AssistantActivity {
+  id            String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  attorney_id   String              @db.Uuid
+  membership_id String              @db.Uuid
+  membership    AssistantMembership @relation(fields: [membership_id], references: [id], onDelete: Cascade)
+  action        String
+  target_type   String?
+  target_id     String?
+  summary       String?
+  created_at    DateTime            @default(now()) @db.Timestamptz
+
+  @@index([attorney_id, created_at(sort: Desc)])
+  @@index([membership_id, created_at(sort: Desc)])
+  @@map("assistant_activity")
+}
+
+enum AssistantRequestKind {
+  post
+  comment
+  case_comment
+  profile_edit
+
+  @@map("assistant_request_kind")
+}
+
+enum AssistantRequestStatus {
+  pending
+  approved
+  rejected
+
+  @@map("assistant_request_status")
+}
+
+model AssistantRequest {
+  id            String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  attorney_id   String                 @db.Uuid
+  membership_id String                 @db.Uuid
+  membership    AssistantMembership    @relation(fields: [membership_id], references: [id], onDelete: Cascade)
+  kind          AssistantRequestKind
+  payload       Json
+  status        AssistantRequestStatus @default(pending)
+  result_id     String?
+  note          String?
+  created_at    DateTime               @default(now()) @db.Timestamptz
+  decided_at    DateTime?              @db.Timestamptz
+
+  @@index([attorney_id, status, created_at(sort: Desc)])
+  @@map("assistant_requests")
+}
+
+enum AttorneyTaskKind {
+  call
+  meeting
+  court
+  deadline
+  documents
+  print
+  visit
+  other
+
+  @@map("attorney_task_kind")
+}
+
+enum AttorneyTaskStatus {
+  open
+  taken
+  done
+  not_done
+  cancelled
+
+  @@map("attorney_task_status")
+}
+
+model AttorneyTask {
+  id                       String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  attorney_id              String               @db.Uuid
+  attorney                 User                 @relation("AttorneyTasks", fields: [attorney_id], references: [id], onDelete: Cascade)
+  created_by_membership_id String?              @db.Uuid
+  created_by               AssistantMembership? @relation(fields: [created_by_membership_id], references: [id], onDelete: SetNull)
+  kind                     AttorneyTaskKind
+  title                    String
+  notes                    String?
+  due_at                   DateTime?            @db.Timestamptz
+  location                 String?
+  case_id                  String?              @db.Uuid
+  case                     Case?                @relation(fields: [case_id], references: [id], onDelete: SetNull)
+  contact_name             String?
+  contact_phone            String?
+  file_ids                 String[]             @default([]) @db.Uuid
+  status                   AttorneyTaskStatus   @default(open)
+  outcome_note             String?
+  rescheduled_to           DateTime?            @db.Timestamptz
+  done_at                  DateTime?            @db.Timestamptz
+  created_at               DateTime             @default(now()) @db.Timestamptz
+  updated_at               DateTime             @default(now()) @updatedAt @db.Timestamptz
+
+  @@index([attorney_id, status, due_at])
+  @@map("attorney_tasks")
+}
+
+/// OQ-048: a bid an assistant prepared for the attorney to review and send.
+model BidDraft {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  attorney_id      String   @db.Uuid
+  attorney         User     @relation("BidDrafts", fields: [attorney_id], references: [id], onDelete: Cascade)
+  case_id          String   @db.Uuid
+  case             Case     @relation(fields: [case_id], references: [id], onDelete: Cascade)
+  payload          Json
+  prepared_by_name String?  @db.String(80)
+  created_at       DateTime @default(now()) @db.Timestamptz
+  updated_at       DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  @@unique([attorney_id, case_id], map: "bid_drafts_attorney_case_key")
+  @@map("bid_drafts")
 }

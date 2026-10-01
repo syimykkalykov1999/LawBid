@@ -4,6 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'plan_prices_dto.dart';
 import 'subscription_dto.dart';
 
 part 'subscription_me_dto.g.dart';
@@ -12,6 +13,7 @@ part 'subscription_me_dto.g.dart';
 class SubscriptionMeDto {
   const SubscriptionMeDto({
     required this.subscription,
+    required this.prices,
     required this.isActive,
     required this.canStart,
     required this.trialEligible,
@@ -22,6 +24,7 @@ class SubscriptionMeDto {
       _$SubscriptionMeDtoFromJson(json);
 
   final SubscriptionDto? subscription;
+  final PlanPricesDto prices;
   final bool isActive;
 
   /// Verified attorney without a live subscription may start.

@@ -16,6 +16,8 @@ import { SessionService } from './services/session.service';
 import { SessionRevocationService } from './services/session-revocation.service';
 import { AuthEventService } from './services/auth-event.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { AssistantContextService } from './assistant/assistant-context';
+import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { ReauthGuard } from './guards/reauth.guard';
 import { ReauthVerifier } from './services/reauth-verifier.service';
 import { SMS_PROVIDER, EMAIL_PROVIDER } from './providers/provider.tokens';
@@ -77,7 +79,12 @@ import { resolveSmsProvider } from '../../config/provider-selection';
 @Module({
   // FeatureFlagsModule: AppConfigService for OtpService's SMS country
   // allow-list (app_config `sms.allowed_country_codes`).
-  imports: [JwtModule.register({}), FeatureFlagsModule, NotificationsModule],
+  imports: [
+    JwtModule.register({}),
+    FeatureFlagsModule,
+    NotificationsModule,
+    SubscriptionsModule,
+  ],
   controllers: [AuthController],
   providers: [
     AuthService,
@@ -119,6 +126,7 @@ import { resolveSmsProvider } from '../../config/provider-selection';
     },
     DeviceAttestationService,
     DeviceAttestationGuard,
+    AssistantContextService,
     {
       provide: SMS_PROVIDER,
       useFactory: (config: ConfigService, logger: PinoLogger): SmsProvider => {
@@ -157,6 +165,8 @@ import { resolveSmsProvider } from '../../config/provider-selection';
     AuthEventService,
     // ContactsService: per-user/per-identifier limits on contact OTPs.
     RateLimitService,
+    // OQ-048: the assistant module drops the cache on team changes.
+    AssistantContextService,
   ],
 })
 export class AuthModule {}

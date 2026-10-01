@@ -132,11 +132,30 @@ export class CallsService {
         callee_id: callee,
       },
     });
-    this.realtime.toUsers([callee], 'call:incoming', {
-      call: await this.toDto(call, callee),
-    });
-    await this.push.enqueueCall({ recipientId: callee, callId: call.id });
+    // OQ-048: a call to the attorney also rings assistants who hold the
+    // "calls" duty (their own devices; whoever answers takes it).
+    const ringing = [callee, ...(await this.callAssistants(callee))];
+    const incoming = { call: await this.toDto(call, callee) };
+    this.realtime.toUsers(ringing, 'call:incoming', incoming);
+    for (const recipientId of ringing) {
+      await this.push.enqueueCall({ recipientId, callId: call.id });
+    }
     return this.toDto(call, user.sub);
+  }
+
+  private async callAssistants(attorneyId: string): Promise<string[]> {
+    const rows = await this.prisma.assistantMembership.findMany({
+      where: {
+        attorney_id: attorneyId,
+        status: 'active',
+        duties: { has: 'calls' },
+        assistant_user_id: { not: null },
+      },
+      select: { assistant_user_id: true },
+    });
+    return rows.flatMap((r) =>
+      r.assistant_user_id ? [r.assistant_user_id] : [],
+    );
   }
 
   /** POST /calls/:id/accept — the callee picks up. */

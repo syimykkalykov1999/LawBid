@@ -10,5 +10,6 @@ import { CommentsService } from './comments.service';
   imports: [UsageLimitsModule, NotificationsModule, FilesModule],
   controllers: [CommentsController],
   providers: [CommentsService],
+  exports: [CommentsService],
 })
 export class CommentsModule {}

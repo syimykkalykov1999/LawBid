@@ -25,22 +25,6 @@ part 'users_client.g.dart';
 abstract class UsersClient {
   factory UsersClient(Dio dio, {String? baseUrl}) = _UsersClient;
 
-  /// Queue the user data export ZIP (docs/06 §5.2).
-  ///
-  /// [xReauthToken] - reauthToken from POST /auth/reauth (5 minutes).
-  @POST('/users/me/data-export')
-  Future<DataExportJobEnvelope> requestDataExport({
-    @Header('X-Reauth-Token') required String xReauthToken,
-    @Extras() Map<String, dynamic>? extras,
-  });
-
-  /// Export status; a fresh 24-hour signed link while it is ready
-  @GET('/users/me/data-export/{exportId}')
-  Future<DataExportJobEnvelope> getDataExport({
-    @Path('exportId') required String exportId,
-    @Extras() Map<String, dynamic>? extras,
-  });
-
   @GET('/users/me')
   Future<MeEnvelope> me({@Extras() Map<String, dynamic>? extras});
 
@@ -104,6 +88,22 @@ abstract class UsersClient {
   @POST('/users/me/consents')
   Future<ConsentsSavedEnvelope> saveConsents({
     @Body() required SaveConsentsDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Queue the user data export ZIP (docs/06 §5.2).
+  ///
+  /// [xReauthToken] - reauthToken from POST /auth/reauth (5 minutes).
+  @POST('/users/me/data-export')
+  Future<DataExportJobEnvelope> requestDataExport({
+    @Header('X-Reauth-Token') required String xReauthToken,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Export status; a fresh 24-hour signed link while it is ready
+  @GET('/users/me/data-export/{exportId}')
+  Future<DataExportJobEnvelope> getDataExport({
+    @Path('exportId') required String exportId,
     @Extras() Map<String, dynamic>? extras,
   });
 }

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import {
   type PaymentProvider,
   type ProviderCharge,
+  type ProviderCheckoutSession,
   type ProviderEvent,
   type ProviderInvoice,
   type ProviderSetupIntent,
@@ -34,6 +35,100 @@ export class FakePaymentProvider implements PaymentProvider {
   >();
   readonly invoices = new Map<string, ProviderInvoice & { _version: number }>();
   readonly charges = new Map<string, ProviderCharge>();
+  readonly checkouts = new Map<
+    string,
+    ProviderCheckoutSession & {
+      lineItems: { priceId: string; quantity: number }[];
+      trialDays: number | null;
+      successUrl: string;
+    }
+  >();
+  /** Seat quantities set on fake subscriptions (OQ-048). */
+  readonly seats = new Map<string, number>();
+
+  setSeatQuantity(
+    subscriptionId: string,
+    _seatPriceId: string,
+    quantity: number,
+  ): Promise<ProviderSubscription> {
+    const cur = this.subscriptions.get(subscriptionId);
+    if (!cur) throw new Error('no such subscription');
+    this.seats.set(subscriptionId, quantity);
+    return Promise.resolve(strip(cur));
+  }
+  /** Where the dev "checkout page" lives (the API's own fake route). */
+  checkoutBaseUrl = 'http://localhost:3000/api/v1/subscriptions/fake-checkout';
+
+  endTrialNow(id: string): Promise<ProviderSubscription> {
+    const cur = this.subscriptions.get(id);
+    if (!cur) throw new Error('no such subscription');
+    const now = Math.floor(Date.now() / 1000);
+    const next = {
+      ...cur,
+      status: 'active' as const,
+      trialEnd: now,
+      currentPeriodStart: now,
+      currentPeriodEnd: now + 30 * 86_400,
+      _version: cur._version + 1,
+    };
+    this.subscriptions.set(id, next);
+    return Promise.resolve(strip(next));
+  }
+
+  createCheckoutSession(input: {
+    customerId: string;
+    lineItems: { priceId: string; quantity: number }[];
+    trialDays: number | null;
+    successUrl: string;
+    cancelUrl: string;
+    metadata: Record<string, string>;
+  }): Promise<ProviderCheckoutSession> {
+    const id = `cs_fake_${randomUUID().slice(0, 12)}`;
+    const s = {
+      id,
+      url: `${this.checkoutBaseUrl}/${id}`,
+      status: 'open' as const,
+      customerId: input.customerId,
+      subscriptionId: null,
+      metadata: input.metadata,
+      lineItems: input.lineItems,
+      trialDays: input.trialDays,
+      successUrl: input.successUrl,
+    };
+    this.checkouts.set(id, s);
+    return Promise.resolve(stripCheckout(s));
+  }
+
+  retrieveCheckoutSession(id: string): Promise<ProviderCheckoutSession | null> {
+    const s = this.checkouts.get(id);
+    return Promise.resolve(s ? stripCheckout(s) : null);
+  }
+
+  /** What paying on the hosted page does: a card, a subscription, the
+   * session complete. Returns the success URL. */
+  async payCheckout(id: string, card?: FakeCard): Promise<string> {
+    const s = this.checkouts.get(id);
+    if (!s) throw new Error('no such checkout session');
+    if (s.status === 'complete') return s.successUrl;
+    const c = card ?? {
+      paymentMethodId: `pm_fake_${randomUUID().slice(0, 8)}`,
+      fingerprint: `fp_${randomUUID().slice(0, 8)}`,
+    };
+    this.cards.set(c.paymentMethodId, c);
+    const sub = await this.createSubscription({
+      customerId: s.customerId ?? '',
+      priceId: s.lineItems[0]?.priceId ?? 'price_fake',
+      paymentMethodId: c.paymentMethodId,
+      trialDays: s.trialDays,
+      metadata: s.metadata,
+    });
+    this.checkouts.set(id, {
+      ...s,
+      status: 'complete',
+      subscriptionId: sub.id,
+    });
+    return s.successUrl;
+  }
 
   createCustomer(input: { userId: string }): Promise<string> {
     const id = `cus_fake_${randomUUID().slice(0, 12)}`;
@@ -289,4 +384,15 @@ function strip<T extends { _version: number }>(o: T): Omit<T, '_version'> {
   const { _version: _v, ...rest } = o;
   void _v;
   return rest;
+}
+
+function stripCheckout(s: ProviderCheckoutSession): ProviderCheckoutSession {
+  return {
+    id: s.id,
+    url: s.url,
+    status: s.status,
+    customerId: s.customerId,
+    subscriptionId: s.subscriptionId,
+    metadata: s.metadata,
+  };
 }

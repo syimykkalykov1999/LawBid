@@ -34,6 +34,7 @@ import {
 } from './notifications-api.dto';
 import { NotificationsApiService } from './notifications-api.service';
 import { PushTokensService } from './push/push-tokens.service';
+import { AssistantSelf } from '../auth/assistant/assistant-context';
 
 /** docs/05 §15 "Уведомления и push" (stage 5.8). */
 @ApiTags('notifications')
@@ -47,6 +48,8 @@ export class NotificationsApiController {
     private readonly tokens: PushTokensService,
   ) {}
 
+  // OQ-048: an assistant has their own notifications and devices.
+  @AssistantSelf()
   @Get('notifications')
   @ApiOperation({ summary: 'Notifications, newest first (§9.1)' })
   @ApiEnvelopeResponse(NotificationDto, { isArray: true })
@@ -58,6 +61,8 @@ export class NotificationsApiController {
     return this.api.list(user.sub, q.cursor);
   }
 
+  // OQ-048: an assistant has their own notifications and devices.
+  @AssistantSelf()
   @Post('notifications/read')
   @HttpCode(200)
   @ApiOperation({ summary: 'Mark read: {ids} or {all: true} (§9.1)' })
@@ -77,6 +82,8 @@ export class NotificationsApiController {
     return this.badges.get(user.sub);
   }
 
+  // OQ-048: an assistant has their own notifications and devices.
+  @AssistantSelf()
   @Get('notification-settings')
   @ApiOperation({ summary: 'Push/email per category + quiet hours (§9.5)' })
   @ApiEnvelopeResponse(NotificationSettingsDto)
@@ -84,6 +91,8 @@ export class NotificationsApiController {
     return this.api.settings(user.sub);
   }
 
+  // OQ-048: an assistant has their own notifications and devices.
+  @AssistantSelf()
   @Put('notification-settings')
   @ApiOperation({ summary: 'Update categories; system stays on (§9.5)' })
   @ApiEnvelopeResponse(NotificationSettingsDto)
@@ -95,6 +104,8 @@ export class NotificationsApiController {
     return this.api.updateSettings(user.sub, dto.items);
   }
 
+  // OQ-048: an assistant has their own notifications and devices.
+  @AssistantSelf()
   @Put('notification-settings/quiet-hours')
   @ApiOperation({ summary: 'Quiet hours; start: null clears (§9.5)' })
   @ApiEnvelopeResponse(NotificationSettingsDto)
@@ -103,6 +114,8 @@ export class NotificationsApiController {
     return this.api.setQuietHours(user.sub, dto);
   }
 
+  // OQ-048: an assistant has their own notifications and devices.
+  @AssistantSelf()
   @Post('push-tokens')
   @HttpCode(204)
   @ApiOperation({ summary: 'Register this device for push (§9.5)' })
@@ -114,6 +127,8 @@ export class NotificationsApiController {
     await this.tokens.register(user.sub, user.sid, dto.token, dto.platform);
   }
 
+  // OQ-048: an assistant has their own notifications and devices.
+  @AssistantSelf()
   @Delete('push-tokens')
   @HttpCode(204)
   @ApiOperation({ summary: 'Unregister a device (sign-out) (§9.5)' })

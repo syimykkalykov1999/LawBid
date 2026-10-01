@@ -21,6 +21,7 @@ class MessageDto {
     required this.contactMasked,
     required this.createdAt,
     this.senderId,
+    this.sentByAssistant,
     this.voice,
     this.attachment,
     this.call,
@@ -33,6 +34,9 @@ class MessageDto {
   final String id;
   final String conversationId;
   final String? senderId;
+
+  /// OQ-048: sent by the attorney's assistant — their name (shown as "Assistant of …").
+  final String? sentByAssistant;
   final MessageDtoType type;
   final VoiceNoteDto? voice;
   final ChatAttachmentDto? attachment;

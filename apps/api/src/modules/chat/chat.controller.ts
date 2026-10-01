@@ -36,11 +36,14 @@ import {
   type MessagePage,
 } from './chat.dto';
 import { ChatService } from './chat.service';
+import { RequiresDuty } from '../auth/assistant/assistant-context';
 
 /** docs/05 §8, §15 "Чаты" (stage 5.7). */
 @ApiTags('chat')
 @ApiBearerAuth()
 @ApiErrors(AUTHENTICATED_ERRORS)
+// OQ-048: assistants use the attorney's chats with the "chats" duty.
+@RequiresDuty('chats')
 @Controller('conversations')
 export class ChatController {
   constructor(private readonly chat: ChatService) {}

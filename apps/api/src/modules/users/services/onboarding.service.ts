@@ -175,7 +175,10 @@ export class OnboardingService {
    * conditional updateMany makes two racing requests safe: only one can
    * move role from NULL. The client refreshes its tokens afterwards to
    * get the new `role` claim. */
-  async setRole(userId: string, role: 'client' | 'attorney'): Promise<void> {
+  async setRole(
+    userId: string,
+    role: 'client' | 'attorney' | 'assistant',
+  ): Promise<void> {
     const { count } = await this.prisma.user.updateMany({
       where: { id: userId, role: null },
       data: { role },
@@ -343,7 +346,11 @@ export function missingRequirements(
   if (!consentsGranted) missing.push('consents');
   if (user.role === null) missing.push('role');
   if (!user.first_name || !user.last_name) missing.push('name');
-  if (user.role === 'client' || user.role === 'attorney') {
+  if (
+    user.role === 'client' ||
+    user.role === 'attorney' ||
+    user.role === 'assistant'
+  ) {
     if (user.phone_verified_at === null) missing.push('phone_verified');
   }
   if (user.role === 'client' && user.email_verified_at === null) {

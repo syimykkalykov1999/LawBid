@@ -250,6 +250,14 @@ export class MessageDto {
   @ApiPropertyOptional({ type: String, nullable: true, format: 'uuid' })
   senderId!: string | null;
 
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description:
+      'OQ-048: sent by the attorney\'s assistant — their name (shown as "Assistant of …").',
+  })
+  sentByAssistant!: string | null;
+
   @ApiProperty({ enum: ['text', 'system', 'voice', 'call', 'attachment'] })
   type!: 'text' | 'system' | 'voice' | 'call' | 'attachment';
 

@@ -29,6 +29,7 @@ import type { RequestMeta } from '../../auth/services/session.service';
 import { BidIdParamDto } from '../dto/bid-requests.dto';
 import { BidDto } from '../dto/bid-responses.dto';
 import { BidAcceptanceService } from './bid-acceptance.service';
+import { AttorneyOnly } from '../../auth/assistant/assistant-context';
 
 const E = ErrorCode;
 
@@ -40,6 +41,7 @@ const E = ErrorCode;
 export class BidAcceptanceController {
   constructor(private readonly acceptance: BidAcceptanceService) {}
 
+  @AttorneyOnly()
   @Post('bids/:id/accept')
   @HttpCode(HttpStatus.OK)
   @UseInterceptors(IdempotencyInterceptor)

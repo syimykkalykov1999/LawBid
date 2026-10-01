@@ -34,6 +34,7 @@ import {
   CreateBidDto,
 } from './dto/bid-requests.dto';
 import { BidDto } from './dto/bid-responses.dto';
+import { AttorneyOnly } from '../auth/assistant/assistant-context';
 
 const E = ErrorCode;
 
@@ -49,6 +50,7 @@ const E = ErrorCode;
 export class BidsController {
   constructor(private readonly bids: BidsService) {}
 
+  @AttorneyOnly()
   @Post('cases/:caseId/bids')
   @UseGuards(RequireIdempotencyKeyGuard)
   @UseInterceptors(IdempotencyInterceptor)
@@ -88,6 +90,7 @@ export class BidsController {
     return this.bids.get(user, params.id);
   }
 
+  @AttorneyOnly()
   @Post('bids/:id/withdraw')
   @UseInterceptors(IdempotencyInterceptor)
   @ApiOperation({ summary: 'Withdraw a bid (attorney, while active)' })
@@ -105,6 +108,7 @@ export class BidsController {
     return this.bids.withdraw(user, params.id);
   }
 
+  @AttorneyOnly()
   @Post('bids/:id/decline')
   @UseInterceptors(IdempotencyInterceptor)
   @ApiOperation({ summary: 'Decline a bid (client)' })
@@ -122,6 +126,7 @@ export class BidsController {
     return this.bids.decline(user, params.id);
   }
 
+  @AttorneyOnly()
   @Post('bids/:id/counter')
   @UseInterceptors(IdempotencyInterceptor)
   @ApiOperation({

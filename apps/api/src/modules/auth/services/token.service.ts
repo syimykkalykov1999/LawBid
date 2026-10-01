@@ -14,6 +14,15 @@ export interface AccessTokenClaims {
   sid: string; // session_chain_id, stable across refresh rotation
   verified: boolean;
   subscriptionStatus: string;
+  /** OQ-048: set by JwtAuthGuard (never signed into a token) when an
+   * assistant acts inside the attorney's account — `sub` is then the
+   * attorney. */
+  assistant?: {
+    userId: string;
+    membershipId: string;
+    name: string;
+    duties: string[];
+  };
 }
 
 export interface ReauthTokenClaims {

@@ -20,28 +20,30 @@ import 'clients/admin_data_requests_client.dart';
 import 'clients/admin_config_client.dart';
 import 'clients/subscriptions_client.dart';
 import 'clients/admin_subscriptions_client.dart';
-import 'clients/users_client.dart';
-import 'clients/i18n_client.dart';
-import 'clients/admin_i18n_client.dart';
+import 'clients/assistants_client.dart';
+import 'clients/admin_teams_client.dart';
+import 'clients/posts_client.dart';
+import 'clients/comments_client.dart';
+import 'clients/case_comments_client.dart';
 import 'clients/cases_client.dart';
 import 'clients/mine_client.dart';
 import 'clients/admin_contact_issues_client.dart';
 import 'clients/admin_case_disputes_client.dart';
-import 'clients/posts_client.dart';
-import 'clients/case_history_client.dart';
-import 'clients/admin_moderation_client.dart';
-import 'clients/feed_client.dart';
-import 'clients/comments_client.dart';
-import 'clients/case_comments_client.dart';
-import 'clients/client_reviews_client.dart';
-import 'clients/admin_review_appeals_client.dart';
-import 'clients/reports_client.dart';
-import 'clients/follows_client.dart';
+import 'clients/users_client.dart';
 import 'clients/practice_areas_client.dart';
 import 'clients/attorneys_client.dart';
 import 'clients/profiles_client.dart';
 import 'clients/clients_client.dart';
 import 'clients/blocks_client.dart';
+import 'clients/i18n_client.dart';
+import 'clients/admin_i18n_client.dart';
+import 'clients/case_history_client.dart';
+import 'clients/admin_moderation_client.dart';
+import 'clients/feed_client.dart';
+import 'clients/client_reviews_client.dart';
+import 'clients/admin_review_appeals_client.dart';
+import 'clients/reports_client.dart';
+import 'clients/follows_client.dart';
 import 'clients/search_client.dart';
 import 'clients/chat_client.dart';
 import 'clients/calls_client.dart';
@@ -75,28 +77,30 @@ class LawbidApi {
   AdminConfigClient? _adminConfig;
   SubscriptionsClient? _subscriptions;
   AdminSubscriptionsClient? _adminSubscriptions;
-  UsersClient? _users;
-  I18nClient? _i18n;
-  AdminI18nClient? _adminI18n;
+  AssistantsClient? _assistants;
+  AdminTeamsClient? _adminTeams;
+  PostsClient? _posts;
+  CommentsClient? _comments;
+  CaseCommentsClient? _caseComments;
   CasesClient? _cases;
   MineClient? _mine;
   AdminContactIssuesClient? _adminContactIssues;
   AdminCaseDisputesClient? _adminCaseDisputes;
-  PostsClient? _posts;
-  CaseHistoryClient? _caseHistory;
-  AdminModerationClient? _adminModeration;
-  FeedClient? _feed;
-  CommentsClient? _comments;
-  CaseCommentsClient? _caseComments;
-  ClientReviewsClient? _clientReviews;
-  AdminReviewAppealsClient? _adminReviewAppeals;
-  ReportsClient? _reports;
-  FollowsClient? _follows;
+  UsersClient? _users;
   PracticeAreasClient? _practiceAreas;
   AttorneysClient? _attorneys;
   ProfilesClient? _profiles;
   ClientsClient? _clients;
   BlocksClient? _blocks;
+  I18nClient? _i18n;
+  AdminI18nClient? _adminI18n;
+  CaseHistoryClient? _caseHistory;
+  AdminModerationClient? _adminModeration;
+  FeedClient? _feed;
+  ClientReviewsClient? _clientReviews;
+  AdminReviewAppealsClient? _adminReviewAppeals;
+  ReportsClient? _reports;
+  FollowsClient? _follows;
   SearchClient? _search;
   ChatClient? _chat;
   CallsClient? _calls;
@@ -147,12 +151,19 @@ class LawbidApi {
   AdminSubscriptionsClient get adminSubscriptions =>
       _adminSubscriptions ??= AdminSubscriptionsClient(_dio, baseUrl: _baseUrl);
 
-  UsersClient get users => _users ??= UsersClient(_dio, baseUrl: _baseUrl);
+  AssistantsClient get assistants =>
+      _assistants ??= AssistantsClient(_dio, baseUrl: _baseUrl);
 
-  I18nClient get i18n => _i18n ??= I18nClient(_dio, baseUrl: _baseUrl);
+  AdminTeamsClient get adminTeams =>
+      _adminTeams ??= AdminTeamsClient(_dio, baseUrl: _baseUrl);
 
-  AdminI18nClient get adminI18n =>
-      _adminI18n ??= AdminI18nClient(_dio, baseUrl: _baseUrl);
+  PostsClient get posts => _posts ??= PostsClient(_dio, baseUrl: _baseUrl);
+
+  CommentsClient get comments =>
+      _comments ??= CommentsClient(_dio, baseUrl: _baseUrl);
+
+  CaseCommentsClient get caseComments =>
+      _caseComments ??= CaseCommentsClient(_dio, baseUrl: _baseUrl);
 
   CasesClient get cases => _cases ??= CasesClient(_dio, baseUrl: _baseUrl);
 
@@ -164,33 +175,7 @@ class LawbidApi {
   AdminCaseDisputesClient get adminCaseDisputes =>
       _adminCaseDisputes ??= AdminCaseDisputesClient(_dio, baseUrl: _baseUrl);
 
-  PostsClient get posts => _posts ??= PostsClient(_dio, baseUrl: _baseUrl);
-
-  CaseHistoryClient get caseHistory =>
-      _caseHistory ??= CaseHistoryClient(_dio, baseUrl: _baseUrl);
-
-  AdminModerationClient get adminModeration =>
-      _adminModeration ??= AdminModerationClient(_dio, baseUrl: _baseUrl);
-
-  FeedClient get feed => _feed ??= FeedClient(_dio, baseUrl: _baseUrl);
-
-  CommentsClient get comments =>
-      _comments ??= CommentsClient(_dio, baseUrl: _baseUrl);
-
-  CaseCommentsClient get caseComments =>
-      _caseComments ??= CaseCommentsClient(_dio, baseUrl: _baseUrl);
-
-  ClientReviewsClient get clientReviews =>
-      _clientReviews ??= ClientReviewsClient(_dio, baseUrl: _baseUrl);
-
-  AdminReviewAppealsClient get adminReviewAppeals =>
-      _adminReviewAppeals ??= AdminReviewAppealsClient(_dio, baseUrl: _baseUrl);
-
-  ReportsClient get reports =>
-      _reports ??= ReportsClient(_dio, baseUrl: _baseUrl);
-
-  FollowsClient get follows =>
-      _follows ??= FollowsClient(_dio, baseUrl: _baseUrl);
+  UsersClient get users => _users ??= UsersClient(_dio, baseUrl: _baseUrl);
 
   PracticeAreasClient get practiceAreas =>
       _practiceAreas ??= PracticeAreasClient(_dio, baseUrl: _baseUrl);
@@ -205,6 +190,31 @@ class LawbidApi {
       _clients ??= ClientsClient(_dio, baseUrl: _baseUrl);
 
   BlocksClient get blocks => _blocks ??= BlocksClient(_dio, baseUrl: _baseUrl);
+
+  I18nClient get i18n => _i18n ??= I18nClient(_dio, baseUrl: _baseUrl);
+
+  AdminI18nClient get adminI18n =>
+      _adminI18n ??= AdminI18nClient(_dio, baseUrl: _baseUrl);
+
+  CaseHistoryClient get caseHistory =>
+      _caseHistory ??= CaseHistoryClient(_dio, baseUrl: _baseUrl);
+
+  AdminModerationClient get adminModeration =>
+      _adminModeration ??= AdminModerationClient(_dio, baseUrl: _baseUrl);
+
+  FeedClient get feed => _feed ??= FeedClient(_dio, baseUrl: _baseUrl);
+
+  ClientReviewsClient get clientReviews =>
+      _clientReviews ??= ClientReviewsClient(_dio, baseUrl: _baseUrl);
+
+  AdminReviewAppealsClient get adminReviewAppeals =>
+      _adminReviewAppeals ??= AdminReviewAppealsClient(_dio, baseUrl: _baseUrl);
+
+  ReportsClient get reports =>
+      _reports ??= ReportsClient(_dio, baseUrl: _baseUrl);
+
+  FollowsClient get follows =>
+      _follows ??= FollowsClient(_dio, baseUrl: _baseUrl);
 
   SearchClient get search => _search ??= SearchClient(_dio, baseUrl: _baseUrl);
 

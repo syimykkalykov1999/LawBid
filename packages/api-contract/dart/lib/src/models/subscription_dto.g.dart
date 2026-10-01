@@ -12,6 +12,8 @@ SubscriptionDto _$SubscriptionDtoFromJson(Map<String, dynamic> json) =>
       status: SubscriptionDtoStatus.fromJson(json['status'] as String),
       isActive: json['isActive'] as bool,
       priceCents: (json['priceCents'] as num).toInt(),
+      plan: SubscriptionPlan.fromJson(json['plan'] as String),
+      assistantSeats: (json['assistantSeats'] as num).toInt(),
       trialEndsAt: json['trialEndsAt'] == null
           ? null
           : DateTime.parse(json['trialEndsAt'] as String),
@@ -34,6 +36,8 @@ Map<String, dynamic> _$SubscriptionDtoToJson(SubscriptionDto instance) =>
       'status': instance.status.toJson(),
       'isActive': instance.isActive,
       'priceCents': instance.priceCents,
+      'plan': instance.plan.toJson(),
+      'assistantSeats': instance.assistantSeats,
       'trialEndsAt': ?instance.trialEndsAt?.toIso8601String(),
       'currentPeriodEnd': ?instance.currentPeriodEnd?.toIso8601String(),
       'cancelAtPeriodEnd': instance.cancelAtPeriodEnd,

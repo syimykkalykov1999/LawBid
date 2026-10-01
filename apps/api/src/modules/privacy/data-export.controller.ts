@@ -27,6 +27,7 @@ import {
 import { ReauthVerifier } from '../auth/services/reauth-verifier.service';
 import { DataExportRunner } from './data-export.runner';
 import { DataExportIdParamDto, DataExportJobDto } from './privacy.dto';
+import { AttorneyOnly } from '../auth/assistant/assistant-context';
 
 const E = ErrorCode;
 
@@ -37,6 +38,7 @@ const E = ErrorCode;
 @ApiTags('users')
 @ApiBearerAuth()
 @ApiErrors(AUTHENTICATED_ERRORS)
+@AttorneyOnly()
 @Controller('users/me/data-export')
 export class DataExportController {
   constructor(

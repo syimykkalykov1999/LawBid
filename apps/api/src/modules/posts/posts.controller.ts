@@ -43,6 +43,7 @@ import {
 } from './dto/posts.dto';
 import { PostEngagementService } from './post-engagement.service';
 import { PostsService } from './posts.service';
+import { AttorneyOnly } from '../auth/assistant/assistant-context';
 
 const E = ErrorCode;
 
@@ -57,6 +58,7 @@ export class PostsController {
     private readonly engagement: PostEngagementService,
   ) {}
 
+  @AttorneyOnly()
   @Post('posts')
   @UseGuards(RequireIdempotencyKeyGuard)
   @UseInterceptors(IdempotencyInterceptor)
@@ -89,6 +91,7 @@ export class PostsController {
     return this.posts.get(user, p.id);
   }
 
+  @AttorneyOnly()
   @Patch('posts/:id')
   @ApiOperation({
     summary: 'Edit the title, text or qualification of an own post',

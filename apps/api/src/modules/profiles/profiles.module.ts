@@ -27,6 +27,10 @@ import { PracticeAreasService } from './services/practice-areas.service';
     AttorneyProfilesService,
     ClientProfilesService,
   ],
-  exports: [PracticeAreasService, ClientProfilesService],
+  exports: [
+    PracticeAreasService,
+    ClientProfilesService,
+    AttorneyProfilesService,
+  ],
 })
 export class ProfilesModule {}

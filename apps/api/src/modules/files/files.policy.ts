@@ -105,6 +105,29 @@ export const PURPOSE_RULES: Record<FilePurpose, PurposeRule> = {
     sizeSetting: 'files.chat_max_size_mb',
     bucket: 'documents',
   },
+  // OQ-048: documents an assistant attaches to a task (same formats).
+  task_attachment: {
+    mimes: [
+      ...IMAGES,
+      FILE_MIME.webp,
+      FILE_MIME.gif,
+      FILE_MIME.pdf,
+      FILE_MIME.doc,
+      FILE_MIME.docx,
+      FILE_MIME.xls,
+      FILE_MIME.xlsx,
+      FILE_MIME.ppt,
+      FILE_MIME.pptx,
+      FILE_MIME.odt,
+      FILE_MIME.ods,
+      FILE_MIME.odp,
+      FILE_MIME.rtf,
+      FILE_MIME.txt,
+      FILE_MIME.csv,
+    ],
+    sizeSetting: 'files.chat_max_size_mb',
+    bucket: 'documents',
+  },
   // OQ-040: voice messages; private (only the two chat members get a
   // short signed link).
   chat_voice: {

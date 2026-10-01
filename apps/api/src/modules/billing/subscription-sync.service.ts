@@ -51,6 +51,15 @@ export class SubscriptionSyncService {
       case 'invoice.payment_action_required':
         await this.onInvoice(o.id, event.type);
         return;
+      case 'checkout.session.completed': {
+        // Owner 2026-09-30: paid on Stripe's hosted page — sync the new
+        // subscription (the app's /checkout/complete applies the card
+        // trial rule too).
+        const session = await this.provider.retrieveCheckoutSession(o.id);
+        if (session?.subscriptionId)
+          await this.syncById(session.subscriptionId);
+        return;
+      }
       case 'setup_intent.succeeded':
         // The card is bound; POST /subscriptions/confirm reads it. Nothing
         // to sync yet.

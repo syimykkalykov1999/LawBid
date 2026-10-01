@@ -41,6 +41,7 @@ import {
   VerificationRequestDto,
 } from '../dto/verification-responses.dto';
 import { VerificationRequestsService } from '../services/verification-requests.service';
+import { AttorneyOnly } from '../../auth/assistant/assistant-context';
 
 const E = ErrorCode;
 const IDEMPOTENCY_HEADER = {
@@ -62,6 +63,7 @@ const ATTORNEY_ERRORS = {
 @ApiTags('verification')
 @ApiBearerAuth()
 @ApiErrors(AUTHENTICATED_ERRORS)
+@AttorneyOnly()
 @Controller('verification')
 export class VerificationController {
   constructor(private readonly requests: VerificationRequestsService) {}

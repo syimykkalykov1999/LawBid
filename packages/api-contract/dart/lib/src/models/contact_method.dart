@@ -4,7 +4,6 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-/// Client only.
 @JsonEnum()
 enum ContactMethod {
   @JsonValue('call')

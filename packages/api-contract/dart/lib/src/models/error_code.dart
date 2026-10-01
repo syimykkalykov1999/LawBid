@@ -96,6 +96,18 @@ enum ErrorCode {
   reviewAppealExists('REVIEW_APPEAL_EXISTS'),
   @JsonValue('CHAT_ATTACHMENTS_LOCKED')
   chatAttachmentsLocked('CHAT_ATTACHMENTS_LOCKED'),
+  @JsonValue('SUBSCRIPTION_PLAN_INCLUDES_SEATS')
+  subscriptionPlanIncludesSeats('SUBSCRIPTION_PLAN_INCLUDES_SEATS'),
+  @JsonValue('ASSISTANT_SEATS_IN_USE')
+  assistantSeatsInUse('ASSISTANT_SEATS_IN_USE'),
+  @JsonValue('ASSISTANT_NO_FREE_SEAT')
+  assistantNoFreeSeat('ASSISTANT_NO_FREE_SEAT'),
+  @JsonValue('ASSISTANT_NOT_ALLOWED')
+  assistantNotAllowed('ASSISTANT_NOT_ALLOWED'),
+  @JsonValue('ASSISTANT_PHONE_TAKEN')
+  assistantPhoneTaken('ASSISTANT_PHONE_TAKEN'),
+  @JsonValue('ASSISTANT_INVITE_NOT_FOUND')
+  assistantInviteNotFound('ASSISTANT_INVITE_NOT_FOUND'),
   @JsonValue('ATTORNEY_NOT_VERIFIED')
   attorneyNotVerified('ATTORNEY_NOT_VERIFIED'),
   @JsonValue('USERNAME_TAKEN')

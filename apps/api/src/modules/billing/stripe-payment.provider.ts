@@ -2,6 +2,7 @@ import Stripe from 'stripe';
 import {
   type PaymentProvider,
   type ProviderCharge,
+  type ProviderCheckoutSession,
   type ProviderEvent,
   type ProviderInvoice,
   type ProviderSetupIntent,
@@ -157,6 +158,81 @@ export class StripePaymentProvider implements PaymentProvider {
     return s.url;
   }
 
+  async setSeatQuantity(
+    subscriptionId: string,
+    seatPriceId: string,
+    quantity: number,
+  ): Promise<ProviderSubscription> {
+    const sub = await this.stripe.subscriptions.retrieve(subscriptionId);
+    const item = sub.items.data.find((i) => i.price.id === seatPriceId);
+    const items: Stripe.SubscriptionUpdateParams.Item[] = item
+      ? quantity > 0
+        ? [{ id: item.id, quantity }]
+        : [{ id: item.id, deleted: true }]
+      : quantity > 0
+        ? [{ price: seatPriceId, quantity }]
+        : [];
+    return mapSubscription(
+      await this.stripe.subscriptions.update(subscriptionId, {
+        items,
+        proration_behavior: 'create_prorations',
+      }),
+    );
+  }
+
+  async endTrialNow(id: string): Promise<ProviderSubscription> {
+    return mapSubscription(
+      await this.stripe.subscriptions.update(id, { trial_end: 'now' }),
+    );
+  }
+
+  async createCheckoutSession(input: {
+    customerId: string;
+    lineItems: { priceId: string; quantity: number }[];
+    trialDays: number | null;
+    successUrl: string;
+    cancelUrl: string;
+    metadata: Record<string, string>;
+  }): Promise<ProviderCheckoutSession> {
+    const s = await this.stripe.checkout.sessions.create({
+      mode: 'subscription',
+      customer: input.customerId,
+      line_items: input.lineItems.map((l) => ({
+        price: l.priceId,
+        quantity: l.quantity,
+      })),
+      payment_method_collection: 'always',
+      subscription_data: {
+        ...(input.trialDays ? { trial_period_days: input.trialDays } : {}),
+        metadata: input.metadata,
+      },
+      metadata: input.metadata,
+      client_reference_id: input.metadata.userId,
+      success_url: input.successUrl,
+      cancel_url: input.cancelUrl,
+      allow_promotion_codes: true,
+      // Our words under the button (logo and colours: Stripe Dashboard →
+      // Settings → Branding).
+      custom_text: {
+        submit: {
+          message:
+            'LawBid Attorney subscription. Cancel anytime in the app → Subscription.',
+        },
+      },
+    });
+    return mapCheckout(s);
+  }
+
+  async retrieveCheckoutSession(
+    id: string,
+  ): Promise<ProviderCheckoutSession | null> {
+    try {
+      return mapCheckout(await this.stripe.checkout.sessions.retrieve(id));
+    } catch {
+      return null;
+    }
+  }
+
   async retrieveInvoice(id: string): Promise<ProviderInvoice | null> {
     try {
       const inv = await this.stripe.invoices.retrieve(id);
@@ -275,5 +351,18 @@ function mapInvoice(inv: Stripe.Invoice): ProviderInvoice {
     paidAt: inv.status_transitions?.paid_at ?? null,
     paymentIntentId: typeof pi === 'string' ? pi : (pi?.id ?? null),
     failureCode: null,
+  };
+}
+
+function mapCheckout(s: Stripe.Checkout.Session): ProviderCheckoutSession {
+  const ref = (v: string | { id: string } | null | undefined) =>
+    v == null ? null : typeof v === 'string' ? v : v.id;
+  return {
+    id: s.id,
+    url: s.url ?? null,
+    status: (s.status ?? 'open') as ProviderCheckoutSession['status'],
+    customerId: ref(s.customer),
+    subscriptionId: ref(s.subscription),
+    metadata: s.metadata ?? {},
   };
 }

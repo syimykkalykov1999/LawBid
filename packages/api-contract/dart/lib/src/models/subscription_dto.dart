@@ -5,6 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'subscription_dto_status.dart';
+import 'subscription_plan.dart';
 
 part 'subscription_dto.g.dart';
 
@@ -15,6 +16,8 @@ class SubscriptionDto {
     required this.status,
     required this.isActive,
     required this.priceCents,
+    required this.plan,
+    required this.assistantSeats,
     required this.trialEndsAt,
     required this.currentPeriodEnd,
     required this.cancelAtPeriodEnd,
@@ -32,6 +35,8 @@ class SubscriptionDto {
   /// docs/06 §1.2 verdict (trial / active / grace).
   final bool isActive;
   final int priceCents;
+  final SubscriptionPlan plan;
+  final int assistantSeats;
   final DateTime? trialEndsAt;
   final DateTime? currentPeriodEnd;
   final bool cancelAtPeriodEnd;

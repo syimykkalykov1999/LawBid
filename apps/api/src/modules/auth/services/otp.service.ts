@@ -27,7 +27,8 @@ const SMS_ALLOWED_COUNTRIES_CONFIG_KEY = 'sms.allowed_country_codes';
 export type OtpChannel = 'phone' | 'email';
 /** Keeps a login OTP's Redis keys from colliding with a "verify new
  * contact" OTP for the same phone/email requested concurrently. */
-export type OtpPurpose = 'login' | 'contact' | 'admin';
+// OQ-048: 'assistant' — the code a joining assistant gets from the attorney.
+export type OtpPurpose = 'login' | 'contact' | 'admin' | 'assistant';
 
 export type OtpVerifyResult = 'ok' | 'invalid' | 'expired' | 'locked';
 

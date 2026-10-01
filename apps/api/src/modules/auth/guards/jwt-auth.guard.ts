@@ -1,9 +1,16 @@
 import {
   CanActivate,
   ExecutionContext,
+  ForbiddenException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
+import {
+  ASSISTANT_SELF,
+  ATTORNEY_ONLY,
+  AssistantContextService,
+  REQUIRES_DUTY,
+} from '../assistant/assistant-context';
 import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
@@ -40,6 +47,7 @@ export class JwtAuthGuard implements CanActivate {
     private readonly reflector: Reflector,
     private readonly tokenService: TokenService,
     private readonly revocation: SessionRevocationService,
+    private readonly assistants: AssistantContextService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -88,6 +96,54 @@ export class JwtAuthGuard implements CanActivate {
         code: ErrorCode.AUTH_SESSION_REVOKED,
         message: 'Session has been revoked.',
       });
+    }
+
+    // OQ-048: an assistant works inside the attorney's account — every
+    // attorney endpoint then serves the attorney's data, with the
+    // assistant kept on `user.assistant` for limits and the activity log.
+    if (claims.role === 'assistant') {
+      const self = this.reflector.getAllAndOverride<boolean>(ASSISTANT_SELF, [
+        context.getHandler(),
+        context.getClass(),
+      ]);
+      const ctx = self ? null : await this.assistants.resolve(claims.sub);
+      if (ctx) {
+        const attorneyOnly = this.reflector.getAllAndOverride<boolean>(
+          ATTORNEY_ONLY,
+          [context.getHandler(), context.getClass()],
+        );
+        if (attorneyOnly) {
+          throw new ForbiddenException({
+            code: ErrorCode.ASSISTANT_NOT_ALLOWED,
+            message: 'Only the attorney can do this.',
+          });
+        }
+        const duty = this.reflector.getAllAndOverride<string>(REQUIRES_DUTY, [
+          context.getHandler(),
+          context.getClass(),
+        ]);
+        if (duty && !ctx.duties.includes(duty)) {
+          throw new ForbiddenException({
+            code: ErrorCode.ASSISTANT_NOT_ALLOWED,
+            message: 'The attorney has not given you this duty.',
+            details: { duty },
+          });
+        }
+        req.user = {
+          ...claims,
+          sub: ctx.attorneyId,
+          role: 'attorney',
+          verified: true,
+          assistant: {
+            userId: claims.sub,
+            membershipId: ctx.membershipId,
+            name: ctx.name,
+            duties: ctx.duties,
+          },
+        };
+        req.userId = ctx.attorneyId;
+        return true;
+      }
     }
 
     req.user = claims;

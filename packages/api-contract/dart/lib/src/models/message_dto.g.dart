@@ -14,6 +14,7 @@ MessageDto _$MessageDtoFromJson(Map<String, dynamic> json) => MessageDto(
   contactMasked: json['contactMasked'] as bool,
   createdAt: DateTime.parse(json['createdAt'] as String),
   senderId: json['senderId'] as String?,
+  sentByAssistant: json['sentByAssistant'] as String?,
   voice: json['voice'] == null
       ? null
       : VoiceNoteDto.fromJson(json['voice'] as Map<String, dynamic>),
@@ -31,6 +32,7 @@ Map<String, dynamic> _$MessageDtoToJson(MessageDto instance) =>
       'id': instance.id,
       'conversationId': instance.conversationId,
       'senderId': ?instance.senderId,
+      'sentByAssistant': ?instance.sentByAssistant,
       'type': instance.type.toJson(),
       'voice': ?instance.voice?.toJson(),
       'attachment': ?instance.attachment?.toJson(),

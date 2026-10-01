@@ -11,5 +11,6 @@ import { CaseCommentsService } from './case-comments.service';
   imports: [UsageLimitsModule, NotificationsModule, FilesModule, CasesModule],
   controllers: [CaseCommentsController],
   providers: [CaseCommentsService],
+  exports: [CaseCommentsService],
 })
 export class CaseCommentsModule {}

@@ -34,6 +34,7 @@ import {
 } from '../dto/practice-areas.dto';
 import { AttorneyProfilesService } from '../services/attorney-profiles.service';
 import { PracticeAreasService } from '../services/practice-areas.service';
+import { AttorneyOnly } from '../../auth/assistant/assistant-context';
 
 const E = ErrorCode;
 
@@ -62,6 +63,7 @@ export class AttorneysController {
     return this.profiles.getOwn(user.sub);
   }
 
+  @AttorneyOnly()
   @Patch('me/profile')
   @ApiEnvelopeResponse(OwnAttorneyProfileDto)
   @ApiErrors({
@@ -86,6 +88,7 @@ export class AttorneysController {
     return this.practices.selected(user.sub);
   }
 
+  @AttorneyOnly()
   @Put('me/practice-areas')
   @ApiEnvelopeResponse(SelectedPracticeAreaDto, { isArray: true })
   @ApiErrors({

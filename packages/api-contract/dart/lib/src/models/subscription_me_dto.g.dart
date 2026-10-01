@@ -13,6 +13,7 @@ SubscriptionMeDto _$SubscriptionMeDtoFromJson(Map<String, dynamic> json) =>
           : SubscriptionDto.fromJson(
               json['subscription'] as Map<String, dynamic>,
             ),
+      prices: PlanPricesDto.fromJson(json['prices'] as Map<String, dynamic>),
       isActive: json['isActive'] as bool,
       canStart: json['canStart'] as bool,
       trialEligible: json['trialEligible'] as bool,
@@ -22,6 +23,7 @@ SubscriptionMeDto _$SubscriptionMeDtoFromJson(Map<String, dynamic> json) =>
 Map<String, dynamic> _$SubscriptionMeDtoToJson(SubscriptionMeDto instance) =>
     <String, dynamic>{
       'subscription': ?instance.subscription?.toJson(),
+      'prices': instance.prices.toJson(),
       'isActive': instance.isActive,
       'canStart': instance.canStart,
       'trialEligible': instance.trialEligible,

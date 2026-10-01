@@ -50,6 +50,7 @@ import { AdminCasesModule } from './modules/admin-cases/admin-cases.module';
 import { AdminDataRequestsModule } from './modules/admin-data-requests/admin-data-requests.module';
 import { AdminConfigModule } from './modules/admin-config/admin-config.module';
 import { BillingModule } from './modules/billing/billing.module';
+import { AssistantsModule } from './modules/assistants/assistants.module';
 import { PrivacyModule } from './modules/privacy/privacy.module';
 import { CostGuardModule } from './common/cost-guard/cost-guard.module';
 import { JobsModule } from './jobs/jobs.module';
@@ -145,6 +146,7 @@ const isDev =
     AdminConfigModule,
     // docs/06 §1 (stage 6.7): Stripe subscriptions, webhooks, admin extend.
     BillingModule.register({ mode: 'api' }),
+    AssistantsModule,
     // docs/06 §5 (stage 6.9): data export endpoint + privacy services.
     PrivacyModule.register({ mode: 'api' }),
     UsersModule,

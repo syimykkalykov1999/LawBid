@@ -5,6 +5,8 @@
 import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
+import '../models/bid_draft_body_dto.dart';
+import '../models/bid_draft_envelope.dart';
 import '../models/bid_envelope.dart';
 import '../models/counter_offer_dto.dart';
 import '../models/create_bid_dto.dart';
@@ -55,6 +57,28 @@ abstract class BidsClient {
   /// Accept a bid (whichever party's turn it is): case → in_progress, other bids auto-rejected, contacts disclosed
   @POST('/bids/{id}/accept')
   Future<BidEnvelope> acceptBid({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// The bid draft prepared for this case
+  @GET('/cases/{id}/bid-draft')
+  Future<BidDraftEnvelope> getBidDraft({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Save a bid draft (the attorney reviews and sends)
+  @PUT('/cases/{id}/bid-draft')
+  Future<BidDraftEnvelope> saveBidDraft({
+    @Path('id') required String id,
+    @Body() required BidDraftBodyDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Discard the bid draft
+  @DELETE('/cases/{id}/bid-draft')
+  Future<void> deleteBidDraft({
     @Path('id') required String id,
     @Extras() Map<String, dynamic>? extras,
   });

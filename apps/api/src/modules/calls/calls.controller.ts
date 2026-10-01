@@ -18,11 +18,14 @@ import {
   IceServersDto,
 } from './calls.dto';
 import { CallsService } from './calls.service';
+import { RequiresDuty } from '../auth/assistant/assistant-context';
 
 /** OQ-041: in-app audio calls (signaling over the realtime socket). */
 @ApiTags('calls')
 @ApiBearerAuth()
 @ApiErrors(AUTHENTICATED_ERRORS)
+// OQ-048: assistants answer the attorney's calls with the "calls" duty.
+@RequiresDuty('calls')
 @Controller()
 export class CallsController {
   constructor(private readonly calls: CallsService) {}

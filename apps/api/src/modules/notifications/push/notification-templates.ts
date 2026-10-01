@@ -203,6 +203,45 @@ export const NOTIFICATION_TEMPLATES: Partial<
       body: 'Опубликован новый кейс по вашим практикам.',
     },
   },
+  // OQ-048.
+  assistant_request: {
+    group: 'messages',
+    en: {
+      title: 'Approval needed',
+      body: 'Your assistant asks you to approve something.',
+    },
+    ru: {
+      title: 'Нужно ваше разрешение',
+      body: 'Помощник просит разрешение на публикацию или изменение.',
+    },
+  },
+  assistant_task: {
+    group: 'cases',
+    en: { title: 'New task', body: 'Your assistant set a task for you.' },
+    ru: { title: 'Новая задача', body: 'Помощник поставил вам задачу.' },
+  },
+  assistant_joined: {
+    group: 'system',
+    en: {
+      title: 'Assistant joined',
+      body: 'An assistant joined your account.',
+    },
+    ru: {
+      title: 'Помощник подключился',
+      body: 'Помощник вошёл в ваш аккаунт.',
+    },
+  },
+  assistant_result: {
+    group: 'messages',
+    en: {
+      title: 'The attorney answered',
+      body: 'Open Results to see the decision.',
+    },
+    ru: {
+      title: 'Адвокат ответил',
+      body: 'Откройте «Результаты», чтобы увидеть решение.',
+    },
+  },
   // OQ-041.
   missed_call: {
     group: 'messages',

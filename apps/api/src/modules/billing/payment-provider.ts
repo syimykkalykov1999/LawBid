@@ -65,6 +65,16 @@ export interface ProviderEvent {
   object: { object: string; id: string } & Record<string, unknown>;
 }
 
+/** Owner 2026-09-30: a hosted Stripe Checkout page (web payment). */
+export interface ProviderCheckoutSession {
+  id: string;
+  url: string | null;
+  status: 'open' | 'complete' | 'expired';
+  customerId: string | null;
+  subscriptionId: string | null;
+  metadata: Record<string, string>;
+}
+
 export class WebhookSignatureError extends Error {}
 
 export interface PaymentProvider {
@@ -96,7 +106,28 @@ export interface PaymentProvider {
   cancelNow(id: string): Promise<ProviderSubscription>;
   /** §1.6 "продлить подписку на N дней": moves trial_end / the period. */
   extendUntil(id: string, untilUnix: number): Promise<ProviderSubscription>;
+  /** §1.1 on web checkout: a card that already had a trial pays now. */
+  endTrialNow(id: string): Promise<ProviderSubscription>;
   createPortalSession(customerId: string, returnUrl: string): Promise<string>;
+  /** Owner 2026-09-30: subscription checkout on Stripe's hosted page
+   * (cheapest store-compliant path; the app opens it in the browser). */
+  createCheckoutSession(input: {
+    customerId: string;
+    /** OQ-048: the plan's prices with quantities. */
+    lineItems: { priceId: string; quantity: number }[];
+    trialDays: number | null;
+    successUrl: string;
+    cancelUrl: string;
+    metadata: Record<string, string>;
+  }): Promise<ProviderCheckoutSession>;
+  retrieveCheckoutSession(id: string): Promise<ProviderCheckoutSession | null>;
+  /** OQ-048: set the assistant-seat quantity of a monthly subscription
+   * (0 removes the item; prorated). */
+  setSeatQuantity(
+    subscriptionId: string,
+    seatPriceId: string,
+    quantity: number,
+  ): Promise<ProviderSubscription>;
   retrieveInvoice(id: string): Promise<ProviderInvoice | null>;
   retrieveCharge(id: string): Promise<ProviderCharge | null>;
   /** Verifies the signature and parses the body; throws WebhookSignatureError. */
