@@ -474,6 +474,11 @@ class _MessageList extends ConsumerWidget {
                 seen: seen,
                 showSeenLabel: m.id == newestOwnSeen,
                 threadId: state.conversation?.id ?? m.conversationId,
+                // Owner 2026-10-01: the client sees "Assistant of <the
+                // attorney>", not the assistant's own account.
+                attorneyName: m.senderId == me
+                    ? null
+                    : state.conversation?.counterpart.displayName,
               ),
           ],
         );
@@ -566,7 +571,11 @@ class _Bubble extends ConsumerWidget {
     required this.seen,
     required this.showSeenLabel,
     required this.threadId,
+    this.attorneyName,
   });
+
+  /// Set when the message came from the other side (the attorney's team).
+  final String? attorneyName;
 
   final ChatMessage message;
   final bool mine;
@@ -678,7 +687,9 @@ class _Bubble extends ConsumerWidget {
                       size: 12, color: colors.gold),
                   const SizedBox(width: 3),
                   Text(
-                    t.t('assistant.of', {'name': m.sentByAssistant!}),
+                    attorneyName != null
+                        ? t.t('assistant.ofAttorney', {'name': attorneyName!})
+                        : t.t('assistant.of', {'name': m.sentByAssistant!}),
                     style: type.caption.copyWith(
                       color: colors.textSecondary,
                       fontSize: 11,

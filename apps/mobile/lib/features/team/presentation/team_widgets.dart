@@ -104,8 +104,10 @@ class _StatusPillSmall extends StatelessWidget {
   }
 }
 
-/// One approval request: kind, who, the content, the decision; with
-/// approve / reject for the attorney while pending.
+/// One approval request (owner 2026-10-01 redesign): who asked and when,
+/// the status; for a publication a compact preview like a feed card —
+/// Post / News, the qualification, the title, the text and the photos;
+/// approve / reject while pending.
 class RequestCard extends StatelessWidget {
   const RequestCard({
     required this.request,
@@ -129,55 +131,159 @@ class RequestCard extends StatelessWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final r = request;
-    final body = r.kind == RequestKind.post ? r.text('body') : '';
+    final post = r.kind == RequestKind.post;
+    final body = post ? r.text('body') : '';
     final pending = r.status == RequestStatus.pending;
-    return AppCard(
+    final initials = r.assistantName
+        .split(' ')
+        .where((w) => w.isNotEmpty)
+        .take(2)
+        .map((w) => w[0].toUpperCase())
+        .join();
+    Widget chip(String label, {bool gold = false, IconData? icon}) => Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: gold ? colors.goldTint : colors.navy,
+            borderRadius: BorderRadius.circular(AppRadii.pill),
+            border: gold ? Border.all(color: colors.goldStroke) : null,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon != null) ...[
+                Icon(icon,
+                    size: 13, color: gold ? colors.goldDark : colors.gold),
+                const SizedBox(width: 4),
+              ],
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: typography.caption.copyWith(
+                    color: gold ? colors.goldDark : Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+    return Container(
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(AppRadii.card),
+        border: Border.all(color: colors.border),
+        boxShadow: [
+          BoxShadow(
+            color: colors.shadow,
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(AppSpacing.md),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(
-                r.kind == RequestKind.post
-                    ? Icons.campaign_outlined
-                    : r.kind == RequestKind.profileEdit
-                        ? Icons.badge_outlined
-                        : Icons.mode_comment_outlined,
-                size: AppSizes.iconSm,
-                color: colors.gold,
+              CircleAvatar(
+                radius: 17,
+                backgroundColor: colors.goldTint,
+                child: Text(
+                  initials.isEmpty ? '•' : initials,
+                  style: typography.caption.copyWith(
+                    color: colors.goldDark,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
-                child: Text(
-                  '${requestKindLabel(t, r.kind)} · ${r.assistantName}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: typography.caption.copyWith(
-                    color: colors.textSecondary,
-                    fontWeight: FontWeight.w600,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      r.assistantName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: typography.bodySmall.copyWith(
+                        color: colors.text,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Text(
+                      '${requestKindLabel(t, r.kind)} · '
+                      '${formats.dateTime(r.decidedAt ?? r.createdAt)}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: typography.caption
+                          .copyWith(color: colors.textSecondary),
+                    ),
+                  ],
                 ),
               ),
               _StatusPillSmall(status: r.status, t: t),
             ],
           ),
-          const SizedBox(height: AppSpacing.sm),
+          const SizedBox(height: AppSpacing.md),
+          if (post)
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                if (r.practiceName != null)
+                  chip(r.practiceName!, icon: Icons.balance_rounded),
+                if (r.isNews)
+                  chip(t.t('post.kind.news'),
+                      gold: true, icon: Icons.newspaper_rounded),
+              ],
+            ),
+          if (post) const SizedBox(height: AppSpacing.sm),
           Text(
             r.headline,
             maxLines: 3,
             overflow: TextOverflow.ellipsis,
             style: typography.body.copyWith(
               color: colors.text,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w700,
+              height: 1.3,
             ),
           ),
           if (body.isNotEmpty) ...[
             const SizedBox(height: 4),
             Text(
               body,
-              maxLines: 4,
+              maxLines: 3,
               overflow: TextOverflow.ellipsis,
-              style: typography.bodySmall.copyWith(color: colors.text),
+              style: typography.bodySmall
+                  .copyWith(color: colors.textSecondary, height: 1.4),
+            ),
+          ],
+          if (r.mediaUrls.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.sm),
+            SizedBox(
+              height: 72,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: r.mediaUrls.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 6),
+                itemBuilder: (_, i) => ClipRRect(
+                  borderRadius: BorderRadius.circular(AppRadii.field),
+                  child: Image.network(
+                    r.mediaUrls[i],
+                    width: 72,
+                    height: 72,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      width: 72,
+                      color: colors.goldTint,
+                      child: Icon(Icons.image_outlined, color: colors.gold),
+                    ),
+                  ),
+                ),
+              ),
             ),
           ],
           if (r.note?.isNotEmpty ?? false) ...[
@@ -190,11 +296,6 @@ class RequestCard extends StatelessWidget {
               ),
             ),
           ],
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-            formats.dateTime(r.decidedAt ?? r.createdAt),
-            style: typography.caption.copyWith(color: colors.textSecondary),
-          ),
           if (pending && onApprove != null) ...[
             const SizedBox(height: AppSpacing.md),
             Row(
@@ -204,7 +305,7 @@ class RequestCard extends StatelessWidget {
                     key: ValueKey('request-reject-${r.id}'),
                     label: t.t('team.reject'),
                     variant: AppButtonVariant.secondary,
-                    height: AppSizes.touchTarget,
+                    height: 44,
                     isLoading: busy,
                     onPressed: onReject,
                   ),
@@ -215,7 +316,7 @@ class RequestCard extends StatelessWidget {
                     key: ValueKey('request-approve-${r.id}'),
                     label: t.t('team.approve'),
                     icon: Icons.check_rounded,
-                    height: AppSizes.touchTarget,
+                    height: 44,
                     isLoading: busy,
                     onPressed: onApprove,
                   ),

@@ -350,7 +350,11 @@ class TaskMark extends StatelessWidget {
     final (Color color, IconData? icon, bool filled) = switch (status) {
       TaskStatus.done => (colors.success, Icons.check_rounded, true),
       TaskStatus.notDone => (colors.danger, Icons.close_rounded, true),
-      TaskStatus.cancelled => (colors.textSecondary, Icons.remove_rounded, true),
+      TaskStatus.cancelled => (
+          colors.textSecondary,
+          Icons.remove_rounded,
+          true
+        ),
       TaskStatus.taken => (colors.navy, null, false),
       TaskStatus.open => (colors.textSecondary, null, false),
     };

@@ -182,7 +182,15 @@ class AssistantRequest {
     this.resultId,
     this.note,
     this.decidedAt,
+    this.mediaUrls = const [],
+    this.practiceName,
   });
+
+  /// Post requests: photo previews and the qualification.
+  final List<String> mediaUrls;
+  final String? practiceName;
+
+  bool get isNews => text('kind') == 'news';
 
   final String id;
   final String membershipId;

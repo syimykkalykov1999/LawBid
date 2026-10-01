@@ -188,8 +188,8 @@ class _TaskList extends ConsumerWidget {
                 padding: const EdgeInsets.only(bottom: AppSpacing.xs),
                 child: Text(
                   t.t('tasks.doubleTapHint'),
-                  style: typography.caption
-                      .copyWith(color: colors.textSecondary),
+                  style:
+                      typography.caption.copyWith(color: colors.textSecondary),
                 ),
               ),
             for (final (si, s) in groupTasksByDay(value, t, formats,

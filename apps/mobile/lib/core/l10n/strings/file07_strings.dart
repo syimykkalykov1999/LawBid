@@ -93,6 +93,7 @@ const file07Ru = <String, String>{
   'assistant.join.done': 'Вы подключены к {name}',
   'assistant.banner': 'Вы — помощник {name}',
   'assistant.of': 'Помощник · {name}',
+  'assistant.ofAttorney': 'Помощник адвоката {name}',
   'assistant.mode.noBids':
       'Ставки отправляет адвокат. Сохраните черновик — адвокат проверит и отправит.',
   'assistant.leave': 'Выйти из аккаунта',
@@ -380,6 +381,7 @@ const file07En = <String, String>{
   'assistant.join.done': "You've joined {name}",
   'assistant.banner': "You're {name}'s assistant",
   'assistant.of': 'Assistant · {name}',
+  'assistant.ofAttorney': 'Assistant of {name}',
   'assistant.mode.noBids':
       'The attorney sends bids. Save a draft — they review and send it.',
   'assistant.leave': 'Sign out',

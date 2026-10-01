@@ -257,7 +257,12 @@ export class PushDispatcher
       }),
       this.prisma.message.findUnique({
         where: { id: data.messageId },
-        select: { body_display: true, type: true, deleted_at: true },
+        select: {
+          body_display: true,
+          type: true,
+          deleted_at: true,
+          sent_by_name: true,
+        },
       }),
     ]);
     if (!user || user.status !== 'active' || !part || !message) {
@@ -293,12 +298,18 @@ export class PushDispatcher
           message.type === 'attachment'
           ? (ru ? '📎 Файл' : '📎 File') + (caption ? `: ${caption}` : '')
           : caption;
+    // Owner 2026-10-01: an assistant's message says so (not who exactly).
+    const from = message.sent_by_name
+      ? ru
+        ? 'Помощник адвоката: '
+        : "Attorney's assistant: "
+      : '';
     const badge = (await this.badges.get(data.recipientId)).total;
     await this.sender.send(
       {
         userId: data.recipientId,
         title: text.title,
-        body: preview || text.body,
+        body: from + (preview || text.body),
         data: {
           type: 'new_message',
           conversationId: data.conversationId,

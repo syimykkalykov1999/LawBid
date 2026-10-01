@@ -154,6 +154,8 @@ class ApiTeamRepository implements TeamRepository {
         status: RequestStatus.parse(r.status.json),
         resultId: r.resultId,
         note: r.note,
+        mediaUrls: r.mediaUrls,
+        practiceName: r.practiceName,
         createdAt: _date(r.createdAt) ?? DateTime.now(),
         decidedAt: _date(r.decidedAt),
       );
