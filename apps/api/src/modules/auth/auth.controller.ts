@@ -46,6 +46,7 @@ import {
   SessionDto,
   SessionEndedDto,
 } from './dto/auth-responses.dto';
+import { ContinueLoginDto } from './dto/continue-login.dto';
 
 const E = ErrorCode;
 /** Global JwtAuthGuard 401s, for the routes that need a bearer token. */
@@ -128,6 +129,7 @@ export class AuthController {
     423: [E.AUTH_OTP_LOCKED],
     429: [E.RATE_LIMITED],
   })
+  @ApiErrors({ 409: [E.AUTH_OTHER_DEVICE_ACTIVE] })
   @IdempotencyKeyHeader
   @Public()
   @Post('otp/verify')
@@ -137,6 +139,24 @@ export class AuthController {
     @Req() req: Request,
   ): Promise<AuthTokensDto> {
     return this.auth.verifyOtp(dto, this.meta(req));
+  }
+
+  /** Owner 2026-10-01: the sign-in answered 409 AUTH_OTHER_DEVICE_ACTIVE
+   * and the user chose to continue — the other phone / browser is signed
+   * out (one phone + one website per account). */
+  @ApiEnvelopeResponse(AuthTokensDto, { status: HttpStatus.CREATED })
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    401: [E.AUTH_OTP_EXPIRED],
+    403: [E.ACCOUNT_SUSPENDED, E.ACCOUNT_DELETED],
+  })
+  @Public()
+  @Post('login/continue')
+  async continueLogin(
+    @Body() dto: ContinueLoginDto,
+    @Req() req: Request,
+  ): Promise<AuthTokensDto> {
+    return this.auth.continueLogin(dto.pendingToken, this.meta(req));
   }
 
   /** Email magic link (docs/01 §10.2 E): one-time token from the email +

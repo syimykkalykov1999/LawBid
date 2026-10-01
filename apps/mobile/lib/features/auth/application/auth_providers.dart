@@ -10,6 +10,10 @@ import '../data/auth_repository.dart';
 import '../data/magic_link_verifier_store.dart';
 import '../data/real_auth_repository.dart';
 import '../data/social_auth_native_client.dart';
+import '../../../core/navigation/app_router.dart';
+import '../../../core/l10n/l10n_providers.dart';
+import '../../../core/l10n/l10n_formats.dart';
+import '../presentation/other_device_dialog.dart';
 
 /// dio-backed [AuthApiClient], built from the shared [dioProvider].
 final authApiClientProvider = Provider<AuthApiClient>(
@@ -51,6 +55,18 @@ final authRepositoryProvider = Provider<AuthRepository>(
     ref.watch(deviceInfoProvider),
     ref.watch(socialAuthNativeClientProvider),
     ref.watch(magicLinkVerifierStoreProvider),
+    // Owner 2026-10-01: ask before signing another device out.
+    confirmOtherDevice: (details) async {
+      final context =
+          ref.read(appRouterProvider).routerDelegate.navigatorKey.currentContext;
+      if (context == null || !context.mounted) return false;
+      return showOtherDeviceDialog(
+        context,
+        ref.read(translatorProvider),
+        ref.read(l10nFormatsProvider),
+        details,
+      );
+    },
   ),
 );
 

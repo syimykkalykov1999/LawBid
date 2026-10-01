@@ -66,6 +66,7 @@ export 'models/auth_tokens_dto.dart';
 export 'models/device_info_dto.dart';
 export 'models/otp_verify_dto.dart';
 export 'models/auth_tokens_envelope.dart';
+export 'models/continue_login_dto.dart';
 export 'models/otp_verify_link_dto.dart';
 export 'models/social_login_dto.dart';
 export 'models/refresh_token_dto.dart';

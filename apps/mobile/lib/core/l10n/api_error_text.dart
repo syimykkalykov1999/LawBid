@@ -162,6 +162,7 @@ const _keys = <String, String>{
   // The session can't be continued; the user has to sign in again.
   ApiErrorCodes.authSessionRevoked: 'error.api.AUTH_SESSION_REVOKED',
   ApiErrorCodes.authSignedInElsewhere: 'error.api.AUTH_SIGNED_IN_ELSEWHERE',
+  ApiErrorCodes.authOtherDeviceActive: 'error.api.AUTH_OTHER_DEVICE_ACTIVE',
   ApiErrorCodes.authRefreshExpired: 'error.api.AUTH_SESSION_REVOKED',
   ApiErrorCodes.authRefreshInvalid: 'error.api.AUTH_SESSION_REVOKED',
   ApiErrorCodes.authSocialTokenInvalid: 'auth.social.error.invalidToken',

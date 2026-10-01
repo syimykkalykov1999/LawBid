@@ -36,6 +36,7 @@ abstract final class ApiErrorCodes {
   static const authSessionRevoked = 'AUTH_SESSION_REVOKED';
   // Owner 2026-10-01: one phone + one website per account.
   static const authSignedInElsewhere = 'AUTH_SIGNED_IN_ELSEWHERE';
+  static const authOtherDeviceActive = 'AUTH_OTHER_DEVICE_ACTIVE';
   static const authSocialTokenInvalid = 'AUTH_SOCIAL_TOKEN_INVALID';
   static const authSocialProviderUnavailable =
       'AUTH_SOCIAL_PROVIDER_UNAVAILABLE';
@@ -182,6 +183,7 @@ abstract final class ApiErrorCodes {
     authRefreshExpired,
     authRefreshReuseDetected,
     authSignedInElsewhere,
+    authOtherDeviceActive,
     authSessionRevoked,
     authSocialTokenInvalid,
     authSocialProviderUnavailable,

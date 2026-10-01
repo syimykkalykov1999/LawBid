@@ -140,6 +140,19 @@ describe('Auth hardening (e2e)', () => {
         code: FIXED_CODE,
         deviceInfo: { deviceId, deviceName, platform: 'ios' },
       });
+    // Owner 2026-10-01: another phone signed in → confirm to continue.
+    if (res.status === 409) {
+      expect(res.body.error.code).toBe('AUTH_OTHER_DEVICE_ACTIVE');
+      const cont = await api()
+        .post('/api/v1/auth/login/continue')
+        .send({ pendingToken: res.body.error.details.pendingToken });
+      expect(cont.status).toBe(201);
+      return cont.body.data as {
+        accessToken: string;
+        refreshToken: string;
+        isNewUser: boolean;
+      };
+    }
     expect(res.status).toBe(201);
     return res.body.data as {
       accessToken: string;

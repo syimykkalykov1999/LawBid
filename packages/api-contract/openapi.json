@@ -574,7 +574,7 @@
             }
           },
           "409": {
-            "description": "Conflict: IDEMPOTENCY_KEY_CONFLICT",
+            "description": "Conflict: AUTH_OTHER_DEVICE_ACTIVE\n\nConflict: IDEMPOTENCY_KEY_CONFLICT",
             "content": {
               "application/json": {
                 "schema": {
@@ -624,6 +624,98 @@
             }
           }
         },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/login/continue": {
+      "post": {
+        "operationId": "continueLogin",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContinueLoginDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthTokensEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: AUTH_OTP_EXPIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ACCOUNT_SUSPENDED, ACCOUNT_DELETED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Owner 2026-10-01: the sign-in answered 409 AUTH_OTHER_DEVICE_ACTIVE\nand the user chose to continue — the other phone / browser is signed\nout (one phone + one website per account).",
         "tags": [
           "auth"
         ]
@@ -28078,6 +28170,8 @@
           "AUTH_REFRESH_EXPIRED",
           "AUTH_REFRESH_REUSE_DETECTED",
           "AUTH_SESSION_REVOKED",
+          "AUTH_SIGNED_IN_ELSEWHERE",
+          "AUTH_OTHER_DEVICE_ACTIVE",
           "AUTH_SOCIAL_TOKEN_INVALID",
           "AUTH_SOCIAL_PROVIDER_UNAVAILABLE",
           "AUTH_PROVIDER_DISABLED",
@@ -28511,6 +28605,20 @@
         },
         "required": [
           "data"
+        ]
+      },
+      "ContinueLoginDto": {
+        "type": "object",
+        "properties": {
+          "pendingToken": {
+            "type": "string",
+            "minLength": 16,
+            "maxLength": 100,
+            "description": "details.pendingToken of the 409 answer."
+          }
+        },
+        "required": [
+          "pendingToken"
         ]
       },
       "OtpVerifyLinkDto": {

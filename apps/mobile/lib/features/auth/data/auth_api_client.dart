@@ -65,6 +65,18 @@ class AuthApiClient {
   /// `POST /auth/otp/verify-link` — email magic link: the link's one-time
   /// [token] plus the [verifier] this device stored when it requested the
   /// code. Issues tokens like [verifyOtp] (same `_skipAuth`).
+  /// Owner 2026-10-01: finish a sign-in that signs another phone / browser
+  /// out (after `AUTH_OTHER_DEVICE_ACTIVE`).
+  Future<AuthTokensResult> continueLogin(String pendingToken) async {
+    final envelope = await guardApiCall(
+      () => _auth.continueLogin(
+        body: api.ContinueLoginDto(pendingToken: pendingToken),
+        extras: _skipAuth,
+      ),
+    );
+    return envelope.data;
+  }
+
   Future<AuthTokensResult> verifyOtpLink({
     required String token,
     required String verifier,

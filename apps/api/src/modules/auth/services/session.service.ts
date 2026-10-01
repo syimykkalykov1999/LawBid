@@ -102,6 +102,23 @@ export class SessionService {
     return { session, refreshTokenRaw: raw };
   }
 
+  /** Owner 2026-10-01: another active session of the same kind (phone /
+   * website) on a different device — the one a new sign-in would end. */
+  async otherActiveDevice(userId: string, device: DeviceInfo) {
+    const web = device.platform === 'web';
+    return this.prisma.session.findFirst({
+      where: {
+        user_id: userId,
+        revoked_at: null,
+        expires_at: { gt: new Date() },
+        ...(web ? { platform: 'web' } : { NOT: { platform: 'web' } }),
+        ...(device.deviceId ? { NOT: { device_id: device.deviceId } } : {}),
+      },
+      orderBy: { last_used_at: 'desc' },
+      select: { device_name: true, platform: true, last_used_at: true },
+    });
+  }
+
   /** True if this is the first session ever created for this user on this
    * device_id — used for the (stubbed, no-op-notification) new-device
    * signal in docs/01_FOUNDATION_AUTH.md §10.6. */

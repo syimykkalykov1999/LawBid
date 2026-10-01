@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
 import '../models/auth_tokens_envelope.dart';
+import '../models/continue_login_dto.dart';
 import '../models/identifier_linked_envelope.dart';
 import '../models/link_identifier_dto.dart';
 import '../models/logged_out_envelope.dart';
@@ -35,6 +36,15 @@ abstract class AuthClient {
   @POST('/auth/otp/verify')
   Future<AuthTokensEnvelope> verifyOtp({
     @Body() required OtpVerifyDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Owner 2026-10-01: the sign-in answered 409 AUTH_OTHER_DEVICE_ACTIVE.
+  /// and the user chose to continue — the other phone / browser is signed.
+  /// out (one phone + one website per account).
+  @POST('/auth/login/continue')
+  Future<AuthTokensEnvelope> continueLogin({
+    @Body() required ContinueLoginDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

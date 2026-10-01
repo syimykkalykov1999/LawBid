@@ -5,8 +5,14 @@ import {
   Injectable,
   NotFoundException,
   UnauthorizedException,
+  ConflictException,
+  Inject,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import type { User } from '@prisma/client';
+import type Redis from 'ioredis';
+import { randomBytes } from 'node:crypto';
+import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withDeleted } from '../../prisma/soft-delete.extension';
 import { withTxRetry } from '../../prisma/tx-retry.util';
@@ -81,6 +87,7 @@ export class AuthService {
     private readonly config: ConfigService,
     private readonly loginMethods: LoginMethodPolicy,
     private readonly newDevice: NewDeviceNotifier,
+    @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {}
 
   // ---------------------------------------------------------------------
@@ -353,6 +360,77 @@ export class AuthService {
       });
     }
 
+    // Owner 2026-10-01: one phone + one website per account. Another
+    // phone (or browser) already signed in: ask first — the sign-in
+    // continues with POST /auth/login/continue, which signs that one out.
+    const other = await this.sessions.otherActiveDevice(user.id, deviceInfo);
+    if (other) {
+      const pendingToken = randomBytes(24).toString('base64url');
+      await this.redis.set(
+        `auth:pending:${pendingToken}`,
+        JSON.stringify({ userId: user.id, isNewUser, identifier, deviceInfo }),
+        'EX',
+        PENDING_LOGIN_TTL_SEC,
+      );
+      throw new ConflictException({
+        code: ErrorCode.AUTH_OTHER_DEVICE_ACTIVE,
+        message:
+          'This account is signed in on another device. Continue to sign it out there.',
+        details: {
+          pendingToken,
+          deviceName: other.device_name,
+          platform: other.platform,
+          lastUsedAt: other.last_used_at?.toISOString() ?? null,
+        },
+      });
+    }
+    return this.issueLogin(user, isNewUser, identifier, deviceInfo, meta);
+  }
+
+  /** POST /auth/login/continue — the user chose to sign the other device
+   * out (owner 2026-10-01). */
+  async continueLogin(
+    pendingToken: string,
+    meta: RequestMeta,
+  ): Promise<AuthTokensResult> {
+    const key = `auth:pending:${pendingToken}`;
+    const raw = await this.redis.get(key);
+    if (!raw) {
+      throw new UnauthorizedException({
+        code: ErrorCode.AUTH_OTP_EXPIRED,
+        message: 'This sign-in expired. Sign in again.',
+      });
+    }
+    await this.redis.del(key);
+    const p = JSON.parse(raw) as {
+      userId: string;
+      isNewUser: boolean;
+      identifier: string;
+      deviceInfo: DeviceInfo;
+    };
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id: p.userId },
+    });
+    if (user.status === 'suspended' || user.status === 'deleted') {
+      throw new ForbiddenException({
+        code:
+          user.status === 'suspended'
+            ? ErrorCode.ACCOUNT_SUSPENDED
+            : ErrorCode.ACCOUNT_DELETED,
+        message: 'This account is not available.',
+      });
+    }
+    return this.issueLogin(user, p.isNewUser, p.identifier, p.deviceInfo, meta);
+  }
+
+  /** Session, tokens, audit and the new-device alert of a sign-in. */
+  private async issueLogin(
+    user: User,
+    isNewUser: boolean,
+    identifier: string,
+    deviceInfo: DeviceInfo,
+    meta: RequestMeta,
+  ): Promise<AuthTokensResult> {
     const isNewDevice = await this.sessions.isNewDevice(
       user.id,
       deviceInfo.deviceId,
@@ -708,3 +786,6 @@ export class AuthService {
     return this.config.getOrThrow<number>(key);
   }
 }
+
+/** How long "continue and sign the other device out" stays possible. */
+const PENDING_LOGIN_TTL_SEC = 300;

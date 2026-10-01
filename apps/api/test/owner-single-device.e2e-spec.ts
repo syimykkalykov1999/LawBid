@@ -41,6 +41,8 @@ describe('One account, one phone + one website (e2e)', () => {
   const api = () => request(base);
   const phone = `+1312${String(Math.floor(Math.random() * 1e7)).padStart(7, '0')}`;
 
+  const warned: string[] = [];
+
   async function login(deviceId: string, platform: string) {
     await api()
       .post('/api/v1/auth/otp/request')
@@ -52,6 +54,17 @@ describe('One account, one phone + one website (e2e)', () => {
       code: '000000',
       deviceInfo: { deviceId, platform },
     });
+    if (r.status === 409) {
+      // Another phone / browser is signed in: the app asks, then continues.
+      expect(r.body.error.code).toBe('AUTH_OTHER_DEVICE_ACTIVE');
+      expect(r.body.error.details).toHaveProperty('lastUsedAt');
+      warned.push(deviceId);
+      const c = await api()
+        .post('/api/v1/auth/login/continue')
+        .send({ pendingToken: r.body.error.details.pendingToken });
+      expect(c.status).toBe(201);
+      return c.body.data as { accessToken: string; refreshToken: string };
+    }
     expect(r.status).toBeLessThan(300);
     return r.body.data as { accessToken: string; refreshToken: string };
   }
@@ -76,5 +89,7 @@ describe('One account, one phone + one website (e2e)', () => {
       .expect(401);
     expect(refresh.body.error.code).toBe('AUTH_SIGNED_IN_ELSEWHERE');
     await me(web.accessToken).expect(200);
+    // Only the second phone was warned (the website is a separate slot).
+    expect(warned).toEqual(['phone-b']);
   });
 });

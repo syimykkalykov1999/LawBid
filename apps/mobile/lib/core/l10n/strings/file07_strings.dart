@@ -2,6 +2,13 @@
 // tasks — compiled-in strings merged into StaticTranslatorRu/En.
 
 const file07Ru = <String, String>{
+  'error.api.AUTH_OTHER_DEVICE_ACTIVE': 'Аккаунт уже открыт на другом устройстве.',
+  'otherDevice.title': 'Аккаунт уже открыт на другом устройстве',
+  'otherDevice.body': 'Сейчас в этот аккаунт выполнен вход: {device}{when}.\n\nОдин аккаунт работает одновременно только на одном телефоне и на одном сайте. Если продолжите, на том устройстве произойдёт выход.',
+  'otherDevice.when': ', активность {date}',
+  'otherDevice.phone': 'другой телефон',
+  'otherDevice.web': 'сайт в другом браузере',
+  'otherDevice.continue': 'Продолжить и выйти там',
   'error.api.AUTH_SIGNED_IN_ELSEWHERE': 'В этот аккаунт вошли на другом телефоне. Один аккаунт работает на одном телефоне (и на сайте).',
   // --- OQ-049: access switches with responsibility ---
   'duty.bids': 'Ставки и переговоры',
@@ -281,6 +288,13 @@ const file07Ru = <String, String>{
 };
 
 const file07En = <String, String>{
+  'error.api.AUTH_OTHER_DEVICE_ACTIVE': 'This account is open on another device.',
+  'otherDevice.title': 'This account is open on another device',
+  'otherDevice.body': 'This account is signed in on {device}{when}.\n\nOne account works on one phone and one website at a time. If you continue, that device will be signed out.',
+  'otherDevice.when': ', active {date}',
+  'otherDevice.phone': 'another phone',
+  'otherDevice.web': 'the website in another browser',
+  'otherDevice.continue': 'Continue and sign out there',
   'error.api.AUTH_SIGNED_IN_ELSEWHERE': 'This account signed in on another phone. One account works on one phone (plus the website).',
   // --- OQ-049: access switches with responsibility ---
   'duty.bids': 'Bids and negotiation',

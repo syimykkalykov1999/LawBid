@@ -42,6 +42,10 @@ enum ErrorCode {
   authRefreshReuseDetected('AUTH_REFRESH_REUSE_DETECTED'),
   @JsonValue('AUTH_SESSION_REVOKED')
   authSessionRevoked('AUTH_SESSION_REVOKED'),
+  @JsonValue('AUTH_SIGNED_IN_ELSEWHERE')
+  authSignedInElsewhere('AUTH_SIGNED_IN_ELSEWHERE'),
+  @JsonValue('AUTH_OTHER_DEVICE_ACTIVE')
+  authOtherDeviceActive('AUTH_OTHER_DEVICE_ACTIVE'),
   @JsonValue('AUTH_SOCIAL_TOKEN_INVALID')
   authSocialTokenInvalid('AUTH_SOCIAL_TOKEN_INVALID'),
   @JsonValue('AUTH_SOCIAL_PROVIDER_UNAVAILABLE')

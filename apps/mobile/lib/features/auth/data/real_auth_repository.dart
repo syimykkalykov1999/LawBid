@@ -23,8 +23,37 @@ class RealAuthRepository implements AuthRepository {
     this._session,
     this._deviceInfo,
     this._nativeClient,
-    this._magicLink,
-  );
+    this._magicLink, {
+    this.confirmOtherDevice,
+  });
+
+  /// Owner 2026-10-01 (one phone + one website per account): asks whether
+  /// to continue and sign the other device out. Null = never continue.
+  final Future<bool> Function(Map<String, dynamic> details)?
+      confirmOtherDevice;
+
+  /// A 409 AUTH_OTHER_DEVICE_ACTIVE becomes the tokens after the user
+  /// confirmed, or rethrows.
+  Future<AuthTokensResult> _orContinue(
+    Future<AuthTokensResult> Function() signIn,
+  ) async {
+    try {
+      return await signIn();
+    } on ApiException catch (e) {
+      if (e.code != ApiErrorCodes.authOtherDeviceActive) rethrow;
+      final details = e.details ?? const <String, dynamic>{};
+      final token = details['pendingToken'];
+      final ask = confirmOtherDevice;
+      if (token is! String || ask == null || !await ask(details)) {
+        // The code was used up: the user signs in again to continue.
+        throw const ApiException(
+          code: ApiErrorCodes.authOtpExpired,
+          message: 'cancelled',
+        );
+      }
+      return _client.continueLogin(token);
+    }
+  }
 
   final AuthApiClient _client;
   final SessionController _session;
@@ -51,11 +80,13 @@ class RealAuthRepository implements AuthRepository {
     String channel = 'phone',
   }) async {
     try {
-      final tokens = await _client.verifyOtp(
-        channel: channel,
-        identifier: identifier,
-        code: code,
-        deviceInfo: _deviceInfo,
+      final tokens = await _orContinue(
+        () => _client.verifyOtp(
+          channel: channel,
+          identifier: identifier,
+          code: code,
+          deviceInfo: _deviceInfo,
+        ),
       );
       await _session.applyTokens(tokens);
       return OtpVerifyResult.success(isNewUser: tokens.isNewUser);
@@ -67,10 +98,12 @@ class RealAuthRepository implements AuthRepository {
   @override
   Future<OtpVerifyResult> verifyEmailLink({required String token, required String verifier}) async {
     try {
-      final tokens = await _client.verifyOtpLink(
-        token: token,
-        verifier: verifier,
-        deviceInfo: _deviceInfo,
+      final tokens = await _orContinue(
+        () => _client.verifyOtpLink(
+          token: token,
+          verifier: verifier,
+          deviceInfo: _deviceInfo,
+        ),
       );
       await _session.applyTokens(tokens);
       return OtpVerifyResult.success(isNewUser: tokens.isNewUser);
