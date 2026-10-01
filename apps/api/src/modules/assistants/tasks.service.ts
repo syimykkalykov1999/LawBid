@@ -17,6 +17,7 @@ import type {
   TasksQueryDto,
   TaskStepInputDto,
   UpdateTaskStatusDto,
+  UpdateTaskDto,
   UpdateTaskStepDto,
 } from './assistants.dto';
 
@@ -77,9 +78,29 @@ export class TasksService {
     }
   }
 
+  /** Audit 2026-10-01: a task links only a case of this account — the
+   * client's own or one where its bid was accepted (the case title is
+   * shown on the task, so a foreign id would leak it). */
+  private async assertCaseLink(userId: string, caseId: string): Promise<void> {
+    const c = await this.prisma.case.findFirst({
+      where: {
+        id: caseId,
+        OR: [{ client_id: userId }, { accepted_bid: { attorney_id: userId } }],
+      },
+      select: { id: true },
+    });
+    if (!c) {
+      throw new NotFoundException({
+        code: ErrorCode.NOT_FOUND,
+        message: 'Case not found.',
+      });
+    }
+  }
+
   async create(user: RequestUser, dto: CreateTaskDto): Promise<TaskDto> {
     const a = user.assistant;
     this.assertMayPlan(user);
+    if (dto.caseId) await this.assertCaseLink(user.sub, dto.caseId);
     const fileIds = dto.fileIds ?? [];
     for (const id of fileIds) {
       // The uploader is whoever is signed in (the assistant's files are
@@ -122,7 +143,7 @@ export class TasksService {
         payload: { taskId: t.id, kind: t.kind },
       });
     }
-    return (await this.present([t]))[0];
+    return (await this.present([t], user))[0];
   }
 
   async list(user: RequestUser, q: TasksQueryDto): Promise<TaskDto[]> {
@@ -154,11 +175,11 @@ export class TasksService {
       take: 300,
       include: INCLUDE,
     });
-    return this.present(rows);
+    return this.present(rows, user);
   }
 
   async get(user: RequestUser, id: string): Promise<TaskDto> {
-    return (await this.present([await this.own(user, id)]))[0];
+    return (await this.present([await this.own(user, id)], user))[0];
   }
 
   /**
@@ -218,7 +239,7 @@ export class TasksService {
         ...(reschedule ? { rescheduledTo: reschedule.toISOString() } : {}),
       });
     }
-    return (await this.present([updated]))[0];
+    return (await this.present([updated], user))[0];
   }
 
   /**
@@ -393,6 +414,93 @@ export class TasksService {
     });
   }
 
+  /**
+   * PATCH /tasks/:id — owner 2026-10-01: a planner card stays editable
+   * (title, kind, time, place, contact, notes, files). The owner or an
+   * assistant with the tasks duty; a cancelled task is closed.
+   */
+  async update(
+    user: RequestUser,
+    id: string,
+    dto: UpdateTaskDto,
+  ): Promise<TaskDto> {
+    this.assertMayPlan(user);
+    const t = await this.own(user, id);
+    if (t.status === 'cancelled') throw this.closed();
+    if (dto.caseId && !dto.clearCaseId) {
+      await this.assertCaseLink(user.sub, dto.caseId);
+    }
+    if (dto.fileIds) {
+      for (const f of dto.fileIds) {
+        await this.files.assertAttachable(user.sub, f, ['task_attachment']);
+      }
+    }
+    const blank = (v?: string) => (v === undefined ? undefined : v || null);
+    await this.prisma.attorneyTask.update({
+      where: { id },
+      data: {
+        ...(dto.kind ? { kind: dto.kind } : {}),
+        ...(dto.title ? { title: dto.title } : {}),
+        ...(dto.notes !== undefined ? { notes: blank(dto.notes) } : {}),
+        ...(dto.clearDueAt
+          ? { due_at: null }
+          : dto.dueAt
+            ? { due_at: new Date(dto.dueAt) }
+            : {}),
+        ...(dto.location !== undefined
+          ? { location: blank(dto.location) }
+          : {}),
+        ...(dto.contactName !== undefined
+          ? { contact_name: blank(dto.contactName) }
+          : {}),
+        ...(dto.contactPhone !== undefined
+          ? { contact_phone: blank(dto.contactPhone) }
+          : {}),
+        ...(dto.contactEmail !== undefined
+          ? { contact_email: blank(dto.contactEmail) }
+          : {}),
+        ...(dto.fileIds ? { file_ids: [...new Set(dto.fileIds)] } : {}),
+        ...(dto.clearCaseId
+          ? { case_id: null }
+          : dto.caseId
+            ? { case_id: dto.caseId }
+            : {}),
+      },
+    });
+    if (user.assistant) {
+      await this.assistants.log(user, 'task.edit', {
+        type: 'task',
+        id,
+        summary: dto.title ?? t.title,
+      });
+    }
+    return this.get(user, id);
+  }
+
+  /**
+   * DELETE /tasks/:id — the owner deletes any task; an assistant only the
+   * ones they set (with the tasks duty). Steps go with it.
+   */
+  async remove(user: RequestUser, id: string): Promise<void> {
+    const t = await this.own(user, id);
+    const a = user.assistant;
+    if (a) {
+      this.assertMayPlan(user);
+      if (t.created_by_membership_id !== a.membershipId) {
+        throw new ForbiddenException({
+          code: ErrorCode.ASSISTANT_NOT_ALLOWED,
+          message: 'Only the attorney deletes tasks set by others.',
+        });
+      }
+      await this.assistants.log(user, 'task.delete', {
+        type: 'task',
+        id,
+        summary: t.title,
+      });
+    }
+    await this.prisma.attorneyTask.delete({ where: { id } });
+  }
+
   private async own(user: RequestUser, id: string): Promise<TaskRow> {
     const t = await this.prisma.attorneyTask.findFirst({
       where: { id, attorney_id: user.sub },
@@ -407,7 +515,10 @@ export class TasksService {
     return t;
   }
 
-  private async present(rows: TaskRow[]): Promise<TaskDto[]> {
+  private async present(
+    rows: TaskRow[],
+    user: RequestUser,
+  ): Promise<TaskDto[]> {
     const fileIds = rows.flatMap((r) => r.file_ids);
     const urls = await this.files.taskFileUrls(fileIds);
     return rows.map((t: AttorneyTask & Partial<TaskRow>) => ({
@@ -431,6 +542,11 @@ export class TasksService {
       outcomeNote: t.outcome_note,
       rescheduledTo: t.rescheduled_to?.toISOString() ?? null,
       createdByName: t.created_by ? nameOf(t.created_by) : null,
+      // Owner 2026-10-01: the attorney deletes any task, an assistant
+      // only the ones they set (mirrors remove()).
+      canDelete:
+        !user.assistant ||
+        t.created_by_membership_id === user.assistant.membershipId,
       createdAt: t.created_at.toISOString(),
       doneAt: t.done_at?.toISOString() ?? null,
       steps: (t.steps ?? []).map((st) => ({

@@ -475,6 +475,144 @@ describe('Assistants (e2e, OQ-048)', () => {
     expect(blocked.body.error.code).toBe('TASK_CLOSED');
   });
 
+  it('tasks are editable and deletable; clients keep a planner too', async () => {
+    const att = await attorney(2);
+    const asst = await assistantUser();
+    await api()
+      .post('/api/v1/team')
+      .set(att.auth)
+      .send({
+        phone: asst.phone,
+        name: 'Tia',
+        duties: ['tasks'],
+        acceptLiability: true,
+      })
+      .expect(201);
+    await api()
+      .post('/api/v1/assistants/join/accept')
+      .set(asst.auth)
+      .expect(201);
+    const mine = await api()
+      .post('/api/v1/tasks')
+      .set(att.auth)
+      .send({ kind: 'call', title: 'Call Ann', contactPhone: '+13125550111' })
+      .expect(201);
+    const edited = await api()
+      .patch(`/api/v1/tasks/${mine.body.data.id}`)
+      .set(att.auth)
+      .send({
+        title: 'Call Ann back',
+        kind: 'meeting',
+        location: '50 W Washington',
+        contactPhone: '',
+      })
+      .expect(200);
+    expect(edited.body.data).toMatchObject({
+      title: 'Call Ann back',
+      kind: 'meeting',
+      location: '50 W Washington',
+      contactPhone: null,
+    });
+    // An assistant can't delete the attorney's own task, only theirs.
+    await api()
+      .delete(`/api/v1/tasks/${mine.body.data.id}`)
+      .set(asst.auth)
+      .expect(403);
+    const theirs = await api()
+      .post('/api/v1/tasks')
+      .set(asst.auth)
+      .send({ kind: 'print', title: 'Print the motion' })
+      .expect(201);
+    await api()
+      .delete(`/api/v1/tasks/${theirs.body.data.id}`)
+      .set(asst.auth)
+      .expect(204);
+    await api()
+      .delete(`/api/v1/tasks/${mine.body.data.id}`)
+      .set(att.auth)
+      .expect(204);
+    expect(
+      (await api().get('/api/v1/tasks').set(att.auth).expect(200)).body.data,
+    ).toHaveLength(0);
+
+    // A client keeps their own planner (only they see it).
+    const client = await prisma.user.create({ data: { role: 'client' } });
+    const cAuth = bearer(client.id, 'client');
+    const note = await api()
+      .post('/api/v1/tasks')
+      .set(cAuth)
+      .send({
+        kind: 'other',
+        title: 'Collect documents for the lawyer',
+        steps: [{ title: 'Lease' }, { title: 'Bank statements' }],
+      })
+      .expect(201);
+    await api()
+      .patch(
+        `/api/v1/tasks/${note.body.data.id}/steps/${note.body.data.steps[0].id}`,
+      )
+      .set(cAuth)
+      .send({ status: 'done' })
+      .expect(200);
+    const list = await api().get('/api/v1/tasks').set(cAuth).expect(200);
+    expect(list.body.data).toHaveLength(1);
+    expect(list.body.data[0].canDelete).toBe(true);
+
+    // Audit 2026-10-01: a task links only the account's own case — a
+    // foreign case id is refused (its title would leak), the own works.
+    const area = await prisma.practiceArea.findFirstOrThrow({
+      where: { code: 'family_law' },
+    });
+    await prisma.state.upsert({
+      where: { code: 'IL' },
+      create: { code: 'IL', name: 'Illinois' },
+      update: {},
+    });
+    const ownCase = await prisma.case.create({
+      data: {
+        client_id: client.id,
+        title: 'Lease dispute',
+        description: 'Details',
+        practice_area_id: area.id,
+        primary_state_code: 'IL',
+        budget_mode: 'clarify_later',
+        status: 'open',
+      },
+    });
+    await api()
+      .post('/api/v1/tasks')
+      .set(att.auth)
+      .send({ kind: 'other', title: 'Peek', caseId: ownCase.id })
+      .expect(404);
+    const linked = await api()
+      .post('/api/v1/tasks')
+      .set(cAuth)
+      .send({ kind: 'other', title: 'Sign the lease', caseId: ownCase.id })
+      .expect(201);
+    expect(linked.body.data.caseTitle).toBe('Lease dispute');
+    await api()
+      .patch(`/api/v1/tasks/${note.body.data.id}`)
+      .set(att.auth)
+      .send({ caseId: ownCase.id })
+      .expect(404);
+    const relinked = await api()
+      .patch(`/api/v1/tasks/${note.body.data.id}`)
+      .set(cAuth)
+      .send({ caseId: ownCase.id })
+      .expect(200);
+    expect(relinked.body.data.caseId).toBe(ownCase.id);
+    const unlinked = await api()
+      .patch(`/api/v1/tasks/${note.body.data.id}`)
+      .set(cAuth)
+      .send({ clearCaseId: true })
+      .expect(200);
+    expect(unlinked.body.data.caseId).toBeNull();
+    await api()
+      .get(`/api/v1/tasks/${note.body.data.id}`)
+      .set(att.auth)
+      .expect(404);
+  });
+
   it('join codes are rate-limited (no SMS flood to an attorney)', async () => {
     const att = await attorney(2);
     const asst = await assistantUser();

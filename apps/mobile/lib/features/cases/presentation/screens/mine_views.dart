@@ -16,7 +16,7 @@ import 'package:lawbid/features/mine/presentation/widgets/mine_grid.dart';
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart';
 import 'package:lawbid/features/team/presentation/tasks_tab.dart';
 
-enum _ClientTab { open, inProgress, completed, saved }
+enum _ClientTab { planner, open, inProgress, completed, saved }
 
 // Owner 2026-10-01: two top tabs — My bids (with Active · In progress ·
 // Completed · Saved inside) and the Planner (tasks calendar).
@@ -38,7 +38,7 @@ class ClientMineView extends ConsumerStatefulWidget {
 }
 
 class _ClientMineViewState extends ConsumerState<ClientMineView> {
-  _ClientTab _tab = _ClientTab.open;
+  _ClientTab _tab = _ClientTab.planner;
   bool _archived = false;
   MineSearch _search = const MineSearch();
 
@@ -50,42 +50,45 @@ class _ClientMineViewState extends ConsumerState<ClientMineView> {
         _archived ? MyCasesFilter.archived : MyCasesFilter.open,
       _ClientTab.inProgress => MyCasesFilter.inProgress,
       _ClientTab.completed => MyCasesFilter.closed,
-      _ClientTab.saved => MyCasesFilter.active,
+      _ClientTab.saved || _ClientTab.planner => MyCasesFilter.active,
     };
-    final Widget body = _tab == _ClientTab.saved
-        ? const SavedPostsList(key: ValueKey('saved'))
-        : Column(
-            key: ValueKey('cases-${_tab.name}'),
-            children: [
-              MineSearchBar(
-                search: _search,
-                onChanged: (v) => setState(() => _search = v),
-              ),
-              MineActiveFilters(
-                search: _search,
-                onChanged: (v) => setState(() => _search = v),
-              ),
-              if (_tab == _ClientTab.open) ...[
-                const SizedBox(height: AppSpacing.sm),
-                FilterChips<bool>(
-                  value: _archived,
-                  options: [
-                    (false, t.t('mine.filter.open')),
-                    (true, t.t('mine.filter.archived')),
-                  ],
-                  onChanged: (v) => setState(() => _archived = v),
-                ),
-              ],
+    final Widget body = switch (_tab) {
+      // Owner 2026-10-01: clients keep a planner too (own tasks + steps).
+      _ClientTab.planner => const TasksTab(key: ValueKey('planner')),
+      _ClientTab.saved => const SavedPostsList(key: ValueKey('saved')),
+      _ => Column(
+          key: ValueKey('cases-${_tab.name}'),
+          children: [
+            MineSearchBar(
+              search: _search,
+              onChanged: (v) => setState(() => _search = v),
+            ),
+            MineActiveFilters(
+              search: _search,
+              onChanged: (v) => setState(() => _search = v),
+            ),
+            if (_tab == _ClientTab.open) ...[
               const SizedBox(height: AppSpacing.sm),
-              Expanded(
-                  child: _ClientCasesGrid(filter: filter, search: _search)),
+              FilterChips<bool>(
+                value: _archived,
+                options: [
+                  (false, t.t('mine.filter.open')),
+                  (true, t.t('mine.filter.archived')),
+                ],
+                onChanged: (v) => setState(() => _archived = v),
+              ),
             ],
-          );
+            const SizedBox(height: AppSpacing.sm),
+            Expanded(child: _ClientCasesGrid(filter: filter, search: _search)),
+          ],
+        ),
+    };
     return Column(
       children: [
         PillTabs<_ClientTab>(
           value: _tab,
           tabs: [
+            (_ClientTab.planner, t.t('mine.tab.tasks')),
             (_ClientTab.open, t.t('mine.tab.open')),
             (_ClientTab.inProgress, t.t('mine.tab.inWork')),
             (_ClientTab.completed, t.t('mine.tab.completed')),

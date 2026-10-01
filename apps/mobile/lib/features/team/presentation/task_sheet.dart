@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:lawbid/features/team/team_routes.dart';
+import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
@@ -221,7 +223,8 @@ class _StepEditorSheetState extends ConsumerState<StepEditorSheet> {
                 padding: const EdgeInsets.only(bottom: AppSpacing.sm),
                 child: Text(
                   _error!,
-                  style: typography.bodySmall.copyWith(color: colors.dangerText),
+                  style:
+                      typography.bodySmall.copyWith(color: colors.dangerText),
                 ),
               ),
             const SizedBox(height: AppSpacing.sm),
@@ -420,6 +423,44 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
     }
   }
 
+  Future<void> _delete() async {
+    final t = ref.read(translatorProvider);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(t.t('tasks.delete.title')),
+        content: Text(t.t('tasks.delete.body')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(t.t('common.cancel')),
+          ),
+          TextButton(
+            key: const ValueKey('task-delete-confirm'),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(t.t('tasks.delete')),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      await ref.read(teamRepositoryProvider).deleteTask(_task.id);
+      ref
+        ..invalidate(tasksProvider((done: false, mine: false)))
+        ..invalidate(tasksProvider((done: true, mine: false)));
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      showAppSnackBar(context, t.t('tasks.deleted'));
+    } on Object catch (e) {
+      if (mounted) {
+        setState(() => _busy = false);
+        showAppSnackBar(context, errorText(t, e));
+      }
+    }
+  }
+
   Future<void> _finish(bool done) async {
     final t = ref.read(translatorProvider);
     final r = await askTaskOutcome(
@@ -600,10 +641,10 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
                         formats: formats,
                         now: now,
                         // Finished tasks too: unchecking reopens them.
-                        onCheck: assistant ||
-                                task.status == TaskStatus.cancelled
-                            ? null
-                            : () => _toggle(step),
+                        onCheck:
+                            assistant || task.status == TaskStatus.cancelled
+                                ? null
+                                : () => _toggle(step),
                         onTap: () => _stepMenu(step, canPlan: canPlan),
                       ),
                     ],
@@ -613,8 +654,8 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
             ] else
               Text(
                 t.t('tasks.steps.emptyHint'),
-                style: typography.bodySmall
-                    .copyWith(color: colors.textSecondary),
+                style:
+                    typography.bodySmall.copyWith(color: colors.textSecondary),
               ),
           ],
           if (task.files.isNotEmpty) ...[
@@ -692,10 +733,48 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
               onPressed: () => _finish(false),
             ),
           ],
+          // Owner 2026-10-01: every card is editable and deletable — the
+          // owner any; an assistant edits with the tasks duty and deletes
+          // only the tasks they set.
+          if (canPlan && task.status != TaskStatus.cancelled)
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: AppButton(
+                      key: const ValueKey('task-edit'),
+                      label: t.t('tasks.edit'),
+                      icon: Icons.edit_outlined,
+                      variant: AppButtonVariant.secondary,
+                      onPressed: _busy
+                          ? null
+                          : () async {
+                              Navigator.of(context).pop();
+                              await GoRouter.of(context).push(
+                                TeamRoutes.editTask,
+                                extra: task,
+                              );
+                            },
+                    ),
+                  ),
+                  if (task.canDelete) ...[
+                    const SizedBox(width: AppSpacing.sm),
+                    Expanded(
+                      child: AppButton(
+                        key: const ValueKey('task-delete'),
+                        label: t.t('tasks.delete'),
+                        icon: Icons.delete_outline_rounded,
+                        variant: AppButtonVariant.secondary,
+                        onPressed: _busy ? null : _delete,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
           // Owner 2026-10-01: a task closed by mistake goes back to work.
-          if (!active &&
-              !assistant &&
-              task.status != TaskStatus.cancelled) ...[
+          if (!active && !assistant && task.status != TaskStatus.cancelled) ...[
             AppButton(
               key: const ValueKey('task-reopen'),
               label: t.t('tasks.reopen'),

@@ -11,6 +11,9 @@ import 'package:lawbid/features/team/presentation/team_screen.dart';
 abstract final class TeamRoutes {
   static const team = '/team';
   static const newTask = '/tasks/new';
+
+  /// Owner 2026-10-01: edit a task (the TaskItem goes as `extra`).
+  static const editTask = '/tasks/edit';
   static const assistantJoin = '/assistant/join';
 }
 
@@ -31,6 +34,14 @@ List<RouteBase> teamRoutes(GlobalKey<NavigatorState> root) => [
                 ? null
                 : TaskKind.parse(state.uri.queryParameters['kind']),
           ),
+        ),
+      ),
+      GoRoute(
+        path: TeamRoutes.editTask,
+        parentNavigatorKey: root,
+        pageBuilder: (context, state) => AppPageTransitions.modal(
+          state,
+          TaskEditorScreen(existing: state.extra as TaskItem?),
         ),
       ),
       GoRoute(

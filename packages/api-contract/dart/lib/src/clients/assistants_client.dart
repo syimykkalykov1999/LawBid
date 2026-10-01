@@ -22,6 +22,7 @@ import '../models/task_step_input_dto.dart';
 import '../models/tasks_view.dart';
 import '../models/team_envelope.dart';
 import '../models/update_assistant_dto.dart';
+import '../models/update_task_dto.dart';
 import '../models/update_task_status_dto.dart';
 import '../models/update_task_step_dto.dart';
 
@@ -146,6 +147,21 @@ abstract class AssistantsClient {
   /// One task
   @GET('/tasks/{id}')
   Future<TaskEnvelope> getTask({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Edit a task
+  @PATCH('/tasks/{id}')
+  Future<TaskEnvelope> updateTask({
+    @Path('id') required String id,
+    @Body() required UpdateTaskDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Delete a task (with its steps)
+  @DELETE('/tasks/{id}')
+  Future<void> deleteTask({
     @Path('id') required String id,
     @Extras() Map<String, dynamic>? extras,
   });

@@ -364,6 +364,7 @@ class TaskItem {
     this.outcomeNote,
     this.rescheduledTo,
     this.createdByName,
+    this.canDelete = true,
     this.doneAt,
     this.steps = const [],
   });
@@ -386,6 +387,9 @@ class TaskItem {
 
   /// The assistant who set it; null = the attorney's own task.
   final String? createdByName;
+
+  /// The viewer may delete it (the attorney any; an assistant their own).
+  final bool canDelete;
   final DateTime createdAt;
   final DateTime? doneAt;
 

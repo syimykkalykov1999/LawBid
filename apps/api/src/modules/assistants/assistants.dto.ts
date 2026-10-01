@@ -16,6 +16,7 @@ import {
   Matches,
   MaxLength,
   MinLength,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 import { ASSISTANT_DUTIES, type AssistantDuty } from './assistant-duties';
@@ -460,6 +461,84 @@ export class CreateTaskDto {
   steps?: TaskStepInputDto[];
 }
 
+/** Owner 2026-10-01: edit a task (any field; "" clears an optional one). */
+export class UpdateTaskDto {
+  @ApiPropertyOptional({ enum: TASK_KINDS, enumName: 'AttorneyTaskKind' })
+  @IsOptional()
+  @IsIn(TASK_KINDS)
+  kind?: (typeof TASK_KINDS)[number];
+
+  @ApiPropertyOptional({ minLength: 1, maxLength: 160 })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MinLength(1)
+  @MaxLength(160)
+  title?: string;
+
+  @ApiPropertyOptional({ maxLength: 2000 })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(2000)
+  notes?: string;
+
+  @ApiPropertyOptional({ format: 'date-time', nullable: true })
+  @IsOptional()
+  @IsISO8601()
+  dueAt?: string;
+
+  /** true removes the time. */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  clearDueAt?: boolean;
+
+  @ApiPropertyOptional({ format: 'uuid', description: 'Link another case.' })
+  @IsOptional()
+  @IsUUID('all')
+  caseId?: string;
+
+  @ApiPropertyOptional({ description: 'Unlink the case.' })
+  @IsOptional()
+  @IsBoolean()
+  clearCaseId?: boolean;
+
+  @ApiPropertyOptional({ maxLength: 200 })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(200)
+  location?: string;
+
+  @ApiPropertyOptional({ maxLength: 120 })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(120)
+  contactName?: string;
+
+  @ApiPropertyOptional({ example: '+13125550123' })
+  @IsOptional()
+  @Matches(/^(\+[1-9]\d{7,14})?$/)
+  contactPhone?: string;
+
+  @ApiPropertyOptional({ maxLength: 254 })
+  @IsOptional()
+  @Transform(trim)
+  @ValidateIf((_, v) => v !== '')
+  @IsEmail()
+  @MaxLength(254)
+  contactEmail?: string;
+
+  @ApiPropertyOptional({ type: [String], maxItems: 200 })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(200)
+  @IsUUID('all', { each: true })
+  fileIds?: string[];
+}
+
 export class UpdateTaskStatusDto {
   @ApiProperty({ enum: ['taken', 'done', 'not_done', 'cancelled', 'open'] })
   @IsIn(['taken', 'done', 'not_done', 'cancelled', 'open'])
@@ -512,6 +591,8 @@ export class TaskDto {
     string | null;
   @ApiPropertyOptional({ type: String, nullable: true }) createdByName!:
     string | null;
+  @ApiProperty({ description: 'The viewer may delete this task.' })
+  canDelete!: boolean;
   @ApiProperty() createdAt!: string;
   @ApiPropertyOptional({ type: String, nullable: true }) doneAt!: string | null;
   @ApiProperty({ type: [TaskStepDto] }) steps!: TaskStepDto[];

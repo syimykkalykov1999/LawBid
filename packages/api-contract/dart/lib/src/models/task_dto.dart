@@ -19,6 +19,7 @@ class TaskDto {
     required this.title,
     required this.files,
     required this.status,
+    required this.canDelete,
     required this.createdAt,
     required this.steps,
     this.notes,
@@ -54,6 +55,9 @@ class TaskDto {
   final String? outcomeNote;
   final String? rescheduledTo;
   final String? createdByName;
+
+  /// The viewer may delete this task.
+  final bool canDelete;
   final String createdAt;
   final String? doneAt;
   final List<TaskStepDto> steps;

@@ -44,6 +44,7 @@ import {
   TasksQueryDto,
   TaskStepInputDto,
   TaskStepParamDto,
+  UpdateTaskDto,
   UpdateTaskStepDto,
   TeamDto,
   UpdateAssistantDto,
@@ -282,6 +283,35 @@ export class AssistantsController {
     @Body() dto: UpdateTaskStatusDto,
   ): Promise<TaskDto> {
     return this.tasks.setStatus(user, p.id, dto);
+  }
+
+  // Owner 2026-10-01: a planner card stays editable and deletable.
+  @Patch('tasks/:id')
+  @ApiOperation({ summary: 'Edit a task' })
+  @ApiEnvelopeResponse(TaskDto)
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    403: [E.ASSISTANT_NOT_ALLOWED],
+    404: [E.NOT_FOUND],
+    409: [E.TASK_CLOSED],
+  })
+  updateTask(
+    @CurrentUser() user: RequestUser,
+    @Param() p: AssistantIdParamDto,
+    @Body() dto: UpdateTaskDto,
+  ): Promise<TaskDto> {
+    return this.tasks.update(user, p.id, dto);
+  }
+
+  @Delete('tasks/:id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Delete a task (with its steps)' })
+  @ApiErrors({ 403: [E.ASSISTANT_NOT_ALLOWED], 404: [E.NOT_FOUND] })
+  async deleteTask(
+    @CurrentUser() user: RequestUser,
+    @Param() p: AssistantIdParamDto,
+  ): Promise<void> {
+    await this.tasks.remove(user, p.id);
   }
 
   // Owner 2026-10-01: a task's checklist steps.

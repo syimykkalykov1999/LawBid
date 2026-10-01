@@ -268,6 +268,7 @@ export 'models/task_envelope.dart';
 export 'models/tasks_view.dart';
 export 'models/task_list_envelope.dart';
 export 'models/update_task_status_dto.dart';
+export 'models/update_task_dto.dart';
 export 'models/task_step_status.dart';
 export 'models/update_task_step_dto.dart';
 export 'models/bid_draft_dto.dart';

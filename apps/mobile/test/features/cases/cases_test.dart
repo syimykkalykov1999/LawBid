@@ -150,6 +150,10 @@ void main() {
       final wrap = await onboardingWrapper(AppTheme.light(), user: clientMe(), extra: casesOverrides());
       await tester.pumpWidget(wrap(const Scaffold(body: ClientMineView())));
       await tester.pumpAndSettle();
+      // Owner 2026-10-01: Mine opens on the client's planner first.
+      expect(find.text('Planner'), findsOneWidget);
+      await tester.tap(find.text('Open'));
+      await tester.pumpAndSettle();
       expect(find.text('You have no cases yet'), findsOneWidget);
       expect(find.text('Create a case'), findsOneWidget);
     });

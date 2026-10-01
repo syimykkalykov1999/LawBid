@@ -12,6 +12,7 @@ TaskItem makeTask(
   TaskStatus status = TaskStatus.open,
   DateTime? dueAt,
   String? by = 'Sam',
+  bool canDelete = true,
   String? note,
   List<TaskStep> steps = const [],
 }) =>
@@ -23,6 +24,7 @@ TaskItem makeTask(
       status: status,
       dueAt: dueAt,
       createdByName: by,
+      canDelete: canDelete,
       outcomeNote: note,
       contactName: 'John Brown',
       contactPhone: '+13125550199',
@@ -245,6 +247,21 @@ class FakeTeamRepository implements TeamRepository {
       if (!updated.status.active) updated,
     ];
     return updated;
+  }
+
+  @override
+  Future<TaskItem> updateTask(String id, TaskDraft draft) async {
+    calls.add('update:$id:${draft.title}');
+    final t = makeTask(id, kind: draft.kind, by: null);
+    active = [for (final x in active) x.id == id ? t : x];
+    return t;
+  }
+
+  @override
+  Future<void> deleteTask(String id) async {
+    calls.add('delete:$id');
+    active = [for (final x in active) if (x.id != id) x];
+    done = [for (final x in done) if (x.id != id) x];
   }
 
   @override

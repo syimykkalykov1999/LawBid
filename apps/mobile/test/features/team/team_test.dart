@@ -180,6 +180,69 @@ void main() {
     expect(find.text('Where to go (address)'), findsOneWidget);
   });
 
+  group('Edit and delete a task (owner 2026-10-01)', () {
+    Future<void> openSheet(WidgetTester tester, String title) async {
+      await tester.tap(find.text(title));
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+      // The sheet's list builds lazily: scroll to the actions.
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('task-edit')),
+        200,
+        scrollable: find.byType(Scrollable).last,
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('delete asks first, then removes the task', (tester) async {
+      repo.active = [makeTask('d1', by: null)];
+      await pump(tester, const TasksTab());
+      await openSheet(tester, 'Task d1');
+      await tester.tap(find.byKey(const ValueKey('task-delete')));
+      await tester.pumpAndSettle();
+      expect(find.text('Delete the task?'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('task-delete-confirm')));
+      await tester.pumpAndSettle();
+      expect(repo.calls, contains('delete:d1'));
+      expect(find.text('Task d1'), findsNothing);
+    });
+
+    testWidgets('no delete when the server says the viewer may not',
+        (tester) async {
+      repo.active = [makeTask('d2', canDelete: false)];
+      await pump(tester, const TasksTab());
+      await openSheet(tester, 'Task d2');
+      expect(find.byKey(const ValueKey('task-edit')), findsOneWidget);
+      expect(find.byKey(const ValueKey('task-delete')), findsNothing);
+    });
+
+    testWidgets('the editor opens prefilled and saves an update',
+        (tester) async {
+      tester.view.physicalSize = const Size(1200, 4000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(uxApp(
+        Scaffold(body: TaskEditorScreen(existing: makeTask('e1', by: null))),
+        theme: AppTheme.light(),
+        size: const Size(1200, 4000),
+        disableAnimations: true,
+        overrides: uxOverrides(extra: [
+          teamRepositoryProvider.overrideWithValue(repo),
+        ]),
+      ));
+      await tester.pump();
+      expect(find.text('Edit task'), findsWidgets);
+      expect(find.text('Task e1'), findsOneWidget);
+      // The checklist is managed on the task itself, not here.
+      expect(find.byKey(const ValueKey('task-editor-step-add')), findsNothing);
+      await tester.enterText(
+          find.byKey(const ValueKey('task-title')), 'Call Ann back');
+      await tester.tap(find.byKey(const ValueKey('task-save')));
+      await tester.pumpAndSettle();
+      expect(repo.calls, contains('update:e1:Call Ann back'));
+    });
+  });
+
   group('Taking a checkmark back (owner 2026-10-01)', () {
     testWidgets('the status mark toggles done ⇄ back to work; Undo',
         (tester) async {

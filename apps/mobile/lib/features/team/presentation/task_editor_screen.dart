@@ -20,9 +20,12 @@ import 'package:lawbid/core/l10n/translator.dart';
 /// deadline, documents, print, visit, other), when, where, who, which
 /// case, details and documents.
 class TaskEditorScreen extends ConsumerStatefulWidget {
-  const TaskEditorScreen({this.initialKind, super.key});
+  const TaskEditorScreen({this.initialKind, this.existing, super.key});
 
   final TaskKind? initialKind;
+
+  /// Owner 2026-10-01: edit this task (null = a new one).
+  final TaskItem? existing;
 
   @override
   ConsumerState<TaskEditorScreen> createState() => _TaskEditorScreenState();
@@ -31,16 +34,30 @@ class TaskEditorScreen extends ConsumerStatefulWidget {
 typedef _Attachment = ({String name, String? fileId, bool failed});
 
 class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
-  late TaskKind _kind = widget.initialKind ?? TaskKind.call;
-  final _title = TextEditingController();
-  final _location = TextEditingController();
-  final _contactName = TextEditingController();
-  final _contactPhone = TextEditingController();
-  final _contactEmail = TextEditingController();
-  final _notes = TextEditingController();
-  DateTime? _due;
-  WorkItem? _case;
-  final List<_Attachment> _files = [];
+  late TaskKind _kind =
+      widget.existing?.kind ?? widget.initialKind ?? TaskKind.call;
+  late final _title = TextEditingController(text: widget.existing?.title);
+  late final _location = TextEditingController(text: widget.existing?.location);
+  late final _contactName =
+      TextEditingController(text: widget.existing?.contactName);
+  late final _contactPhone =
+      TextEditingController(text: widget.existing?.contactPhone);
+  late final _contactEmail =
+      TextEditingController(text: widget.existing?.contactEmail);
+  late final _notes = TextEditingController(text: widget.existing?.notes);
+  late DateTime? _due = widget.existing?.dueAt?.toLocal();
+
+  /// The linked case: the attorney's work in progress, a client's own.
+  late ({String id, String title})? _case = widget.existing?.caseId == null
+      ? null
+      : (
+          id: widget.existing!.caseId!,
+          title: widget.existing!.caseTitle ?? '',
+        );
+  late final List<_Attachment> _files = [
+    for (final (i, f) in (widget.existing?.files ?? const <TaskFile>[]).indexed)
+      (name: '${i + 1}. ${f.mime ?? 'file'}', fileId: f.fileId, failed: false),
+  ];
 
   /// Owner 2026-10-01: the checklist — as many steps as needed.
   final List<TaskStepDraft> _steps = [];
@@ -92,19 +109,31 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
 
   Future<void> _pickCase() async {
     final t = ref.read(translatorProvider);
-    final picked = await showAppBottomSheet<WorkItem>(
+    final attorney = ref.read(actsAsAttorneyProvider);
+    final picked = await showAppBottomSheet<({String id, String title})>(
       context: context,
       isScrollControlled: true,
       builder: (ctx) => Consumer(
         builder: (ctx, ref, _) {
-          final value = ref.watch(myWorkProvider(WorkFilter.active));
-          final items = value.value?.items ?? const <WorkItem>[];
+          // Owner 2026-10-01: a client's planner links their own cases.
+          final work =
+              attorney ? ref.watch(myWorkProvider(WorkFilter.active)) : null;
+          final mine = attorney
+              ? null
+              : ref.watch(myCasesProvider(MyCasesFilter.active));
+          final loading = (work ?? mine)!.isLoading;
+          final items = <({String id, String title})>[
+            for (final w in work?.value?.items ?? const <WorkItem>[])
+              (id: w.caseId, title: w.title),
+            for (final c in mine?.value?.items ?? const <CaseSummary>[])
+              (id: c.id, title: c.title),
+          ];
           return SafeArea(
             child: ConstrainedBox(
               constraints: BoxConstraints(
                 maxHeight: MediaQuery.sizeOf(ctx).height * 0.6,
               ),
-              child: value.isLoading && items.isEmpty
+              child: loading && items.isEmpty
                   ? const Padding(
                       padding: EdgeInsets.all(AppSpacing.xl),
                       child: Center(child: CircularProgressIndicator()),
@@ -112,16 +141,26 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
                   : items.isEmpty
                       ? AppEmptyState(
                           icon: Icons.work_outline_rounded,
-                          message: t.t('mine.work.empty'),
+                          message: t.t(attorney
+                              ? 'mine.work.empty'
+                              : 'tasks.casesEmpty'),
                         )
                       : ListView(
                           shrinkWrap: true,
                           children: [
+                            if (_case != null)
+                              AppListRow(
+                                key: const ValueKey('task-case-clear'),
+                                icon: Icons.link_off_rounded,
+                                label: t.t('tasks.field.caseNone'),
+                                onTap: () =>
+                                    Navigator.of(ctx).pop((id: '', title: '')),
+                              ),
                             for (final w in items)
                               AppListRow(
                                 icon: Icons.work_outline_rounded,
                                 label: w.title,
-                                selected: _case?.caseId == w.caseId,
+                                selected: _case?.id == w.id,
                                 onTap: () => Navigator.of(ctx).pop(w),
                               ),
                           ],
@@ -131,7 +170,9 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
         },
       ),
     );
-    if (picked != null) setState(() => _case = picked);
+    if (picked != null) {
+      setState(() => _case = picked.id.isEmpty ? null : picked);
+    }
   }
 
   Future<void> _save() async {
@@ -146,24 +187,31 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
     }
     setState(() => _saving = true);
     try {
-      await ref.read(teamRepositoryProvider).createTask(TaskDraft(
-            kind: _kind,
-            title: _title.text.trim(),
-            notes: _clean(_notes),
-            dueAt: _due,
-            location: form.where != null ? _clean(_location) : null,
-            caseId: _case?.caseId,
-            contactName: form.contact != null ? _clean(_contactName) : null,
-            contactPhone: form.phone ? _clean(_contactPhone) : null,
-            contactEmail: form.email ? _clean(_contactEmail) : null,
-            fileIds: [
-              for (final f in _files)
-                if (f.fileId != null) f.fileId!,
-            ],
-            steps: List.of(_steps),
-          ));
+      final draft = TaskDraft(
+        kind: _kind,
+        title: _title.text.trim(),
+        notes: _clean(_notes),
+        dueAt: _due,
+        location: form.where != null ? _clean(_location) : null,
+        caseId: _case?.id,
+        contactName: form.contact != null ? _clean(_contactName) : null,
+        contactPhone: form.phone ? _clean(_contactPhone) : null,
+        contactEmail: form.email ? _clean(_contactEmail) : null,
+        fileIds: [
+          for (final f in _files)
+            if (f.fileId != null) f.fileId!,
+        ],
+        steps: List.of(_steps),
+      );
+      final existing = widget.existing;
+      if (existing == null) {
+        await ref.read(teamRepositoryProvider).createTask(draft);
+      } else {
+        await ref.read(teamRepositoryProvider).updateTask(existing.id, draft);
+      }
       ref.invalidate(tasksProvider((done: false, mine: false)));
       ref.invalidate(tasksProvider((done: false, mine: true)));
+      ref.invalidate(tasksProvider((done: true, mine: false)));
       if (!mounted) return;
       HapticFeedback.mediumImpact();
       showAppSnackBar(context, t.t('tasks.saved'));
@@ -308,7 +356,9 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
           semanticLabel: t.t('common.close'),
           onPressed: () => Navigator.of(context).maybePop(),
         ),
-        title: Text(t.t(assistant ? 'tasks.forAttorney' : 'tasks.forMe')),
+        title: Text(widget.existing != null
+            ? t.t('tasks.edit')
+            : t.t(assistant ? 'tasks.forAttorney' : 'tasks.forMe')),
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(
@@ -345,85 +395,89 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
           // Owner 2026-10-01: the fields below follow the kind of task.
           ..._fields(t, formats, label),
           // Owner 2026-10-01: several calls / meetings / addresses go into
-          // this one task as steps, each with its own time.
-          Row(
-            children: [
-              Expanded(child: Text(t.t('tasks.steps.title'), style: label)),
-              TextButton.icon(
-                key: const ValueKey('task-editor-step-add'),
-                onPressed: () async {
-                  FocusScope.of(context).unfocus();
-                  final d = await showStepEditor(context, taskKind: _kind);
-                  if (d != null && mounted) setState(() => _steps.add(d));
-                },
-                icon: Icon(Icons.add_rounded, color: colors.goldDark),
-                label: Text(
-                  t.t('tasks.steps.add'),
-                  style: TextStyle(color: colors.goldDark),
+          // this one task as steps, each with its own time. (Editing: steps
+          // are managed on the task itself.)
+          if (widget.existing == null) ...[
+            Row(
+              children: [
+                Expanded(child: Text(t.t('tasks.steps.title'), style: label)),
+                TextButton.icon(
+                  key: const ValueKey('task-editor-step-add'),
+                  onPressed: () async {
+                    FocusScope.of(context).unfocus();
+                    final d = await showStepEditor(context, taskKind: _kind);
+                    if (d != null && mounted) setState(() => _steps.add(d));
+                  },
+                  icon: Icon(Icons.add_rounded, color: colors.goldDark),
+                  label: Text(
+                    t.t('tasks.steps.add'),
+                    style: TextStyle(color: colors.goldDark),
+                  ),
+                ),
+              ],
+            ),
+            if (_steps.isEmpty)
+              Text(
+                t.t('tasks.steps.editorHint'),
+                style:
+                    typography.bodySmall.copyWith(color: colors.textSecondary),
+              )
+            else
+              AppCard(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md,
+                  vertical: AppSpacing.xs,
+                ),
+                child: ReorderableListView(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  buildDefaultDragHandles: false,
+                  onReorder: (from, to) => setState(() {
+                    final s = _steps.removeAt(from);
+                    _steps.insert(to > from ? to - 1 : to, s);
+                  }),
+                  children: [
+                    for (final (i, d) in _steps.indexed)
+                      Row(
+                        key: ValueKey('draft-step-$i-${d.title}'),
+                        children: [
+                          ReorderableDragStartListener(
+                            index: i,
+                            child: Padding(
+                              padding: const EdgeInsets.all(AppSpacing.xs),
+                              child: Icon(Icons.drag_indicator_rounded,
+                                  size: 20, color: colors.textSecondary),
+                            ),
+                          ),
+                          Expanded(
+                            child: TaskStepTile(
+                              step: TaskStep(
+                                id: 'draft-$i',
+                                title: d.title,
+                                kind: d.kind,
+                                dueAt: d.dueAt,
+                                location: d.location,
+                                contactName: d.contactName,
+                                contactPhone: d.contactPhone,
+                                contactEmail: d.contactEmail,
+                              ),
+                              t: t,
+                              formats: formats,
+                              now: DateTime.now(),
+                            ),
+                          ),
+                          AppIconButton(
+                            icon: const Icon(Icons.close_rounded),
+                            semanticLabel: t.t('common.delete'),
+                            onPressed: () => setState(() => _steps.removeAt(i)),
+                          ),
+                        ],
+                      ),
+                  ],
                 ),
               ),
-            ],
-          ),
-          if (_steps.isEmpty)
-            Text(
-              t.t('tasks.steps.editorHint'),
-              style: typography.bodySmall.copyWith(color: colors.textSecondary),
-            )
-          else
-            AppCard(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.md,
-                vertical: AppSpacing.xs,
-              ),
-              child: ReorderableListView(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                buildDefaultDragHandles: false,
-                onReorder: (from, to) => setState(() {
-                  final s = _steps.removeAt(from);
-                  _steps.insert(to > from ? to - 1 : to, s);
-                }),
-                children: [
-                  for (final (i, d) in _steps.indexed)
-                    Row(
-                      key: ValueKey('draft-step-$i-${d.title}'),
-                      children: [
-                        ReorderableDragStartListener(
-                          index: i,
-                          child: Padding(
-                            padding: const EdgeInsets.all(AppSpacing.xs),
-                            child: Icon(Icons.drag_indicator_rounded,
-                                size: 20, color: colors.textSecondary),
-                          ),
-                        ),
-                        Expanded(
-                          child: TaskStepTile(
-                            step: TaskStep(
-                              id: 'draft-$i',
-                              title: d.title,
-                              kind: d.kind,
-                              dueAt: d.dueAt,
-                              location: d.location,
-                              contactName: d.contactName,
-                              contactPhone: d.contactPhone,
-                              contactEmail: d.contactEmail,
-                            ),
-                            t: t,
-                            formats: formats,
-                            now: DateTime.now(),
-                          ),
-                        ),
-                        AppIconButton(
-                          icon: const Icon(Icons.close_rounded),
-                          semanticLabel: t.t('common.delete'),
-                          onPressed: () => setState(() => _steps.removeAt(i)),
-                        ),
-                      ],
-                    ),
-                ],
-              ),
-            ),
-          const SizedBox(height: AppSpacing.lg),
+            const SizedBox(height: AppSpacing.lg),
+          ],
           if (TaskKindForm.of(_kind).files) ...[
             Text(t.t('tasks.field.files'), style: label),
             const SizedBox(height: AppSpacing.sm),

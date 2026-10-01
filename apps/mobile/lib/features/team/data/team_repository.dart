@@ -64,6 +64,11 @@ abstract interface class TeamRepository {
   });
   Future<String> uploadTaskFile(Uint8List bytes, String mime);
 
+  /// Owner 2026-10-01: edit a planner card (every field of [draft];
+  /// null optional fields are cleared) / delete it with its steps.
+  Future<TaskItem> updateTask(String id, TaskDraft draft);
+  Future<void> deleteTask(String id);
+
   // Owner 2026-10-01: a task's checklist steps.
   Future<TaskItem> addTaskStep(String taskId, TaskStepDraft step);
 
@@ -193,6 +198,7 @@ class ApiTeamRepository implements TeamRepository {
         outcomeNote: t.outcomeNote,
         rescheduledTo: _date(t.rescheduledTo),
         createdByName: t.createdByName,
+        canDelete: t.canDelete,
         createdAt: _date(t.createdAt) ?? DateTime.now(),
         doneAt: _date(t.doneAt),
         steps: [
@@ -216,7 +222,8 @@ class ApiTeamRepository implements TeamRepository {
 
   static api.TaskStepInputDto _stepInput(TaskStepDraft s) =>
       api.TaskStepInputDto(
-        kind: s.kind == null ? null : api.AttorneyTaskKind.fromJson(s.kind!.wire),
+        kind:
+            s.kind == null ? null : api.AttorneyTaskKind.fromJson(s.kind!.wire),
         title: s.title,
         dueAt: s.dueAt?.toUtc(),
         location: s.location,
@@ -456,6 +463,34 @@ class ApiTeamRepository implements TeamRepository {
         ))
             .data,
       );
+
+  @override
+  Future<TaskItem> updateTask(String id, TaskDraft d) async => _task(
+        (await guardApiCall(
+          () => _api.updateTask(
+            id: id,
+            body: api.UpdateTaskDto(
+              kind: api.AttorneyTaskKind.fromJson(d.kind.wire),
+              title: d.title,
+              notes: d.notes ?? '',
+              dueAt: d.dueAt?.toUtc(),
+              clearDueAt: d.dueAt == null ? true : null,
+              location: d.location ?? '',
+              contactName: d.contactName ?? '',
+              contactPhone: d.contactPhone ?? '',
+              contactEmail: d.contactEmail ?? '',
+              fileIds: d.fileIds,
+              caseId: d.caseId,
+              clearCaseId: d.caseId == null ? true : null,
+            ),
+          ),
+        ))
+            .data,
+      );
+
+  @override
+  Future<void> deleteTask(String id) =>
+      guardApiCall(() => _api.deleteTask(id: id));
 
   @override
   Future<TaskItem> addTaskStep(String taskId, TaskStepDraft step) async =>
