@@ -130,30 +130,6 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                 ],
               ),
             ),
-            // Notification actions moved under the tabs.
-            if (tab == InboxTab.notifications)
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.screenSide),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    if (badges.notifications > 0)
-                      TextButton(
-                        onPressed: () =>
-                            ref.read(notificationsProvider.notifier).markRead(),
-                        child: Text(t.t('notif.markAllRead')),
-                      ),
-                    AppIconButton(
-                      plain: true,
-                      icon: AppIcon(AppIcons.tuneRounded, color: colors.text),
-                      semanticLabel: t.t('settings.notifications'),
-                      onPressed: () =>
-                          context.push(ChatRoutes.notificationSettings),
-                    ),
-                  ],
-                ),
-              ),
             Expanded(
               child: TabSwipe<InboxTab>(
                 value: tab,
@@ -166,7 +142,30 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                       folder: _folder,
                       onFolder: (f) => setState(() => _folder = f),
                     ),
-                    const NotificationsView(),
+                    NotificationsView(
+                      // Owner 2026-10-01: on the same line as All ·
+                      // Assistants.
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (badges.notifications > 0)
+                            TextButton(
+                              onPressed: () => ref
+                                  .read(notificationsProvider.notifier)
+                                  .markRead(),
+                              child: Text(t.t('notif.markAllRead')),
+                            ),
+                          AppIconButton(
+                            plain: true,
+                            icon: AppIcon(AppIcons.tuneRounded,
+                                color: colors.text),
+                            semanticLabel: t.t('settings.notifications'),
+                            onPressed: () =>
+                                context.push(ChatRoutes.notificationSettings),
+                          ),
+                        ],
+                      ),
+                    ),
                     // Requests moved into Chats (kept for the stack index).
                     const SizedBox.shrink(),
                     if (showTeam) const TeamInboxTab(),
@@ -257,13 +256,18 @@ class _InboxTabs extends StatelessWidget {
             left: _segment *
                 tabs.indexWhere((x) => x.$1 == value).clamp(0, tabs.length),
             top: 0,
-            child: Container(
-              width: _segment,
-              height: _height,
-              decoration: BoxDecoration(
-                color: colors.accent,
-                borderRadius: BorderRadius.circular(AppRadii.pill),
-                border: Border.all(color: colors.goldStroke),
+            // Owner 2026-10-01: with the bell open no segment is lit.
+            child: AnimatedOpacity(
+              duration: d,
+              opacity: tabs.any((x) => x.$1 == value) ? 1 : 0,
+              child: Container(
+                width: _segment,
+                height: _height,
+                decoration: BoxDecoration(
+                  color: colors.accent,
+                  borderRadius: BorderRadius.circular(AppRadii.pill),
+                  border: Border.all(color: colors.goldStroke),
+                ),
               ),
             ),
           ),

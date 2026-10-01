@@ -159,7 +159,10 @@ IconData _icon(AppNotification n) => switch (n.type) {
 /// неделе", "Раньше"; a gold dot marks unread; a tap opens the target and
 /// marks the row read.
 class NotificationsView extends ConsumerStatefulWidget {
-  const NotificationsView({super.key});
+  const NotificationsView({this.trailing, super.key});
+
+  /// Actions at the right of the filter line (mark all read, settings).
+  final Widget? trailing;
 
   @override
   ConsumerState<NotificationsView> createState() => _NotificationsViewState();
@@ -184,26 +187,42 @@ class _NotificationsViewState extends ConsumerState<NotificationsView> {
         !ref.watch(isAssistantProvider);
     final list =
         team && _assistants ? const AssistantActivityList() : _list(context, t);
-    if (!team) return list;
+    final trailing = widget.trailing;
+    if (!team && trailing == null) return list;
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-          child: Wrap(
-            spacing: AppSpacing.sm,
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.screenSide,
+            0,
+            AppSpacing.xs,
+            AppSpacing.sm,
+          ),
+          child: Row(
             children: [
-              AppChip(
-                key: const ValueKey('notif-view-all'),
-                label: t.t('notif.view.all'),
-                selected: !_assistants,
-                onTap: () => setState(() => _assistants = false),
-              ),
-              AppChip(
-                key: const ValueKey('notif-view-assistants'),
-                label: t.t('notif.view.assistants'),
-                selected: _assistants,
-                onTap: () => setState(() => _assistants = true),
-              ),
+              if (team)
+                Expanded(
+                  child: Wrap(
+                    spacing: AppSpacing.sm,
+                    children: [
+                      AppChip(
+                        key: const ValueKey('notif-view-all'),
+                        label: t.t('notif.view.all'),
+                        selected: !_assistants,
+                        onTap: () => setState(() => _assistants = false),
+                      ),
+                      AppChip(
+                        key: const ValueKey('notif-view-assistants'),
+                        label: t.t('notif.view.assistants'),
+                        selected: _assistants,
+                        onTap: () => setState(() => _assistants = true),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                const Spacer(),
+              if (trailing != null) trailing,
             ],
           ),
         ),
