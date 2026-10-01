@@ -16,6 +16,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { BlocksService } from '../blocks/blocks.service';
+import { PresenceService } from '../presence/presence.service';
 import { maskContactInfo } from '../cases/domain/contact-detector';
 import { isImageMime } from '../files/files.policy';
 import { FilesService } from '../files/files.service';
@@ -90,6 +91,7 @@ export class ChatService {
     private readonly notifications: NotificationsService,
     private readonly badges: BadgesService,
     private readonly blocks: BlocksService,
+    private readonly presence: PresenceService,
   ) {}
 
   /**
@@ -1039,6 +1041,12 @@ export class ChatService {
     const avatars = await this.files.avatarUrlsMany(
       users.map((u) => u.avatar_file_id),
     );
+    // Owner 2026-10-01: online / last seen (reciprocal activity status).
+    const blockedIds = await this.blocks.hiddenIds(viewerId);
+    const presence = await this.presence.snapshot(
+      viewerId,
+      otherIds.filter((id) => !blockedIds.has(id)),
+    );
 
     const out: ConversationDto[] = [];
     for (const c of convs) {
@@ -1080,6 +1088,13 @@ export class ChatService {
           verifiedBadge:
             other?.attorney_profile?.verification_status === 'verified' &&
             !other.attorney_profile.name_mismatch,
+          ...(() => {
+            const p = hidden || seenHidden ? undefined : presence.get(otherId);
+            return {
+              online: p ? p.online : null,
+              lastSeenAt: p?.lastSeenAt?.toISOString() ?? null,
+            };
+          })(),
         },
         lastMessage: last ? this.toMessage(last, viewerId, c) : null,
         lastMessageAt: c.last_message_at,

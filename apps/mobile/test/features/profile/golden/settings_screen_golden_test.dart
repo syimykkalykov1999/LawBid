@@ -1,6 +1,7 @@
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/features/chat/application/presence_providers.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:golden_toolkit/golden_toolkit.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -25,6 +26,7 @@ void main() {
           overrides: [
             sharedPreferencesProvider.overrideWithValue(prefs),
             l10nDatabaseProvider.overrideWithValue(l10nDb),
+            activityStatusProvider.overrideWith(_ActivityOn.new),
           ],
           child: MaterialApp(
             theme: theme,
@@ -70,4 +72,9 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(Duration.zero);
   });
+}
+
+class _ActivityOn extends ActivityStatusNotifier {
+  @override
+  Future<bool> build() async => true;
 }

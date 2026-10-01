@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/features/chat/application/presence_providers.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -341,6 +342,23 @@ class _Header extends ConsumerWidget {
     final c = conversation;
     final attorney = ref.watch(actsAsAttorneyProvider);
     final caseId = c.caseId;
+    final formats = ref.watch(l10nFormatsProvider);
+    // Owner 2026-10-01: online / last seen, live while the chat is open.
+    final otherId = c.counterpart.id;
+    final live = otherId == null || c.counterpart.online == null
+        ? null
+        : ref.watch(presenceProvider(otherId));
+    final presence = live ??
+        (c.counterpart.online == null
+            ? null
+            : PresenceView(
+                online: c.counterpart.online!,
+                lastSeenAt: c.counterpart.lastSeenAt,
+              ));
+    final context2 = c.caseTitle ??
+        (c.counterpart.username == null
+            ? t.t('chat.direct')
+            : '@${c.counterpart.username}');
     return Semantics(
       button: caseId != null,
       label: caseId != null ? t.t('chat.openCase') : counterpartName(t, c),
@@ -360,7 +378,11 @@ class _Header extends ConsumerWidget {
         },
         child: Row(
           children: [
-            CounterpartAvatar(counterpart: c.counterpart, size: 36),
+            CounterpartAvatar(
+              counterpart: c.counterpart,
+              size: 36,
+              online: presence?.online,
+            ),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Column(
@@ -374,11 +396,28 @@ class _Header extends ConsumerWidget {
                     style: type.body.copyWith(
                         color: colors.text, fontWeight: FontWeight.w600),
                   ),
-                  Text(
-                    c.caseTitle ??
-                        (c.counterpart.username == null
-                            ? t.t('chat.direct')
-                            : '@${c.counterpart.username}'),
+                  Text.rich(
+                    TextSpan(children: [
+                      if (presence != null)
+                        TextSpan(
+                          text: '${presenceLabel(
+                            t,
+                            presence,
+                            time: formats.time,
+                            date: formats.date,
+                          )} · ',
+                          style: TextStyle(
+                            color: presence.online
+                                ? colors.gold
+                                : colors.textSecondary,
+                            fontWeight: presence.online
+                                ? FontWeight.w600
+                                : FontWeight.w400,
+                          ),
+                        ),
+                      TextSpan(text: context2),
+                    ]),
+                    key: const ValueKey('chat-presence'),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: type.caption.copyWith(color: colors.goldDark),
@@ -1257,7 +1296,8 @@ class _ComposerState extends ConsumerState<_Composer> {
           if (_locked)
             AppIconButton(
               plain: true,
-              icon: AppIcon(AppIcons.deleteOutlineRounded, color: colors.danger),
+              icon:
+                  AppIcon(AppIcons.deleteOutlineRounded, color: colors.danger),
               semanticLabel: t.t('chat.voice.cancel'),
               onPressed: () => _finish(send: false),
             ),
@@ -1287,14 +1327,16 @@ class _ComposerState extends ConsumerState<_Composer> {
                 shape: BoxShape.circle,
                 color: on ? colors.gold : colors.border,
               ),
-              child: AppIcon(icon, color: on ? colors.navy : colors.textSecondary),
+              child:
+                  AppIcon(icon, color: on ? colors.navy : colors.textSecondary),
             ),
           ),
         );
 
     // The composer (send, attach, mic) keeps the keyboard; taps outside
     // it hide the keyboard.
-    return TextFieldTapRegion(child: Material(
+    return TextFieldTapRegion(
+        child: Material(
       color: colors.surface,
       child: SafeArea(
         top: false,
@@ -1314,8 +1356,8 @@ class _ComposerState extends ConsumerState<_Composer> {
                   padding: EdgeInsets.zero,
                   child: AppIconButton(
                     plain: true,
-                    icon:
-                        AppIcon(AppIcons.attachFileRounded, color: colors.goldDark),
+                    icon: AppIcon(AppIcons.attachFileRounded,
+                        color: colors.goldDark),
                     semanticLabel: t.t('chat.attach.button'),
                     onPressed: widget.onAttach,
                   ),

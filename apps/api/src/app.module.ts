@@ -25,6 +25,7 @@ import { ClientReviewsModule } from './modules/client-reviews/client-reviews.mod
 import { ReportsModule } from './modules/reports/reports.module';
 import { FollowsModule } from './modules/follows/follows.module';
 import { BlocksModule } from './modules/blocks/blocks.module';
+import { PresenceModule } from './modules/presence/presence.module';
 import { SearchModule } from './modules/search/search.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { CallsModule } from './modules/calls/calls.module';
@@ -172,6 +173,7 @@ const isDev =
     SearchModule,
     // Owner 2026-09-29 (OQ-028): user blocks.
     BlocksModule,
+    PresenceModule,
     // docs/05 §8 chats + §8.5 realtime (publisher global, gateway API-only).
     RealtimeModule,
     RealtimeGatewayModule,

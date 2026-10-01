@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { PresenceModule } from '../presence/presence.module';
 import { UsageLimitsModule } from '../../common/usage-limits/usage-limits.module';
 import { BlocksModule } from '../blocks/blocks.module';
 import { FilesModule } from '../files/files.module';
@@ -15,6 +16,7 @@ import { ChatService } from './chat.service';
     FilesModule,
     SubscriptionsModule,
     NotificationsModule,
+    PresenceModule,
   ],
   controllers: [ChatController],
   providers: [ChatService],

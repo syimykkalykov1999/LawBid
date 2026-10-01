@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/l10n/api_error_text.dart';
+import 'package:lawbid/features/chat/application/presence_providers.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -120,6 +122,8 @@ class SettingsScreen extends ConsumerWidget {
             label: t.t('settings.notifications'),
             onTap: () => context.push(ChatRoutes.notificationSettings),
           ),
+          // Owner 2026-10-01: online / last seen in chats (reciprocal).
+          const _ActivityStatusRow(),
         ],
       ),
       AppListSection(
@@ -227,7 +231,11 @@ class _ThemePickerSheet extends ConsumerWidget {
         t.t('settings.theme.system'),
         AppIcons.smartphoneRounded
       ),
-      (ThemeMode.light, t.t('settings.theme.light'), AppIcons.lightModeOutlined),
+      (
+        ThemeMode.light,
+        t.t('settings.theme.light'),
+        AppIcons.lightModeOutlined
+      ),
       (ThemeMode.dark, t.t('settings.theme.dark'), AppIcons.darkModeOutlined),
     ];
 
@@ -274,6 +282,36 @@ class _ThemePickerSheet extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _ActivityStatusRow extends ConsumerWidget {
+  const _ActivityStatusRow();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final value = ref.watch(activityStatusProvider);
+    final on = value.value ?? true;
+    return AppListRow(
+      key: const ValueKey('settings-activity-status'),
+      icon: AppIcons.visibilityOutlined,
+      label: t.t('settings.activityStatus'),
+      subtitle: t.t('settings.activityStatus.hint'),
+      trailingText: value.hasValue ? t.t(on ? 'common.on' : 'common.off') : '…',
+      showChevron: false,
+      onTap: value.hasValue
+          ? () async {
+              try {
+                await ref.read(activityStatusProvider.notifier).set(!on);
+              } on Object catch (e) {
+                if (context.mounted) {
+                  showAppSnackBar(context, errorText(t, e));
+                }
+              }
+            }
+          : null,
     );
   }
 }

@@ -754,11 +754,18 @@ String counterpartName(Translator t, Conversation c) {
 }
 
 class CounterpartAvatar extends StatelessWidget {
-  const CounterpartAvatar(
-      {required this.counterpart, required this.size, super.key});
+  const CounterpartAvatar({
+    required this.counterpart,
+    required this.size,
+    this.online,
+    super.key,
+  });
 
   final Counterpart counterpart;
   final double size;
+
+  /// Owner 2026-10-01: a gold dot when online (null = the list's value).
+  final bool? online;
 
   @override
   Widget build(BuildContext context) {
@@ -777,11 +784,33 @@ class CounterpartAvatar extends StatelessWidget {
       );
     }
     final name = counterpart.displayName ?? counterpart.username ?? '?';
-    return GoldRingAvatar(
+    final avatar = GoldRingAvatar(
       url: counterpart.avatarUrl,
       initials: name.isEmpty ? '?' : name.substring(0, 1).toUpperCase(),
       size: size,
       ring: counterpart.verified,
+    );
+    if (!(online ?? counterpart.online ?? false)) return avatar;
+    final dot = (size * 0.26).clamp(10.0, 16.0);
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        avatar,
+        Positioned(
+          right: 0,
+          bottom: 0,
+          child: Container(
+            key: const ValueKey('presence-dot'),
+            width: dot,
+            height: dot,
+            decoration: BoxDecoration(
+              color: colors.gold,
+              shape: BoxShape.circle,
+              border: Border.all(color: colors.bg, width: 2),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

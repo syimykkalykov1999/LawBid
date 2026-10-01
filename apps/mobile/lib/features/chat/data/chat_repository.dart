@@ -525,6 +525,8 @@ abstract final class ChatMappers {
           username: d.counterpart.username,
           avatarUrl: d.counterpart.avatarUrl,
           verified: d.counterpart.verifiedBadge,
+          online: d.counterpart.online,
+          lastSeenAt: d.counterpart.lastSeenAt,
         ),
         lastMessage: d.lastMessage == null ? null : message(d.lastMessage!),
         lastMessageAt: d.lastMessageAt,

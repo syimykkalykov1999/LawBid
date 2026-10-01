@@ -32,6 +32,7 @@ class RealtimeClient {
   final Future<String?> Function() _refreshToken;
   final _events = StreamController<RealtimeEvent>.broadcast();
   final Set<String> _rooms = {};
+  final Set<String> _watched = {};
   io.Socket? _socket;
   bool _everConnected = false;
   bool _disposed = false;
@@ -50,6 +51,8 @@ class RealtimeClient {
     'notification:new',
     'badge:update',
     'conversation:update',
+    // Owner 2026-10-01: a chat partner came online / left.
+    'presence:update',
   ];
 
   Stream<RealtimeEvent> get events => _events.stream;
@@ -82,6 +85,9 @@ class RealtimeClient {
       ..onConnect((_) {
         for (final id in _rooms) {
           _join(id);
+        }
+        for (final id in _watched) {
+          s0(socket, id);
         }
         if (_everConnected) {
           _events.add(const RealtimeEvent(RealtimeEvent.reconnected, null));
@@ -136,6 +142,29 @@ class RealtimeClient {
             () => _join(conversationId, attempt + 1));
       }
     });
+  }
+
+  void s0(io.Socket s, String userId) =>
+      s.emit('presence:watch', {'userId': userId});
+
+  /// Owner 2026-10-01: follow [userId]'s online / last seen while a chat
+  /// with them is open. Answers the current state (null = not shown).
+  Future<Map<String, Object?>?> watchPresence(String userId) {
+    _watched.add(userId);
+    final s = _socket;
+    if (s == null || !s.connected) return Future.value(null);
+    final done = Completer<Map<String, Object?>?>();
+    s.emitWithAck('presence:watch', {'userId': userId}, ack: (Object? r) {
+      if (done.isCompleted) return;
+      done.complete(r is Map ? Map<String, Object?>.from(r) : null);
+    });
+    return done.future
+        .timeout(const Duration(seconds: 5), onTimeout: () => null);
+  }
+
+  void unwatchPresence(String userId) {
+    _watched.remove(userId);
+    if (connected) _socket!.emit('presence:unwatch', {'userId': userId});
   }
 
   void leave(String conversationId) {

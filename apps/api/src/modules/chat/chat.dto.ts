@@ -365,6 +365,17 @@ export class ConversationCounterpartDto {
 
   @ApiProperty()
   verifiedBadge!: boolean;
+
+  @ApiPropertyOptional({
+    type: Boolean,
+    nullable: true,
+    description:
+      'Owner 2026-10-01: online now; null = not shown (hidden activity status, anonymous client, pending request).',
+  })
+  online!: boolean | null;
+
+  @ApiPropertyOptional({ type: String, nullable: true, format: 'date-time' })
+  lastSeenAt!: string | null;
 }
 
 export class ConversationDto {

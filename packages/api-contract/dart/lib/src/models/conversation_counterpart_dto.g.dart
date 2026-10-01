@@ -15,6 +15,10 @@ ConversationCounterpartDto _$ConversationCounterpartDtoFromJson(
   displayName: json['displayName'] as String?,
   username: json['username'] as String?,
   avatarUrl: json['avatarUrl'] as String?,
+  online: json['online'] as bool?,
+  lastSeenAt: json['lastSeenAt'] == null
+      ? null
+      : DateTime.parse(json['lastSeenAt'] as String),
 );
 
 Map<String, dynamic> _$ConversationCounterpartDtoToJson(
@@ -26,4 +30,6 @@ Map<String, dynamic> _$ConversationCounterpartDtoToJson(
   'username': ?instance.username,
   'avatarUrl': ?instance.avatarUrl,
   'verifiedBadge': instance.verifiedBadge,
+  'online': ?instance.online,
+  'lastSeenAt': ?instance.lastSeenAt?.toIso8601String(),
 };

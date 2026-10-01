@@ -17,6 +17,8 @@ class ConversationCounterpartDto {
     this.displayName,
     this.username,
     this.avatarUrl,
+    this.online,
+    this.lastSeenAt,
   });
 
   factory ConversationCounterpartDto.fromJson(Map<String, Object?> json) =>
@@ -29,6 +31,10 @@ class ConversationCounterpartDto {
   final String? username;
   final String? avatarUrl;
   final bool verifiedBadge;
+
+  /// Owner 2026-10-01: online now; null = not shown (hidden activity status, anonymous client, pending request).
+  final bool? online;
+  final DateTime? lastSeenAt;
 
   Map<String, Object?> toJson() => _$ConversationCounterpartDtoToJson(this);
 }

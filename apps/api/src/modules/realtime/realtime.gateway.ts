@@ -15,6 +15,7 @@ import type { Namespace, Socket } from 'socket.io';
 import { AssistantContextService } from '../auth/assistant/assistant-context';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
+import { PresenceService } from '../presence/presence.service';
 import { SessionRevocationService } from '../auth/services/session-revocation.service';
 import {
   TokenService,
@@ -49,6 +50,8 @@ interface SocketState {
   lastTypingAt?: number;
   viewing: Set<string>;
 }
+
+const presenceRoom = (userId: string) => `presence:${userId}`;
 
 function state(socket: Socket): SocketState {
   return socket.data as SocketState;
@@ -97,6 +100,7 @@ export class RealtimeGateway
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     private readonly logger: PinoLogger,
     private readonly assistants: AssistantContextService,
+    private readonly presence: PresenceService,
   ) {
     this.logger.setContext(RealtimeGateway.name);
   }
@@ -157,6 +161,12 @@ export class RealtimeGateway
           socket.disconnect(true);
         }
       });
+      // Owner 2026-10-01: presence heartbeat (own connections only).
+      if (!state(socket).selfId) {
+        void this.presence
+          .touch(state(socket).user.sub, socket.id)
+          .catch(() => undefined);
+      }
     }, REVOCATION_CHECK_MS);
     state(socket).revocationTimer?.unref?.();
     await socket.join(userRoom(claims.sub));
@@ -173,7 +183,33 @@ export class RealtimeGateway
         await socket.join(userRoom(ctx.attorneyId));
       }
     }
+    // Owner 2026-10-01: online — an assistant's socket never makes the
+    // attorney look online.
+    if (claims.role !== 'assistant') {
+      try {
+        if (await this.presence.touch(claims.sub, socket.id)) {
+          await this.announce(claims.sub, true, null);
+        }
+      } catch {
+        // Presence is best-effort.
+      }
+    }
     this.gauge();
+  }
+
+  /** Tells the watchers of [userId] (open chats with them) — only when
+   * the person shows their activity status. */
+  private async announce(
+    userId: string,
+    online: boolean,
+    lastSeenAt: Date | null,
+  ): Promise<void> {
+    if (!this.nsp || !(await this.presence.visible(userId))) return;
+    this.nsp.to(presenceRoom(userId)).emit('presence:update', {
+      userId,
+      online,
+      lastSeenAt: lastSeenAt?.toISOString() ?? null,
+    });
   }
 
   async handleDisconnect(socket: Socket): Promise<void> {
@@ -182,6 +218,15 @@ export class RealtimeGateway
     if (!s?.user) return;
     clearTimeout(s.expiryTimer);
     clearInterval(s.revocationTimer);
+    if (!s.selfId && s.user.role !== 'assistant') {
+      try {
+        if (await this.presence.leave(s.user.sub, socket.id)) {
+          await this.announce(s.user.sub, false, new Date());
+        }
+      } catch {
+        // Shutting down: the entry expires anyway.
+      }
+    }
     try {
       for (const id of s.viewing) {
         await this.redis.srem(viewingKey(s.user.sub, id), socket.id);
@@ -243,6 +288,64 @@ export class RealtimeGateway
     await socket.leave(conversationRoom(id));
     state(socket).viewing.delete(id);
     await this.redis.srem(viewingKey(state(socket).user.sub, id), socket.id);
+    return { ok: true };
+  }
+
+  /** Owner 2026-10-01: follow a chat partner's online / last seen. Only
+   * someone you share a chat with, never across a block; nothing when
+   * either side hides their activity status. */
+  @SubscribeMessage('presence:watch')
+  async watchPresence(
+    @ConnectedSocket() socket: Socket,
+    @MessageBody() body: { userId?: unknown },
+  ): Promise<{
+    ok: boolean;
+    visible?: boolean;
+    online?: boolean;
+    lastSeenAt?: string | null;
+  }> {
+    const me = state(socket)?.user?.sub;
+    const other = typeof body?.userId === 'string' ? body.userId : '';
+    if (!me || !/^[0-9a-f-]{36}$/i.test(other) || other === me) {
+      return { ok: false };
+    }
+    const shared = await this.prisma.conversationParticipant.findFirst({
+      where: {
+        user_id: me,
+        conversation: { participants: { some: { user_id: other } } },
+      },
+      select: { conversation_id: true },
+    });
+    if (!shared) return { ok: false };
+    const blocked = await this.prisma.userBlock.findFirst({
+      where: {
+        OR: [
+          { blocker_id: me, blocked_id: other },
+          { blocker_id: other, blocked_id: me },
+        ],
+      },
+      select: { blocker_id: true },
+    });
+    if (blocked) return { ok: true, visible: false };
+    const view = (await this.presence.snapshot(me, [other])).get(other);
+    if (!view) return { ok: true, visible: false };
+    await socket.join(presenceRoom(other));
+    return {
+      ok: true,
+      visible: true,
+      online: view.online,
+      lastSeenAt: view.lastSeenAt?.toISOString() ?? null,
+    };
+  }
+
+  @SubscribeMessage('presence:unwatch')
+  async unwatchPresence(
+    @ConnectedSocket() socket: Socket,
+    @MessageBody() body: { userId?: unknown },
+  ): Promise<{ ok: boolean }> {
+    const other = typeof body?.userId === 'string' ? body.userId : '';
+    if (!other) return { ok: false };
+    await socket.leave(presenceRoom(other));
     return { ok: true };
   }
 

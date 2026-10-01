@@ -603,6 +603,8 @@ model User {
   theme                 ThemePref  @default(system)
   suspended_reason      String?
   last_active_at        DateTime?  @db.Timestamptz
+  /// Owner 2026-10-01: others see "online / last seen" (reciprocal).
+  show_activity_status  Boolean    @default(true)
   deletion_requested_at DateTime?  @db.Timestamptz
   deleted_at            DateTime?  @db.Timestamptz
   anonymized_at         DateTime?  @db.Timestamptz

@@ -20,6 +20,8 @@ class Counterpart {
     this.displayName,
     this.username,
     this.avatarUrl,
+    this.online,
+    this.lastSeenAt,
   });
 
   final bool isAttorney;
@@ -28,6 +30,11 @@ class Counterpart {
   final String? username;
   final String? avatarUrl;
   final bool verified;
+
+  /// Owner 2026-10-01: online now; null = not shown (hidden activity
+  /// status on either side, an anonymous client, a pending request).
+  final bool? online;
+  final DateTime? lastSeenAt;
 
   /// A client before contacts are unlocked.
   bool get hidden => !isAttorney && displayName == null;
