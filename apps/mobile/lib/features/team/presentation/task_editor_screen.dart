@@ -185,6 +185,8 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
         !_emailRe.hasMatch(_contactEmail.text.trim())) {
       return;
     }
+    final phone = form.phone ? normalizeTaskPhone(_contactPhone.text) : '';
+    if (phone == null) return;
     setState(() => _saving = true);
     try {
       final draft = TaskDraft(
@@ -195,7 +197,7 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
         location: form.where != null ? _clean(_location) : null,
         caseId: _case?.id,
         contactName: form.contact != null ? _clean(_contactName) : null,
-        contactPhone: form.phone ? _clean(_contactPhone) : null,
+        contactPhone: phone.isEmpty ? null : phone,
         contactEmail: form.email ? _clean(_contactEmail) : null,
         fileIds: [
           for (final f in _files)
@@ -228,6 +230,7 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
   List<Widget> _fields(Translator t, L10nFormats formats, TextStyle label) {
     final f = TaskKindForm.of(_kind);
     String k(String key) => t.t('tasks.f.$key');
+    final phoneBad = _tried && normalizeTaskPhone(_contactPhone.text) == null;
     final emailBad = _tried &&
         _contactEmail.text.trim().isNotEmpty &&
         !_emailRe.hasMatch(_contactEmail.text.trim());
@@ -293,6 +296,7 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
           controller: _contactPhone,
           label: t.t('tasks.field.contactPhone'),
           leading: const AppIcon(AppIcons.phoneOutlined),
+          errorText: phoneBad ? t.t('tasks.field.phoneInvalid') : null,
           keyboardType: TextInputType.phone,
           inputFormatters: [
             FilteringTextInputFormatter.allow(RegExp(r'[+0-9 ()\-]')),
@@ -587,7 +591,8 @@ class _KindTile extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              AppIcon(icon, color: selected ? colors.gold : colors.textSecondary),
+              AppIcon(icon,
+                  color: selected ? colors.gold : colors.textSecondary),
               const SizedBox(height: 6),
               Text(
                 label,
@@ -608,3 +613,22 @@ class _KindTile extends StatelessWidget {
 }
 
 final _emailRe = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+
+/// Audit 2026-10-01: "312 555 0123" / "(312) 555-0123" / "1 312…" →
+/// +13125550123 (a US number); null when it isn't a phone number.
+String? normalizeTaskPhone(String input) {
+  final raw = input.trim();
+  if (raw.isEmpty) return '';
+  final digits = raw.replaceAll(RegExp('[^0-9]'), '');
+  final String e164;
+  if (raw.startsWith('+')) {
+    e164 = '+$digits';
+  } else if (digits.length == 10) {
+    e164 = '+1$digits';
+  } else if (digits.length == 11 && digits.startsWith('1')) {
+    e164 = '+$digits';
+  } else {
+    return null;
+  }
+  return RegExp(r'^\+[1-9][0-9]{7,14}$').hasMatch(e164) ? e164 : null;
+}

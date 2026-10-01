@@ -9,6 +9,8 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
+import 'package:lawbid/features/team/presentation/task_editor_screen.dart'
+    show normalizeTaskPhone;
 import 'package:lawbid/features/team/presentation/task_widgets.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -97,7 +99,6 @@ class _StepEditorSheetState extends ConsumerState<StepEditorSheet> {
   DateTime? _at;
   String? _error;
 
-  static final _phoneRe = RegExp(r'^\+[1-9]\d{7,14}$');
   static final _emailRe = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
 
   @override
@@ -110,12 +111,12 @@ class _StepEditorSheetState extends ConsumerState<StepEditorSheet> {
 
   void _save() {
     final t = ref.read(translatorProvider);
-    final phone = _phone.text.replaceAll(RegExp(r'[\s()-]'), '');
+    final phone = normalizeTaskPhone(_phone.text) ?? '!';
     final email = _email.text.trim();
     String? error;
     if (_title.text.trim().isEmpty) {
       error = t.t('post.create.required');
-    } else if (phone.isNotEmpty && !_phoneRe.hasMatch(phone)) {
+    } else if (phone == '!') {
       error = t.t('tasks.phoneInvalid');
     } else if (email.isNotEmpty && !_emailRe.hasMatch(email)) {
       error = t.t('tasks.emailInvalid');

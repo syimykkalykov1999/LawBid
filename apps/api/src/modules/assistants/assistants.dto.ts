@@ -25,6 +25,20 @@ const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
 const PHONE = /^\+[1-9][0-9]{7,14}$/;
 
+/** Audit 2026-10-01: a contact phone typed as "312 555 0123",
+ * "(312) 555-0123" or "1-312-555-0123" is stored as +13125550123 (a US
+ * 10-digit number gets +1); anything else is validated as typed. */
+export function normalizeContactPhone({ value }: { value: unknown }): unknown {
+  if (typeof value !== 'string') return value;
+  const raw = value.trim();
+  if (raw === '') return raw;
+  const digits = raw.replace(/[^0-9]/g, '');
+  if (raw.startsWith('+')) return `+${digits}`;
+  if (digits.length === 10) return `+1${digits}`;
+  if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`;
+  return raw;
+}
+
 export class AssistantPhoneDto {
   @ApiProperty({ example: '+13125550111' })
   @Matches(PHONE)
@@ -324,6 +338,7 @@ export class TaskStepInputDto {
 
   @ApiPropertyOptional({ example: '+13125550123' })
   @IsOptional()
+  @Transform(normalizeContactPhone)
   @Matches(PHONE)
   contactPhone?: string;
 
@@ -430,6 +445,7 @@ export class CreateTaskDto {
 
   @ApiPropertyOptional({ example: '+13125550123' })
   @IsOptional()
+  @Transform(normalizeContactPhone)
   @Matches(PHONE)
   contactPhone?: string;
 
@@ -520,6 +536,7 @@ export class UpdateTaskDto {
 
   @ApiPropertyOptional({ example: '+13125550123' })
   @IsOptional()
+  @Transform(normalizeContactPhone)
   @Matches(/^(\+[1-9]\d{7,14})?$/)
   contactPhone?: string;
 

@@ -497,6 +497,23 @@ describe('Assistants (e2e, OQ-048)', () => {
       .set(att.auth)
       .send({ kind: 'call', title: 'Call Ann', contactPhone: '+13125550111' })
       .expect(201);
+    // A phone typed the usual way is stored as +1… (it used to be a 400).
+    const typed = await api()
+      .post('/api/v1/tasks')
+      .set(att.auth)
+      .send({
+        kind: 'call',
+        title: 'Call the clerk',
+        contactPhone: '(312) 555-0123',
+        steps: [{ title: 'Ask for the docket', contactPhone: '312 555 0124' }],
+      })
+      .expect(201);
+    expect(typed.body.data.contactPhone).toBe('+13125550123');
+    expect(typed.body.data.steps[0].contactPhone).toBe('+13125550124');
+    await api()
+      .delete(`/api/v1/tasks/${typed.body.data.id}`)
+      .set(att.auth)
+      .expect(204);
     const edited = await api()
       .patch(`/api/v1/tasks/${mine.body.data.id}`)
       .set(att.auth)

@@ -180,6 +180,15 @@ void main() {
     expect(find.text('Where to go (address)'), findsOneWidget);
   });
 
+  test('contact phones typed the usual way become +1…', () {
+    expect(normalizeTaskPhone('(312) 555-0123'), '+13125550123');
+    expect(normalizeTaskPhone('312 555 0123'), '+13125550123');
+    expect(normalizeTaskPhone('1-312-555-0123'), '+13125550123');
+    expect(normalizeTaskPhone('+44 20 7946 0958'), '+442079460958');
+    expect(normalizeTaskPhone(''), '');
+    expect(normalizeTaskPhone('555'), isNull);
+  });
+
   group('Edit and delete a task (owner 2026-10-01)', () {
     Future<void> openSheet(WidgetTester tester, String title) async {
       await tester.tap(find.text(title));
