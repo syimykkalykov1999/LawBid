@@ -23,7 +23,11 @@ import type { CreatePostDto } from '../posts/dto/posts.dto';
 import { PostsService } from '../posts/posts.service';
 import { AttorneyProfilesService } from '../profiles/services/attorney-profiles.service';
 import { SubscriptionAccessService } from '../subscriptions/subscription-access.service';
-import { DEFAULT_DUTIES } from './assistant-duties';
+import {
+  DEFAULT_DUTIES,
+  LIABILITY_DUTIES,
+  LIABILITY_TERMS_VERSION,
+} from './assistant-duties';
 import type {
   ActivityDto,
   AddAssistantDto,
@@ -310,11 +314,21 @@ export class AssistantsService {
       orderBy: { created_at: 'asc' },
       include: {
         assistant_user: { select: { first_name: true, last_name: true } },
+        liability_acceptances: {
+          where: { granted: true },
+          orderBy: { created_at: 'desc' },
+          take: 1,
+          select: { created_at: true },
+        },
       },
     });
     const s = await this.seatsOf(user.sub);
     return {
-      members: rows.map(memberDto),
+      members: rows.map((m) => ({
+        ...memberDto(m),
+        liabilityAcceptedAt:
+          m.liability_acceptances[0]?.created_at.toISOString() ?? null,
+      })),
       seats: s.seats,
       used: s.used,
       plan: s.plan ?? 'none',
@@ -322,7 +336,11 @@ export class AssistantsService {
   }
 
   /** Added by the attorney: joins without a code. */
-  async add(user: RequestUser, dto: AddAssistantDto): Promise<TeamDto> {
+  async add(
+    user: RequestUser,
+    dto: AddAssistantDto,
+    meta?: RequestMeta,
+  ): Promise<TeamDto> {
     await this.assertFreeSeat(user.sub);
     const taken = await this.prisma.assistantMembership.findFirst({
       where: { phone_e164: dto.phone, status: { not: 'removed' } },
@@ -334,25 +352,73 @@ export class AssistantsService {
         message: 'This phone is already in a team.',
       });
     }
-    await this.prisma.assistantMembership.create({
+    const duties = dto.duties ?? [...DEFAULT_DUTIES];
+    const granted = liabilityDiff([], duties).granted;
+    assertLiability(granted, dto.acceptLiability);
+    const m = await this.prisma.assistantMembership.create({
       data: {
         attorney_id: user.sub,
         phone_e164: dto.phone,
         display_name: dto.name ?? null,
         approval: 'attorney_added',
         status: 'invited',
-        duties: dto.duties ?? [...DEFAULT_DUTIES],
+        duties,
       },
     });
+    await this.recordLiability(user, m.id, granted, [], meta);
     return this.team(user);
+  }
+
+  /**
+   * OQ-049: an append-only record each time the attorney grants (with the
+   * accepted warning) or withdraws "bids" / "publish" — the evidence that
+   * the attorney took responsibility, kept even if the assistant leaves.
+   */
+  private async recordLiability(
+    user: RequestUser,
+    membershipId: string,
+    granted: string[],
+    revoked: string[],
+    meta?: RequestMeta,
+  ): Promise<void> {
+    const rows = [
+      ...(granted.length ? [{ duties: granted, granted: true }] : []),
+      ...(revoked.length ? [{ duties: revoked, granted: false }] : []),
+    ];
+    for (const r of rows) {
+      await this.prisma.assistantLiabilityAcceptance.create({
+        data: {
+          attorney_id: user.sub,
+          membership_id: membershipId,
+          duties: r.duties,
+          granted: r.granted,
+          terms_version: LIABILITY_TERMS_VERSION,
+          ip: meta?.ip?.slice(0, 64) ?? null,
+          user_agent: meta?.userAgent?.slice(0, 300) ?? null,
+        },
+      });
+      await this.prisma.assistantActivity.create({
+        data: {
+          attorney_id: user.sub,
+          membership_id: membershipId,
+          action: r.granted ? 'liability.granted' : 'liability.revoked',
+          summary: r.duties.join(', '),
+        },
+      });
+    }
   }
 
   async update(
     user: RequestUser,
     id: string,
     dto: UpdateAssistantDto,
+    meta?: RequestMeta,
   ): Promise<TeamDto> {
     const m = await this.own(user, id);
+    const diff = dto.duties
+      ? liabilityDiff(m.duties, dto.duties)
+      : { granted: [], revoked: [] };
+    assertLiability(diff.granted, dto.acceptLiability);
     await this.prisma.assistantMembership.update({
       where: { id },
       data: {
@@ -360,6 +426,7 @@ export class AssistantsService {
         ...(dto.duties ? { duties: dto.duties } : {}),
       },
     });
+    await this.recordLiability(user, id, diff.granted, diff.revoked, meta);
     await this.context.invalidate(m.assistant_user_id);
     return this.team(user);
   }
@@ -727,6 +794,7 @@ function memberDto(
     duties: m.duties,
     joinedAt: m.joined_at?.toISOString() ?? null,
     createdAt: m.created_at.toISOString(),
+    liabilityAcceptedAt: null,
   };
 }
 
@@ -755,4 +823,33 @@ function summaryOf(dto: CreateAssistantRequestDto): string {
   const p = dto.payload;
   const s = (k: string) => (typeof p[k] === 'string' ? p[k] : '');
   return dto.kind === 'post' ? s('title') : s('body') || dto.kind;
+}
+
+export interface RequestMeta {
+  ip?: string;
+  userAgent?: string;
+}
+
+/** Which responsibility duties a change grants or withdraws. */
+function liabilityDiff(
+  before: readonly string[],
+  after: readonly string[],
+): { granted: string[]; revoked: string[] } {
+  const L = LIABILITY_DUTIES as readonly string[];
+  return {
+    granted: after.filter((d) => L.includes(d) && !before.includes(d)),
+    revoked: before.filter((d) => L.includes(d) && !after.includes(d)),
+  };
+}
+
+/** OQ-049: "bids" / "publish" only with the attorney's explicit consent. */
+function assertLiability(granted: string[], accepted?: boolean): void {
+  if (granted.length > 0 && accepted !== true) {
+    throw new BadRequestException({
+      code: ErrorCode.ASSISTANT_LIABILITY_REQUIRED,
+      message:
+        "Accept full responsibility for the assistant's bids, negotiations and publications to grant this.",
+      details: { duties: granted },
+    });
+  }
 }

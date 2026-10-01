@@ -50,7 +50,8 @@ const E = ErrorCode;
 export class BidsController {
   constructor(private readonly bids: BidsService) {}
 
-  @AttorneyOnly()
+  // OQ-049: or an assistant the attorney trusted (their responsibility).
+  @AttorneyOnly('bids')
   @Post('cases/:caseId/bids')
   @UseGuards(RequireIdempotencyKeyGuard)
   @UseInterceptors(IdempotencyInterceptor)
@@ -90,7 +91,8 @@ export class BidsController {
     return this.bids.get(user, params.id);
   }
 
-  @AttorneyOnly()
+  // OQ-049: or an assistant the attorney trusted (their responsibility).
+  @AttorneyOnly('bids')
   @Post('bids/:id/withdraw')
   @UseInterceptors(IdempotencyInterceptor)
   @ApiOperation({ summary: 'Withdraw a bid (attorney, while active)' })
@@ -108,7 +110,8 @@ export class BidsController {
     return this.bids.withdraw(user, params.id);
   }
 
-  @AttorneyOnly()
+  // OQ-049: or an assistant the attorney trusted (their responsibility).
+  @AttorneyOnly('bids')
   @Post('bids/:id/decline')
   @UseInterceptors(IdempotencyInterceptor)
   @ApiOperation({ summary: 'Decline a bid (client)' })
@@ -126,7 +129,8 @@ export class BidsController {
     return this.bids.decline(user, params.id);
   }
 
-  @AttorneyOnly()
+  // OQ-049: or an assistant the attorney trusted (their responsibility).
+  @AttorneyOnly('bids')
   @Post('bids/:id/counter')
   @UseInterceptors(IdempotencyInterceptor)
   @ApiOperation({

@@ -108,11 +108,13 @@ export class JwtAuthGuard implements CanActivate {
       ]);
       const ctx = self ? null : await this.assistants.resolve(claims.sub);
       if (ctx) {
-        const attorneyOnly = this.reflector.getAllAndOverride<boolean>(
+        const attorneyOnly = this.reflector.getAllAndOverride<boolean | string>(
           ATTORNEY_ONLY,
           [context.getHandler(), context.getClass()],
         );
-        if (attorneyOnly) {
+        const delegated =
+          typeof attorneyOnly === 'string' && ctx.duties.includes(attorneyOnly);
+        if (attorneyOnly && !delegated) {
           throw new ForbiddenException({
             code: ErrorCode.ASSISTANT_NOT_ALLOWED,
             message: 'Only the attorney can do this.',

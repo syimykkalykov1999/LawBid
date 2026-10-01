@@ -9,6 +9,12 @@
  * - posts: prepare posts / news (published after approval);
  * - tasks: set tasks for the attorney;
  * - profile: propose profile edits (applied after approval).
+ *
+ * OQ-049 (owner 2026-10-01) — granted only with the attorney's written
+ * acceptance of full responsibility ([LIABILITY_DUTIES]):
+ * - bids: place bids and negotiate (counter, accept, decline, withdraw)
+ *   in the attorney's name;
+ * - publish: publish posts / news / comments without approval.
  */
 export const ASSISTANT_DUTIES = [
   'calls',
@@ -19,17 +25,18 @@ export const ASSISTANT_DUTIES = [
   'posts',
   'tasks',
   'profile',
+  'bids',
+  'publish',
 ] as const;
 export type AssistantDuty = (typeof ASSISTANT_DUTIES)[number];
 
-/** A new assistant starts with everything but calls (the attorney opts
- * in to ringing assistants). */
-export const DEFAULT_DUTIES: readonly AssistantDuty[] = [
-  'chats',
-  'files',
-  'cases',
-  'bid_drafts',
-  'posts',
-  'tasks',
-  'profile',
-];
+/** Owner 2026-10-01 (OQ-049): a new assistant starts with no access — the
+ * attorney switches on each duty and accepts responsibility for it. */
+export const DEFAULT_DUTIES: readonly AssistantDuty[] = [];
+
+/** Owner 2026-10-01: every access is granted only after the attorney
+ * accepts responsibility for what the assistant does with it. */
+export const LIABILITY_DUTIES: readonly AssistantDuty[] = ASSISTANT_DUTIES;
+
+/** Bumped when the warning text changes (stored with each acceptance). */
+export const LIABILITY_TERMS_VERSION = '2026-10-01';

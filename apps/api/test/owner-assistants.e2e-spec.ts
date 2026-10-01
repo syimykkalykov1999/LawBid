@@ -206,7 +206,20 @@ describe('Assistants (e2e, OQ-048)', () => {
     await api()
       .post('/api/v1/team')
       .set(att.auth)
-      .send({ phone: asst.phone, name: 'Sam H.' })
+      .send({
+        phone: asst.phone,
+        name: 'Sam H.',
+        duties: [
+          'chats',
+          'files',
+          'cases',
+          'bid_drafts',
+          'posts',
+          'tasks',
+          'profile',
+        ],
+        acceptLiability: true,
+      })
       .expect(201);
     await api()
       .post('/api/v1/assistants/join/accept')
@@ -231,6 +244,7 @@ describe('Assistants (e2e, OQ-048)', () => {
     await api()
       .post('/api/v1/posts')
       .set(asst.auth)
+      .set('Idempotency-Key', randomUUID())
       .send({ title: 'x', body: 'y', practiceCode: 'family_law' })
       .expect(403);
     await api()
@@ -371,7 +385,7 @@ describe('Assistants (e2e, OQ-048)', () => {
     await api()
       .patch(`/api/v1/team/${memberId}`)
       .set(att.auth)
-      .send({ duties: ['tasks'] })
+      .send({ duties: ['tasks'] }) // withdrawing needs no consent
       .expect(200);
     const noChat = await api()
       .get(`/api/v1/conversations/${conv.id}/messages`)
@@ -404,5 +418,127 @@ describe('Assistants (e2e, OQ-048)', () => {
       .set(asst.auth)
       .expect(200);
     expect(gone.body.data.state).toBe('none');
+  });
+
+  // OQ-049 (owner 2026-10-01): every access is switched on by the attorney,
+  // who accepts responsibility; bids and direct publishing included.
+  it('access only with the attorney accepting responsibility; bids and publishing', async () => {
+    const att = await attorney(1);
+    const asst = await assistantUser();
+    await api()
+      .post('/api/v1/team')
+      .set(att.auth)
+      .send({ phone: asst.phone })
+      .expect(201);
+    await api()
+      .post('/api/v1/assistants/join/accept')
+      .set(asst.auth)
+      .expect(201);
+    const me = await api()
+      .get('/api/v1/assistants/me')
+      .set(asst.auth)
+      .expect(200);
+    expect(me.body.data.duties).toEqual([]);
+
+    const team = await api().get('/api/v1/team').set(att.auth).expect(200);
+    const memberId = team.body.data.members[0].id as string;
+    const refused = await api()
+      .patch(`/api/v1/team/${memberId}`)
+      .set(att.auth)
+      .send({ duties: ['bids', 'publish'] })
+      .expect(400);
+    expect(refused.body.error.code).toBe('ASSISTANT_LIABILITY_REQUIRED');
+
+    const granted = await api()
+      .patch(`/api/v1/team/${memberId}`)
+      .set(att.auth)
+      .send({ duties: ['bids', 'publish'], acceptLiability: true })
+      .expect(200);
+    expect(granted.body.data.members[0].liabilityAcceptedAt).not.toBeNull();
+    const rows = await prisma.assistantLiabilityAcceptance.findMany({
+      where: { membership_id: memberId },
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ granted: true, attorney_id: att.id });
+    expect(rows[0].duties.sort()).toEqual(['bids', 'publish']);
+
+    // Publishing directly, in the attorney's name.
+    const post = await api()
+      .post('/api/v1/posts')
+      .set(asst.auth)
+      .set('Idempotency-Key', randomUUID())
+      .send({
+        title: 'Weekly tip',
+        body: 'Keep copies of every court notice.',
+        practiceCode: 'family_law',
+      })
+      .expect(201);
+    const row = await prisma.post.findUniqueOrThrow({
+      where: { id: post.body.data.id },
+    });
+    expect(row.author_id).toBe(att.id);
+
+    // Bidding in the attorney's name.
+    const client = await prisma.user.create({
+      data: { role: 'client', first_name: 'Cy' },
+    });
+    const area = await prisma.practiceArea.findUniqueOrThrow({
+      where: { code: 'family_law' },
+    });
+    await prisma.state.upsert({
+      where: { code: 'IL' },
+      create: { code: 'IL', name: 'Illinois' },
+      update: {},
+    });
+    await prisma.attorneyLicense.create({
+      data: {
+        attorney_id: att.id,
+        state_code: 'IL',
+        bar_number: `IL-${Date.now()}`,
+        license_status: 'verified',
+        verified_at: new Date(),
+      },
+    });
+    const kase = await prisma.case.create({
+      data: {
+        client_id: client.id,
+        title: 'Custody',
+        description: 'Details',
+        practice_area_id: area.id,
+        primary_state_code: 'IL',
+        budget_mode: 'clarify_later',
+        status: 'open',
+        states: { create: { state_code: 'IL', is_primary: true } },
+      },
+    });
+    const bid = await api()
+      .post(`/api/v1/cases/${kase.id}/bids`)
+      .set(asst.auth)
+      .set('Idempotency-Key', randomUUID())
+      .send({
+        feeType: 'fixed',
+        amountCents: 120000,
+        message: 'We can start this week and file within ten days.',
+        startAvailability: 'immediately',
+      })
+      .expect(201);
+    expect(bid.body.data).toMatchObject({ attorneyId: att.id });
+
+    // Withdrawn access is recorded too, and works at once.
+    await api()
+      .patch(`/api/v1/team/${memberId}`)
+      .set(att.auth)
+      .send({ duties: [] })
+      .expect(200);
+    expect(
+      await prisma.assistantLiabilityAcceptance.count({
+        where: { membership_id: memberId, granted: false },
+      }),
+    ).toBe(1);
+    await api()
+      .post('/api/v1/posts')
+      .set(asst.auth)
+      .send({ title: 'x', body: 'y', practiceCode: 'family_law' })
+      .expect(403);
   });
 });

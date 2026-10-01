@@ -9,7 +9,9 @@ import {
   Patch,
   Post,
   Query,
+  Req,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   ApiEnvelopeResponse,
@@ -130,13 +132,15 @@ export class AssistantsController {
   @ApiOperation({ summary: 'Add an assistant by phone (joins without a code)' })
   @ApiEnvelopeResponse(TeamDto)
   @ApiErrors({
+    400: [E.ASSISTANT_LIABILITY_REQUIRED],
     409: [E.ASSISTANT_NO_FREE_SEAT, E.ASSISTANT_PHONE_TAKEN],
   })
   addAssistant(
     @CurrentUser() user: RequestUser,
     @Body() dto: AddAssistantDto,
+    @Req() req: Request,
   ): Promise<TeamDto> {
-    return this.assistants.add(user, dto);
+    return this.assistants.add(user, dto, metaOf(req));
   }
 
   @AttorneyOnly()
@@ -148,8 +152,9 @@ export class AssistantsController {
     @CurrentUser() user: RequestUser,
     @Param() p: AssistantIdParamDto,
     @Body() dto: UpdateAssistantDto,
+    @Req() req: Request,
   ): Promise<TeamDto> {
-    return this.assistants.update(user, p.id, dto);
+    return this.assistants.update(user, p.id, dto, metaOf(req));
   }
 
   @AttorneyOnly()
@@ -275,4 +280,8 @@ export class AssistantsController {
   ): Promise<TaskDto> {
     return this.tasks.setStatus(user, p.id, dto);
   }
+}
+
+function metaOf(req: Request) {
+  return { ip: req.ip, userAgent: req.header('user-agent') };
 }

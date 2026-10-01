@@ -627,23 +627,23 @@ model User {
   reviews_as_client       Review[]             @relation("ReviewClient")
   reviews_as_attorney     Review[]             @relation("ReviewAttorney")
 
-  posts                    Post[]                    @relation("PostAuthor")
-  comments                 Comment[]                 @relation("CommentAuthor")
-  post_likes               PostLike[]                @relation("PostLiker")
-  comment_likes            CommentLike[]             @relation("CommentLiker")
-  following                Follow[]                  @relation("Follower")
-  followers                Follow[]                  @relation("Followee")
+  posts                    Post[]                         @relation("PostAuthor")
+  comments                 Comment[]                      @relation("CommentAuthor")
+  post_likes               PostLike[]                     @relation("PostLiker")
+  comment_likes            CommentLike[]                  @relation("CommentLiker")
+  following                Follow[]                       @relation("Follower")
+  followers                Follow[]                       @relation("Followee")
   // Owner 2026-09-29 (OQ-028): user-level blocks, both roles.
-  blocks_made              UserBlock[]               @relation("Blocker")
-  blocked_by               UserBlock[]               @relation("Blocked")
+  blocks_made              UserBlock[]                    @relation("Blocker")
+  blocked_by               UserBlock[]                    @relation("Blocked")
   saved_items              SavedItem[]
-  conversations_attorney   Conversation[]            @relation("ConversationAttorney")
-  conversations_client     Conversation[]            @relation("ConversationClient")
+  conversations_attorney   Conversation[]                 @relation("ConversationAttorney")
+  conversations_client     Conversation[]                 @relation("ConversationClient")
   conversation_memberships ConversationParticipant[]
-  messages_sent            Message[]                 @relation("MessageSender")
-  calls_made               Call[]                    @relation("CallCaller")
-  chat_requests_sent       Conversation[]            @relation("ConversationRequester")
-  calls_received           Call[]                    @relation("CallCallee")
+  messages_sent            Message[]                      @relation("MessageSender")
+  calls_made               Call[]                         @relation("CallCaller")
+  chat_requests_sent       Conversation[]                 @relation("ConversationRequester")
+  calls_received           Call[]                         @relation("CallCallee")
   notifications            Notification[]
   notification_settings    NotificationSetting[]
   quiet_hours              NotificationQuietHours?
@@ -651,26 +651,27 @@ model User {
   stripe_customer          StripeCustomer?
   subscription             Subscription?
   payments                 Payment[]
-  reports_filed            Report[]                  @relation("Reporter")
-  reports_handled          Report[]                  @relation("ReportHandler")
-  moderation_actions       ModerationAction[]        @relation("ModerationAdmin")
+  reports_filed            Report[]                       @relation("Reporter")
+  reports_handled          Report[]                       @relation("ReportHandler")
+  moderation_actions       ModerationAction[]             @relation("ModerationAdmin")
   admin_profile            AdminProfile?
   admin_credential         AdminCredential?
   data_export_jobs         DataExportJob[]
-  audit_entries            AuditLog[]                @relation("AuditAdmin")
-  data_requests_handled    DataAccessRequest[]       @relation("DataRequestHandler")
-  data_access_entries      DataAccessLog[]           @relation("DataAccessAdmin")
-  case_comments            CaseComment[]             @relation("CaseCommentAuthor")
-  case_comment_likes       CaseCommentLike[]         @relation("CaseCommentLiker")
-  post_shares              PostShare[]               @relation("PostSharer")
-  case_shares              CaseShare[]               @relation("CaseSharer")
-  client_reviews_given     ClientReview[]            @relation("ClientReviewAttorney")
-  client_reviews_received  ClientReview[]            @relation("ClientReviewClient")
-  assistant_team           AssistantMembership[]     @relation("AssistantAttorney")
-  assistant_memberships    AssistantMembership[]     @relation("AssistantUser")
-  attorney_tasks           AttorneyTask[]            @relation("AttorneyTasks")
-  bid_drafts               BidDraft[]                @relation("BidDrafts")
-  client_review_appeals    ClientReviewAppeal[]      @relation("ClientReviewAppellant")
+  audit_entries            AuditLog[]                     @relation("AuditAdmin")
+  data_requests_handled    DataAccessRequest[]            @relation("DataRequestHandler")
+  data_access_entries      DataAccessLog[]                @relation("DataAccessAdmin")
+  case_comments            CaseComment[]                  @relation("CaseCommentAuthor")
+  case_comment_likes       CaseCommentLike[]              @relation("CaseCommentLiker")
+  post_shares              PostShare[]                    @relation("PostSharer")
+  case_shares              CaseShare[]                    @relation("CaseSharer")
+  client_reviews_given     ClientReview[]                 @relation("ClientReviewAttorney")
+  client_reviews_received  ClientReview[]                 @relation("ClientReviewClient")
+  assistant_team           AssistantMembership[]          @relation("AssistantAttorney")
+  assistant_memberships    AssistantMembership[]          @relation("AssistantUser")
+  attorney_tasks           AttorneyTask[]                 @relation("AttorneyTasks")
+  bid_drafts               BidDraft[]                     @relation("BidDrafts")
+  liability_acceptances    AssistantLiabilityAcceptance[] @relation("AssistantLiability")
+  client_review_appeals    ClientReviewAppeal[]           @relation("ClientReviewAppellant")
 
   // Trigram GIN on full_name_lower is a *partial* index (raw SQL): Prisma's
   // CockroachDB connector can't declare gin_trgm_ops, and ignores partial
@@ -2208,9 +2209,10 @@ model AssistantMembership {
   joined_at         DateTime?         @db.Timestamptz
   removed_at        DateTime?         @db.Timestamptz
 
-  activity AssistantActivity[]
-  requests AssistantRequest[]
-  tasks    AttorneyTask[]
+  activity              AssistantActivity[]
+  requests              AssistantRequest[]
+  tasks                 AttorneyTask[]
+  liability_acceptances AssistantLiabilityAcceptance[]
 
   @@index([attorney_id, status])
   @@index([phone_e164, status])
@@ -2346,4 +2348,23 @@ model AdminBroadcast {
   created_at DateTime @default(now()) @db.Timestamptz
 
   @@map("admin_broadcasts")
+}
+
+/// OQ-049: the attorney accepted (or withdrew) responsibility for an
+/// assistant's bids / publications. Append-only.
+model AssistantLiabilityAcceptance {
+  id            String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  attorney_id   String              @db.Uuid
+  attorney      User                @relation("AssistantLiability", fields: [attorney_id], references: [id], onDelete: Cascade)
+  membership_id String              @db.Uuid
+  membership    AssistantMembership @relation(fields: [membership_id], references: [id], onDelete: Cascade)
+  duties        String[]
+  granted       Boolean
+  terms_version String              @db.String(20)
+  ip            String?             @db.String(64)
+  user_agent    String?             @db.String(300)
+  created_at    DateTime            @default(now()) @db.Timestamptz
+
+  @@index([attorney_id, created_at(sort: Desc)], map: "assistant_liability_by_attorney")
+  @@map("assistant_liability_acceptances")
 }

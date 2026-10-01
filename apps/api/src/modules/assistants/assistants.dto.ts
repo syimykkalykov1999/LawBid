@@ -59,6 +59,13 @@ export class AddAssistantDto {
   @ArrayUnique()
   @IsIn(ASSISTANT_DUTIES, { each: true })
   duties?: AssistantDuty[];
+  @ApiPropertyOptional({
+    description:
+      'OQ-049: required (true) when granting "bids" or "publish" — the attorney accepts full responsibility for the assistant\'s bids, negotiations and publications.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  acceptLiability?: boolean;
 }
 
 export class UpdateAssistantDto {
@@ -75,6 +82,13 @@ export class UpdateAssistantDto {
   @ArrayUnique()
   @IsIn(ASSISTANT_DUTIES, { each: true })
   duties?: AssistantDuty[];
+  @ApiPropertyOptional({
+    description:
+      'OQ-049: required (true) when granting "bids" or "publish" — the attorney accepts full responsibility for the assistant\'s bids, negotiations and publications.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  acceptLiability?: boolean;
 }
 
 export class AssistantIdParamDto {
@@ -95,6 +109,13 @@ export class AssistantMemberDto {
   @ApiPropertyOptional({ type: String, nullable: true }) joinedAt!:
     string | null;
   @ApiProperty() createdAt!: string;
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description:
+      'OQ-049: when the attorney last accepted responsibility for this assistant ("bids" / "publish").',
+  })
+  liabilityAcceptedAt!: string | null;
 }
 
 export class TeamDto {

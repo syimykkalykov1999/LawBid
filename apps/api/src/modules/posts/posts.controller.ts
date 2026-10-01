@@ -58,7 +58,8 @@ export class PostsController {
     private readonly engagement: PostEngagementService,
   ) {}
 
-  @AttorneyOnly()
+  // OQ-049: or an assistant the attorney trusted (their responsibility).
+  @AttorneyOnly('publish')
   @Post('posts')
   @UseGuards(RequireIdempotencyKeyGuard)
   @UseInterceptors(IdempotencyInterceptor)
@@ -91,7 +92,8 @@ export class PostsController {
     return this.posts.get(user, p.id);
   }
 
-  @AttorneyOnly()
+  // OQ-049: or an assistant the attorney trusted (their responsibility).
+  @AttorneyOnly('publish')
   @Patch('posts/:id')
   @ApiOperation({
     summary: 'Edit the title, text or qualification of an own post',

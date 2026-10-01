@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  ForbiddenException,
   Get,
   Injectable,
   NotFoundException,
@@ -165,6 +166,7 @@ export class AdminTeamsService {
         duties: m.duties,
         joinedAt: m.joined_at?.toISOString() ?? null,
         createdAt: m.created_at.toISOString(),
+        liabilityAcceptedAt: null,
       })),
       activity: acts.map((x) => ({
         id: x.id,
@@ -205,6 +207,16 @@ export class AdminTeamsService {
     duties: AssistantDuty[],
   ): Promise<AdminTeamDto> {
     const m = await this.member(memberId);
+    // OQ-049: only the attorney grants access (they accept responsibility);
+    // an admin may only take access away.
+    const added = duties.filter((d) => !m.duties.includes(d));
+    if (added.length > 0) {
+      throw new ForbiddenException({
+        code: ErrorCode.ASSISTANT_LIABILITY_REQUIRED,
+        message: 'Only the attorney can grant access to an assistant.',
+        details: { duties: added },
+      });
+    }
     await this.prisma.assistantMembership.update({
       where: { id: memberId },
       data: { duties },

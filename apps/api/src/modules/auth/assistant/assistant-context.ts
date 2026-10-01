@@ -13,9 +13,12 @@ export interface ActingAssistant {
   duties: string[];
 }
 
-/** Routes an assistant may never use (bids, billing, team, account). */
+/** Routes an assistant may never use (billing, team, account) — or, with
+ * [unlessDuty], only with that duty the attorney granted under their own
+ * responsibility (OQ-049: "bids", "publish"). */
 export const ATTORNEY_ONLY = 'lawbid:attorneyOnly';
-export const AttorneyOnly = () => SetMetadata(ATTORNEY_ONLY, true);
+export const AttorneyOnly = (unlessDuty?: string) =>
+  SetMetadata(ATTORNEY_ONLY, unlessDuty ?? true);
 
 /** Routes that need one of the assistant's duties. */
 export const REQUIRES_DUTY = 'lawbid:requiresDuty';

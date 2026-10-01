@@ -41,7 +41,8 @@ const E = ErrorCode;
 export class BidAcceptanceController {
   constructor(private readonly acceptance: BidAcceptanceService) {}
 
-  @AttorneyOnly()
+  // OQ-049: or an assistant the attorney trusted (their responsibility).
+  @AttorneyOnly('bids')
   @Post('bids/:id/accept')
   @HttpCode(HttpStatus.OK)
   @UseInterceptors(IdempotencyInterceptor)

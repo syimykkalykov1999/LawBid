@@ -66,7 +66,8 @@ export class CommentsController {
     return this.comments.replies(user.sub, p.id, q.cursor);
   }
 
-  @AttorneyOnly()
+  // OQ-049: or an assistant the attorney trusted (their responsibility).
+  @AttorneyOnly('publish')
   @Post('posts/:id/comments')
   @ApiOperation({ summary: 'Comment or reply (docs/05 §5.1)' })
   @ApiEnvelopeResponse(CommentDto, { status: 201 })
