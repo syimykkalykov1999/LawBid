@@ -742,6 +742,27 @@ export class AssistantsService {
       },
     });
     const byId = new Map(rows.map((r) => [r.id, r]));
+    // Post previews: photos and the qualification name.
+    const strs = (v: unknown) =>
+      Array.isArray(v)
+        ? v.filter((x): x is string => typeof x === 'string')
+        : [];
+    const payloadOf = (r: (typeof rows)[number]) =>
+      (r.payload ?? {}) as Record<string, unknown>;
+    const media = await this.files.postImageUrls(
+      rows.flatMap((r) => strs(payloadOf(r).mediaFileIds)),
+    );
+    const codes = rows.flatMap((r) => {
+      const c = payloadOf(r).practiceCode;
+      return typeof c === 'string' ? [c] : [];
+    });
+    const practices = codes.length
+      ? await this.prisma.practiceArea.findMany({
+          where: { code: { in: codes } },
+          select: { code: true, name_en: true },
+        })
+      : [];
+    const practiceName = new Map(practices.map((p) => [p.code, p.name_en]));
     return ids.flatMap((id) => {
       const r = byId.get(id);
       if (!r) return [];
@@ -755,6 +776,14 @@ export class AssistantsService {
           status: r.status,
           resultId: r.result_id,
           note: r.note,
+          mediaUrls: strs(payloadOf(r).mediaFileIds).flatMap((f) => {
+            const m = media.get(f);
+            return m ? [m.previewUrl] : [];
+          }),
+          practiceName:
+            typeof payloadOf(r).practiceCode === 'string'
+              ? (practiceName.get(payloadOf(r).practiceCode as string) ?? null)
+              : null,
           createdAt: r.created_at.toISOString(),
           decidedAt: r.decided_at?.toISOString() ?? null,
         },

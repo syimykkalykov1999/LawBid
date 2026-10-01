@@ -72,16 +72,18 @@ void main() {
       expect(find.byKey(const ValueKey('tasks-add')), findsOneWidget);
     });
 
-    testWidgets('a checkbox marks the task done', (tester) async {
+    testWidgets('a double tap marks the task done', (tester) async {
       repo.active = [
         makeTask('t1', dueAt: DateTime.now().add(const Duration(hours: 2))),
       ];
       await pump(tester, const TasksTab());
       expect(find.text('Task t1'), findsOneWidget);
       expect(find.text('Set by: Sam'), findsOneWidget);
-      await tester.tap(find.byKey(const ValueKey('task-check-t1')));
-      await tester.pump();
-      await tester.pump();
+      // Double tap on the card = done.
+      await tester.tap(find.text('Task t1'));
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.tap(find.text('Task t1'));
+      await tester.pumpAndSettle();
       expect(repo.calls, contains('status:t1:done:null'));
       expect(find.text('Task t1'), findsNothing);
       await tester.tap(find.byKey(const ValueKey('tasks-view-done')));
@@ -94,6 +96,8 @@ void main() {
       repo.active = [makeTask('t2', dueAt: DateTime.now())];
       await pump(tester, const TasksTab());
       await tester.tap(find.text('Task t2'));
+      // A single tap waits out the double-tap window.
+      await tester.pump(const Duration(milliseconds: 400));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('task-not-done')));
       await tester.pumpAndSettle();

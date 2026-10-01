@@ -436,6 +436,12 @@ export class AuthService {
         message: 'Refresh token is invalid.',
       });
     }
+    if (outcome.status === 'signed_in_elsewhere') {
+      throw new UnauthorizedException({
+        code: ErrorCode.AUTH_SIGNED_IN_ELSEWHERE,
+        message: 'This account signed in on another device.',
+      });
+    }
     if (outcome.status === 'expired') {
       throw new UnauthorizedException({
         code: ErrorCode.AUTH_REFRESH_EXPIRED,

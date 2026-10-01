@@ -91,11 +91,19 @@ export class JwtAuthGuard implements CanActivate {
       throw error;
     }
 
-    if (await this.revocation.isBlacklisted(claims.sid)) {
-      throw new UnauthorizedException({
-        code: ErrorCode.AUTH_SESSION_REVOKED,
-        message: 'Session has been revoked.',
-      });
+    const revoked = await this.revocation.blacklistReason(claims.sid);
+    if (revoked !== null) {
+      throw new UnauthorizedException(
+        revoked === 'signed_in_elsewhere'
+          ? {
+              code: ErrorCode.AUTH_SIGNED_IN_ELSEWHERE,
+              message: 'This account signed in on another device.',
+            }
+          : {
+              code: ErrorCode.AUTH_SESSION_REVOKED,
+              message: 'Session has been revoked.',
+            },
+      );
     }
 
     // OQ-048: an assistant works inside the attorney's account — every

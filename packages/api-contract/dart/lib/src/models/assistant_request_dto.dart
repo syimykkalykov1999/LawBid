@@ -18,9 +18,11 @@ class AssistantRequestDto {
     required this.kind,
     required this.payload,
     required this.status,
+    required this.mediaUrls,
     required this.createdAt,
     this.resultId,
     this.note,
+    this.practiceName,
     this.decidedAt,
   });
 
@@ -35,6 +37,12 @@ class AssistantRequestDto {
   final AssistantRequestStatus status;
   final String? resultId;
   final String? note;
+
+  /// Post requests: preview links of the attached photos.
+  final List<String> mediaUrls;
+
+  /// Post requests: the qualification name (English).
+  final String? practiceName;
   final String createdAt;
   final String? decidedAt;
 

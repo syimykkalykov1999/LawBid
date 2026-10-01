@@ -28,6 +28,7 @@ export type RefreshOutcome =
   | { status: 'ok'; session: Session; refreshTokenRaw: string }
   | { status: 'invalid' }
   | { status: 'expired' }
+  | { status: 'signed_in_elsewhere' }
   | { status: 'reuse_detected'; sessionChainId: string }
   | { status: 'blocked'; reason: 'suspended' | 'deleted' }
   | { status: 'rate_limited'; retryAfterSeconds: number };
@@ -59,6 +60,28 @@ export class SessionService {
   ): Promise<{ session: Session; refreshTokenRaw: string }> {
     const { raw, hash } = this.tokenService.generateRefreshToken();
     const sessionChainId = randomUUID();
+
+    // Owner 2026-10-01: one phone and one website per account at a time.
+    // Signing in on a phone ends the account's other phone session (that
+    // device is signed out with AUTH_SIGNED_IN_ELSEWHERE and stops getting
+    // pushes); a browser sign-in ends the other browser session only. So an
+    // attorney works from the phone and the computer, but can't hand the
+    // account to assistants instead of buying seats, nor can several
+    // assistants share one assistant account.
+    const web = device.platform === 'web';
+    const ended = await this.revocation.revokeSameKindChains(
+      userId,
+      web,
+      'signed_in_elsewhere',
+    );
+    if (ended.length > 0 && !web) {
+      await this.prisma.pushToken.deleteMany({
+        where: {
+          user_id: userId,
+          session: { session_chain_id: { in: ended } },
+        },
+      });
+    }
 
     const session = await this.prisma.session.create({
       data: {
@@ -143,6 +166,9 @@ export class SessionService {
           status: 'reuse_detected',
           sessionChainId: found.session_chain_id,
         };
+      }
+      if (found.revoked_reason === 'signed_in_elsewhere') {
+        return { status: 'signed_in_elsewhere' };
       }
       // Revoked for any other reason (logout, logout_all, admin_block,
       // account_deletion) — already inert, no further action needed.

@@ -8,6 +8,7 @@ import 'core/design_system/design_system.dart';
 import 'core/navigation/app_router.dart';
 import 'core/theme/preferences_sync.dart';
 import 'features/calls/presentation/call_host.dart';
+import 'package:lawbid/core/navigation/root_messenger.dart';
 
 class LawBidApp extends ConsumerWidget {
   const LawBidApp({super.key});
@@ -22,6 +23,7 @@ class LawBidApp extends ConsumerWidget {
         ref.watch(themeModeControllerProvider).value ?? ThemeMode.system;
 
     return MaterialApp.router(
+      scaffoldMessengerKey: rootMessengerKey,
       // "LawBid Dev" / "LawBid Staging" / "LawBid" (task switcher).
       title: ref.watch(appEnvironmentProvider).appName,
       debugShowCheckedModeBanner: false,

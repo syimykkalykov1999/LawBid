@@ -2,6 +2,7 @@
 // tasks — compiled-in strings merged into StaticTranslatorRu/En.
 
 const file07Ru = <String, String>{
+  'error.api.AUTH_SIGNED_IN_ELSEWHERE': 'В этот аккаунт вошли на другом телефоне. Один аккаунт работает на одном телефоне (и на сайте).',
   // --- OQ-049: access switches with responsibility ---
   'duty.bids': 'Ставки и переговоры',
   'duty.bids.hint':
@@ -180,6 +181,7 @@ const file07Ru = <String, String>{
   // --- Tasks ---
   'mine.tab.tasks': 'Ежедневник',
   'tasks.add': 'Добавить задачу',
+  'tasks.doubleTapHint': 'Двойное нажатие на задачу — «Выполнено». Нажатие — подробности.',
   'tasks.forAttorney': 'Задача для адвоката',
   'tasks.forMe': 'Новая задача',
   'tasks.empty': 'Задач нет',
@@ -279,6 +281,7 @@ const file07Ru = <String, String>{
 };
 
 const file07En = <String, String>{
+  'error.api.AUTH_SIGNED_IN_ELSEWHERE': 'This account signed in on another phone. One account works on one phone (plus the website).',
   // --- OQ-049: access switches with responsibility ---
   'duty.bids': 'Bids and negotiation',
   'duty.bids.hint':
@@ -458,6 +461,7 @@ const file07En = <String, String>{
   // --- Tasks ---
   'mine.tab.tasks': 'Planner',
   'tasks.add': 'Add a task',
+  'tasks.doubleTapHint': 'Double-tap a task to mark it done. Tap for details.',
   'tasks.forAttorney': 'Task for the attorney',
   'tasks.forMe': 'New task',
   'tasks.empty': 'No tasks',

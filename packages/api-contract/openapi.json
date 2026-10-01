@@ -33575,6 +33575,18 @@
             "type": "string",
             "nullable": true
           },
+          "mediaUrls": {
+            "description": "Post requests: preview links of the attached photos.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "practiceName": {
+            "type": "string",
+            "nullable": true,
+            "description": "Post requests: the qualification name (English)."
+          },
           "createdAt": {
             "type": "string"
           },
@@ -33590,6 +33602,7 @@
           "kind",
           "payload",
           "status",
+          "mediaUrls",
           "createdAt"
         ]
       },
@@ -33835,7 +33848,7 @@
             "example": "+13125550123"
           },
           "fileIds": {
-            "maxItems": 10,
+            "maxItems": 200,
             "type": "array",
             "items": {
               "type": "string",

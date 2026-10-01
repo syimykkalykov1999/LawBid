@@ -67,7 +67,8 @@ Future<List<PickedChatFile>> pickChatFiles(
         maxWidth: 2560,
         maxHeight: 2560,
         imageQuality: 90,
-        limit: 10,
+        // Owner 2026-10-01: no count limit in chats and tasks (only
+        // publications keep 9 photos).
       );
       for (final f in picked) {
         add(await f.readAsBytes(), f.name);

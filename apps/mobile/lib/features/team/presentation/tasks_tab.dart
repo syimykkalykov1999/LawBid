@@ -183,6 +183,15 @@ class _TaskList extends ConsumerWidget {
             AppSpacing.xxl,
           ),
           children: [
+            if (onCheck != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+                child: Text(
+                  t.t('tasks.doubleTapHint'),
+                  style: typography.caption
+                      .copyWith(color: colors.textSecondary),
+                ),
+              ),
             for (final (si, s) in groupTasksByDay(value, t, formats,
                     now: now, done: listKey.done)
                 .indexed) ...[
@@ -215,7 +224,7 @@ class _TaskList extends ConsumerWidget {
                 AppEntrance(
                   index: i,
                   child: Padding(
-                    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                    padding: const EdgeInsets.only(bottom: AppSpacing.md),
                     child: TaskRow(
                       key: ValueKey('task-${task.id}'),
                       task: task,

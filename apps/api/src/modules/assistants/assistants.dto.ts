@@ -213,6 +213,17 @@ export class AssistantRequestDto {
   @ApiPropertyOptional({ type: String, nullable: true }) resultId!:
     string | null;
   @ApiPropertyOptional({ type: String, nullable: true }) note!: string | null;
+  @ApiProperty({
+    type: [String],
+    description: 'Post requests: preview links of the attached photos.',
+  })
+  mediaUrls!: string[];
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description: 'Post requests: the qualification name (English).',
+  })
+  practiceName!: string | null;
   @ApiProperty() createdAt!: string;
   @ApiPropertyOptional({ type: String, nullable: true }) decidedAt!:
     string | null;
@@ -323,10 +334,11 @@ export class CreateTaskDto {
   @Matches(PHONE)
   contactPhone?: string;
 
-  @ApiPropertyOptional({ type: [String], maxItems: 10 })
+  // Owner 2026-10-01: practically unlimited (a technical cap only).
+  @ApiPropertyOptional({ type: [String], maxItems: 200 })
   @IsOptional()
   @IsArray()
-  @ArrayMaxSize(10)
+  @ArrayMaxSize(200)
   @IsUUID('all', { each: true })
   fileIds?: string[];
 }

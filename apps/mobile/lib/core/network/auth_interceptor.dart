@@ -1,8 +1,12 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../session/session_providers.dart';
 import 'api_error.dart';
+import '../l10n/api_error_text.dart';
+import '../l10n/l10n_providers.dart';
+import '../navigation/root_messenger.dart';
 
 /// Attaches `Authorization: Bearer <accessToken>` to every request that
 /// doesn't opt out via `extra['skipAuth'] == true` (the 4 token-issuing
@@ -36,6 +40,24 @@ class AuthInterceptor extends Interceptor {
   Future<void> onError(DioException err, ErrorInterceptorHandler handler) async {
     final apiError = ApiException.fromDioException(err);
     final alreadyRetried = err.requestOptions.extra['retriedAfterRefresh'] == true;
+
+    // Owner 2026-10-01: this account signed in on another phone (one
+    // phone + one website per account) or the session was ended — sign
+    // out here, saying why.
+    if (apiError.code == ApiErrorCodes.authSignedInElsewhere ||
+        apiError.code == ApiErrorCodes.authSessionRevoked) {
+      if (_ref.read(sessionControllerProvider) != null) {
+        await _ref.read(sessionControllerProvider.notifier).clear();
+        rootMessengerKey.currentState?.showSnackBar(
+          SnackBar(
+            duration: const Duration(seconds: 6),
+            content: Text(apiErrorText(_ref.read(translatorProvider), apiError)),
+          ),
+        );
+      }
+      handler.next(err);
+      return;
+    }
 
     if (apiError.code != ApiErrorCodes.tokenExpired || alreadyRetried) {
       handler.next(err);

@@ -11,7 +11,10 @@ export type RevokeReason =
   | 'rotated'
   | 'reuse_detected'
   | 'admin_block'
-  | 'account_deletion';
+  | 'account_deletion'
+  // Owner 2026-10-01: one account, one device — a sign-in elsewhere ends
+  // every other session (no sharing an attorney or assistant account).
+  | 'signed_in_elsewhere';
 
 /**
  * Single choke point for every way a session can end (logout, logout-all,
@@ -78,7 +81,36 @@ export class SessionRevocationService {
       where: { user_id: userId, revoked_at: null },
       data: { revoked_at: new Date(), revoked_reason: reason },
     });
-    await Promise.all(chainIds.map((id) => this.blacklist(id)));
+    await Promise.all(chainIds.map((id) => this.blacklist(id, reason)));
+    return chainIds;
+  }
+
+  /**
+   * Owner 2026-10-01: one session per kind of device — one phone app and
+   * one website at the same time. Ends this account's other sessions of
+   * the same kind ([web] = a browser; otherwise the phone app).
+   */
+  async revokeSameKindChains(
+    userId: string,
+    web: boolean,
+    reason: RevokeReason,
+  ): Promise<string[]> {
+    const active = await this.prisma.session.findMany({
+      where: {
+        user_id: userId,
+        revoked_at: null,
+        ...(web ? { platform: 'web' } : { NOT: { platform: 'web' } }),
+      },
+      select: { session_chain_id: true },
+      distinct: ['session_chain_id'],
+    });
+    const chainIds = active.map((s) => s.session_chain_id);
+    if (chainIds.length === 0) return chainIds;
+    await this.prisma.session.updateMany({
+      where: { session_chain_id: { in: chainIds }, revoked_at: null },
+      data: { revoked_at: new Date(), revoked_reason: reason },
+    });
+    await Promise.all(chainIds.map((id) => this.blacklist(id, reason)));
     return chainIds;
   }
 
@@ -87,10 +119,18 @@ export class SessionRevocationService {
     return value !== null;
   }
 
-  private async blacklist(sessionChainId: string): Promise<void> {
+  /** Why a blacklisted chain ended ('1' for older entries), or null. */
+  async blacklistReason(sessionChainId: string): Promise<string | null> {
+    return this.redis.get(this.blacklistKey(sessionChainId));
+  }
+
+  private async blacklist(
+    sessionChainId: string,
+    reason: string = '1',
+  ): Promise<void> {
     await this.redis.set(
       this.blacklistKey(sessionChainId),
-      '1',
+      reason,
       'EX',
       this.blacklistTtlSeconds,
     );
