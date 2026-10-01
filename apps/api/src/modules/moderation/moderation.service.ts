@@ -153,6 +153,7 @@ export class ModerationService {
             conversation_id: true,
             type: true,
             file_id: true,
+            file_name: true,
             duration_ms: true,
           },
         });
@@ -163,6 +164,12 @@ export class ModerationService {
           m.type === 'voice' && m.file_id && db === this.prisma
             ? ((await this.files.voiceUrls([m.file_id])).get(m.file_id) ?? null)
             : null;
+        // OQ-047: a reported photo or document — a short link to open it.
+        const fileUrl =
+          m.type === 'attachment' && m.file_id && db === this.prisma
+            ? ((await this.files.attachmentUrls([m.file_id])).get(m.file_id)
+                ?.url ?? null)
+            : null;
         return {
           type,
           id,
@@ -171,10 +178,13 @@ export class ModerationService {
           text:
             m.type === 'voice'
               ? `[voice message, ${Math.round((m.duration_ms ?? 0) / 1000)} s]`
-              : m.body_display,
+              : m.type === 'attachment'
+                ? `[file: ${m.file_name ?? 'file'}] ${m.body_display}`.trim()
+                : m.body_display,
           context: {
             conversationId: m.conversation_id,
             ...(m.type === 'voice' ? { voiceUrl } : {}),
+            ...(m.type === 'attachment' ? { fileUrl } : {}),
           },
           createdAt: m.created_at,
         };

@@ -247,7 +247,7 @@ describe('Files (e2e) — presign, confirm, scan, signed links', () => {
         auth,
         {
           purpose: 'avatar',
-          mime: 'image/gif',
+          mime: 'image/bmp',
           sizeBytes: 100,
           sha256: sha(Buffer.from('x')),
         },

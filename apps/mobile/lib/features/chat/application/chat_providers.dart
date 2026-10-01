@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -430,6 +431,83 @@ class ChatThread extends Notifier<ChatThreadState> {
     ]);
   }
 
+  /// OQ-047: a picked photo or document → a local bubble with progress →
+  /// upload → send. A failure keeps the bubble with Retry.
+  Future<void> sendAttachment({
+    required Uint8List bytes,
+    required String name,
+    required String mime,
+    String? caption,
+  }) async {
+    final owner = ref.read(currentUserIdProvider);
+    if (owner == null) return;
+    final cmid = newClientMessageId();
+    final local = ChatMessage(
+      id: 'local:$cmid',
+      conversationId: id,
+      senderId: owner,
+      kind: MessageKind.attachment,
+      body: caption?.trim() ?? '',
+      clientMessageId: cmid,
+      createdAt: DateTime.now(),
+      delivery: DeliveryState.sending,
+      attachment: ChatAttachment(
+        fileId: '',
+        name: name,
+        isImage: mime.startsWith('image/'),
+        mime: mime,
+        sizeBytes: bytes.length,
+        localBytes: bytes,
+      ),
+    );
+    state = state.copyWith(voiceOutbox: [...state.voiceOutbox, local]);
+    await _uploadAttachment(local);
+  }
+
+  Future<void> _uploadAttachment(ChatMessage local) async {
+    final a = local.attachment!;
+    try {
+      final fileId = await _repo.uploadAttachment(
+        a.localBytes!,
+        a.mime!,
+        onProgress: (p) => _setProgress(local, p),
+      );
+      final sent = await _repo.sendAttachment(
+        id,
+        local.clientMessageId!,
+        fileId: fileId,
+        fileName: a.name,
+        caption: local.body.isEmpty ? null : local.body,
+      );
+      if (!ref.mounted) return;
+      state = state.copyWith(
+        voiceOutbox: state.voiceOutbox
+            .where((m) => m.clientMessageId != local.clientMessageId)
+            .toList(),
+      );
+      unawaited(ref.read(appSoundsProvider).messageOut());
+      _merge([sent]);
+    } on ApiException catch (e) {
+      if (e.code == ApiErrorCodes.subscriptionRequired) {
+        ref.read(outboxSenderProvider).subscriptionRequired.value = true;
+      }
+      _markVoice(local, DeliveryState.failed, e.code);
+    } on Object {
+      _markVoice(local, DeliveryState.failed, null);
+    }
+  }
+
+  void _setProgress(ChatMessage local, double p) {
+    if (!ref.mounted) return;
+    state = state.copyWith(voiceOutbox: [
+      for (final m in state.voiceOutbox)
+        if (m.clientMessageId == local.clientMessageId && m.attachment != null)
+          m.copyWith(attachment: m.attachment!.copyWith(progress: p))
+        else
+          m,
+    ]);
+  }
+
   /// OQ-040: the recipient played a note — tell the server once.
   Future<void> voicePlayed(ChatMessage m) async {
     final me = ref.read(currentUserIdProvider);
@@ -455,6 +533,11 @@ class ChatThread extends Notifier<ChatThreadState> {
   }
 
   Future<void> retry(ChatMessage local) async {
+    if (local.kind == MessageKind.attachment) {
+      _markVoice(local, DeliveryState.sending, null);
+      await _uploadAttachment(local.copyWith(delivery: DeliveryState.sending));
+      return;
+    }
     if (local.kind == MessageKind.voice) {
       _markVoice(local, DeliveryState.sending, null);
       await _uploadVoice(local.copyWith(delivery: DeliveryState.sending));
@@ -474,6 +557,14 @@ class ChatThread extends Notifier<ChatThreadState> {
   }
 
   Future<void> discard(ChatMessage local) async {
+    if (local.kind == MessageKind.attachment) {
+      state = state.copyWith(
+        voiceOutbox: state.voiceOutbox
+            .where((m) => m.clientMessageId != local.clientMessageId)
+            .toList(),
+      );
+      return;
+    }
     if (local.kind == MessageKind.voice) {
       state = state.copyWith(
         voiceOutbox: state.voiceOutbox

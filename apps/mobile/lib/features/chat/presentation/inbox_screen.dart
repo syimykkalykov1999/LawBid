@@ -291,6 +291,14 @@ String messagePreview(Translator t, ChatMessage m, {String? me}) {
     return '🎤 ${t.t('chat.voice.label')} '
         '${d.inMinutes}:${(d.inSeconds % 60).toString().padLeft(2, '0')}';
   }
+  // OQ-047: "📎 File" / "📷 Photo" (+ caption).
+  if (m.kind == MessageKind.attachment) {
+    final photo = m.attachment?.isImage ?? false;
+    final label = photo
+        ? '📷 ${t.t('chat.attach.photo')}'
+        : '📎 ${t.t('chat.attach.label')}';
+    return m.body.isEmpty ? label : '$label · ${m.body}';
+  }
   return m.body.replaceAll(kContactMask, t.t('chat.masked'));
 }
 

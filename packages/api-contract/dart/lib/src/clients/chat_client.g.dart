@@ -223,6 +223,7 @@ class _ChatClient implements ChatClient {
     required String id,
     String? cursor,
     String? afterId,
+    MessagesFilter? only,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
@@ -230,6 +231,7 @@ class _ChatClient implements ChatClient {
     final queryParameters = <String, dynamic>{
       r'cursor': cursor,
       r'afterId': afterId,
+      r'only': only?.toJson(),
     };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};

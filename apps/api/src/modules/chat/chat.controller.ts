@@ -128,7 +128,7 @@ export class ChatController {
     @Param() p: ConversationIdParamDto,
     @Query() q: MessagesQueryDto,
   ): Promise<MessagePage> {
-    return this.chat.messages(user, p.id, q.cursor, q.afterId);
+    return this.chat.messages(user, p.id, q.cursor, q.afterId, q.only);
   }
 
   @Post(':id/messages')

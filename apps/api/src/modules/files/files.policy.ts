@@ -12,6 +12,21 @@ export const FILE_MIME = {
   // Owner 2026-09-30 (OQ-040): voice messages — AAC in an MPEG-4 (.m4a)
   // container, what the app records on iOS and Android.
   m4a: 'audio/mp4',
+  // Owner 2026-09-30 (OQ-047): chat attachments after acceptance — every
+  // common photo and office format.
+  webp: 'image/webp',
+  gif: 'image/gif',
+  doc: 'application/msword',
+  xls: 'application/vnd.ms-excel',
+  ppt: 'application/vnd.ms-powerpoint',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  odt: 'application/vnd.oasis.opendocument.text',
+  ods: 'application/vnd.oasis.opendocument.spreadsheet',
+  odp: 'application/vnd.oasis.opendocument.presentation',
+  rtf: 'application/rtf',
+  txt: 'text/plain',
+  csv: 'text/csv',
 } as const;
 export type FileMime = (typeof FILE_MIME)[keyof typeof FILE_MIME];
 export const ALL_FILE_MIMES: readonly FileMime[] = Object.values(FILE_MIME);
@@ -21,7 +36,8 @@ export type BucketKind = 'documents' | 'media';
 export interface PurposeRule {
   readonly mimes: readonly FileMime[];
   /** app_config key holding the size limit in MB (docs/03 §9). */
-  readonly sizeSetting: 'files.max_size_mb' | 'files.avatar_max_size_mb';
+  readonly sizeSetting:
+    'files.max_size_mb' | 'files.avatar_max_size_mb' | 'files.chat_max_size_mb';
   /** Verification files live in the documents bucket (docs/02 §1.6),
    * avatars and post photos in the media bucket (docs/06 §6). */
   readonly bucket: BucketKind;
@@ -63,6 +79,30 @@ export const PURPOSE_RULES: Record<FilePurpose, PurposeRule> = {
   case_attachment: {
     mimes: [...IMAGES, FILE_MIME.pdf, FILE_MIME.docx],
     sizeSetting: 'files.max_size_mb',
+    bucket: 'documents',
+  },
+  // OQ-047: photos and documents in a chat once the bid is accepted;
+  // private, up to files.chat_max_size_mb each.
+  chat_attachment: {
+    mimes: [
+      ...IMAGES,
+      FILE_MIME.webp,
+      FILE_MIME.gif,
+      FILE_MIME.pdf,
+      FILE_MIME.doc,
+      FILE_MIME.docx,
+      FILE_MIME.xls,
+      FILE_MIME.xlsx,
+      FILE_MIME.ppt,
+      FILE_MIME.pptx,
+      FILE_MIME.odt,
+      FILE_MIME.ods,
+      FILE_MIME.odp,
+      FILE_MIME.rtf,
+      FILE_MIME.txt,
+      FILE_MIME.csv,
+    ],
+    sizeSetting: 'files.chat_max_size_mb',
     bucket: 'documents',
   },
   // OQ-040: voice messages; private (only the two chat members get a
@@ -133,5 +173,14 @@ export function variantKey(key: string, px: number): string {
 }
 
 export function isImageMime(mime: string): boolean {
-  return (IMAGES as readonly string[]).includes(mime);
+  return IMAGE_MIMES.has(mime);
 }
+
+/** Images among the allowed types (previews are made for these). */
+export const IMAGE_MIMES: ReadonlySet<string> = new Set([
+  FILE_MIME.jpeg,
+  FILE_MIME.png,
+  FILE_MIME.heic,
+  FILE_MIME.webp,
+  FILE_MIME.gif,
+]);

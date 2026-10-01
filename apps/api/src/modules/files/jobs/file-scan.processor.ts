@@ -75,7 +75,7 @@ export class FileScanProcessor {
       return 'failed';
     }
 
-    const mime = detectMime(data);
+    const mime = detectMime(data, file.mime);
     let processed;
     try {
       if (!mime) throw new Error('unrecognised content');
@@ -86,7 +86,9 @@ export class FileScanProcessor {
         postImage:
           file.purpose === 'post_image' ||
           file.purpose === 'case_photo' ||
-          file.purpose === 'case_attachment',
+          file.purpose === 'case_attachment' ||
+          // OQ-047: chat photos get previews; documents pass through.
+          file.purpose === 'chat_attachment',
       });
     } catch (err) {
       // Undecodable image: permanent, retrying won't help.

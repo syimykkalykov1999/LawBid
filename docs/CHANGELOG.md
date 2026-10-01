@@ -5,6 +5,11 @@ All notable changes to this project are documented here, per
 .cursorrules (each stage ends with a CHANGELOG update + commit on
 branch cursor/stage-X-Y-description).
 
+## Owner pass 10 (2026-09-30) — OQ-047
+
+- Chat attachments after acceptance: migration `20261001050000_owner_chat_attachments` (`chat_attachment` purpose, `attachment` message type, `messages.file_name`), 13 new verified formats (magic bytes; OLE/ZIP/ODF/text families), 25 MB limit, `?only=attachment`, push/moderation/anonymization; app paperclip (photos, camera, documents), photo and document bubbles with progress and Retry, "Files and photos" screen. e2e `owner-chat-attachments`; unit tests for the new formats.
+- Worker boot fix and outdated e2e updated (see OQ-046 follow-up).
+
 ## Owner pass 9 (2026-09-30) — OQ-046
 
 - API: post title / qualification / kind (migration `20261001010000_owner_post_title_practice_kind`), `search/latest-posts?practice&tag&kind`, `attorneys/:id/posts?kind`; case feed `?practice` (any qualification in licensed states), `inMyPractice`, bids `outsidePractice` (migration `20261001020000_owner_bid_outside_practice`); opt-in `following` / `new_cases` categories and `followed_post` / `new_case` alerts (migration `20261001030000_owner_follow_and_case_alerts`); open client reviews, delete, appeal, admin bulk decisions and the hourly `review-appeals.sweep` (migration `20261001040000_owner_client_reviews_open_appeals`); Mine `q/practice/state` filters, `open` / `in_progress` client filters and cover photos. e2e: `owner-post-practice`, `owner-subscription-alerts`, `owner-mine-filters`, client-review appeals in `owner-client-profile`.

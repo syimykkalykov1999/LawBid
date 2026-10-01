@@ -156,6 +156,8 @@ export class AccountAnonymizationService {
             'verification_document',
             'verification_selfie',
             'chat_voice',
+            // OQ-047: files the user sent in chats.
+            'chat_attachment',
           ],
         },
       },

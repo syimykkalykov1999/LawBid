@@ -78,6 +78,12 @@ export class MessagesQueryDto {
   @IsOptional()
   @IsUUID('all')
   afterId?: string;
+
+  /** OQ-047: only photos and documents (the chat's "Files" screen). */
+  @ApiPropertyOptional({ enum: ['attachment'], enumName: 'MessagesFilter' })
+  @IsOptional()
+  @IsIn(['attachment'])
+  only?: 'attachment';
 }
 
 export class SendMessageDto {
@@ -88,13 +94,20 @@ export class SendMessageDto {
   clientMessageId!: string;
 
   @ApiPropertyOptional({
-    enum: ['text', 'voice'],
+    enum: ['text', 'voice', 'attachment'],
     enumName: 'SendMessageType',
     default: 'text',
   })
   @IsOptional()
-  @IsIn(['text', 'voice'])
-  type?: 'text' | 'voice';
+  @IsIn(['text', 'voice', 'attachment'])
+  type?: 'text' | 'voice' | 'attachment';
+
+  /** OQ-047: the attachment's original file name (shown on its card). */
+  @ApiPropertyOptional({ maxLength: 200 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  fileName?: string;
 
   @ApiPropertyOptional({
     maxLength: MESSAGE_MAX_CHARS,
@@ -109,7 +122,8 @@ export class SendMessageDto {
 
   @ApiPropertyOptional({
     format: 'uuid',
-    description: 'Voice: a clean `chat_voice` file of the sender.',
+    description:
+      'Voice: a clean `chat_voice` file; attachment: a clean `chat_attachment` file of the sender.',
   })
   @IsOptional()
   @IsUUID('all')
@@ -176,6 +190,44 @@ export class VoiceNoteDto {
   listened!: boolean;
 }
 
+/** OQ-047: a photo or a document in a chat. */
+export class ChatAttachmentDto {
+  @ApiProperty({ format: 'uuid' })
+  fileId!: string;
+
+  @ApiProperty()
+  name!: string;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description: 'Null while the antivirus scan runs.',
+  })
+  mime!: string | null;
+
+  @ApiPropertyOptional({ type: 'integer', nullable: true })
+  sizeBytes!: number | null;
+
+  @ApiProperty()
+  isImage!: boolean;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description: 'Short signed link; null until scanned / in list previews.',
+  })
+  url!: string | null;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  previewUrl!: string | null;
+
+  @ApiPropertyOptional({ type: 'integer', nullable: true })
+  width!: number | null;
+
+  @ApiPropertyOptional({ type: 'integer', nullable: true })
+  height!: number | null;
+}
+
 /** OQ-041: a call in the chat log; senderId is the caller. */
 export class CallLogDto {
   @ApiProperty({
@@ -198,11 +250,14 @@ export class MessageDto {
   @ApiPropertyOptional({ type: String, nullable: true, format: 'uuid' })
   senderId!: string | null;
 
-  @ApiProperty({ enum: ['text', 'system', 'voice', 'call'] })
-  type!: 'text' | 'system' | 'voice' | 'call';
+  @ApiProperty({ enum: ['text', 'system', 'voice', 'call', 'attachment'] })
+  type!: 'text' | 'system' | 'voice' | 'call' | 'attachment';
 
   @ApiPropertyOptional({ type: () => VoiceNoteDto, nullable: true })
   voice!: VoiceNoteDto | null;
+
+  @ApiPropertyOptional({ type: () => ChatAttachmentDto, nullable: true })
+  attachment!: ChatAttachmentDto | null;
 
   @ApiPropertyOptional({ type: () => CallLogDto, nullable: true })
   call!: CallLogDto | null;

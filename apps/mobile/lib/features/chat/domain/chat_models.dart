@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
@@ -88,7 +90,8 @@ class Conversation {
   bool get closed => status == ConversationStatus.closed;
 }
 
-enum MessageKind { text, system, voice, call }
+// OQ-047: `attachment` — a photo or a document after acceptance.
+enum MessageKind { text, system, voice, call, attachment }
 
 /// OQ-041: a call in the chat log (the sender placed it).
 @immutable
@@ -133,6 +136,64 @@ class VoiceNote {
       );
 }
 
+/// OQ-047: a photo or a document sent in a chat after acceptance.
+@immutable
+class ChatAttachment {
+  const ChatAttachment({
+    required this.fileId,
+    required this.name,
+    required this.isImage,
+    this.mime,
+    this.sizeBytes,
+    this.url,
+    this.previewUrl,
+    this.width,
+    this.height,
+    this.localBytes,
+    this.progress = 0,
+  });
+
+  final String fileId;
+  final String name;
+  final bool isImage;
+  final String? mime;
+  final int? sizeBytes;
+
+  /// Short signed links (null in previews and while uploading).
+  final String? url;
+  final String? previewUrl;
+  final int? width;
+  final int? height;
+
+  /// The picked file while it is being sent (kept for Retry).
+  final Uint8List? localBytes;
+
+  /// Upload progress 0–1 while sending.
+  final double progress;
+
+  /// Lowercase extension of [name] ("pdf", "xlsx"…), '' when none.
+  String get extension {
+    final dot = name.lastIndexOf('.');
+    return dot < 0 || dot == name.length - 1
+        ? ''
+        : name.substring(dot + 1).toLowerCase();
+  }
+
+  ChatAttachment copyWith({double? progress}) => ChatAttachment(
+        fileId: fileId,
+        name: name,
+        isImage: isImage,
+        mime: mime,
+        sizeBytes: sizeBytes,
+        url: url,
+        previewUrl: previewUrl,
+        width: width,
+        height: height,
+        localBytes: localBytes,
+        progress: progress ?? this.progress,
+      );
+}
+
 /// Where an own message is in its life (§8.2 "отправляется / отправлено /
 /// прочитано"); server messages are [sent].
 enum DeliveryState { sending, failed, sent }
@@ -152,7 +213,11 @@ class ChatMessage {
     this.failedCode,
     this.voice,
     this.callLog,
+    this.attachment,
   });
+
+  /// Set for [MessageKind.attachment].
+  final ChatAttachment? attachment;
 
   /// Server id, or `local:<clientMessageId>` while in the outbox.
   final String id;
@@ -178,6 +243,7 @@ class ChatMessage {
 
   ChatMessage copyWith({
     VoiceNote? voice,
+    ChatAttachment? attachment,
     DeliveryState? delivery,
     String? failedCode,
   }) =>
@@ -194,6 +260,7 @@ class ChatMessage {
         failedCode: failedCode ?? this.failedCode,
         voice: voice ?? this.voice,
         callLog: callLog,
+        attachment: attachment ?? this.attachment,
       );
 }
 

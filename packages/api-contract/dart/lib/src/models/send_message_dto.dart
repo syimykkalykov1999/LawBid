@@ -12,6 +12,7 @@ part 'send_message_dto.g.dart';
 class SendMessageDto {
   const SendMessageDto({
     required this.clientMessageId,
+    this.fileName,
     this.body,
     this.fileId,
     this.durationMs,
@@ -26,10 +27,13 @@ class SendMessageDto {
   final String clientMessageId;
   final SendMessageType type;
 
+  /// OQ-047: the attachment's original file name (shown on its card).
+  final String? fileName;
+
   /// Text of a text message; ignored for voice.
   final String? body;
 
-  /// Voice: a clean `chat_voice` file of the sender.
+  /// Voice: a clean `chat_voice` file; attachment: a clean `chat_attachment` file of the sender.
   final String? fileId;
   final int? durationMs;
 

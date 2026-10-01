@@ -36,9 +36,48 @@ describe('detectMime (docs/03 §2.2 magic bytes)', () => {
   it('rejects AVIF, text, extension tricks and truncated data', () => {
     expect(detectMime(ftyp('avif', ['mif1', 'avif']))).toBeNull();
     expect(detectMime(ftyp('mif1', ['avif']))).toBeNull();
-    expect(detectMime(Buffer.from('GIF89a....'))).toBeNull();
-    expect(detectMime(Buffer.from('hello.pdf'))).toBeNull();
+    // OQ-047: GIF and plain text are allowed types now; a text file named
+    // .pdf is text, never a PDF (the declared type must match).
+    expect(detectMime(Buffer.from('hello.pdf'), 'application/pdf')).toBe(
+      'text/plain',
+    );
     expect(detectMime(Buffer.from([0xff, 0xd8]))).toBeNull();
     expect(detectMime(Buffer.alloc(0))).toBeNull();
+  });
+
+  it('OQ-047: office, ODF, RTF, text, WEBP, GIF', () => {
+    const ole = Buffer.from([
+      0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1, 0,
+    ]);
+    expect(detectMime(ole)).toBe('application/msword');
+    expect(detectMime(ole, 'application/vnd.ms-excel')).toBe(
+      'application/vnd.ms-excel',
+    );
+    expect(detectMime(ole, 'application/pdf')).toBe('application/msword');
+    const zip = (body: string) =>
+      Buffer.concat([
+        Buffer.from([0x50, 0x4b, 0x03, 0x04]),
+        Buffer.from(body.padEnd(40, ' ')),
+      ]);
+    expect(detectMime(zip('[Content_Types].xml xl/workbook.xml'))).toBe(
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    expect(detectMime(zip('[Content_Types].xml ppt/presentation.xml'))).toBe(
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    );
+    expect(detectMime(zip('[Content_Types].xml word/document.xml'))).toBe(
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    );
+    expect(
+      detectMime(zip('mimetypeapplication/vnd.oasis.opendocument.text')),
+    ).toBe('application/vnd.oasis.opendocument.text');
+    expect(detectMime(Buffer.from('{\\rtf1\\ansi hello}'))).toBe(
+      'application/rtf',
+    );
+    expect(detectMime(Buffer.from('a,b\n1,2\n'), 'text/csv')).toBe('text/csv');
+    expect(detectMime(Buffer.from('Привет, мир'))).toBe('text/plain');
+    expect(detectMime(Buffer.from('GIF89a....'))).toBe('image/gif');
+    expect(detectMime(Buffer.from('RIFF\0\0\0\0WEBPVP8 '))).toBe('image/webp');
+    expect(detectMime(Buffer.from([1, 2, 0, 3, 4, 5]))).toBeNull();
   });
 });

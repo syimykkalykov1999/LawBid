@@ -10,6 +10,7 @@ import '../models/conversation_folder.dart';
 import '../models/conversation_list_envelope.dart';
 import '../models/message_envelope.dart';
 import '../models/message_list_envelope.dart';
+import '../models/messages_filter.dart';
 import '../models/mute_conversation_dto.dart';
 import '../models/read_conversation_dto.dart';
 import '../models/read_result_envelope.dart';
@@ -77,11 +78,14 @@ abstract class ChatClient {
   /// [cursor] - meta.nextCursor of the previous page.
   ///
   /// [afterId] - Messages after this one, oldest first — catch-up after a reconnect (§8.5).
+  ///
+  /// [only] - OQ-047: only photos and documents (the chat's "Files" screen).
   @GET('/conversations/{id}/messages')
   Future<MessageListEnvelope> listMessages({
     @Path('id') required String id,
     @Query('cursor') String? cursor,
     @Query('afterId') String? afterId,
+    @Query('only') MessagesFilter? only,
     @Extras() Map<String, dynamic>? extras,
   });
 

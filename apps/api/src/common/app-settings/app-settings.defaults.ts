@@ -32,6 +32,8 @@ export const FILE_03_SETTINGS = {
   'review.reminder_after_days': 7,
   'files.max_size_mb': 10,
   'files.avatar_max_size_mb': 5,
+  // OQ-047: photos and documents in chats.
+  'files.chat_max_size_mb': 25,
 } as const;
 
 export type File03SettingKey = keyof typeof FILE_03_SETTINGS;

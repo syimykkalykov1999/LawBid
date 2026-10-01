@@ -94,6 +94,8 @@ enum ErrorCode {
   reviewNotEditable('REVIEW_NOT_EDITABLE'),
   @JsonValue('REVIEW_APPEAL_EXISTS')
   reviewAppealExists('REVIEW_APPEAL_EXISTS'),
+  @JsonValue('CHAT_ATTACHMENTS_LOCKED')
+  chatAttachmentsLocked('CHAT_ATTACHMENTS_LOCKED'),
   @JsonValue('ATTORNEY_NOT_VERIFIED')
   attorneyNotVerified('ATTORNEY_NOT_VERIFIED'),
   @JsonValue('USERNAME_TAKEN')

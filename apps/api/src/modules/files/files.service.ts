@@ -186,7 +186,7 @@ export class FilesService {
       await this.reject(fileId, intent);
       throw this.checksumMismatch();
     }
-    const detected = detectMime(data);
+    const detected = detectMime(data, intent.mime);
     if (
       detected === null ||
       detected !== intent.mime ||
@@ -456,6 +456,67 @@ export class FilesService {
           : url,
         mime: f.mime,
         sizeBytes: Number(f.size_bytes),
+      });
+    }
+    return out;
+  }
+
+  /**
+   * OQ-047: short signed links to clean chat attachments (documents
+   * bucket), with a 320 px preview for photos. The caller has checked
+   * chat membership.
+   */
+  async attachmentUrls(fileIds: string[]): Promise<
+    Map<
+      string,
+      {
+        url: string;
+        previewUrl: string | null;
+        mime: string;
+        sizeBytes: number;
+        width: number | null;
+        height: number | null;
+      }
+    >
+  > {
+    const out = new Map<
+      string,
+      {
+        url: string;
+        previewUrl: string | null;
+        mime: string;
+        sizeBytes: number;
+        width: number | null;
+        height: number | null;
+      }
+    >();
+    if (fileIds.length === 0 || !this.storage.configured) return out;
+    const files = await this.prisma.file.findMany({
+      where: {
+        id: { in: fileIds },
+        purpose: 'chat_attachment',
+        scan_status: 'clean',
+        deleted_at: null,
+      },
+    });
+    for (const f of files) {
+      out.set(f.id, {
+        url: await this.storage.signedGetUrl(
+          f.s3_bucket,
+          f.s3_key,
+          MEDIA_SIGNED_URL_TTL_SEC,
+        ),
+        previewUrl: isImageMime(f.mime)
+          ? await this.storage.signedGetUrl(
+              f.s3_bucket,
+              variantKey(f.s3_key, 320),
+              MEDIA_SIGNED_URL_TTL_SEC,
+            )
+          : null,
+        mime: f.mime,
+        sizeBytes: Number(f.size_bytes),
+        width: f.width,
+        height: f.height,
       });
     }
     return out;

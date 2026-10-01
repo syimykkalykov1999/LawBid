@@ -21673,6 +21673,15 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "name": "only",
+            "required": false,
+            "in": "query",
+            "description": "OQ-047: only photos and documents (the chat's \"Files\" screen).",
+            "schema": {
+              "$ref": "#/components/schemas/MessagesFilter"
+            }
           }
         ],
         "responses": {
@@ -24154,6 +24163,7 @@
           "REVIEW_EDIT_WINDOW_EXPIRED",
           "REVIEW_NOT_EDITABLE",
           "REVIEW_APPEAL_EXISTS",
+          "CHAT_ATTACHMENTS_LOCKED",
           "ATTORNEY_NOT_VERIFIED",
           "USERNAME_TAKEN",
           "USERNAME_RESERVED",
@@ -27061,7 +27071,8 @@
           "data_export",
           "case_photo",
           "case_attachment",
-          "chat_voice"
+          "chat_voice",
+          "chat_attachment"
         ]
       },
       "PresignFileDto": {
@@ -27077,7 +27088,7 @@
           "mime": {
             "type": "string",
             "example": "image/jpeg",
-            "description": "One of: image/jpeg, image/png, image/heic, application/pdf, application/vnd.openxmlformats-officedocument.wordprocessingml.document, audio/mp4 (allowed set depends on purpose)."
+            "description": "One of: image/jpeg, image/png, image/heic, application/pdf, application/vnd.openxmlformats-officedocument.wordprocessingml.document, audio/mp4, image/webp, image/gif, application/msword, application/vnd.ms-excel, application/vnd.ms-powerpoint, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.openxmlformats-officedocument.presentationml.presentation, application/vnd.oasis.opendocument.text, application/vnd.oasis.opendocument.spreadsheet, application/vnd.oasis.opendocument.presentation, application/rtf, text/plain, text/csv (allowed set depends on purpose)."
           },
           "sizeBytes": {
             "type": "number",
@@ -35199,6 +35210,52 @@
           "listened"
         ]
       },
+      "ChatAttachmentDto": {
+        "type": "object",
+        "properties": {
+          "fileId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "mime": {
+            "type": "string",
+            "nullable": true,
+            "description": "Null while the antivirus scan runs."
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "nullable": true
+          },
+          "isImage": {
+            "type": "boolean"
+          },
+          "url": {
+            "type": "string",
+            "nullable": true,
+            "description": "Short signed link; null until scanned / in list previews."
+          },
+          "previewUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "width": {
+            "type": "integer",
+            "nullable": true
+          },
+          "height": {
+            "type": "integer",
+            "nullable": true
+          }
+        },
+        "required": [
+          "fileId",
+          "name",
+          "isImage"
+        ]
+      },
       "CallOutcome": {
         "type": "string",
         "enum": [
@@ -35251,7 +35308,8 @@
               "text",
               "system",
               "voice",
-              "call"
+              "call",
+              "attachment"
             ],
             "type": "string"
           },
@@ -35261,6 +35319,15 @@
             "allOf": [
               {
                 "$ref": "#/components/schemas/VoiceNoteDto"
+              }
+            ]
+          },
+          "attachment": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ChatAttachmentDto"
               }
             ]
           },
@@ -35487,6 +35554,12 @@
           "data"
         ]
       },
+      "MessagesFilter": {
+        "type": "string",
+        "enum": [
+          "attachment"
+        ]
+      },
       "MessageListEnvelope": {
         "type": "object",
         "properties": {
@@ -35508,7 +35581,8 @@
         "type": "string",
         "enum": [
           "text",
-          "voice"
+          "voice",
+          "attachment"
         ]
       },
       "SendMessageDto": {
@@ -35528,6 +35602,11 @@
               }
             ]
           },
+          "fileName": {
+            "type": "string",
+            "description": "OQ-047: the attachment's original file name (shown on its card).",
+            "maxLength": 200
+          },
           "body": {
             "type": "string",
             "maxLength": 2000,
@@ -35536,7 +35615,7 @@
           "fileId": {
             "type": "string",
             "format": "uuid",
-            "description": "Voice: a clean `chat_voice` file of the sender."
+            "description": "Voice: a clean `chat_voice` file; attachment: a clean `chat_attachment` file of the sender."
           },
           "durationMs": {
             "type": "integer",

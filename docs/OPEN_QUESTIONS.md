@@ -824,3 +824,19 @@ reviews a client).
   show as a 3-column grid of squares (first photo, or the qualification's
   art; short title; status), with search by title and filters
   (qualification, state) so long lists need no scrolling.
+
+## OQ-047 — Photos and documents in chats after acceptance (owner, 2026-09-30)
+
+- Once the bid is accepted (contacts unlocked — case chats, and accepted
+  direct chats) both sides send any number of photos and documents:
+  JPG, PNG, HEIC, WEBP, GIF, PDF, DOC/DOCX, XLS/XLSX, PPT/PPTX, ODT/ODS/ODP,
+  RTF, TXT, CSV; up to 25 MB each (`files.chat_max_size_mb`, editable in
+  the admin panel). Before acceptance the paperclip is hidden and the API
+  answers `CHAT_ATTACHMENTS_LOCKED`.
+- The server checks the real type from the bytes (the declared type must
+  match), scans every file with the antivirus, keeps them private (short
+  signed links for the two members only) and makes photo previews.
+- A caption can go with the first file; chat menu → "Files and photos"
+  lists every photo and document of the chat. Pushes say "📎 File" without
+  the file name. Reports show the moderator a link to the file; deleting
+  an account deletes the files it sent.

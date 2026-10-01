@@ -112,6 +112,8 @@ enum FilePurpose {
   case_attachment
   // Owner 2026-09-30 (OQ-040): chat voice messages, private bucket.
   chat_voice
+  // OQ-047: chat photos and documents after acceptance, private bucket.
+  chat_attachment
 
   @@map("file_purpose")
 }
@@ -380,6 +382,8 @@ enum MessageType {
   voice
   // OQ-041: a call in the chat log (body = outcome, duration_ms).
   call
+  // OQ-047: a photo or a document (file_id, file_name, optional caption).
+  attachment
 
   @@map("message_type")
 }
@@ -1716,6 +1720,8 @@ model Message {
   file              File?        @relation("MessageVoice", fields: [file_id], references: [id], onDelete: Restrict)
   duration_ms       Int?
   waveform          Int[]        @default([])
+  // OQ-047: the original name of an attached document (≤200, CHECK).
+  file_name         String?
   listened_at       DateTime?    @db.Timestamptz
   deleted_at        DateTime?    @db.Timestamptz
   created_at        DateTime     @default(now()) @db.Timestamptz

@@ -274,12 +274,19 @@ export class PushDispatcher
     }
     const text = await this.templates.render('new_message', user.ui_language);
     // OQ-040: a voice note has no text — say what it is.
+    const ru = user.ui_language === 'ru';
+    const caption = [...message.body_display]
+      .slice(0, MESSAGE_PREVIEW_CHARS)
+      .join('');
     const preview =
       message.type === 'voice'
-        ? user.ui_language === 'ru'
+        ? ru
           ? '🎤 Голосовое сообщение'
           : '🎤 Voice message'
-        : [...message.body_display].slice(0, MESSAGE_PREVIEW_CHARS).join('');
+        : // OQ-047: say what was attached; the file name stays private.
+          message.type === 'attachment'
+          ? (ru ? '📎 Файл' : '📎 File') + (caption ? `: ${caption}` : '')
+          : caption;
     const badge = (await this.badges.get(data.recipientId)).total;
     await this.sender.send(
       {

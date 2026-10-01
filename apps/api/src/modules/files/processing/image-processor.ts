@@ -7,6 +7,7 @@ import {
   POST_IMAGE_MAIN_PX,
   POST_IMAGE_VARIANT_PX,
   FILE_MIME,
+  IMAGE_MIMES,
   MAX_INPUT_PIXELS,
   type FileMime,
 } from '../files.policy';
@@ -67,11 +68,8 @@ export class ImageProcessor {
     avatar: boolean;
     postImage?: boolean;
   }): Promise<ProcessedFile> {
-    if (
-      input.mime === FILE_MIME.pdf ||
-      input.mime === FILE_MIME.docx ||
-      input.mime === FILE_MIME.m4a
-    ) {
+    // Documents and audio are stored as uploaded (OQ-034/040/047).
+    if (!IMAGE_MIMES.has(input.mime)) {
       return { main: null, variants: new Map(), width: null, height: null };
     }
     const source =

@@ -24,6 +24,7 @@ import 'package:lawbid/features/chat/application/voice_player.dart';
 import 'package:lawbid/features/chat/application/voice_recorder.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
+import 'package:lawbid/features/chat/presentation/attachment_widgets.dart';
 import 'package:lawbid/features/chat/presentation/voice_widgets.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
@@ -114,6 +115,25 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
         );
   }
 
+  /// OQ-047: pick photos / documents and send each; the typed text goes
+  /// with the first as its caption.
+  Future<void> _attach() async {
+    final t = ref.read(translatorProvider);
+    final files = await pickChatFiles(context, t);
+    if (files.isEmpty || !mounted) return;
+    final caption = _text.text.trim();
+    if (caption.isNotEmpty) _text.clear();
+    for (var i = 0; i < files.length; i++) {
+      final f = files[i];
+      unawaited(_thread.sendAttachment(
+        bytes: f.bytes,
+        name: f.name,
+        mime: f.mime,
+        caption: i == 0 && caption.isNotEmpty ? caption : null,
+      ));
+    }
+  }
+
   Future<void> _menu(ChatThreadState s) async {
     final t = ref.read(translatorProvider);
     final c = s.conversation;
@@ -125,6 +145,18 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
           mainAxisSize: MainAxisSize.min,
           children: [
             const AppSheetHandle(),
+            // OQ-047: every photo and document of this chat.
+            if (c.contactsUnlocked)
+              AppListRow(
+                icon: Icons.folder_open_rounded,
+                label: t.t('chat.files.title'),
+                onTap: () {
+                  Navigator.of(sheet).pop();
+                  Navigator.of(context).push(MaterialPageRoute<void>(
+                    builder: (_) => ChatFilesScreen(conversationId: c.id),
+                  ));
+                },
+              ),
             AppListRow(
               icon: c.muted
                   ? Icons.notifications_active_outlined
@@ -275,6 +307,9 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                                     controller: _text,
                                     onSend: _send,
                                     onTyping: _thread.typing,
+                                    onAttach: c.contactsUnlocked
+                                        ? () => _attach()
+                                        : null,
                                     onVoice: (r) => _thread.sendVoice(
                                       path: r.path,
                                       durationMs: r.durationMs,
@@ -584,6 +619,8 @@ class _Bubble extends ConsumerWidget {
         children: [
           if (m.kind == MessageKind.voice && m.voice != null)
             VoiceMessageBody(message: m, mine: mine, threadId: threadId)
+          else if (m.kind == MessageKind.attachment && m.attachment != null)
+            AttachmentMessageBody(message: m, mine: mine)
           else
             Text.rich(
               TextSpan(children: spans),
@@ -632,12 +669,15 @@ class _Bubble extends ConsumerWidget {
               label: [
                 if (m.kind == MessageKind.voice)
                   t.t('chat.voice.label')
+                else if (m.kind == MessageKind.attachment)
+                  '${t.t('chat.attach.label')}: ${m.attachment?.name ?? ''}'
                 else
                   m.body.replaceAll(kContactMask, t.t('chat.masked')),
                 if (mine) t.t(_deliveryKey(m.delivery, seen)),
               ].join('. '),
               // Voice bubbles keep their play/speed buttons reachable.
-              excludeSemantics: m.kind != MessageKind.voice,
+              excludeSemantics: m.kind != MessageKind.voice &&
+                  m.kind != MessageKind.attachment,
               child: bubble,
             ),
           ),
@@ -989,7 +1029,11 @@ class _Composer extends ConsumerStatefulWidget {
     required this.onSend,
     required this.onTyping,
     required this.onVoice,
+    this.onAttach,
   });
+
+  /// OQ-047: photos and documents — only once the bid is accepted.
+  final VoidCallback? onAttach;
 
   final TextEditingController controller;
   final VoidCallback onSend;
@@ -1223,6 +1267,17 @@ class _ComposerState extends ConsumerState<_Composer> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
+              if (widget.onAttach != null && !_recording)
+                Padding(
+                  padding: const EdgeInsets.only(right: AppSpacing.xs),
+                  child: AppIconButton(
+                    plain: true,
+                    icon:
+                        Icon(Icons.attach_file_rounded, color: colors.goldDark),
+                    semanticLabel: t.t('chat.attach.button'),
+                    onPressed: widget.onAttach,
+                  ),
+                ),
               Expanded(
                 child: AnimatedSwitcher(
                   duration: motion,

@@ -2,6 +2,19 @@
 // merged into StaticTranslatorRu/En like file05_strings.dart.
 
 const file06Ru = <String, String>{
+  // --- OQ-047 chat attachments ---
+  'chat.attach.button': 'Прикрепить фото или файл',
+  'chat.attach.photos': 'Фото из галереи',
+  'chat.attach.camera': 'Камера',
+  'chat.attach.files': 'Документы (PDF, Word, Excel и др.)',
+  'chat.attach.photo': 'Фото',
+  'chat.attach.label': 'Файл',
+  'chat.attach.skipped': 'Не добавлено файлов: {count} — неподдерживаемый формат или больше 25 МБ',
+  'chat.files.title': 'Файлы и фото',
+  'chat.files.photos': 'Фото',
+  'chat.files.documents': 'Документы',
+  'chat.files.empty': 'В этом чате пока нет файлов.',
+  'error.api.CHAT_ATTACHMENTS_LOCKED': 'Файлы можно отправлять после принятия ставки.',
   // --- Owner 2026-09-30 (OQ-046) ---
   'post.create.practice': 'Квалификация',
   'post.create.practicePick': 'Выберите квалификацию',
@@ -401,6 +414,19 @@ const file06Ru = <String, String>{
 };
 
 const file06En = <String, String>{
+  // --- OQ-047 chat attachments ---
+  'chat.attach.button': 'Attach a photo or a file',
+  'chat.attach.photos': 'Photo library',
+  'chat.attach.camera': 'Camera',
+  'chat.attach.files': 'Documents (PDF, Word, Excel…)',
+  'chat.attach.photo': 'Photo',
+  'chat.attach.label': 'File',
+  'chat.attach.skipped': '{count} not added — unsupported format or over 25 MB',
+  'chat.files.title': 'Files and photos',
+  'chat.files.photos': 'Photos',
+  'chat.files.documents': 'Documents',
+  'chat.files.empty': 'No files in this chat yet.',
+  'error.api.CHAT_ATTACHMENTS_LOCKED': 'Files can be sent once the bid is accepted.',
   // --- Owner 2026-09-30 (OQ-046) ---
   'post.create.practice': 'Qualification',
   'post.create.practicePick': 'Choose a qualification',

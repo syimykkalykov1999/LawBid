@@ -86,6 +86,8 @@ export enum ErrorCode {
   REVIEW_NOT_EDITABLE = 'REVIEW_NOT_EDITABLE',
   /** Owner 2026-09-30: a client review was already appealed. */
   REVIEW_APPEAL_EXISTS = 'REVIEW_APPEAL_EXISTS',
+  /** OQ-047: chat files open once the bid is accepted. */
+  CHAT_ATTACHMENTS_LOCKED = 'CHAT_ATTACHMENTS_LOCKED',
   // Practices and profiles (docs/03_VERIFICATION_PROFILES.md §3–§4,
   // stages 3.5–3.6)
   // 403: the action needs verification_status = verified (practices).

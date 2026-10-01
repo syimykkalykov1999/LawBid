@@ -17,6 +17,7 @@ import { withTxRetry } from '../../prisma/tx-retry.util';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { BlocksService } from '../blocks/blocks.service';
 import { maskContactInfo } from '../cases/domain/contact-detector';
+import { isImageMime } from '../files/files.policy';
 import { FilesService } from '../files/files.service';
 import { BadgesService, UNREAD_CAP } from '../notifications/badges.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -25,6 +26,7 @@ import { SubscriptionAccessService } from '../subscriptions/subscription-access.
 import {
   MESSAGE_MAX_CHARS,
   type CallLogDto,
+  type ChatAttachmentDto,
   type ConversationDto,
   type ConversationPage,
   type MessageDto,
@@ -152,6 +154,7 @@ export class ChatService {
     id: string,
     cursor?: string,
     afterId?: string,
+    only?: 'attachment',
   ): Promise<MessagePage> {
     const conv = await this.load(user, id);
     if (afterId) {
@@ -172,7 +175,7 @@ export class ChatService {
         orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
         take: CATCH_UP_MAX,
       });
-      const urls = await this.voiceUrls(rows);
+      const urls = await this.mediaLinks(rows);
       return {
         items: rows.map((m) => this.toMessage(m, user.sub, conv, urls)),
         nextCursor: null,
@@ -183,6 +186,7 @@ export class ChatService {
       where: {
         conversation_id: id,
         deleted_at: null,
+        ...(only ? { type: only } : {}),
         ...(c
           ? {
               OR: [
@@ -197,7 +201,7 @@ export class ChatService {
     });
     const page = rows.slice(0, MESSAGES_PAGE);
     const last = page[page.length - 1];
-    const urls = await this.voiceUrls(page);
+    const urls = await this.mediaLinks(page);
     return {
       items: page.map((m) => this.toMessage(m, user.sub, conv, urls)),
       nextCursor:
@@ -214,8 +218,17 @@ export class ChatService {
     dto: SendMessageDto,
   ): Promise<MessageDto> {
     const voice = dto.type === 'voice';
+    const attachment = dto.type === 'attachment';
     const body = voice ? '' : (dto.body ?? '').trim();
-    if (voice) {
+    if (attachment) {
+      if (!dto.fileId || !dto.fileName?.trim()) {
+        throw new BadRequestException({
+          code: ErrorCode.VALIDATION_ERROR,
+          message: 'An attachment needs fileId and fileName.',
+          details: { fields: ['fileId', 'fileName'] },
+        });
+      }
+    } else if (voice) {
       if (!dto.fileId || dto.durationMs === undefined) {
         throw new BadRequestException({
           code: ErrorCode.VALIDATION_ERROR,
@@ -246,7 +259,7 @@ export class ChatService {
         existing,
         user.sub,
         undefined,
-        await this.voiceUrls([existing]),
+        await this.mediaLinks([existing]),
       );
     }
 
@@ -301,6 +314,29 @@ export class ChatService {
         message: 'Renew your subscription to send messages.',
       });
     }
+    // OQ-047: photos and documents once the bid is accepted (contacts
+    // unlocked) — in case chats and accepted direct chats alike.
+    if (attachment && !conv.contacts_unlocked) {
+      throw new ForbiddenException({
+        code: ErrorCode.CHAT_ATTACHMENTS_LOCKED,
+        message: 'Files can be sent once the bid is accepted.',
+      });
+    }
+    if (attachment) {
+      await this.files.assertAttachable(user.sub, dto.fileId!, [
+        'chat_attachment',
+      ]);
+      const used = await this.prisma.message.findFirst({
+        where: { file_id: dto.fileId },
+        select: { id: true },
+      });
+      if (used) {
+        throw new ConflictException({
+          code: ErrorCode.FILE_NOT_ATTACHABLE,
+          message: 'This file was already sent.',
+        });
+      }
+    }
     if (voice) {
       await this.files.assertAttachable(user.sub, dto.fileId!, ['chat_voice']);
       // One note, one message: a file is never re-sent elsewhere.
@@ -326,6 +362,12 @@ export class ChatService {
         >`SELECT status, contacts_unlocked FROM conversations
             WHERE id = ${id}::UUID FOR UPDATE`;
         if (!locked || locked.status === 'closed') throw closed();
+        if (attachment && !locked.contacts_unlocked) {
+          throw new ForbiddenException({
+            code: ErrorCode.CHAT_ATTACHMENTS_LOCKED,
+            message: 'Files can be sent once the bid is accepted.',
+          });
+        }
         const masked =
           voice || locked.contacts_unlocked
             ? { text: body, masked: false }
@@ -334,7 +376,7 @@ export class ChatService {
           data: {
             conversation_id: id,
             sender_id: user.sub,
-            type: voice ? 'voice' : 'text',
+            type: voice ? 'voice' : attachment ? 'attachment' : 'text',
             body_original: body,
             body_display: masked.text,
             contact_masked: masked.masked,
@@ -345,7 +387,12 @@ export class ChatService {
                   duration_ms: dto.durationMs,
                   waveform: dto.waveform ?? [],
                 }
-              : {}),
+              : attachment
+                ? {
+                    file_id: dto.fileId,
+                    file_name: cleanFileName(dto.fileName!),
+                  }
+                : {}),
           },
         });
         await tx.conversation.update({
@@ -373,7 +420,7 @@ export class ChatService {
             again,
             user.sub,
             undefined,
-            await this.voiceUrls([again]),
+            await this.mediaLinks([again]),
           );
         }
       }
@@ -382,7 +429,7 @@ export class ChatService {
 
     const other =
       user.sub === conv.client_id ? conv.attorney_id : conv.client_id;
-    const urls = await this.voiceUrls([message]);
+    const urls = await this.mediaLinks([message]);
     this.realtime.toUsers([user.sub], 'message:new', {
       message: this.toMessage(message, user.sub, undefined, urls),
     });
@@ -438,7 +485,7 @@ export class ChatService {
         });
       }
     }
-    return this.toMessage(row, user.sub, conv, await this.voiceUrls([row]));
+    return this.toMessage(row, user.sub, conv, await this.mediaLinks([row]));
   }
 
   /**
@@ -662,11 +709,15 @@ export class ChatService {
     return conv;
   }
 
-  /** Signed links for the voice notes among [rows]. */
-  private voiceUrls(rows: Message[]): Promise<Map<string, string>> {
-    return this.files.voiceUrls(
-      rows.flatMap((m) => (m.type === 'voice' && m.file_id ? [m.file_id] : [])),
-    );
+  /** Signed links for the voice notes and attachments among [rows]. */
+  private async mediaLinks(rows: Message[]): Promise<MediaLinks> {
+    const ids = (type: Message['type']) =>
+      rows.flatMap((m) => (m.type === type && m.file_id ? [m.file_id] : []));
+    const [voice, attachments] = await Promise.all([
+      this.files.voiceUrls(ids('voice')),
+      this.files.attachmentUrls(ids('attachment')),
+    ]);
+    return { voice, attachments };
   }
 
   private findOwn(id: string, senderId: string, clientMessageId: string) {
@@ -691,7 +742,7 @@ export class ChatService {
       Conversation,
       'attorney_id' | 'client_id' | 'contacts_unlocked' | 'case_id'
     >,
-    voiceUrls?: Map<string, string>,
+    media?: MediaLinks,
   ): MessageDto {
     const hideSender =
       conv !== undefined &&
@@ -707,12 +758,13 @@ export class ChatService {
       voice:
         m.type === 'voice'
           ? {
-              url: m.file_id ? (voiceUrls?.get(m.file_id) ?? null) : null,
+              url: m.file_id ? (media?.voice.get(m.file_id) ?? null) : null,
               durationMs: m.duration_ms ?? 0,
               waveform: m.waveform,
               listened: m.listened_at !== null,
             }
           : null,
+      attachment: m.type === 'attachment' ? this.attachmentOf(m, media) : null,
       call:
         m.type === 'call'
           ? {
@@ -724,6 +776,23 @@ export class ChatService {
       contactMasked: m.contact_masked,
       clientMessageId: m.sender_id === viewerId ? m.client_message_id : null,
       createdAt: m.created_at,
+    };
+  }
+
+  /** OQ-047: the attached file as the bubble shows it (links once the
+   * scan passed; until then null — the app shows it as processing). */
+  private attachmentOf(m: Message, media?: MediaLinks): ChatAttachmentDto {
+    const f = m.file_id ? media?.attachments.get(m.file_id) : undefined;
+    return {
+      fileId: m.file_id ?? '',
+      name: m.file_name ?? 'file',
+      mime: f?.mime ?? null,
+      sizeBytes: f?.sizeBytes ?? null,
+      isImage: f ? isImageMime(f.mime) : false,
+      url: f?.url ?? null,
+      previewUrl: f?.previewUrl ?? null,
+      width: f?.width ?? null,
+      height: f?.height ?? null,
     };
   }
 
@@ -866,4 +935,18 @@ export class ChatService {
     }
     return out;
   }
+}
+
+/** OQ-047: links of a page's voice notes and attachments. */
+interface MediaLinks {
+  voice: Map<string, string>;
+  attachments: Awaited<ReturnType<FilesService['attachmentUrls']>>;
+}
+
+/** A display name: no path, no control characters, ≤200 chars. */
+function cleanFileName(raw: string): string {
+  const base = raw.split(/[\\/]/).pop() ?? raw;
+  // eslint-disable-next-line no-control-regex
+  const clean = base.replace(/[\u0000-\u001f\u007f]/g, '').trim();
+  return (clean || 'file').slice(0, 200);
 }
