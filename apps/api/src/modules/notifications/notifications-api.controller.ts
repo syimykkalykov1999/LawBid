@@ -23,6 +23,7 @@ import { BadgesService, type Badges } from './badges.service';
 import {
   BadgesDto,
   DeletePushTokenDto,
+  NewCaseAlertsDto,
   NotificationDto,
   NotificationSettingsDto,
   NotificationsQueryDto,
@@ -30,6 +31,7 @@ import {
   QuietHoursDto,
   ReadNotificationsDto,
   ReadNotificationsResultDto,
+  UpdateNewCaseAlertsDto,
   UpdateNotificationSettingsDto,
 } from './notifications-api.dto';
 import { NotificationsApiService } from './notifications-api.service';
@@ -104,6 +106,29 @@ export class NotificationsApiController {
     @Body() dto: UpdateNotificationSettingsDto,
   ) {
     return this.api.updateSettings(user.sub, dto.items);
+  }
+
+  // Owner 2026-10-01: which qualifications send "new case" alerts (the
+  // attorney's account; an assistant sees and sets the attorney's).
+  @Get('notification-settings/new-cases')
+  @ApiOperation({ summary: 'Qualifications for new-case alerts' })
+  @ApiEnvelopeResponse(NewCaseAlertsDto)
+  @ApiErrors({ 403: [ErrorCode.FORBIDDEN] })
+  getNewCaseAlerts(@CurrentUser() user: RequestUser) {
+    return this.api.newCaseAlerts(user.sub);
+  }
+
+  @Put('notification-settings/new-cases')
+  @ApiOperation({
+    summary: "New-case alerts: the profile's qualifications or a chosen list",
+  })
+  @ApiEnvelopeResponse(NewCaseAlertsDto)
+  @ApiErrors({ 400: [ErrorCode.VALIDATION_ERROR], 403: [ErrorCode.FORBIDDEN] })
+  setNewCaseAlerts(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: UpdateNewCaseAlertsDto,
+  ) {
+    return this.api.setNewCaseAlerts(user.sub, dto);
   }
 
   // OQ-048: an assistant has their own notifications and devices.

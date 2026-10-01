@@ -4,6 +4,7 @@ import { Test } from '@nestjs/testing';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { SubscriptionAlertsService } from '../src/modules/notifications/subscription-alerts.service';
+import { NotificationsApiService } from '../src/modules/notifications/notifications-api.service';
 import { ensurePostPractices } from './support/post-practices';
 
 /**
@@ -129,5 +130,43 @@ describe('Opt-in follow / new-case alerts (e2e, owner 2026-09-30)', () => {
     expect(await notifs(match, 'new_case')).toBe(1);
     expect(await notifs(notOptedIn, 'new_case')).toBe(0);
     expect(await notifs(otherPractice, 'new_case')).toBe(0);
+
+    // Owner 2026-10-01: a chosen list replaces the profile's — a category
+    // covers its subcategories; the match above narrows to family law.
+    const settings = app.get(NotificationsApiService);
+    const parent = await prisma.practiceArea.findUniqueOrThrow({
+      where: { id: leaf.parent_id! },
+    });
+    const view = await settings.setNewCaseAlerts(otherPractice, {
+      useProfile: false,
+      practiceAreaIds: [parent.id],
+    });
+    expect(view).toMatchObject({
+      useProfile: false,
+      practiceAreaIds: [parent.id],
+      profilePracticeAreaIds: [other.id],
+    });
+    await settings.setNewCaseAlerts(match, {
+      useProfile: false,
+      practiceAreaIds: [other.id],
+    });
+    await expect(
+      settings.setNewCaseAlerts(match, {
+        useProfile: false,
+        practiceAreaIds: [],
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(await alerts.attorneysForCase(c.id)).toBe(1);
+    expect(await notifs(otherPractice, 'new_case')).toBe(1);
+    expect(await notifs(match, 'new_case')).toBe(1); // not a second one
+    // Back to "as in my profile": the list is kept for later.
+    const back = await settings.setNewCaseAlerts(match, { useProfile: true });
+    expect(back).toMatchObject({
+      useProfile: true,
+      practiceAreaIds: [other.id],
+    });
+    await expect(settings.newCaseAlerts(client.id)).rejects.toMatchObject({
+      status: 403,
+    });
   });
 });

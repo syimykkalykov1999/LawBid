@@ -49,27 +49,48 @@ export class SubscriptionAlertsService {
     return rows.length;
   }
 
-  /** A newly published case. */
+  /**
+   * A newly published case. Owner 2026-10-01: only the qualifications the
+   * attorney chose for alerts — by default the profile's, or their own
+   * list (a category covers its subcategories) — and only in states where
+   * they hold a verified license.
+   */
   async attorneysForCase(caseId: string): Promise<number> {
     const rows = await this.prisma.$queryRaw<{ id: string }[]>`
-      SELECT DISTINCT ap.attorney_id::STRING AS id
-      FROM cases c
-      JOIN attorney_practice_areas ap ON ap.practice_area_id = c.practice_area_id
-      JOIN attorney_profiles p ON p.user_id = ap.attorney_id
+      WITH c AS (
+        SELECT c.id, c.client_id, c.practice_area_id, pa.parent_id
+        FROM cases c
+        JOIN practice_areas pa ON pa.id = c.practice_area_id
+        WHERE c.id = ${caseId}::UUID
+      ), chosen AS (
+        SELECT ap.attorney_id, ap.practice_area_id
+        FROM attorney_practice_areas ap
+        JOIN attorney_profiles p ON p.user_id = ap.attorney_id
+         AND NOT p.new_case_alerts_custom
+        UNION ALL
+        SELECT n.attorney_id, n.practice_area_id
+        FROM new_case_alert_practices n
+        JOIN attorney_profiles p ON p.user_id = n.attorney_id
+         AND p.new_case_alerts_custom
+      )
+      SELECT DISTINCT ch.attorney_id::STRING AS id
+      FROM c
+      JOIN chosen ch ON ch.practice_area_id = c.practice_area_id
+                     OR ch.practice_area_id = c.parent_id
+      JOIN attorney_profiles p ON p.user_id = ch.attorney_id
        AND p.verification_status = 'verified'
       JOIN case_states cs ON cs.case_id = c.id
-      JOIN attorney_licenses l ON l.attorney_id = ap.attorney_id
+      JOIN attorney_licenses l ON l.attorney_id = ch.attorney_id
        AND l.state_code = cs.state_code AND l.license_status = 'verified'
       JOIN notification_settings s
-        ON s.user_id = ap.attorney_id AND s.category = 'new_cases'
+        ON s.user_id = ch.attorney_id AND s.category = 'new_cases'
        AND s.push_enabled
-      JOIN users u ON u.id = ap.attorney_id
+      JOIN users u ON u.id = ch.attorney_id
        AND u.status = 'active' AND u.deleted_at IS NULL
-      WHERE c.id = ${caseId}::UUID
-        AND NOT EXISTS (
+      WHERE NOT EXISTS (
           SELECT 1 FROM user_blocks b
-          WHERE (b.blocker_id = ap.attorney_id AND b.blocked_id = c.client_id)
-             OR (b.blocker_id = c.client_id AND b.blocked_id = ap.attorney_id))
+          WHERE (b.blocker_id = ch.attorney_id AND b.blocked_id = c.client_id)
+             OR (b.blocker_id = c.client_id AND b.blocked_id = ch.attorney_id))
       LIMIT ${ALERT_FANOUT_MAX}`;
     for (const r of rows) {
       await this.notifications.emit({

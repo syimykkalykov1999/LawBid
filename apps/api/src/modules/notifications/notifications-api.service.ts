@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+} from '@nestjs/common';
 import type { Notification } from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
@@ -16,6 +20,8 @@ import {
   type NotificationDto,
   type NotificationSettingsDto,
   type QuietHoursDto,
+  NewCaseAlertsDto,
+  UpdateNewCaseAlertsDto,
 } from './notifications-api.dto';
 
 const PAGE = 20;
@@ -254,5 +260,71 @@ export class NotificationsApiService {
       });
     }
     return out;
+  }
+
+  /** Owner 2026-10-01: which qualifications send "new case" alerts. */
+  async newCaseAlerts(userId: string): Promise<NewCaseAlertsDto> {
+    const p = await this.prisma.attorneyProfile.findUnique({
+      where: { user_id: userId },
+      select: {
+        new_case_alerts_custom: true,
+        practice_areas: { select: { practice_area_id: true } },
+        new_case_alert_practices: { select: { practice_area_id: true } },
+      },
+    });
+    if (!p) {
+      throw new ForbiddenException({
+        code: ErrorCode.FORBIDDEN,
+        message: 'Only attorneys get new-case alerts.',
+      });
+    }
+    return {
+      useProfile: !p.new_case_alerts_custom,
+      practiceAreaIds: p.new_case_alert_practices.map(
+        (x) => x.practice_area_id,
+      ),
+      profilePracticeAreaIds: p.practice_areas.map((x) => x.practice_area_id),
+    };
+  }
+
+  async setNewCaseAlerts(
+    userId: string,
+    dto: UpdateNewCaseAlertsDto,
+  ): Promise<NewCaseAlertsDto> {
+    await this.newCaseAlerts(userId); // attorneys only
+    const ids = [...new Set(dto.practiceAreaIds ?? [])];
+    if (!dto.useProfile && ids.length === 0) {
+      throw invalid('practiceAreaIds', 'Choose at least one qualification.');
+    }
+    if (ids.length > 0) {
+      const found = await this.prisma.practiceArea.count({
+        where: { id: { in: ids } },
+      });
+      if (found !== ids.length) {
+        throw invalid('practiceAreaIds', 'Unknown qualification.');
+      }
+    }
+    await this.prisma.$transaction([
+      this.prisma.attorneyProfile.update({
+        where: { user_id: userId },
+        data: { new_case_alerts_custom: !dto.useProfile },
+      }),
+      // The custom list is kept even while "as in my profile" is on, so
+      // switching back restores it.
+      ...(dto.practiceAreaIds === undefined
+        ? []
+        : [
+            this.prisma.newCaseAlertPractice.deleteMany({
+              where: { attorney_id: userId },
+            }),
+            this.prisma.newCaseAlertPractice.createMany({
+              data: ids.map((id) => ({
+                attorney_id: userId,
+                practice_area_id: id,
+              })),
+            }),
+          ]),
+    ]);
+    return this.newCaseAlerts(userId);
   }
 }

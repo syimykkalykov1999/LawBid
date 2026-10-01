@@ -996,7 +996,8 @@ model PracticeArea {
   children PracticeArea[] @relation("PracticeAreaTree")
 
   // Reference/seed table — no timestamps, per §3.2's column list.
-  attorney_practice_areas AttorneyPracticeArea[]
+  attorney_practice_areas  AttorneyPracticeArea[]
+  new_case_alert_practices NewCaseAlertPractice[]
 
   cases Case[]
   posts Post[]
@@ -1068,9 +1069,12 @@ model AttorneyProfile {
   created_at          DateTime           @default(now()) @db.Timestamptz
   updated_at          DateTime           @updatedAt @db.Timestamptz
 
-  licenses              AttorneyLicense[]
-  practice_areas        AttorneyPracticeArea[]
-  verification_requests VerificationRequest[]
+  licenses                 AttorneyLicense[]
+  practice_areas           AttorneyPracticeArea[]
+  /// Owner 2026-10-01: true = new-case alerts follow new_case_alert_practices.
+  new_case_alerts_custom   Boolean                @default(false)
+  new_case_alert_practices NewCaseAlertPractice[]
+  verification_requests    VerificationRequest[]
 
   // GIN/inverted (trigram gin_trgm_ops or full-text), created by the stage 2.6
   // migration; declared so Prisma's diff matches the DB.
@@ -1116,6 +1120,21 @@ model AttorneyPracticeArea {
   @@id([attorney_id, practice_area_id])
   @@index([practice_area_id, attorney_id])
   @@map("attorney_practice_areas")
+}
+
+/// Owner 2026-10-01: the qualifications that send "new case" alerts when
+/// the attorney chose their own list (attorney_profiles.new_case_alerts_custom).
+/// A category covers its subcategories.
+model NewCaseAlertPractice {
+  attorney_id      String          @db.Uuid
+  attorney         AttorneyProfile @relation(fields: [attorney_id], references: [user_id], onDelete: Cascade, map: "new_case_alert_practices_attorney_fkey")
+  practice_area_id String          @db.Uuid
+  practice_area    PracticeArea    @relation(fields: [practice_area_id], references: [id], onDelete: Cascade, map: "new_case_alert_practices_area_fkey")
+  created_at       DateTime        @default(now()) @db.Timestamptz
+
+  @@id([attorney_id, practice_area_id])
+  @@index([practice_area_id, attorney_id], map: "new_case_alert_practices_area_idx")
+  @@map("new_case_alert_practices")
 }
 
 model VerificationRequest {

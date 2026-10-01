@@ -104,6 +104,12 @@ final notificationsProvider = AsyncNotifierProvider.autoDispose<
   retry: _noRetry,
 );
 
+/// Owner 2026-10-01: qualifications for "new case" alerts (attorneys).
+final newCaseAlertsProvider = FutureProvider.autoDispose<NewCaseAlerts>(
+  (ref) => ref.watch(notificationsRepositoryProvider).newCaseAlerts(),
+  retry: _noRetry,
+);
+
 final notificationSettingsProvider =
     FutureProvider.autoDispose<NotificationSettings>(
   (ref) => ref.watch(notificationsRepositoryProvider).settings(),

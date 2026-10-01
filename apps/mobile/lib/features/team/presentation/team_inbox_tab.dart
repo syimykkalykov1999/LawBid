@@ -63,35 +63,53 @@ class _TeamInboxTabState extends ConsumerState<TeamInboxTab> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     return Column(
       children: [
+        // Owner 2026-10-01: Requests · Activity centred; the team settings
+        // icon at the right edge, in line with the notifications bell.
         Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.screenSide,
-            AppSpacing.xs,
-            AppSpacing.screenSide,
-            AppSpacing.sm,
+          padding: const EdgeInsets.only(
+            top: AppSpacing.xs,
+            bottom: AppSpacing.sm,
           ),
-          child: Row(
-            children: [
-              AppChip(
-                key: const ValueKey('team-view-requests'),
-                label: t.t('team.requests'),
-                selected: _view == _TeamView.requests,
-                onTap: () => setState(() => _view = _TeamView.requests),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              AppChip(
-                key: const ValueKey('team-view-activity'),
-                label: t.t('team.activity'),
-                selected: _view == _TeamView.activity,
-                onTap: () => setState(() => _view = _TeamView.activity),
-              ),
-              const Spacer(),
-              AppIconButton(
-                icon: const Icon(Icons.manage_accounts_outlined),
-                semanticLabel: t.t('team.title'),
-                onPressed: () => context.push(TeamRoutes.team),
-              ),
-            ],
+          child: SizedBox(
+            height: AppSizes.touchTarget,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    AppChip(
+                      key: const ValueKey('team-view-requests'),
+                      label: t.t('team.requests'),
+                      selected: _view == _TeamView.requests,
+                      onTap: () =>
+                          setState(() => _view = _TeamView.requests),
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    AppChip(
+                      key: const ValueKey('team-view-activity'),
+                      label: t.t('team.activity'),
+                      selected: _view == _TeamView.activity,
+                      onTap: () =>
+                          setState(() => _view = _TeamView.activity),
+                    ),
+                  ],
+                ),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Padding(
+                    // Same inset as the bell in the Inbox header.
+                    padding: const EdgeInsets.only(right: AppSpacing.xs),
+                    child: AppIconButton(
+                      key: const ValueKey('team-settings'),
+                      icon: const Icon(Icons.manage_accounts_outlined),
+                      semanticLabel: t.t('team.title'),
+                      onPressed: () => context.push(TeamRoutes.team),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
         Expanded(

@@ -7,6 +7,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
@@ -221,6 +222,48 @@ class _PracticesEditorState extends ConsumerState<PracticesEditor> {
       children: [
         Text(t.t('practices.intro'),
             style: typography.body.copyWith(color: colors.textSecondary)),
+        // Owner 2026-10-01: these qualifications also decide which new
+        // cases reach the notifications — and that it can be changed.
+        const SizedBox(height: AppSpacing.md),
+        Container(
+          key: const ValueKey('practices-alerts-hint'),
+          padding: const EdgeInsets.all(AppSpacing.md),
+          decoration: BoxDecoration(
+            color: colors.goldTint,
+            borderRadius: BorderRadius.circular(AppRadii.field),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.notifications_active_outlined,
+                  size: AppSizes.iconSm, color: colors.goldDark),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(t.t('practices.alertsHint'),
+                        style:
+                            typography.bodySmall.copyWith(color: colors.text)),
+                    GestureDetector(
+                      onTap: () => context.push(ChatRoutes.notificationSettings),
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: AppSpacing.xs),
+                        child: Text(
+                          t.t('practices.alertsLink'),
+                          style: typography.bodySmall.copyWith(
+                            color: colors.goldDark,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
         const SizedBox(height: AppSpacing.lg),
         AppTextField(
           controller: _search,

@@ -198,3 +198,31 @@ export class DeletePushTokenDto {
   @MaxLength(4096)
   token!: string;
 }
+
+/** Owner 2026-10-01: which qualifications send "new case" alerts. */
+export class NewCaseAlertsDto {
+  @ApiProperty({
+    description:
+      "true = the profile's qualifications (default); false = practiceAreaIds",
+  })
+  useProfile!: boolean;
+
+  @ApiProperty({ type: [String], description: 'The chosen list (custom).' })
+  practiceAreaIds!: string[];
+
+  @ApiProperty({ type: [String], description: "The profile's qualifications." })
+  profilePracticeAreaIds!: string[];
+}
+
+export class UpdateNewCaseAlertsDto {
+  @ApiProperty()
+  @IsBoolean()
+  useProfile!: boolean;
+
+  @ApiPropertyOptional({ type: [String], maxItems: 300 })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(300)
+  @IsUUID('all', { each: true })
+  practiceAreaIds?: string[];
+}

@@ -7,12 +7,14 @@ import 'package:retrofit/retrofit.dart';
 
 import '../models/badges_envelope.dart';
 import '../models/delete_push_token_dto.dart';
+import '../models/new_case_alerts_envelope.dart';
 import '../models/notification_list_envelope.dart';
 import '../models/notification_settings_envelope.dart';
 import '../models/push_token_dto.dart';
 import '../models/quiet_hours_dto.dart';
 import '../models/read_notifications_dto.dart';
 import '../models/read_notifications_result_envelope.dart';
+import '../models/update_new_case_alerts_dto.dart';
 import '../models/update_notification_settings_dto.dart';
 
 part 'notifications_client.g.dart';
@@ -52,6 +54,19 @@ abstract class NotificationsClient {
   @PUT('/notification-settings')
   Future<NotificationSettingsEnvelope> updateNotificationSettings({
     @Body() required UpdateNotificationSettingsDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Qualifications for new-case alerts
+  @GET('/notification-settings/new-cases')
+  Future<NewCaseAlertsEnvelope> getNewCaseAlerts({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// New-case alerts: the profile's qualifications or a chosen list
+  @PUT('/notification-settings/new-cases')
+  Future<NewCaseAlertsEnvelope> setNewCaseAlerts({
+    @Body() required UpdateNewCaseAlertsDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

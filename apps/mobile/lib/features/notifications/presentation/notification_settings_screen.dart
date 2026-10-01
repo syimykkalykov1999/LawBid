@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/features/notifications/presentation/new_case_alerts_section.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
@@ -50,6 +51,15 @@ class _NotificationSettingsScreenState
       {bool? push, bool? email}) {
     final next = c.copyWith(push: push, email: email);
     final repo = ref.read(notificationsRepositoryProvider);
+    // Owner 2026-10-01: turning "New cases" on says what comes and that it
+    // can be changed (the qualifications appear right under the switch).
+    if (c.category == NotifCategory.newCases &&
+        !c.push &&
+        !c.email &&
+        (next.push || next.email)) {
+      showAppSnackBar(
+          context, ref.read(translatorProvider).t('notif.newCases.turnedOn'));
+    }
     _apply(
       () => repo.updateSettings([next]),
       NotificationSettings(
@@ -195,6 +205,11 @@ class _NotificationSettingsScreenState
                                 ? null
                                 : (v) => _toggle(s, c, email: v),
                           ),
+                          // Owner 2026-10-01: which qualifications send
+                          // new cases (profile's by default).
+                          if (c.category == NotifCategory.newCases &&
+                              (c.push || c.email))
+                            const NewCaseAlertsSection(),
                         ],
                       ),
                     ),

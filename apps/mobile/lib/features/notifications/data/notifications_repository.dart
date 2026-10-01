@@ -132,6 +132,27 @@ class NotificationSettings {
 }
 
 /// docs/05 §9, §10, §15 "Уведомления и push". Throws [ApiException].
+/// Owner 2026-10-01: which qualifications send "new case" alerts.
+@immutable
+class NewCaseAlerts {
+  const NewCaseAlerts({
+    required this.useProfile,
+    required this.practiceAreaIds,
+    required this.profilePracticeAreaIds,
+  });
+
+  /// true = the profile's qualifications (the default).
+  final bool useProfile;
+
+  /// The attorney's own list (kept while "as in my profile" is on).
+  final List<String> practiceAreaIds;
+  final List<String> profilePracticeAreaIds;
+
+  /// What actually sends alerts now.
+  List<String> get effective =>
+      useProfile ? profilePracticeAreaIds : practiceAreaIds;
+}
+
 abstract interface class NotificationsRepository {
   Future<CursorPage<AppNotification>> list({String? cursor});
   Future<void> markRead({List<String>? ids, bool all = false});
@@ -139,6 +160,13 @@ abstract interface class NotificationsRepository {
   Future<NotificationSettings> settings();
   Future<NotificationSettings> updateSettings(List<CategorySetting> items);
   Future<NotificationSettings> setQuietHours(QuietHours? quietHours);
+  Future<NewCaseAlerts> newCaseAlerts();
+
+  /// [practiceAreaIds] null keeps the saved list (switching modes only).
+  Future<NewCaseAlerts> setNewCaseAlerts({
+    required bool useProfile,
+    List<String>? practiceAreaIds,
+  });
   Future<void> registerPushToken(String token, {required bool ios});
   Future<void> deletePushToken(String token);
 }
@@ -240,6 +268,29 @@ class ApiNotificationsRepository implements NotificationsRepository {
                       emailEnabled: i.email,
                     ),
                 ]),
+              )))
+          .data);
+
+  static NewCaseAlerts _alerts(api.NewCaseAlertsDto d) => NewCaseAlerts(
+        useProfile: d.useProfile,
+        practiceAreaIds: d.practiceAreaIds,
+        profilePracticeAreaIds: d.profilePracticeAreaIds,
+      );
+
+  @override
+  Future<NewCaseAlerts> newCaseAlerts() async =>
+      _alerts((await guardApiCall(_api.getNewCaseAlerts)).data);
+
+  @override
+  Future<NewCaseAlerts> setNewCaseAlerts({
+    required bool useProfile,
+    List<String>? practiceAreaIds,
+  }) async =>
+      _alerts((await guardApiCall(() => _api.setNewCaseAlerts(
+                body: api.UpdateNewCaseAlertsDto(
+                  useProfile: useProfile,
+                  practiceAreaIds: practiceAreaIds,
+                ),
               )))
           .data);
 
