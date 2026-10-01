@@ -13,6 +13,7 @@ process.env.REDIS_URL = e2eRedisUrl();
 // that budget is lifted; the per-identifier limit stays at its real value.
 process.env.OTP_RATE_LIMIT_PER_IP_PER_HOUR = '1000';
 process.env.ADMIN_LOGIN_LIMIT_PER_IP_PER_HOUR = '1000';
+process.env.OTP_VERIFY_LIMIT_PER_IP_PER_HOUR = '1000';
 
 // Cost guard (owner decision 2026-09-27): the suites send far more than
 // 30 SMS within a minute from one process. Only the per-minute velocity

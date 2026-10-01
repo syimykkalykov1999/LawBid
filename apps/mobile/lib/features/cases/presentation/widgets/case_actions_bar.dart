@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:lawbid/shared/presentation/share_sheet.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:share_plus/share_plus.dart';
 
 import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -56,15 +56,16 @@ class _CaseActionsBarState extends ConsumerState<CaseActionsBar> {
   }
 
   Future<void> _share() async {
-    final box = context.findRenderObject() as RenderBox?;
-    final result = await SharePlus.instance.share(ShareParams(
-      uri: Uri.parse(caseLink(
-          ref.read(appEnvironmentProvider).deepLinkHost, widget.item.id)),
-      sharePositionOrigin:
-          box == null ? null : box.localToGlobal(Offset.zero) & box.size,
-    ));
+    // Owner 2026-10-01: the LawBid share sheet (social networks too).
+    final shared = await showShareSheet(
+      context,
+      t: ref.read(translatorProvider),
+      link: caseLink(
+          ref.read(appEnvironmentProvider).deepLinkHost, widget.item.id),
+      text: widget.item.title,
+    );
     // OQ-037: count it unless the sheet was just closed.
-    if (result.status == ShareResultStatus.dismissed || !mounted) return;
+    if (!shared || !mounted) return;
     setState(() => _shared++);
     try {
       await ref.read(socialRepositoryProvider).recordCaseShare(widget.item.id);

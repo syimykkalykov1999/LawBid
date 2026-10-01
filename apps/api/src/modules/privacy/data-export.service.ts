@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
+import { CostGuardService } from '../../common/cost-guard/cost-guard.service';
 import { ConfigService } from '@nestjs/config';
 import archiver from 'archiver';
 import { PinoLogger } from 'nestjs-pino';
@@ -36,6 +37,7 @@ export class DataExportService {
     private readonly config: ConfigService,
     @Inject(NOTIFICATION_EMAIL) private readonly email: EmailProvider,
     private readonly logger: PinoLogger,
+    @Optional() private readonly costGuard?: CostGuardService,
   ) {
     this.logger.setContext(DataExportService.name);
   }
@@ -220,6 +222,8 @@ export class DataExportService {
           key,
           DATA_EXPORT_LINK_TTL_SEC,
         );
+        // Counts against the email budget (security audit 2026-10-01).
+        await this.costGuard?.consume('email');
         await this.email.sendEmail(
           buildDataExportEmail({
             email: job.user.email,

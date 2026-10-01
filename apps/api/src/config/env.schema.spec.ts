@@ -5,6 +5,8 @@ const hex32 = '0'.repeat(32);
 const strong = (label: string): string => `${label}_${'x'.repeat(40)}`;
 
 const base: Record<string, string> = {
+  // Deployed configs run behind one ALB (security audit 2026-10-01).
+  TRUST_PROXY_HOPS: '1',
   NODE_ENV: 'development',
   DATABASE_URL: 'postgresql://root@localhost:26257/lawbid?sslmode=disable',
   REDIS_URL: 'redis://localhost:6379',
@@ -91,6 +93,17 @@ describe('envSchema — credentials', () => {
         'SES_FROM_ADDRESS',
       ]),
     );
+  });
+
+  it('staging/production refuse TRUST_PROXY_HOPS=0 (one shared per-IP bucket)', () => {
+    for (const NODE_ENV of ['staging', 'production']) {
+      expect(issuePaths({ NODE_ENV, TRUST_PROXY_HOPS: '0' })).toContain(
+        'TRUST_PROXY_HOPS',
+      );
+    }
+    expect(
+      issuePaths({ NODE_ENV: 'development', TRUST_PROXY_HOPS: '0' }),
+    ).not.toContain('TRUST_PROXY_HOPS');
   });
 
   it('production with SMS_PROVIDER=mock is refused', () => {

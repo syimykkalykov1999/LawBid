@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/features/social/presentation/screens/create_post_screen.dart';
-import 'package:share_plus/share_plus.dart';
 
 import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -13,6 +12,7 @@ import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/data/social_repository.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
+import 'package:lawbid/shared/presentation/share_sheet.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 
 String _link(WidgetRef ref, String postId) => SocialFormat.postLink(
@@ -20,18 +20,17 @@ String _link(WidgetRef ref, String postId) => SocialFormat.postLink(
       postId,
     );
 
-/// §4 "Поделиться": the system share sheet with `lawbid.app/post/:id`.
+/// §4 "Поделиться" (owner 2026-10-01): the LawBid share sheet — social
+/// networks, copy link, the system sheet — with `lawbid.app/post/:id`.
 Future<void> sharePost(BuildContext context, WidgetRef ref, Post post) async {
-  final box = context.findRenderObject() as RenderBox?;
-  final result = await SharePlus.instance.share(ShareParams(
-    uri: Uri.parse(_link(ref, post.id)),
-    sharePositionOrigin:
-        box == null ? null : box.localToGlobal(Offset.zero) & box.size,
-  ));
+  final shared = await showShareSheet(
+    context,
+    t: ref.read(translatorProvider),
+    link: _link(ref, post.id),
+    text: post.title,
+  );
   // OQ-037: count it unless the sheet was just closed.
-  if (result.status != ShareResultStatus.dismissed) {
-    await ref.read(socialActionsProvider).recordShare(post);
-  }
+  if (shared) await ref.read(socialActionsProvider).recordShare(post);
 }
 
 /// §2.4 "⋯": someone else's post — report, copy link; your own — edit

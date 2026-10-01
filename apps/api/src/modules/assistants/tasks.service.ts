@@ -20,6 +20,9 @@ import type {
   UpdateTaskStepDto,
 } from './assistants.dto';
 
+/** Steps per task (CreateTaskDto caps the initial list the same way). */
+const MAX_STEPS = 100;
+
 /** Owner 2026-10-01: the step columns from the input. */
 function stepData(s: TaskStepInputDto) {
   return {
@@ -230,6 +233,14 @@ export class TasksService {
     this.assertMayPlan(user);
     const t = await this.own(user, id);
     if (t.status === 'cancelled') throw this.closed();
+    // Same technical cap as on creation (security audit 2026-10-01).
+    if (t.steps.length >= MAX_STEPS) {
+      throw new ConflictException({
+        code: ErrorCode.TASK_CLOSED,
+        message: `A task holds up to ${MAX_STEPS} steps.`,
+        details: { max: MAX_STEPS },
+      });
+    }
     const last = t.steps.at(-1)?.position ?? -1;
     await this.prisma.$transaction([
       this.prisma.attorneyTaskStep.create({
@@ -279,7 +290,10 @@ export class TasksService {
         message: 'Only the attorney checks steps off.',
       });
     }
-    if (dto.dueAt !== undefined) this.assertMayPlan(user);
+    // Moving a time or writing a note is planning: the tasks duty.
+    if (dto.dueAt !== undefined || dto.note !== undefined) {
+      this.assertMayPlan(user);
+    }
     await this.prisma.attorneyTaskStep.update({
       where: { id: stepId },
       data: {

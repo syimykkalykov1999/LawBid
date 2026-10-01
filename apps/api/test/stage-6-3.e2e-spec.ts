@@ -342,30 +342,30 @@ describe('stage 6.3 — admin users and sanctions (e2e)', () => {
   });
 
   it('changes the phone on request: old number out, sessions signed out, user told, audited', async () => {
-    const support = await adminSession(baseUrl, prisma, 'support');
     const moderator = await adminSession(baseUrl, prisma, 'moderator');
+    const boss = await adminSession(baseUrl, prisma, 'super_admin');
     const c = await client();
     const other = await client();
     const fresh = nextPhone();
-    // Support can't; the number must be free; a reason is required.
+    // Only a super admin; the number must be free; a reason is required.
     await api()
       .post(`/api/v1/admin/users/${c.id}/phone`)
-      .set(support.auth)
+      .set(moderator.auth)
       .send({ phone: fresh, reason: 'Lost phone, ID checked' })
       .expect(403);
     await api()
       .post(`/api/v1/admin/users/${c.id}/phone`)
-      .set(moderator.auth)
+      .set(boss.auth)
       .send({ phone: other.phone, reason: 'x' })
       .expect(409);
     await api()
       .post(`/api/v1/admin/users/${c.id}/phone`)
-      .set(moderator.auth)
+      .set(boss.auth)
       .send({ phone: fresh })
       .expect(400);
     const r = await api()
       .post(`/api/v1/admin/users/${c.id}/phone`)
-      .set(moderator.auth)
+      .set(boss.auth)
       .send({ phone: fresh, reason: 'Lost phone, ID checked' })
       .expect(200);
     expect((r.body as Body).data).toMatchObject({

@@ -106,6 +106,7 @@ dependencies:
   path_provider: ^2.1.6
   flutter_webrtc: ^1.6.2+hotfix.3
   flutter_callkit_incoming: ^3.1.6
+  font_awesome_flutter: ^11.0.0
 
 dev_dependencies:
   flutter_test:

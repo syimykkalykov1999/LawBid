@@ -101,14 +101,19 @@ export class AdminUsersController {
 
   @Post(':id/phone')
   @HttpCode(HttpStatus.OK)
-  @Roles('super_admin', 'moderator')
+  // Security audit 2026-10-01: an account takeover path — super admins only.
+  @Roles('super_admin')
   @SkipAutoAudit()
   @ApiOperation({
     summary:
       "Change the phone on the user's request (sessions signed out, user notified)",
   })
   @ApiEnvelopeResponse(PhoneChangedDto)
-  @ApiErrors({ ...TARGET_ERRORS, 409: [E.IDENTIFIER_ALREADY_LINKED] })
+  @ApiErrors({
+    ...TARGET_ERRORS,
+    409: [E.IDENTIFIER_ALREADY_LINKED],
+    429: [E.RATE_LIMITED],
+  })
   changeUserPhone(
     @CurrentAdmin() admin: AdminActor,
     @Param() params: AdminUserIdParamDto,

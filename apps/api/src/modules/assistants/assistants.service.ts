@@ -2,6 +2,8 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  HttpException,
+  HttpStatus,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -15,6 +17,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AssistantContextService } from '../auth/assistant/assistant-context';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { OtpService } from '../auth/services/otp.service';
+import { RateLimitService } from '../auth/services/rate-limit.service';
 import { CaseCommentsService } from '../case-comments/case-comments.service';
 import { CommentsService } from '../comments/comments.service';
 import { FilesService } from '../files/files.service';
@@ -73,6 +76,7 @@ export class AssistantsService {
     private readonly caseComments: CaseCommentsService,
     private readonly profiles: AttorneyProfilesService,
     private readonly files: FilesService,
+    private readonly rateLimit: RateLimitService,
   ) {}
 
   // --- the assistant themself ------------------------------------------
@@ -154,9 +158,54 @@ export class AssistantsService {
   /** POST /assistants/join/request-code — a code to the attorney's phone. */
   async requestCode(user: RequestUser, attorneyPhone: string): Promise<void> {
     await this.assertCanJoin(user.sub);
+    await this.limitCodeRequests(user.sub, attorneyPhone);
     const attorney = await this.attorneyByPhone(attorneyPhone);
     await this.assertFreeSeat(attorney.id);
     await this.otp.requestOtp('phone', attorneyPhone, 'assistant');
+  }
+
+  /**
+   * Security audit 2026-10-01: every join code is a paid SMS to someone
+   * else's phone — 3 an hour and 6 a day per account, plus the same
+   * per-number window the sign-in OTP uses (5/hour), so nobody can spam an
+   * attorney or burn the SMS budget.
+   */
+  private async limitCodeRequests(
+    userId: string,
+    attorneyPhone: string,
+  ): Promise<void> {
+    const results = [
+      await this.rateLimit.consumeFixedWindow(
+        ['assist-code', 'user', userId, 'h'],
+        3,
+        3600,
+      ),
+      await this.rateLimit.consumeFixedWindow(
+        ['assist-code', 'user', userId, 'd'],
+        6,
+        86_400,
+      ),
+      await this.rateLimit.consumeSlidingWindow(
+        ['otp-req', 'id', this.rateLimit.hashIdentifier(attorneyPhone)],
+        5,
+        3600,
+      ),
+    ];
+    const blocked = results.filter((r) => !r.allowed);
+    if (blocked.length > 0) {
+      throw new HttpException(
+        {
+          code: ErrorCode.AUTH_OTP_REQUEST_LIMIT,
+          message: 'Too many code requests. Try again later.',
+          details: {
+            retryAfterSeconds: Math.max(
+              ...blocked.map((r) => r.retryAfterSeconds),
+            ),
+          },
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
   }
 
   /** POST /assistants/join/verify — the code the attorney told them. */

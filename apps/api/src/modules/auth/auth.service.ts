@@ -49,6 +49,7 @@ const ENV = {
   otpPerIpPerHour: 'OTP_RATE_LIMIT_PER_IP_PER_HOUR',
   otpPerDevicePerHour: 'OTP_RATE_LIMIT_PER_DEVICE_PER_HOUR',
   otpVerifyPerHour: 'AUTH_OTP_VERIFY_LIMIT_PER_HOUR',
+  otpVerifyPerIpPerHour: 'OTP_VERIFY_LIMIT_PER_IP_PER_HOUR',
   refreshPerIpPerHour: 'AUTH_REFRESH_LIMIT_PER_IP_PER_HOUR',
 } as const;
 
@@ -172,11 +173,21 @@ export class AuthService {
     const identifier = this.normalize(dto.channel, dto.identifier);
     const deviceInfo: DeviceInfo = dto.deviceInfo ?? {};
 
-    const verifyLimit = await this.rateLimit.consumeSlidingWindow(
+    // Security audit 2026-10-01: one IP can't spray wrong codes at many
+    // accounts (and lock them out) — 30 verifies an hour per IP.
+    const ipLimit = meta.ip
+      ? await this.rateLimit.consumeSlidingWindow(
+          ['otp-verify', 'ip', meta.ip],
+          this.limit(ENV.otpVerifyPerIpPerHour),
+          3600,
+        )
+      : { allowed: true, retryAfterSeconds: 0 };
+    const idLimit = await this.rateLimit.consumeSlidingWindow(
       ['otp-verify', this.rateLimit.hashIdentifier(identifier)],
       this.limit(ENV.otpVerifyPerHour),
       3600,
     );
+    const verifyLimit = !ipLimit.allowed ? ipLimit : idLimit;
     if (!verifyLimit.allowed) {
       throw new HttpException(
         {
@@ -394,14 +405,14 @@ export class AuthService {
     meta: RequestMeta,
   ): Promise<AuthTokensResult> {
     const key = `auth:pending:${pendingToken}`;
-    const raw = await this.redis.get(key);
+    // Atomic single use: two parallel calls can't both redeem it.
+    const raw = await this.redis.getdel(key);
     if (!raw) {
       throw new UnauthorizedException({
         code: ErrorCode.AUTH_OTP_EXPIRED,
         message: 'This sign-in expired. Sign in again.',
       });
     }
-    await this.redis.del(key);
     const p = JSON.parse(raw) as {
       userId: string;
       isNewUser: boolean;

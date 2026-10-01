@@ -49,7 +49,7 @@ class FlipSearchBar extends StatefulWidget {
   /// focused. `false` when the caller has its own way to close.
   final bool showCancel;
 
-  /// Field height (owner 2026-10-01: 44 — the old 51 looked huge).
+  /// Field height (owner 2026-10-01: 44 visible — the old 51 looked huge; the tap area stays 48).
   final double height;
 
   @override
@@ -122,120 +122,134 @@ class _FlipSearchBarState extends State<FlipSearchBar> {
         ? ''
         : widget.hints[(focused || reduce) ? 0 : _hint % widget.hints.length];
 
-    final field = AnimatedContainer(
-      duration: d,
-      curve: AppMotion.enterCurve,
-      // 48 px inside the (up to 1.5 px) border by default.
-      height: widget.height,
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(AppRadii.pill),
-        border: Border.all(
-          color: focused ? colors.gold : colors.border,
-          width: focused ? 1.5 : 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: focused
-                ? colors.gold.withValues(alpha: 0.22)
-                : colors.shadow.withValues(alpha: 0),
-            blurRadius: focused ? 18 : 0,
-            spreadRadius: focused ? 1 : 0,
-          ),
-        ],
-      ),
-      child: Row(
+    // Owner 2026-10-01: the visible pill is [widget.height] (44); the row
+    // itself stays 48 tall so the whole bar remains a full tap target.
+    final tapHeight = widget.height < 48 ? 48.0 : widget.height;
+    final inset = (tapHeight - widget.height) / 2;
+    final field = SizedBox(
+      height: tapHeight,
+      child: Stack(
         children: [
-          if (widget.leading != null) ...[
-            const SizedBox(width: AppSpacing.xs),
-            widget.leading!,
-          ] else ...[
-            const SizedBox(width: AppSpacing.md),
-            AnimatedRotation(
-              turns: focused ? -0.06 : 0,
-              duration: d,
-              child: Icon(
-                Icons.search_rounded,
-                color: focused ? colors.goldDark : colors.textSecondary,
-              ),
-            ),
-          ],
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: Stack(
-              alignment: Alignment.centerLeft,
-              children: [
-                if (_empty)
-                  IgnorePointer(
-                    child: ClipRect(
-                      child: AnimatedSwitcher(
-                        duration: reduce
-                            ? Duration.zero
-                            : const Duration(milliseconds: 520),
-                        switchInCurve: Curves.easeOutCubic,
-                        switchOutCurve: Curves.easeInCubic,
-                        layoutBuilder: (current, previous) => Stack(
-                          alignment: Alignment.centerLeft,
-                          children: [...previous, if (current != null) current],
-                        ),
-                        transitionBuilder: _flip,
-                        child: Text(
-                          hint,
-                          key: ValueKey(hint),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style:
-                              type.body.copyWith(color: colors.textSecondary),
-                        ),
-                      ),
-                    ),
+          Positioned.fill(
+            top: inset,
+            bottom: inset,
+            child: AnimatedContainer(
+                duration: d,
+                curve: AppMotion.enterCurve,
+                decoration: BoxDecoration(
+                  color: colors.surface,
+                  borderRadius: BorderRadius.circular(AppRadii.pill),
+                  border: Border.all(
+                    color: focused ? colors.gold : colors.border,
+                    width: focused ? 1.5 : 1,
                   ),
-                Semantics(
-                  textField: true,
-                  label: widget.semanticLabel,
-                  child: TextField(
-                    onTapOutside: hideKeyboardOnTapOutside,
-                    controller: widget.controller,
-                    focusNode: widget.focusNode,
-                    textInputAction: TextInputAction.search,
-                    onSubmitted: widget.onSubmitted,
-                    style: type.body.copyWith(color: colors.text),
-                    cursorColor: colors.goldDark,
-                    // The whole 44 px bar is the tap target
-                    // (docs/01 §8.4).
-                    decoration: const InputDecoration(
-                      border: InputBorder.none,
-                      isDense: true,
-                      contentPadding: EdgeInsets.symmetric(vertical: 11),
+                  boxShadow: [
+                    BoxShadow(
+                      color: focused
+                          ? colors.gold.withValues(alpha: 0.22)
+                          : colors.shadow.withValues(alpha: 0),
+                      blurRadius: focused ? 18 : 0,
+                      spreadRadius: focused ? 1 : 0,
                     ),
+                  ],
+                )),
+          ),
+          Row(
+            children: [
+              if (widget.leading != null) ...[
+                const SizedBox(width: AppSpacing.xs),
+                widget.leading!,
+              ] else ...[
+                const SizedBox(width: AppSpacing.md),
+                AnimatedRotation(
+                  turns: focused ? -0.06 : 0,
+                  duration: d,
+                  child: Icon(
+                    Icons.search_rounded,
+                    color: focused ? colors.goldDark : colors.textSecondary,
                   ),
                 ),
               ],
-            ),
-          ),
-          AnimatedScale(
-            scale: _empty ? 0 : 1,
-            duration: d,
-            curve: Curves.easeOutBack,
-            child: AppIconButton(
-              icon: Icon(
-                Icons.cancel_rounded,
-                color: colors.textSecondary,
-                size: 20,
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Stack(
+                  alignment: Alignment.centerLeft,
+                  children: [
+                    if (_empty)
+                      IgnorePointer(
+                        child: ClipRect(
+                          child: AnimatedSwitcher(
+                            duration: reduce
+                                ? Duration.zero
+                                : const Duration(milliseconds: 520),
+                            switchInCurve: Curves.easeOutCubic,
+                            switchOutCurve: Curves.easeInCubic,
+                            layoutBuilder: (current, previous) => Stack(
+                              alignment: Alignment.centerLeft,
+                              children: [
+                                ...previous,
+                                if (current != null) current
+                              ],
+                            ),
+                            transitionBuilder: _flip,
+                            child: Text(
+                              hint,
+                              key: ValueKey(hint),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: type.body
+                                  .copyWith(color: colors.textSecondary),
+                            ),
+                          ),
+                        ),
+                      ),
+                    Semantics(
+                      textField: true,
+                      label: widget.semanticLabel,
+                      child: TextField(
+                        onTapOutside: hideKeyboardOnTapOutside,
+                        controller: widget.controller,
+                        focusNode: widget.focusNode,
+                        textInputAction: TextInputAction.search,
+                        onSubmitted: widget.onSubmitted,
+                        style: type.body.copyWith(color: colors.text),
+                        cursorColor: colors.goldDark,
+                        // The whole 48 px row is the tap target
+                        // (docs/01 §8.4).
+                        decoration: const InputDecoration(
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.symmetric(vertical: 14),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              semanticLabel: widget.clearLabel,
-              onPressed: _empty
-                  ? null
-                  : () {
-                      HapticFeedback.selectionClick();
-                      widget.controller.clear();
-                    },
-            ),
+              AnimatedScale(
+                scale: _empty ? 0 : 1,
+                duration: d,
+                curve: Curves.easeOutBack,
+                child: AppIconButton(
+                  icon: Icon(
+                    Icons.cancel_rounded,
+                    color: colors.textSecondary,
+                    size: 20,
+                  ),
+                  semanticLabel: widget.clearLabel,
+                  onPressed: _empty
+                      ? null
+                      : () {
+                          HapticFeedback.selectionClick();
+                          widget.controller.clear();
+                        },
+                ),
+              ),
+              if (widget.trailing != null) ...[
+                widget.trailing!,
+                const SizedBox(width: AppSpacing.xs),
+              ],
+            ],
           ),
-          if (widget.trailing != null) ...[
-            widget.trailing!,
-            const SizedBox(width: AppSpacing.xs),
-          ],
         ],
       ),
     );

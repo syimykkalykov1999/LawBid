@@ -1,6 +1,8 @@
 import {
   ConflictException,
   ForbiddenException,
+  HttpException,
+  HttpStatus,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -14,6 +16,8 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { AuditLogService } from '../admin-access/audit-log.service';
 import type { AdminActor } from '../admin-auth/admin-auth.decorators';
+import { OtpService } from '../auth/services/otp.service';
+import { RateLimitService } from '../auth/services/rate-limit.service';
 import { SessionRevocationService } from '../auth/services/session-revocation.service';
 import { CaseLifecycleService } from '../cases/lifecycle/case-lifecycle.service';
 import { FilesService } from '../files/files.service';
@@ -38,6 +42,7 @@ export const USERS_AUDIT = {
 } as const;
 
 const LIST_DEFAULT = 20;
+const PHONE_CHANGES_PER_ADMIN_PER_DAY = 10;
 const CARD_LIST = 20;
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -105,6 +110,8 @@ export class AdminUsersService {
     private readonly verification: VerificationAdminService,
     private readonly notifications: NotificationsService,
     private readonly files: FilesService,
+    private readonly otp: OtpService,
+    private readonly rateLimit: RateLimitService,
   ) {}
 
   async search(q: AdminUsersQueryDto): Promise<AdminUsersPage> {
@@ -396,6 +403,25 @@ export class AdminUsersService {
     reason: string,
   ): Promise<PhoneChangedDto> {
     await this.target(id);
+    // Security audit 2026-10-01: a phone change is an account takeover
+    // path — a real US mobile only (like sign-in) and at most 10 changes
+    // a day per admin.
+    await this.otp.assertSmsDestinationAllowed(phone);
+    const budget = await this.rateLimit.consumeFixedWindow(
+      ['admin-phone-change', admin.id],
+      PHONE_CHANGES_PER_ADMIN_PER_DAY,
+      86_400,
+    );
+    if (!budget.allowed) {
+      throw new HttpException(
+        {
+          code: ErrorCode.RATE_LIMITED,
+          message: 'Too many phone changes today.',
+          details: { retryAfterSeconds: budget.retryAfterSeconds },
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
     const taken = await this.prisma.userIdentifier.findUnique({
       where: {
         provider_provider_uid: { provider: 'phone', provider_uid: phone },

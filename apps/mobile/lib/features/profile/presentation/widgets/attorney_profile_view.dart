@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lawbid/shared/presentation/share_sheet.dart';
 import 'package:lawbid/features/chat/presentation/open_direct_chat.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:flutter/services.dart';
@@ -123,10 +124,14 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
   }
 
   Future<void> _share(Translator t) async {
+    // Owner 2026-10-01: the LawBid share sheet (social networks too).
     final host = ref.read(appEnvironmentProvider).deepLinkHost;
-    await Clipboard.setData(
-        ClipboardData(text: attorneyShareLink(host, p.username)));
-    if (mounted) showAppSnackBar(context, t.t('profile.share.copied'));
+    await showShareSheet(
+      context,
+      t: t,
+      link: attorneyShareLink(host, p.username),
+      text: p.fullName,
+    );
   }
 
   @override

@@ -3,11 +3,13 @@ import {
   Injectable,
   OnApplicationBootstrap,
   OnApplicationShutdown,
+  Optional,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { NotificationCategory, NotificationType } from '@prisma/client';
 import { Worker, type Job } from 'bullmq';
 import { PinoLogger } from 'nestjs-pino';
+import { CostGuardService } from '../../../common/cost-guard/cost-guard.service';
 import { PrismaService } from '../../../prisma/prisma.service';
 import type { EmailProvider } from '../../auth/providers/email/email-provider.interface';
 import { RealtimePublisher } from '../../realtime/realtime-publisher.service';
@@ -80,6 +82,9 @@ export class PushDispatcher
     private readonly badges: BadgesService,
     private readonly realtime: RealtimePublisher,
     private readonly logger: PinoLogger,
+    // Security audit 2026-10-01: notification emails count against the
+    // same daily/monthly email budget as OTP mail.
+    @Optional() private readonly costGuard?: CostGuardService,
   ) {
     this.logger.setContext(PushDispatcher.name);
   }
@@ -365,6 +370,13 @@ export class PushDispatcher
       WHERE id = ${notificationId}::UUID
         AND NOT (payload ? 'emailed')`;
     if (claimed === 0) return;
+    try {
+      await this.costGuard?.consume('email');
+    } catch {
+      // Over budget: the in-app notification and push still went out.
+      this.logger.warn({ notificationId, type }, 'email skipped: budget');
+      return;
+    }
     try {
       await this.email.sendEmail({
         to,

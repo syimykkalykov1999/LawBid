@@ -247,7 +247,8 @@ export class OtpService {
     return token;
   }
 
-  private async assertSmsDestinationAllowed(e164: string): Promise<void> {
+  /** Also used by support's phone change (admin-users). */
+  async assertSmsDestinationAllowed(e164: string): Promise<void> {
     const allowed = await this.allowedSmsCountries();
     const verdict = checkSmsDestination(e164, allowed);
     if (verdict === 'ok') return;

@@ -59,8 +59,12 @@ describe('Assistants (e2e, OQ-048)', () => {
       subscriptionStatus: 'none',
     })}`,
   });
+  // A valid NANP number: the exchange starts with 2-9 (0/1 fail the SMS
+  // destination check and made the join-code tests flaky).
   const phone = () =>
-    `+1312${String(Math.floor(Math.random() * 1e7)).padStart(7, '0')}`;
+    `+1312${2 + Math.floor(Math.random() * 8)}${String(
+      Math.floor(Math.random() * 1e6),
+    ).padStart(6, '0')}`;
 
   async function attorney(
     seats: number,
@@ -422,6 +426,24 @@ describe('Assistants (e2e, OQ-048)', () => {
 
   // OQ-049 (owner 2026-10-01): every access is switched on by the attorney,
   // who accepts responsibility; bids and direct publishing included.
+  it('join codes are rate-limited (no SMS flood to an attorney)', async () => {
+    const att = await attorney(2);
+    const asst = await assistantUser();
+    for (let i = 0; i < 3; i++) {
+      await api()
+        .post('/api/v1/assistants/join/request-code')
+        .set(asst.auth)
+        .send({ phone: att.phone })
+        .expect(204);
+    }
+    const r = await api()
+      .post('/api/v1/assistants/join/request-code')
+      .set(asst.auth)
+      .send({ phone: att.phone })
+      .expect(429);
+    expect(r.body.error.code).toBe('AUTH_OTP_REQUEST_LIMIT');
+  });
+
   it('one task, many steps: each with its own time, checked off one by one', async () => {
     const att = await attorney(2);
     const asst = await assistantUser();

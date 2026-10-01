@@ -136,6 +136,13 @@ export const envSchema = z
       .int()
       .positive()
       .default(10),
+    // Security audit 2026-10-01: wrong-code attempts per IP across all
+    // accounts (stops spraying lockouts at many users from one address).
+    OTP_VERIFY_LIMIT_PER_IP_PER_HOUR: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(30),
     AUTH_OTP_VERIFY_LIMIT_PER_HOUR: z.coerce
       .number()
       .int()
@@ -526,6 +533,20 @@ export const envSchema = z
     ),
   })
   .superRefine((env, ctx) => {
+    // Security audit 2026-10-01: deployed behind the ALB with 0 hops,
+    // req.ip is the load balancer for everyone and every per-IP limit
+    // (OTP, admin login, refresh) becomes one shared bucket.
+    if (
+      (env.NODE_ENV === 'production' || env.NODE_ENV === 'staging') &&
+      env.TRUST_PROXY_HOPS === 0
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['TRUST_PROXY_HOPS'],
+        message:
+          'TRUST_PROXY_HOPS must be ≥ 1 when deployed behind the load balancer (staging/production)',
+      });
+    }
     if (
       env.OTP_DEV_FIXED_CODE &&
       env.NODE_ENV !== 'development' &&

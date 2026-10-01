@@ -91,12 +91,14 @@ export class DataExportRunner
       where: {
         user_id: user.sub,
         type: 'user_data',
-        status: { in: ['queued', 'processing'] },
+        // Security audit 2026-10-01: a ready export also counts — one
+        // ZIP a day (it costs S3 + an email); the same job comes back.
+        status: { in: ['queued', 'processing', 'ready'] },
         created_at: { gt: new Date(Date.now() - 24 * 3600 * 1000) },
       },
       orderBy: { created_at: 'desc' },
     });
-    if (inFlight) return this.present(inFlight, null);
+    if (inFlight) return this.status(user, inFlight.id);
     const row = await this.prisma.dataExportJob.create({
       data: { user_id: user.sub, type: 'user_data', status: 'queued' },
     });
