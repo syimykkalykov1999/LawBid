@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>LawBid — запуск: регистрации и ключи</title>
+<style>
+  body { font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; color: #0A1A3F; line-height: 1.5; margin: 32px; font-size: 13px; }
+  h1 { font-size: 24px; border-bottom: 3px solid #C9A24A; padding-bottom: 6px; }
+  h2 { font-size: 18px; margin-top: 28px; border-left: 4px solid #C9A24A; padding-left: 8px; }
+  h3 { font-size: 14px; margin-top: 16px; }
+  table { border-collapse: collapse; width: 100%; margin: 8px 0; }
+  th, td { border: 1px solid #ccd; padding: 6px 8px; vertical-align: top; text-align: left; }
+  th { background: #f4efe2; }
+  code { background: #f2f2f6; padding: 1px 4px; border-radius: 3px; font-size: 12px; }
+  .note { background: #f8f4e8; border: 1px solid #e3d3a5; padding: 8px 10px; border-radius: 6px; }
+  .warn { background: #fdeeee; border: 1px solid #f0b8b8; padding: 8px 10px; border-radius: 6px; }
+  li { margin: 3px 0; }
+</style>
+</head>
+<body>
+
+<h1>LawBid — запуск: все регистрации и ключи по шагам</h1>
+<p>Версия от 30.09.2026. Здесь всё, что нужно, чтобы LawBid заработал у настоящих пользователей: куда зайти, что взять, зачем это нужно, в каком порядке, сколько стоит и сколько занимает. Точные строки, куда вставлять каждый ключ, — в <code>docs/KEYS_SETUP.md</code>. Ключи можно присылать по этапам: я подключу и проверю каждый.</p>
+
+<div class="warn"><b>Как передавать ключи безопасно.</b> Секреты (токены, пароли, приватные ключи, файл .p8) лучше не вставлять в чат. Надёжнее вписать их самому в <code>apps/api/.env</code> на своём компьютере (подскажу строки) или хранить в менеджере паролей (1Password, Bitwarden) и дать к нему доступ. Публичные значения (Team ID, Bundle ID, Client ID, публичный ключ Stripe, DSN) можно присылать как есть.</div>
+
+<h2>0. Общая картина</h2>
+<table>
+<tr><th>#</th><th>Что</th><th>Зачем</th><th>Цена (примерно)</th><th>Срок</th></tr>
+<tr><td>1</td><td>Компания (LLC), EIN, D‑U‑N‑S</td><td>Нужны Apple, Google, Stripe и Twilio для аккаунта организации</td><td>$50–500 (зависит от штата)</td><td>1–2 недели</td></tr>
+<tr><td>2</td><td>Домен</td><td>Адреса API, админки, сайта, писем, ссылок на кейсы и посты</td><td>$15–60 в год</td><td>1 день</td></tr>
+<tr><td>3</td><td>Сайт</td><td>Политика, условия, поддержка, удаление аккаунта (сторы требуют), ссылки, открывающие приложение</td><td>$0–20 в месяц</td><td>2–5 дней (сделаю я)</td></tr>
+<tr><td>4</td><td>Apple Developer Program</td><td>App Store, пуши и звонки на iPhone, вход через Apple</td><td>$99 в год</td><td>1–7 дней</td></tr>
+<tr><td>5</td><td>Google Play Console</td><td>Google Play</td><td>$25 один раз</td><td>1–7 дней</td></tr>
+<tr><td>6</td><td>Firebase (FCM)</td><td>Пуш-уведомления</td><td>бесплатно</td><td>1 час</td></tr>
+<tr><td>7</td><td>Google Cloud OAuth</td><td>«Войти через Google»</td><td>бесплатно</td><td>1 час + проверка Google</td></tr>
+<tr><td>8</td><td>Twilio</td><td>SMS с кодом входа</td><td>~$0.008 за SMS + номер $1–2 в месяц + регистрация A2P ~$20</td><td><b>1–3 недели (A2P 10DLC)</b></td></tr>
+<tr><td>9</td><td>AWS SES</td><td>Письма с кодами и уведомлениями</td><td>$0.10 за 1000 писем</td><td>1–2 дня</td></tr>
+<tr><td>10</td><td>Stripe</td><td>Подписка адвокатов</td><td>2.9% + $0.30 с платежа</td><td>1–3 дня</td></tr>
+<tr><td>11</td><td>AWS (серверы и хранилище)</td><td>API, фоновые задачи, админка, фото и документы, Redis</td><td>~$150–400 в месяц на старте</td><td>1–2 дня (разверну я)</td></tr>
+<tr><td>12</td><td>CockroachDB Cloud</td><td>База данных</td><td>$0–300 в месяц (есть бесплатный уровень)</td><td>1 час</td></tr>
+<tr><td>13</td><td>TURN-сервер</td><td>Звонки, которые соединяются всегда</td><td>$5–20 в месяц</td><td>1 день (разверну я)</td></tr>
+<tr><td>14</td><td>Sentry</td><td>Отчёты об ошибках и падениях</td><td>бесплатно до 5000 событий в месяц</td><td>30 минут</td></tr>
+<tr><td>15</td><td>Persona, проверка бар-лицензий (по желанию)</td><td>Автоматическая проверка адвоката</td><td>~$1+ за проверку</td><td>позже</td></tr>
+</table>
+
+<h2>1. Компания и номера</h2>
+<ol>
+<li>Зарегистрируйте LLC (например, в своём штате или Delaware/Wyoming) и получите <b>EIN</b> на irs.gov (бесплатно, онлайн).</li>
+<li>Получите <b>D‑U‑N‑S</b> (бесплатно через страницу Apple «D‑U‑N‑S Number Lookup»). Он нужен, чтобы Apple и Google показывали в сторах название компании, а не ваше имя.</li>
+<li>Откройте бизнес-счёт в банке — туда Stripe будет выводить деньги.</li>
+</ol>
+
+<h2>2. Домен</h2>
+<ol>
+<li>Зайдите на <b>Cloudflare Registrar</b> (cloudflare.com) или <b>Namecheap</b>, проверьте <code>lawbid.app</code> (или выберите другой) и купите на компанию.</li>
+<li>DNS удобнее держать в Cloudflare или AWS Route 53.</li>
+<li><b>Прислать мне:</b> имя домена и где он куплен.</li>
+</ol>
+<p><b>Зачем:</b> <code>api.домен</code> — сервер, <code>admin.домен</code> — админка, <code>домен</code> — сайт, <code>turn.домен</code> — звонки, почта <code>no-reply@домен</code>, ссылки на кейсы и посты, которые открывают приложение.</p>
+
+<h2>3. Сайт — нужен ли и какой</h2>
+<p><b>Да, нужен.</b> Без него Apple и Google не примут приложение: им нужны ссылки на политику конфиденциальности, условия, поддержку и страницу удаления аккаунта. Ещё он нужен для «универсальных ссылок»: ссылка на кейс или пост открывает приложение, а без приложения — сайт.</p>
+<h3>Что должно быть на сайте (6 страниц)</h3>
+<ul>
+<li><b>Главная</b> — что такое LawBid для клиентов и адвокатов, кнопки App Store и Google Play.</li>
+<li><b>For attorneys</b> — подписка, проверка лицензии, цена.</li>
+<li><b>Privacy Policy</b> (тексты уже можно вести в админке → «Юридические документы»).</li>
+<li><b>Terms of Service</b> — отказ от юридической консультации, правила для адвокатов.</li>
+<li><b>Support</b> — e-mail поддержки (например, support@домен).</li>
+<li><b>Delete account</b> — как удалить аккаунт и данные (Google Play требует отдельную страницу).</li>
+<li>Технические файлы <code>/.well-known/apple-app-site-association</code> и <code>/.well-known/assetlinks.json</code> — сделаю я.</li>
+</ul>
+<p><b>Как:</b> сделаю статический сайт в стиле приложения (тёмно-синий и золото, светлая и тёмная тема) и размещу на Cloudflare Pages (бесплатно) или в AWS S3 + CloudFront.</p>
+
+<h2>4. Apple Developer Program (iPhone)</h2>
+<ol>
+<li><b>developer.apple.com/programs</b> → Enroll → как <b>Organization</b> (нужен D‑U‑N‑S).</li>
+<li>Account → Membership: <b>Team ID</b> (10 символов) → мне.</li>
+<li>Certificates, IDs &amp; Profiles → <b>Identifiers</b> → App ID <code>com.lawbid.lawbid</code>; включите <b>Push Notifications</b>, <b>Sign in with Apple</b>, <b>Associated Domains</b>.</li>
+<li><b>Keys → «+»</b>: ключ с галочками <b>Apple Push Notifications service (APNs)</b> и <b>Sign in with Apple</b>. Скачайте <code>AuthKey_XXXX.p8</code> (<b>скачать можно только один раз</b>) и запишите <b>Key ID</b>.<br>
+Зачем: пуши и входящие звонки на iPhone (в том числе на заблокированном экране), вход через Apple. Файл .p8 — секрет.</li>
+<li><b>App Store Connect</b> → My Apps → «+» → New App. После создания появится числовой <b>Apple ID приложения</b> → мне (это <code>APP_STORE_ID</code>).</li>
+<li>Карточка: описание, скриншоты (подготовлю), категория Business, возраст 17+ (есть чат), ссылки с сайта.</li>
+</ol>
+<div class="note"><b>Решение за вами — оплата подписки на iPhone.</b> Apple обычно требует In‑App Purchase за цифровые функции (комиссия 15–30%). Подписка адвоката открывает функции приложения, поэтому есть риск отказа при проверке. Варианты: (а) оплата только через сайт и Stripe, а в iOS-приложении — ссылка на сайт (разрешено в US App Store); (б) добавить In‑App Purchase. Подробнее — <code>docs/LAUNCH_CHECKLIST.md</code>, раздел 11.4.</div>
+
+<h2>5. Google Play Console (Android)</h2>
+<ol>
+<li><b>play.google.com/console</b> → аккаунт разработчика ($25), как организация.</li>
+<li>Create app, пакет <code>com.lawbid.lawbid</code>.</li>
+<li>Включите <b>Play App Signing</b>. В Setup → App integrity возьмите <b>SHA‑1 и SHA‑256</b> → мне (публичные значения; нужны для входа через Google и для ссылок, открывающих приложение).</li>
+<li>Заполните Data safety (помогу), политику, страницу удаления аккаунта, возрастной рейтинг.</li>
+<li>Личным аккаунтам Google требует закрытый тест: 12 тестировщиков на 14 дней. Для организации этого нет.</li>
+</ol>
+
+<h2>6. Firebase — пуш-уведомления</h2>
+<ol>
+<li><b>console.firebase.google.com</b> → Add project «LawBid».</li>
+<li>Add app → <b>Android</b> (пакет, SHA‑1) → скачайте <code>google-services.json</code>.</li>
+<li>Add app → <b>iOS</b> (Bundle ID) → скачайте <code>GoogleService-Info.plist</code>.</li>
+<li>Project settings → Cloud Messaging → Apple app configuration → загрузите <b>.p8</b> (Key ID и Team ID).</li>
+<li>Project settings → Service accounts → <b>Generate new private key</b> → JSON. Из него: <code>project_id</code>, <code>client_email</code>, <code>private_key</code> (переменные <code>FCM_PROJECT_ID</code>, <code>FCM_CLIENT_EMAIL</code>, <code>FCM_PRIVATE_KEY</code>). Это секрет.</li>
+</ol>
+<p><b>Зачем:</b> все пуши — биды, сообщения, звонки при закрытом приложении, новости подписок, новые кейсы.</p>
+
+<h2>7. Google Cloud — вход через Google</h2>
+<ol>
+<li><b>console.cloud.google.com</b> → тот же проект, что в Firebase.</li>
+<li>APIs &amp; Services → <b>OAuth consent screen</b>: External, имя LawBid, логотип, домен, ссылки на политику и условия.</li>
+<li>Credentials → <b>OAuth client ID</b>:
+  <ul><li><b>Web application</b> → Client ID → мне (<code>GOOGLE_CLIENT_IDS</code>, <code>GOOGLE_SERVER_CLIENT_ID</code>).</li>
+  <li><b>iOS</b> (Bundle ID) → Client ID и iOS URL scheme → мне.</li>
+  <li><b>Android</b> (пакет + SHA‑1) — просто создать, копировать ничего не нужно.</li></ul></li>
+<li>Нажмите <b>Publish app</b> и пройдите проверку Google, иначе войти смогут только тестовые аккаунты.</li>
+</ol>
+
+<h2>8. Twilio — SMS-коды</h2>
+<ol>
+<li><b>twilio.com</b> → регистрация → пополните баланс ($20+), чтобы выйти из Trial.</li>
+<li>Console → Account Info: <b>Account SID</b> и <b>Auth Token</b> (секрет).</li>
+<li>Phone Numbers → Buy a number (US, SMS).</li>
+<li>Messaging → Services → создайте сервис, добавьте номер → <b>Messaging Service SID</b> (<code>MG…</code>).</li>
+<li><b>Обязательно для США — A2P 10DLC:</b> Messaging → Regulatory Compliance → бренд (данные компании, EIN) + кампания «2FA / One-time passcodes». Без этого операторы блокируют SMS. Занимает до 3 недель — <b>начните первым делом</b>. Альтернатива — Toll‑Free номер с верификацией (1–2 недели).</li>
+</ol>
+
+<h2>9. AWS SES — письма</h2>
+<ol>
+<li>AWS → <b>Amazon SES</b> → регион (например, us-east-1).</li>
+<li>Verified identities → Create identity → <b>Domain</b> → DNS-записи DKIM (добавлю сам, если DNS в Cloudflare или Route 53).</li>
+<li>Отправитель: <code>LawBid &lt;no-reply@домен&gt;</code>.</li>
+<li><b>Request production access</b> — иначе письма уходят только на проверенные адреса. Ответ за 1–2 дня.</li>
+<li>На серверах доступ идёт через роль AWS (настрою я), отдельные ключи нужны только для теста с вашего компьютера.</li>
+</ol>
+
+<h2>10. Stripe — подписка адвокатов</h2>
+<ol>
+<li><b>dashboard.stripe.com</b> → Activate payments: компания, EIN, банковский счёт.</li>
+<li>Products → «LawBid Attorney subscription» → ежемесячная цена → <b>Price ID</b> (<code>price_…</code>).</li>
+<li>Developers → API keys: <b>Publishable</b> (<code>pk_live_…</code>, публичный) и <b>Secret</b> (<code>sk_live_…</code>, секрет). Для staging — тестовые <code>pk_test</code> и <code>sk_test</code>.</li>
+<li>Developers → Webhooks → endpoint на сервере (точный адрес дам после развёртывания) → <b>Signing secret</b> (<code>whsec_…</code>, секрет).</li>
+<li>Settings → Billing → <b>Customer portal</b>: включите отмену подписки и смену карты.</li>
+</ol>
+
+<h2>11. AWS — серверы, хранилище, очередь</h2>
+<ol>
+<li><b>aws.amazon.com</b> → два аккаунта: staging (проверка) и prod (пользователи). Можно начать с одного.</li>
+<li>Включите MFA для root. Дайте мне доступ через IAM Identity Center (или пользователя IAM с правами администратора).</li>
+<li>Остальное сделаю я по готовым скриптам Terraform (<code>infra/</code>): сеть, ECS (API, фоновые задачи, админка), Redis, S3 для фото и документов с шифрованием, CloudFront, HTTPS-сертификат, балансировщик, мониторинг и оповещения на почту.</li>
+<li><b>Прислать мне:</b> доступ, e-mail для оповещений о сбоях.</li>
+</ol>
+
+<h2>12. CockroachDB Cloud — база данных</h2>
+<ol>
+<li><b>cockroachlabs.cloud</b> → Create cluster в том же регионе, что AWS. Для продакшена — 3 узла и резервные копии.</li>
+<li>Создайте пользователей SQL (подскажу: migrator, app, retention, readonly) → строки подключения → в секреты (это секрет).</li>
+<li>Разрешите подключения с IP серверов (дам после развёртывания).</li>
+</ol>
+
+<h2>13. TURN-сервер — звонки</h2>
+<p>Без TURN примерно 10–20% звонков не соединятся из-за мобильных операторов и роутеров.</p>
+<ul>
+<li><b>Рекомендую:</b> свой coturn на маленьком сервере за $5–10 в месяц — разверну я. Нужен поддомен <code>turn.домен</code>, секрет сгенерирую сам.</li>
+<li>Альтернатива — Cloudflare Calls TURN или Twilio Network Traversal: оплата по трафику, ключи в их консоли.</li>
+</ul>
+
+<h2>14. Sentry — ошибки</h2>
+<ol>
+<li><b>sentry.io</b> → два проекта: <b>Node.js</b> (сервер) и <b>Flutter</b> (приложение).</li>
+<li><b>DSN</b> каждого проекта → мне.</li>
+</ol>
+
+<h2>15. По желанию — автоматическая проверка адвокатов</h2>
+<ul>
+<li><b>Persona</b> (withpersona.com) — документы и селфи (<code>PERSONA_API_KEY</code>). Сейчас проверка идёт вручную в админке → «Верификация».</li>
+<li><b>Проверка бар-лицензий</b> — провайдер на выбор (<code>BAR_LOOKUP_API_KEY</code>).</li>
+</ul>
+
+<h2>16. Что я сгенерирую сам</h2>
+<p><code>JWT_KEYS</code>, <code>OTP_CODE_SECRET</code>, <code>OTP_KEY_PEPPER</code>, <code>AUTH_EVENT_PEPPER</code>, <code>ADMIN_TOTP_ENC_KEY</code>, <code>TURN_SECRET</code>, пароль Redis. Они хранятся только в AWS Secrets Manager.</p>
+
+<h2>17. Юридическое (до запуска)</h2>
+<ul>
+<li>Privacy Policy и Terms с юристом: CCPA (Калифорния), правила рекламы адвокатских услуг (ABA Model Rules 7.1–7.3 и правила штатов), отказ от юридической консультации, модерация, отзывы и их обжалование.</li>
+<li>E-mail поддержки и e-mail для запросов о данных.</li>
+<li>Ответственный за запросы госорганов (раздел в админке уже есть).</li>
+</ul>
+
+<h2>18. Порядок действий</h2>
+<table>
+<tr><th>Неделя</th><th>Вы</th><th>Я</th></tr>
+<tr><td>1</td><td>LLC, EIN, D‑U‑N‑S. Домен. Twilio + <b>A2P 10DLC (сразу — это самое долгое)</b>. Apple Developer, Google Play</td><td>Сайт (6 страниц + файлы ссылок), тексты для сторов, скриншоты</td></tr>
+<tr><td>2</td><td>AWS, CockroachDB Cloud, Stripe, Firebase, Google OAuth, Sentry</td><td>Развёртывание staging, подключение ключей по мере получения, проверка пушей, SMS, писем и оплаты</td></tr>
+<tr><td>3</td><td>APNs-ключ, карточки в App Store Connect и Play Console</td><td>TURN и звонки на двух телефонах, сборки iOS и Android, TestFlight и закрытый тест</td></tr>
+<tr><td>4</td><td>Проверка на реальных людях, решение по оплате на iPhone</td><td>Развёртывание prod. Отправка в сторы — только по вашей команде</td></tr>
+</table>
+
+<h2>19. Что прислать мне — сводка</h2>
+<table>
+<tr><th>Значение</th><th>Откуда</th><th>Тип</th></tr>
+<tr><td>Домен</td><td>регистратор</td><td>публичное</td></tr>
+<tr><td>Team ID, Bundle ID, Key ID, App Store ID</td><td>Apple Developer, App Store Connect</td><td>публичные</td></tr>
+<tr><td>Файл AuthKey .p8</td><td>Apple Developer → Keys</td><td><b>секрет</b></td></tr>
+<tr><td>SHA‑1 и SHA‑256</td><td>Play Console → App integrity</td><td>публичные</td></tr>
+<tr><td>google-services.json, GoogleService-Info.plist</td><td>Firebase</td><td>служебные (не в git)</td></tr>
+<tr><td>Service account JSON</td><td>Firebase → Service accounts</td><td><b>секрет</b></td></tr>
+<tr><td>OAuth Client ID (Web, iOS), iOS URL scheme</td><td>Google Cloud → Credentials</td><td>публичные</td></tr>
+<tr><td>Account SID, номер, Messaging Service SID</td><td>Twilio</td><td>публичные</td></tr>
+<tr><td>Auth Token</td><td>Twilio</td><td><b>секрет</b></td></tr>
+<tr><td>Регион SES, адрес отправителя</td><td>AWS SES</td><td>публичные</td></tr>
+<tr><td>pk_live, Price ID</td><td>Stripe</td><td>публичные</td></tr>
+<tr><td>sk_live, whsec</td><td>Stripe</td><td><b>секреты</b></td></tr>
+<tr><td>Доступ к AWS</td><td>AWS IAM Identity Center</td><td><b>секрет</b></td></tr>
+<tr><td>Строки подключения БД</td><td>CockroachDB Cloud</td><td><b>секрет</b></td></tr>
+<tr><td>DSN (2 шт.)</td><td>Sentry</td><td>публичные</td></tr>
+<tr><td>E-mail для оповещений и поддержки</td><td>вы</td><td>публичное</td></tr>
+</table>
+
+<h2>20. Проверка админки — что есть и чего не хватает</h2>
+<p><b>Есть:</b> Дашборд; Верификация адвокатов; Пользователи (блокировка, предупреждения); Модерация (жалобы на посты, комментарии, сообщения, кейсы, отзывы, пользователей); <b>Обжалования отзывов (новое: принять или отказать по одному или всем выбранным)</b>; Кейсы; Подписки и платежи; Флаги функций; Конфигурация; Локализация; Юридические документы; Запросы госорганов; Журнал аудита; Администраторы (роли, 2FA).</p>
+<p><b>Чего пока нет (сделаю, если скажете):</b></p>
+<ul>
+<li>Рассылка пуша или объявления всем (или по ролям и штатам).</li>
+<li>Управление списком квалификаций без релиза (добавить или переименовать категорию или подкатегорию).</li>
+<li>Список всех постов и новостей с поиском (сейчас админ видит посты только через жалобы).</li>
+<li>Статистика звонков и чатов на дашборде.</li>
+</ul>
+
+</body>
+</html>
