@@ -502,6 +502,8 @@ enum ReportTargetType {
   review
   // Owner 2026-09-30 (OQ-034): comments under cases.
   case_comment
+  // Owner 2026-10-01: reviews of clients and assistants.
+  client_review
 
   @@map("report_target_type")
 }
@@ -513,6 +515,13 @@ enum ReportReason {
   impersonation
   inappropriate
   other
+  // Owner 2026-10-01: Google's review policy categories.
+  off_topic
+  conflict_of_interest
+  profanity
+  harassment
+  hate_speech
+  personal_info
 
   @@map("report_reason")
 }
@@ -629,51 +638,53 @@ model User {
   reviews_as_client       Review[]             @relation("ReviewClient")
   reviews_as_attorney     Review[]             @relation("ReviewAttorney")
 
-  posts                    Post[]                         @relation("PostAuthor")
-  comments                 Comment[]                      @relation("CommentAuthor")
-  post_likes               PostLike[]                     @relation("PostLiker")
-  comment_likes            CommentLike[]                  @relation("CommentLiker")
-  following                Follow[]                       @relation("Follower")
-  followers                Follow[]                       @relation("Followee")
+  posts                       Post[]                         @relation("PostAuthor")
+  comments                    Comment[]                      @relation("CommentAuthor")
+  post_likes                  PostLike[]                     @relation("PostLiker")
+  comment_likes               CommentLike[]                  @relation("CommentLiker")
+  following                   Follow[]                       @relation("Follower")
+  followers                   Follow[]                       @relation("Followee")
   // Owner 2026-09-29 (OQ-028): user-level blocks, both roles.
-  blocks_made              UserBlock[]                    @relation("Blocker")
-  blocked_by               UserBlock[]                    @relation("Blocked")
-  saved_items              SavedItem[]
-  conversations_attorney   Conversation[]                 @relation("ConversationAttorney")
-  conversations_client     Conversation[]                 @relation("ConversationClient")
-  conversation_memberships ConversationParticipant[]
-  messages_sent            Message[]                      @relation("MessageSender")
-  calls_made               Call[]                         @relation("CallCaller")
-  chat_requests_sent       Conversation[]                 @relation("ConversationRequester")
-  calls_received           Call[]                         @relation("CallCallee")
-  notifications            Notification[]
-  notification_settings    NotificationSetting[]
-  quiet_hours              NotificationQuietHours?
-  push_tokens              PushToken[]
-  stripe_customer          StripeCustomer?
-  subscription             Subscription?
-  payments                 Payment[]
-  reports_filed            Report[]                       @relation("Reporter")
-  reports_handled          Report[]                       @relation("ReportHandler")
-  moderation_actions       ModerationAction[]             @relation("ModerationAdmin")
-  admin_profile            AdminProfile?
-  admin_credential         AdminCredential?
-  data_export_jobs         DataExportJob[]
-  audit_entries            AuditLog[]                     @relation("AuditAdmin")
-  data_requests_handled    DataAccessRequest[]            @relation("DataRequestHandler")
-  data_access_entries      DataAccessLog[]                @relation("DataAccessAdmin")
-  case_comments            CaseComment[]                  @relation("CaseCommentAuthor")
-  case_comment_likes       CaseCommentLike[]              @relation("CaseCommentLiker")
-  post_shares              PostShare[]                    @relation("PostSharer")
-  case_shares              CaseShare[]                    @relation("CaseSharer")
-  client_reviews_given     ClientReview[]                 @relation("ClientReviewAttorney")
-  client_reviews_received  ClientReview[]                 @relation("ClientReviewClient")
-  assistant_team           AssistantMembership[]          @relation("AssistantAttorney")
-  assistant_memberships    AssistantMembership[]          @relation("AssistantUser")
-  attorney_tasks           AttorneyTask[]                 @relation("AttorneyTasks")
-  bid_drafts               BidDraft[]                     @relation("BidDrafts")
-  liability_acceptances    AssistantLiabilityAcceptance[] @relation("AssistantLiability")
-  client_review_appeals    ClientReviewAppeal[]           @relation("ClientReviewAppellant")
+  blocks_made                 UserBlock[]                    @relation("Blocker")
+  blocked_by                  UserBlock[]                    @relation("Blocked")
+  saved_items                 SavedItem[]
+  conversations_attorney      Conversation[]                 @relation("ConversationAttorney")
+  conversations_client        Conversation[]                 @relation("ConversationClient")
+  conversation_memberships    ConversationParticipant[]
+  messages_sent               Message[]                      @relation("MessageSender")
+  calls_made                  Call[]                         @relation("CallCaller")
+  chat_requests_sent          Conversation[]                 @relation("ConversationRequester")
+  calls_received              Call[]                         @relation("CallCallee")
+  notifications               Notification[]
+  notification_settings       NotificationSetting[]
+  quiet_hours                 NotificationQuietHours?
+  push_tokens                 PushToken[]
+  stripe_customer             StripeCustomer?
+  subscription                Subscription?
+  payments                    Payment[]
+  reports_filed               Report[]                       @relation("Reporter")
+  reports_handled             Report[]                       @relation("ReportHandler")
+  moderation_actions          ModerationAction[]             @relation("ModerationAdmin")
+  admin_profile               AdminProfile?
+  admin_credential            AdminCredential?
+  data_export_jobs            DataExportJob[]
+  audit_entries               AuditLog[]                     @relation("AuditAdmin")
+  data_requests_handled       DataAccessRequest[]            @relation("DataRequestHandler")
+  data_access_entries         DataAccessLog[]                @relation("DataAccessAdmin")
+  case_comments               CaseComment[]                  @relation("CaseCommentAuthor")
+  case_comment_likes          CaseCommentLike[]              @relation("CaseCommentLiker")
+  post_shares                 PostShare[]                    @relation("PostSharer")
+  case_shares                 CaseShare[]                    @relation("CaseSharer")
+  client_reviews_given        ClientReview[]                 @relation("ClientReviewAttorney")
+  client_reviews_received     ClientReview[]                 @relation("ClientReviewClient")
+  assistant_team              AssistantMembership[]          @relation("AssistantAttorney")
+  assistant_memberships       AssistantMembership[]          @relation("AssistantUser")
+  attorney_tasks              AttorneyTask[]                 @relation("AttorneyTasks")
+  bid_drafts                  BidDraft[]                     @relation("BidDrafts")
+  liability_acceptances       AssistantLiabilityAcceptance[] @relation("AssistantLiability")
+  client_review_appeals       ClientReviewAppeal[]           @relation("ClientReviewAppellant")
+  review_helpful_votes        ReviewHelpfulVote[]            @relation("ReviewHelpfulVoter")
+  client_review_helpful_votes ClientReviewHelpfulVote[]      @relation("ClientReviewHelpfulVoter")
 
   // Trigram GIN on full_name_lower is a *partial* index (raw SQL): Prisma's
   // CockroachDB connector can't declare gin_trgm_ops, and ignores partial
@@ -1439,21 +1450,30 @@ model CaseDispute {
 }
 
 model Review {
-  id          String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  case_id     String       @unique @db.Uuid
-  case        Case         @relation(fields: [case_id], references: [id], onDelete: Restrict)
-  client_id   String       @db.Uuid
-  client      User         @relation("ReviewClient", fields: [client_id], references: [id], onDelete: Restrict)
-  attorney_id String       @db.Uuid
-  attorney    User         @relation("ReviewAttorney", fields: [attorney_id], references: [id], onDelete: Restrict)
+  id            String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// Owner 2026-10-01: null = an open review (anyone, one per author);
+  /// set = verified by a closed case.
+  case_id       String?      @unique @db.Uuid
+  case          Case?        @relation(fields: [case_id], references: [id], onDelete: Restrict)
+  /// The author (a client for case reviews; anyone for open ones).
+  client_id     String       @db.Uuid
+  client        User         @relation("ReviewClient", fields: [client_id], references: [id], onDelete: Restrict)
+  attorney_id   String       @db.Uuid
+  attorney      User         @relation("ReviewAttorney", fields: [attorney_id], references: [id], onDelete: Restrict)
   // CHECK 1..5; body ≤ 1000 (§6.1), in the migration.
-  rating      Int          @db.Int2
-  body        String?
-  status      ReviewStatus @default(published)
+  rating        Int          @db.Int2
+  body          String?
+  status        ReviewStatus @default(published)
   // docs/03_VERIFICATION_PROFILES.md §10 (stage 3.1)
-  edited_at   DateTime?    @db.Timestamptz
-  created_at  DateTime     @default(now()) @db.Timestamptz
-  updated_at  DateTime     @updatedAt @db.Timestamptz
+  edited_at     DateTime?    @db.Timestamptz
+  /// Owner 2026-10-01 (Google-style): the attorney's public reply.
+  reply         String?      @db.String(1000)
+  reply_at      DateTime?    @db.Timestamptz
+  helpful_count Int          @default(0)
+  created_at    DateTime     @default(now()) @db.Timestamptz
+  updated_at    DateTime     @updatedAt @db.Timestamptz
+
+  helpful_votes ReviewHelpfulVote[]
 
   @@index([attorney_id, created_at(sort: Desc)])
   @@map("reviews")
@@ -2149,23 +2169,29 @@ model CaseShare {
 // attorney whose bid the client accepted. Visible to attorneys and to the
 // client; never to other clients.
 model ClientReview {
-  id          String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id            String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   // Owner 2026-09-30: null for a review written without a shared case.
-  case_id     String?      @db.Uuid
-  case        Case?        @relation(fields: [case_id], references: [id], onDelete: Restrict)
+  case_id       String?      @db.Uuid
+  case          Case?        @relation(fields: [case_id], references: [id], onDelete: Restrict)
   // The author (owner 2026-09-30: any attorney or client, not only the
   // hired attorney; the column keeps its original name).
-  attorney_id String       @db.Uuid
-  attorney    User         @relation("ClientReviewAttorney", fields: [attorney_id], references: [id], onDelete: Restrict)
-  client_id   String       @db.Uuid
-  client      User         @relation("ClientReviewClient", fields: [client_id], references: [id], onDelete: Restrict)
-  rating      Int          @db.Int2
-  body        String?
-  status      ReviewStatus @default(published)
-  created_at  DateTime     @default(now()) @db.Timestamptz
-  updated_at  DateTime     @updatedAt @db.Timestamptz
+  attorney_id   String       @db.Uuid
+  attorney      User         @relation("ClientReviewAttorney", fields: [attorney_id], references: [id], onDelete: Restrict)
+  client_id     String       @db.Uuid
+  client        User         @relation("ClientReviewClient", fields: [client_id], references: [id], onDelete: Restrict)
+  rating        Int          @db.Int2
+  body          String?
+  status        ReviewStatus @default(published)
+  /// Owner 2026-10-01 (Google-style): the reviewed person's public reply.
+  reply         String?      @db.String(1000)
+  reply_at      DateTime?    @db.Timestamptz
+  helpful_count Int          @default(0)
+  edited_at     DateTime?    @db.Timestamptz
+  created_at    DateTime     @default(now()) @db.Timestamptz
+  updated_at    DateTime     @updatedAt @db.Timestamptz
 
-  appeal ClientReviewAppeal?
+  appeal        ClientReviewAppeal?
+  helpful_votes ClientReviewHelpfulVote[]
 
   @@unique([case_id, attorney_id])
   @@index([client_id, created_at(sort: Desc)])
@@ -2175,6 +2201,29 @@ model ClientReview {
 
 /// Owner 2026-09-30: the reviewed client asks to remove a review. Admins
 /// accept (remove) or reject (keep); undecided after 30 days → removed.
+/// Owner 2026-10-01: "Helpful" on reviews (Google-style).
+model ReviewHelpfulVote {
+  review_id  String   @db.Uuid
+  review     Review   @relation(fields: [review_id], references: [id], onDelete: Cascade, map: "review_helpful_votes_review_fkey")
+  user_id    String   @db.Uuid
+  user       User     @relation("ReviewHelpfulVoter", fields: [user_id], references: [id], onDelete: Cascade, map: "review_helpful_votes_user_fkey")
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  @@id([review_id, user_id])
+  @@map("review_helpful_votes")
+}
+
+model ClientReviewHelpfulVote {
+  review_id  String       @db.Uuid
+  review     ClientReview @relation(fields: [review_id], references: [id], onDelete: Cascade, map: "client_review_helpful_votes_review_fkey")
+  user_id    String       @db.Uuid
+  user       User         @relation("ClientReviewHelpfulVoter", fields: [user_id], references: [id], onDelete: Cascade, map: "client_review_helpful_votes_user_fkey")
+  created_at DateTime     @default(now()) @db.Timestamptz
+
+  @@id([review_id, user_id])
+  @@map("client_review_helpful_votes")
+}
+
 model ClientReviewAppeal {
   id             String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   review_id      String             @unique @db.Uuid

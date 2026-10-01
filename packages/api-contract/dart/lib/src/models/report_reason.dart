@@ -18,6 +18,18 @@ enum ReportReason {
   inappropriate('inappropriate'),
   @JsonValue('other')
   other('other'),
+  @JsonValue('off_topic')
+  offTopic('off_topic'),
+  @JsonValue('conflict_of_interest')
+  conflictOfInterest('conflict_of_interest'),
+  @JsonValue('profanity')
+  profanity('profanity'),
+  @JsonValue('harassment')
+  harassment('harassment'),
+  @JsonValue('hate_speech')
+  hateSpeech('hate_speech'),
+  @JsonValue('personal_info')
+  personalInfo('personal_info'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

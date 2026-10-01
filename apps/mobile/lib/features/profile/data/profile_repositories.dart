@@ -40,7 +40,16 @@ abstract interface class PracticesRepository {
 abstract interface class ReviewsRepository {
   /// [rating] 1–5: only reviews with that many stars (tap on the bar).
   Future<ReviewPage> list(String attorneyId,
-      {String? cursor, int? rating, bool oldest = false});
+      {String? cursor, int? rating, ReviewsSort sort = ReviewsSort.newest});
+
+  // Owner 2026-10-01 (Google-style): anyone reviews an attorney; the author
+  // edits / deletes; the attorney replies; anyone marks "Helpful" / flags.
+  Future<Review?> mine(String attorneyId);
+  Future<Review> saveMine(String attorneyId,
+      {required int rating, String? body});
+  Future<void> delete(String reviewId);
+  Future<Review> reply(String reviewId, String? body);
+  Future<Review> helpful(String reviewId, {required bool on});
 
   Future<ReviewSummary> summary(String attorneyId);
 
@@ -52,7 +61,8 @@ abstract interface class ReviewsRepository {
 
   Future<Review> update(String reviewId, {required int rating, String? body});
 
-  Future<void> report(String reviewId, ReviewReportReason reason);
+  Future<void> report(String reviewId, ReviewReportReason reason,
+      {String? note});
 }
 
 /// docs/03 §5 the client's private profile. Throws [ApiException].
@@ -161,14 +171,16 @@ class ApiReviewsRepository implements ReviewsRepository {
 
   @override
   Future<ReviewPage> list(String attorneyId,
-      {String? cursor, int? rating, bool oldest = false}) async {
+      {String? cursor,
+      int? rating,
+      ReviewsSort sort = ReviewsSort.newest}) async {
     final env = await guardApiCall(
       () => _client.list(
         id: attorneyId,
         limit: pageSize,
         cursor: cursor,
         rating: rating,
-        sort: oldest ? api.Sort4.oldest : api.Sort4.newest,
+        sort: api.ReviewSort.fromJson(sort.wire),
       ),
     );
     return ReviewPage(
@@ -222,15 +234,64 @@ class ApiReviewsRepository implements ReviewsRepository {
       );
 
   @override
-  Future<void> report(String reviewId, ReviewReportReason reason) =>
+  Future<void> report(String reviewId, ReviewReportReason reason,
+          {String? note}) =>
       guardApiCall(
         () => _client.report(
           id: reviewId,
           body: api.ReportReviewDto(
-              reason: api.ReportReason.fromJson(reason.name)),
+            reason: api.ReportReason.fromJson(reason.wire),
+            note: note,
+          ),
           extras: _createsResource,
         ),
       );
+
+  @override
+  Future<Review?> mine(String attorneyId) async {
+    try {
+      return ProfileMappers.ownReview(
+          (await guardApiCall(() => _client.mine(id: attorneyId))).data);
+    } on Object {
+      // `data: null` (no review yet) can't be parsed by the envelope.
+      return null;
+    }
+  }
+
+  @override
+  Future<Review> saveMine(String attorneyId,
+          {required int rating, String? body}) async =>
+      ProfileMappers.ownReview(
+        (await guardApiCall(
+          () => _client.upsertOpen(
+            id: attorneyId,
+            body: api.CreateReviewDto(rating: rating, body: _text(body)),
+          ),
+        ))
+            .data,
+      );
+
+  @override
+  Future<void> delete(String reviewId) =>
+      guardApiCall(() => _client.removeOwn(id: reviewId));
+
+  @override
+  Future<Review> reply(String reviewId, String? body) async =>
+      ProfileMappers.publicReview((await guardApiCall(() => body == null
+              ? _client.deleteReviewReply(id: reviewId)
+              : _client.replyToReview(
+                  id: reviewId,
+                  body: api.ReviewReplyDto(body: body.trim()),
+                )))
+          .data);
+
+  @override
+  Future<Review> helpful(String reviewId, {required bool on}) async =>
+      ProfileMappers.publicReview((await guardApiCall(() => _client.markHelpful(
+                id: reviewId,
+                body: api.ReviewHelpfulDto(helpful: on),
+              )))
+          .data);
 
   static String? _text(String? body) {
     final trimmed = body?.trim();

@@ -4,6 +4,8 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'review_author_role.dart';
+
 part 'public_review_dto.g.dart';
 
 @JsonSerializable()
@@ -15,6 +17,13 @@ class PublicReviewDto {
     required this.authorDisplayName,
     required this.createdAt,
     required this.editedAt,
+    required this.fromCase,
+    required this.authorRole,
+    required this.reply,
+    required this.replyAt,
+    required this.helpfulCount,
+    required this.helpfulByMe,
+    required this.isMine,
   });
 
   factory PublicReviewDto.fromJson(Map<String, Object?> json) =>
@@ -30,6 +39,21 @@ class PublicReviewDto {
 
   /// Set when the client edited the review ("Edited" label).
   final DateTime? editedAt;
+
+  /// Verified by a closed case.
+  final bool fromCase;
+  final ReviewAuthorRole authorRole;
+
+  /// The attorney's public reply.
+  final String? reply;
+  final DateTime? replyAt;
+  final int helpfulCount;
+
+  /// I marked it helpful.
+  final bool helpfulByMe;
+
+  /// I wrote it (edit / delete).
+  final bool isMine;
 
   Map<String, Object?> toJson() => _$PublicReviewDtoToJson(this);
 }

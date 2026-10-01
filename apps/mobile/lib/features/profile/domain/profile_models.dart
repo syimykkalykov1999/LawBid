@@ -295,7 +295,28 @@ class Review {
     this.editedAt,
     this.editableUntil,
     this.editable,
+    this.fromCase = true,
+    this.authorRole = 'client',
+    this.reply,
+    this.replyAt,
+    this.helpfulCount = 0,
+    this.helpfulByMe = false,
+    this.isMine = false,
   });
+
+  // Owner 2026-10-01 (Google-style reviews).
+  /// Written after a shared closed case ("Verified case").
+  final bool fromCase;
+
+  /// client · attorney · assistant.
+  final String authorRole;
+
+  /// The reviewed attorney's public reply.
+  final String? reply;
+  final DateTime? replyAt;
+  final int helpfulCount;
+  final bool helpfulByMe;
+  final bool isMine;
 
   final String id;
   final int rating;
@@ -313,10 +334,9 @@ class Review {
 
   bool get isEdited => editedAt != null;
 
-  bool canEdit(DateTime now) =>
-      editable != false &&
-      editableUntil != null &&
-      now.isBefore(editableUntil!);
+  /// Owner 2026-10-01 (Google-style): the author edits any time while
+  /// the review is not moderated.
+  bool canEdit(DateTime now) => editable != false;
 }
 
 /// A page of a cursor-paginated list (`meta.nextCursor`).
@@ -327,13 +347,32 @@ class ReviewPage {
   final String? nextCursor;
 }
 
+/// Owner 2026-10-01: Google's review policy categories.
 enum ReviewReportReason {
+  offTopic,
   spam,
-  abuse,
-  misinformation,
-  impersonation,
-  inappropriate,
-  other
+  conflictOfInterest,
+  profanity,
+  harassment,
+  hateSpeech,
+  personalInfo,
+  other;
+
+  /// `off_topic` …
+  String get wire => name.replaceAllMapped(
+      RegExp('[A-Z]'), (m) => '_${m.group(0)!.toLowerCase()}');
+}
+
+/// Owner 2026-10-01: Google-style review orders.
+enum ReviewsSort {
+  relevant,
+  newest,
+  oldest,
+  highest,
+  lowest,
+  helpful;
+
+  String get wire => name;
 }
 
 /// Preferred contact method (docs/01 §11 3A); wire `in_app_chat` = chat.
@@ -497,7 +536,25 @@ class ClientReview {
     this.authorIsClient = false,
     this.canAppeal = false,
     this.appealStatus,
+    this.authorRole = 'attorney',
+    this.canReply = false,
+    this.reply,
+    this.replyAt,
+    this.helpfulCount = 0,
+    this.helpfulByMe = false,
+    this.editedAt,
   });
+
+  // Owner 2026-10-01 (Google-style reviews).
+  final String authorRole;
+
+  /// The viewer is the reviewed person: may reply publicly.
+  final bool canReply;
+  final String? reply;
+  final DateTime? replyAt;
+  final int helpfulCount;
+  final bool helpfulByMe;
+  final DateTime? editedAt;
 
   final String id;
 

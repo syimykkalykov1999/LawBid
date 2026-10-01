@@ -1,5 +1,10 @@
 import { ReviewSummaryDto } from '../reviews/dto/review-responses.dto';
 import {
+  ReportReviewDto,
+  ReviewHelpfulDto,
+  ReviewReplyDto,
+} from '../reviews/dto/review-requests.dto';
+import {
   Body,
   Controller,
   Delete,
@@ -24,7 +29,7 @@ import {
 } from '../auth/decorators/current-user.decorator';
 import { CaseIdParamDto } from '../cases/dto/cases-feed.dto';
 import {
-  AppealClientReviewDto,
+  ClientReviewReportDto,
   ClientIdParamDto,
   ClientReviewIdParamDto,
   ClientReviewDto,
@@ -32,6 +37,7 @@ import {
   UpsertClientReviewDto,
   type ClientReviewPage,
 } from './client-reviews.dto';
+import { AssistantSelf } from '../auth/assistant/assistant-context';
 import { ClientReviewsService } from './client-reviews.service';
 
 const E = ErrorCode;
@@ -69,6 +75,8 @@ export class ClientReviewsController {
     return this.reviews.mine(user, p.id);
   }
 
+  // Owner 2026-10-01: assistants review and are reviewed as themselves.
+  @AssistantSelf()
   @Put('clients/:id/reviews/mine')
   @ApiOperation({
     summary:
@@ -88,6 +96,8 @@ export class ClientReviewsController {
     return this.reviews.upsertOpen(user, p.id, dto);
   }
 
+  // Owner 2026-10-01: assistants review and are reviewed as themselves.
+  @AssistantSelf()
   @Get('clients/:id/reviews/mine')
   @ApiOperation({ summary: 'My review of this client, or null' })
   @ApiEnvelopeResponse(ClientReviewDto)
@@ -98,6 +108,8 @@ export class ClientReviewsController {
     return this.reviews.mineFor(user, p.id);
   }
 
+  // Owner 2026-10-01: assistants review and are reviewed as themselves.
+  @AssistantSelf()
   @Delete('client-reviews/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete my review of a client' })
@@ -109,26 +121,68 @@ export class ClientReviewsController {
     await this.reviews.remove(user, p.id);
   }
 
-  @Post('client-reviews/:id/appeal')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary:
-      'The reviewed client asks to remove a review (admins decide; removed after 30 days if undecided)',
-  })
+  // Owner 2026-10-01 (Google-style): the reviewed person replies
+  // publicly; anyone marks "Helpful" or flags a review to moderation.
+  // (Appeals with automatic removal are retired.)
+  @AssistantSelf()
+  @Put('client-reviews/:id/reply')
+  @ApiOperation({ summary: "The reviewed person's public reply" })
   @ApiEnvelopeResponse(ClientReviewDto)
-  @ApiErrors({
-    400: [E.VALIDATION_ERROR],
-    404: [E.NOT_FOUND],
-    409: [E.REVIEW_APPEAL_EXISTS],
-  })
-  appealClientReview(
+  @ApiErrors({ 400: [ErrorCode.VALIDATION_ERROR], 404: [ErrorCode.NOT_FOUND] })
+  replyToClientReview(
     @CurrentUser() user: RequestUser,
     @Param() p: ClientReviewIdParamDto,
-    @Body() dto: AppealClientReviewDto,
+    @Body() dto: ReviewReplyDto,
   ): Promise<ClientReviewDto> {
-    return this.reviews.appeal(user, p.id, dto.reason);
+    return this.reviews.reply(user, p.id, dto.body);
   }
 
+  @AssistantSelf()
+  @Delete('client-reviews/:id/reply')
+  @ApiOperation({ summary: 'Remove my reply' })
+  @ApiEnvelopeResponse(ClientReviewDto)
+  @ApiErrors({ 404: [ErrorCode.NOT_FOUND] })
+  deleteClientReviewReply(
+    @CurrentUser() user: RequestUser,
+    @Param() p: ClientReviewIdParamDto,
+  ): Promise<ClientReviewDto> {
+    return this.reviews.reply(user, p.id, null);
+  }
+
+  @AssistantSelf()
+  @Post('client-reviews/:id/helpful')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: '"Helpful" on / off' })
+  @ApiEnvelopeResponse(ClientReviewDto)
+  @ApiErrors({ 403: [ErrorCode.FORBIDDEN], 404: [ErrorCode.NOT_FOUND] })
+  markClientReviewHelpful(
+    @CurrentUser() user: RequestUser,
+    @Param() p: ClientReviewIdParamDto,
+    @Body() dto: ReviewHelpfulDto,
+  ): Promise<ClientReviewDto> {
+    return this.reviews.helpful(user, p.id, dto.helpful);
+  }
+
+  @AssistantSelf()
+  @Post('client-reviews/:id/report')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Flag a review against the policy' })
+  @ApiEnvelopeResponse(ClientReviewReportDto, { status: HttpStatus.CREATED })
+  @ApiErrors({
+    400: [ErrorCode.VALIDATION_ERROR],
+    403: [ErrorCode.FORBIDDEN],
+    404: [ErrorCode.NOT_FOUND],
+  })
+  reportClientReview(
+    @CurrentUser() user: RequestUser,
+    @Param() p: ClientReviewIdParamDto,
+    @Body() dto: ReportReviewDto,
+  ): Promise<ClientReviewReportDto> {
+    return this.reviews.report(user, p.id, dto.reason, dto.note ?? undefined);
+  }
+
+  // Owner 2026-10-01: assistants review and are reviewed as themselves.
+  @AssistantSelf()
   @Get('clients/:id/reviews')
   @ApiOperation({
     summary: 'Reviews of a client (every signed-in user)',
@@ -143,6 +197,8 @@ export class ClientReviewsController {
     return this.reviews.list(user, p.id, q);
   }
 
+  // Owner 2026-10-01: assistants review and are reviewed as themselves.
+  @AssistantSelf()
   @Get('clients/:id/reviews/summary')
   @ApiOperation({
     summary: 'Average, count and per-star distribution of a client',

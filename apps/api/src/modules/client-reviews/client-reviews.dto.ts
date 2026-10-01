@@ -74,13 +74,13 @@ export class ClientReviewsQueryDto {
   rating?: number;
 
   @ApiPropertyOptional({
-    enum: ['newest', 'oldest'],
+    enum: ['relevant', 'newest', 'oldest', 'highest', 'lowest', 'helpful'],
     enumName: 'ClientReviewsSort',
     default: 'newest',
   })
   @IsOptional()
-  @IsIn(['newest', 'oldest'])
-  sort?: 'newest' | 'oldest';
+  @IsIn(['relevant', 'newest', 'oldest', 'highest', 'lowest', 'helpful'])
+  sort?: 'relevant' | 'newest' | 'oldest' | 'highest' | 'lowest' | 'helpful';
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -106,8 +106,8 @@ export class ClientReviewAuthorDto {
   verifiedBadge!: boolean;
 
   /** Owner 2026-09-30: attorneys and clients review clients. */
-  @ApiProperty({ enum: ['attorney', 'client'] })
-  role!: 'attorney' | 'client';
+  @ApiProperty({ enum: ['attorney', 'client', 'assistant'] })
+  role!: 'attorney' | 'client' | 'assistant';
 }
 
 export class ClientReviewDto {
@@ -133,9 +133,31 @@ export class ClientReviewDto {
   @ApiProperty()
   isMine!: boolean;
 
-  /** The viewer is the reviewed client and may still appeal it. */
+  /** Deprecated (owner 2026-10-01, Google-style): always false — the
+   * reviewed person replies or flags the review instead. */
   @ApiProperty()
   canAppeal!: boolean;
+
+  // Owner 2026-10-01 (Google-style).
+  @ApiProperty({
+    description: 'The viewer is the reviewed person (may reply).',
+  })
+  canReply!: boolean;
+
+  @ApiProperty({ type: String, nullable: true })
+  reply!: string | null;
+
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  replyAt!: string | null;
+
+  @ApiProperty({ type: 'integer' })
+  helpfulCount!: number;
+
+  @ApiProperty()
+  helpfulByMe!: boolean;
+
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  editedAt!: string | null;
 
   /** Owner 2026-09-30: the appeal's state — shown to the client and the
    * author only (null for others or without an appeal). */
@@ -182,8 +204,8 @@ export class AdminReviewAppealDto {
   @ApiProperty()
   authorName!: string;
 
-  @ApiProperty({ enum: ['attorney', 'client'] })
-  authorRole!: 'attorney' | 'client';
+  @ApiProperty({ enum: ['attorney', 'client', 'assistant'] })
+  authorRole!: 'attorney' | 'client' | 'assistant';
 
   @ApiProperty({ format: 'uuid' })
   clientId!: string;
@@ -237,4 +259,9 @@ export class AdminReviewAppealsDecisionResultDto {
 export interface ClientReviewPage {
   items: ClientReviewDto[];
   nextCursor: string | null;
+}
+
+export class ClientReviewReportDto {
+  @ApiProperty({ format: 'uuid' }) id!: string;
+  @ApiProperty() status!: string;
 }

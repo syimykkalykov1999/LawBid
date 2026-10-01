@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ReportReason } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsEnum,
   IsIn,
   IsInt,
@@ -11,6 +12,7 @@ import {
   Max,
   MaxLength,
   Min,
+  MinLength,
   ValidateIf,
 } from 'class-validator';
 
@@ -100,6 +102,28 @@ export class ReportReviewDto {
   note?: string | null;
 }
 
+export type ReviewSort =
+  'relevant' | 'newest' | 'oldest' | 'highest' | 'lowest' | 'helpful';
+
+/** Owner 2026-10-01: the reviewed person's public reply (Google-style). */
+export class ReviewReplyDto {
+  @ApiProperty({ minLength: 1, maxLength: 1000 })
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
+  @IsString()
+  @MinLength(1)
+  @MaxLength(1000)
+  body!: string;
+}
+
+/** "Helpful" on / off. */
+export class ReviewHelpfulDto {
+  @ApiProperty()
+  @IsBoolean()
+  helpful!: boolean;
+}
+
 export class ListReviewsQueryDto {
   @ApiPropertyOptional({
     type: 'integer',
@@ -115,13 +139,15 @@ export class ListReviewsQueryDto {
   rating?: number;
 
   @ApiPropertyOptional({
-    enum: ['newest', 'oldest'],
+    enum: ['relevant', 'newest', 'oldest', 'highest', 'lowest', 'helpful'],
+    enumName: 'ReviewSort',
     default: 'newest',
-    description: 'Order by date.',
+    description:
+      'Owner 2026-10-01 (Google-style): relevant (helpful, then newest) · newest · oldest · highest · lowest · helpful.',
   })
   @IsOptional()
-  @IsIn(['newest', 'oldest'])
-  sort?: 'newest' | 'oldest';
+  @IsIn(['relevant', 'newest', 'oldest', 'highest', 'lowest', 'helpful'])
+  sort?: ReviewSort;
 
   @ApiPropertyOptional({
     description: 'meta.nextCursor of the previous page.',

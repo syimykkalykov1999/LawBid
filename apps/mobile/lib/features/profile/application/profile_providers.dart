@@ -64,6 +64,13 @@ final practiceTreeProvider = FutureProvider<List<PracticeCategory>>(
   retry: (_, __) => null,
 );
 
+/// Owner 2026-10-01: my open review of an attorney (null = none yet).
+final myAttorneyReviewProvider =
+    FutureProvider.autoDispose.family<Review?, String>(
+  (ref, attorneyId) => ref.watch(reviewsRepositoryProvider).mine(attorneyId),
+  retry: (_, __) => null,
+);
+
 /// `GET /attorneys/:username` (photo included, docs/03 §4.1).
 /// OQ-026: a client's public mini-profile by @username.
 final publicClientProfileProvider =
@@ -135,7 +142,6 @@ class ReviewsListState {
 /// (skeleton / error / offline states), later pages drive the footer.
 /// Reviews list key: the attorney and an optional star filter (owner
 /// request: tapping a bar in the distribution shows only those reviews).
-enum ReviewsSort { newest, oldest }
 
 typedef ReviewsKey = ({String attorneyId, int? rating, ReviewsSort sort});
 
@@ -149,8 +155,9 @@ class ReviewsListController extends AsyncNotifier<ReviewsListState> {
   Future<ReviewsListState> build() => _firstPage();
 
   Future<ReviewsListState> _firstPage() async {
-    final page = await ref.read(reviewsRepositoryProvider).list(attorneyId,
-        rating: key.rating, oldest: key.sort == ReviewsSort.oldest);
+    final page = await ref
+        .read(reviewsRepositoryProvider)
+        .list(attorneyId, rating: key.rating, sort: key.sort);
     return ReviewsListState(
       items: page.items,
       nextCursor: page.nextCursor,
@@ -177,7 +184,7 @@ class ReviewsListController extends AsyncNotifier<ReviewsListState> {
       final page = await ref.read(reviewsRepositoryProvider).list(attorneyId,
           cursor: current.nextCursor,
           rating: key.rating,
-          oldest: key.sort == ReviewsSort.oldest);
+          sort: key.sort);
       if (!ref.mounted) return;
       state = AsyncData(
         current.copyWith(

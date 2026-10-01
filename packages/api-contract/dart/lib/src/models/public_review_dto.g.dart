@@ -16,6 +16,15 @@ PublicReviewDto _$PublicReviewDtoFromJson(Map<String, dynamic> json) =>
       editedAt: json['editedAt'] == null
           ? null
           : DateTime.parse(json['editedAt'] as String),
+      fromCase: json['fromCase'] as bool,
+      authorRole: ReviewAuthorRole.fromJson(json['authorRole'] as String),
+      reply: json['reply'] as String?,
+      replyAt: json['replyAt'] == null
+          ? null
+          : DateTime.parse(json['replyAt'] as String),
+      helpfulCount: (json['helpfulCount'] as num).toInt(),
+      helpfulByMe: json['helpfulByMe'] as bool,
+      isMine: json['isMine'] as bool,
     );
 
 Map<String, dynamic> _$PublicReviewDtoToJson(PublicReviewDto instance) =>
@@ -26,4 +35,11 @@ Map<String, dynamic> _$PublicReviewDtoToJson(PublicReviewDto instance) =>
       'authorDisplayName': ?instance.authorDisplayName,
       'createdAt': instance.createdAt.toIso8601String(),
       'editedAt': ?instance.editedAt?.toIso8601String(),
+      'fromCase': instance.fromCase,
+      'authorRole': instance.authorRole.toJson(),
+      'reply': ?instance.reply,
+      'replyAt': ?instance.replyAt?.toIso8601String(),
+      'helpfulCount': instance.helpfulCount,
+      'helpfulByMe': instance.helpfulByMe,
+      'isMine': instance.isMine,
     };

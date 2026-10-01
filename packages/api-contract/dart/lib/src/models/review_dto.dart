@@ -4,6 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'review_author_role.dart';
 import 'review_status.dart';
 
 part 'review_dto.g.dart';
@@ -17,6 +18,13 @@ class ReviewDto {
     required this.authorDisplayName,
     required this.createdAt,
     required this.editedAt,
+    required this.fromCase,
+    required this.authorRole,
+    required this.reply,
+    required this.replyAt,
+    required this.helpfulCount,
+    required this.helpfulByMe,
+    required this.isMine,
     required this.caseId,
     required this.attorneyId,
     required this.status,
@@ -37,7 +45,22 @@ class ReviewDto {
 
   /// Set when the client edited the review ("Edited" label).
   final DateTime? editedAt;
-  final String caseId;
+
+  /// Verified by a closed case.
+  final bool fromCase;
+  final ReviewAuthorRole authorRole;
+
+  /// The attorney's public reply.
+  final String? reply;
+  final DateTime? replyAt;
+  final int helpfulCount;
+
+  /// I marked it helpful.
+  final bool helpfulByMe;
+
+  /// I wrote it (edit / delete).
+  final bool isMine;
+  final String? caseId;
   final String attorneyId;
   final ReviewStatus status;
 

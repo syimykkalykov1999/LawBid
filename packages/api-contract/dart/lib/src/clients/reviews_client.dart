@@ -6,12 +6,15 @@ import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
 import '../models/create_review_dto.dart';
+import '../models/public_review_envelope.dart';
 import '../models/public_review_list_envelope.dart';
 import '../models/report_review_dto.dart';
 import '../models/review_envelope.dart';
+import '../models/review_helpful_dto.dart';
+import '../models/review_reply_dto.dart';
 import '../models/review_report_envelope.dart';
+import '../models/review_sort.dart';
 import '../models/review_summary_envelope.dart';
-import '../models/sort4.dart';
 import '../models/update_review_dto.dart';
 
 part 'reviews_client.g.dart';
@@ -43,21 +46,28 @@ abstract class ReviewsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
+  /// Remove my own review
+  @DELETE('/reviews/{id}')
+  Future<void> removeOwn({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
   /// Published reviews of an attorney, newest first.
   ///
   /// [id] - Attorney user id.
   ///
   /// [rating] - Only reviews with this star rating (tap on the bar).
   ///
-  /// [sort] - Order by date.
+  /// [sort] - Owner 2026-10-01 (Google-style): relevant (helpful, then newest) · newest · oldest · highest · lowest · helpful.
   ///
   /// [cursor] - meta.nextCursor of the previous page.
   @GET('/attorneys/{id}/reviews')
   Future<PublicReviewListEnvelope> list({
     @Path('id') required String id,
-    @Query('sort') Sort4? sort = Sort4.newest,
     @Query('limit') int? limit = 20,
     @Query('rating') int? rating,
+    @Query('sort') ReviewSort? sort,
     @Query('cursor') String? cursor,
     @Extras() Map<String, dynamic>? extras,
   });
@@ -71,7 +81,49 @@ abstract class ReviewsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Report a review to moderation (the reviewed attorney)
+  /// Write / edit my open review of an attorney.
+  ///
+  /// [id] - Attorney user id.
+  @PUT('/attorneys/{id}/reviews/mine')
+  Future<ReviewEnvelope> upsertOpen({
+    @Path('id') required String id,
+    @Body() required CreateReviewDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// My open review of an attorney (or null).
+  ///
+  /// [id] - Attorney user id.
+  @GET('/attorneys/{id}/reviews/mine')
+  Future<ReviewEnvelope> mine({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// The reviewed attorney's public reply
+  @PUT('/reviews/{id}/reply')
+  Future<PublicReviewEnvelope> replyToReview({
+    @Path('id') required String id,
+    @Body() required ReviewReplyDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Remove my reply
+  @DELETE('/reviews/{id}/reply')
+  Future<PublicReviewEnvelope> deleteReviewReply({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// "Helpful" on / off
+  @POST('/reviews/{id}/helpful')
+  Future<PublicReviewEnvelope> markHelpful({
+    @Path('id') required String id,
+    @Body() required ReviewHelpfulDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Flag a review against the policy (anyone but the author)
   @POST('/reviews/{id}/report')
   Future<ReviewReportEnvelope> report({
     @Path('id') required String id,

@@ -13,7 +13,15 @@ import { CONTENT_STATUS, REPORT_REASON, TARGET_TYPE } from '@/lib/labels';
 import { formatDateTime } from '@/lib/utils';
 
 type QStatus = 'open' | 'actioned' | 'dismissed';
-type TType = '' | 'post' | 'comment' | 'message' | 'user' | 'case' | 'review';
+type TType =
+  | ''
+  | 'post'
+  | 'comment'
+  | 'message'
+  | 'user'
+  | 'case'
+  | 'review'
+  | 'client_review';
 
 /** docs/06 §3.2: reports grouped by object, oldest first. */
 export default function ModerationQueuePage() {

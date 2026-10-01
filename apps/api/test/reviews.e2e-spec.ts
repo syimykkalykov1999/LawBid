@@ -315,7 +315,7 @@ describe('Reviews (e2e, docs/03 §7)', () => {
       .send({ rating: 1 });
     expect(foreign.status).toBe(404);
 
-    // Past review.edit_window_days: immutable.
+    // Owner 2026-10-01 (Google-style): still editable after the old window.
     await prisma.review.update({
       where: { id: b.body.data.id },
       data: { created_at: new Date(Date.now() - 15 * DAY) },
@@ -324,8 +324,12 @@ describe('Reviews (e2e, docs/03 §7)', () => {
       .patch(`/api/v1/reviews/${b.body.data.id}`)
       .set(clientB.auth)
       .send({ rating: 5 });
-    expect(late.status).toBe(409);
-    expect(late.body.error.code).toBe('REVIEW_EDIT_WINDOW_EXPIRED');
+    expect(late.status).toBe(200);
+    await api()
+      .patch(`/api/v1/reviews/${b.body.data.id}`)
+      .set(clientB.auth)
+      .send({ rating: 2 })
+      .expect(200);
     expect(await rating(attorney.id)).toEqual({ avg: '2.50', count: 2 });
 
     // Hide (moderator, file 06 path): recalculated, audited, not listed.
@@ -417,7 +421,8 @@ describe('Reviews (e2e, docs/03 §7)', () => {
       .get(`/api/v1/cases/${caseId}/review`)
       .set(client.auth);
     expect(late.status).toBe(200);
-    expect(late.body.data.editable).toBe(false);
+    // Owner 2026-10-01 (Google-style): editable any time.
+    expect(late.body.data.editable).toBe(true);
   });
 
   it('lists published reviews newest first with cursor pagination, public shape only, and a summary', async () => {
@@ -453,11 +458,18 @@ describe('Reviews (e2e, docs/03 §7)', () => {
       expect(Object.keys(r).sort()).toEqual(
         [
           'authorDisplayName',
+          'authorRole',
           'body',
           'createdAt',
           'editedAt',
+          'fromCase',
+          'helpfulByMe',
+          'helpfulCount',
           'id',
+          'isMine',
           'rating',
+          'reply',
+          'replyAt',
         ].sort(),
       );
     }

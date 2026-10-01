@@ -214,12 +214,16 @@ class FakeReviewsRepo implements ReviewsRepository {
 
   /// Star filters and orders asked for (owner's review filter).
   final listFilters = <(int?, bool)>[];
+  final sorts = <ReviewsSort>[];
 
   @override
   Future<ReviewPage> list(String attorneyId,
-      {String? cursor, int? rating, bool oldest = false}) async {
+      {String? cursor,
+      int? rating,
+      ReviewsSort sort = ReviewsSort.newest}) async {
     listCursors.add(cursor);
-    listFilters.add((rating, oldest));
+    sorts.add(sort);
+    listFilters.add((rating, sort == ReviewsSort.oldest));
     final index = cursor == null ? 0 : int.parse(cursor);
     if (pages.isEmpty) return const ReviewPage(items: []);
     final items = pages[index].where((r) => rating == null || r.rating == rating).toList();
@@ -258,7 +262,46 @@ class FakeReviewsRepo implements ReviewsRepository {
   }
 
   @override
-  Future<void> report(String reviewId, ReviewReportReason reason) async => reported.add((reviewId, reason));
+  Future<void> report(String reviewId, ReviewReportReason reason,
+          {String? note}) async =>
+      reported.add((reviewId, reason));
+
+  // Owner 2026-10-01 (Google-style).
+  Review? mineValue;
+  final calls = <String>[];
+
+  @override
+  Future<Review?> mine(String attorneyId) async => mineValue;
+
+  @override
+  Future<Review> saveMine(String attorneyId,
+      {required int rating, String? body}) async {
+    calls.add('save:$attorneyId:$rating');
+    return mineValue = Review(
+      id: 'mine',
+      rating: rating,
+      body: body,
+      createdAt: kNow,
+      isMine: true,
+      fromCase: false,
+    );
+  }
+
+  @override
+  Future<void> delete(String reviewId) async => calls.add('delete:$reviewId');
+
+  @override
+  Future<Review> reply(String reviewId, String? body) async {
+    calls.add('reply:$reviewId:$body');
+    return Review(id: reviewId, rating: 5, createdAt: kNow, reply: body);
+  }
+
+  @override
+  Future<Review> helpful(String reviewId, {required bool on}) async {
+    calls.add('helpful:$reviewId:$on');
+    return Review(
+        id: reviewId, rating: 5, createdAt: kNow, helpfulByMe: on);
+  }
 }
 
 class FakeClientRepo implements ClientProfileRepository {

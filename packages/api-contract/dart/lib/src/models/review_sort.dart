@@ -5,18 +5,26 @@
 import 'package:json_annotation/json_annotation.dart';
 
 @JsonEnum()
-enum Sort4 {
+enum ReviewSort {
+  @JsonValue('relevant')
+  relevant('relevant'),
   @JsonValue('newest')
   newest('newest'),
   @JsonValue('oldest')
   oldest('oldest'),
+  @JsonValue('highest')
+  highest('highest'),
+  @JsonValue('lowest')
+  lowest('lowest'),
+  @JsonValue('helpful')
+  helpful('helpful'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);
 
-  const Sort4(this.json);
+  const ReviewSort(this.json);
 
-  factory Sort4.fromJson(String json) =>
+  factory ReviewSort.fromJson(String json) =>
       values.firstWhere((e) => e.json == json, orElse: () => $unknown);
 
   final String? json;
@@ -35,6 +43,6 @@ enum Sort4 {
   String toString() => json?.toString() ?? super.toString();
 
   /// Returns all defined enum values excluding the $unknown value.
-  static List<Sort4> get $valuesDefined =>
+  static List<ReviewSort> get $valuesDefined =>
       values.where((value) => value != $unknown).toList();
 }

@@ -1,11 +1,14 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
   HttpStatus,
   Param,
   Patch,
   Post,
+  Put,
   Query,
   UseGuards,
   UseInterceptors,
@@ -34,6 +37,8 @@ import {
   CreateReviewDto,
   ListReviewsQueryDto,
   ReportReviewDto,
+  ReviewHelpfulDto,
+  ReviewReplyDto,
   ReviewIdParamDto,
   UpdateReviewDto,
 } from './dto/review-requests.dto';
@@ -45,6 +50,7 @@ import {
   type ReviewPage,
 } from './dto/review-responses.dto';
 import { ReviewsService } from './reviews.service';
+import { AssistantSelf } from '../auth/assistant/assistant-context';
 
 const E = ErrorCode;
 
@@ -127,10 +133,11 @@ export class ReviewsController {
   @ApiEnvelopeResponse(PublicReviewDto, { isArray: true })
   @ApiErrors({ 400: [E.VALIDATION_ERROR], 404: [E.NOT_FOUND] })
   list(
+    @CurrentUser() user: RequestUser,
     @Param() params: AttorneyIdParamDto,
     @Query() query: ListReviewsQueryDto,
   ): Promise<ReviewPage> {
-    return this.reviews.list(params.id, query);
+    return this.reviews.list(params.id, query, user.sub);
   }
 
   @Get('attorneys/:id/reviews/summary')
@@ -143,10 +150,91 @@ export class ReviewsController {
     return this.reviews.summary(params.id);
   }
 
+  // Owner 2026-10-01: anyone reviews any attorney (assistants as
+  // themselves, not as their attorney).
+  @AssistantSelf()
+  @Put('attorneys/:id/reviews/mine')
+  @ApiOperation({ summary: 'Write / edit my open review of an attorney' })
+  @ApiEnvelopeResponse(ReviewDto)
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    403: [E.FORBIDDEN],
+    404: [E.NOT_FOUND],
+  })
+  upsertOpen(
+    @CurrentUser() user: RequestUser,
+    @Param() params: AttorneyIdParamDto,
+    @Body() dto: CreateReviewDto,
+  ): Promise<ReviewDto> {
+    return this.reviews.upsertOpen(user, params.id, dto);
+  }
+
+  @AssistantSelf()
+  @Get('attorneys/:id/reviews/mine')
+  @ApiOperation({ summary: 'My open review of an attorney (or null)' })
+  @ApiEnvelopeResponse(ReviewDto)
+  mine(
+    @CurrentUser() user: RequestUser,
+    @Param() params: AttorneyIdParamDto,
+  ): Promise<ReviewDto | null> {
+    return this.reviews.mineFor(user, params.id);
+  }
+
+  @AssistantSelf()
+  @Delete('reviews/:id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Remove my own review' })
+  @ApiErrors({ 404: [E.NOT_FOUND] })
+  async removeOwn(
+    @CurrentUser() user: RequestUser,
+    @Param() params: ReviewIdParamDto,
+  ): Promise<void> {
+    await this.reviews.removeOwn(user, params.id);
+  }
+
+  // Owner 2026-10-01 (Google-style): the attorney's public reply.
+  @Put('reviews/:id/reply')
+  @ApiOperation({ summary: "The reviewed attorney's public reply" })
+  @ApiEnvelopeResponse(PublicReviewDto)
+  @ApiErrors({ 400: [E.VALIDATION_ERROR], 404: [E.NOT_FOUND] })
+  replyToReview(
+    @CurrentUser() user: RequestUser,
+    @Param() params: ReviewIdParamDto,
+    @Body() dto: ReviewReplyDto,
+  ): Promise<PublicReviewDto> {
+    return this.reviews.reply(user, params.id, dto.body);
+  }
+
+  @Delete('reviews/:id/reply')
+  @ApiOperation({ summary: 'Remove my reply' })
+  @ApiEnvelopeResponse(PublicReviewDto)
+  @ApiErrors({ 404: [E.NOT_FOUND] })
+  deleteReviewReply(
+    @CurrentUser() user: RequestUser,
+    @Param() params: ReviewIdParamDto,
+  ): Promise<PublicReviewDto> {
+    return this.reviews.reply(user, params.id, null);
+  }
+
+  @AssistantSelf()
+  @Post('reviews/:id/helpful')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: '"Helpful" on / off' })
+  @ApiEnvelopeResponse(PublicReviewDto)
+  @ApiErrors({ 403: [E.FORBIDDEN], 404: [E.NOT_FOUND] })
+  markHelpful(
+    @CurrentUser() user: RequestUser,
+    @Param() params: ReviewIdParamDto,
+    @Body() dto: ReviewHelpfulDto,
+  ): Promise<PublicReviewDto> {
+    return this.reviews.helpful(user, params.id, dto.helpful);
+  }
+
+  @AssistantSelf()
   @Post('reviews/:id/report')
   @UseInterceptors(IdempotencyInterceptor)
   @ApiOperation({
-    summary: 'Report a review to moderation (the reviewed attorney)',
+    summary: 'Flag a review against the policy (anyone but the author)',
   })
   @ApiHeader({
     name: 'Idempotency-Key',

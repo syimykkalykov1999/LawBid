@@ -213,6 +213,31 @@ export class ModerationService {
             }
           : null;
       }
+      case 'client_review': {
+        const r = await db.clientReview.findUnique({
+          where: { id },
+          select: {
+            attorney_id: true,
+            client_id: true,
+            body: true,
+            rating: true,
+            status: true,
+            created_at: true,
+          },
+        });
+        return r
+          ? {
+              type,
+              id,
+              // The author (the column keeps its original name).
+              authorId: r.attorney_id,
+              status: r.status,
+              text: `★${r.rating}${r.body ? ` — ${r.body}` : ''}`,
+              context: { clientId: r.client_id },
+              createdAt: r.created_at,
+            }
+          : null;
+      }
       case 'case': {
         const c = await db.case.findUnique({
           where: { id },
@@ -374,6 +399,28 @@ export class ModerationService {
         });
         const attorneyId = target.context.attorneyId;
         if (attorneyId) await recalcAttorneyRating(tx, attorneyId);
+        return target.status;
+      }
+      case 'client_review': {
+        await tx.clientReview.update({
+          where: { id: target.id },
+          data: { status: next },
+        });
+        const clientId = target.context.clientId;
+        if (clientId) {
+          const agg = await tx.clientReview.aggregate({
+            where: { client_id: clientId, status: 'published' },
+            _avg: { rating: true },
+            _count: { _all: true },
+          });
+          await tx.clientProfile.updateMany({
+            where: { user_id: clientId },
+            data: {
+              rating_avg: agg._avg.rating ?? 0,
+              rating_count: agg._count._all,
+            },
+          });
+        }
         return target.status;
       }
       case 'message': {

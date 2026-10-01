@@ -242,7 +242,8 @@ export class AdminContentService {
       body: r.body,
       attorneyName: nameOf(r.attorney),
       clientName: nameOf(r.client),
-      caseTitle: r.case.title,
+      // Owner 2026-10-01: open reviews have no case.
+      caseTitle: r.case?.title ?? null,
       status: r.status,
       createdAt: r.created_at.toISOString(),
     }));

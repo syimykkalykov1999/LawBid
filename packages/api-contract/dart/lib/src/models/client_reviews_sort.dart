@@ -6,10 +6,18 @@ import 'package:json_annotation/json_annotation.dart';
 
 @JsonEnum()
 enum ClientReviewsSort {
+  @JsonValue('relevant')
+  relevant('relevant'),
   @JsonValue('newest')
   newest('newest'),
   @JsonValue('oldest')
   oldest('oldest'),
+  @JsonValue('highest')
+  highest('highest'),
+  @JsonValue('lowest')
+  lowest('lowest'),
+  @JsonValue('helpful')
+  helpful('helpful'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

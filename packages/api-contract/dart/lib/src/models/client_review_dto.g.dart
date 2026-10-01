@@ -15,6 +15,16 @@ ClientReviewDto _$ClientReviewDtoFromJson(Map<String, dynamic> json) =>
       ),
       isMine: json['isMine'] as bool,
       canAppeal: json['canAppeal'] as bool,
+      canReply: json['canReply'] as bool,
+      reply: json['reply'] as String?,
+      replyAt: json['replyAt'] == null
+          ? null
+          : DateTime.parse(json['replyAt'] as String),
+      helpfulCount: (json['helpfulCount'] as num).toInt(),
+      helpfulByMe: json['helpfulByMe'] as bool,
+      editedAt: json['editedAt'] == null
+          ? null
+          : DateTime.parse(json['editedAt'] as String),
       createdAt: json['createdAt'] as String,
       caseId: json['caseId'] as String?,
       caseTitle: json['caseTitle'] as String?,
@@ -34,6 +44,12 @@ Map<String, dynamic> _$ClientReviewDtoToJson(ClientReviewDto instance) =>
       'attorney': instance.attorney.toJson(),
       'isMine': instance.isMine,
       'canAppeal': instance.canAppeal,
+      'canReply': instance.canReply,
+      'reply': ?instance.reply,
+      'replyAt': ?instance.replyAt?.toIso8601String(),
+      'helpfulCount': instance.helpfulCount,
+      'helpfulByMe': instance.helpfulByMe,
+      'editedAt': ?instance.editedAt?.toIso8601String(),
       'appealStatus': ?instance.appealStatus?.toJson(),
       'createdAt': instance.createdAt,
     };

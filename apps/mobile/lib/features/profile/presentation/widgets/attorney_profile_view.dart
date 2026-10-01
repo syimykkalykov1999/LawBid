@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
+    show showConfirmSheet;
+import 'package:lawbid/features/cases/presentation/widgets/client_review_sheet.dart';
 import 'package:lawbid/shared/presentation/share_sheet.dart';
 import 'package:lawbid/features/chat/presentation/open_direct_chat.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
@@ -112,6 +115,75 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
   PublicAttorneyProfile get p => widget.profile;
   ReviewsKey get _reviewsKey => (attorneyId: p.id, rating: _stars, sort: _sort);
 
+  void _refreshReviews() => ref
+    ..invalidate(reviewSummaryProvider(p.id))
+    ..invalidate(reviewsListProvider)
+    ..invalidate(myAttorneyReviewProvider(p.id));
+
+  /// Owner 2026-10-01 (Google-style): anyone writes / edits their review.
+  Future<void> _writeReview(Translator t, Review? mine) async {
+    final saved = await showClientReviewSheet(
+      context,
+      rating: mine?.rating ?? 0,
+      body: mine?.body ?? '',
+      titleKey: 'reviews.write.title',
+      hintKey: 'reviews.write.hint',
+      onSave: (rating, body) => ref
+          .read(reviewsRepositoryProvider)
+          .saveMine(p.id, rating: rating, body: body),
+    );
+    if (saved == true && mounted) {
+      _refreshReviews();
+      showAppSnackBar(context, t.t('reviews.write.saved'));
+    }
+  }
+
+  Future<void> _deleteReview(Translator t, Review review) async {
+    final ok = await showConfirmSheet(
+      context,
+      t: t,
+      title: t.t('client.reviews.deleteTitle'),
+      message: t.t('client.reviews.deleteMessage'),
+      confirmLabel: t.t('client.reviews.delete'),
+      destructive: true,
+    );
+    if (!ok || !mounted) return;
+    try {
+      await ref.read(reviewsRepositoryProvider).delete(review.id);
+      _refreshReviews();
+      if (mounted) showAppSnackBar(context, t.t('client.reviews.deleted'));
+    } on Object catch (e) {
+      if (mounted) showAppSnackBar(context, errorText(t, e));
+    }
+  }
+
+  Future<void> _reply(Translator t, Review review, {bool remove = false}) async {
+    final text = remove
+        ? null
+        : await showReviewReplySheet(context, initial: review.reply ?? '');
+    if ((!remove && text == null) || !mounted) return;
+    try {
+      await ref.read(reviewsRepositoryProvider).reply(review.id, text);
+      _refreshReviews();
+      if (mounted && !remove) {
+        showAppSnackBar(context, t.t('reviews.reply.saved'));
+      }
+    } on Object catch (e) {
+      if (mounted) showAppSnackBar(context, errorText(t, e));
+    }
+  }
+
+  Future<void> _helpful(Translator t, Review review) async {
+    try {
+      await ref
+          .read(reviewsRepositoryProvider)
+          .helpful(review.id, on: !review.helpfulByMe);
+      ref.invalidate(reviewsListProvider);
+    } on Object catch (e) {
+      if (mounted) showAppSnackBar(context, errorText(t, e));
+    }
+  }
+
   Future<void> _report(Translator t, Review review) async {
     final reason = await showReportReasonSheet(context, t);
     if (reason == null || !mounted) return;
@@ -186,6 +258,28 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
         // Posts/News grids sit flush under the tabs (owner 2026-10-01);
         // the reviews tab keeps its breathing room.
         SizedBox(height: reviewsTab ? AppSpacing.lg : 2),
+        // Owner 2026-10-01: anyone (client, attorney, assistant) reviews.
+        if (reviewsTab && !p.isSelf)
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.md),
+            child: Builder(builder: (context) {
+              final mine = ref.watch(myAttorneyReviewProvider(p.id)).value;
+              return AppButton(
+                key: const ValueKey('review-write'),
+                label: t.t(mine == null
+                    ? 'reviews.write.action'
+                    : 'reviews.write.edit'),
+                icon: mine == null
+                    ? Icons.rate_review_outlined
+                    : Icons.edit_outlined,
+                variant: mine == null
+                    ? AppButtonVariant.primary
+                    : AppButtonVariant.secondary,
+                height: AppSizes.touchTarget,
+                onPressed: () => _writeReview(t, mine),
+              );
+            }),
+          ),
         if (reviewsTab && summary != null)
           summary.when(
             skipLoadingOnReload: true,
@@ -305,7 +399,17 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
         index: index % 6,
         child: ReviewCard(
           review: review,
-          onReport: p.isSelf ? () => _report(t, review) : null,
+          // Owner 2026-10-01 (Google-style): anyone but the author flags;
+          // the author edits / deletes; the attorney replies; others vote.
+          onReport: review.isMine ? null : () => _report(t, review),
+          onEdit: review.isMine ? () => _writeReview(t, review) : null,
+          onDelete: review.isMine ? () => _deleteReview(t, review) : null,
+          onReply: p.isSelf ? () => _reply(t, review) : null,
+          onDeleteReply:
+              p.isSelf ? () => _reply(t, review, remove: true) : null,
+          onHelpful: review.isMine || p.isSelf
+              ? null
+              : () => _helpful(t, review),
         ),
       ),
     );

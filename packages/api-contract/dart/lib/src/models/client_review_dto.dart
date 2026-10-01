@@ -17,6 +17,12 @@ class ClientReviewDto {
     required this.attorney,
     required this.isMine,
     required this.canAppeal,
+    required this.canReply,
+    required this.reply,
+    required this.replyAt,
+    required this.helpfulCount,
+    required this.helpfulByMe,
+    required this.editedAt,
     required this.createdAt,
     this.caseId,
     this.caseTitle,
@@ -37,8 +43,17 @@ class ClientReviewDto {
   final ClientReviewAuthorDto attorney;
   final bool isMine;
 
-  /// The viewer is the reviewed client and may still appeal it.
+  /// Deprecated (owner 2026-10-01, Google-style): always false — the.
+  /// reviewed person replies or flags the review instead.
   final bool canAppeal;
+
+  /// The viewer is the reviewed person (may reply).
+  final bool canReply;
+  final String? reply;
+  final DateTime? replyAt;
+  final int helpfulCount;
+  final bool helpfulByMe;
+  final DateTime? editedAt;
 
   /// Owner 2026-09-30: the appeal's state — shown to the client and the.
   /// author only (null for others or without an appeal).

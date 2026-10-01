@@ -48,17 +48,32 @@ Future<bool?> showClientReviewSheet(
   required int rating,
   required String body,
   required Future<Object?> Function(int rating, String body) onSave,
+  String titleKey = 'client.review.title',
+  String hintKey = 'client.review.hint',
 }) =>
     showAppBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
-      builder: (_) => _Sheet(rating: rating, body: body, onSave: onSave),
+      builder: (_) => _Sheet(
+        rating: rating,
+        body: body,
+        onSave: onSave,
+        titleKey: titleKey,
+        hintKey: hintKey,
+      ),
     );
 
 class _Sheet extends ConsumerStatefulWidget {
-  const _Sheet(
-      {required this.rating, required this.body, required this.onSave});
+  const _Sheet({
+    required this.rating,
+    required this.body,
+    required this.onSave,
+    required this.titleKey,
+    required this.hintKey,
+  });
 
+  final String titleKey;
+  final String hintKey;
   final int rating;
   final String body;
   final Future<Object?> Function(int rating, String body) onSave;
@@ -108,10 +123,10 @@ class _SheetState extends ConsumerState<_Sheet> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const AppSheetHandle(),
-          Text(t.t('client.review.title'),
+          Text(t.t(widget.titleKey),
               style: type.titleMedium.copyWith(color: colors.text)),
           const SizedBox(height: AppSpacing.xs),
-          Text(t.t('client.review.hint'),
+          Text(t.t(widget.hintKey),
               style: type.bodySmall.copyWith(color: colors.textSecondary)),
           const SizedBox(height: AppSpacing.lg),
           Row(

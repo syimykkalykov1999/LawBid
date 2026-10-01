@@ -131,7 +131,9 @@ export class AdminReviewRowDto {
   @ApiPropertyOptional({ type: String, nullable: true }) body!: string | null;
   @ApiProperty() attorneyName!: string;
   @ApiProperty() clientName!: string;
-  @ApiProperty() caseTitle!: string;
+  /** null = an open review (no shared case, owner 2026-10-01). */
+  @ApiPropertyOptional({ type: String, nullable: true })
+  caseTitle!: string | null;
   @ApiProperty({ enum: ['published', 'hidden', 'removed'] }) status!: string;
   @ApiProperty() createdAt!: string;
 }

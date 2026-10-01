@@ -450,7 +450,9 @@ void main() {
       await _teardown(tester);
     });
 
-    testWidgets('after 14 days the review is read-only', (tester) async {
+    // Owner 2026-10-01 (Google-style): the author edits any time; only a
+    // moderated review is locked.
+    testWidgets('editable after 14 days; locked once moderated', (tester) async {
       final old = Review(
         id: 'r-old',
         rating: 3,
@@ -465,8 +467,21 @@ void main() {
         user: clientMe(),
         overrides: profileOverrides(),
       );
+      expect(find.byKey(const ValueKey('review-locked')), findsNothing);
+      await _teardown(tester);
+      final moderated = Review(
+        id: 'r-mod',
+        rating: 3,
+        createdAt: kNow.subtract(const Duration(days: 2)),
+        editable: false,
+      );
+      await _pumpScreen(
+        tester,
+        ReviewFormScreen(caseId: 'case-1', existing: moderated),
+        user: clientMe(),
+        overrides: profileOverrides(),
+      );
       expect(find.byKey(const ValueKey('review-locked')), findsOneWidget);
-      expect(find.byKey(const ValueKey('review-edit')), findsNothing);
       await _teardown(tester);
     });
 

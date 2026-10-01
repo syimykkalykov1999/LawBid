@@ -217,12 +217,14 @@ describe('ReviewsService.getForCase (own review for editing, §7.2)', () => {
     ).toBe(14 * DAY);
   });
 
-  it('is not editable after the window or once moderated', async () => {
+  // Owner 2026-10-01 (Google-style): editable any time; only moderation
+  // locks a review.
+  it('stays editable after the old window; not once moderated', async () => {
     const { prisma, service } = setup();
     prisma.review.findUnique.mockResolvedValue(
       withCase({ created_at: new Date(Date.now() - 15 * DAY) }),
     );
-    expect((await service.getForCase(CLIENT, 'case-1')).editable).toBe(false);
+    expect((await service.getForCase(CLIENT, 'case-1')).editable).toBe(true);
     prisma.review.findUnique.mockResolvedValue(withCase({ status: 'hidden' }));
     expect((await service.getForCase(CLIENT, 'case-1')).editable).toBe(false);
   });
@@ -262,15 +264,18 @@ describe('ReviewsService.update (edit window, §7.2)', () => {
     expect(dto.editedAt).not.toBeNull();
   });
 
-  it('refuses after review.edit_window_days', async () => {
+  // Owner 2026-10-01 (Google-style): the author edits any time.
+  it('edits after the old review.edit_window_days too', async () => {
     const { tx, service } = setup();
     tx.review.findUnique.mockResolvedValue(
       review({ created_at: new Date(Date.now() - 15 * DAY) }),
     );
-    expect(await codeOf(service.update(CLIENT, 'r1', { rating: 1 }))).toBe(
-      'REVIEW_EDIT_WINDOW_EXPIRED',
+    tx.review.update.mockImplementation(
+      ({ data }: { data: Record<string, unknown> }) =>
+        Promise.resolve({ ...review(), ...data }),
     );
-    expect(tx.review.update).not.toHaveBeenCalled();
+    await service.update(CLIENT, 'r1', { rating: 1 });
+    expect(tx.review.update).toHaveBeenCalled();
   });
 
   it('refuses a moderated review and hides others’ reviews', async () => {
@@ -425,11 +430,13 @@ describe('ReviewsService.report (§7.2)', () => {
     expect(tx.report.create).not.toHaveBeenCalled();
   });
 
-  it('forbids anyone but the reviewed attorney', async () => {
+  // Owner 2026-10-01 (Google-style): anyone flags — but not the author.
+  it('forbids the author (they edit or delete instead)', async () => {
     const { prisma, service } = setup();
     prisma.review.findUnique.mockResolvedValue({
       id: 'r1',
       attorney_id: 'att-1',
+      client_id: CLIENT.sub,
       status: 'published',
     });
     expect(await codeOf(service.report(CLIENT, 'r1', { reason: 'spam' }))).toBe(

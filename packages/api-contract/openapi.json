@@ -22635,7 +22635,8 @@
                 "message",
                 "user",
                 "case",
-                "review"
+                "review",
+                "client_review"
               ]
             }
           },
@@ -22761,7 +22762,8 @@
                 "message",
                 "user",
                 "case",
-                "review"
+                "review",
+                "client_review"
               ]
             }
           },
@@ -22885,7 +22887,8 @@
                 "message",
                 "user",
                 "case",
-                "review"
+                "review",
+                "client_review"
               ]
             }
           },
@@ -23564,9 +23567,9 @@
         ]
       }
     },
-    "/client-reviews/{id}/appeal": {
-      "post": {
-        "operationId": "appealClientReview",
+    "/client-reviews/{id}/reply": {
+      "put": {
+        "operationId": "replyToClientReview",
         "parameters": [
           {
             "name": "id",
@@ -23583,7 +23586,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/AppealClientReviewDto"
+                "$ref": "#/components/schemas/ReviewReplyDto"
               }
             }
           }
@@ -23629,8 +23632,83 @@
               }
             }
           },
-          "409": {
-            "description": "Conflict: REVIEW_APPEAL_EXISTS",
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The reviewed person's public reply",
+        "tags": [
+          "client-reviews"
+        ]
+      },
+      "delete": {
+        "operationId": "deleteClientReviewReply",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientReviewEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
             "content": {
               "application/json": {
                 "schema": {
@@ -23675,7 +23753,231 @@
             "bearer": []
           }
         ],
-        "summary": "The reviewed client asks to remove a review (admins decide; removed after 30 days if undecided)",
+        "summary": "Remove my reply",
+        "tags": [
+          "client-reviews"
+        ]
+      }
+    },
+    "/client-reviews/{id}/helpful": {
+      "post": {
+        "operationId": "markClientReviewHelpful",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewHelpfulDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientReviewEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "\"Helpful\" on / off",
+        "tags": [
+          "client-reviews"
+        ]
+      }
+    },
+    "/client-reviews/{id}/report": {
+      "post": {
+        "operationId": "reportClientReview",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportReviewDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientReviewReportEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Flag a review against the policy",
         "tags": [
           "client-reviews"
         ]
@@ -28679,6 +28981,84 @@
         "tags": [
           "reviews"
         ]
+      },
+      "delete": {
+        "operationId": "removeOwn",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Remove my own review",
+        "tags": [
+          "reviews"
+        ]
       }
     },
     "/attorneys/{id}/reviews": {
@@ -28710,14 +29090,9 @@
             "name": "sort",
             "required": false,
             "in": "query",
-            "description": "Order by date.",
+            "description": "Owner 2026-10-01 (Google-style): relevant (helpful, then newest) · newest · oldest · highest · lowest · helpful.",
             "schema": {
-              "default": "newest",
-              "type": "string",
-              "enum": [
-                "newest",
-                "oldest"
-              ]
+              "$ref": "#/components/schemas/ReviewSort"
             }
           },
           {
@@ -28923,6 +29298,499 @@
         ]
       }
     },
+    "/attorneys/{id}/reviews/mine": {
+      "put": {
+        "operationId": "upsertOpen",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Attorney user id.",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateReviewDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Write / edit my open review of an attorney",
+        "tags": [
+          "reviews"
+        ]
+      },
+      "get": {
+        "operationId": "mine",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Attorney user id.",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "My open review of an attorney (or null)",
+        "tags": [
+          "reviews"
+        ]
+      }
+    },
+    "/reviews/{id}/reply": {
+      "put": {
+        "operationId": "replyToReview",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewReplyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicReviewEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The reviewed attorney's public reply",
+        "tags": [
+          "reviews"
+        ]
+      },
+      "delete": {
+        "operationId": "deleteReviewReply",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicReviewEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Remove my reply",
+        "tags": [
+          "reviews"
+        ]
+      }
+    },
+    "/reviews/{id}/helpful": {
+      "post": {
+        "operationId": "markHelpful",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewHelpfulDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicReviewEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "\"Helpful\" on / off",
+        "tags": [
+          "reviews"
+        ]
+      }
+    },
     "/reviews/{id}/report": {
       "post": {
         "operationId": "report",
@@ -29053,7 +29921,7 @@
             "bearer": []
           }
         ],
-        "summary": "Report a review to moderation (the reviewed attorney)",
+        "summary": "Flag a review against the policy (anyone but the author)",
         "tags": [
           "reviews"
         ]
@@ -40286,7 +41154,9 @@
             "type": "string"
           },
           "caseTitle": {
-            "type": "string"
+            "type": "string",
+            "nullable": true,
+            "description": "null = an open review (no shared case, owner 2026-10-01)."
           },
           "status": {
             "type": "string",
@@ -40305,7 +41175,6 @@
           "rating",
           "attorneyName",
           "clientName",
-          "caseTitle",
           "status",
           "createdAt"
         ]
@@ -41198,7 +42067,8 @@
               "message",
               "user",
               "case",
-              "review"
+              "review",
+              "client_review"
             ],
             "type": "string"
           },
@@ -41363,7 +42233,8 @@
               "message",
               "user",
               "case",
-              "review"
+              "review",
+              "client_review"
             ],
             "type": "string"
           },
@@ -41466,7 +42337,8 @@
               "message",
               "user",
               "case",
-              "review"
+              "review",
+              "client_review"
             ],
             "type": "string"
           },
@@ -41565,7 +42437,8 @@
             "description": "Owner 2026-09-30: attorneys and clients review clients.",
             "enum": [
               "attorney",
-              "client"
+              "client",
+              "assistant"
             ],
             "type": "string"
           }
@@ -41620,7 +42493,31 @@
           },
           "canAppeal": {
             "type": "boolean",
-            "description": "The viewer is the reviewed client and may still appeal it."
+            "description": "Deprecated (owner 2026-10-01, Google-style): always false — the\nreviewed person replies or flags the review instead."
+          },
+          "canReply": {
+            "type": "boolean",
+            "description": "The viewer is the reviewed person (may reply)."
+          },
+          "reply": {
+            "type": "string",
+            "nullable": true
+          },
+          "replyAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "helpfulCount": {
+            "type": "integer"
+          },
+          "helpfulByMe": {
+            "type": "boolean"
+          },
+          "editedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
           },
           "appealStatus": {
             "nullable": true,
@@ -41641,6 +42538,12 @@
           "attorney",
           "isMine",
           "canAppeal",
+          "canReply",
+          "reply",
+          "replyAt",
+          "helpfulCount",
+          "helpfulByMe",
+          "editedAt",
           "createdAt"
         ]
       },
@@ -41675,24 +42578,106 @@
           "data"
         ]
       },
-      "AppealClientReviewDto": {
+      "ReviewReplyDto": {
         "type": "object",
         "properties": {
-          "reason": {
+          "body": {
             "type": "string",
             "minLength": 1,
             "maxLength": 1000
           }
         },
         "required": [
+          "body"
+        ]
+      },
+      "ReviewHelpfulDto": {
+        "type": "object",
+        "properties": {
+          "helpful": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "helpful"
+        ]
+      },
+      "ClientReviewReportDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status"
+        ]
+      },
+      "ReportReason": {
+        "type": "string",
+        "enum": [
+          "spam",
+          "abuse",
+          "misinformation",
+          "impersonation",
+          "inappropriate",
+          "other",
+          "off_topic",
+          "conflict_of_interest",
+          "profanity",
+          "harassment",
+          "hate_speech",
+          "personal_info"
+        ]
+      },
+      "ReportReviewDto": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReportReason"
+              }
+            ]
+          },
+          "note": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 500
+          }
+        },
+        "required": [
           "reason"
+        ]
+      },
+      "ClientReviewReportEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ClientReviewReportDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
         ]
       },
       "ClientReviewsSort": {
         "type": "string",
         "enum": [
+          "relevant",
           "newest",
-          "oldest"
+          "oldest",
+          "highest",
+          "lowest",
+          "helpful"
         ]
       },
       "ClientReviewListEnvelope": {
@@ -41810,7 +42795,8 @@
           "authorRole": {
             "enum": [
               "attorney",
-              "client"
+              "client",
+              "assistant"
             ],
             "type": "string"
           },
@@ -41915,17 +42901,6 @@
           "case_comment",
           "message",
           "user"
-        ]
-      },
-      "ReportReason": {
-        "type": "string",
-        "enum": [
-          "spam",
-          "abuse",
-          "misinformation",
-          "impersonation",
-          "inappropriate",
-          "other"
         ]
       },
       "CreateReportDto": {
@@ -43419,6 +44394,14 @@
           "token"
         ]
       },
+      "ReviewAuthorRole": {
+        "type": "string",
+        "enum": [
+          "client",
+          "attorney",
+          "assistant"
+        ]
+      },
       "ReviewStatus": {
         "type": "string",
         "enum": [
@@ -43459,8 +44442,41 @@
             "format": "date-time",
             "description": "Set when the client edited the review (\"Edited\" label)."
           },
+          "fromCase": {
+            "type": "boolean",
+            "description": "Verified by a closed case."
+          },
+          "authorRole": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReviewAuthorRole"
+              }
+            ]
+          },
+          "reply": {
+            "type": "string",
+            "nullable": true,
+            "description": "The attorney's public reply."
+          },
+          "replyAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "helpfulCount": {
+            "type": "integer"
+          },
+          "helpfulByMe": {
+            "type": "boolean",
+            "description": "I marked it helpful."
+          },
+          "isMine": {
+            "type": "boolean",
+            "description": "I wrote it (edit / delete)."
+          },
           "caseId": {
             "type": "string",
+            "nullable": true,
             "format": "uuid"
           },
           "attorneyId": {
@@ -43491,6 +44507,13 @@
           "authorDisplayName",
           "createdAt",
           "editedAt",
+          "fromCase",
+          "authorRole",
+          "reply",
+          "replyAt",
+          "helpfulCount",
+          "helpfulByMe",
+          "isMine",
           "caseId",
           "attorneyId",
           "status",
@@ -43576,6 +44599,38 @@
             "nullable": true,
             "format": "date-time",
             "description": "Set when the client edited the review (\"Edited\" label)."
+          },
+          "fromCase": {
+            "type": "boolean",
+            "description": "Verified by a closed case."
+          },
+          "authorRole": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReviewAuthorRole"
+              }
+            ]
+          },
+          "reply": {
+            "type": "string",
+            "nullable": true,
+            "description": "The attorney's public reply."
+          },
+          "replyAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "helpfulCount": {
+            "type": "integer"
+          },
+          "helpfulByMe": {
+            "type": "boolean",
+            "description": "I marked it helpful."
+          },
+          "isMine": {
+            "type": "boolean",
+            "description": "I wrote it (edit / delete)."
           }
         },
         "required": [
@@ -43584,7 +44639,25 @@
           "body",
           "authorDisplayName",
           "createdAt",
-          "editedAt"
+          "editedAt",
+          "fromCase",
+          "authorRole",
+          "reply",
+          "replyAt",
+          "helpfulCount",
+          "helpfulByMe",
+          "isMine"
+        ]
+      },
+      "ReviewSort": {
+        "type": "string",
+        "enum": [
+          "relevant",
+          "newest",
+          "oldest",
+          "highest",
+          "lowest",
+          "helpful"
         ]
       },
       "PublicReviewListEnvelope": {
@@ -43595,6 +44668,20 @@
             "items": {
               "$ref": "#/components/schemas/PublicReviewDto"
             }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "PublicReviewEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PublicReviewDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
@@ -43648,26 +44735,6 @@
           "reason",
           "status",
           "createdAt"
-        ]
-      },
-      "ReportReviewDto": {
-        "type": "object",
-        "properties": {
-          "reason": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ReportReason"
-              }
-            ]
-          },
-          "note": {
-            "type": "string",
-            "nullable": true,
-            "maxLength": 500
-          }
-        },
-        "required": [
-          "reason"
         ]
       },
       "ReviewReportEnvelope": {

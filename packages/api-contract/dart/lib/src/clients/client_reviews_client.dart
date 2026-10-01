@@ -5,10 +5,13 @@
 import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
-import '../models/appeal_client_review_dto.dart';
 import '../models/client_review_envelope.dart';
 import '../models/client_review_list_envelope.dart';
+import '../models/client_review_report_envelope.dart';
 import '../models/client_reviews_sort.dart';
+import '../models/report_review_dto.dart';
+import '../models/review_helpful_dto.dart';
+import '../models/review_reply_dto.dart';
 import '../models/review_summary_envelope.dart';
 import '../models/upsert_client_review_dto.dart';
 
@@ -56,11 +59,34 @@ abstract class ClientReviewsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// The reviewed client asks to remove a review (admins decide; removed after 30 days if undecided)
-  @POST('/client-reviews/{id}/appeal')
-  Future<ClientReviewEnvelope> appealClientReview({
+  /// The reviewed person's public reply
+  @PUT('/client-reviews/{id}/reply')
+  Future<ClientReviewEnvelope> replyToClientReview({
     @Path('id') required String id,
-    @Body() required AppealClientReviewDto body,
+    @Body() required ReviewReplyDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Remove my reply
+  @DELETE('/client-reviews/{id}/reply')
+  Future<ClientReviewEnvelope> deleteClientReviewReply({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// "Helpful" on / off
+  @POST('/client-reviews/{id}/helpful')
+  Future<ClientReviewEnvelope> markClientReviewHelpful({
+    @Path('id') required String id,
+    @Body() required ReviewHelpfulDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Flag a review against the policy
+  @POST('/client-reviews/{id}/report')
+  Future<ClientReviewReportEnvelope> reportClientReview({
+    @Path('id') required String id,
+    @Body() required ReportReviewDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

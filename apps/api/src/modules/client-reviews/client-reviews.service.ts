@@ -3,7 +3,10 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
+import type { ReportReason } from '@prisma/client';
+import { ModerationService } from '../moderation/moderation.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
   decodeCursor,
@@ -30,6 +33,9 @@ const PAGE = 20;
 /** Owner 2026-09-30: an appeal nobody decided removes the review then. */
 export const REVIEW_APPEAL_AUTO_REMOVE_DAYS = 30;
 
+/** Owner 2026-10-01: Google-style — no automatic removal. */
+const AUTO_REMOVE_UNDECIDED_APPEALS = false;
+
 /** Cases in these states have a working relationship to review. */
 const REVIEWABLE = [
   'in_progress',
@@ -53,6 +59,8 @@ export class ClientReviewsService {
     private readonly prisma: PrismaService,
     private readonly files: FilesService,
     private readonly notifications: NotificationsService,
+    // Optional: the worker wires this service without the moderation module.
+    @Optional() private readonly moderation?: ModerationService,
   ) {}
 
   async upsert(
@@ -154,7 +162,7 @@ export class ClientReviewsService {
     const row = existing
       ? await this.prisma.clientReview.update({
           where: { id: existing.id },
-          data: { rating: dto.rating, body },
+          data: { rating: dto.rating, body, edited_at: new Date() },
         })
       : await this.prisma.clientReview.create({
           data: {
@@ -212,6 +220,129 @@ export class ClientReviewsService {
       data: { status: 'accepted', decided_at: new Date() },
     });
     await this.recalc(r.client_id);
+  }
+
+  /**
+   * PUT /client-reviews/:id/reply — owner 2026-10-01 (Google-style): the
+   * reviewed person answers publicly; they can't delete the review.
+   */
+  async reply(
+    user: RequestUser,
+    reviewId: string,
+    body: string | null,
+  ): Promise<ClientReviewDto> {
+    const r = await this.prisma.clientReview.findFirst({
+      where: { id: reviewId, client_id: user.sub, status: 'published' },
+      select: { attorney_id: true },
+    });
+    if (!r) throw reviewNotFound();
+    if (body) assertNoContactInfo({ body });
+    await this.prisma.clientReview.update({
+      where: { id: reviewId },
+      data: body
+        ? { reply: body, reply_at: new Date() }
+        : { reply: null, reply_at: null },
+    });
+    if (body) {
+      await this.notifications.emit({
+        type: 'review_received',
+        recipientId: r.attorney_id,
+        payload: {
+          reviewId,
+          reply: true,
+          clientReview: true,
+          actorId: user.sub,
+        },
+      });
+    }
+    return (await this.present([reviewId], user.sub))[0];
+  }
+
+  /** POST /client-reviews/:id/helpful — anyone but the author and subject. */
+  async helpful(
+    user: RequestUser,
+    reviewId: string,
+    on: boolean,
+  ): Promise<ClientReviewDto> {
+    const r = await this.prisma.clientReview.findFirst({
+      where: { id: reviewId, status: 'published' },
+      select: { attorney_id: true, client_id: true },
+    });
+    if (!r) throw reviewNotFound();
+    if (r.attorney_id === user.sub || r.client_id === user.sub) {
+      throw new ForbiddenException({
+        code: ErrorCode.FORBIDDEN,
+        message: 'You cannot vote on this review.',
+      });
+    }
+    await this.prisma.$transaction(async (tx) => {
+      const key = { review_id: reviewId, user_id: user.sub };
+      const had = await tx.clientReviewHelpfulVote.findUnique({
+        where: { review_id_user_id: key },
+      });
+      if (on && !had) {
+        await tx.clientReviewHelpfulVote.create({ data: key });
+        await tx.clientReview.update({
+          where: { id: reviewId },
+          data: { helpful_count: { increment: 1 } },
+        });
+      } else if (!on && had) {
+        await tx.clientReviewHelpfulVote.delete({
+          where: { review_id_user_id: key },
+        });
+        await tx.clientReview.update({
+          where: { id: reviewId },
+          data: { helpful_count: { decrement: 1 } },
+        });
+      }
+    });
+    return (await this.present([reviewId], user.sub))[0];
+  }
+
+  /**
+   * POST /client-reviews/:id/report — owner 2026-10-01 (Google-style):
+   * anyone but the author flags it against the policy; it lands in the
+   * admin moderation queue (three reporters hide it there).
+   */
+  async report(
+    user: RequestUser,
+    reviewId: string,
+    reason: ReportReason,
+    note?: string,
+  ): Promise<{ id: string; status: string }> {
+    const r = await this.prisma.clientReview.findFirst({
+      where: { id: reviewId, status: 'published' },
+      select: { attorney_id: true },
+    });
+    if (!r) throw reviewNotFound();
+    if (r.attorney_id === user.sub) {
+      throw new ForbiddenException({
+        code: ErrorCode.FORBIDDEN,
+        message: 'Edit or delete your own review instead.',
+      });
+    }
+    const open = await this.prisma.report.findFirst({
+      where: {
+        reporter_id: user.sub,
+        target_type: 'client_review',
+        target_id: reviewId,
+        status: 'open',
+      },
+      select: { id: true, status: true },
+    });
+    if (open) return open;
+    const created = await this.prisma.report.create({
+      data: {
+        reporter_id: user.sub,
+        target_type: 'client_review',
+        target_id: reviewId,
+        reason,
+        note: note ?? null,
+      },
+      select: { id: true, status: true },
+    });
+    await this.moderation?.autoHideIfThreshold('client_review', reviewId);
+    return created;
   }
 
   /** POST /client-reviews/:id/appeal — the reviewed client, once. */
@@ -291,7 +422,12 @@ export class ClientReviewsService {
         rating: a.review.rating,
         body: a.review.body,
         authorName: name(a.review.attorney),
-        authorRole: a.review.attorney.role === 'client' ? 'client' : 'attorney',
+        authorRole:
+          a.review.attorney.role === 'client'
+            ? 'client'
+            : a.review.attorney.role === 'assistant'
+              ? 'assistant'
+              : 'attorney',
         clientId: a.review.client_id,
         clientName: name(a.review.client),
       })),
@@ -345,8 +481,11 @@ export class ClientReviewsService {
     return { decided: pending.length };
   }
 
-  /** Cron: undecided appeals past their date remove the review. */
+  /** Cron: undecided appeals past their date remove the review.
+   * Owner 2026-10-01 (Google-style): nothing is removed automatically any
+   * more — reviews are removed by their author or by moderation. */
   async sweepAppeals(now = new Date()): Promise<number> {
+    if (!AUTO_REMOVE_UNDECIDED_APPEALS) return 0;
     const due = await this.prisma.clientReviewAppeal.findMany({
       where: { status: 'pending', auto_remove_at: { lte: now } },
       select: {
@@ -383,11 +522,13 @@ export class ClientReviewsService {
         attorney_profile: { select: { verification_status: true } },
       },
     });
+    // Owner 2026-10-01: assistants write reviews too.
     const ok =
       me?.status === 'active' &&
       ((me.role === 'attorney' &&
         me.attorney_profile?.verification_status === 'verified') ||
-        (me.role === 'client' && me.phone_verified_at != null));
+        ((me.role === 'client' || me.role === 'assistant') &&
+          me.phone_verified_at != null));
     if (!ok) {
       throw new ForbiddenException({
         code: ErrorCode.FORBIDDEN,
@@ -403,8 +544,41 @@ export class ClientReviewsService {
     query: ClientReviewsQueryDto = {},
   ): Promise<ClientReviewPage> {
     await this.assertCanSee(user, clientId);
+    const sort = query.sort ?? 'newest';
+    // Owner 2026-10-01 (Google-style): rating / helpful orders by offset.
+    if (sort !== 'newest' && sort !== 'oldest') {
+      const offset = query.cursor ? Number(query.cursor) || 0 : 0;
+      const rows = await this.prisma.clientReview.findMany({
+        where: {
+          client_id: clientId,
+          status: 'published',
+          ...(query.rating !== undefined ? { rating: query.rating } : {}),
+        },
+        orderBy:
+          sort === 'highest'
+            ? [{ rating: 'desc' }, { created_at: 'desc' }, { id: 'desc' }]
+            : sort === 'lowest'
+              ? [{ rating: 'asc' }, { created_at: 'desc' }, { id: 'desc' }]
+              : [
+                  { helpful_count: 'desc' },
+                  { created_at: 'desc' },
+                  { id: 'desc' },
+                ],
+        skip: offset,
+        take: PAGE + 1,
+        select: { id: true },
+      });
+      const page = rows.slice(0, PAGE);
+      return {
+        items: await this.present(
+          page.map((r) => r.id),
+          user.sub,
+        ),
+        nextCursor: rows.length > PAGE ? String(offset + PAGE) : null,
+      };
+    }
     const c = query.cursor ? decodeCursor(query.cursor) : undefined;
-    const oldest = query.sort === 'oldest';
+    const oldest = sort === 'oldest';
     const rows = await this.prisma.clientReview.findMany({
       where: {
         client_id: clientId,
@@ -482,14 +656,23 @@ export class ClientReviewsService {
     user: RequestUser,
     clientId: string,
   ): Promise<void> {
-    if (user.role !== 'attorney' && user.role !== 'client') {
+    if (
+      user.role !== 'attorney' &&
+      user.role !== 'client' &&
+      user.role !== 'assistant'
+    ) {
       throw new ForbiddenException({
         code: ErrorCode.FORBIDDEN,
         message: 'Sign in to see client reviews.',
       });
     }
+    // Owner 2026-10-01: clients and attorneys' assistants are reviewed here.
     const client = await this.prisma.user.findFirst({
-      where: { id: clientId, role: 'client', deleted_at: null },
+      where: {
+        id: clientId,
+        role: { in: ['client', 'assistant'] },
+        deleted_at: null,
+      },
       select: { id: true },
     });
     if (!client) {
@@ -540,6 +723,14 @@ export class ClientReviewsService {
     const avatars = await this.files.avatarUrlsMany(
       rows.map((r) => r.attorney.avatar_file_id),
     );
+    const voted = new Set(
+      (
+        await this.prisma.clientReviewHelpfulVote.findMany({
+          where: { user_id: viewerId, review_id: { in: ids } },
+          select: { review_id: true },
+        })
+      ).map((v) => v.review_id),
+    );
     const byId = new Map(rows.map((r) => [r.id, r]));
     return ids.flatMap((id) => {
       const r = byId.get(id);
@@ -564,11 +755,20 @@ export class ClientReviewsService {
               : null,
             verifiedBadge: a.phone_verified_at != null,
             role:
-              a.role === 'client' ? ('client' as const) : ('attorney' as const),
+              a.role === 'client'
+                ? ('client' as const)
+                : a.role === 'assistant'
+                  ? ('assistant' as const)
+                  : ('attorney' as const),
           },
           isMine: r.attorney_id === viewerId,
-          canAppeal:
-            r.client_id === viewerId && r.status === 'published' && !r.appeal,
+          canAppeal: false,
+          canReply: r.client_id === viewerId && r.status === 'published',
+          reply: r.reply,
+          replyAt: r.reply_at?.toISOString() ?? null,
+          helpfulCount: r.helpful_count,
+          helpfulByMe: voted.has(r.id),
+          editedAt: r.edited_at?.toISOString() ?? null,
           appealStatus:
             r.client_id === viewerId || r.attorney_id === viewerId
               ? (r.appeal?.status ?? null)

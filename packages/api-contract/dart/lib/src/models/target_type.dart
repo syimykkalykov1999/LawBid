@@ -22,6 +22,8 @@ enum TargetType {
   valueCase('case'),
   @JsonValue('review')
   review('review'),
+  @JsonValue('client_review')
+  clientReview('client_review'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

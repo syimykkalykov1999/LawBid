@@ -33,12 +33,42 @@ export class PublicReviewDto {
     description: 'Set when the client edited the review ("Edited" label).',
   })
   editedAt!: string | null;
+
+  /** Owner 2026-10-01: true = written after a shared closed case. */
+  @ApiProperty({ description: 'Verified by a closed case.' })
+  fromCase!: boolean;
+
+  @ApiProperty({
+    enum: ['client', 'attorney', 'assistant'],
+    enumName: 'ReviewAuthorRole',
+  })
+  authorRole!: 'client' | 'attorney' | 'assistant';
+
+  // Owner 2026-10-01 (Google-style).
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: "The attorney's public reply.",
+  })
+  reply!: string | null;
+
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  replyAt!: string | null;
+
+  @ApiProperty({ type: 'integer' })
+  helpfulCount!: number;
+
+  @ApiProperty({ description: 'I marked it helpful.' })
+  helpfulByMe!: boolean;
+
+  @ApiProperty({ description: 'I wrote it (edit / delete).' })
+  isMine!: boolean;
 }
 
 /** The client's own review (GET /cases/:caseId/review, create/edit). */
 export class ReviewDto extends PublicReviewDto {
-  @ApiProperty({ format: 'uuid' })
-  caseId!: string;
+  @ApiProperty({ type: String, format: 'uuid', nullable: true })
+  caseId!: string | null;
 
   @ApiProperty({ format: 'uuid' })
   attorneyId!: string;

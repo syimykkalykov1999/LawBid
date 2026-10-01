@@ -29,7 +29,8 @@ export const TARGET_TYPE: Record<string, string> = {
   message: 'Сообщение',
   user: 'Пользователь',
   case: 'Кейс',
-  review: 'Отзыв',
+  review: 'Отзыв об адвокате',
+  client_review: 'Отзыв о клиенте / помощнике',
 };
 
 export const REPORT_REASON: Record<string, string> = {
@@ -39,6 +40,13 @@ export const REPORT_REASON: Record<string, string> = {
   impersonation: 'выдача себя за другого',
   inappropriate: 'неприемлемое',
   other: 'другое',
+  // Owner 2026-10-01: Google's review policy categories.
+  off_topic: 'не по теме',
+  conflict_of_interest: 'конфликт интересов',
+  profanity: 'нецензурная лексика',
+  harassment: 'травля или оскорбления',
+  hate_speech: 'дискриминация / разжигание ненависти',
+  personal_info: 'личные данные',
 };
 
 export const MOD_ACTION: Record<string, string> = {

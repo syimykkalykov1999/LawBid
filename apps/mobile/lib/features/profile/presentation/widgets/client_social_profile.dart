@@ -14,11 +14,15 @@ import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
 import 'package:lawbid/features/social/application/social_providers.dart'
     show currentUserIdProvider;
 import 'package:lawbid/features/profile/data/client_reviews_repository.dart';
-import 'package:lawbid/features/profile/application/profile_providers.dart'
-    show ReviewsSort;
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/widgets/review_widgets.dart'
-    show ReviewSummaryPanel;
+    show
+        ReviewBadge,
+        ReviewHelpfulButton,
+        ReviewReplyBlock,
+        ReviewSummaryPanel,
+        showReportReasonSheet,
+        showReviewReplySheet;
 import 'package:lawbid/features/profile/presentation/widgets/profile_avatar.dart';
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart'
     show ProfilePostsGrid;
@@ -305,7 +309,7 @@ class _ReviewsListState extends ConsumerState<_ReviewsList> {
     final key = (
       clientId: clientId,
       rating: _stars,
-      oldest: _sort == ReviewsSort.oldest,
+      sort: _sort,
     );
     final value = ref.watch(clientReviewsProvider(key));
     final summary = ref.watch(clientReviewSummaryProvider(clientId)).value ??
@@ -465,28 +469,59 @@ class _ReviewsListState extends ConsumerState<_ReviewsList> {
                               ),
                           ],
                         ),
-                        // Owner 2026-09-30: "…" — delete my review, or
-                        // appeal one about me.
-                        if (r.isMine || r.canAppeal)
-                          AppIconButton(
-                            plain: true,
-                            icon: Icon(Icons.more_horiz_rounded,
-                                color: colors.textSecondary),
-                            semanticLabel: t.t('client.reviews.menu'),
-                            onPressed: () => _reviewMenu(r, refresh),
-                          ),
+                        // Owner 2026-10-01 (Google-style): "…" — edit or
+                        // delete mine, reply to one about me, or report.
+                        AppIconButton(
+                          key: ValueKey('client-review-menu-${r.id}'),
+                          plain: true,
+                          icon: Icon(Icons.more_vert_rounded,
+                              color: colors.textSecondary),
+                          semanticLabel: t.t('client.reviews.menu'),
+                          onPressed: () => _reviewMenu(r, refresh, write),
+                        ),
                       ],
                     ),
                   ),
-                  if (r.appealStatus != null) ...[
-                    const SizedBox(height: AppSpacing.sm),
-                    _AppealChip(status: r.appealStatus!),
-                  ],
+                  const SizedBox(height: AppSpacing.sm),
+                  Wrap(
+                    spacing: AppSpacing.xs,
+                    runSpacing: AppSpacing.xs,
+                    children: [
+                      if (r.caseId != null)
+                        ReviewBadge(
+                          label: t.t('reviews.badge.case'),
+                          icon: Icons.verified_rounded,
+                        ),
+                      ReviewBadge(label: t.t('reviews.role.${r.authorRole}')),
+                      if (r.editedAt != null)
+                        ReviewBadge(label: t.t('reviews.edited')),
+                    ],
+                  ),
                   if ((r.body ?? '').isNotEmpty) ...[
                     const SizedBox(height: AppSpacing.sm),
                     Text(r.body!,
                         style: type.body.copyWith(color: colors.text)),
                   ],
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: ReviewHelpfulButton(
+                      key: ValueKey('client-review-helpful-${r.id}'),
+                      count: r.helpfulCount,
+                      mine: r.helpfulByMe,
+                      onToggle: r.isMine || r.canReply
+                          ? null
+                          : () => _helpful(r, refresh),
+                    ),
+                  ),
+                  if (r.reply != null)
+                    ReviewReplyBlock(
+                      reply: r.reply!,
+                      replyAt: r.replyAt,
+                      ownerLabel: t.t('reviews.reply.fromPerson'),
+                      onEdit: r.canReply ? () => _reply(r, refresh) : null,
+                      onDelete:
+                          r.canReply ? () => _deleteReply(r, refresh) : null,
+                    ),
                   const SizedBox(height: AppSpacing.sm),
                   Text(
                       r.caseTitle != null
@@ -508,7 +543,11 @@ class _ReviewsListState extends ConsumerState<_ReviewsList> {
 }
 
 extension on _ReviewsListState {
-  Future<void> _reviewMenu(ClientReview r, VoidCallback refresh) async {
+  Future<void> _reviewMenu(
+    ClientReview r,
+    VoidCallback refresh,
+    Future<void> Function() write,
+  ) async {
     final t = ref.read(translatorProvider);
     final choice = await showAppBottomSheet<String>(
       context: context,
@@ -517,18 +556,31 @@ extension on _ReviewsListState {
           mainAxisSize: MainAxisSize.min,
           children: [
             const AppSheetHandle(),
-            if (r.isMine)
+            if (r.canReply && r.reply == null)
+              AppListRow(
+                key: const ValueKey('client-review-reply'),
+                icon: Icons.reply_rounded,
+                label: t.t('reviews.reply.action'),
+                onTap: () => Navigator.of(sheet).pop('reply'),
+              ),
+            if (r.isMine) ...[
+              AppListRow(
+                icon: Icons.edit_outlined,
+                label: t.t('reviews.edit'),
+                onTap: () => Navigator.of(sheet).pop('edit'),
+              ),
               AppListRow(
                 icon: Icons.delete_outline_rounded,
                 label: t.t('client.reviews.delete'),
                 destructive: true,
                 onTap: () => Navigator.of(sheet).pop('delete'),
               ),
-            if (r.canAppeal)
+            ] else
               AppListRow(
-                icon: Icons.gavel_rounded,
-                label: t.t('client.reviews.appeal'),
-                onTap: () => Navigator.of(sheet).pop('appeal'),
+                key: const ValueKey('client-review-report'),
+                icon: Icons.flag_outlined,
+                label: t.t('reviews.report.action'),
+                onTap: () => Navigator.of(sheet).pop('report'),
               ),
             const SizedBox(height: AppSpacing.md),
           ],
@@ -537,127 +589,72 @@ extension on _ReviewsListState {
     );
     if (!mounted || choice == null) return;
     final repo = ref.read(clientReviewsRepositoryProvider);
-    if (choice == 'delete') {
-      final ok = await showConfirmSheet(
-        context,
-        t: t,
-        title: t.t('client.reviews.deleteTitle'),
-        message: t.t('client.reviews.deleteMessage'),
-        confirmLabel: t.t('client.reviews.delete'),
-        destructive: true,
-      );
-      if (!ok) return;
-      try {
-        await repo.delete(r.id);
-        refresh();
-        if (mounted) showAppSnackBar(context, t.t('client.reviews.deleted'));
-      } on Object catch (e) {
-        if (mounted) showAppSnackBar(context, errorText(t, e));
-      }
-      return;
+    switch (choice) {
+      case 'reply':
+        await _reply(r, refresh);
+      case 'edit':
+        await write();
+      case 'delete':
+        final ok = await showConfirmSheet(
+          context,
+          t: t,
+          title: t.t('client.reviews.deleteTitle'),
+          message: t.t('client.reviews.deleteMessage'),
+          confirmLabel: t.t('client.reviews.delete'),
+          destructive: true,
+        );
+        if (!ok) return;
+        try {
+          await repo.delete(r.id);
+          refresh();
+          if (mounted) showAppSnackBar(context, t.t('client.reviews.deleted'));
+        } on Object catch (e) {
+          if (mounted) showAppSnackBar(context, errorText(t, e));
+        }
+      case 'report':
+        final reason = await showReportReasonSheet(context, t);
+        if (reason == null || !mounted) return;
+        try {
+          await repo.report(r.id, reason);
+          if (mounted) showAppSnackBar(context, t.t('reviews.report.sent'));
+        } on Object catch (e) {
+          if (mounted) showAppSnackBar(context, errorText(t, e));
+        }
     }
-    final reason = await showAppBottomSheet<String>(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => const _AppealSheet(),
-    );
-    if (reason == null || reason.trim().isEmpty || !mounted) return;
+  }
+
+  Future<void> _reply(ClientReview r, VoidCallback refresh) async {
+    final t = ref.read(translatorProvider);
+    final text = await showReviewReplySheet(context, initial: r.reply ?? '');
+    if (text == null || !mounted) return;
     try {
-      await repo.appeal(r.id, reason);
+      await ref.read(clientReviewsRepositoryProvider).reply(r.id, text);
       refresh();
-      if (mounted) showAppSnackBar(context, t.t('client.reviews.appealSent'));
+      if (mounted) showAppSnackBar(context, t.t('reviews.reply.saved'));
     } on Object catch (e) {
       if (mounted) showAppSnackBar(context, errorText(t, e));
     }
   }
-}
 
-/// Why the review should go (sent to the moderators).
-class _AppealSheet extends ConsumerStatefulWidget {
-  const _AppealSheet();
-
-  @override
-  ConsumerState<_AppealSheet> createState() => _AppealSheetState();
-}
-
-class _AppealSheetState extends ConsumerState<_AppealSheet> {
-  final _text = TextEditingController();
-
-  @override
-  void dispose() {
-    _text.dispose();
-    super.dispose();
+  Future<void> _deleteReply(ClientReview r, VoidCallback refresh) async {
+    final t = ref.read(translatorProvider);
+    try {
+      await ref.read(clientReviewsRepositoryProvider).reply(r.id, null);
+      refresh();
+    } on Object catch (e) {
+      if (mounted) showAppSnackBar(context, errorText(t, e));
+    }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final t = ref.watch(translatorProvider);
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-          AppSpacing.screenSide,
-          AppSpacing.md,
-          AppSpacing.screenSide,
-          AppSpacing.lg + MediaQuery.viewInsetsOf(context).bottom),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const AppSheetHandle(),
-          Text(t.t('client.reviews.appealTitle'),
-              style: type.titleMedium.copyWith(color: colors.text)),
-          const SizedBox(height: AppSpacing.xs),
-          Text(t.t('client.reviews.appealHint'),
-              style: type.bodySmall.copyWith(color: colors.textSecondary)),
-          const SizedBox(height: AppSpacing.md),
-          AppTextField(
-            controller: _text,
-            hintText: t.t('client.reviews.appealReason'),
-            semanticLabel: t.t('client.reviews.appealReason'),
-            maxLength: 1000,
-            maxLines: 5,
-            onChanged: (_) => setState(() {}),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          AppButton(
-            label: t.t('client.reviews.appealSend'),
-            height: AppSizes.touchTarget,
-            onPressed: _text.text.trim().isEmpty
-                ? null
-                : () => Navigator.of(context).pop(_text.text),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// "Under review by moderators" / "Kept" on an appealed review.
-class _AppealChip extends ConsumerWidget {
-  const _AppealChip({required this.status});
-
-  final String status;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final t = ref.watch(translatorProvider);
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Container(
-        padding:
-            const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 2),
-        decoration: BoxDecoration(
-          color: colors.goldTint,
-          borderRadius: BorderRadius.circular(AppRadii.pill),
-        ),
-        child: Text(
-          t.t('client.reviews.appeal.$status'),
-          style: type.caption.copyWith(color: colors.goldDark),
-        ),
-      ),
-    );
+  Future<void> _helpful(ClientReview r, VoidCallback refresh) async {
+    final t = ref.read(translatorProvider);
+    try {
+      await ref
+          .read(clientReviewsRepositoryProvider)
+          .helpful(r.id, on: !r.helpfulByMe);
+      refresh();
+    } on Object catch (e) {
+      if (mounted) showAppSnackBar(context, errorText(t, e));
+    }
   }
 }

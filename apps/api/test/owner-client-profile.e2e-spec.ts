@@ -329,62 +329,43 @@ describe('Client profile: posts, follows, attorney reviews (e2e, OQ-038)', () =>
       .get(`/api/v1/clients/${cli.id}/reviews`)
       .set(cli.auth);
     expect(list.body.data).toHaveLength(2);
-    const mine = (list.body.data as { id: string; canAppeal: boolean }[]).find(
-      (r) => r.id === byClient.body.data.id,
-    );
-    expect(mine?.canAppeal).toBe(true);
-
-    // The reviewed client appeals once.
-    const appeal = await api()
-      .post(`/api/v1/client-reviews/${byClient.body.data.id}/appeal`)
+    const mine = (
+      list.body.data as { id: string; canAppeal: boolean; canReply: boolean }[]
+    ).find((r) => r.id === byClient.body.data.id);
+    // Owner 2026-10-01 (Google-style): no appeals — the client replies
+    // publicly and flags a review to moderation; nothing auto-removes.
+    expect(mine).toMatchObject({ canAppeal: false, canReply: true });
+    const reply = await api()
+      .put(`/api/v1/client-reviews/${byClient.body.data.id}/reply`)
       .set(cli.auth)
-      .send({ reason: 'I paid in full, here is why this is wrong.' });
-    expect(appeal.status).toBe(200);
-    expect(appeal.body.data.appealStatus).toBe('pending');
-    expect(appeal.body.data.canAppeal).toBe(false);
-    const twice = await api()
-      .post(`/api/v1/client-reviews/${byClient.body.data.id}/appeal`)
-      .set(cli.auth)
-      .send({ reason: 'again' });
-    expect(twice.status).toBe(409);
-    expect(twice.body.error.code).toBe('REVIEW_APPEAL_EXISTS');
-    // Someone else cannot appeal it.
+      .send({ body: 'I paid in full, here is why this is wrong.' });
+    expect(reply.status).toBe(200);
+    expect(reply.body.data.reply).toContain('paid in full');
     expect(
       (
         await api()
-          .post(`/api/v1/client-reviews/${byAttorney.body.data.id}/appeal`)
+          .put(`/api/v1/client-reviews/${byAttorney.body.data.id}/reply`)
           .set(author.auth)
-          .send({ reason: 'not mine' })
+          .send({ body: 'not mine' })
       ).status,
     ).toBe(404);
-
-    // Admins accept in bulk → the review goes; undecided ones expire.
-    const reviews = app.get(ClientReviewsService);
-    const pending = await reviews.listAppeals('pending');
-    const ours = pending.items.filter((a) => a.clientId === cli.id);
-    expect(ours).toHaveLength(1);
-    expect(
-      await reviews.decideAppeals(randomUUID(), {
-        ids: ours.map((a) => a.id),
-        decision: 'accept',
-      }),
-    ).toEqual({ decided: 1 });
-    const afterAccept = await api()
-      .get(`/api/v1/clients/${cli.id}/reviews`)
-      .set(cli.auth);
-    expect(afterAccept.body.data).toHaveLength(1);
-
-    const appeal2 = await api()
-      .post(`/api/v1/client-reviews/${byAttorney.body.data.id}/appeal`)
+    const flag = await api()
+      .post(`/api/v1/client-reviews/${byAttorney.body.data.id}/report`)
       .set(cli.auth)
-      .send({ reason: 'Never worked with this attorney.' });
-    expect(appeal2.status).toBe(200);
-    const future = new Date(Date.now() + 31 * 24 * 3600 * 1000);
-    expect(await reviews.sweepAppeals(future)).toBeGreaterThanOrEqual(1);
-    const afterSweep = await api()
+      .send({
+        reason: 'conflict_of_interest',
+        note: 'Never worked with them.',
+      });
+    expect(flag.status).toBe(201);
+    const reviews = app.get(ClientReviewsService);
+    expect(
+      await reviews.sweepAppeals(new Date(Date.now() + 31 * 24 * 3600 * 1000)),
+    ).toBe(0);
+    const stillThere = await api()
       .get(`/api/v1/clients/${cli.id}/reviews`)
       .set(cli.auth);
-    expect(afterSweep.body.data).toHaveLength(0);
+    expect(stillThere.body.data).toHaveLength(2);
+    void randomUUID;
 
     // The author deletes their own review at any time.
     const third = await api()

@@ -8,7 +8,6 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/widgets/star_rating.dart';
-import 'package:lawbid/features/profile/application/profile_providers.dart';
 
 /// "4.5" in the interface language, or "—" when there are no reviews
 /// (docs/03 §4.2 "вместо числа прочерк").
@@ -20,12 +19,32 @@ String ratingNumber(L10nFormats f, Translator t, double? average) =>
 /// One review (docs/03 §7.4): "Anna K.", stars, date, text, "Edited".
 /// No reviewer avatar — a neutral quote seal instead (client privacy).
 class ReviewCard extends ConsumerWidget {
-  const ReviewCard({required this.review, super.key, this.onReport});
+  const ReviewCard({
+    required this.review,
+    super.key,
+    this.onReport,
+    this.onHelpful,
+    this.onEdit,
+    this.onDelete,
+    this.onReply,
+    this.onDeleteReply,
+  });
 
   final Review review;
 
-  /// Shown for the reviewed attorney on their own profile (§7.2 report).
+  /// Owner 2026-10-01 (Google-style): anyone but the author flags it.
   final VoidCallback? onReport;
+
+  /// "Helpful" toggle; null = can't vote (mine / about me).
+  final VoidCallback? onHelpful;
+
+  /// My own review: edit / delete.
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
+
+  /// The reviewed attorney: write / edit / delete the public reply.
+  final VoidCallback? onReply;
+  final VoidCallback? onDeleteReply;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -114,16 +133,20 @@ class ReviewCard extends ConsumerWidget {
                       ],
                     ),
                   ),
-                  if (onReport != null)
+                  if (onReport != null ||
+                      onEdit != null ||
+                      onDelete != null ||
+                      (onReply != null && review.reply == null))
                     Semantics(
                       button: true,
-                      label: t.t('reviews.report.action'),
+                      label: t.t('reviews.menu'),
                       excludeSemantics: true,
                       child: AppPressable(
-                        onTap: onReport,
+                        key: ValueKey('review-menu-${review.id}'),
+                        onTap: () => _menu(context, t),
                         child: SizedBox.square(
                           dimension: AppSizes.touchTarget,
-                          child: Icon(Icons.flag_outlined,
+                          child: Icon(Icons.more_vert_rounded,
                               color: colors.textSecondary,
                               size: AppSizes.iconSm),
                         ),
@@ -131,15 +154,102 @@ class ReviewCard extends ConsumerWidget {
                     ),
                 ],
               ),
+              // Owner 2026-10-01: who wrote it and whether a case backs it.
+              const SizedBox(height: AppSpacing.sm),
+              Wrap(
+                spacing: AppSpacing.xs,
+                runSpacing: AppSpacing.xs,
+                children: [
+                  if (review.fromCase)
+                    ReviewBadge(
+                      label: t.t('reviews.badge.case'),
+                      icon: Icons.verified_rounded,
+                    ),
+                  ReviewBadge(label: t.t('reviews.role.${review.authorRole}')),
+                ],
+              ),
               if (body != null && body.isNotEmpty) ...[
                 const SizedBox(height: AppSpacing.md),
                 Text(body, style: typography.body.copyWith(color: colors.text)),
               ],
+              Align(
+                alignment: Alignment.centerLeft,
+                child: ReviewHelpfulButton(
+                  key: ValueKey('review-helpful-${review.id}'),
+                  count: review.helpfulCount,
+                  mine: review.helpfulByMe,
+                  onToggle: onHelpful,
+                ),
+              ),
+              if (review.reply != null)
+                ReviewReplyBlock(
+                  reply: review.reply!,
+                  replyAt: review.replyAt,
+                  ownerLabel: t.t('reviews.reply.fromAttorney'),
+                  onEdit: onReply,
+                  onDelete: onDeleteReply,
+                ),
             ],
           ),
         ),
       ),
     );
+  }
+}
+
+extension on ReviewCard {
+  Future<void> _menu(BuildContext context, Translator t) async {
+    final choice = await showAppBottomSheet<String>(
+      context: context,
+      builder: (sheet) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const AppSheetHandle(),
+            if (onReply != null && review.reply == null)
+              AppListRow(
+                key: const ValueKey('review-act-reply'),
+                icon: Icons.reply_rounded,
+                label: t.t('reviews.reply.action'),
+                onTap: () => Navigator.of(sheet).pop('reply'),
+              ),
+            if (onEdit != null)
+              AppListRow(
+                key: const ValueKey('review-act-edit'),
+                icon: Icons.edit_outlined,
+                label: t.t('reviews.edit'),
+                onTap: () => Navigator.of(sheet).pop('edit'),
+              ),
+            if (onDelete != null)
+              AppListRow(
+                key: const ValueKey('review-act-delete'),
+                icon: Icons.delete_outline_rounded,
+                label: t.t('reviews.delete'),
+                destructive: true,
+                onTap: () => Navigator.of(sheet).pop('delete'),
+              ),
+            if (onReport != null)
+              AppListRow(
+                key: const ValueKey('review-act-report'),
+                icon: Icons.flag_outlined,
+                label: t.t('reviews.report.action'),
+                onTap: () => Navigator.of(sheet).pop('report'),
+              ),
+            const SizedBox(height: AppSpacing.md),
+          ],
+        ),
+      ),
+    );
+    switch (choice) {
+      case 'reply':
+        onReply?.call();
+      case 'edit':
+        onEdit?.call();
+      case 'delete':
+        onDelete?.call();
+      case 'report':
+        onReport?.call();
+    }
   }
 }
 
@@ -477,9 +587,15 @@ class ReviewSummaryPanel extends ConsumerWidget {
               ),
               for (final v in ReviewsSort.values)
                 AppListRow(
-                  icon: v == ReviewsSort.newest
-                      ? Icons.arrow_downward_rounded
-                      : Icons.arrow_upward_rounded,
+                  key: ValueKey('reviews-sort-${v.name}'),
+                  icon: switch (v) {
+                    ReviewsSort.relevant => Icons.auto_awesome_outlined,
+                    ReviewsSort.newest => Icons.arrow_downward_rounded,
+                    ReviewsSort.oldest => Icons.arrow_upward_rounded,
+                    ReviewsSort.highest => Icons.star_rounded,
+                    ReviewsSort.lowest => Icons.star_outline_rounded,
+                    ReviewsSort.helpful => Icons.thumb_up_alt_outlined,
+                  },
                   label: t.t('reviews.sort.${v.name}'),
                   selected: v == sort,
                   showChevron: false,
@@ -546,4 +662,270 @@ Future<ReviewReportReason?> showReportReasonSheet(
       );
     },
   );
+}
+
+/// Owner 2026-10-01 (Google-style): "Helpful · 3" under a review. Off for
+/// the author and the reviewed person (they see the count only).
+class ReviewHelpfulButton extends ConsumerWidget {
+  const ReviewHelpfulButton({
+    required this.count,
+    required this.mine,
+    this.onToggle,
+    super.key,
+  });
+
+  final int count;
+
+  /// I marked it helpful.
+  final bool mine;
+
+  /// Null = can't vote (own review / about me).
+  final VoidCallback? onToggle;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final label = count > 0
+        ? t.t('reviews.helpful.count', {'n': '$count'})
+        : t.t('reviews.helpful');
+    final color = mine ? colors.goldDark : colors.textSecondary;
+    final child = Padding(
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(mine ? Icons.thumb_up_alt_rounded : Icons.thumb_up_alt_outlined,
+              size: 16, color: color),
+          const SizedBox(width: 6),
+          Text(label,
+              style: type.caption.copyWith(
+                  color: color, fontWeight: FontWeight.w600)),
+        ],
+      ),
+    );
+    if (onToggle == null) {
+      return count == 0 ? const SizedBox.shrink() : child;
+    }
+    return Semantics(
+      button: true,
+      toggled: mine,
+      label: label,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppRadii.pill),
+        onTap: onToggle,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: AppSizes.touchTarget),
+          child: Center(widthFactor: 1, child: child),
+        ),
+      ),
+    );
+  }
+}
+
+/// Owner 2026-10-01 (Google-style): the reviewed person's public reply,
+/// indented under the review; the owner may edit or delete it.
+class ReviewReplyBlock extends ConsumerWidget {
+  const ReviewReplyBlock({
+    required this.reply,
+    required this.replyAt,
+    required this.ownerLabel,
+    this.onEdit,
+    this.onDelete,
+    super.key,
+  });
+
+  final String reply;
+  final DateTime? replyAt;
+
+  /// "Response from the attorney" / "Response from the client".
+  final String ownerLabel;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final f = ref.watch(l10nFormatsProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    return Container(
+      key: const ValueKey('review-reply'),
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: AppSpacing.md),
+      padding: const EdgeInsets.fromLTRB(
+          AppSpacing.md, AppSpacing.sm, AppSpacing.sm, AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: colors.goldTint,
+        borderRadius: BorderRadius.circular(AppRadii.field),
+        border: Border(left: BorderSide(color: colors.gold, width: 2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.reply_rounded, size: 16, color: colors.goldDark),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  [
+                    ownerLabel,
+                    if (replyAt != null) f.date(replyAt!),
+                  ].join(' · '),
+                  style: type.caption.copyWith(
+                    color: colors.goldDark,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              if (onEdit != null)
+                AppIconButton(
+                  plain: true,
+                  icon: Icon(Icons.more_horiz_rounded,
+                      color: colors.textSecondary, size: 18),
+                  semanticLabel: t.t('reviews.reply.menu'),
+                  onPressed: () async {
+                    final choice = await showAppBottomSheet<String>(
+                      context: context,
+                      builder: (sheet) => SafeArea(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const AppSheetHandle(),
+                            AppListRow(
+                              icon: Icons.edit_outlined,
+                              label: t.t('reviews.reply.edit'),
+                              onTap: () => Navigator.of(sheet).pop('edit'),
+                            ),
+                            AppListRow(
+                              icon: Icons.delete_outline_rounded,
+                              label: t.t('reviews.reply.delete'),
+                              destructive: true,
+                              onTap: () => Navigator.of(sheet).pop('delete'),
+                            ),
+                            const SizedBox(height: AppSpacing.md),
+                          ],
+                        ),
+                      ),
+                    );
+                    if (choice == 'edit') onEdit?.call();
+                    if (choice == 'delete') onDelete?.call();
+                  },
+                ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(reply, style: type.bodySmall.copyWith(color: colors.text)),
+        ],
+      ),
+    );
+  }
+}
+
+/// The reply editor (≤ 1000 characters); returns the text or null.
+Future<String?> showReviewReplySheet(
+  BuildContext context, {
+  String initial = '',
+}) =>
+    showAppBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => _ReplySheet(initial: initial),
+    );
+
+class _ReplySheet extends ConsumerStatefulWidget {
+  const _ReplySheet({required this.initial});
+
+  final String initial;
+
+  @override
+  ConsumerState<_ReplySheet> createState() => _ReplySheetState();
+}
+
+class _ReplySheetState extends ConsumerState<_ReplySheet> {
+  late final _text = TextEditingController(text: widget.initial);
+
+  @override
+  void dispose() {
+    _text.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ref.watch(translatorProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+          AppSpacing.screenSide,
+          AppSpacing.md,
+          AppSpacing.screenSide,
+          AppSpacing.lg + MediaQuery.viewInsetsOf(context).bottom),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const AppSheetHandle(),
+          Text(t.t('reviews.reply.title'),
+              style: type.titleMedium.copyWith(color: colors.text)),
+          const SizedBox(height: AppSpacing.xs),
+          Text(t.t('reviews.reply.hint'),
+              style: type.bodySmall.copyWith(color: colors.textSecondary)),
+          const SizedBox(height: AppSpacing.md),
+          AppTextField(
+            key: const ValueKey('review-reply-field'),
+            controller: _text,
+            hintText: t.t('reviews.reply.placeholder'),
+            semanticLabel: t.t('reviews.reply.placeholder'),
+            maxLength: 1000,
+            maxLines: 5,
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          AppButton(
+            key: const ValueKey('review-reply-send'),
+            label: t.t('reviews.reply.send'),
+            onPressed: _text.text.trim().isEmpty
+                ? null
+                : () => Navigator.of(context).pop(_text.text.trim()),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// "Verified case" / role chip next to a reviewer's name.
+class ReviewBadge extends StatelessWidget {
+  const ReviewBadge({required this.label, this.icon, super.key});
+
+  final String label;
+  final IconData? icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 2),
+      decoration: BoxDecoration(
+        color: colors.goldTint,
+        borderRadius: BorderRadius.circular(AppRadii.pill),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 12, color: colors.goldDark),
+            const SizedBox(width: 3),
+          ],
+          Text(label, style: type.badge.copyWith(color: colors.goldDark)),
+        ],
+      ),
+    );
+  }
 }

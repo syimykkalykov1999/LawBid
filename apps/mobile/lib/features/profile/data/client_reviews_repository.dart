@@ -21,16 +21,14 @@ class ClientReviewsRepository {
     String clientId, {
     String? cursor,
     int? rating,
-    bool oldest = false,
+    ReviewsSort sort = ReviewsSort.newest,
   }) async {
     final env = await guardApiCall(
       () => _api.listClientReviews(
         id: clientId,
         cursor: cursor,
         rating: rating,
-        sort: oldest
-            ? api.ClientReviewsSort.oldest
-            : api.ClientReviewsSort.newest,
+        sort: api.ClientReviewsSort.fromJson(sort.wire),
       ),
     );
     return CursorPage(
@@ -104,17 +102,35 @@ extension OpenClientReviews on ClientReviewsRepository {
   Future<void> delete(String reviewId) =>
       guardApiCall(() => client.deleteClientReview(id: reviewId));
 
-  /// The reviewed client asks admins to remove it.
-  Future<ClientReview> appeal(String reviewId, String reason) async =>
-      ProfileMappers.clientReview(
-        (await guardApiCall(
-          () => client.appealClientReview(
+  /// Owner 2026-10-01 (Google-style): the reviewed person replies
+  /// publicly (null removes the reply).
+  Future<ClientReview> reply(String reviewId, String? body) async =>
+      ProfileMappers.clientReview((await guardApiCall(() => body == null
+              ? client.deleteClientReviewReply(id: reviewId)
+              : client.replyToClientReview(
+                  id: reviewId,
+                  body: api.ReviewReplyDto(body: body.trim()),
+                )))
+          .data);
+
+  Future<ClientReview> helpful(String reviewId, {required bool on}) async =>
+      ProfileMappers.clientReview((await guardApiCall(
+              () => client.markClientReviewHelpful(
+                    id: reviewId,
+                    body: api.ReviewHelpfulDto(helpful: on),
+                  )))
+          .data);
+
+  /// Flag against the policy → admin moderation.
+  Future<void> report(String reviewId, ReviewReportReason reason,
+          {String? note}) =>
+      guardApiCall(() => client.reportClientReview(
             id: reviewId,
-            body: api.AppealClientReviewDto(reason: reason.trim()),
-          ),
-        ))
-            .data,
-      );
+            body: api.ReportReviewDto(
+              reason: api.ReportReason.fromJson(reason.wire),
+              note: note,
+            ),
+          ));
 }
 
 final clientReviewsRepositoryProvider = Provider<ClientReviewsRepository>(
@@ -123,7 +139,11 @@ final clientReviewsRepositoryProvider = Provider<ClientReviewsRepository>(
 
 /// Which client's reviews, filtered by stars and ordered by date — the
 /// same controls as the attorney's Reviews tab (owner 2026-09-30).
-typedef ClientReviewsKey = ({String clientId, int? rating, bool oldest});
+typedef ClientReviewsKey = ({
+  String clientId,
+  int? rating,
+  ReviewsSort sort,
+});
 
 class ClientReviewsNotifier extends PagedNotifier<ClientReview> {
   ClientReviewsNotifier(this.key);
@@ -136,7 +156,7 @@ class ClientReviewsNotifier extends PagedNotifier<ClientReview> {
             key.clientId,
             cursor: cursor,
             rating: key.rating,
-            oldest: key.oldest,
+            sort: key.sort,
           );
 
   @override

@@ -15,10 +15,10 @@ class AdminReviewRowDto {
     required this.rating,
     required this.attorneyName,
     required this.clientName,
-    required this.caseTitle,
     required this.status,
     required this.createdAt,
     this.body,
+    this.caseTitle,
   });
 
   factory AdminReviewRowDto.fromJson(Map<String, Object?> json) =>
@@ -29,7 +29,9 @@ class AdminReviewRowDto {
   final String? body;
   final String attorneyName;
   final String clientName;
-  final String caseTitle;
+
+  /// null = an open review (no shared case, owner 2026-10-01).
+  final String? caseTitle;
   final AdminReviewRowDtoStatus status;
   final String createdAt;
 

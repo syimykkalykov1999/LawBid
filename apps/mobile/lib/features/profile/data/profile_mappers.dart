@@ -124,6 +124,13 @@ abstract final class ProfileMappers {
         authorDisplayName: d.authorDisplayName,
         createdAt: d.createdAt,
         editedAt: d.editedAt,
+        fromCase: d.fromCase,
+        authorRole: d.authorRole.json ?? 'client',
+        reply: d.reply,
+        replyAt: d.replyAt,
+        helpfulCount: d.helpfulCount,
+        helpfulByMe: d.helpfulByMe,
+        isMine: d.isMine,
       );
 
   static Review ownReview(api.ReviewDto d) => Review(
@@ -135,6 +142,13 @@ abstract final class ProfileMappers {
         editedAt: d.editedAt,
         editableUntil: d.editableUntil,
         editable: d.editable,
+        fromCase: d.fromCase,
+        authorRole: d.authorRole.json ?? 'client',
+        reply: d.reply,
+        replyAt: d.replyAt,
+        helpfulCount: d.helpfulCount,
+        helpfulByMe: d.helpfulByMe,
+        isMine: true,
       );
 
   static PublicClientProfile publicClient(api.PublicClientProfileDto d) =>
@@ -173,8 +187,15 @@ abstract final class ProfileMappers {
         isMine: d.isMine,
         createdAt: DateTime.parse(d.createdAt).toLocal(),
         authorIsClient: d.attorney.role == api.ClientReviewAuthorDtoRole.client,
-        canAppeal: d.canAppeal,
+        canAppeal: false,
         appealStatus: d.appealStatus?.json,
+        authorRole: d.attorney.role.json ?? 'attorney',
+        canReply: d.canReply,
+        reply: d.reply,
+        replyAt: d.replyAt?.toLocal(),
+        helpfulCount: d.helpfulCount.toInt(),
+        helpfulByMe: d.helpfulByMe,
+        editedAt: d.editedAt?.toLocal(),
       );
 
   static ClientProfileDetails client(api.ClientProfileDto d) =>
