@@ -20,8 +20,8 @@ import { RealtimePublisher } from '../realtime/realtime-publisher.service';
 import { SubscriptionAccessService } from '../subscriptions/subscription-access.service';
 import type { CallDto, EndCallDto, IceServersDto } from './calls.dto';
 
-/** Unanswered after this → missed (the app gives up at 45 s). */
-export const CALL_RING_TIMEOUT_MS = 60_000;
+/** Unanswered after this → missed (the app gives up at 30 s). */
+export const CALL_RING_TIMEOUT_MS = 40_000;
 /** A call nobody ended (both apps died) is closed after this. */
 export const CALL_MAX_ACTIVE_MS = 4 * 60 * 60 * 1000;
 const LIVE: CallStatus[] = ['ringing', 'active'];

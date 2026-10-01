@@ -1001,6 +1001,10 @@ class _ComposerState extends ConsumerState<_Composer> {
 
   bool _recording = false;
   bool _locked = false;
+
+  /// The finger is on the mic. Starting the recorder takes a moment; a
+  /// quick tap may lift the finger before it runs — then nothing records.
+  bool _pressed = false;
   Offset _drag = Offset.zero;
   final List<double> _levels = [];
   StreamSubscription<double>? _levelSub;
@@ -1030,6 +1034,12 @@ class _ComposerState extends ConsumerState<_Composer> {
     if (!mounted) return;
     if (!ok) {
       showAppSnackBar(context, t.t('chat.voice.noMic'));
+      return;
+    }
+    if (!_pressed) {
+      // Released before the recorder started: a tap, not a hold.
+      await _rec.cancel();
+      if (mounted) showAppSnackBar(context, t.t('chat.voice.hold'));
       return;
     }
     _levels.clear();
@@ -1263,12 +1273,17 @@ class _ComposerState extends ConsumerState<_Composer> {
                           ),
                         ),
                       Listener(
-                        onPointerDown: (_) => _start(),
+                        onPointerDown: (_) {
+                          _pressed = true;
+                          unawaited(_start());
+                        },
                         onPointerMove: _onMove,
                         onPointerUp: (_) {
+                          _pressed = false;
                           if (!_locked) unawaited(_finish(send: true));
                         },
                         onPointerCancel: (_) {
+                          _pressed = false;
                           if (!_locked) unawaited(_finish(send: false));
                         },
                         child: Transform.translate(

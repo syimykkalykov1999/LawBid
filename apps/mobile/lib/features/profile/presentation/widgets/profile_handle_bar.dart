@@ -32,10 +32,11 @@ class ProfileHandleBar extends StatelessWidget implements PreferredSizeWidget {
     final text = handle == null || handle!.isEmpty ? '' : '@$handle';
     return Container(
       color: colors.bg,
+      // Owner 2026-09-30: arrow / logo and icons near the edges.
       padding: EdgeInsets.fromLTRB(
-        AppSpacing.screenSide - AppSpacing.xs,
+        AppSpacing.xs,
         topInset,
-        AppSpacing.screenSide - AppSpacing.xs,
+        AppSpacing.xs,
         0,
       ),
       height: preferredSize.height + topInset,

@@ -757,3 +757,19 @@ Differs from OQ-014 / docs/04 §9 (chats only from a case).
   call, so what they agree with a client is their business). While a
   request is pending: contacts masked, no calls. Case chats keep docs/04:
   masked, no calls until the bid is accepted. Blocks apply everywhere.
+
+## OQ-044 — App sounds, call tones, ring timeout, tighter top bars (owner, 2026-09-30)
+
+- Calls: the caller hears ringback tones (like a real phone) while it rings
+  there; "busy" beeps when the other side is in a call; a calm two-note
+  tone when a call ends. An unanswered call ends by itself after 30 s
+  (about six rings); the server marks forgotten ones missed after 40 s.
+- Chats: a soft two-note chime for the other side's message in an open,
+  unmuted chat; a short soft "tick" when you send (text or voice).
+- Pushes and the incoming-call screen keep the phone's own sounds.
+- Sounds are generated in-house (no third-party files), calm and warm,
+  in `assets/sounds/`.
+- A quick tap on the mic no longer records by itself (only a hold does).
+- Top bars: the back arrow and right-hand icons sit near the screen edges
+  (chat, profiles, every screen with a back arrow); welcome/login screens
+  untouched.

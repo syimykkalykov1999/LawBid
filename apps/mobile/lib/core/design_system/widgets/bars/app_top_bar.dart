@@ -31,10 +31,15 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
     final topInset = MediaQuery.paddingOf(context).top;
     return Container(
       color: colors.bg,
+      // Owner 2026-09-30: the back arrow and the right-hand icons sit near
+      // the edges (their 48 pt tap targets already give breathing room);
+      // a bare title keeps the screen margin.
       padding: EdgeInsets.fromLTRB(
-        AppSpacing.screenSide,
+        leading != null ? AppSpacing.xs : AppSpacing.screenSide,
         topInset,
-        AppSpacing.screenSide,
+        actions != null && actions!.isNotEmpty
+            ? AppSpacing.xs
+            : AppSpacing.screenSide,
         0,
       ),
       height: preferredSize.height + topInset,

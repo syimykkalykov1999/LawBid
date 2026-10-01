@@ -12,6 +12,7 @@ branch cursor/stage-X-Y-description).
 - In-app audio calls (OQ-041): `calls` API, signaling relay, TURN (coturn), missed-call notifications, call log in chats; app call screen, CallKit incoming UI, push ringing; e2e `owner-calls`, unit tests for the call state machine.
 - @username mentions (OQ-042): suggestions while typing "@", tappable mentions in posts/comments, `mention` notifications; e2e `owner-mentions`.
 - Direct chats and message requests (OQ-043): "Message" on profiles, Requests folder with count, accept/delete/block, 3-message limit, hidden Seen; e2e `owner-direct-chats`.
+- Sounds (OQ-044): ringback/busy/end tones, 30 s auto end, message chimes; mic quick-tap fix; tighter top bars (goldens updated).
 - `docs/REMAINING.md`: what is left after checking every owner request against the code.
 
 ## Owner pass 6 (2026-09-30) — OQ-035…039

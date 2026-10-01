@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:lawbid/core/audio/app_sounds.dart';
 import 'package:lawbid/core/connectivity/connectivity_providers.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
@@ -353,6 +354,8 @@ class ChatThread extends Notifier<ChatThreadState> {
           conversationId: id,
           body: body,
         );
+    // OQ-044: a quick "sent" pop, like Telegram.
+    unawaited(ref.read(appSoundsProvider).messageOut());
     unawaited(ref.read(outboxSenderProvider).drain());
   }
 
@@ -383,6 +386,7 @@ class ChatThread extends Notifier<ChatThreadState> {
       ),
     );
     state = state.copyWith(voiceOutbox: [...state.voiceOutbox, local]);
+    unawaited(ref.read(appSoundsProvider).messageOut());
     await _uploadVoice(local);
   }
 
@@ -577,6 +581,16 @@ class ChatThread extends Notifier<ChatThreadState> {
       case 'message:new':
         final m = ChatMappers.fromEvent(data);
         if (m != null && m.conversationId == id) {
+          // OQ-044: a soft chime for the other side's message in an open,
+          // unmuted chat (not for our own echo or call entries).
+          final mine = m.senderId == ref.read(currentUserIdProvider);
+          final known = state.messages.any((x) => x.id == m.id);
+          if (!mine &&
+              !known &&
+              m.kind != MessageKind.call &&
+              !(state.conversation?.muted ?? false)) {
+            unawaited(ref.read(appSoundsProvider).messageIn());
+          }
           _merge([m]);
           if (state.typing) state = state.copyWith(typing: false);
         }

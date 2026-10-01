@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lawbid/core/audio/app_sounds.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/call_media.dart';
@@ -133,12 +134,29 @@ class _FakeMedia implements CallMedia {
   Future<void> close() async => closed = true;
 }
 
+class _Sounds implements AppSounds {
+  final played = <String>[];
+  @override
+  Future<void> startRingback() async => played.add('ringback');
+  @override
+  Future<void> stopRingback() async => played.add('stop');
+  @override
+  Future<void> busy() async => played.add('busy');
+  @override
+  Future<void> callEnded() async => played.add('end');
+  @override
+  Future<void> messageIn() async => played.add('in');
+  @override
+  Future<void> messageOut() async => played.add('out');
+}
+
 class _Harness {
   _Harness() {
     container = ProviderContainer(overrides: [
       callsRepositoryProvider.overrideWithValue(repo),
       callMediaFactoryProvider.overrideWithValue(() => media),
       realtimeEventsProvider.overrideWithValue(events.stream),
+      appSoundsProvider.overrideWithValue(sounds),
       callSignalSenderProvider.overrideWithValue((id, data) async {
         signals.add(data);
         return true;
@@ -148,6 +166,7 @@ class _Harness {
   }
 
   final repo = _FakeRepo();
+  final sounds = _Sounds();
   final media = _FakeMedia();
   final events = StreamController<RealtimeEvent>.broadcast();
   final signals = <Map<String, Object?>>[];
@@ -157,8 +176,7 @@ class _Harness {
   CallController get c => container.read(callControllerProvider.notifier);
   CallSession get s => container.read(callControllerProvider);
 
-  void emit(String name, Object? data) =>
-      events.add(RealtimeEvent(name, data));
+  void emit(String name, Object? data) => events.add(RealtimeEvent(name, data));
 
   Future<void> dispose() async {
     sub.close();
@@ -179,6 +197,8 @@ void main() {
     await h.c.call('conv', peer: _peer);
     expect(h.s.phase, CallPhase.outgoing);
     expect(h.media.opened, isTrue);
+    // OQ-044: ringback while it rings there.
+    expect(h.sounds.played, ['ringback']);
 
     h.emit('call:accepted',
         _event(_call('c1', CallStatus.active, outgoing: true)));
@@ -218,6 +238,7 @@ void main() {
     expect(h.s.outcome, CallStatus.ended);
     expect(h.repo.ends, [CallEndReason.hangup]);
     expect(h.media.closed, isTrue);
+    expect(h.sounds.played, ['ringback', 'stop', 'end']);
   });
 
   test('ringing in: accept answers the offer', () async {
@@ -259,8 +280,7 @@ void main() {
     expect(h.s.outcome, CallStatus.declined);
   });
 
-  test('picked up on another of my devices: this one stops ringing',
-      () async {
+  test('picked up on another of my devices: this one stops ringing', () async {
     final h = _Harness();
     addTearDown(h.dispose);
     h.emit('call:incoming',
@@ -278,6 +298,7 @@ void main() {
     await busy.c.call('conv');
     expect(busy.s.phase, CallPhase.ended);
     expect(busy.s.outcome, CallStatus.busy);
+    expect(busy.sounds.played, ['busy']);
 
     final refused = _Harness()
       ..repo.refuse = const ApiException(

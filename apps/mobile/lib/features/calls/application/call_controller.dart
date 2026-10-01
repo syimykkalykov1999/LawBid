@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:lawbid/core/audio/app_sounds.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/calls/application/call_media.dart';
 import 'package:lawbid/features/calls/data/calls_repository.dart';
@@ -115,8 +116,9 @@ class NoSystemCallUi implements SystemCallUi {
 final systemCallUiProvider =
     Provider<SystemCallUi>((ref) => const NoSystemCallUi());
 
-/// The caller gives up after this (the server marks it missed at 60 s).
-const kCallRingTimeout = Duration(seconds: 45);
+/// The caller gives up after this — about six rings (owner 2026-09-30);
+/// the server marks a forgotten call missed a little later.
+const kCallRingTimeout = Duration(seconds: 30);
 
 /// The link must come up this fast after pick-up, else "failed".
 const kCallConnectTimeout = Duration(seconds: 25);
@@ -165,6 +167,8 @@ class CallController extends Notifier<CallSession> {
         return;
       }
       state = state.copyWith(call: call, peer: call.peer);
+      // OQ-044: the caller hears ringback tones while it rings there.
+      unawaited(ref.read(appSoundsProvider).startRingback());
       // Mic + connection ready while it rings: pick-up connects faster.
       await _openMedia(call.id);
       _ringTimer = Timer(kCallRingTimeout, () {
@@ -352,6 +356,7 @@ class CallController extends Notifier<CallSession> {
         if (call == null || call.id != state.call?.id) return;
         if (call.outgoing && state.phase == CallPhase.outgoing) {
           _ringTimer?.cancel();
+          unawaited(ref.read(appSoundsProvider).stopRingback());
           state = state.copyWith(phase: CallPhase.connecting, call: call);
           _armConnectTimeout();
           unawaited(_sendOffer(call.id));
@@ -407,7 +412,17 @@ class CallController extends Notifier<CallSession> {
   }
 
   void _finish(CallStatus outcome, {AppCall? call}) {
+    final wasCalling = state.busy;
     _reset();
+    // OQ-044: "busy" beeps, or the short end-of-call tone.
+    final sounds = ref.read(appSoundsProvider);
+    if (outcome == CallStatus.busy) {
+      unawaited(sounds.busy());
+    } else if (wasCalling) {
+      unawaited(sounds.callEnded());
+    } else {
+      unawaited(sounds.stopRingback());
+    }
     if (!ref.mounted) return;
     state = state.copyWith(
       phase: CallPhase.ended,
