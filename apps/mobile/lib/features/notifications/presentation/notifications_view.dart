@@ -19,6 +19,8 @@ import 'package:lawbid/features/social/social_routes.dart';
 import 'package:lawbid/features/subscription/subscription_routes.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
+import 'package:lawbid/features/team/presentation/assistant_activity_list.dart';
+import 'package:lawbid/features/team/application/team_providers.dart';
 
 /// Where a notification (or its push) leads (docs/05 §9.2); null = no
 /// target screen (a sheet with the text is shown instead).
@@ -156,12 +158,61 @@ IconData _icon(AppNotification n) => switch (n.type) {
 /// docs/05 §9.1 notifications: newest first, grouped "Сегодня", "На этой
 /// неделе", "Раньше"; a gold dot marks unread; a tap opens the target and
 /// marks the row read.
-class NotificationsView extends ConsumerWidget {
+class NotificationsView extends ConsumerStatefulWidget {
   const NotificationsView({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<NotificationsView> createState() => _NotificationsViewState();
+
+  static String _group(DateTime at) {
+    final now = DateTime.now();
+    final d = at.toLocal();
+    if (DateUtils.isSameDay(d, now)) return 'today';
+    if (now.difference(d).inDays < 7) return 'week';
+    return 'earlier';
+  }
+}
+
+class _NotificationsViewState extends ConsumerState<NotificationsView> {
+  /// Owner 2026-10-01: the assistants' activity lives under the bell.
+  bool _assistants = false;
+
+  @override
+  Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
+    final team = ref.watch(currentUserRoleProvider) == UserRole.attorney &&
+        !ref.watch(isAssistantProvider);
+    final list =
+        team && _assistants ? const AssistantActivityList() : _list(context, t);
+    if (!team) return list;
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+          child: Wrap(
+            spacing: AppSpacing.sm,
+            children: [
+              AppChip(
+                key: const ValueKey('notif-view-all'),
+                label: t.t('notif.view.all'),
+                selected: !_assistants,
+                onTap: () => setState(() => _assistants = false),
+              ),
+              AppChip(
+                key: const ValueKey('notif-view-assistants'),
+                label: t.t('notif.view.assistants'),
+                selected: _assistants,
+                onTap: () => setState(() => _assistants = true),
+              ),
+            ],
+          ),
+        ),
+        Expanded(child: list),
+      ],
+    );
+  }
+
+  Widget _list(BuildContext context, Translator t) {
     final value = ref.watch(notificationsProvider);
     final n = ref.read(notificationsProvider.notifier);
     return PagedListBody<AppNotification>(
@@ -170,8 +221,9 @@ class NotificationsView extends ConsumerWidget {
       itemKey: (x) => x.id,
       itemBuilder: (context, x, i) {
         final items = value.value?.items ?? const <AppNotification>[];
-        final group = _group(x.createdAt);
-        final first = i == 0 || _group(items[i - 1].createdAt) != group;
+        final group = NotificationsView._group(x.createdAt);
+        final first =
+            i == 0 || NotificationsView._group(items[i - 1].createdAt) != group;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -189,14 +241,6 @@ class NotificationsView extends ConsumerWidget {
       onRetryMore: n.retryLoadMore,
     );
   }
-
-  static String _group(DateTime at) {
-    final now = DateTime.now();
-    final d = at.toLocal();
-    if (DateUtils.isSameDay(d, now)) return 'today';
-    if (now.difference(d).inDays < 7) return 'week';
-    return 'earlier';
-  }
 }
 
 class _GroupHeader extends StatelessWidget {
@@ -211,8 +255,8 @@ class _GroupHeader extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(top: AppSpacing.sm, bottom: AppSpacing.sm),
       child: Text(label,
-          style: type.bodySmall.copyWith(
-              color: colors.textSecondary, fontWeight: FontWeight.w600)),
+          style: type.body
+              .copyWith(color: colors.text, fontWeight: FontWeight.w700)),
     );
   }
 }
@@ -266,64 +310,131 @@ class _NotificationRow extends ConsumerWidget {
             );
           }
         },
+        // Owner 2026-10-01: the same card as the assistants' activity —
+        // a navy medallion with a gold glyph (or the person's photo with
+        // the glyph as a badge), the time on the right; unread = a gold
+        // rule on the left and a gold dot.
         child: Container(
-          padding: const EdgeInsets.all(AppSpacing.md),
+          margin: const EdgeInsets.only(bottom: AppSpacing.sm),
           decoration: BoxDecoration(
-            color: n.unread ? colors.goldTint : colors.surface,
+            color: colors.surface,
             borderRadius: BorderRadius.circular(AppRadii.card),
-            border:
-                Border.all(color: n.unread ? colors.goldStroke : colors.border),
+            border: Border.all(
+              color: n.unread ? colors.goldStroke : colors.border,
+            ),
           ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (n.actor?.avatarUrl != null)
-                GoldRingAvatar(
-                  url: n.actor!.avatarUrl,
-                  initials: n.actor!.displayName.isEmpty
-                      ? '?'
-                      : n.actor!.displayName.substring(0, 1).toUpperCase(),
-                  size: 44,
-                )
-              else
+          clipBehavior: Clip.antiAlias,
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
                 Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: colors.accent,
+                  width: 3,
+                  color: n.unread ? colors.gold : Colors.transparent,
+                ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppSpacing.md),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _Medallion(n: n),
+                        const SizedBox(width: AppSpacing.md),
+                        Expanded(
+                          child: Text(
+                            text,
+                            style: type.bodySmall.copyWith(
+                              color: colors.text,
+                              height: 1.35,
+                              fontWeight:
+                                  n.unread ? FontWeight.w600 : FontWeight.w400,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.sm),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              SocialFormat.ago(t, f, n.createdAt),
+                              style: type.caption
+                                  .copyWith(color: colors.textSecondary),
+                            ),
+                            if (n.unread) ...[
+                              const SizedBox(height: 6),
+                              Container(
+                                width: 8,
+                                height: 8,
+                                decoration: BoxDecoration(
+                                  color: colors.gold,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                  child: AppIcon(_icon(n), size: 20, color: colors.gold),
                 ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(text,
-                        style: type.bodySmall.copyWith(
-                          color: colors.text,
-                          fontWeight:
-                              n.unread ? FontWeight.w600 : FontWeight.w400,
-                        )),
-                    const SizedBox(height: 2),
-                    Text(SocialFormat.ago(t, f, n.createdAt),
-                        style:
-                            type.caption.copyWith(color: colors.textSecondary)),
-                  ],
-                ),
-              ),
-              if (n.unread)
-                Container(
-                  width: 9,
-                  height: 9,
-                  margin: const EdgeInsets.only(top: 6, left: AppSpacing.sm),
-                  decoration:
-                      BoxDecoration(color: colors.gold, shape: BoxShape.circle),
-                ),
-            ],
+              ],
+            ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// The navy glyph medallion, or the actor's photo with the glyph badge.
+class _Medallion extends StatelessWidget {
+  const _Medallion({required this.n});
+
+  final AppNotification n;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final glyph = Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        color: colors.navy,
+        borderRadius: BorderRadius.circular(AppRadii.field),
+        border: Border.all(color: colors.goldStroke),
+      ),
+      child: AppIcon(_icon(n), size: 20, color: colors.gold),
+    );
+    final actor = n.actor;
+    if (actor?.avatarUrl == null) return glyph;
+    return SizedBox(
+      width: 44,
+      height: 44,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          GoldRingAvatar(
+            url: actor!.avatarUrl,
+            initials: actor.displayName.isEmpty
+                ? '?'
+                : actor.displayName.substring(0, 1).toUpperCase(),
+            size: 40,
+          ),
+          Positioned(
+            right: -2,
+            bottom: -2,
+            child: Container(
+              width: 20,
+              height: 20,
+              decoration: BoxDecoration(
+                color: colors.navy,
+                shape: BoxShape.circle,
+                border: Border.all(color: colors.surface, width: 2),
+              ),
+              child: AppIcon(_icon(n), size: 11, color: colors.gold),
+            ),
+          ),
+        ],
       ),
     );
   }

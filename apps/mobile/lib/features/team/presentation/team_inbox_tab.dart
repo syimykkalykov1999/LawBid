@@ -9,11 +9,9 @@ import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/features/team/presentation/team_widgets.dart';
 
-enum _TeamView { requests, activity }
-
 /// OQ-048 (owner 2026-09-30) — Inbox → «Команда» (the attorney only):
 /// approval requests from assistants (approve publishes in the attorney's
-/// name) and the hidden log of everything the assistants did.
+/// name). The log of what assistants did lives under the bell.
 class TeamInboxTab extends ConsumerStatefulWidget {
   const TeamInboxTab({super.key});
 
@@ -22,7 +20,6 @@ class TeamInboxTab extends ConsumerStatefulWidget {
 }
 
 class _TeamInboxTabState extends ConsumerState<TeamInboxTab> {
-  _TeamView _view = _TeamView.requests;
   final Set<String> _busy = {};
 
   Future<void> _decide(AssistantRequest r, {required bool approve}) async {
@@ -61,43 +58,15 @@ class _TeamInboxTabState extends ConsumerState<TeamInboxTab> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     return Column(
       children: [
-        // Owner 2026-10-01: Requests · Activity centred; the team settings
-        // live in the header where the bell is in Chats.
-        Padding(
-          padding: const EdgeInsets.only(
-            top: AppSpacing.xs,
-            bottom: AppSpacing.sm,
-          ),
-          child: Wrap(
-            alignment: WrapAlignment.center,
-            spacing: AppSpacing.sm,
-            runSpacing: AppSpacing.xs,
-            children: [
-              AppChip(
-                key: const ValueKey('team-view-requests'),
-                label: t.t('team.requests'),
-                selected: _view == _TeamView.requests,
-                onTap: () => setState(() => _view = _TeamView.requests),
-              ),
-              AppChip(
-                key: const ValueKey('team-view-activity'),
-                label: t.t('team.activity'),
-                selected: _view == _TeamView.activity,
-                onTap: () => setState(() => _view = _TeamView.activity),
-              ),
-            ],
-          ),
-        ),
+        // Owner 2026-10-01: Team holds only the requests; the assistants'
+        // activity moved to the bell (one place for everything).
+        const SizedBox(height: AppSpacing.sm),
         Expanded(
           child: RefreshIndicator(
             color: colors.gold,
             backgroundColor: colors.surface,
-            onRefresh: () => _view == _TeamView.requests
-                ? ref.read(teamRequestsProvider.notifier).refresh()
-                : ref.read(teamActivityProvider.notifier).refresh(),
-            child: _view == _TeamView.requests
-                ? _requests(t, formats)
-                : _activity(t, formats),
+            onRefresh: () => ref.read(teamRequestsProvider.notifier).refresh(),
+            child: _requests(t, formats),
           ),
         ),
       ],
@@ -153,60 +122,6 @@ class _TeamInboxTabState extends ConsumerState<TeamInboxTab> {
               onApprove: () => _decide(r, approve: true),
               onReject: () => _decide(r, approve: false),
             ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _activity(Object? _, L10nFormats formats) {
-    final value = ref.watch(teamActivityProvider);
-    final items = value.value?.items ?? const <ActivityEntry>[];
-    final tr = ref.read(translatorProvider);
-    if (value.isLoading && items.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    if (items.isEmpty) {
-      return PullableState(
-        child: AppEmptyState(
-          icon: AppIcons.historyRounded,
-          message: tr.t('team.activity.empty'),
-        ),
-      );
-    }
-    return NotificationListener<ScrollNotification>(
-      onNotification: (n) {
-        if (n.metrics.extentAfter < 400) {
-          ref.read(teamActivityProvider.notifier).loadMore();
-        }
-        return false;
-      },
-      child: ListView.builder(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.screenSide,
-          0,
-          AppSpacing.screenSide,
-          AppSpacing.xxl,
-        ),
-        itemCount: items.length,
-        itemBuilder: (_, i) {
-          final day = DateUtils.dateOnly(items[i].createdAt.toLocal());
-          final prev = i == 0
-              ? null
-              : DateUtils.dateOnly(items[i - 1].createdAt.toLocal());
-          final today = DateUtils.dateOnly(DateTime.now());
-          final label = day == today
-              ? tr.t('tasks.today')
-              : day == today.subtract(const Duration(days: 1))
-                  ? tr.t('tasks.yesterday')
-                  : formats.dateLong(day);
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (prev != day) ActivityDayHeader(label: label),
-              ActivityRow(entry: items[i], t: tr, formats: formats),
-            ],
           );
         },
       ),
