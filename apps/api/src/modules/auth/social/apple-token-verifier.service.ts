@@ -1,9 +1,11 @@
 import {
   Injectable,
+  Optional,
   ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { SecretsService } from '../../../common/secrets/secrets.service';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import type {
@@ -34,15 +36,27 @@ export class AppleTokenVerifier implements SocialTokenVerifier {
   private readonly jwks = createRemoteJWKSet(
     new URL('https://appleid.apple.com/auth/keys'),
   );
-  private readonly bundleIds: string[];
+  constructor(
+    private readonly config: ConfigService,
+    @Optional() private readonly secrets?: SecretsService,
+  ) {}
 
-  constructor(private readonly config: ConfigService) {
-    const raw = this.config.get<string>('APPLE_BUNDLE_IDS');
-    this.bundleIds = raw ? raw.split(',').map((s) => s.trim()) : [];
+  /** Owner 2026-10-01: the bundle ids can be changed in the admin. */
+  private async bundleIds(): Promise<string[]> {
+    const raw =
+      (await this.secrets?.field('apple_signin', 'bundleIds')) ??
+      this.config.get<string>('APPLE_BUNDLE_IDS');
+    return raw
+      ? raw
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : [];
   }
 
   async verify(idToken: string, rawNonce: string): Promise<SocialVerifyResult> {
-    if (this.bundleIds.length === 0) {
+    const bundleIds = await this.bundleIds();
+    if (bundleIds.length === 0) {
       throw new ServiceUnavailableException({
         code: ErrorCode.AUTH_PROVIDER_DISABLED,
         message: 'Apple sign-in is not configured (APPLE_BUNDLE_IDS is empty).',
@@ -53,7 +67,7 @@ export class AppleTokenVerifier implements SocialTokenVerifier {
     try {
       const result = await jwtVerify(idToken, this.jwks, {
         issuer: 'https://appleid.apple.com',
-        audience: this.bundleIds,
+        audience: bundleIds,
       });
       payload = result.payload;
     } catch {

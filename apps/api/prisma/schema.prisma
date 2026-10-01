@@ -330,6 +330,8 @@ enum ContentStatus {
   published
   hidden
   removed
+  /// Owner 2026-10-01: a video post whose video is still encoding.
+  processing
 
   @@map("content_status")
 }
@@ -604,6 +606,7 @@ model User {
   suspended_reason        String?
   last_active_at          DateTime?               @db.Timestamptz
   integration_credentials IntegrationCredential[] @relation("IntegrationCredentialCreator")
+  video_assets            VideoAsset[]            @relation("VideoAssetOwner")
   /// Owner 2026-10-01: others see "online / last seen" (reciprocal).
   show_activity_status    Boolean                 @default(true)
   deletion_requested_at   DateTime?               @db.Timestamptz
@@ -1507,6 +1510,9 @@ model Post {
   practice_area_id String?                  @db.Uuid
   practice_area    PracticeArea?            @relation(fields: [practice_area_id], references: [id], onDelete: Restrict)
   kind             PostKind                 @default(post)
+  /// Owner 2026-10-01: the post's video (Bunny Stream), one per post.
+  video_asset_id   String?                  @unique @db.Uuid
+  video_asset      VideoAsset?              @relation(fields: [video_asset_id], references: [id], onDelete: SetNull)
   language         String?
   status           ContentStatus            @default(published)
   like_count       Int                      @default(0)
@@ -2533,4 +2539,41 @@ model IntegrationCredential {
 
   @@unique([provider, version])
   @@map("integration_credentials")
+}
+
+/// Owner 2026-10-01: Bunny Stream video of a post.
+enum VideoAssetStatus {
+  awaiting_upload
+  processing
+  ready
+  failed
+  rejected
+  deleted
+
+  @@map("video_asset_status")
+}
+
+model VideoAsset {
+  id                String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  owner_user_id     String           @db.Uuid
+  owner             User             @relation("VideoAssetOwner", fields: [owner_user_id], references: [id], onDelete: Cascade)
+  provider          String           @default("bunny")
+  library_id        String
+  external_id       String           @unique
+  status            VideoAssetStatus @default(awaiting_upload)
+  duration_sec      Int?
+  width             Int?
+  height            Int?
+  storage_bytes     BigInt?
+  failure_reason    String?
+  upload_expires_at DateTime         @db.Timestamptz
+  created_at        DateTime         @default(now()) @db.Timestamptz
+  ready_at          DateTime?        @db.Timestamptz
+  deleted_at        DateTime?        @db.Timestamptz
+  purged_at         DateTime?        @db.Timestamptz
+  post              Post?
+
+  @@index([status, created_at])
+  @@index([owner_user_id, created_at(sort: Desc)])
+  @@map("video_assets")
 }

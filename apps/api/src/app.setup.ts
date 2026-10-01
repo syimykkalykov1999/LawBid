@@ -36,6 +36,7 @@ export function shouldExposeApiDocs(nodeEnv: AppEnv['NODE_ENV']): boolean {
  * function so test/security-hardening.e2e-spec.ts exercises the exact
  * production wiring instead of a hand-copied approximation of it.
  */
+import { SecretsService } from './common/secrets/secrets.service';
 export function configureApp(
   app: NestExpressApplication,
   options: ConfigureAppOptions = {},
@@ -109,14 +110,26 @@ export function configureApp(
 
   // docs/06 §4.3: Sentry only when a DSN is set; personal data is
   // scrubbed before anything leaves the process.
-  const dsn = config.get<string>('SENTRY_DSN');
-  if (dsn) {
+  const startSentry = (dsn: string) =>
     Sentry.init({
       dsn,
       environment: nodeEnv,
       tracesSampleRate: 0,
       beforeSend: scrubSentryEvent,
     });
+  const dsn = config.get<string>('SENTRY_DSN');
+  if (dsn) {
+    startSentry(dsn);
+  } else {
+    // Owner 2026-10-01: or the DSN saved in Admin → Integrations (read
+    // once at start — a change applies after a restart).
+    const secrets = app.get(SecretsService, { strict: false });
+    void secrets
+      ?.field('sentry', 'dsn')
+      .then((d) => {
+        if (d) startSentry(d);
+      })
+      .catch(() => undefined);
   }
 
   app.useGlobalPipes(

@@ -94,6 +94,7 @@ export class DynamicSmsProvider implements SmsProvider {
       return this.mock.send(toE164, code);
     }
     if (this.cached?.fingerprint !== c.fingerprint) {
+      // (the Android hash is part of the bundle fingerprint)
       this.cached = {
         fingerprint: c.fingerprint,
         provider: new TwilioSmsProvider(
@@ -104,7 +105,7 @@ export class DynamicSmsProvider implements SmsProvider {
             messagingServiceSid: f.messagingServiceSid,
           },
           this.logger,
-          this.config.get<string>('SMS_ANDROID_APP_HASH'),
+          f.androidAppHash ?? this.config.get<string>('SMS_ANDROID_APP_HASH'),
         ),
       };
     }

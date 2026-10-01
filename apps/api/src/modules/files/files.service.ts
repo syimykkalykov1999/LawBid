@@ -7,6 +7,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
@@ -63,6 +64,7 @@ const intentKey = (fileId: string): string => `files:upload:${fileId}`;
  * 3. attach — other modules call assertAttachable(): only the owner's
  *    `clean` file of the right purpose passes.
  */
+import { SecretsService } from '../../common/secrets/secrets.service';
 @Injectable()
 export class FilesService {
   constructor(
@@ -76,6 +78,7 @@ export class FilesService {
     private readonly scans: FileScanRunner,
     private readonly logger: PinoLogger,
     private readonly flags: FeatureFlagsService,
+    @Optional() private readonly secrets?: SecretsService,
   ) {
     this.logger.setContext(FilesService.name);
   }
@@ -587,9 +590,12 @@ export class FilesService {
    * deployed environments (`MEDIA_CDN_BASE_URL`, private bucket behind an
    * origin access control); dev/e2e without a CDN keep short-lived signed
    * S3 links. Documents never take this path. */
-  private mediaLink(bucket: string, key: string): Promise<string> {
-    const cdn = this.config.get<string>('MEDIA_CDN_BASE_URL');
-    if (cdn) return Promise.resolve(cdn + '/' + key);
+  private async mediaLink(bucket: string, key: string): Promise<string> {
+    // Owner 2026-10-01: the CDN can be set in Admin → Integrations → Storage.
+    const cdn =
+      (await this.secrets?.field('storage', 'cdnBaseUrl')) ??
+      this.config.get<string>('MEDIA_CDN_BASE_URL');
+    if (cdn) return cdn + '/' + key;
     return this.storage.signedGetUrl(bucket, key, MEDIA_SIGNED_URL_TTL_SEC);
   }
 

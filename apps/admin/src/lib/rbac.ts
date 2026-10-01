@@ -49,6 +49,7 @@ export const SECTIONS: readonly Section[] = [
   { href: '/broadcasts', label: 'Рассылки', roles: ['super_admin'] },
   { href: '/practice-areas', label: 'Квалификации', roles: ['super_admin'] },
   { href: '/flags', label: 'Флаги функций', roles: ['super_admin'] },
+  { href: '/integrations', label: 'Интеграции и ключи', roles: ['super_admin'] },
   { href: '/config', label: 'Конфигурация', roles: ['super_admin'] },
   { href: '/i18n', label: 'Локализация', roles: ['super_admin'] },
   { href: '/legal', label: 'Юридические документы', roles: ['super_admin'] },

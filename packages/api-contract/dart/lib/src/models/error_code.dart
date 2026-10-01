@@ -256,6 +256,18 @@ enum ErrorCode {
   messageRequestDeclined('MESSAGE_REQUEST_DECLINED'),
   @JsonValue('MESSAGE_REQUEST_LIMIT')
   messageRequestLimit('MESSAGE_REQUEST_LIMIT'),
+  @JsonValue('INTEGRATIONS_NOT_CONFIGURED')
+  integrationsNotConfigured('INTEGRATIONS_NOT_CONFIGURED'),
+  @JsonValue('INTEGRATION_CONFLICT')
+  integrationConflict('INTEGRATION_CONFLICT'),
+  @JsonValue('ADMIN_STEP_UP_REQUIRED')
+  adminStepUpRequired('ADMIN_STEP_UP_REQUIRED'),
+  @JsonValue('VIDEO_UNAVAILABLE')
+  videoUnavailable('VIDEO_UNAVAILABLE'),
+  @JsonValue('VIDEO_TOO_LONG')
+  videoTooLong('VIDEO_TOO_LONG'),
+  @JsonValue('VIDEO_NOT_READY')
+  videoNotReady('VIDEO_NOT_READY'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

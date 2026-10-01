@@ -17,10 +17,26 @@ export class SesEmailProvider implements EmailProvider {
   private readonly fromAddress: string;
 
   constructor(
-    creds: { region: string; fromAddress: string },
+    creds: {
+      region: string;
+      fromAddress: string;
+      accessKeyId?: string;
+      secretAccessKey?: string;
+    },
     private readonly logger: PinoLogger,
   ) {
-    this.client = new SESClient({ region: creds.region });
+    // Without keys the AWS chain (the server role) is used.
+    this.client = new SESClient({
+      region: creds.region,
+      ...(creds.accessKeyId && creds.secretAccessKey
+        ? {
+            credentials: {
+              accessKeyId: creds.accessKeyId,
+              secretAccessKey: creds.secretAccessKey,
+            },
+          }
+        : {}),
+    });
     this.fromAddress = creds.fromAddress;
   }
 

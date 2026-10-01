@@ -12,6 +12,8 @@ import '../models/admin_logout_result_envelope.dart';
 import '../models/admin_me_envelope.dart';
 import '../models/admin_recovery_dto.dart';
 import '../models/admin_session_envelope.dart';
+import '../models/admin_step_up_dto.dart';
+import '../models/admin_step_up_result_envelope.dart';
 import '../models/admin_totp_dto.dart';
 
 part 'admin_auth_client.g.dart';
@@ -51,6 +53,13 @@ abstract class AdminAuthClient {
   /// End this admin session
   @POST('/admin/auth/logout')
   Future<AdminLogoutResultEnvelope> adminLogout({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Confirm with a 2FA code (5 min) before changing API keys
+  @POST('/admin/auth/step-up')
+  Future<AdminStepUpResultEnvelope> stepUp({
+    @Body() required AdminStepUpDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

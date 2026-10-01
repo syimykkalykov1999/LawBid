@@ -1,9 +1,11 @@
 import {
   Injectable,
   OnModuleDestroy,
+  Optional,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { SecretsService } from '../../../common/secrets/secrets.service';
 import {
   CreateBucketCommand,
   DeleteObjectsCommand,
@@ -37,31 +39,68 @@ export interface ObjectHead {
  */
 @Injectable()
 export class S3StorageService implements OnModuleDestroy {
-  private readonly client?: S3Client;
-  private readonly buckets?: Record<BucketKind, string>;
+  private client?: S3Client;
+  private buckets?: Record<BucketKind, string>;
+  private fingerprint = '';
 
   constructor(
-    config: ConfigService,
+    private readonly config: ConfigService,
     private readonly logger: PinoLogger,
+    @Optional() private readonly secrets?: SecretsService,
   ) {
     this.logger.setContext(S3StorageService.name);
-    const documents = config.get<string>('S3_BUCKET_DOCUMENTS');
-    const media = config.get<string>('S3_BUCKET_MEDIA');
+    this.build({
+      region: config.get<string>('S3_REGION'),
+      bucketDocuments: config.get<string>('S3_BUCKET_DOCUMENTS'),
+      bucketMedia: config.get<string>('S3_BUCKET_MEDIA'),
+      accessKeyId: config.get<string>('S3_ACCESS_KEY_ID'),
+      secretAccessKey: config.get<string>('S3_SECRET_ACCESS_KEY'),
+    });
+    this.fingerprint = 'env';
+  }
+
+  private build(f: Record<string, string | undefined>): void {
+    const documents = f.bucketDocuments;
+    const media = f.bucketMedia;
+    this.client?.destroy();
+    this.client = undefined;
+    this.buckets = undefined;
     if (!documents || !media) return;
-    const endpoint = config.get<string>('S3_ENDPOINT');
-    const accessKeyId = config.get<string>('S3_ACCESS_KEY_ID');
-    const secretAccessKey = config.get<string>('S3_SECRET_ACCESS_KEY');
+    const endpoint = this.config.get<string>('S3_ENDPOINT');
     this.buckets = { documents, media };
     this.client = new S3Client({
-      region: config.get<string>('S3_REGION') ?? 'us-east-1',
+      region: f.region ?? 'us-east-1',
       endpoint,
       // MinIO serves buckets by path, not by virtual-host subdomain.
       forcePathStyle: endpoint !== undefined,
       credentials:
-        accessKeyId && secretAccessKey
-          ? { accessKeyId, secretAccessKey }
+        f.accessKeyId && f.secretAccessKey
+          ? { accessKeyId: f.accessKeyId, secretAccessKey: f.secretAccessKey }
           : undefined,
     });
+  }
+
+  /**
+   * Owner 2026-10-01: the storage keys can be changed in Admin →
+   * Integrations; the client is rebuilt only when they changed.
+   */
+  private async refresh(): Promise<void> {
+    const c = await this.secrets?.get('storage');
+    if (c?.source === 'db') {
+      if (c.fingerprint !== this.fingerprint) {
+        this.build(c.fields);
+        this.fingerprint = c.fingerprint;
+      }
+    } else if (this.fingerprint !== 'env') {
+      this.build({
+        region: this.config.get<string>('S3_REGION'),
+        bucketDocuments: this.config.get<string>('S3_BUCKET_DOCUMENTS'),
+        bucketMedia: this.config.get<string>('S3_BUCKET_MEDIA'),
+        accessKeyId: this.config.get<string>('S3_ACCESS_KEY_ID'),
+        secretAccessKey: this.config.get<string>('S3_SECRET_ACCESS_KEY'),
+      });
+      this.fingerprint = 'env';
+    }
   }
 
   get configured(): boolean {
@@ -82,6 +121,7 @@ export class S3StorageService implements OnModuleDestroy {
     size: number;
     expiresSec: number;
   }): Promise<PresignedPost> {
+    await this.refresh();
     const { client } = this.require();
     const { url, fields } = await createPresignedPost(client, {
       Bucket: input.bucket,
@@ -97,6 +137,7 @@ export class S3StorageService implements OnModuleDestroy {
   }
 
   async head(bucket: string, key: string): Promise<ObjectHead | null> {
+    await this.refresh();
     const { client } = this.require();
     try {
       const res = await client.send(
@@ -113,6 +154,7 @@ export class S3StorageService implements OnModuleDestroy {
   }
 
   async read(bucket: string, key: string): Promise<Buffer> {
+    await this.refresh();
     const { client } = this.require();
     const res = await client.send(
       new GetObjectCommand({ Bucket: bucket, Key: key }),
@@ -127,6 +169,7 @@ export class S3StorageService implements OnModuleDestroy {
     body: Buffer,
     contentType: string,
   ): Promise<void> {
+    await this.refresh();
     const { client } = this.require();
     await client.send(
       new PutObjectCommand({
@@ -141,6 +184,7 @@ export class S3StorageService implements OnModuleDestroy {
   /** Deletes objects; a missing key is not an error (idempotent). */
   async remove(bucket: string, keys: string[]): Promise<void> {
     if (keys.length === 0) return;
+    await this.refresh();
     const { client } = this.require();
     await client.send(
       new DeleteObjectsCommand({
@@ -156,6 +200,7 @@ export class S3StorageService implements OnModuleDestroy {
     key: string,
     expiresSec: number,
   ): Promise<string> {
+    await this.refresh();
     const { client } = this.require();
     return getSignedUrl(
       client,
@@ -166,6 +211,7 @@ export class S3StorageService implements OnModuleDestroy {
 
   /** Dev/test only (FilesBootstrap): creates missing buckets, private. */
   async ensureBuckets(): Promise<string[]> {
+    await this.refresh();
     const { client, buckets } = this.require();
     const created: string[] = [];
     for (const name of new Set(Object.values(buckets))) {

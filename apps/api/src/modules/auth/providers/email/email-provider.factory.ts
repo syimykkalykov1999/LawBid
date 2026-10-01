@@ -59,12 +59,17 @@ class DynamicEmailProvider implements EmailProvider {
       }
       return this.mock.sendEmail(message);
     }
-    const key = `${region}|${from}`;
+    const key = `${region}|${from}|${f.accessKeyId ?? ''}|${(f.secretAccessKey ?? '').length}`;
     if (this.cached?.key !== key) {
       this.cached = {
         key,
         provider: new SesEmailProvider(
-          { region, fromAddress: from },
+          {
+            region,
+            fromAddress: from,
+            accessKeyId: f.accessKeyId,
+            secretAccessKey: f.secretAccessKey,
+          },
           this.logger,
         ),
       };
