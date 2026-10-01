@@ -15,6 +15,7 @@ import 'package:lawbid/features/cases/presentation/widgets/case_wizard_steps.dar
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
+import 'package:lawbid/features/team/domain/team_models.dart';
 
 /// docs/04 §5.1 limits.
 abstract final class BidLimits {
@@ -197,7 +198,10 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final free = _fee == FeeType.freeConsultation;
-    final assistant = ref.watch(isAssistantProvider);
+    // OQ-049: an assistant sends bids only with the "bids" access the
+    // attorney switched on (under their responsibility); else a draft.
+    final assistant = ref.watch(isAssistantProvider) &&
+        !ref.watch(canDoProvider(AssistantDuty.bids));
     return Scaffold(
       backgroundColor: colors.bg,
       appBar: AppTopBar(

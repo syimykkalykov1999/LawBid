@@ -2,6 +2,24 @@
 // tasks — compiled-in strings merged into StaticTranslatorRu/En.
 
 const file07Ru = <String, String>{
+  // --- OQ-049: access switches with responsibility ---
+  'duty.bids': 'Ставки и переговоры',
+  'duty.bids.hint':
+      'Подавать ставки, торговаться, принимать и отклонять предложения от вашего имени',
+  'duty.publish': 'Публикации без одобрения',
+  'duty.publish.hint':
+      'Публиковать посты, новости и комментарии от вашего имени сразу',
+  'liability.title': 'Вы берёте ответственность на себя',
+  'liability.body':
+      'Включая доступ «{duty}», вы разрешаете помощнику действовать от вашего имени и принимаете полную ответственность за все его действия: ставки, договорённости с клиентами, сообщения, звонки, публикации и любые другие действия в вашем аккаунте.\n\nLawBid — доска объявлений, а не юридическая фирма, и не отвечает за действия ваших помощников. Вы обязаны соблюдать правила профессиональной этики вашего штата, в том числе о контроле работы сотрудников, не являющихся адвокатами.\n\nВаше согласие сохраняется с датой и временем. Доступ можно выключить в любой момент.',
+  'liability.check':
+      'Я понимаю и принимаю ответственность за действия помощника',
+  'liability.accept': 'Включить и принять ответственность',
+  'team.noAccess':
+      'У помощника пока нет доступов. Включите нужные — ответственность за его действия несёте вы.',
+  'team.liabilityAccepted': 'Ответственность принята: {date}',
+  'error.api.ASSISTANT_LIABILITY_REQUIRED':
+      'Чтобы включить доступ, примите ответственность за действия помощника.',
   'common.delete': 'Удалить',
   // --- Plans ---
   'plans.title': 'Выберите план',
@@ -160,7 +178,7 @@ const file07Ru = <String, String>{
   'act.other': 'действие: {action}',
 
   // --- Tasks ---
-  'mine.tab.tasks': 'Задачи',
+  'mine.tab.tasks': 'Ежедневник',
   'tasks.add': 'Добавить задачу',
   'tasks.forAttorney': 'Задача для адвоката',
   'tasks.forMe': 'Новая задача',
@@ -181,6 +199,17 @@ const file07Ru = <String, String>{
   'tasks.kind.print': 'Распечатать',
   'tasks.kind.visit': 'Съездить',
   'tasks.kind.other': 'Другое',
+  'tasks.kind.consultation': 'Консультация',
+  'tasks.kind.hearing_prep': 'Подготовка к суду',
+  'tasks.kind.deposition': 'Показания',
+  'tasks.kind.mediation': 'Медиация',
+  'tasks.kind.filing': 'Подать в суд',
+  'tasks.kind.review': 'Изучить',
+  'tasks.kind.email': 'Письмо',
+  'tasks.kind.sign': 'Подписать',
+  'tasks.kind.payment': 'Оплата',
+  'tasks.kind.research': 'Исследование',
+  'tasks.kind.jail_visit': 'Визит в учреждение',
   'tasks.field.kind': 'Что нужно сделать',
   'tasks.field.title': 'Задача',
   'tasks.field.titleHint': 'Например: позвонить мистеру Брауну по слушанию',
@@ -250,6 +279,24 @@ const file07Ru = <String, String>{
 };
 
 const file07En = <String, String>{
+  // --- OQ-049: access switches with responsibility ---
+  'duty.bids': 'Bids and negotiation',
+  'duty.bids.hint':
+      'Place bids, counter, accept and decline offers in your name',
+  'duty.publish': 'Publish without approval',
+  'duty.publish.hint':
+      'Publish posts, news and comments in your name right away',
+  'liability.title': 'You take responsibility',
+  'liability.body':
+      'By switching on "{duty}" you let the assistant act in your name and accept full responsibility for everything they do: bids, agreements with clients, messages, calls, publications and any other action in your account.\n\nLawBid is a bulletin board, not a law firm, and is not responsible for your assistants\' actions. You must follow your state\'s rules of professional conduct, including supervision of non-lawyer staff.\n\nYour consent is recorded with the date and time. You can switch access off at any time.',
+  'liability.check':
+      "I understand and accept responsibility for my assistant's actions",
+  'liability.accept': 'Switch on and accept',
+  'team.noAccess':
+      'This assistant has no access yet. Switch on what they need — you are responsible for their actions.',
+  'team.liabilityAccepted': 'Responsibility accepted: {date}',
+  'error.api.ASSISTANT_LIABILITY_REQUIRED':
+      "To switch access on, accept responsibility for your assistant's actions.",
   'common.delete': 'Delete',
   // --- Plans ---
   'plans.title': 'Choose a plan',
@@ -409,7 +456,7 @@ const file07En = <String, String>{
   'act.other': 'action: {action}',
 
   // --- Tasks ---
-  'mine.tab.tasks': 'Tasks',
+  'mine.tab.tasks': 'Planner',
   'tasks.add': 'Add a task',
   'tasks.forAttorney': 'Task for the attorney',
   'tasks.forMe': 'New task',
@@ -430,6 +477,17 @@ const file07En = <String, String>{
   'tasks.kind.print': 'Print',
   'tasks.kind.visit': 'Visit',
   'tasks.kind.other': 'Other',
+  'tasks.kind.consultation': 'Consultation',
+  'tasks.kind.hearing_prep': 'Hearing prep',
+  'tasks.kind.deposition': 'Deposition',
+  'tasks.kind.mediation': 'Mediation',
+  'tasks.kind.filing': 'File with court',
+  'tasks.kind.review': 'Review',
+  'tasks.kind.email': 'Email / letter',
+  'tasks.kind.sign': 'Sign',
+  'tasks.kind.payment': 'Payment',
+  'tasks.kind.research': 'Research',
+  'tasks.kind.jail_visit': 'Facility visit',
   'tasks.field.kind': 'What to do',
   'tasks.field.title': 'Task',
   'tasks.field.titleHint': 'E.g. call Mr. Brown about the hearing',

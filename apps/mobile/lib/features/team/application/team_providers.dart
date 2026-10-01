@@ -96,8 +96,18 @@ class TeamController extends AsyncNotifier<TeamInfo> {
   Future<void> add(String phone, {String? name}) =>
       _apply(() => _repo.addAssistant(phone, name: name));
 
-  Future<void> setDuties(String id, Set<AssistantDuty> duties) =>
-      _apply(() => _repo.updateAssistant(id, duties: duties));
+  Future<void> setDuties(
+    String id,
+    Set<AssistantDuty> duties, {
+    bool acceptLiability = false,
+  }) =>
+      _apply(
+        () => _repo.updateAssistant(
+          id,
+          duties: duties,
+          acceptLiability: acceptLiability,
+        ),
+      );
 
   Future<void> rename(String id, String name) =>
       _apply(() => _repo.updateAssistant(id, name: name));

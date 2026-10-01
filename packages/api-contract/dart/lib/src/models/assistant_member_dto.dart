@@ -20,6 +20,7 @@ class AssistantMemberDto {
     required this.createdAt,
     this.name,
     this.joinedAt,
+    this.liabilityAcceptedAt,
   });
 
   factory AssistantMemberDto.fromJson(Map<String, Object?> json) =>
@@ -33,6 +34,9 @@ class AssistantMemberDto {
   final List<String> duties;
   final String? joinedAt;
   final String createdAt;
+
+  /// OQ-049: when the attorney last accepted responsibility for this assistant ("bids" / "publish").
+  final String? liabilityAcceptedAt;
 
   Map<String, Object?> toJson() => _$AssistantMemberDtoToJson(this);
 }

@@ -18,6 +18,7 @@ AssistantMemberDto _$AssistantMemberDtoFromJson(Map<String, dynamic> json) =>
       createdAt: json['createdAt'] as String,
       name: json['name'] as String?,
       joinedAt: json['joinedAt'] as String?,
+      liabilityAcceptedAt: json['liabilityAcceptedAt'] as String?,
     );
 
 Map<String, dynamic> _$AssistantMemberDtoToJson(AssistantMemberDto instance) =>
@@ -30,4 +31,5 @@ Map<String, dynamic> _$AssistantMemberDtoToJson(AssistantMemberDto instance) =>
       'duties': instance.duties,
       'joinedAt': ?instance.joinedAt,
       'createdAt': instance.createdAt,
+      'liabilityAcceptedAt': ?instance.liabilityAcceptedAt,
     };

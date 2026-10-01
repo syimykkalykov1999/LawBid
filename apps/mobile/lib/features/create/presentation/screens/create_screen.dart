@@ -56,7 +56,9 @@ class _Chooser extends ConsumerWidget {
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final assistant = ref.watch(isAssistantProvider);
     final canTask = ref.watch(canDoProvider(AssistantDuty.tasks));
-    final canPost = ref.watch(canDoProvider(AssistantDuty.posts));
+    final canPost = ref.watch(canDoProvider(AssistantDuty.posts)) ||
+        ref.watch(canDoProvider(AssistantDuty.publish));
+    final direct = ref.watch(canDoProvider(AssistantDuty.publish));
 
     Widget option(_Kind kind, IconData icon, String title, String sub) =>
         Semantics(
@@ -128,12 +130,21 @@ class _Chooser extends ConsumerWidget {
                   const SizedBox(height: AppSpacing.md),
                 ],
                 if (canPost) ...[
-                  option(_Kind.post, Icons.edit_note_rounded,
-                      t.t('assistant.plus.post'),
-                      t.t('assistant.plus.post.hint')),
+                  option(
+                      _Kind.post,
+                      Icons.edit_note_rounded,
+                      t.t(direct ? 'create.post' : 'assistant.plus.post'),
+                      t.t(direct
+                          ? 'create.post.subAttorney'
+                          : 'assistant.plus.post.hint')),
                   const SizedBox(height: AppSpacing.md),
-                  option(_Kind.news, Icons.newspaper_rounded,
-                      t.t('create.news'), t.t('assistant.plus.post.hint')),
+                  option(
+                      _Kind.news,
+                      Icons.newspaper_rounded,
+                      t.t('create.news'),
+                      t.t(direct
+                          ? 'create.news.sub'
+                          : 'assistant.plus.post.hint')),
                 ],
               ]
             : attorney

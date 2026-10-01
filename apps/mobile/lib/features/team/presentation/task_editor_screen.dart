@@ -197,11 +197,11 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
             physics: const NeverScrollableScrollPhysics(),
             mainAxisSpacing: AppSpacing.sm,
             crossAxisSpacing: AppSpacing.sm,
-            childAspectRatio: 0.95,
+            childAspectRatio: 0.82,
             children: [
               for (final k in TaskKind.values)
                 _KindTile(
-                  key: ValueKey('task-kind-${k.name}'),
+                  key: ValueKey('task-kind-${k.wire}'),
                   icon: taskKindIcon(k),
                   label: taskKindLabel(t, k),
                   selected: _kind == k,
@@ -409,7 +409,7 @@ class _KindTile extends StatelessWidget {
               const SizedBox(height: 6),
               Text(
                 label,
-                maxLines: 1,
+                maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
                 style: typography.caption.copyWith(

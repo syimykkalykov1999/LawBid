@@ -13,6 +13,7 @@ AddAssistantDto _$AddAssistantDtoFromJson(Map<String, dynamic> json) =>
       duties: (json['duties'] as List<dynamic>?)
           ?.map((e) => AddAssistantDtoDuties.fromJson(e as String))
           .toList(),
+      acceptLiability: json['acceptLiability'] as bool?,
     );
 
 Map<String, dynamic> _$AddAssistantDtoToJson(AddAssistantDto instance) =>
@@ -20,4 +21,5 @@ Map<String, dynamic> _$AddAssistantDtoToJson(AddAssistantDto instance) =>
       'phone': instance.phone,
       'name': ?instance.name,
       'duties': ?instance.duties?.map((e) => e.toJson()).toList(),
+      'acceptLiability': ?instance.acceptLiability,
     };

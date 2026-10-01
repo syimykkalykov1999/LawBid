@@ -254,6 +254,18 @@ export const TASK_KINDS = [
   'print',
   'visit',
   'other',
+  // Owner 2026-10-01: everything an attorney plans.
+  'consultation',
+  'hearing_prep',
+  'deposition',
+  'mediation',
+  'filing',
+  'review',
+  'email',
+  'sign',
+  'payment',
+  'research',
+  'jail_visit',
 ] as const;
 export const TASK_STATUSES = [
   'open',

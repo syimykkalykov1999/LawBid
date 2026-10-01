@@ -2279,6 +2279,17 @@ enum AttorneyTaskKind {
   print
   visit
   other
+  consultation
+  hearing_prep
+  deposition
+  mediation
+  filing
+  review
+  email
+  sign
+  payment
+  research
+  jail_visit
 
   @@map("attorney_task_kind")
 }

@@ -10,7 +10,12 @@ part 'add_assistant_dto.g.dart';
 
 @JsonSerializable()
 class AddAssistantDto {
-  const AddAssistantDto({required this.phone, this.name, this.duties});
+  const AddAssistantDto({
+    required this.phone,
+    this.name,
+    this.duties,
+    this.acceptLiability,
+  });
 
   factory AddAssistantDto.fromJson(Map<String, Object?> json) =>
       _$AddAssistantDtoFromJson(json);
@@ -18,6 +23,9 @@ class AddAssistantDto {
   final String phone;
   final String? name;
   final List<AddAssistantDtoDuties>? duties;
+
+  /// OQ-049: required (true) when granting "bids" or "publish" — the attorney accepts full responsibility for the assistant's bids, negotiations and publications.
+  final bool? acceptLiability;
 
   Map<String, Object?> toJson() => _$AddAssistantDtoToJson(this);
 }

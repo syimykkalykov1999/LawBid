@@ -12,10 +12,12 @@ UpdateAssistantDto _$UpdateAssistantDtoFromJson(Map<String, dynamic> json) =>
       duties: (json['duties'] as List<dynamic>?)
           ?.map((e) => UpdateAssistantDtoDuties.fromJson(e as String))
           .toList(),
+      acceptLiability: json['acceptLiability'] as bool?,
     );
 
 Map<String, dynamic> _$UpdateAssistantDtoToJson(UpdateAssistantDto instance) =>
     <String, dynamic>{
       'name': ?instance.name,
       'duties': ?instance.duties?.map((e) => e.toJson()).toList(),
+      'acceptLiability': ?instance.acceptLiability,
     };

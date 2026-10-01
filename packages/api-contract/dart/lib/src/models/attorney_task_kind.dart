@@ -22,6 +22,28 @@ enum AttorneyTaskKind {
   visit('visit'),
   @JsonValue('other')
   other('other'),
+  @JsonValue('consultation')
+  consultation('consultation'),
+  @JsonValue('hearing_prep')
+  hearingPrep('hearing_prep'),
+  @JsonValue('deposition')
+  deposition('deposition'),
+  @JsonValue('mediation')
+  mediation('mediation'),
+  @JsonValue('filing')
+  filing('filing'),
+  @JsonValue('review')
+  review('review'),
+  @JsonValue('email')
+  email('email'),
+  @JsonValue('sign')
+  sign('sign'),
+  @JsonValue('payment')
+  payment('payment'),
+  @JsonValue('research')
+  research('research'),
+  @JsonValue('jail_visit')
+  jailVisit('jail_visit'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

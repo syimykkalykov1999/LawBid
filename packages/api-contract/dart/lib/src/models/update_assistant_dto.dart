@@ -10,13 +10,16 @@ part 'update_assistant_dto.g.dart';
 
 @JsonSerializable()
 class UpdateAssistantDto {
-  const UpdateAssistantDto({this.name, this.duties});
+  const UpdateAssistantDto({this.name, this.duties, this.acceptLiability});
 
   factory UpdateAssistantDto.fromJson(Map<String, Object?> json) =>
       _$UpdateAssistantDtoFromJson(json);
 
   final String? name;
   final List<UpdateAssistantDtoDuties>? duties;
+
+  /// OQ-049: required (true) when granting "bids" or "publish" — the attorney accepts full responsibility for the assistant's bids, negotiations and publications.
+  final bool? acceptLiability;
 
   Map<String, Object?> toJson() => _$UpdateAssistantDtoToJson(this);
 }

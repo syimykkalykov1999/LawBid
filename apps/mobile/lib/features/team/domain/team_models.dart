@@ -10,7 +10,13 @@ enum AssistantDuty {
   bidDrafts,
   posts,
   tasks,
-  profile;
+  profile,
+
+  /// OQ-049: place bids and negotiate in the attorney's name.
+  bids,
+
+  /// OQ-049: publish posts / news / comments without approval.
+  publish;
 
   String get wire => this == bidDrafts ? 'bid_drafts' : name;
 
@@ -38,7 +44,11 @@ class TeamMember {
     required this.createdAt,
     this.name,
     this.joinedAt,
+    this.liabilityAcceptedAt,
   });
+
+  /// OQ-049: when the attorney last accepted responsibility.
+  final DateTime? liabilityAcceptedAt;
 
   final String id;
   final String phone;
@@ -199,18 +209,37 @@ class AssistantRequest {
       };
 }
 
+/// Owner 2026-10-01: everything an attorney plans, in the order the
+/// picker shows them.
 enum TaskKind {
   call,
   meeting,
+  consultation,
   court,
+  hearingPrep,
   deadline,
+  filing,
   documents,
+  review,
+  sign,
   print,
+  email,
+  deposition,
+  mediation,
   visit,
+  jailVisit,
+  payment,
+  research,
   other;
 
+  String get wire => switch (this) {
+        hearingPrep => 'hearing_prep',
+        jailVisit => 'jail_visit',
+        _ => name,
+      };
+
   static TaskKind parse(String? raw) =>
-      values.firstWhere((k) => k.name == raw, orElse: () => other);
+      values.firstWhere((k) => k.wire == raw, orElse: () => other);
 }
 
 enum TaskStatus {

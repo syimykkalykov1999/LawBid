@@ -14,9 +14,20 @@ IconData taskKindIcon(TaskKind k) => switch (k) {
       TaskKind.print => Icons.print_outlined,
       TaskKind.visit => Icons.directions_car_outlined,
       TaskKind.other => Icons.push_pin_outlined,
+      TaskKind.consultation => Icons.support_agent_outlined,
+      TaskKind.hearingPrep => Icons.menu_book_outlined,
+      TaskKind.deposition => Icons.record_voice_over_outlined,
+      TaskKind.mediation => Icons.handshake_outlined,
+      TaskKind.filing => Icons.upload_file_outlined,
+      TaskKind.review => Icons.plagiarism_outlined,
+      TaskKind.email => Icons.mail_outline_rounded,
+      TaskKind.sign => Icons.draw_outlined,
+      TaskKind.payment => Icons.payments_outlined,
+      TaskKind.research => Icons.travel_explore_outlined,
+      TaskKind.jailVisit => Icons.account_balance_outlined,
     };
 
-String taskKindLabel(Translator t, TaskKind k) => t.t('tasks.kind.${k.name}');
+String taskKindLabel(Translator t, TaskKind k) => t.t('tasks.kind.${k.wire}');
 
 String taskStatusLabel(Translator t, TaskStatus s) =>
     t.t('tasks.status.${s.wire}');

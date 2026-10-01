@@ -16,6 +16,8 @@ IconData dutyIcon(AssistantDuty d) => switch (d) {
       AssistantDuty.posts => Icons.campaign_outlined,
       AssistantDuty.tasks => Icons.event_note_outlined,
       AssistantDuty.profile => Icons.badge_outlined,
+      AssistantDuty.bids => Icons.gavel_rounded,
+      AssistantDuty.publish => Icons.campaign_rounded,
     };
 
 String requestKindLabel(Translator t, RequestKind k) =>
@@ -379,4 +381,84 @@ class PullableState extends StatelessWidget {
           ],
         ),
       );
+}
+
+/// OQ-049 (owner 2026-10-01): switching on any access shows who is
+/// responsible — the attorney — and needs an explicit tick. True when the
+/// attorney accepted.
+Future<bool> askLiability(
+  BuildContext context,
+  Translator t,
+  String duty,
+) async {
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (_) => _LiabilityDialog(t: t, duty: duty),
+  );
+  return ok ?? false;
+}
+
+class _LiabilityDialog extends StatefulWidget {
+  const _LiabilityDialog({required this.t, required this.duty});
+
+  final Translator t;
+  final String duty;
+
+  @override
+  State<_LiabilityDialog> createState() => _LiabilityDialogState();
+}
+
+class _LiabilityDialogState extends State<_LiabilityDialog> {
+  bool _checked = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = widget.t;
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
+    return AlertDialog(
+      backgroundColor: colors.surface,
+      icon: Icon(Icons.gavel_rounded, color: colors.gold),
+      title: Text(t.t('liability.title')),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              t.t('liability.body', {'duty': widget.duty}),
+              style: typography.bodySmall.copyWith(color: colors.text),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            CheckboxListTile(
+              key: const ValueKey('liability-check'),
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.leading,
+              activeColor: colors.gold,
+              value: _checked,
+              onChanged: (v) => setState(() => _checked = v ?? false),
+              title: Text(
+                t.t('liability.check'),
+                style: typography.bodySmall.copyWith(
+                  color: colors.text,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: Text(t.t('common.cancel')),
+        ),
+        FilledButton(
+          key: const ValueKey('liability-accept'),
+          onPressed: _checked ? () => Navigator.of(context).pop(true) : null,
+          child: Text(t.t('liability.accept')),
+        ),
+      ],
+    );
+  }
 }

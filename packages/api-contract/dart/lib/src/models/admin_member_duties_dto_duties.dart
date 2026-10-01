@@ -22,6 +22,10 @@ enum AdminMemberDutiesDtoDuties {
   tasks('tasks'),
   @JsonValue('profile')
   profile('profile'),
+  @JsonValue('bids')
+  bids('bids'),
+  @JsonValue('publish')
+  publish('publish'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

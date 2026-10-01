@@ -18,8 +18,11 @@ import 'package:lawbid/features/team/presentation/tasks_tab.dart';
 
 enum _ClientTab { open, inProgress, completed, saved }
 
-// OQ-048: «Задачи» — the attorney's (and assistants') task calendar.
-enum _AttorneyTab { bids, work, completed, saved, tasks }
+// Owner 2026-10-01: two top tabs — My bids (with Active · In progress ·
+// Completed · Saved inside) and the Planner (tasks calendar).
+enum _AttorneyTab { bids, planner }
+
+enum _BidsSection { active, work, completed, saved }
 
 /// Owner 2026-09-30 — client "Mine": Open (with Archive), In progress,
 /// Completed and Saved (posts). Cases show as an Instagram-like grid —
@@ -210,6 +213,7 @@ class AttorneyMineView extends ConsumerStatefulWidget {
 
 class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
   _AttorneyTab _tab = _AttorneyTab.bids;
+  _BidsSection _section = _BidsSection.active;
   MineSearch _search = const MineSearch();
 
   @override
@@ -227,40 +231,58 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
         ),
       ],
     );
+    final sections = Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.sm),
+      child: FilterChips<_BidsSection>(
+        key: const ValueKey('bids-sections'),
+        value: _section,
+        options: [
+          (_BidsSection.active, t.t('mine.filter.active')),
+          (_BidsSection.work, t.t('mine.tab.inWork')),
+          (_BidsSection.completed, t.t('mine.tab.completed')),
+          (_BidsSection.saved, t.t('mine.tab.saved')),
+        ],
+        onChanged: (v) => setState(() => _section = v),
+      ),
+    );
+    final Widget grid = switch (_section) {
+      // Bids waiting for the client.
+      _BidsSection.active => _BidsGrid(
+          key: const ValueKey('active'),
+          filter: MyBidsFilter.active,
+          search: _search,
+        ),
+      _BidsSection.work || _BidsSection.completed => _WorkGrid(
+          key: ValueKey(_section.name),
+          filter: _section == _BidsSection.work
+              ? WorkFilter.active
+              : WorkFilter.closed,
+          search: _search,
+        ),
+      _BidsSection.saved => _AttorneySaved(
+          key: const ValueKey('saved'),
+          search: _search,
+          searchBar: const SizedBox.shrink(),
+        ),
+    };
     final Widget body = switch (_tab) {
       _AttorneyTab.bids => Column(
           key: const ValueKey('bids'),
           children: [
             search,
-            const SizedBox(height: AppSpacing.sm),
-            // Owner 2026-09-30: My bids = bids waiting for the client;
-            // accepted ones live in In progress, finished in Completed.
-            Expanded(
-              child: _BidsGrid(filter: MyBidsFilter.active, search: _search),
-            ),
-          ],
-        ),
-      _AttorneyTab.work || _AttorneyTab.completed => Column(
-          key: ValueKey(_tab.name),
-          children: [
-            search,
+            sections,
             const SizedBox(height: AppSpacing.sm),
             Expanded(
-              child: _WorkGrid(
-                filter: _tab == _AttorneyTab.work
-                    ? WorkFilter.active
-                    : WorkFilter.closed,
-                search: _search,
+              child: AnimatedSwitcher(
+                duration: context.reduceMotion
+                    ? Duration.zero
+                    : AppMotion.stateChange,
+                child: grid,
               ),
             ),
           ],
         ),
-      _AttorneyTab.saved => _AttorneySaved(
-          key: const ValueKey('saved'),
-          search: _search,
-          searchBar: search,
-        ),
-      _AttorneyTab.tasks => const TasksTab(key: ValueKey('tasks')),
+      _AttorneyTab.planner => const TasksTab(key: ValueKey('planner')),
     };
     return Column(
       children: [
@@ -268,10 +290,7 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
           value: _tab,
           tabs: [
             (_AttorneyTab.bids, t.t('mine.tab.myBids')),
-            (_AttorneyTab.work, t.t('mine.tab.inWork')),
-            (_AttorneyTab.completed, t.t('mine.tab.completed')),
-            (_AttorneyTab.saved, t.t('mine.tab.saved')),
-            (_AttorneyTab.tasks, t.t('mine.tab.tasks')),
+            (_AttorneyTab.planner, t.t('mine.tab.tasks')),
           ],
           onChanged: (v) => setState(() => _tab = v),
         ),
@@ -288,7 +307,7 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
 }
 
 class _BidsGrid extends ConsumerWidget {
-  const _BidsGrid({required this.filter, required this.search});
+  const _BidsGrid({required this.filter, required this.search, super.key});
 
   final MyBidsFilter filter;
   final MineSearch search;
@@ -337,7 +356,7 @@ class _BidsGrid extends ConsumerWidget {
 }
 
 class _WorkGrid extends ConsumerWidget {
-  const _WorkGrid({required this.filter, required this.search});
+  const _WorkGrid({required this.filter, required this.search, super.key});
 
   final WorkFilter filter;
   final MineSearch search;

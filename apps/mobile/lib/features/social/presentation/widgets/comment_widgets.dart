@@ -374,7 +374,8 @@ class _CommentComposerState extends ConsumerState<CommentComposer> {
     setState(() => _sending = true);
     final reply = widget.replyTo;
     // OQ-048: an assistant's comment waits for the attorney's approval.
-    if (ref.read(isAssistantProvider)) {
+    if (ref.read(isAssistantProvider) &&
+        !ref.read(canDoProvider(AssistantDuty.publish))) {
       try {
         final caseThread = isCaseRef(widget.postId);
         await ref.read(teamRepositoryProvider).createRequest(

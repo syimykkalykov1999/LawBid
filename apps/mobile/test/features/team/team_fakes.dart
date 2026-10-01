@@ -93,6 +93,7 @@ class FakeTeamRepository implements TeamRepository {
     String phone, {
     String? name,
     Set<AssistantDuty>? duties,
+    bool acceptLiability = false,
   }) async {
     calls.add('add:$phone:$name');
     return teamInfo = TeamInfo(
@@ -119,8 +120,11 @@ class FakeTeamRepository implements TeamRepository {
     String id, {
     String? name,
     Set<AssistantDuty>? duties,
+    bool acceptLiability = false,
   }) async {
-    calls.add('update:$id:${duties?.map((d) => d.wire).join(',')}');
+    calls.add(
+      'update:$id:${duties?.map((d) => d.wire).join(',')}:$acceptLiability',
+    );
     return teamInfo;
   }
 

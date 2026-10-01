@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
+import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
@@ -419,6 +420,22 @@ class _MemberSheetState extends ConsumerState<_MemberSheet> {
   late final _name = TextEditingController(text: widget.member.name ?? '');
   bool _busy = false;
 
+  /// OQ-049: the attorney accepted responsibility in this sheet.
+  bool _accepted = false;
+
+  Future<void> _toggle(AssistantDuty d, bool on) async {
+    if (on) {
+      final t = ref.read(translatorProvider);
+      final ok = await askLiability(context, t, dutyLabel(t, d));
+      if (!ok || !mounted) return;
+      _accepted = true;
+    }
+    setState(() {
+      _duties = {..._duties};
+      on ? _duties.add(d) : _duties.remove(d);
+    });
+  }
+
   @override
   void dispose() {
     _name.dispose();
@@ -435,7 +452,11 @@ class _MemberSheetState extends ConsumerState<_MemberSheet> {
       }
       if (_duties.length != widget.member.duties.length ||
           !_duties.containsAll(widget.member.duties)) {
-        await n.setDuties(widget.member.id, _duties);
+        await n.setDuties(
+          widget.member.id,
+          _duties,
+          acceptLiability: _accepted,
+        );
       }
       if (!mounted) return;
       Navigator.of(context).pop();
@@ -516,6 +537,26 @@ class _MemberSheetState extends ConsumerState<_MemberSheet> {
             maxLength: 80,
           ),
           const SizedBox(height: AppSpacing.sm),
+          Container(
+            key: const ValueKey('liability-note'),
+            padding: const EdgeInsets.all(AppSpacing.md),
+            margin: const EdgeInsets.only(bottom: AppSpacing.md),
+            decoration: BoxDecoration(
+              color: colors.goldTint,
+              borderRadius: BorderRadius.circular(AppRadii.field),
+              border: Border.all(color: colors.goldStroke),
+            ),
+            child: Text(
+              widget.member.liabilityAcceptedAt == null
+                  ? t.t('team.noAccess')
+                  : t.t('team.liabilityAccepted', {
+                      'date': ref
+                          .read(l10nFormatsProvider)
+                          .dateTime(widget.member.liabilityAcceptedAt!),
+                    }),
+              style: typography.bodySmall.copyWith(color: colors.text),
+            ),
+          ),
           Text(
             t.t('team.duties'),
             style: typography.body.copyWith(
@@ -536,10 +577,7 @@ class _MemberSheetState extends ConsumerState<_MemberSheet> {
                       typography.caption.copyWith(color: colors.textSecondary)),
               value: _duties.contains(d),
               activeThumbColor: colors.gold,
-              onChanged: (v) => setState(() {
-                _duties = {..._duties};
-                v ? _duties.add(d) : _duties.remove(d);
-              }),
+              onChanged: (v) => _toggle(d, v),
             ),
           const SizedBox(height: AppSpacing.lg),
           AppButton(

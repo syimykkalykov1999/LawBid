@@ -10641,6 +10641,16 @@
               }
             }
           },
+          "400": {
+            "description": "Bad request: ASSISTANT_LIABILITY_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
             "content": {
@@ -28101,6 +28111,7 @@
           "ASSISTANT_NOT_ALLOWED",
           "ASSISTANT_PHONE_TAKEN",
           "ASSISTANT_INVITE_NOT_FOUND",
+          "ASSISTANT_LIABILITY_REQUIRED",
           "ATTORNEY_NOT_VERIFIED",
           "USERNAME_TAKEN",
           "USERNAME_RESERVED",
@@ -33317,6 +33328,11 @@
           },
           "createdAt": {
             "type": "string"
+          },
+          "liabilityAcceptedAt": {
+            "type": "string",
+            "nullable": true,
+            "description": "OQ-049: when the attorney last accepted responsibility for this assistant (\"bids\" / \"publish\")."
           }
         },
         "required": [
@@ -33397,9 +33413,15 @@
                 "bid_drafts",
                 "posts",
                 "tasks",
-                "profile"
+                "profile",
+                "bids",
+                "publish"
               ]
             }
+          },
+          "acceptLiability": {
+            "type": "boolean",
+            "description": "OQ-049: required (true) when granting \"bids\" or \"publish\" — the attorney accepts full responsibility for the assistant's bids, negotiations and publications."
           }
         },
         "required": [
@@ -33426,9 +33448,15 @@
                 "bid_drafts",
                 "posts",
                 "tasks",
-                "profile"
+                "profile",
+                "bids",
+                "publish"
               ]
             }
+          },
+          "acceptLiability": {
+            "type": "boolean",
+            "description": "OQ-049: required (true) when granting \"bids\" or \"publish\" — the attorney accepts full responsibility for the assistant's bids, negotiations and publications."
           }
         }
       },
@@ -33636,7 +33664,18 @@
           "documents",
           "print",
           "visit",
-          "other"
+          "other",
+          "consultation",
+          "hearing_prep",
+          "deposition",
+          "mediation",
+          "filing",
+          "review",
+          "email",
+          "sign",
+          "payment",
+          "research",
+          "jail_visit"
         ]
       },
       "TaskFileDto": {
@@ -34145,7 +34184,9 @@
                 "bid_drafts",
                 "posts",
                 "tasks",
-                "profile"
+                "profile",
+                "bids",
+                "publish"
               ]
             }
           }

@@ -108,6 +108,8 @@ enum ErrorCode {
   assistantPhoneTaken('ASSISTANT_PHONE_TAKEN'),
   @JsonValue('ASSISTANT_INVITE_NOT_FOUND')
   assistantInviteNotFound('ASSISTANT_INVITE_NOT_FOUND'),
+  @JsonValue('ASSISTANT_LIABILITY_REQUIRED')
+  assistantLiabilityRequired('ASSISTANT_LIABILITY_REQUIRED'),
   @JsonValue('ATTORNEY_NOT_VERIFIED')
   attorneyNotVerified('ATTORNEY_NOT_VERIFIED'),
   @JsonValue('USERNAME_TAKEN')

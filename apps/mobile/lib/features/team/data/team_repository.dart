@@ -23,11 +23,16 @@ abstract interface class TeamRepository {
     String phone, {
     String? name,
     Set<AssistantDuty>? duties,
+    bool acceptLiability = false,
   });
+
+  /// OQ-049: [acceptLiability] — the attorney accepted responsibility for
+  /// the newly switched-on duties (required by the server).
   Future<TeamInfo> updateAssistant(
     String id, {
     String? name,
     Set<AssistantDuty>? duties,
+    bool acceptLiability = false,
   });
   Future<TeamInfo> removeAssistant(String id);
   Future<CursorPage<ActivityEntry>> activity({
@@ -117,6 +122,7 @@ class ApiTeamRepository implements TeamRepository {
               approval: m.approval.json ?? 'attorney_added',
               duties: AssistantDuty.parseAll(m.duties),
               joinedAt: _date(m.joinedAt),
+              liabilityAcceptedAt: _date(m.liabilityAcceptedAt),
               createdAt: _date(m.createdAt) ?? DateTime.now(),
             ),
         ],
@@ -228,6 +234,7 @@ class ApiTeamRepository implements TeamRepository {
     String phone, {
     String? name,
     Set<AssistantDuty>? duties,
+    bool acceptLiability = false,
   }) async =>
       _team(
         (await guardApiCall(
@@ -235,6 +242,7 @@ class ApiTeamRepository implements TeamRepository {
             body: api.AddAssistantDto(
               phone: phone,
               name: name,
+              acceptLiability: acceptLiability ? true : null,
               duties: _duties(duties)
                   ?.map(api.AddAssistantDtoDuties.fromJson)
                   .toList(),
@@ -249,6 +257,7 @@ class ApiTeamRepository implements TeamRepository {
     String id, {
     String? name,
     Set<AssistantDuty>? duties,
+    bool acceptLiability = false,
   }) async =>
       _team(
         (await guardApiCall(
@@ -256,6 +265,7 @@ class ApiTeamRepository implements TeamRepository {
             id: id,
             body: api.UpdateAssistantDto(
               name: name,
+              acceptLiability: acceptLiability ? true : null,
               duties: _duties(duties)
                   ?.map(api.UpdateAssistantDtoDuties.fromJson)
                   .toList(),
@@ -362,7 +372,7 @@ class ApiTeamRepository implements TeamRepository {
         (await guardApiCall(
           () => _api.createTask(
             body: api.CreateTaskDto(
-              kind: api.AttorneyTaskKind.fromJson(d.kind.name),
+              kind: api.AttorneyTaskKind.fromJson(d.kind.wire),
               title: d.title,
               notes: d.notes,
               dueAt: d.dueAt?.toUtc(),

@@ -153,7 +153,8 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
         return;
       }
       // OQ-048: an assistant's post goes to the attorney for approval.
-      if (ref.read(isAssistantProvider)) {
+      if (ref.read(isAssistantProvider) &&
+          !ref.read(canDoProvider(AssistantDuty.publish))) {
         await ref.read(teamRepositoryProvider).createRequest(
           RequestKind.post,
           {
@@ -374,7 +375,9 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                 builder: (context, _, __) => AppButton(
                   label: t.t(_editing
                       ? 'common.save'
-                      : ref.watch(isAssistantProvider)
+                      : ref.watch(isAssistantProvider) &&
+                              !ref.watch(
+                                  canDoProvider(AssistantDuty.publish))
                           ? 'request.sendForApproval'
                           : (_news ? 'post.news.publish' : 'post.create.publish')),
                   icon: _editing ? Icons.check_rounded : Icons.send_rounded,
