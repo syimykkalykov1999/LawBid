@@ -3,9 +3,13 @@ import {
   ForbiddenException,
   HttpException,
   HttpStatus,
+  Inject,
   Injectable,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import type Redis from 'ioredis';
+import { randomBytes } from 'node:crypto';
+import { REDIS_CLIENT } from '../../../redis/redis.constants';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { GoogleTokenVerifier } from './google-token-verifier.service';
@@ -51,6 +55,7 @@ export class SocialAuthService {
     private readonly loginMethods: LoginMethodPolicy,
     private readonly newDevice: NewDeviceNotifier,
     private readonly config: ConfigService,
+    @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {}
 
   async login(
@@ -165,6 +170,36 @@ export class SocialAuthService {
         deviceId: deviceInfo.deviceId,
         ip: meta.ip,
         userAgent: meta.userAgent,
+      });
+    }
+
+    // Owner 2026-10-01: one phone + one website per account — ask before
+    // signing the other device out (same flow as the OTP sign-in; the
+    // app continues with POST /auth/login/continue).
+    const other = await this.sessions.otherActiveDevice(user.id, deviceInfo);
+    if (other) {
+      const pendingToken = randomBytes(24).toString('base64url');
+      await this.redis.set(
+        `auth:pending:${pendingToken}`,
+        JSON.stringify({
+          userId: user.id,
+          isNewUser: resolved.isNewUser,
+          identifier: `social:${dto.provider}`,
+          deviceInfo,
+        }),
+        'EX',
+        300,
+      );
+      throw new ConflictException({
+        code: ErrorCode.AUTH_OTHER_DEVICE_ACTIVE,
+        message:
+          'This account is signed in on another device. Continue to sign it out there.',
+        details: {
+          pendingToken,
+          deviceName: other.device_name,
+          platform: other.platform,
+          lastUsedAt: other.last_used_at?.toISOString() ?? null,
+        },
       });
     }
 

@@ -479,6 +479,34 @@ describe('Auth hardening (e2e)', () => {
       expect(res.status).toBe(201);
       expect(res.body.data.accessToken).toEqual(expect.any(String));
     });
+
+    // Owner 2026-10-01: one phone per account — Google on a second phone
+    // asks first; continuing signs the first phone out.
+    it('a second phone via Google asks, then signs the first phone out', async () => {
+      googlePayload = {
+        sub: 'google-e2e-two',
+        nonce: raw,
+        email_verified: false,
+      };
+      const first = await api()
+        .post('/api/v1/auth/social')
+        .send(socialBody('g-two-a'));
+      expect(first.status).toBe(201);
+      const second = await api()
+        .post('/api/v1/auth/social')
+        .send(socialBody('g-two-b'));
+      expect(second.status).toBe(409);
+      expect(second.body.error.code).toBe('AUTH_OTHER_DEVICE_ACTIVE');
+      const cont = await api()
+        .post('/api/v1/auth/login/continue')
+        .send({ pendingToken: second.body.error.details.pendingToken });
+      expect(cont.status).toBe(201);
+      const old = await api()
+        .get('/api/v1/users/me')
+        .set('Authorization', `Bearer ${first.body.data.accessToken}`);
+      expect(old.status).toBe(401);
+      expect(old.body.error.code).toBe('AUTH_SIGNED_IN_ELSEWHERE');
+    });
   });
 
   // -------------------------------------------------------------------

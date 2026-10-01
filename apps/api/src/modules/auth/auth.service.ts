@@ -450,7 +450,9 @@ export class AuthService {
 
     await this.authEvents.record({
       userId: user.id,
-      eventType: AUTH_EVENT_TYPES.OTP_VERIFY_SUCCESS,
+      eventType: identifier.startsWith('social:')
+        ? AUTH_EVENT_TYPES.SOCIAL_LOGIN_SUCCESS
+        : AUTH_EVENT_TYPES.OTP_VERIFY_SUCCESS,
       success: true,
       identifier,
       deviceId: deviceInfo.deviceId,

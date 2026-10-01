@@ -48,7 +48,7 @@ class RealAuthRepository implements AuthRepository {
         // The code was used up: the user signs in again to continue.
         throw const ApiException(
           code: ApiErrorCodes.authOtpExpired,
-          message: 'cancelled',
+          message: _kCancelled,
         );
       }
       return _client.continueLogin(token);
@@ -143,19 +143,23 @@ class RealAuthRepository implements AuthRepository {
       return const SocialLoginResult.cancelled();
     }
     try {
-      final tokens = await _client.socialLogin(
-        api.SocialLoginDto(
-          provider: api.SocialLoginDtoProvider.fromJson(credential.provider),
-          idToken: credential.idToken,
-          nonce: credential.nonce,
-          firstName: credential.firstName,
-          lastName: credential.lastName,
-          deviceInfo: _deviceInfo,
+      // Owner 2026-10-01: the same "open on another device" question.
+      final tokens = await _orContinue(
+        () => _client.socialLogin(
+          api.SocialLoginDto(
+            provider: api.SocialLoginDtoProvider.fromJson(credential.provider),
+            idToken: credential.idToken,
+            nonce: credential.nonce,
+            firstName: credential.firstName,
+            lastName: credential.lastName,
+            deviceInfo: _deviceInfo,
+          ),
         ),
       );
       await _session.applyTokens(tokens);
       return SocialLoginResult.success(isNewUser: tokens.isNewUser);
     } on ApiException catch (e) {
+      if (e.message == _kCancelled) return const SocialLoginResult.cancelled();
       switch (e.code) {
         case ApiErrorCodes.authSocialTokenInvalid:
           return const SocialLoginResult.invalidToken();
@@ -247,3 +251,6 @@ class RealAuthRepository implements AuthRepository {
     }
   }
 }
+
+/// The user chose not to sign the other device out.
+const _kCancelled = 'other-device-cancelled';

@@ -99,7 +99,9 @@ export class SessionRevocationService {
       where: {
         user_id: userId,
         revoked_at: null,
-        ...(web ? { platform: 'web' } : { NOT: { platform: 'web' } }),
+        ...(web
+          ? { platform: 'web' }
+          : { OR: [{ platform: null }, { platform: { not: 'web' } }] }),
       },
       select: { session_chain_id: true },
       distinct: ['session_chain_id'],
