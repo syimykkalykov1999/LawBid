@@ -118,6 +118,8 @@ enum FilePurpose {
   chat_attachment
   // OQ-048: files an assistant attaches to a task for the attorney.
   task_attachment
+  // Owner 2026-10-01: photos in reviews (public media, like posts).
+  review_photo
 
   @@map("file_purpose")
 }
@@ -1470,6 +1472,8 @@ model Review {
   reply         String?      @db.String(1000)
   reply_at      DateTime?    @db.Timestamptz
   helpful_count Int          @default(0)
+  /// Owner 2026-10-01: up to 10 `review_photo` files.
+  photo_ids     String[]     @default([]) @db.Uuid
   created_at    DateTime     @default(now()) @db.Timestamptz
   updated_at    DateTime     @updatedAt @db.Timestamptz
 
@@ -2186,6 +2190,8 @@ model ClientReview {
   reply         String?      @db.String(1000)
   reply_at      DateTime?    @db.Timestamptz
   helpful_count Int          @default(0)
+  /// Owner 2026-10-01: up to 10 `review_photo` files.
+  photo_ids     String[]     @default([]) @db.Uuid
   edited_at     DateTime?    @db.Timestamptz
   created_at    DateTime     @default(now()) @db.Timestamptz
   updated_at    DateTime     @updatedAt @db.Timestamptz

@@ -85,6 +85,7 @@ export class FileScanProcessor {
         avatar: file.purpose === 'avatar',
         postImage:
           file.purpose === 'post_image' ||
+          file.purpose === 'review_photo' ||
           file.purpose === 'case_photo' ||
           file.purpose === 'case_attachment' ||
           // OQ-047: chat photos get previews; documents pass through.

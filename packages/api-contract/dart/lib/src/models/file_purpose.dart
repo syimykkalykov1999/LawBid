@@ -28,6 +28,8 @@ enum FilePurpose {
   chatAttachment('chat_attachment'),
   @JsonValue('task_attachment')
   taskAttachment('task_attachment'),
+  @JsonValue('review_photo')
+  reviewPhoto('review_photo'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

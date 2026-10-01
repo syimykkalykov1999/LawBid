@@ -5,6 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'review_author_role.dart';
+import 'review_photo_dto.dart';
 import 'review_status.dart';
 
 part 'review_dto.g.dart';
@@ -25,6 +26,9 @@ class ReviewDto {
     required this.helpfulCount,
     required this.helpfulByMe,
     required this.isMine,
+    required this.photos,
+    required this.authorAvatarUrl,
+    required this.authorReviewCount,
     required this.caseId,
     required this.attorneyId,
     required this.status,
@@ -60,6 +64,13 @@ class ReviewDto {
 
   /// I wrote it (edit / delete).
   final bool isMine;
+
+  /// Owner 2026-10-01 (Google Maps-style).
+  final List<ReviewPhotoDto> photos;
+  final String? authorAvatarUrl;
+
+  /// Reviews this author wrote.
+  final int authorReviewCount;
   final String? caseId;
   final String attorneyId;
   final ReviewStatus status;

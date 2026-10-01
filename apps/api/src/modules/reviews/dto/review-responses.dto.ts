@@ -63,6 +63,22 @@ export class PublicReviewDto {
 
   @ApiProperty({ description: 'I wrote it (edit / delete).' })
   isMine!: boolean;
+
+  /** Owner 2026-10-01 (Google Maps-style). */
+  @ApiProperty({ type: () => ReviewPhotoDto, isArray: true })
+  photos!: ReviewPhotoDto[];
+
+  @ApiProperty({ type: String, nullable: true })
+  authorAvatarUrl!: string | null;
+
+  @ApiProperty({ type: 'integer', description: 'Reviews this author wrote.' })
+  authorReviewCount!: number;
+}
+
+export class ReviewPhotoDto {
+  @ApiProperty({ format: 'uuid' }) fileId!: string;
+  @ApiProperty() url!: string;
+  @ApiProperty() previewUrl!: string;
 }
 
 /** The client's own review (GET /cases/:caseId/review, create/edit). */

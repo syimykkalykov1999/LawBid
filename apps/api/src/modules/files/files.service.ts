@@ -387,7 +387,11 @@ export class FilesService {
     >();
     if (fileIds.length === 0) return out;
     const files = await this.prisma.file.findMany({
-      where: { id: { in: fileIds }, purpose: 'post_image' },
+      // Owner 2026-10-01: review photos share the post-photo variants.
+      where: {
+        id: { in: fileIds },
+        purpose: { in: ['post_image', 'review_photo'] },
+      },
     });
     for (const file of files) {
       const url = await this.mediaUrlOf(file);

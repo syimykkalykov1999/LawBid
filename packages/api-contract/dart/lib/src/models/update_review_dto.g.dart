@@ -10,7 +10,14 @@ UpdateReviewDto _$UpdateReviewDtoFromJson(Map<String, dynamic> json) =>
     UpdateReviewDto(
       rating: (json['rating'] as num?)?.toInt(),
       body: json['body'] as String?,
+      photoIds: (json['photoIds'] as List<dynamic>?)
+          ?.map((e) => e as String)
+          .toList(),
     );
 
 Map<String, dynamic> _$UpdateReviewDtoToJson(UpdateReviewDto instance) =>
-    <String, dynamic>{'rating': ?instance.rating, 'body': ?instance.body};
+    <String, dynamic>{
+      'rating': ?instance.rating,
+      'body': ?instance.body,
+      'photoIds': ?instance.photoIds,
+    };

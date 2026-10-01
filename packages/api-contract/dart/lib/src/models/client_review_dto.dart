@@ -6,6 +6,7 @@ import 'package:json_annotation/json_annotation.dart';
 
 import 'client_review_author_dto.dart';
 import 'review_appeal_status.dart';
+import 'review_photo_dto.dart';
 
 part 'client_review_dto.g.dart';
 
@@ -23,6 +24,8 @@ class ClientReviewDto {
     required this.helpfulCount,
     required this.helpfulByMe,
     required this.editedAt,
+    required this.photos,
+    required this.authorReviewCount,
     required this.createdAt,
     this.caseId,
     this.caseTitle,
@@ -54,6 +57,10 @@ class ClientReviewDto {
   final int helpfulCount;
   final bool helpfulByMe;
   final DateTime? editedAt;
+  final List<ReviewPhotoDto> photos;
+
+  /// Reviews this author wrote.
+  final int authorReviewCount;
 
   /// Owner 2026-09-30: the appeal's state — shown to the client and the.
   /// author only (null for others or without an appeal).

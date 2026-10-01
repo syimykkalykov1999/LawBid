@@ -457,7 +457,9 @@ describe('Reviews (e2e, docs/03 §7)', () => {
     for (const r of page1.body.data as Record<string, unknown>[]) {
       expect(Object.keys(r).sort()).toEqual(
         [
+          'authorAvatarUrl',
           'authorDisplayName',
+          'authorReviewCount',
           'authorRole',
           'body',
           'createdAt',
@@ -467,6 +469,7 @@ describe('Reviews (e2e, docs/03 §7)', () => {
           'helpfulCount',
           'id',
           'isMine',
+          'photos',
           'rating',
           'reply',
           'replyAt',

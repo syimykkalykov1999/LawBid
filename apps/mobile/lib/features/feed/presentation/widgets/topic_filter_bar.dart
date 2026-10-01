@@ -24,11 +24,15 @@ class TopicFilterBar extends ConsumerWidget {
     required this.stateCode,
     required this.onState,
     this.showNews = true,
+    this.showNotSure = false,
     super.key,
   });
 
   /// The "News" pill (the post feed; not the attorney's case feed).
   final bool showNews;
+
+  /// Owner 2026-10-01: "Not sure" cases first (the attorney's case feed).
+  final bool showNotSure;
 
   final String? category;
   final ValueChanged<String?> onCategory;
@@ -120,6 +124,7 @@ class TopicFilterBar extends ConsumerWidget {
     final topics = ref.watch(feedTopicsProvider);
 
     Widget pill({
+      Key? key,
       required String label,
       required IconData icon,
       required bool selected,
@@ -127,6 +132,7 @@ class TopicFilterBar extends ConsumerWidget {
       Widget? trailing,
     }) =>
         Semantics(
+          key: key,
           button: true,
           selected: selected,
           label: label,
@@ -216,6 +222,16 @@ class TopicFilterBar extends ConsumerWidget {
             selected: category == null,
             onTap: () => onCategory(null),
           ),
+          if (showNotSure) ...[
+            const SizedBox(width: AppSpacing.sm),
+            pill(
+              key: const ValueKey('topic-not-sure'),
+              label: t.t('feed.topics.notSure'),
+              icon: Icons.help_outline_rounded,
+              selected: category == kNotSureTopic,
+              onTap: () => onCategory(kNotSureTopic),
+            ),
+          ],
           if (showNews && topics.contains(kNewsTopic)) ...[
             const SizedBox(width: AppSpacing.sm),
             pill(
@@ -225,7 +241,8 @@ class TopicFilterBar extends ConsumerWidget {
               onTap: () => onCategory(kNewsTopic),
             ),
           ],
-          for (final c in topics.where((c) => c != kNewsTopic)) ...[
+          for (final c in topics.where((c) =>
+              c != kNewsTopic && !(showNotSure && c == kNotSureTopic))) ...[
             const SizedBox(width: AppSpacing.sm),
             pill(
               label: topicName(ref, c),

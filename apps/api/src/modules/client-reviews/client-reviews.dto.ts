@@ -1,3 +1,4 @@
+import { ReviewPhotoDto } from '../reviews/dto/review-responses.dto';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
@@ -33,6 +34,14 @@ export class UpsertClientReviewDto {
   @IsString()
   @MaxLength(CLIENT_REVIEW_BODY_MAX)
   body?: string;
+
+  /** Owner 2026-10-01 (Google Maps-style): up to 10 `review_photo` files. */
+  @ApiPropertyOptional({ type: [String], maxItems: 10 })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @IsUUID('all', { each: true })
+  photoIds?: string[];
 }
 
 /** Owner 2026-09-30: POST /client-reviews/:id/appeal. */
@@ -158,6 +167,12 @@ export class ClientReviewDto {
 
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   editedAt!: string | null;
+
+  @ApiProperty({ type: () => ReviewPhotoDto, isArray: true })
+  photos!: ReviewPhotoDto[];
+
+  @ApiProperty({ type: 'integer', description: 'Reviews this author wrote.' })
+  authorReviewCount!: number;
 
   /** Owner 2026-09-30: the appeal's state — shown to the client and the
    * author only (null for others or without an appeal). */

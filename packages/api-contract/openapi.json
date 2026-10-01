@@ -32988,7 +32988,8 @@
           "case_attachment",
           "chat_voice",
           "chat_attachment",
-          "task_attachment"
+          "task_attachment",
+          "review_photo"
         ]
       },
       "PresignFileDto": {
@@ -42451,6 +42452,26 @@
           "role"
         ]
       },
+      "ReviewPhotoDto": {
+        "type": "object",
+        "properties": {
+          "fileId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "url": {
+            "type": "string"
+          },
+          "previewUrl": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "fileId",
+          "url",
+          "previewUrl"
+        ]
+      },
       "ReviewAppealStatus": {
         "type": "string",
         "enum": [
@@ -42519,6 +42540,16 @@
             "nullable": true,
             "format": "date-time"
           },
+          "photos": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReviewPhotoDto"
+            }
+          },
+          "authorReviewCount": {
+            "type": "integer",
+            "description": "Reviews this author wrote."
+          },
           "appealStatus": {
             "nullable": true,
             "description": "Owner 2026-09-30: the appeal's state — shown to the client and the\nauthor only (null for others or without an appeal).",
@@ -42544,6 +42575,8 @@
           "helpfulCount",
           "helpfulByMe",
           "editedAt",
+          "photos",
+          "authorReviewCount",
           "createdAt"
         ]
       },
@@ -42558,6 +42591,15 @@
           "body": {
             "type": "string",
             "maxLength": 2000
+          },
+          "photoIds": {
+            "description": "Owner 2026-10-01 (Google Maps-style): up to 10 `review_photo` files.",
+            "maxItems": 10,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
           }
         },
         "required": [
@@ -44474,6 +44516,21 @@
             "type": "boolean",
             "description": "I wrote it (edit / delete)."
           },
+          "photos": {
+            "description": "Owner 2026-10-01 (Google Maps-style).",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReviewPhotoDto"
+            }
+          },
+          "authorAvatarUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "authorReviewCount": {
+            "type": "integer",
+            "description": "Reviews this author wrote."
+          },
           "caseId": {
             "type": "string",
             "nullable": true,
@@ -44514,6 +44571,9 @@
           "helpfulCount",
           "helpfulByMe",
           "isMine",
+          "photos",
+          "authorAvatarUrl",
+          "authorReviewCount",
           "caseId",
           "attorneyId",
           "status",
@@ -44533,6 +44593,15 @@
             "type": "string",
             "nullable": true,
             "maxLength": 1000
+          },
+          "photoIds": {
+            "description": "Owner 2026-10-01 (Google Maps-style): up to 10 `review_photo` files.",
+            "maxItems": 10,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
           }
         },
         "required": [
@@ -44565,6 +44634,14 @@
             "type": "string",
             "nullable": true,
             "maxLength": 1000
+          },
+          "photoIds": {
+            "maxItems": 10,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
           }
         }
       },
@@ -44631,6 +44708,21 @@
           "isMine": {
             "type": "boolean",
             "description": "I wrote it (edit / delete)."
+          },
+          "photos": {
+            "description": "Owner 2026-10-01 (Google Maps-style).",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReviewPhotoDto"
+            }
+          },
+          "authorAvatarUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "authorReviewCount": {
+            "type": "integer",
+            "description": "Reviews this author wrote."
           }
         },
         "required": [
@@ -44646,7 +44738,10 @@
           "replyAt",
           "helpfulCount",
           "helpfulByMe",
-          "isMine"
+          "isMine",
+          "photos",
+          "authorAvatarUrl",
+          "authorReviewCount"
         ]
       },
       "ReviewSort": {

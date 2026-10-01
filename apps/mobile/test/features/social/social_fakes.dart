@@ -105,7 +105,8 @@ class FakeSocialRepository implements SocialRepository {
   @override
   Future<String> uploadPostPhoto(Uint8List bytes,
           {void Function(double progress)? onProgress,
-          bool casePhoto = false}) async =>
+          bool casePhoto = false,
+          bool reviewPhoto = false}) async =>
       'file-1';
 
   @override

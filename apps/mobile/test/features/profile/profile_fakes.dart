@@ -275,7 +275,7 @@ class FakeReviewsRepo implements ReviewsRepository {
 
   @override
   Future<Review> saveMine(String attorneyId,
-      {required int rating, String? body}) async {
+      {required int rating, String? body, List<String>? photoIds}) async {
     calls.add('save:$attorneyId:$rating');
     return mineValue = Review(
       id: 'mine',

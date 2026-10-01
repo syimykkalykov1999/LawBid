@@ -10,6 +10,7 @@ import {
 import { Prisma, type Review } from '@prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { ModerationService } from '../moderation/moderation.service';
+import { FilesService } from '../files/files.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
   decodeCursor,
@@ -39,7 +40,12 @@ import { displayRating, recalcAttorneyRating } from './review-rating';
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 const CLIENT_NAME = {
-  select: { first_name: true, last_name: true, role: true },
+  select: {
+    first_name: true,
+    last_name: true,
+    role: true,
+    avatar_file_id: true,
+  },
 } as const;
 
 type ReviewWithClient = Review & {
@@ -47,6 +53,7 @@ type ReviewWithClient = Review & {
     first_name: string | null;
     last_name: string | null;
     role?: string | null;
+    avatar_file_id?: string | null;
   };
 };
 
@@ -69,6 +76,7 @@ export class ReviewsService {
     // Optional: the worker process (src/worker.ts) wires CaseLifecycleModule
     // without the global ModerationModule and never reports reviews.
     @Optional() private readonly moderation?: ModerationService,
+    @Optional() private readonly files?: FilesService,
   ) {}
 
   /** POST /cases/:caseId/review (§7.1, §7.2). */
@@ -84,6 +92,7 @@ export class ReviewsService {
       });
     }
     const windowDays = await this.settings.number('review.edit_window_days');
+    const photoIds = await this.checkPhotos(user.sub, dto.photoIds);
     try {
       const review = await withTxRetry(this.prisma, async (tx) => {
         const kase = await tx.case.findUnique({
@@ -122,6 +131,7 @@ export class ReviewsService {
             attorney_id: bid.attorney_id,
             rating: dto.rating,
             body: dto.body ?? null,
+            photo_ids: photoIds,
           },
           include: { client: CLIENT_NAME },
         });
@@ -144,7 +154,7 @@ export class ReviewsService {
         );
         return created;
       });
-      return toOwnDto(review, windowDays);
+      return this.own(review, windowDays);
     } catch (error) {
       // A concurrent submission with a different Idempotency-Key lost the
       // race on UQ reviews.case_id.
@@ -171,7 +181,7 @@ export class ReviewsService {
       throw notFound('Review');
     }
     const windowDays = await this.settings.number('review.edit_window_days');
-    return toOwnDto(review, windowDays);
+    return this.own(review, windowDays);
   }
 
   /** PATCH /reviews/:id — the author, within the edit window (§7.2). */
@@ -180,7 +190,11 @@ export class ReviewsService {
     reviewId: string,
     dto: UpdateReviewDto,
   ): Promise<ReviewDto> {
-    if (dto.rating === undefined && dto.body === undefined) {
+    if (
+      dto.rating === undefined &&
+      dto.body === undefined &&
+      dto.photoIds === undefined
+    ) {
       throw new HttpException(
         {
           code: ErrorCode.VALIDATION_ERROR,
@@ -191,6 +205,10 @@ export class ReviewsService {
       );
     }
     const windowDays = await this.settings.number('review.edit_window_days');
+    const photoIds =
+      dto.photoIds === undefined
+        ? undefined
+        : await this.checkPhotos(user.sub, dto.photoIds);
     const review = await withTxRetry(this.prisma, async (tx) => {
       const current = await tx.review.findUnique({ where: { id: reviewId } });
       if (!current || current.client_id !== user.sub) {
@@ -209,6 +227,7 @@ export class ReviewsService {
         data: {
           ...(dto.rating !== undefined ? { rating: dto.rating } : {}),
           ...(dto.body !== undefined ? { body: dto.body } : {}),
+          ...(photoIds !== undefined ? { photo_ids: photoIds } : {}),
           edited_at: now,
         },
         include: { client: CLIENT_NAME },
@@ -216,7 +235,7 @@ export class ReviewsService {
       await recalcAttorneyRating(tx, current.attorney_id);
       return updated;
     });
-    return toOwnDto(review, windowDays);
+    return this.own(review, windowDays);
   }
 
   /** GET /attorneys/:id/reviews — published only, newest first (§7.4). */
@@ -339,11 +358,97 @@ export class ReviewsService {
           ).map((v) => v.review_id),
         )
       : new Set<string>();
+    const extras = await this.extras(page);
     return page.map((r) => ({
       ...toPublicDto(r),
+      ...extras.get(r.id),
       helpfulByMe: voted.has(r.id),
       isMine: r.client_id === viewerId,
     }));
+  }
+
+  /** The author's own review, with photos and the author's line. */
+  private async own(
+    review: ReviewWithClient,
+    windowDays: number,
+  ): Promise<ReviewDto> {
+    const extras = await this.extras([review]);
+    return { ...toOwnDto(review, windowDays), ...extras.get(review.id) };
+  }
+
+  /**
+   * Owner 2026-10-01 (Google Maps-style): photos, the author's avatar and
+   * how many reviews they wrote ("12 reviews").
+   */
+  private async extras(
+    rows: ReviewWithClient[],
+  ): Promise<
+    Map<
+      string,
+      Pick<PublicReviewDto, 'photos' | 'authorAvatarUrl' | 'authorReviewCount'>
+    >
+  > {
+    const out = new Map<
+      string,
+      Pick<PublicReviewDto, 'photos' | 'authorAvatarUrl' | 'authorReviewCount'>
+    >();
+    if (rows.length === 0) return out;
+    const photoIds = rows.flatMap((r) => r.photo_ids ?? []);
+    const authors = [...new Set(rows.map((r) => r.client_id))];
+    const files = this.files;
+    const [photos, avatars, onAttorneys, onPeople] = await Promise.all([
+      files
+        ? files.postImageUrls(photoIds)
+        : Promise.resolve(
+            new Map<
+              string,
+              { url: string; previewUrl: string; mediumUrl: string }
+            >(),
+          ),
+      files
+        ? files.avatarUrlsMany(rows.map((r) => r.client.avatar_file_id ?? null))
+        : Promise.resolve(new Map<string, { url256: string | null }>()),
+      this.prisma.review.groupBy({
+        by: ['client_id'],
+        where: { client_id: { in: authors }, status: 'published' },
+        _count: { _all: true },
+      }),
+      this.prisma.clientReview.groupBy({
+        by: ['attorney_id'],
+        where: { attorney_id: { in: authors }, status: 'published' },
+        _count: { _all: true },
+      }),
+    ]);
+    const count = new Map<string, number>();
+    for (const g of onAttorneys ?? []) count.set(g.client_id, g._count._all);
+    for (const g of onPeople ?? []) {
+      count.set(g.attorney_id, (count.get(g.attorney_id) ?? 0) + g._count._all);
+    }
+    for (const r of rows) {
+      out.set(r.id, {
+        photos: (r.photo_ids ?? []).flatMap((id) => {
+          const u = photos.get(id);
+          return u
+            ? [{ fileId: id, url: u.url, previewUrl: u.previewUrl }]
+            : [];
+        }),
+        authorAvatarUrl: r.client.avatar_file_id
+          ? (avatars.get(r.client.avatar_file_id)?.url256 ?? null)
+          : null,
+        authorReviewCount: count.get(r.client_id) ?? 0,
+      });
+    }
+    return out;
+  }
+
+  /** Own, clean `review_photo` files only. */
+  private async checkPhotos(userId: string, ids?: string[]): Promise<string[]> {
+    const unique = [...new Set(ids ?? [])];
+    for (const id of unique) {
+      if (!this.files) break;
+      await this.files.assertAttachable(userId, id, ['review_photo']);
+    }
+    return unique;
   }
 
   /**
@@ -448,6 +553,7 @@ export class ReviewsService {
     await this.assertVisibleAttorney(attorneyId);
     await this.assertCanWrite(user.sub, attorneyId);
     const body = dto.body?.length ? dto.body : null;
+    const photoIds = await this.checkPhotos(user.sub, dto.photoIds);
     const windowDays = await this.settings.number('review.edit_window_days');
     const review = await withTxRetry(this.prisma, async (tx) => {
       const existing = await tx.review.findFirst({
@@ -462,7 +568,12 @@ export class ReviewsService {
       const row = existing
         ? await tx.review.update({
             where: { id: existing.id },
-            data: { rating: dto.rating, body, edited_at: new Date() },
+            data: {
+              rating: dto.rating,
+              body,
+              edited_at: new Date(),
+              ...(dto.photoIds !== undefined ? { photo_ids: photoIds } : {}),
+            },
             include: { client: CLIENT_NAME },
           })
         : await tx.review.create({
@@ -471,6 +582,7 @@ export class ReviewsService {
               attorney_id: attorneyId,
               rating: dto.rating,
               body,
+              photo_ids: photoIds,
             },
             include: { client: CLIENT_NAME },
           });
@@ -494,7 +606,7 @@ export class ReviewsService {
       }
       return row;
     });
-    return toOwnDto(review, windowDays);
+    return this.own(review, windowDays);
   }
 
   /** GET /attorneys/:id/reviews/mine — my open review of them, or null. */
@@ -513,7 +625,7 @@ export class ReviewsService {
     });
     if (!row) return null;
     const windowDays = await this.settings.number('review.edit_window_days');
-    return toOwnDto(row, windowDays);
+    return this.own(row, windowDays);
   }
 
   /** DELETE /reviews/:id — the author removes their own review. */
@@ -707,6 +819,9 @@ function toPublicDto(review: ReviewWithClient): PublicReviewDto {
     helpfulCount: review.helpful_count,
     helpfulByMe: false,
     isMine: false,
+    photos: [],
+    authorAvatarUrl: null,
+    authorReviewCount: 0,
   };
 }
 

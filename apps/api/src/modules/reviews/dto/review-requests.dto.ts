@@ -2,6 +2,8 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ReportReason } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  IsArray,
   IsBoolean,
   IsEnum,
   IsIn,
@@ -18,6 +20,9 @@ import {
 
 /** docs/03 §7.2 / docs/02 §6.1: text ≤ 1000 characters (CHECK in DB). */
 export const REVIEW_BODY_MAX = 1000;
+
+/** Owner 2026-10-01: photos per review. */
+export const REVIEW_PHOTOS_MAX = 10;
 /** Free-text note of a report. docs/02 leaves it unbounded; capped so a
  * report can't carry an arbitrarily large blob into the moderation queue. */
 export const REPORT_NOTE_MAX = 500;
@@ -66,6 +71,14 @@ export class CreateReviewDto {
   @IsString()
   @MaxLength(REVIEW_BODY_MAX)
   body?: string | null;
+
+  /** Owner 2026-10-01 (Google Maps-style): up to 10 `review_photo` files. */
+  @ApiPropertyOptional({ type: [String], maxItems: REVIEW_PHOTOS_MAX })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(REVIEW_PHOTOS_MAX)
+  @IsUUID('all', { each: true })
+  photoIds?: string[];
 }
 
 /** At least one field; `body: null` (or "") clears the text. */
@@ -87,6 +100,13 @@ export class UpdateReviewDto {
   @IsString()
   @MaxLength(REVIEW_BODY_MAX)
   body?: string | null;
+
+  @ApiPropertyOptional({ type: [String], maxItems: REVIEW_PHOTOS_MAX })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(REVIEW_PHOTOS_MAX)
+  @IsUUID('all', { each: true })
+  photoIds?: string[];
 }
 
 export class ReportReviewDto {

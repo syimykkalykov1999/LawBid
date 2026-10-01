@@ -2,6 +2,13 @@
 // tasks — compiled-in strings merged into StaticTranslatorRu/En.
 
 const file07Ru = <String, String>{
+  'feed.topics.notSure': 'Не уверены в квалификации',
+  'reviews.more': 'Ещё',
+  'reviews.photos.add': 'Фото',
+  'reviews.authorCount.one': '{count} отзыв',
+  'reviews.authorCount.few': '{count} отзыва',
+  'reviews.authorCount.many': '{count} отзывов',
+  'reviews.authorCount.other': '{count} отзыва',
   'reviews.helpful': 'Полезно',
   'reviews.helpful.count': 'Полезно · {n}',
   'reviews.menu': 'Действия с отзывом',
@@ -495,6 +502,11 @@ const file07Ru = <String, String>{
 };
 
 const file07En = <String, String>{
+  'feed.topics.notSure': 'Not sure of the qualification',
+  'reviews.more': 'More',
+  'reviews.photos.add': 'Photos',
+  'reviews.authorCount.one': '{count} review',
+  'reviews.authorCount.other': '{count} reviews',
   'reviews.helpful': 'Helpful',
   'reviews.helpful.count': 'Helpful · {n}',
   'reviews.menu': 'Review actions',

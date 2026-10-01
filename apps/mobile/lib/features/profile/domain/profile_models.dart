@@ -282,6 +282,20 @@ class ReviewSummary {
   bool get isNew => count == 0;
 }
 
+/// Owner 2026-10-01 (Google Maps-style): a photo in a review.
+@immutable
+class ReviewPhoto {
+  const ReviewPhoto({
+    required this.fileId,
+    required this.url,
+    required this.previewUrl,
+  });
+
+  final String fileId;
+  final String url;
+  final String previewUrl;
+}
+
 /// A published review (docs/03 §7.4). [authorDisplayName] is "Anna K."
 /// (the server formats it); no avatar — client privacy.
 @immutable
@@ -302,7 +316,16 @@ class Review {
     this.helpfulCount = 0,
     this.helpfulByMe = false,
     this.isMine = false,
+    this.photos = const [],
+    this.authorAvatarUrl,
+    this.authorReviewCount = 0,
   });
+
+  final List<ReviewPhoto> photos;
+  final String? authorAvatarUrl;
+
+  /// How many reviews the author wrote ("12 reviews").
+  final int authorReviewCount;
 
   // Owner 2026-10-01 (Google-style reviews).
   /// Written after a shared closed case ("Verified case").
@@ -543,7 +566,12 @@ class ClientReview {
     this.helpfulCount = 0,
     this.helpfulByMe = false,
     this.editedAt,
+    this.photos = const [],
+    this.authorReviewCount = 0,
   });
+
+  final List<ReviewPhoto> photos;
+  final int authorReviewCount;
 
   // Owner 2026-10-01 (Google-style reviews).
   final String authorRole;

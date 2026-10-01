@@ -5,6 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'review_author_role.dart';
+import 'review_photo_dto.dart';
 
 part 'public_review_dto.g.dart';
 
@@ -24,6 +25,9 @@ class PublicReviewDto {
     required this.helpfulCount,
     required this.helpfulByMe,
     required this.isMine,
+    required this.photos,
+    required this.authorAvatarUrl,
+    required this.authorReviewCount,
   });
 
   factory PublicReviewDto.fromJson(Map<String, Object?> json) =>
@@ -54,6 +58,13 @@ class PublicReviewDto {
 
   /// I wrote it (edit / delete).
   final bool isMine;
+
+  /// Owner 2026-10-01 (Google Maps-style).
+  final List<ReviewPhotoDto> photos;
+  final String? authorAvatarUrl;
+
+  /// Reviews this author wrote.
+  final int authorReviewCount;
 
   Map<String, Object?> toJson() => _$PublicReviewDtoToJson(this);
 }

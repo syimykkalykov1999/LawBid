@@ -89,6 +89,7 @@ export class ClientReviewsService {
     }
     const body = dto.body?.length ? dto.body : null;
     if (body) assertNoContactInfo({ body });
+    const photoIds = await this.checkPhotos(user.sub, dto.photoIds);
     const existing = await this.prisma.clientReview.findUnique({
       where: {
         case_id_attorney_id: { case_id: caseId, attorney_id: user.sub },
@@ -105,8 +106,13 @@ export class ClientReviewsService {
         client_id: kase.client_id,
         rating: dto.rating,
         body,
+        photo_ids: photoIds,
       },
-      update: { rating: dto.rating, body },
+      update: {
+        rating: dto.rating,
+        body,
+        ...(dto.photoIds !== undefined ? { photo_ids: photoIds } : {}),
+      },
     });
     await this.recalc(kase.client_id);
     if (!existing) {
@@ -150,6 +156,7 @@ export class ClientReviewsService {
     await this.assertCanSee(user, clientId);
     const body = dto.body?.length ? dto.body : null;
     if (body) assertNoContactInfo({ body });
+    const photoIds = await this.checkPhotos(user.sub, dto.photoIds);
     const existing = await this.prisma.clientReview.findFirst({
       where: {
         client_id: clientId,
@@ -162,7 +169,12 @@ export class ClientReviewsService {
     const row = existing
       ? await this.prisma.clientReview.update({
           where: { id: existing.id },
-          data: { rating: dto.rating, body, edited_at: new Date() },
+          data: {
+            rating: dto.rating,
+            body,
+            edited_at: new Date(),
+            ...(dto.photoIds !== undefined ? { photo_ids: photoIds } : {}),
+          },
         })
       : await this.prisma.clientReview.create({
           data: {
@@ -170,6 +182,7 @@ export class ClientReviewsService {
             client_id: clientId,
             rating: dto.rating,
             body,
+            photo_ids: photoIds,
           },
         });
     await this.recalc(clientId);
@@ -481,6 +494,15 @@ export class ClientReviewsService {
     return { decided: pending.length };
   }
 
+  /** Own, clean `review_photo` files only (owner 2026-10-01). */
+  private async checkPhotos(userId: string, ids?: string[]): Promise<string[]> {
+    const unique = [...new Set(ids ?? [])];
+    for (const id of unique) {
+      await this.files.assertAttachable(userId, id, ['review_photo']);
+    }
+    return unique;
+  }
+
   /** Cron: undecided appeals past their date remove the review.
    * Owner 2026-10-01 (Google-style): nothing is removed automatically any
    * more — reviews are removed by their author or by moderation. */
@@ -723,6 +745,30 @@ export class ClientReviewsService {
     const avatars = await this.files.avatarUrlsMany(
       rows.map((r) => r.attorney.avatar_file_id),
     );
+    const photos = await this.files.postImageUrls(
+      rows.flatMap((r) => r.photo_ids),
+    );
+    const authors = [...new Set(rows.map((r) => r.attorney_id))];
+    const [onAttorneys, onPeople] = await Promise.all([
+      this.prisma.review.groupBy({
+        by: ['client_id'],
+        where: { client_id: { in: authors }, status: 'published' },
+        _count: { _all: true },
+      }),
+      this.prisma.clientReview.groupBy({
+        by: ['attorney_id'],
+        where: { attorney_id: { in: authors }, status: 'published' },
+        _count: { _all: true },
+      }),
+    ]);
+    const authored = new Map<string, number>();
+    for (const g of onAttorneys) authored.set(g.client_id, g._count._all);
+    for (const g of onPeople) {
+      authored.set(
+        g.attorney_id,
+        (authored.get(g.attorney_id) ?? 0) + g._count._all,
+      );
+    }
     const voted = new Set(
       (
         await this.prisma.clientReviewHelpfulVote.findMany({
@@ -769,6 +815,13 @@ export class ClientReviewsService {
           helpfulCount: r.helpful_count,
           helpfulByMe: voted.has(r.id),
           editedAt: r.edited_at?.toISOString() ?? null,
+          photos: r.photo_ids.flatMap((id) => {
+            const u = photos.get(id);
+            return u
+              ? [{ fileId: id, url: u.url, previewUrl: u.previewUrl }]
+              : [];
+          }),
+          authorReviewCount: authored.get(r.attorney_id) ?? 0,
           appealStatus:
             r.client_id === viewerId || r.attorney_id === viewerId
               ? (r.appeal?.status ?? null)

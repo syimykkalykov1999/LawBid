@@ -17,9 +17,8 @@ import 'package:lawbid/features/profile/data/client_reviews_repository.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/widgets/review_widgets.dart'
     show
+        MapsReviewTile,
         ReviewBadge,
-        ReviewHelpfulButton,
-        ReviewReplyBlock,
         ReviewSummaryPanel,
         showReportReasonSheet,
         showReviewReplySheet;
@@ -30,7 +29,6 @@ import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart'
     show FollowButton;
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/social/social_routes.dart';
-import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 
 enum _Tab { posts, reviews }
@@ -303,7 +301,6 @@ class _ReviewsListState extends ConsumerState<_ReviewsList> {
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
-    final f = ref.watch(l10nFormatsProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final key = (
@@ -330,9 +327,14 @@ class _ReviewsListState extends ConsumerState<_ReviewsList> {
         context,
         rating: mine?.rating ?? 0,
         body: mine?.body ?? '',
-        onSave: (rating, body) => ref
+        photos: [
+          for (final ph in mine?.photos ?? const <ReviewPhoto>[])
+            (fileId: ph.fileId, url: ph.previewUrl),
+        ],
+        onSave: (rating, body, photoIds) => ref
             .read(clientReviewsRepositoryProvider)
-            .saveOpen(clientId, rating: rating, body: body),
+            .saveOpen(clientId,
+                rating: rating, body: body, photoIds: photoIds),
       );
       if (saved == true && context.mounted) {
         refresh();
@@ -416,124 +418,43 @@ class _ReviewsListState extends ConsumerState<_ReviewsList> {
                   style: type.body.copyWith(color: colors.textSecondary)),
             ),
           for (final r in page.items)
-            Container(
-              margin: const EdgeInsets.fromLTRB(AppSpacing.screenSide,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide,
                   AppSpacing.md, AppSpacing.screenSide, 0),
-              padding: const EdgeInsets.all(AppSpacing.lg),
-              decoration: BoxDecoration(
-                color: colors.surface,
-                borderRadius: BorderRadius.circular(AppRadii.card),
-                border: Border.all(color: colors.border),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  AppPressable(
-                    onTap: () => context.push(r.authorIsClient
-                        ? AppRoutes.client(r.attorneyUsername)
-                        : AppRoutes.lawyer(r.attorneyUsername)),
-                    child: Row(
-                      children: [
-                        GoldRingAvatar(
-                          url: r.attorneyAvatarUrl,
-                          initials: r.attorneyName.isEmpty
-                              ? '?'
-                              : r.attorneyName[0].toUpperCase(),
-                          size: 40,
-                          ring: r.attorneyVerified,
-                        ),
-                        const SizedBox(width: AppSpacing.md),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(r.attorneyName,
-                                  style: type.bodySmall.copyWith(
-                                      color: colors.text,
-                                      fontWeight: FontWeight.w600)),
-                              Text(f.date(r.createdAt),
-                                  style: type.caption
-                                      .copyWith(color: colors.textSecondary)),
-                            ],
-                          ),
-                        ),
-                        Row(
-                          children: [
-                            for (var i = 1; i <= 5; i++)
-                              Icon(
-                                i <= r.rating
-                                    ? Icons.star_rounded
-                                    : Icons.star_outline_rounded,
-                                size: 18,
-                                color: colors.gold,
-                              ),
-                          ],
-                        ),
-                        // Owner 2026-10-01 (Google-style): "…" — edit or
-                        // delete mine, reply to one about me, or report.
-                        AppIconButton(
-                          key: ValueKey('client-review-menu-${r.id}'),
-                          plain: true,
-                          icon: Icon(Icons.more_vert_rounded,
-                              color: colors.textSecondary),
-                          semanticLabel: t.t('client.reviews.menu'),
-                          onPressed: () => _reviewMenu(r, refresh, write),
-                        ),
-                      ],
+              // Owner 2026-10-01: laid out like a Google Maps review.
+              child: MapsReviewTile(
+                id: r.id,
+                authorName: r.attorneyName,
+                authorAvatarUrl: r.attorneyAvatarUrl,
+                authorReviewCount: r.authorReviewCount,
+                rating: r.rating,
+                createdAt: r.createdAt,
+                edited: r.editedAt != null,
+                body: r.body,
+                photos: r.photos,
+                badges: [
+                  if (r.caseId != null)
+                    ReviewBadge(
+                      label: t.t('reviews.badge.case'),
+                      icon: Icons.verified_rounded,
                     ),
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  Wrap(
-                    spacing: AppSpacing.xs,
-                    runSpacing: AppSpacing.xs,
-                    children: [
-                      if (r.caseId != null)
-                        ReviewBadge(
-                          label: t.t('reviews.badge.case'),
-                          icon: Icons.verified_rounded,
-                        ),
-                      ReviewBadge(label: t.t('reviews.role.${r.authorRole}')),
-                      if (r.editedAt != null)
-                        ReviewBadge(label: t.t('reviews.edited')),
-                    ],
-                  ),
-                  if ((r.body ?? '').isNotEmpty) ...[
-                    const SizedBox(height: AppSpacing.sm),
-                    Text(r.body!,
-                        style: type.body.copyWith(color: colors.text)),
-                  ],
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: ReviewHelpfulButton(
-                      key: ValueKey('client-review-helpful-${r.id}'),
-                      count: r.helpfulCount,
-                      mine: r.helpfulByMe,
-                      onToggle: r.isMine || r.canReply
-                          ? null
-                          : () => _helpful(r, refresh),
-                    ),
-                  ),
-                  if (r.reply != null)
-                    ReviewReplyBlock(
-                      reply: r.reply!,
-                      replyAt: r.replyAt,
-                      ownerLabel: t.t('reviews.reply.fromPerson'),
-                      onEdit: r.canReply ? () => _reply(r, refresh) : null,
-                      onDelete:
-                          r.canReply ? () => _deleteReply(r, refresh) : null,
-                    ),
-                  const SizedBox(height: AppSpacing.sm),
-                  Text(
-                      r.caseTitle != null
-                          ? t.t('client.review.case', {'title': r.caseTitle!})
-                          : t.t(r.authorIsClient
-                              ? 'client.review.byClient'
-                              : 'client.review.byAttorney'),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style:
-                          type.caption.copyWith(color: colors.textSecondary)),
+                  ReviewBadge(label: t.t('reviews.role.${r.authorRole}')),
                 ],
+                helpfulCount: r.helpfulCount,
+                helpfulByMe: r.helpfulByMe,
+                onHelpful: r.isMine || r.canReply
+                    ? null
+                    : () => _helpful(r, refresh),
+                reply: r.reply,
+                replyAt: r.replyAt,
+                replyLabel: t.t('reviews.reply.fromPerson'),
+                onEditReply: r.canReply ? () => _reply(r, refresh) : null,
+                onDeleteReply:
+                    r.canReply ? () => _deleteReply(r, refresh) : null,
+                onMenu: () => _reviewMenu(r, refresh, write),
+                onAuthor: () => context.push(r.authorIsClient
+                    ? AppRoutes.client(r.attorneyUsername)
+                    : AppRoutes.lawyer(r.attorneyUsername)),
               ),
             ),
         ],

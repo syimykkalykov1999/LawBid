@@ -68,6 +68,12 @@ export const PURPOSE_RULES: Record<FilePurpose, PurposeRule> = {
     sizeSetting: 'files.max_size_mb',
     bucket: 'media',
   },
+  // Owner 2026-10-01: photos in reviews — public like post photos.
+  review_photo: {
+    mimes: IMAGES,
+    sizeSetting: 'files.max_size_mb',
+    bucket: 'media',
+  },
   // OQ-031: private (documents bucket, short signed links, never the CDN).
   case_photo: {
     mimes: IMAGES,

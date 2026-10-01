@@ -8,13 +8,14 @@ part 'update_review_dto.g.dart';
 
 @JsonSerializable()
 class UpdateReviewDto {
-  const UpdateReviewDto({this.rating, this.body});
+  const UpdateReviewDto({this.rating, this.body, this.photoIds});
 
   factory UpdateReviewDto.fromJson(Map<String, Object?> json) =>
       _$UpdateReviewDtoFromJson(json);
 
   final int? rating;
   final String? body;
+  final List<String>? photoIds;
 
   Map<String, Object?> toJson() => _$UpdateReviewDtoToJson(this);
 }

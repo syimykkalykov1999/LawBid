@@ -25,6 +25,10 @@ ClientReviewDto _$ClientReviewDtoFromJson(Map<String, dynamic> json) =>
       editedAt: json['editedAt'] == null
           ? null
           : DateTime.parse(json['editedAt'] as String),
+      photos: (json['photos'] as List<dynamic>)
+          .map((e) => ReviewPhotoDto.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      authorReviewCount: (json['authorReviewCount'] as num).toInt(),
       createdAt: json['createdAt'] as String,
       caseId: json['caseId'] as String?,
       caseTitle: json['caseTitle'] as String?,
@@ -50,6 +54,8 @@ Map<String, dynamic> _$ClientReviewDtoToJson(ClientReviewDto instance) =>
       'helpfulCount': instance.helpfulCount,
       'helpfulByMe': instance.helpfulByMe,
       'editedAt': ?instance.editedAt?.toIso8601String(),
+      'photos': instance.photos.map((e) => e.toJson()).toList(),
+      'authorReviewCount': instance.authorReviewCount,
       'appealStatus': ?instance.appealStatus?.toJson(),
       'createdAt': instance.createdAt,
     };

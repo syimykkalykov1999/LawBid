@@ -539,9 +539,12 @@ class SocialActions {
     Uint8List bytes, {
     void Function(double)? onProgress,
     bool casePhoto = false,
+    bool reviewPhoto = false,
   }) =>
       _repo.uploadPostPhoto(bytes,
-          onProgress: onProgress, casePhoto: casePhoto);
+          onProgress: onProgress,
+          casePhoto: casePhoto,
+          reviewPhoto: reviewPhoto);
 }
 
 final socialActionsProvider = Provider<SocialActions>(SocialActions.new);

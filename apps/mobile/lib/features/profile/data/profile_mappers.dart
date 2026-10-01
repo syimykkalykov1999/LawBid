@@ -131,7 +131,13 @@ abstract final class ProfileMappers {
         helpfulCount: d.helpfulCount,
         helpfulByMe: d.helpfulByMe,
         isMine: d.isMine,
+        photos: [for (final p in d.photos) _photo(p)],
+        authorAvatarUrl: d.authorAvatarUrl,
+        authorReviewCount: d.authorReviewCount,
       );
+
+  static ReviewPhoto _photo(api.ReviewPhotoDto p) =>
+      ReviewPhoto(fileId: p.fileId, url: p.url, previewUrl: p.previewUrl);
 
   static Review ownReview(api.ReviewDto d) => Review(
         id: d.id,
@@ -149,6 +155,9 @@ abstract final class ProfileMappers {
         helpfulCount: d.helpfulCount,
         helpfulByMe: d.helpfulByMe,
         isMine: true,
+        photos: [for (final p in d.photos) _photo(p)],
+        authorAvatarUrl: d.authorAvatarUrl,
+        authorReviewCount: d.authorReviewCount,
       );
 
   static PublicClientProfile publicClient(api.PublicClientProfileDto d) =>
@@ -196,6 +205,8 @@ abstract final class ProfileMappers {
         helpfulCount: d.helpfulCount.toInt(),
         helpfulByMe: d.helpfulByMe,
         editedAt: d.editedAt?.toLocal(),
+        photos: [for (final p in d.photos) _photo(p)],
+        authorReviewCount: d.authorReviewCount,
       );
 
   static ClientProfileDetails client(api.ClientProfileDto d) =>

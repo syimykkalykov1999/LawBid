@@ -128,9 +128,13 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
       body: mine?.body ?? '',
       titleKey: 'reviews.write.title',
       hintKey: 'reviews.write.hint',
-      onSave: (rating, body) => ref
+      photos: [
+        for (final ph in mine?.photos ?? const <ReviewPhoto>[])
+          (fileId: ph.fileId, url: ph.previewUrl),
+      ],
+      onSave: (rating, body, photoIds) => ref
           .read(reviewsRepositoryProvider)
-          .saveMine(p.id, rating: rating, body: body),
+          .saveMine(p.id, rating: rating, body: body, photoIds: photoIds),
     );
     if (saved == true && mounted) {
       _refreshReviews();

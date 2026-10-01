@@ -8,13 +8,16 @@ part 'create_review_dto.g.dart';
 
 @JsonSerializable()
 class CreateReviewDto {
-  const CreateReviewDto({required this.rating, this.body});
+  const CreateReviewDto({required this.rating, this.body, this.photoIds});
 
   factory CreateReviewDto.fromJson(Map<String, Object?> json) =>
       _$CreateReviewDtoFromJson(json);
 
   final int rating;
   final String? body;
+
+  /// Owner 2026-10-01 (Google Maps-style): up to 10 `review_photo` files.
+  final List<String>? photoIds;
 
   Map<String, Object?> toJson() => _$CreateReviewDtoToJson(this);
 }

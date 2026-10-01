@@ -56,7 +56,9 @@ class ClientReviewsRepository {
   }
 
   Future<ClientReview> save(String caseId,
-          {required int rating, String? body}) async =>
+          {required int rating,
+          String? body,
+          List<String>? photoIds}) async =>
       ProfileMappers.clientReview(
         (await guardApiCall(
           () => _api.upsertClientReview(
@@ -64,6 +66,7 @@ class ClientReviewsRepository {
             body: api.UpsertClientReviewDto(
               rating: rating,
               body: (body ?? '').trim().isEmpty ? null : body!.trim(),
+              photoIds: photoIds,
             ),
           ),
         ))
@@ -74,7 +77,9 @@ class ClientReviewsRepository {
 extension OpenClientReviews on ClientReviewsRepository {
   /// Owner 2026-09-30: anyone reviews a client once (an edit replaces it).
   Future<ClientReview> saveOpen(String clientId,
-          {required int rating, String? body}) async =>
+          {required int rating,
+          String? body,
+          List<String>? photoIds}) async =>
       ProfileMappers.clientReview(
         (await guardApiCall(
           () => client.upsertOpenClientReview(
@@ -82,6 +87,7 @@ extension OpenClientReviews on ClientReviewsRepository {
             body: api.UpsertClientReviewDto(
               rating: rating,
               body: (body ?? '').trim().isEmpty ? null : body!.trim(),
+              photoIds: photoIds,
             ),
           ),
         ))

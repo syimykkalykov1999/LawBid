@@ -462,6 +462,7 @@ export 'models/moderation_action_result_dto.dart';
 export 'models/moderation_action_dto.dart';
 export 'models/moderation_action_result_envelope.dart';
 export 'models/client_review_author_dto.dart';
+export 'models/review_photo_dto.dart';
 export 'models/review_appeal_status.dart';
 export 'models/client_review_dto.dart';
 export 'models/upsert_client_review_dto.dart';

@@ -24,6 +24,11 @@ ReviewDto _$ReviewDtoFromJson(Map<String, dynamic> json) => ReviewDto(
   helpfulCount: (json['helpfulCount'] as num).toInt(),
   helpfulByMe: json['helpfulByMe'] as bool,
   isMine: json['isMine'] as bool,
+  photos: (json['photos'] as List<dynamic>)
+      .map((e) => ReviewPhotoDto.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  authorAvatarUrl: json['authorAvatarUrl'] as String?,
+  authorReviewCount: (json['authorReviewCount'] as num).toInt(),
   caseId: json['caseId'] as String?,
   attorneyId: json['attorneyId'] as String,
   status: ReviewStatus.fromJson(json['status'] as String),
@@ -45,6 +50,9 @@ Map<String, dynamic> _$ReviewDtoToJson(ReviewDto instance) => <String, dynamic>{
   'helpfulCount': instance.helpfulCount,
   'helpfulByMe': instance.helpfulByMe,
   'isMine': instance.isMine,
+  'photos': instance.photos.map((e) => e.toJson()).toList(),
+  'authorAvatarUrl': ?instance.authorAvatarUrl,
+  'authorReviewCount': instance.authorReviewCount,
   'caseId': ?instance.caseId,
   'attorneyId': instance.attorneyId,
   'status': instance.status.toJson(),

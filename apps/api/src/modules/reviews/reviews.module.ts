@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { FilesModule } from '../files/files.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { ReviewModerationService } from './review-moderation.service';
 import { ReviewsController } from './reviews.controller';
@@ -10,7 +11,7 @@ import { ReviewsService } from './reviews.service';
  * moderation. The reminder and nightly rating reconciliation run on the
  * `cron` queue (src/jobs). */
 @Module({
-  imports: [NotificationsModule],
+  imports: [NotificationsModule, FilesModule],
   controllers: [ReviewsController],
   providers: [ReviewsService, ReviewModerationService],
   exports: [ReviewsService, ReviewModerationService],

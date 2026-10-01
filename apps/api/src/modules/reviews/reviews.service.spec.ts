@@ -51,8 +51,11 @@ function setup() {
     review: {
       findUnique: jest.fn(),
       findMany: jest.fn(),
-      groupBy: jest.fn(),
+      groupBy: jest.fn((): Promise<unknown[]> => Promise.resolve([])),
     },
+    // Owner 2026-10-01: the author's review count and "Helpful" votes.
+    clientReview: { groupBy: jest.fn(() => Promise.resolve([])) },
+    reviewHelpfulVote: { findMany: jest.fn(() => Promise.resolve([])) },
     attorneyProfile: {
       findUnique: jest.fn(() =>
         Promise.resolve({
@@ -110,6 +113,7 @@ describe('ReviewsService.create (docs/03 §7.1)', () => {
           attorney_id: 'att-1',
           rating: 5,
           body: null,
+          photo_ids: [],
         },
       }),
     );

@@ -48,153 +48,42 @@ class ReviewCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final t = ref.watch(translatorProvider);
-    final formats = ref.watch(l10nFormatsProvider);
-    final author = review.authorDisplayName ?? t.t('reviews.author.anonymous');
-    final body = review.body?.trim();
-
-    return Semantics(
-      container: true,
-      label: [
-        author,
-        t.t('reviews.stars.label', {'rating': '${review.rating}'}),
-        formats.date(review.createdAt),
-        if (review.isEdited) t.t('reviews.edited'),
-        if (body != null && body.isNotEmpty) body,
-      ].join('. '),
-      child: AppCard(
-        elevated: true,
-        child: ExcludeSemantics(
-          excluding: onReport == null,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: AppSizes.cardAvatar,
-                    height: AppSizes.cardAvatar,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: colors.goldTint,
-                      border: Border.all(
-                          color: colors.goldStroke.withValues(alpha: 0.5)),
-                    ),
-                    child: Icon(Icons.format_quote_rounded,
-                        color: colors.goldStroke, size: AppSizes.iconSm),
-                  ),
-                  const SizedBox(width: AppSpacing.md),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          author,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style:
-                              typography.roleTitle.copyWith(color: colors.text),
-                        ),
-                        const SizedBox(height: AppSpacing.xs),
-                        Wrap(
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          spacing: AppSpacing.sm,
-                          runSpacing: AppSpacing.xs,
-                          children: [
-                            StarRatingDisplay(
-                                value: review.rating.toDouble(),
-                                size: AppSpacing.lg),
-                            Text(
-                              formats.date(review.createdAt),
-                              style: typography.bodySmall
-                                  .copyWith(color: colors.textSecondary),
-                            ),
-                            if (review.isEdited)
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: AppSpacing.sm,
-                                  vertical: AppSpacing.xs / 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: colors.goldTint,
-                                  borderRadius:
-                                      BorderRadius.circular(AppRadii.pill),
-                                ),
-                                child: Text(
-                                  t.t('reviews.edited'),
-                                  style: typography.badge
-                                      .copyWith(color: colors.text),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (onReport != null ||
-                      onEdit != null ||
-                      onDelete != null ||
-                      (onReply != null && review.reply == null))
-                    Semantics(
-                      button: true,
-                      label: t.t('reviews.menu'),
-                      excludeSemantics: true,
-                      child: AppPressable(
-                        key: ValueKey('review-menu-${review.id}'),
-                        onTap: () => _menu(context, t),
-                        child: SizedBox.square(
-                          dimension: AppSizes.touchTarget,
-                          child: Icon(Icons.more_vert_rounded,
-                              color: colors.textSecondary,
-                              size: AppSizes.iconSm),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-              // Owner 2026-10-01: who wrote it and whether a case backs it.
-              const SizedBox(height: AppSpacing.sm),
-              Wrap(
-                spacing: AppSpacing.xs,
-                runSpacing: AppSpacing.xs,
-                children: [
-                  if (review.fromCase)
-                    ReviewBadge(
-                      label: t.t('reviews.badge.case'),
-                      icon: Icons.verified_rounded,
-                    ),
-                  ReviewBadge(label: t.t('reviews.role.${review.authorRole}')),
-                ],
-              ),
-              if (body != null && body.isNotEmpty) ...[
-                const SizedBox(height: AppSpacing.md),
-                Text(body, style: typography.body.copyWith(color: colors.text)),
-              ],
-              Align(
-                alignment: Alignment.centerLeft,
-                child: ReviewHelpfulButton(
-                  key: ValueKey('review-helpful-${review.id}'),
-                  count: review.helpfulCount,
-                  mine: review.helpfulByMe,
-                  onToggle: onHelpful,
-                ),
-              ),
-              if (review.reply != null)
-                ReviewReplyBlock(
-                  reply: review.reply!,
-                  replyAt: review.replyAt,
-                  ownerLabel: t.t('reviews.reply.fromAttorney'),
-                  onEdit: onReply,
-                  onDelete: onDeleteReply,
-                ),
-            ],
+    final hasMenu = onReport != null ||
+        onEdit != null ||
+        onDelete != null ||
+        (onReply != null && review.reply == null);
+    // Owner 2026-10-01: laid out like a Google Maps review.
+    return MapsReviewTile(
+      id: review.id,
+      authorName: review.authorDisplayName ?? t.t('reviews.author.anonymous'),
+      authorAvatarUrl: review.authorAvatarUrl,
+      authorReviewCount: review.authorReviewCount,
+      rating: review.rating,
+      createdAt: review.createdAt,
+      edited: review.isEdited,
+      body: review.body,
+      photos: review.photos,
+      badges: [
+        if (review.fromCase)
+          ReviewBadge(
+            label: t.t('reviews.badge.case'),
+            icon: Icons.verified_rounded,
           ),
-        ),
-      ),
+        ReviewBadge(label: t.t('reviews.role.${review.authorRole}')),
+      ],
+      helpfulCount: review.helpfulCount,
+      helpfulByMe: review.helpfulByMe,
+      onHelpful: onHelpful,
+      reply: review.reply,
+      replyAt: review.replyAt,
+      replyLabel: t.t('reviews.reply.fromAttorney'),
+      onEditReply: onReply,
+      onDeleteReply: onDeleteReply,
+      onMenu: hasMenu ? () => _menu(context, t) : null,
     );
   }
+
 }
 
 extension on ReviewCard {
@@ -924,6 +813,283 @@ class ReviewBadge extends StatelessWidget {
             const SizedBox(width: 3),
           ],
           Text(label, style: type.badge.copyWith(color: colors.goldDark)),
+        ],
+      ),
+    );
+  }
+}
+
+/// Owner 2026-10-01: one review laid out like Google Maps — avatar, name
+/// and "12 reviews", the stars with "3 weeks ago", the text (folded after
+/// five lines with "More"), a strip of photos, "Helpful" and the owner's
+/// response. Used for reviews of attorneys and of clients / assistants.
+class MapsReviewTile extends ConsumerStatefulWidget {
+  const MapsReviewTile({
+    required this.id,
+    required this.authorName,
+    required this.rating,
+    required this.createdAt,
+    super.key,
+    this.authorAvatarUrl,
+    this.authorReviewCount = 0,
+    this.badges = const [],
+    this.edited = false,
+    this.body,
+    this.photos = const [],
+    this.helpfulCount = 0,
+    this.helpfulByMe = false,
+    this.onHelpful,
+    this.reply,
+    this.replyAt,
+    this.replyLabel = '',
+    this.onEditReply,
+    this.onDeleteReply,
+    this.onMenu,
+    this.onAuthor,
+  });
+
+  final String id;
+  final String authorName;
+  final String? authorAvatarUrl;
+  final int authorReviewCount;
+  final List<Widget> badges;
+  final int rating;
+  final DateTime createdAt;
+  final bool edited;
+  final String? body;
+  final List<ReviewPhoto> photos;
+  final int helpfulCount;
+  final bool helpfulByMe;
+  final VoidCallback? onHelpful;
+  final String? reply;
+  final DateTime? replyAt;
+  final String replyLabel;
+  final VoidCallback? onEditReply;
+  final VoidCallback? onDeleteReply;
+
+  /// The ⋮ menu (edit / delete / reply / report); null hides it.
+  final VoidCallback? onMenu;
+  final VoidCallback? onAuthor;
+
+  @override
+  ConsumerState<MapsReviewTile> createState() => _MapsReviewTileState();
+}
+
+class _MapsReviewTileState extends ConsumerState<MapsReviewTile> {
+  bool _expanded = false;
+
+  void _openPhoto(int index) {
+    final photos = widget.photos;
+    showGeneralDialog<void>(
+      context: context,
+      barrierColor: Colors.black,
+      barrierDismissible: true,
+      barrierLabel: 'photo',
+      pageBuilder: (ctx, _, __) => SafeArea(
+        child: Stack(
+          children: [
+            PageView.builder(
+              controller: PageController(initialPage: index),
+              itemCount: photos.length,
+              itemBuilder: (_, i) => InteractiveViewer(
+                child: Center(
+                  child: Image.network(photos[i].url, fit: BoxFit.contain),
+                ),
+              ),
+            ),
+            Positioned(
+              top: AppSpacing.sm,
+              right: AppSpacing.sm,
+              child: IconButton(
+                icon: const Icon(Icons.close_rounded, color: Colors.white),
+                onPressed: () => Navigator.of(ctx).pop(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ref.watch(translatorProvider);
+    final f = ref.watch(l10nFormatsProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final w = widget;
+    final body = w.body?.trim() ?? '';
+    final long = body.length > 280 || '\n'.allMatches(body).length > 4;
+    final initials = w.authorName.isEmpty
+        ? '?'
+        : w.authorName.trim().split(RegExp(r'\s+')).take(2).map((p) {
+            return p.isEmpty ? '' : p[0].toUpperCase();
+          }).join();
+    return Container(
+      key: ValueKey('maps-review-${w.id}'),
+      padding: const EdgeInsets.fromLTRB(
+          AppSpacing.lg, AppSpacing.md, AppSpacing.sm, AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(AppRadii.card),
+        border: Border.all(color: colors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              GestureDetector(
+                onTap: w.onAuthor,
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: colors.navy,
+                    image: w.authorAvatarUrl == null
+                        ? null
+                        : DecorationImage(
+                            image: NetworkImage(w.authorAvatarUrl!),
+                            fit: BoxFit.cover,
+                          ),
+                  ),
+                  alignment: Alignment.center,
+                  child: w.authorAvatarUrl == null
+                      ? Text(initials,
+                          style: type.bodySmall.copyWith(
+                              color: colors.gold,
+                              fontWeight: FontWeight.w700))
+                      : null,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: GestureDetector(
+                  onTap: w.onAuthor,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        w.authorName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: type.body.copyWith(
+                          color: colors.text,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      if (w.authorReviewCount > 0)
+                        Text(
+                          SocialFormat.plural(t, f, 'reviews.authorCount',
+                              w.authorReviewCount),
+                          style: type.caption
+                              .copyWith(color: colors.textSecondary),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              if (w.onMenu != null)
+                IconButton(
+                  key: ValueKey('review-menu-${w.id}'),
+                  tooltip: t.t('reviews.menu'),
+                  icon: Icon(Icons.more_vert_rounded,
+                      color: colors.textSecondary),
+                  onPressed: w.onMenu,
+                ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.xs,
+            children: [
+              StarRatingDisplay(value: w.rating.toDouble(), size: 16),
+              Text(
+                SocialFormat.ago(t, f, w.createdAt),
+                style: type.caption.copyWith(color: colors.textSecondary),
+              ),
+              if (w.edited)
+                Text(t.t('reviews.edited'),
+                    style:
+                        type.caption.copyWith(color: colors.textSecondary)),
+              ...w.badges,
+            ],
+          ),
+          if (body.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Padding(
+              padding: const EdgeInsets.only(right: AppSpacing.sm),
+              child: Text(
+                body,
+                maxLines: _expanded ? null : 5,
+                overflow:
+                    _expanded ? TextOverflow.visible : TextOverflow.ellipsis,
+                style: type.body.copyWith(color: colors.text, height: 1.4),
+              ),
+            ),
+            if (long && !_expanded)
+              GestureDetector(
+                onTap: () => setState(() => _expanded = true),
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Text(t.t('reviews.more'),
+                      style: type.bodySmall.copyWith(
+                          color: colors.goldDark,
+                          fontWeight: FontWeight.w700)),
+                ),
+              ),
+          ],
+          if (w.photos.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.sm),
+            SizedBox(
+              height: 96,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: w.photos.length,
+                separatorBuilder: (_, __) =>
+                    const SizedBox(width: AppSpacing.xs),
+                itemBuilder: (_, i) => GestureDetector(
+                  key: ValueKey('review-photo-${w.id}-$i'),
+                  onTap: () => _openPhoto(i),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(AppRadii.field),
+                    child: Image.network(
+                      w.photos[i].previewUrl,
+                      width: 96,
+                      height: 96,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                          width: 96, height: 96, color: colors.goldTint),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+          Align(
+            alignment: Alignment.centerLeft,
+            child: ReviewHelpfulButton(
+              key: ValueKey('review-helpful-${w.id}'),
+              count: w.helpfulCount,
+              mine: w.helpfulByMe,
+              onToggle: w.onHelpful,
+            ),
+          ),
+          if (w.reply != null)
+            Padding(
+              padding: const EdgeInsets.only(right: AppSpacing.sm),
+              child: ReviewReplyBlock(
+                reply: w.reply!,
+                replyAt: w.replyAt,
+                ownerLabel: w.replyLabel,
+                onEdit: w.onEditReply,
+                onDelete: w.onDeleteReply,
+              ),
+            ),
+          const SizedBox(height: AppSpacing.xs),
         ],
       ),
     );

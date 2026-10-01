@@ -145,6 +145,11 @@ const _newsKey = 'feed.topics.news.v1';
 /// Owner 2026-09-30: the "News" topic in the slider (not a practice code).
 const kNewsTopic = '@news';
 
+/// Owner 2026-10-01: cases whose client wasn't sure of the qualification
+/// (the wizard's "Not sure" choice). A real practice code: the case feed
+/// filters by it like any qualification; every attorney may see them.
+const kNotSureTopic = 'general_practice.not_sure_or_other';
+
 final _codeShape = RegExp(r'^[a-z0-9_]+(\.[a-z0-9_]+)?$');
 
 /// The categories in this user's topic slider, in catalog order; kept on

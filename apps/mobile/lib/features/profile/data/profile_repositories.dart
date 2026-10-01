@@ -46,7 +46,7 @@ abstract interface class ReviewsRepository {
   // edits / deletes; the attorney replies; anyone marks "Helpful" / flags.
   Future<Review?> mine(String attorneyId);
   Future<Review> saveMine(String attorneyId,
-      {required int rating, String? body});
+      {required int rating, String? body, List<String>? photoIds});
   Future<void> delete(String reviewId);
   Future<Review> reply(String reviewId, String? body);
   Future<Review> helpful(String reviewId, {required bool on});
@@ -260,12 +260,15 @@ class ApiReviewsRepository implements ReviewsRepository {
 
   @override
   Future<Review> saveMine(String attorneyId,
-          {required int rating, String? body}) async =>
+          {required int rating,
+          String? body,
+          List<String>? photoIds}) async =>
       ProfileMappers.ownReview(
         (await guardApiCall(
           () => _client.upsertOpen(
             id: attorneyId,
-            body: api.CreateReviewDto(rating: rating, body: _text(body)),
+            body: api.CreateReviewDto(
+                rating: rating, body: _text(body), photoIds: photoIds),
           ),
         ))
             .data,

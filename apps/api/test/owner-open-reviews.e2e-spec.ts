@@ -110,7 +110,46 @@ describe('Open reviews (e2e, owner 2026-10-01)', () => {
         .set(bearer(who, role))
         .send({ rating, body });
 
-    const r1 = await put(c, 'client', 5, 'Explained everything').expect(200);
+    // Owner 2026-10-01 (Google Maps-style): photos in the review.
+    const photo = await prisma.file.create({
+      data: {
+        owner_user_id: c,
+        purpose: 'review_photo',
+        s3_bucket: 'media',
+        s3_key: `review/${randomUUID()}.jpg`,
+        mime: 'image/jpeg',
+        size_bytes: 1000n,
+        sha256: 'a'.repeat(64),
+        scan_status: 'clean',
+        is_public: true,
+      },
+    });
+    const foreign = await prisma.file.create({
+      data: {
+        owner_user_id: c,
+        purpose: 'post_image',
+        s3_bucket: 'media',
+        s3_key: `post/${randomUUID()}.jpg`,
+        mime: 'image/jpeg',
+        size_bytes: 1000n,
+        sha256: 'a'.repeat(64),
+        scan_status: 'clean',
+        is_public: true,
+      },
+    });
+    await api()
+      .put(`/api/v1/attorneys/${a}/reviews/mine`)
+      .set(bearer(c, 'client'))
+      .send({ rating: 5, photoIds: [foreign.id] })
+      .expect(409); // FILE_NOT_ATTACHABLE: not a review photo
+    const r1 = await api()
+      .put(`/api/v1/attorneys/${a}/reviews/mine`)
+      .set(bearer(c, 'client'))
+      .send({ rating: 5, body: 'Explained everything', photoIds: [photo.id] })
+      .expect(200);
+    expect(r1.body.data.photos).toHaveLength(1);
+    expect(r1.body.data.photos[0].fileId).toBe(photo.id);
+    expect(r1.body.data.authorReviewCount).toBe(1);
     expect(r1.body.data).toMatchObject({
       caseId: null,
       fromCase: false,

@@ -25,6 +25,11 @@ PublicReviewDto _$PublicReviewDtoFromJson(Map<String, dynamic> json) =>
       helpfulCount: (json['helpfulCount'] as num).toInt(),
       helpfulByMe: json['helpfulByMe'] as bool,
       isMine: json['isMine'] as bool,
+      photos: (json['photos'] as List<dynamic>)
+          .map((e) => ReviewPhotoDto.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      authorAvatarUrl: json['authorAvatarUrl'] as String?,
+      authorReviewCount: (json['authorReviewCount'] as num).toInt(),
     );
 
 Map<String, dynamic> _$PublicReviewDtoToJson(PublicReviewDto instance) =>
@@ -42,4 +47,7 @@ Map<String, dynamic> _$PublicReviewDtoToJson(PublicReviewDto instance) =>
       'helpfulCount': instance.helpfulCount,
       'helpfulByMe': instance.helpfulByMe,
       'isMine': instance.isMine,
+      'photos': instance.photos.map((e) => e.toJson()).toList(),
+      'authorAvatarUrl': ?instance.authorAvatarUrl,
+      'authorReviewCount': instance.authorReviewCount,
     };

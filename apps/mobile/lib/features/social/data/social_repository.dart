@@ -160,6 +160,7 @@ abstract interface class SocialRepository {
     Uint8List bytes, {
     void Function(double progress)? onProgress,
     bool casePhoto = false,
+    bool reviewPhoto = false,
   });
 }
 
@@ -569,6 +570,8 @@ class ApiSocialRepository implements SocialRepository {
     void Function(double progress)? onProgress,
     // OQ-031: the same pipeline for private case photos.
     bool casePhoto = false,
+    // Owner 2026-10-01: photos in reviews (public, like post photos).
+    bool reviewPhoto = false,
   }) async {
     // OQ-034: a case also takes documents (PDF, Word) next to photos.
     final image = sniffImageMime(bytes);
@@ -593,7 +596,9 @@ class ApiSocialRepository implements SocialRepository {
               ? api.FilePurpose.caseAttachment
               : casePhoto
                   ? api.FilePurpose.casePhoto
-                  : api.FilePurpose.postImage,
+                  : reviewPhoto
+                      ? api.FilePurpose.reviewPhoto
+                      : api.FilePurpose.postImage,
           mime: mime,
           sizeBytes: bytes.length,
           sha256: sha256Hex(bytes),
