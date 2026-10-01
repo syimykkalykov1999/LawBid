@@ -75,7 +75,9 @@ export class PostsService {
         message: 'Only attorneys publish news.',
       });
     }
-    const practice = await this.practiceByCode(dto.practiceCode);
+    const practice = dto.practiceCode
+      ? await this.practiceByCode(dto.practiceCode)
+      : null;
     await this.limits.consume('post_create', user.sub);
     const status = await this.moderate(
       `${dto.title}\n${dto.body}`,
@@ -109,7 +111,7 @@ export class PostsService {
         data: {
           author_id: user.sub,
           title: dto.title,
-          practice_area_id: practice.id,
+          practice_area_id: practice?.id ?? null,
           kind,
           body: dto.body,
           status,

@@ -22,7 +22,8 @@ class CreateScreen extends ConsumerStatefulWidget {
 }
 
 // OQ-048: [task] — the attorney's own task or an assistant's task for them.
-enum _Kind { caseKind, post, news, task }
+// Owner 2026-10-01: News is a switch inside the post, not its own entry.
+enum _Kind { caseKind, post, task }
 
 class _CreateScreenState extends ConsumerState<CreateScreen> {
   _Kind? _kind;
@@ -33,7 +34,6 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
     return switch (_kind) {
       _Kind.caseKind => const CreateCaseScreen(),
       _Kind.post => const CreatePostScreen(),
-      _Kind.news => const CreatePostScreen(news: true),
       _Kind.task => const TaskEditorScreen(),
       null => _Chooser(
           attorney: attorney,
@@ -137,23 +137,12 @@ class _Chooser extends ConsumerWidget {
                       t.t(direct
                           ? 'create.post.subAttorney'
                           : 'assistant.plus.post.hint')),
-                  const SizedBox(height: AppSpacing.md),
-                  option(
-                      _Kind.news,
-                      AppIcons.newspaperRounded,
-                      t.t('create.news'),
-                      t.t(direct
-                          ? 'create.news.sub'
-                          : 'assistant.plus.post.hint')),
                 ],
               ]
             : attorney
             ? [
                 option(_Kind.post, AppIcons.editNoteRounded, t.t('create.post'),
                     t.t('create.post.subAttorney')),
-                const SizedBox(height: AppSpacing.md),
-                option(_Kind.news, AppIcons.newspaperRounded, t.t('create.news'),
-                    t.t('create.news.sub')),
                 const SizedBox(height: AppSpacing.md),
                 option(_Kind.task, AppIcons.eventNoteOutlined,
                     t.t('tasks.forMe'), t.t('assistant.plus.task.hint')),
@@ -164,6 +153,10 @@ class _Chooser extends ConsumerWidget {
                 const SizedBox(height: AppSpacing.md),
                 option(_Kind.post, AppIcons.editNoteRounded, t.t('create.post'),
                     t.t('create.post.sub')),
+                const SizedBox(height: AppSpacing.md),
+                // Owner 2026-10-01: clients keep a planner too.
+                option(_Kind.task, AppIcons.eventNoteOutlined,
+                    t.t('tasks.forMe'), t.t('client.plus.task.hint')),
               ],
       ),
     );

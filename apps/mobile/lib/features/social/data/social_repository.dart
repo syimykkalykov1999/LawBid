@@ -28,14 +28,15 @@ class PostDraft {
   const PostDraft({
     required this.title,
     required this.body,
-    required this.practiceCode,
+    this.practiceCode,
     this.isNews = false,
     this.mediaFileIds = const [],
   });
 
   final String title;
   final String body;
-  final String practiceCode;
+  /// Owner 2026-10-01: optional (general news has no area of law).
+  final String? practiceCode;
   final bool isNews;
   final List<String> mediaFileIds;
 }

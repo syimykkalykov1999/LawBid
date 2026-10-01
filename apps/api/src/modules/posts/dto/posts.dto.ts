@@ -40,13 +40,16 @@ export class CreatePostDto {
 
   /** Owner 2026-09-30: the qualification — a practice category or
    * subcategory code (`civil_litigation`, `civil_litigation.appeals`…). */
-  @ApiProperty({
+  // Owner 2026-10-01: optional — news about politics or anything general
+  // has no qualification.
+  @ApiPropertyOptional({
     example: 'civil_litigation.arbitration_and_mediation_representation',
   })
+  @IsOptional()
   @IsString()
   @MinLength(2)
   @MaxLength(120)
-  practiceCode!: string;
+  practiceCode?: string;
 
   /** Owner 2026-09-30: News — attorneys only. */
   @ApiPropertyOptional({

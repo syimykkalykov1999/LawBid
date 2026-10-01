@@ -37110,7 +37110,6 @@
         },
         "required": [
           "title",
-          "practiceCode",
           "body"
         ]
       },

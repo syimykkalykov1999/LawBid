@@ -12,10 +12,10 @@ part 'create_post_dto.g.dart';
 class CreatePostDto {
   const CreatePostDto({
     required this.title,
-    required this.practiceCode,
     required this.body,
-    this.mediaFileIds,
     this.kind = PostKind.post,
+    this.practiceCode,
+    this.mediaFileIds,
   });
 
   factory CreatePostDto.fromJson(Map<String, Object?> json) =>
@@ -26,7 +26,7 @@ class CreatePostDto {
 
   /// Owner 2026-09-30: the qualification — a practice category or.
   /// subcategory code (`civil_litigation`, `civil_litigation.appeals`…).
-  final String practiceCode;
+  final String? practiceCode;
 
   /// Owner 2026-09-30: News — attorneys only.
   final PostKind kind;

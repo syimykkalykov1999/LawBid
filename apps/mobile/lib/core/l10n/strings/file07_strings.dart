@@ -428,6 +428,7 @@ const file07Ru = <String, String>{
   'tasks.doubleTapHint': 'Двойное нажатие на задачу — «Выполнено». Нажатие — подробности.',
   'tasks.forAttorney': 'Задача для адвоката',
   'tasks.forMe': 'Новая задача',
+  'client.plus.task.hint': 'Заметка, звонок, встреча, документы — в ваш ежедневник',
   'tasks.empty': 'Задач нет',
   'tasks.empty.body':
       'Звонки, встречи, суды, сроки, документы — всё в одном списке по дням.',
@@ -950,6 +951,7 @@ const file07En = <String, String>{
   'tasks.doubleTapHint': 'Double-tap a task to mark it done. Tap for details.',
   'tasks.forAttorney': 'Task for the attorney',
   'tasks.forMe': 'New task',
+  'client.plus.task.hint': 'A note, call, meeting, documents — into your planner',
   'tasks.empty': 'No tasks',
   'tasks.empty.body':
       'Calls, meetings, court dates, deadlines, documents — one list by day.',

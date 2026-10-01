@@ -131,7 +131,6 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
   bool get _ready =>
       _title.text.trim().isNotEmpty &&
       _text.text.trim().isNotEmpty &&
-      _practice != null &&
       _photos.every((p) => p.fileId != null);
 
   Future<void> _publish() async {
@@ -160,7 +159,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
           {
             'title': _title.text.trim(),
             'body': _text.text.trim(),
-            'practiceCode': _practice!,
+            if (_practice != null) 'practiceCode': _practice!,
             'kind': _news ? 'news' : 'post',
             'mediaFileIds': [for (final p in _photos) p.fileId!],
           },
@@ -175,7 +174,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
             PostDraft(
               title: _title.text.trim(),
               body: _text.text.trim(),
-              practiceCode: _practice!,
+              practiceCode: _practice,
               isNews: _news,
               mediaFileIds: [for (final p in _photos) p.fileId!],
             ),
@@ -246,8 +245,8 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                     ),
                     const SizedBox(height: AppSpacing.lg),
                   ],
-                  label(t.t('post.create.practice'),
-                      error: missing && practice == null),
+                  // Owner 2026-10-01: the qualification is optional.
+                  label(t.t('post.create.practice')),
                   _PracticeField(
                     label: practice == null
                         ? t.t('post.create.practicePick')
@@ -258,7 +257,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                     icon: practiceGlyph(
                         practice == null ? null : practiceCategoryOf(practice)),
                     empty: practice == null,
-                    error: missing && practice == null,
+                    error: false,
                     onTap: _pickPractice,
                   ),
                   const SizedBox(height: AppSpacing.lg),

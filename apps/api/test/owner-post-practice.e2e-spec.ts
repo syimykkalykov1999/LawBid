@@ -118,6 +118,17 @@ describe('Post qualifications and News (e2e, owner 2026-09-30)', () => {
     });
   });
 
+  it('a post or news without a qualification (owner 2026-10-01)', async () => {
+    const att = await user('attorney');
+    const r = await post(att.auth, {
+      title: 'Election day: courts close early',
+      kind: 'news',
+      body: 'General news, no area of law.',
+    });
+    expect(r.status).toBe(201);
+    expect(r.body.data.practice).toBeNull();
+  });
+
   it('refuses a missing title, an unknown qualification and client News', async () => {
     const att = await user('attorney');
     const noTitle = await post(att.auth, { practiceCode: SUB, body: 'x' });

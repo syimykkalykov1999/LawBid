@@ -882,7 +882,12 @@ function validatePayload(dto: CreateAssistantRequestDto): void {
     typeof p[k] === 'string' && p[k].trim().length > 0 && p[k].length <= max;
   const ok =
     dto.kind === 'post'
-      ? str('title', 120) && str('body', 2200) && str('practiceCode', 120)
+      ? str('title', 120) &&
+        str('body', 2200) &&
+        // Owner 2026-10-01: the qualification is optional.
+        (p.practiceCode === undefined ||
+          p.practiceCode === null ||
+          str('practiceCode', 120))
       : dto.kind === 'comment'
         ? str('postId', 64) && str('body', 1000)
         : dto.kind === 'case_comment'
