@@ -63,53 +63,52 @@ class _TeamInboxTabState extends ConsumerState<TeamInboxTab> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     return Column(
       children: [
-        // Owner 2026-10-01: Requests · Activity centred; the team settings
-        // icon at the right edge, in line with the notifications bell.
-        Padding(
-          padding: const EdgeInsets.only(
-            top: AppSpacing.xs,
-            bottom: AppSpacing.sm,
-          ),
-          child: SizedBox(
-            height: AppSizes.touchTarget,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    AppChip(
-                      key: const ValueKey('team-view-requests'),
-                      label: t.t('team.requests'),
-                      selected: _view == _TeamView.requests,
-                      onTap: () =>
-                          setState(() => _view = _TeamView.requests),
-                    ),
-                    const SizedBox(width: AppSpacing.sm),
-                    AppChip(
-                      key: const ValueKey('team-view-activity'),
-                      label: t.t('team.activity'),
-                      selected: _view == _TeamView.activity,
-                      onTap: () =>
-                          setState(() => _view = _TeamView.activity),
-                    ),
-                  ],
-                ),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: Padding(
-                    // Same inset as the bell in the Inbox header.
-                    padding: const EdgeInsets.only(right: AppSpacing.xs),
-                    child: AppIconButton(
-                      key: const ValueKey('team-settings'),
-                      icon: const AppIcon(AppIcons.manageAccountsOutlined),
-                      semanticLabel: t.t('team.title'),
-                      onPressed: () => context.push(TeamRoutes.team),
-                    ),
+        // Owner 2026-10-01: the team settings icon sits at the right edge
+        // straight under the notifications bell (same inset), on its own
+        // line — it used to overlap "Requests" on narrow screens; Requests ·
+        // Activity stay centred below it.
+        SizedBox(
+          width: double.infinity,
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: Padding(
+              padding: const EdgeInsets.only(right: AppSpacing.xs),
+              child: SizedBox.square(
+                dimension: AppSizes.touchTarget,
+                child: AppIconButton(
+                  key: const ValueKey('team-settings'),
+                  plain: true,
+                  icon: const AppIcon(
+                    AppIcons.manageAccountsOutlined,
+                    size: 28,
                   ),
+                  semanticLabel: t.t('team.title'),
+                  onPressed: () => context.push(TeamRoutes.team),
                 ),
-              ],
+              ),
             ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+          child: Wrap(
+            alignment: WrapAlignment.center,
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.xs,
+            children: [
+              AppChip(
+                key: const ValueKey('team-view-requests'),
+                label: t.t('team.requests'),
+                selected: _view == _TeamView.requests,
+                onTap: () => setState(() => _view = _TeamView.requests),
+              ),
+              AppChip(
+                key: const ValueKey('team-view-activity'),
+                label: t.t('team.activity'),
+                selected: _view == _TeamView.activity,
+                onTap: () => setState(() => _view = _TeamView.activity),
+              ),
+            ],
           ),
         ),
         Expanded(
