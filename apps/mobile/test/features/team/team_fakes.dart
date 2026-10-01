@@ -207,7 +207,15 @@ class FakeTeamRepository implements TeamRepository {
       for (final t in active)
         if (t.id != id) t
     ];
-    if (!status.active) done = [...done, updated];
+    done = [
+      for (final t in done)
+        if (t.id != id) t
+    ];
+    if (status.active) {
+      active = [...active, updated];
+    } else {
+      done = [...done, updated];
+    }
     return updated;
   }
 
@@ -226,7 +234,16 @@ class FakeTeamRepository implements TeamRepository {
       steps: steps,
       status: all ? TaskStatus.done : TaskStatus.open,
     );
-    active = [for (final x in active) x.id == id ? updated : x];
+    active = [
+      for (final x in active)
+        if (x.id != id) x,
+      if (updated.status.active) updated,
+    ];
+    done = [
+      for (final x in done)
+        if (x.id != id) x,
+      if (!updated.status.active) updated,
+    ];
     return updated;
   }
 

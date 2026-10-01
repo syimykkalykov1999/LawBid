@@ -180,6 +180,54 @@ void main() {
     expect(find.text('Where to go (address)'), findsOneWidget);
   });
 
+  group('Taking a checkmark back (owner 2026-10-01)', () {
+    testWidgets('the status mark toggles done ⇄ back to work; Undo',
+        (tester) async {
+      repo.active = [makeTask('u1', dueAt: DateTime.now())];
+      await pump(tester, const TasksTab());
+      await tester.tap(find.byKey(const ValueKey('task-check-u1')));
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+      expect(repo.calls, contains('status:u1:done:null'));
+      // Undo in the snackbar brings it back.
+      await tester.tap(find.text('Undo'));
+      await tester.pumpAndSettle();
+      expect(repo.calls, contains('status:u1:open:null'));
+      expect(find.text('Task u1'), findsOneWidget);
+    });
+
+    testWidgets('in Done: tapping the mark sends the task back to work',
+        (tester) async {
+      repo.done = [makeTask('u2', status: TaskStatus.done)];
+      await pump(tester, const TasksTab());
+      await tester.tap(find.byKey(const ValueKey('tasks-view-done')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('task-check-u2')));
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+      expect(repo.calls, contains('status:u2:open:null'));
+      expect(find.text('Task u2'), findsNothing);
+    });
+
+    testWidgets('a finished checklist: unchecking a step reopens it',
+        (tester) async {
+      repo.done = [
+        makeTask('u3', status: TaskStatus.done, steps: const [
+          TaskStep(id: 'a', title: 'Call A', status: TaskStatus.done),
+          TaskStep(id: 'b', title: 'Call B', status: TaskStatus.done),
+        ]),
+      ];
+      await pump(tester, const TasksTab());
+      await tester.tap(find.byKey(const ValueKey('tasks-view-done')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('step-check-b')));
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+      expect(repo.calls, contains('step:u3:b:open:null'));
+      expect(find.text('Task u3'), findsNothing, reason: 'back in Active');
+    });
+  });
+
   group('Task steps (owner 2026-10-01)', () {
     TaskItem withSteps() => makeTask(
           's',

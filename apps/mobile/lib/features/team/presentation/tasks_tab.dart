@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -51,16 +53,55 @@ class _TasksTabState extends ConsumerState<TasksTab> {
       if (next != null) await _toggleStep(task, next);
       return;
     }
+    await _setDone(task, done: true);
+  }
+
+  /// Owner 2026-10-01: done ⇄ back to work — the status mark and "Undo"
+  /// take back a checkmark set by mistake.
+  Future<void> _setDone(TaskItem task, {required bool done}) async {
     final t = ref.read(translatorProvider);
     try {
       await ref
           .read(tasksProvider(_key).notifier)
-          .setStatus(task, TaskStatus.done);
+          .setStatus(task, done ? TaskStatus.done : TaskStatus.open);
       if (!mounted) return;
-      showAppSnackBar(context, '${t.t('tasks.status.done')} · ${task.title}');
+      showAppSnackBar(
+        context,
+        '${t.t(done ? 'tasks.status.done' : 'tasks.reopened')} · ${task.title}',
+        actionLabel: t.t('tasks.undo'),
+        onAction: () => unawaited(_undo(task.id, wasDone: done)),
+      );
     } on Object catch (e) {
       if (mounted) showAppSnackBar(context, errorText(t, e));
     }
+  }
+
+  /// Undo: straight to the server, then both lists reload (the task has
+  /// already moved to the other one).
+  Future<void> _undo(String id, {required bool wasDone}) async {
+    final t = ref.read(translatorProvider);
+    try {
+      await ref.read(teamRepositoryProvider).setTaskStatus(
+            id,
+            wasDone ? TaskStatus.open : TaskStatus.done,
+          );
+      ref
+        ..invalidate(tasksProvider((done: false, mine: false)))
+        ..invalidate(tasksProvider((done: true, mine: false)));
+    } on Object catch (e) {
+      if (mounted) showAppSnackBar(context, errorText(t, e));
+    }
+  }
+
+  /// The status mark: a task without steps is checked / unchecked; a
+  /// task with steps opens (its steps are the checkmarks).
+  void _markTap(TaskItem task) {
+    if (task.steps.isNotEmpty) {
+      showTaskSheet(context, task: task, listKey: _key);
+      return;
+    }
+    if (task.status == TaskStatus.cancelled) return;
+    unawaited(_setDone(task, done: task.status.active));
   }
 
   /// Owner 2026-10-01: a step's box on the card — checked ↔ open.
@@ -153,6 +194,7 @@ class _TasksTabState extends ConsumerState<TasksTab> {
                     onAdd: _add,
                     onCheck: assistant ? null : _quickDone,
                     onStepCheck: assistant ? null : _toggleStep,
+                    onMarkTap: assistant ? null : _markTap,
                   ),
           ),
         ),
@@ -170,6 +212,7 @@ class _TaskList extends ConsumerWidget {
     required this.onAdd,
     required this.onCheck,
     this.onStepCheck,
+    this.onMarkTap,
   });
 
   final Translator t;
@@ -179,6 +222,7 @@ class _TaskList extends ConsumerWidget {
   final VoidCallback onAdd;
   final void Function(TaskItem)? onCheck;
   final void Function(TaskItem, TaskStep)? onStepCheck;
+  final void Function(TaskItem)? onMarkTap;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -267,6 +311,10 @@ class _TaskList extends ConsumerWidget {
                       onStepCheck: onStepCheck == null
                           ? null
                           : (step) => onStepCheck!(task, step),
+                      onMarkTap: onMarkTap == null ||
+                              task.status == TaskStatus.cancelled
+                          ? null
+                          : () => onMarkTap!(task),
                     ),
                   ),
                 ),

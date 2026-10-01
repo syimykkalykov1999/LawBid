@@ -315,7 +315,9 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
     final t = ref.read(translatorProvider);
     final assistant = ref.read(isAssistantProvider);
     final active = _task.status.active;
-    final hasAny = (!assistant && active) ||
+    // Checkmarks also on a finished task (taking one back reopens it).
+    final checkable = _task.status != TaskStatus.cancelled;
+    final hasAny = (!assistant && checkable) ||
         (canPlan && active) ||
         (step.contactPhone?.isNotEmpty ?? false) ||
         (step.contactEmail?.isNotEmpty ?? false) ||
@@ -328,7 +330,7 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (!assistant && active) ...[
+            if (!assistant && checkable) ...[
               AppListRow(
                 key: const ValueKey('step-act-done'),
                 icon: step.status == TaskStatus.done
@@ -597,8 +599,11 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
                         t: t,
                         formats: formats,
                         now: now,
-                        onCheck:
-                            assistant || !active ? null : () => _toggle(step),
+                        // Finished tasks too: unchecking reopens them.
+                        onCheck: assistant ||
+                                task.status == TaskStatus.cancelled
+                            ? null
+                            : () => _toggle(step),
                         onTap: () => _stepMenu(step, canPlan: canPlan),
                       ),
                     ],
@@ -685,6 +690,19 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
               variant: AppButtonVariant.secondary,
               isLoading: _busy,
               onPressed: () => _finish(false),
+            ),
+          ],
+          // Owner 2026-10-01: a task closed by mistake goes back to work.
+          if (!active &&
+              !assistant &&
+              task.status != TaskStatus.cancelled) ...[
+            AppButton(
+              key: const ValueKey('task-reopen'),
+              label: t.t('tasks.reopen'),
+              icon: Icons.undo_rounded,
+              variant: AppButtonVariant.secondary,
+              isLoading: _busy,
+              onPressed: () => _set(TaskStatus.open),
             ),
           ],
           if (active) ...[

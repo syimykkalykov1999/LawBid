@@ -93,8 +93,13 @@ class TaskRow extends StatelessWidget {
     required this.onTap,
     this.onCheck,
     this.onStepCheck,
+    this.onMarkTap,
     super.key,
   });
+
+  /// The status mark is a button (owner 2026-10-01): done ⇄ open again, so
+  /// a checkmark set by mistake can be taken back. Null = display only.
+  final VoidCallback? onMarkTap;
 
   final TaskItem task;
   final Translator t;
@@ -255,7 +260,10 @@ class TaskRow extends StatelessWidget {
                         formats: formats,
                         now: now,
                         dense: true,
-                        onCheck: onStepCheck == null || finished
+                        // Also on a finished task: unchecking a step
+                        // brings the task back to work.
+                        onCheck: onStepCheck == null ||
+                                task.status == TaskStatus.cancelled
                             ? null
                             : () => onStepCheck!(step),
                       ),
@@ -343,6 +351,7 @@ class TaskRow extends StatelessWidget {
                         key: ValueKey('task-check-${task.id}'),
                         status: task.status,
                         label: taskStatusLabel(t, task.status),
+                        onTap: onMarkTap,
                       ),
                     ],
                   ),
@@ -633,10 +642,18 @@ class TaskStepCheck extends StatelessWidget {
 /// a navy check (done), an ink disc with a cross (not done), a grey dash
 /// (cancelled) — with the word next to it.
 class TaskMark extends StatelessWidget {
-  const TaskMark({required this.status, required this.label, super.key});
+  const TaskMark({
+    required this.status,
+    required this.label,
+    this.onTap,
+    super.key,
+  });
 
   final TaskStatus status;
   final String label;
+
+  /// Toggle done ⇄ open; the tap area is the full 44 px row.
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -679,7 +696,7 @@ class TaskMark extends StatelessWidget {
           const SizedBox.shrink(key: ValueKey('open')),
         ),
     };
-    return Row(
+    final row = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
@@ -711,6 +728,26 @@ class TaskMark extends StatelessWidget {
           ),
         ),
       ],
+    );
+    if (onTap == null) return row;
+    return Semantics(
+      button: true,
+      checked: status == TaskStatus.done,
+      label: label,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onTap!();
+        },
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: AppSizes.touchTarget),
+          child: Padding(
+            padding: const EdgeInsets.only(left: AppSpacing.sm),
+            child: row,
+          ),
+        ),
+      ),
     );
   }
 }

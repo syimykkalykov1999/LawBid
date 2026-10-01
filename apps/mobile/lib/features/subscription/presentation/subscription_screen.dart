@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
-import 'package:lawbid/core/design_system/tokens/app_colors.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -156,76 +155,9 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
     }
   }
 
-  /// OQ-048: monthly plan — more or fewer assistant seats.
-  Future<void> _changeSeats(SubscriptionOverview o) async {
-    final s = o.subscription!;
-    var seats = s.assistantSeats;
-    final next = await showModalBottomSheet<int>(
-      context: context,
-      showDragHandle: true,
-      backgroundColor: Theme.of(context).extension<AppColorTokens>()!.surface,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSheet) {
-          final colors = Theme.of(ctx).extension<AppColorTokens>()!;
-          final typography = Theme.of(ctx).extension<AppTypographyTokens>()!;
-          final formats = ref.read(l10nFormatsProvider);
-          return SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.screenSide,
-                0,
-                AppSpacing.screenSide,
-                AppSpacing.lg,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    _t.t('plans.seats.change'),
-                    style: typography.titleMedium.copyWith(color: colors.text),
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          _t.t('plans.seats'),
-                          style: typography.body.copyWith(color: colors.text),
-                        ),
-                      ),
-                      SeatsStepper(
-                        seats: seats,
-                        max: o.prices.maxSeats,
-                        onChanged: (v) => setSheet(() => seats = v),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  Text(
-                    _t.t('plans.total.month', {
-                      'price': subscriptionPrice(
-                        formats,
-                        o.prices.monthlyTotal(seats),
-                      ),
-                    }),
-                    style:
-                        typography.body.copyWith(color: colors.textSecondary),
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-                  AppButton(
-                    key: const ValueKey('seats-save'),
-                    label: _t.t('common.save'),
-                    onPressed: () => Navigator.of(ctx).pop(seats),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-    if (next == null || next == s.assistantSeats || !mounted) return;
+  /// OQ-048: monthly plan — more or fewer assistant seats (changed in
+  /// the monthly card, owner 2026-10-01).
+  Future<void> _saveSeats(int next) async {
     try {
       final o2 = await ref.read(subscriptionRepositoryProvider).setSeats(next);
       ref.read(subscriptionOverviewProvider.notifier).apply(o2);
@@ -365,26 +297,12 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
             child: child,
           ),
         );
-    return [
-      if (s != null && s.paymentFailed)
-        section(
-          PaymentFailedCard(
-            t: t,
-            busy: _portalBusy,
-            onUpdateCard: _openPortal,
-          ),
-        ),
-      if (!showCta)
-        section(
-          PlanCard(
-            t: t,
-            formats: formats,
-            priceCents: o.priceCents,
-            trialOffered: o.trialEligible && !(s?.ended ?? false),
-          ),
-        ),
-      if (s != null)
-        section(
+    final statusFirst = s != null &&
+        (!o.isActive ||
+            s.paymentFailed ||
+            s.status == SubscriptionStatus.pastDue ||
+            (s.pendingConfirmation));
+    Widget statusCard(SubscriptionInfo s) => section(
           SubscriptionStatusCard(
             subscription: s,
             t: t,
@@ -394,46 +312,33 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
             onCancel: () => _cancel(s),
             onRefresh: _refresh,
           ),
+        );
+    return [
+      if (s != null && s.paymentFailed)
+        section(
+          PaymentFailedCard(
+            t: t,
+            busy: _portalBusy,
+            onUpdateCard: _openPortal,
+          ),
         ),
+      // A problem (payment failed, pending, ended) leads; otherwise the
+      // two plan cards come first ("Active" at the top right of the
+      // current one), then the billing details (owner 2026-10-01).
+      if (s != null && statusFirst) statusCard(s),
       if (s != null && !showCta)
         section(
-          AppListSection(
-            children: [
-              AppListRow(
-                key: const ValueKey('current-plan'),
-                icon: Icons.workspace_premium_outlined,
-                label: t.t('plans.current'),
-                subtitle: s.plan == SubscriptionPlan.yearly
-                    ? t.t('plans.current.yearly')
-                    : t.t(
-                        'plans.current.monthly',
-                        {'seats': '${s.assistantSeats}'},
-                      ),
-                showChevron: s.plan == SubscriptionPlan.monthly && s.isActive,
-                onTap: s.plan == SubscriptionPlan.monthly && s.isActive
-                    ? () => _changeSeats(o)
-                    : null,
-              ),
-              AppListRow(
-                key: const ValueKey('team-row'),
-                icon: Icons.groups_2_outlined,
-                label: t.t('plans.team'),
-                onTap: () => context.push(TeamRoutes.team),
-              ),
-            ],
-          ),
-        ),
-      // Owner 2026-10-01: an active monthly plan can move to yearly Prime.
-      if (s != null && s.isActive && s.plan == SubscriptionPlan.monthly)
-        section(
-          PrimeCard(
+          ActivePlans(
             t: t,
-            price: subscriptionPrice(formats, o.prices.yearlyCents),
-            save: subscriptionPrice(formats, o.prices.yearlySavingsCents),
-            busy: _primeBusy,
-            onSwitch: () => _switchToPrime(o),
+            formats: formats,
+            overview: o,
+            primeBusy: _primeBusy,
+            onSaveSeats: _saveSeats,
+            onSwitchToPrime: () => _switchToPrime(o),
+            onTeam: () => context.push(TeamRoutes.team),
           ),
         ),
+      if (s != null && !statusFirst) statusCard(s),
       if (showCta)
         section(
           PlanPicker(
@@ -460,143 +365,6 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
         ),
       ),
     ];
-  }
-}
-
-/// The tariff (docs/06 §1.1): $399/month, 7-day trial line, what the
-/// subscription unlocks, no commission. Navy card with gold accents in
-/// both themes — the same "membership card" tokens as the attorney role
-/// card, so it reads as brand rather than as a warning.
-class PlanCard extends StatelessWidget {
-  const PlanCard({
-    required this.t,
-    required this.formats,
-    required this.priceCents,
-    required this.trialOffered,
-    super.key,
-  });
-
-  final Translator t;
-  final L10nFormats formats;
-  final int priceCents;
-
-  /// False once a trial was used (or the previous subscription ended):
-  /// the line then omits "7 дней бесплатно" (docs/06 §1.4).
-  final bool trialOffered;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    final price = subscriptionPrice(formats, priceCents);
-    const title = AppColorsFixed.attorneyCardTitleText;
-    const body = AppColorsFixed.attorneyCardDescriptionText;
-    final features = [
-      'subscription.plan.feature.bids',
-      'subscription.plan.feature.chat',
-      'subscription.plan.feature.contacts',
-      'subscription.plan.feature.noFees',
-    ];
-    return Semantics(
-      container: true,
-      child: Container(
-        padding: const EdgeInsets.all(AppSpacing.xl),
-        decoration: BoxDecoration(
-          color: AppColorsFixed.attorneyCardNavy,
-          borderRadius: BorderRadius.circular(AppRadii.card),
-          border: Border.all(color: AppColorsFixed.attorneyCardGoldBorder),
-          boxShadow: [
-            BoxShadow(
-              color: colors.shadow,
-              blurRadius: AppSizes.cardShadowBlur,
-              offset: const Offset(0, AppSizes.cardShadowOffsetY),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const ExcludeSemantics(
-                  child: Icon(
-                    Icons.workspace_premium_rounded,
-                    color: AppColorsLight.gold,
-                    size: AppSizes.iconMd,
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: Text(
-                    t.t('subscription.plan.badge').toUpperCase(),
-                    style: typography.caption.copyWith(
-                      color: AppColorsLight.gold,
-                      letterSpacing: 1.2,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            Wrap(
-              crossAxisAlignment: WrapCrossAlignment.end,
-              spacing: AppSpacing.sm,
-              children: [
-                Text(
-                  price,
-                  key: const ValueKey('plan-price'),
-                  style: typography.titleLarge.copyWith(color: title),
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: AppSpacing.xs),
-                  child: Text(
-                    t.t('subscription.plan.perMonth'),
-                    style: typography.body.copyWith(color: body),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            Text(
-              trialOffered
-                  ? t.t('subscription.plan.trialLine', {'price': price})
-                  : t.t('subscription.plan.noTrialLine', {'price': price}),
-              style: typography.bodySmall.copyWith(color: body),
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            const Divider(
-                height: 1, color: AppColorsFixed.attorneyCardGoldBorder),
-            const SizedBox(height: AppSpacing.lg),
-            for (final (i, key) in features.indexed) ...[
-              if (i > 0) const SizedBox(height: AppSpacing.sm),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Padding(
-                    padding: EdgeInsets.only(top: 2),
-                    child: ExcludeSemantics(
-                      child: Icon(
-                        Icons.check_circle_rounded,
-                        color: AppColorsLight.gold,
-                        size: AppSizes.iconSm,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  Expanded(
-                    child: Text(
-                      t.t(key),
-                      style: typography.body.copyWith(color: title),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
   }
 }
 
@@ -951,80 +719,3 @@ String subscriptionPrice(L10nFormats formats, int cents) => cents % 100 == 0
         name: 'USD',
       ).format(cents / 100);
 
-/// Owner 2026-10-01: the yearly "Prime" offer under a monthly plan.
-class PrimeCard extends StatelessWidget {
-  const PrimeCard({
-    required this.t,
-    required this.price,
-    required this.save,
-    required this.busy,
-    required this.onSwitch,
-    super.key,
-  });
-
-  final Translator t;
-  final String price;
-  final String save;
-  final bool busy;
-  final VoidCallback onSwitch;
-
-  @override
-  Widget build(BuildContext context) {
-    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    return Container(
-      key: const ValueKey('prime-card'),
-      padding: const EdgeInsets.all(AppSpacing.xl),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [AppColorsFixed.attorneyCardNavy, Color(0xFF1C2E5C)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(AppRadii.card),
-        border: Border.all(color: AppColorsLight.gold, width: 1.4),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.diamond_rounded, color: AppColorsLight.gold),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: Text(
-                  t.t('prime.title'),
-                  style: typography.titleMedium.copyWith(
-                    color: AppColorsFixed.attorneyCardTitleText,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Text(
-            t.t('plans.yearly.price', {'price': price}),
-            style: typography.titleLarge.copyWith(
-              color: AppColorsFixed.attorneyCardTitleText,
-              fontSize: 26,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-            t.t('prime.line', {'save': save}),
-            style: typography.bodySmall.copyWith(
-              color: AppColorsFixed.attorneyCardDescriptionText,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          AppButton(
-            key: const ValueKey('prime-switch'),
-            label: t.t('prime.cta'),
-            icon: Icons.diamond_outlined,
-            isLoading: busy,
-            onPressed: onSwitch,
-          ),
-        ],
-      ),
-    );
-  }
-}

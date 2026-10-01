@@ -5,9 +5,28 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/subscription/application/subscription_providers.dart';
 import 'package:lawbid/features/subscription/domain/subscription_models.dart';
+import 'package:lawbid/features/subscription/presentation/plan_tier_card.dart';
 import 'package:lawbid/features/subscription/presentation/subscription_screen.dart';
 
 final phoneE164 = RegExp(r'^\+[1-9][0-9]{7,14}$');
+
+/// What the monthly plan includes (owner 2026-10-01: listed on the card).
+List<String> monthlyFeatures(Translator t, String seatPrice) => [
+      t.t('subscription.plan.feature.bids'),
+      t.t('subscription.plan.feature.chat'),
+      t.t('subscription.plan.feature.contacts'),
+      t.t('plans.f.profile'),
+      t.t('plans.f.planner'),
+      t.t('subscription.plan.feature.noFees'),
+      t.t('plans.f.seats', {'price': seatPrice}),
+    ];
+
+/// What yearly Prime includes.
+List<String> yearlyFeatures(Translator t, String save) => [
+      t.t('plans.f.everything'),
+      t.t('plans.seats.included'),
+      t.t('plans.f.save', {'save': save}),
+    ];
 
 /// What the attorney picked: the plan, monthly seats and the phones of
 /// assistants who join without a code.
@@ -133,69 +152,42 @@ class _PlanPickerState extends State<PlanPicker> {
           style: typography.titleMedium.copyWith(color: colors.text),
         ),
         const SizedBox(height: AppSpacing.md),
-        _PlanOption(
+        // Owner 2026-10-01: two plan cards, one under the other; the
+        // chosen one is marked at the top right, assistants inside.
+        PlanTierCard(
           key: const ValueKey('plan-monthly'),
-          selected: !yearly,
           title: t.t('plans.monthly'),
-          price: t.t('plans.monthly.price', {'price': _price(_p.monthlyCents)}),
-          line: t.t('plans.monthly.line', {'seat': _price(_p.seatCents)}),
+          price: _price(_p.monthlyCents),
+          period: t.t('plans.perMonth'),
+          features: monthlyFeatures(t, _price(_p.seatCents)),
+          status: yearly ? null : t.t('plans.status.selected'),
+          highlighted: !yearly,
           onTap: () => _setPlan(SubscriptionPlan.monthly),
-          expanded: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      t.t('plans.seats'),
-                      style: typography.body.copyWith(
-                        color: colors.text,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                  SeatsStepper(
-                    seats: _seats,
-                    max: _p.maxSeats,
-                    onChanged: _setSeats,
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                t.t('plans.seats.hint'),
-                style: typography.caption.copyWith(color: colors.textSecondary),
-              ),
-            ],
-          ),
+          child: yearly
+              ? null
+              : AssistantSeatsControl(
+                  t: t,
+                  seats: _seats,
+                  max: _p.maxSeats,
+                  seatPrice: _price(_p.seatCents),
+                  total: t.t('plans.total.month',
+                      {'price': _price(_p.monthlyTotal(_seats))}),
+                  onChanged: _setSeats,
+                ),
         ),
         const SizedBox(height: AppSpacing.md),
-        _PlanOption(
+        PlanTierCard(
           key: const ValueKey('plan-yearly'),
-          selected: yearly,
+          icon: Icons.diamond_outlined,
           title: t.t('plans.yearly'),
-          badge: t.t('plans.yearly.badge'),
-          price: t.t('plans.yearly.price', {'price': _price(_p.yearlyCents)}),
-          line: t.t('plans.yearly.line', {
-            'save': _price(_p.yearlySavingsCents),
-          }),
+          price: _price(_p.yearlyCents),
+          period: t.t('plans.perYear'),
+          features: yearlyFeatures(t, _price(_p.yearlySavingsCents)),
+          status: yearly
+              ? t.t('plans.status.selected')
+              : t.t('plans.yearly.badge'),
+          highlighted: yearly,
           onTap: () => _setPlan(SubscriptionPlan.yearly),
-          expanded: Row(
-            children: [
-              Icon(
-                Icons.groups_2_outlined,
-                size: AppSizes.iconSm,
-                color: colors.gold,
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: Text(
-                  t.t('plans.seats.included'),
-                  style: typography.bodySmall.copyWith(color: colors.text),
-                ),
-              ),
-            ],
-          ),
         ),
         _Grow(
           duration: dur,
@@ -218,37 +210,12 @@ class _PlanPickerState extends State<PlanPicker> {
               : const SizedBox(width: double.infinity),
         ),
         const SizedBox(height: AppSpacing.lg),
-        AppCard(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.lg,
-            vertical: AppSpacing.md,
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  t.t('plans.total', {'price': ''}).replaceAll(':', '').trim(),
-                  style: typography.body.copyWith(color: colors.textSecondary),
-                ),
-              ),
-              AnimatedSwitcher(
-                duration: dur,
-                child: Text(
-                  t.t(
-                    yearly ? 'plans.total.year' : 'plans.total.month',
-                    {'price': _price(total)},
-                  ),
-                  key: ValueKey('total-$total'),
-                  style: typography.titleMedium.copyWith(color: colors.text),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: AppSpacing.lg),
         AppButton(
           key: const ValueKey('subscribe-cta'),
-          label: t.t(trial ? 'plans.pay.trial' : 'plans.pay'),
+          label: '${t.t(trial ? 'plans.pay.trial' : 'plans.pay')} · '
+              '${t.t(yearly ? 'plans.total.year' : 'plans.total.month', {
+                'price': _price(total)
+              })}',
           icon: Icons.lock_outline_rounded,
           isLoading: widget.state.busy,
           isEnabled: o.canStart,
@@ -316,220 +283,6 @@ class _PlanPickerState extends State<PlanPicker> {
           textAlign: TextAlign.center,
           style: typography.caption.copyWith(color: colors.textSecondary),
         ),
-      ],
-    );
-  }
-}
-
-/// A selectable plan card: radio, title (+ badge), price, one line and —
-/// while selected — its own controls.
-class _PlanOption extends StatelessWidget {
-  const _PlanOption({
-    required this.selected,
-    required this.title,
-    required this.price,
-    required this.line,
-    required this.onTap,
-    required this.expanded,
-    this.badge,
-    super.key,
-  });
-
-  final bool selected;
-  final String title;
-  final String? badge;
-  final String price;
-  final String line;
-  final VoidCallback onTap;
-  final Widget expanded;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    final dur = context.reduceMotion ? Duration.zero : AppMotion.stateChange;
-    const radio = 22.0;
-    return Semantics(
-      button: true,
-      selected: selected,
-      label: '$title, $price',
-      child: AppPressable(
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: dur,
-          curve: Curves.easeOutCubic,
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          decoration: BoxDecoration(
-            color: selected ? colors.goldTint : colors.surface,
-            borderRadius: BorderRadius.circular(AppRadii.card),
-            border: Border.all(
-              color: selected ? colors.gold : colors.border,
-              width: selected ? 1.6 : 1,
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  AnimatedContainer(
-                    duration: dur,
-                    width: radio,
-                    height: radio,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: selected ? colors.gold : colors.border,
-                        width: 2,
-                      ),
-                    ),
-                    child: AnimatedScale(
-                      duration: dur,
-                      scale: selected ? 1 : 0,
-                      child: Container(
-                        width: 11,
-                        height: 11,
-                        decoration: BoxDecoration(
-                          color: colors.gold,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.md),
-                  Expanded(
-                    child: Text(
-                      title,
-                      style:
-                          typography.titleMedium.copyWith(color: colors.text),
-                    ),
-                  ),
-                  if (badge != null)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.sm,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: colors.gold,
-                        borderRadius: BorderRadius.circular(AppRadii.pill),
-                      ),
-                      child: Text(
-                        badge!,
-                        style: typography.caption.copyWith(
-                          color: AppColorsLight.navy,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              Padding(
-                padding: const EdgeInsets.only(left: radio + AppSpacing.md),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      price,
-                      style: typography.titleLarge.copyWith(
-                        color: colors.text,
-                        fontSize: 24,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      line,
-                      style: typography.bodySmall
-                          .copyWith(color: colors.textSecondary),
-                    ),
-                    _Grow(
-                      duration: dur,
-                      curve: Curves.easeOutCubic,
-                      alignment: Alignment.topCenter,
-                      child: selected
-                          ? Padding(
-                              padding:
-                                  const EdgeInsets.only(top: AppSpacing.md),
-                              child: expanded,
-                            )
-                          : const SizedBox(width: double.infinity),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Round − / + with the number between (the plan picker and the
-/// "change seats" sheet of an active monthly plan).
-class SeatsStepper extends StatelessWidget {
-  const SeatsStepper({
-    required this.seats,
-    required this.max,
-    required this.onChanged,
-    this.min = 0,
-    super.key,
-  });
-
-  final int seats;
-  final int min;
-  final int max;
-  final ValueChanged<int> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    Widget btn(IconData icon, bool enabled, int to, String key, String label) =>
-        Semantics(
-          button: true,
-          enabled: enabled,
-          label: label,
-          child: AppPressable(
-            key: ValueKey(key),
-            onTap: enabled ? () => onChanged(to) : null,
-            child: SizedBox(
-              width: AppSizes.touchTarget,
-              height: AppSizes.touchTarget,
-              child: Center(
-                child: AnimatedOpacity(
-                  duration: AppMotion.stateChange,
-                  opacity: enabled ? 1 : 0.35,
-                  child: Container(
-                    width: 34,
-                    height: 34,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: colors.gold),
-                    ),
-                    child: Icon(icon, size: 18, color: colors.text),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        );
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        btn(Icons.remove_rounded, seats > min, seats - 1, 'seats-minus', '−'),
-        SizedBox(
-          width: 28,
-          child: Text(
-            '$seats',
-            key: const ValueKey('seats-value'),
-            textAlign: TextAlign.center,
-            style: typography.titleMedium.copyWith(color: colors.text),
-          ),
-        ),
-        btn(Icons.add_rounded, seats < max, seats + 1, 'seats-plus', '+'),
       ],
     );
   }
@@ -638,4 +391,147 @@ class _Grow extends StatelessWidget {
           alignment: alignment,
           child: child,
         );
+}
+
+/// Owner 2026-10-01: an existing subscription — the same two plan cards.
+/// "Active" sits at the top right of the current plan. Monthly: add /
+/// remove assistant seats right in the card (+$100 a month each, saved
+/// with one button) and the Assistant team. Prime: the Assistant team, or
+/// "Switch to Prime" from a monthly plan.
+class ActivePlans extends StatefulWidget {
+  const ActivePlans({
+    required this.t,
+    required this.formats,
+    required this.overview,
+    required this.onSaveSeats,
+    required this.onSwitchToPrime,
+    required this.onTeam,
+    this.primeBusy = false,
+    super.key,
+  });
+
+  final Translator t;
+  final L10nFormats formats;
+  final SubscriptionOverview overview;
+  final Future<void> Function(int seats) onSaveSeats;
+  final VoidCallback onSwitchToPrime;
+  final VoidCallback onTeam;
+  final bool primeBusy;
+
+  @override
+  State<ActivePlans> createState() => _ActivePlansState();
+}
+
+class _ActivePlansState extends State<ActivePlans> {
+  int? _draft;
+  bool _saving = false;
+
+  SubscriptionInfo get _s => widget.overview.subscription!;
+  PlanPrices get _p => widget.overview.prices;
+  String _price(int cents) => subscriptionPrice(widget.formats, cents);
+
+  @override
+  void didUpdateWidget(ActivePlans old) {
+    super.didUpdateWidget(old);
+    // The server's answer arrived: the draft is the saved value now.
+    if (old.overview.subscription?.assistantSeats != _s.assistantSeats) {
+      _draft = null;
+    }
+  }
+
+  Future<void> _save(int seats) async {
+    setState(() => _saving = true);
+    try {
+      await widget.onSaveSeats(seats);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = widget.t;
+    final active = widget.overview.isActive;
+    final monthly = _s.plan == SubscriptionPlan.monthly;
+    final seats = _draft ?? _s.assistantSeats;
+    final changed = seats != _s.assistantSeats;
+    final teamButton = AppButton(
+      key: const ValueKey('team-row'),
+      label: t.t('plans.team'),
+      icon: Icons.groups_2_outlined,
+      variant: AppButtonVariant.secondary,
+      onPressed: widget.onTeam,
+    );
+    final activeLabel = t.t('plans.status.active');
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        PlanTierCard(
+          key: const ValueKey('plan-monthly'),
+          title: t.t('plans.monthly'),
+          price: _price(_p.monthlyCents),
+          period: t.t('plans.perMonth'),
+          features: monthlyFeatures(t, _price(_p.seatCents)),
+          status: monthly && active ? activeLabel : null,
+          statusFilled: true,
+          highlighted: monthly && active,
+          child: !monthly || !active
+              ? null
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    AssistantSeatsControl(
+                      t: t,
+                      seats: seats,
+                      max: _p.maxSeats,
+                      seatPrice: _price(_p.seatCents),
+                      total: t.t('plans.total.month',
+                          {'price': _price(_p.monthlyTotal(seats))}),
+                      onChanged: (v) => setState(() => _draft = v),
+                    ),
+                    if (changed) ...[
+                      const SizedBox(height: AppSpacing.md),
+                      AppButton(
+                        key: const ValueKey('seats-save'),
+                        label: t.t('plans.seats.saveCta', {
+                          'price': _price(_p.monthlyTotal(seats)),
+                        }),
+                        icon: Icons.check_rounded,
+                        isLoading: _saving,
+                        onPressed: () => _save(seats),
+                      ),
+                    ],
+                    const SizedBox(height: AppSpacing.sm),
+                    teamButton,
+                  ],
+                ),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        PlanTierCard(
+          key: const ValueKey('plan-yearly'),
+          icon: Icons.diamond_outlined,
+          title: t.t('plans.yearly'),
+          price: _price(_p.yearlyCents),
+          period: t.t('plans.perYear'),
+          features: yearlyFeatures(t, _price(_p.yearlySavingsCents)),
+          status: !monthly && active
+              ? activeLabel
+              : t.t('plans.yearly.badge'),
+          statusFilled: !monthly && active,
+          highlighted: !monthly && active,
+          child: !active
+              ? null
+              : !monthly
+                  ? teamButton
+                  : AppButton(
+                      key: const ValueKey('prime-switch'),
+                      label: t.t('prime.cta'),
+                      icon: Icons.diamond_outlined,
+                      isLoading: widget.primeBusy,
+                      onPressed: widget.onSwitchToPrime,
+                    ),
+        ),
+      ],
+    );
+  }
 }

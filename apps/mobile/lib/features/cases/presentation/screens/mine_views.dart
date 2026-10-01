@@ -20,7 +20,8 @@ enum _ClientTab { open, inProgress, completed, saved }
 
 // Owner 2026-10-01: two top tabs — My bids (with Active · In progress ·
 // Completed · Saved inside) and the Planner (tasks calendar).
-enum _AttorneyTab { bids, planner }
+// Owner 2026-10-01: Planner first, My bids second.
+enum _AttorneyTab { planner, bids }
 
 enum _BidsSection { active, work, completed, saved }
 
@@ -212,7 +213,7 @@ class AttorneyMineView extends ConsumerStatefulWidget {
 }
 
 class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
-  _AttorneyTab _tab = _AttorneyTab.bids;
+  _AttorneyTab _tab = _AttorneyTab.planner;
   _BidsSection _section = _BidsSection.active;
   MineSearch _search = const MineSearch();
 
@@ -289,8 +290,8 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
         PillTabs<_AttorneyTab>(
           value: _tab,
           tabs: [
-            (_AttorneyTab.bids, t.t('mine.tab.myBids')),
             (_AttorneyTab.planner, t.t('mine.tab.tasks')),
+            (_AttorneyTab.bids, t.t('mine.tab.myBids')),
           ],
           onChanged: (v) => setState(() => _tab = v),
         ),

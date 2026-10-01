@@ -9,7 +9,15 @@ import 'package:lawbid/core/design_system/tokens/app_spacing.dart';
 /// Floating, rounded, inverse-colored snackbar with a gold info glyph
 /// (UI modernization pass, 2026-09-27). Opt-in per call site rather than a
 /// global `snackBarTheme`, so the welcome screen's snackbar is unchanged.
-void showAppSnackBar(BuildContext context, String message) {
+///
+/// [actionLabel] + [onAction]: a gold text button (e.g. "Undo", owner
+/// 2026-10-01 — a checkmark set by mistake can be taken back at once).
+void showAppSnackBar(
+  BuildContext context,
+  String message, {
+  String? actionLabel,
+  VoidCallback? onAction,
+}) {
   final colors = Theme.of(context).extension<AppColorTokens>()!;
   final typography = Theme.of(context).extension<AppTypographyTokens>()!;
   ScaffoldMessenger.of(context)
@@ -22,6 +30,13 @@ void showAppSnackBar(BuildContext context, String message) {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadii.field),
         ),
+        action: actionLabel == null || onAction == null
+            ? null
+            : SnackBarAction(
+                label: actionLabel,
+                textColor: colors.gold,
+                onPressed: onAction,
+              ),
         content: Row(
           children: [
             Icon(
