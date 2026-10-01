@@ -82,13 +82,18 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
       backgroundColor: colors.bg,
       appBar: header,
       body: attorney
-          ? IndexedStack(
-              index: _tab.index,
-              children: [
-                // Owner 2026-09-30: the topic slider for every role.
-                const _TopicFeed(),
-                const AttorneyCasesTab(),
-              ],
+          ? TabSwipe<_FeedTab>(
+              value: _tab,
+              values: _FeedTab.values,
+              onChanged: (v) => setState(() => _tab = v),
+              child: IndexedStack(
+                index: _tab.index,
+                children: [
+                  // Owner 2026-09-30: the topic slider for every role.
+                  const _TopicFeed(),
+                  const AttorneyCasesTab(),
+                ],
+              ),
             )
           : const _TopicFeed(),
     );

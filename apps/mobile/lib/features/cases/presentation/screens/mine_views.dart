@@ -97,10 +97,15 @@ class _ClientMineViewState extends ConsumerState<ClientMineView> {
           onChanged: (v) => setState(() => _tab = v),
         ),
         Expanded(
-          child: AnimatedSwitcher(
-            duration:
-                context.reduceMotion ? Duration.zero : AppMotion.stateChange,
-            child: body,
+          child: TabSwipe<_ClientTab>(
+            value: _tab,
+            values: _ClientTab.values,
+            onChanged: (v) => setState(() => _tab = v),
+            child: AnimatedSwitcher(
+              duration:
+                  context.reduceMotion ? Duration.zero : AppMotion.stateChange,
+              child: body,
+            ),
           ),
         ),
       ],
@@ -299,10 +304,15 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
           onChanged: (v) => setState(() => _tab = v),
         ),
         Expanded(
-          child: AnimatedSwitcher(
-            duration:
-                context.reduceMotion ? Duration.zero : AppMotion.stateChange,
-            child: body,
+          child: TabSwipe<_AttorneyTab>(
+            value: _tab,
+            values: _AttorneyTab.values,
+            onChanged: (v) => setState(() => _tab = v),
+            child: AnimatedSwitcher(
+              duration:
+                  context.reduceMotion ? Duration.zero : AppMotion.stateChange,
+              child: body,
+            ),
           ),
         ),
       ],

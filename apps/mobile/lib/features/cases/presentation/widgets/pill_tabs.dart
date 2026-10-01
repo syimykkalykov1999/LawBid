@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -166,4 +169,73 @@ class FilterChips<T> extends StatelessWidget {
           ],
         ),
       );
+}
+
+/// Owner 2026-10-01: swipe left / right inside a screen moves to the
+/// next / previous section (Instagram-like). A swipe that starts at the
+/// left edge is left alone — that is "back" (iPhone); horizontal lists
+/// inside (chips, photo strips) keep their own scroll, they win the
+/// gesture first. Bottom-nav sections never switch by swipe.
+class TabSwipe<T> extends StatelessWidget {
+  const TabSwipe({
+    required this.value,
+    required this.values,
+    required this.onChanged,
+    required this.child,
+    super.key,
+  });
+
+  final T value;
+  final List<T> values;
+  final ValueChanged<T> onChanged;
+  final Widget child;
+
+  /// The back gesture's strip at the left edge.
+  static const edge = 24.0;
+
+  /// A fling this fast (px/s) or a drag this long switches.
+  static const _minVelocity = 350.0;
+  static const _minDistance = 80.0;
+
+  @override
+  Widget build(BuildContext context) {
+    double dx = 0;
+    return RawGestureDetector(
+      behavior: HitTestBehavior.translucent,
+      gestures: {
+        _EdgeAwareDrag: GestureRecognizerFactoryWithHandlers<_EdgeAwareDrag>(
+          _EdgeAwareDrag.new,
+          (r) => r
+            ..onStart = (_) {
+              dx = 0;
+            }
+            ..onUpdate = (d) {
+              dx += d.delta.dx;
+            }
+            ..onEnd = (d) {
+              final v = d.primaryVelocity ?? 0;
+              final forward = v < -_minVelocity || dx < -_minDistance;
+              final backward = v > _minVelocity || dx > _minDistance;
+              final i = values.indexOf(value);
+              if (i < 0) return;
+              final next = forward && !backward
+                  ? i + 1
+                  : backward && !forward
+                      ? i - 1
+                      : i;
+              if (next == i || next < 0 || next >= values.length) return;
+              unawaited(HapticFeedback.selectionClick());
+              onChanged(values[next]);
+            },
+        ),
+      },
+      child: child,
+    );
+  }
+}
+
+class _EdgeAwareDrag extends HorizontalDragGestureRecognizer {
+  @override
+  bool isPointerAllowed(PointerEvent event) =>
+      event.position.dx > TabSwipe.edge && super.isPointerAllowed(event);
 }

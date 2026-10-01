@@ -205,25 +205,30 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               child: field,
             ),
             Expanded(
-              child: AnimatedSwitcher(
-                duration: context.reduceMotion
-                    ? Duration.zero
-                    : AppMotion.stateChange,
-                child: _query.isEmpty
-                    ? _BeforeTyping(
-                        key: ValueKey('idle:$_tab:${filters.hashCode}'),
-                        tab: _tab,
-                        filters: filters,
-                        onRecent: _useRecent,
-                      )
-                    : KeyedSubtree(
-                        key: ValueKey('$_tab:$_query:${filters.hashCode}'),
-                        child: _Results(
+              child: TabSwipe<SearchTab>(
+                value: _tab,
+                values: [for (final (v, _) in tabs) v],
+                onChanged: (v) => setState(() => _tab = v),
+                child: AnimatedSwitcher(
+                  duration: context.reduceMotion
+                      ? Duration.zero
+                      : AppMotion.stateChange,
+                  child: _query.isEmpty
+                      ? _BeforeTyping(
+                          key: ValueKey('idle:$_tab:${filters.hashCode}'),
                           tab: _tab,
-                          query: _query,
                           filters: filters,
+                          onRecent: _useRecent,
+                        )
+                      : KeyedSubtree(
+                          key: ValueKey('$_tab:$_query:${filters.hashCode}'),
+                          child: _Results(
+                            tab: _tab,
+                            query: _query,
+                            filters: filters,
+                          ),
                         ),
-                      ),
+                ),
               ),
             ),
           ],
@@ -604,14 +609,13 @@ class _BeforeTyping extends ConsumerWidget {
 /// "My cases" filters (status, practice area); '' = all.
 List<CaseSummary> _myCases(WidgetRef ref, String query, SearchFilters f) {
   final q = query.toLowerCase();
-  final statuses =
-      f.caseStatus == null
-          ? const [
-              MyCasesFilter.active,
-              MyCasesFilter.archived,
-              MyCasesFilter.closed,
-            ]
-          : [f.caseStatus!];
+  final statuses = f.caseStatus == null
+      ? const [
+          MyCasesFilter.active,
+          MyCasesFilter.archived,
+          MyCasesFilter.closed,
+        ]
+      : [f.caseStatus!];
   final all = [
     for (final s in statuses) ...?ref.watch(myCasesProvider(s)).value?.items,
   ];

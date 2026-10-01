@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:lawbid/features/chat/presentation/open_direct_chat.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
@@ -254,27 +255,32 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
       ),
     );
 
-    return RefreshIndicator(
-      color: colors.gold,
-      onRefresh: () async {
-        ref
-          ..invalidate(clientReviewsProvider)
-          ..invalidate(clientReviewSummaryProvider(p.id));
-        await widget.onRefresh();
-      },
-      child: ListView(
-        padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
-        children: [
-          header,
-          if (tab == _Tab.posts)
-            ProfilePostsGrid(
-              attorneyId: p.id,
-              emptyTitle: t.t('client.posts.empty'),
-              emptyMessage: '',
-            )
-          else
-            _ReviewsList(clientId: p.id),
-        ],
+    return TabSwipe<_Tab>(
+      value: tab,
+      values: p.canSeeReviews ? _Tab.values : const [_Tab.posts],
+      onChanged: (v) => setState(() => _tab = v),
+      child: RefreshIndicator(
+        color: colors.gold,
+        onRefresh: () async {
+          ref
+            ..invalidate(clientReviewsProvider)
+            ..invalidate(clientReviewSummaryProvider(p.id));
+          await widget.onRefresh();
+        },
+        child: ListView(
+          padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
+          children: [
+            header,
+            if (tab == _Tab.posts)
+              ProfilePostsGrid(
+                attorneyId: p.id,
+                emptyTitle: t.t('client.posts.empty'),
+                emptyMessage: '',
+              )
+            else
+              _ReviewsList(clientId: p.id),
+          ],
+        ),
       ),
     );
   }
@@ -333,8 +339,7 @@ class _ReviewsListState extends ConsumerState<_ReviewsList> {
         ],
         onSave: (rating, body, photoIds) => ref
             .read(clientReviewsRepositoryProvider)
-            .saveOpen(clientId,
-                rating: rating, body: body, photoIds: photoIds),
+            .saveOpen(clientId, rating: rating, body: body, photoIds: photoIds),
       );
       if (saved == true && context.mounted) {
         refresh();
@@ -442,9 +447,8 @@ class _ReviewsListState extends ConsumerState<_ReviewsList> {
                 ],
                 helpfulCount: r.helpfulCount,
                 helpfulByMe: r.helpfulByMe,
-                onHelpful: r.isMine || r.canReply
-                    ? null
-                    : () => _helpful(r, refresh),
+                onHelpful:
+                    r.isMine || r.canReply ? null : () => _helpful(r, refresh),
                 reply: r.reply,
                 replyAt: r.replyAt,
                 replyLabel: t.t('reviews.reply.fromPerson'),

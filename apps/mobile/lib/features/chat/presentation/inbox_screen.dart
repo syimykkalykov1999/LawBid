@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
@@ -136,18 +137,23 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                 ),
               ),
             Expanded(
-              child: IndexedStack(
-                index: tab.index,
-                children: [
-                  ConversationsView(
-                    folder: _folder,
-                    onFolder: (f) => setState(() => _folder = f),
-                  ),
-                  const NotificationsView(),
-                  // Requests moved into Chats (kept for the stack index).
-                  const SizedBox.shrink(),
-                  if (showTeam) const TeamInboxTab(),
-                ],
+              child: TabSwipe<InboxTab>(
+                value: tab,
+                values: [InboxTab.chats, if (showTeam) InboxTab.team],
+                onChanged: (v) => setState(() => _tab = v),
+                child: IndexedStack(
+                  index: tab.index,
+                  children: [
+                    ConversationsView(
+                      folder: _folder,
+                      onFolder: (f) => setState(() => _folder = f),
+                    ),
+                    const NotificationsView(),
+                    // Requests moved into Chats (kept for the stack index).
+                    const SizedBox.shrink(),
+                    if (showTeam) const TeamInboxTab(),
+                  ],
+                ),
               ),
             ),
           ],
@@ -388,8 +394,8 @@ class ConversationsView extends ConsumerWidget {
             ? AppEmptyState(
                 icon: Icons.forum_outlined,
                 title: t.t('chat.empty.title'),
-                message: t.t(
-                    attorney ? 'chat.empty.attorney' : 'chat.empty.client'),
+                message:
+                    t.t(attorney ? 'chat.empty.attorney' : 'chat.empty.client'),
               )
             : AppEmptyState(
                 icon: folder == ChatListFolder.waiting
@@ -536,8 +542,7 @@ class ConversationRow extends ConsumerWidget {
                           child: InkResponse(
                             key: ValueKey('chat-organize-${c.id}'),
                             radius: 22,
-                            onTap: () =>
-                                showChatOrganizeSheet(context, ref, c),
+                            onTap: () => showChatOrganizeSheet(context, ref, c),
                             child: Padding(
                               padding: const EdgeInsets.only(left: 6),
                               child: SizedBox(
@@ -600,8 +605,7 @@ class ConversationRow extends ConsumerWidget {
                               c.note!,
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
-                              style:
-                                  type.caption.copyWith(color: colors.text),
+                              style: type.caption.copyWith(color: colors.text),
                             ),
                           ),
                         ],
@@ -637,7 +641,8 @@ class ConversationRow extends ConsumerWidget {
                               _CaseChip(
                                 key: ValueKey('chat-waiting-${c.id}'),
                                 title: t.t('chat.waiting.chip', {
-                                  'ago': SocialFormat.ago(t, f, c.waitingSince!),
+                                  'ago':
+                                      SocialFormat.ago(t, f, c.waitingSince!),
                                 }),
                                 closed: false,
                                 icon: Icons.hourglass_top_rounded,

@@ -11,6 +11,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -161,7 +162,8 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
     }
   }
 
-  Future<void> _reply(Translator t, Review review, {bool remove = false}) async {
+  Future<void> _reply(Translator t, Review review,
+      {bool remove = false}) async {
     final text = remove
         ? null
         : await showReviewReplySheet(context, initial: review.reply ?? '');
@@ -371,49 +373,53 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
       status = state.status;
     }
 
-    return AppPaginatedListView<Review>(
-      items: items,
-      itemKey: (r) => r.id,
-      status: status,
-      header: header,
-      footer: footer,
-      labels: AppPaginationLabels(
-        loadingMore: t.t('pagination.loadingMore'),
-        error: t.t('pagination.error'),
-        retry: t.t('error.retry'),
-        end: t.t('reviews.end'),
-      ),
-      // Only the Reviews tab paginates; the posts placeholder must not
-      // wake the (autoDispose) reviews list.
-      onLoadMore: () {
-        if (reviewsTab)
-          ref.read(reviewsListProvider(_reviewsKey).notifier).loadMore();
-      },
-      onRetry: () {
-        if (reviewsTab)
-          ref.read(reviewsListProvider(_reviewsKey).notifier).loadMore();
-      },
-      onRefresh: () async {
-        ref
-          ..invalidate(reviewSummaryProvider(p.id))
-          ..invalidate(reviewsListProvider(_reviewsKey));
-        await widget.onRefresh();
-      },
-      itemBuilder: (context, review, index) => AppEntrance(
-        index: index % 6,
-        child: ReviewCard(
-          review: review,
-          // Owner 2026-10-01 (Google-style): anyone but the author flags;
-          // the author edits / deletes; the attorney replies; others vote.
-          onReport: review.isMine ? null : () => _report(t, review),
-          onEdit: review.isMine ? () => _writeReview(t, review) : null,
-          onDelete: review.isMine ? () => _deleteReview(t, review) : null,
-          onReply: p.isSelf ? () => _reply(t, review) : null,
-          onDeleteReply:
-              p.isSelf ? () => _reply(t, review, remove: true) : null,
-          onHelpful: review.isMine || p.isSelf
-              ? null
-              : () => _helpful(t, review),
+    return TabSwipe<AttorneyProfileTab>(
+      value: _tab,
+      values: AttorneyProfileTab.values,
+      onChanged: (v) => setState(() => _tab = v),
+      child: AppPaginatedListView<Review>(
+        items: items,
+        itemKey: (r) => r.id,
+        status: status,
+        header: header,
+        footer: footer,
+        labels: AppPaginationLabels(
+          loadingMore: t.t('pagination.loadingMore'),
+          error: t.t('pagination.error'),
+          retry: t.t('error.retry'),
+          end: t.t('reviews.end'),
+        ),
+        // Only the Reviews tab paginates; the posts placeholder must not
+        // wake the (autoDispose) reviews list.
+        onLoadMore: () {
+          if (reviewsTab)
+            ref.read(reviewsListProvider(_reviewsKey).notifier).loadMore();
+        },
+        onRetry: () {
+          if (reviewsTab)
+            ref.read(reviewsListProvider(_reviewsKey).notifier).loadMore();
+        },
+        onRefresh: () async {
+          ref
+            ..invalidate(reviewSummaryProvider(p.id))
+            ..invalidate(reviewsListProvider(_reviewsKey));
+          await widget.onRefresh();
+        },
+        itemBuilder: (context, review, index) => AppEntrance(
+          index: index % 6,
+          child: ReviewCard(
+            review: review,
+            // Owner 2026-10-01 (Google-style): anyone but the author flags;
+            // the author edits / deletes; the attorney replies; others vote.
+            onReport: review.isMine ? null : () => _report(t, review),
+            onEdit: review.isMine ? () => _writeReview(t, review) : null,
+            onDelete: review.isMine ? () => _deleteReview(t, review) : null,
+            onReply: p.isSelf ? () => _reply(t, review) : null,
+            onDeleteReply:
+                p.isSelf ? () => _reply(t, review, remove: true) : null,
+            onHelpful:
+                review.isMine || p.isSelf ? null : () => _helpful(t, review),
+          ),
         ),
       ),
     );
