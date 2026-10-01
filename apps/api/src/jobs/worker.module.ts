@@ -21,6 +21,7 @@ import { PrivacyModule } from '../modules/privacy/privacy.module';
  * команды запуска"). No HTTP stack — only config, DB, Redis, logging and
  * the job runner, which always runs here regardless of JOBS_ENABLED.
  */
+import { SecretsModule } from '../common/secrets/secrets.module';
 @Module({
   imports: [
     ConfigModule,
@@ -40,6 +41,8 @@ import { PrivacyModule } from '../modules/privacy/privacy.module';
     // Global paid-provider caps: FilesService (calls, client reviews in
     // the cron jobs) injects CostGuardService.
     CostGuardModule,
+    // Owner 2026-10-01: keys managed in the admin (push, email, Stripe…).
+    SecretsModule,
     NotificationsModule,
     JobsModule.register({ mode: 'worker' }),
     // docs/03 stage 3.2: antivirus scan + image processing (`files` queue).

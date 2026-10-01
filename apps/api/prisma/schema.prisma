@@ -577,42 +577,43 @@ enum DataRequestStatus {
 // -----------------------------------------------------------------------
 
 model User {
-  id                    String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id                      String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   // Nullable: docs/01_FOUNDATION_AUTH.md §11 "Guard-логика навигации" treats "no role yet"
   // as a real intermediate state ("нет роли → /onboarding/role") -- a user exists
   // from the moment OTP/social login succeeds (stage 1.4), but role is
   // chosen afterward during onboarding step 2, not at creation. Added in
   // stage 1.4 (docs/CHANGELOG.md) -- the stage 1.3 migration is not
   // modified, only extended, per .cursorrules.
-  role                  UserRole?
-  status                UserStatus @default(active)
-  first_name            String?
-  last_name             String?
-  avatar_file_id        String?    @db.Uuid
-  avatar_file           File?      @relation("UserAvatar", fields: [avatar_file_id], references: [id], onDelete: Restrict)
+  role                    UserRole?
+  status                  UserStatus              @default(active)
+  first_name              String?
+  last_name               String?
+  avatar_file_id          String?                 @db.Uuid
+  avatar_file             File?                   @relation("UserAvatar", fields: [avatar_file_id], references: [id], onDelete: Restrict)
   // UQ (docs/02 §4.A, §5.1). A plain unique index already admits any
   // number of NULLs in CockroachDB, which is exactly the §8 stage-2.2
   // acceptance ("несколько NULL допускаются"); a partial index can't be
   // expressed in Prisma 6 and would be dropped as drift by the next
   // `migrate dev`, so @unique is used instead.
-  email                 String?    @unique
-  email_verified_at     DateTime?  @db.Timestamptz
-  phone_e164            String?    @unique
-  phone_verified_at     DateTime?  @db.Timestamptz
-  ui_language           String     @default("en")
-  theme                 ThemePref  @default(system)
-  suspended_reason      String?
-  last_active_at        DateTime?  @db.Timestamptz
+  email                   String?                 @unique
+  email_verified_at       DateTime?               @db.Timestamptz
+  phone_e164              String?                 @unique
+  phone_verified_at       DateTime?               @db.Timestamptz
+  ui_language             String                  @default("en")
+  theme                   ThemePref               @default(system)
+  suspended_reason        String?
+  last_active_at          DateTime?               @db.Timestamptz
+  integration_credentials IntegrationCredential[] @relation("IntegrationCredentialCreator")
   /// Owner 2026-10-01: others see "online / last seen" (reciprocal).
-  show_activity_status  Boolean    @default(true)
-  deletion_requested_at DateTime?  @db.Timestamptz
-  deleted_at            DateTime?  @db.Timestamptz
-  anonymized_at         DateTime?  @db.Timestamptz
+  show_activity_status    Boolean                 @default(true)
+  deletion_requested_at   DateTime?               @db.Timestamptz
+  deleted_at              DateTime?               @db.Timestamptz
+  anonymized_at           DateTime?               @db.Timestamptz
   // STORED computed column (§5.3): lower(first_name || ' ' || last_name),
   // trigram GIN-indexed. Read-only — never write it.
-  full_name_lower       String?    @default(dbgenerated("lower((COALESCE(first_name, ''::STRING) || ' '::STRING) || COALESCE(last_name, ''::STRING))"))
-  created_at            DateTime   @default(now()) @db.Timestamptz
-  updated_at            DateTime   @updatedAt @db.Timestamptz
+  full_name_lower         String?                 @default(dbgenerated("lower((COALESCE(first_name, ''::STRING) || ' '::STRING) || COALESCE(last_name, ''::STRING))"))
+  created_at              DateTime                @default(now()) @db.Timestamptz
+  updated_at              DateTime                @updatedAt @db.Timestamptz
 
   identifiers          UserIdentifier[]
   sessions             Session[]
@@ -2499,4 +2500,37 @@ model AssistantLiabilityAcceptance {
 
   @@index([attorney_id, created_at(sort: Desc)], map: "assistant_liability_by_attorney")
   @@map("assistant_liability_acceptances")
+}
+
+/// Owner 2026-10-01: third-party API keys managed in the admin
+/// (Integrations & API keys). Secrets are one AES-256-GCM envelope.
+enum IntegrationCredentialStatus {
+  pending
+  active
+  retired
+
+  @@map("integration_credential_status")
+}
+
+model IntegrationCredential {
+  id              String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  provider        String
+  version         Int
+  status          IntegrationCredentialStatus @default(pending)
+  secret_enc      String
+  kid             String
+  public_config   Json                        @default("{}")
+  masked          Json                        @default("{}")
+  fingerprint     String
+  created_by      String?                     @db.Uuid
+  created_by_user User?                       @relation("IntegrationCredentialCreator", fields: [created_by], references: [id], onDelete: SetNull)
+  created_at      DateTime                    @default(now()) @db.Timestamptz
+  activated_at    DateTime?                   @db.Timestamptz
+  retired_at      DateTime?                   @db.Timestamptz
+  last_test_at    DateTime?                   @db.Timestamptz
+  last_test_ok    Boolean?
+  last_test_error String?
+
+  @@unique([provider, version])
+  @@map("integration_credentials")
 }

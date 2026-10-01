@@ -492,6 +492,33 @@ export const envSchema = z
       'OTEL_EXPORTER_OTLP_ENDPOINT must be an http(s) URL',
     ),
     SENTRY_DSN: z.string().url().optional(),
+    // Owner 2026-10-01: master keys for the API keys the owner manages in
+    // the admin (integration_credentials, AES-256-GCM). "kid:secret[,…]"
+    // like JWT_KEYS; the active kid encrypts, every listed kid decrypts
+    // (rotation). Unset → the integrations admin is off, env keys are used.
+    SECRETS_MASTER_KEYS: z.preprocess(
+      blankToUndefined,
+      z
+        .string()
+        .regex(
+          jwtKeysPattern,
+          'SECRETS_MASTER_KEYS must be "kid:secret[,kid:secret...]" with each secret >= 32 chars',
+        )
+        .optional(),
+    ),
+    SECRETS_ACTIVE_KID: z.preprocess(blankToUndefined, z.string().optional()),
+    // Owner 2026-10-01: Bunny Stream (video posts) — normally set in the
+    // admin → Integrations; these are only the fallback.
+    BUNNY_LIBRARY_ID: z.preprocess(blankToUndefined, z.string().optional()),
+    BUNNY_CDN_HOSTNAME: z.preprocess(blankToUndefined, z.string().optional()),
+    BUNNY_API_KEY: z.preprocess(blankToUndefined, z.string().optional()),
+    BUNNY_TOKEN_AUTH_KEY: z.preprocess(blankToUndefined, z.string().optional()),
+    BUNNY_WEBHOOK_TOKEN: z.preprocess(blankToUndefined, z.string().optional()),
+    // OQ-041: STUN / TURN for in-app calls (TURN can also be set in the
+    // admin → Integrations).
+    STUN_URLS: z.preprocess(blankToUndefined, z.string().optional()),
+    TURN_URLS: z.preprocess(blankToUndefined, z.string().optional()),
+    TURN_SECRET: z.preprocess(blankToUndefined, z.string().optional()),
     // docs/06 §2.1 (stage 6.2): encrypts admin TOTP secrets at rest
     // (admin_credentials.totp_secret_enc). Admin sign-in is 503 until set.
     ADMIN_TOTP_ENC_KEY: z.preprocess(
@@ -664,6 +691,22 @@ export const envSchema = z
             message: `${key} still holds a placeholder/test value; generate a real secret (docs/KEYS_SETUP.md)`,
           });
         }
+      }
+    }
+    if (env.SECRETS_MASTER_KEYS) {
+      const secretKids = env.SECRETS_MASTER_KEYS.split(',').map(
+        (pair) => pair.split(':')[0],
+      );
+      if (
+        !env.SECRETS_ACTIVE_KID ||
+        !secretKids.includes(env.SECRETS_ACTIVE_KID)
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['SECRETS_ACTIVE_KID'],
+          message:
+            'SECRETS_ACTIVE_KID must name one of the kids listed in SECRETS_MASTER_KEYS',
+        });
       }
     }
     const kids = env.JWT_KEYS.split(',').map((pair) => pair.split(':')[0]);

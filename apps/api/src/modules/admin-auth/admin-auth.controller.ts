@@ -31,6 +31,8 @@ import {
   AdminRecoveryDto,
   AdminSessionDto,
   AdminTotpDto,
+  AdminStepUpDto,
+  AdminStepUpResultDto,
 } from './admin-auth.dto';
 import { AdminAuthService } from './admin-auth.service';
 
@@ -125,6 +127,20 @@ export class AdminAuthController {
   ): Promise<AdminLogoutResultDto> {
     await this.auth.logout(admin);
     return { ok: true };
+  }
+
+  @AdminEndpoint('super_admin')
+  @Post('step-up')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Confirm with a 2FA code (5 min) before changing API keys',
+  })
+  @ApiEnvelopeResponse(AdminStepUpResultDto)
+  stepUp(
+    @CurrentAdmin() admin: AdminActor,
+    @Body() dto: AdminStepUpDto,
+  ): Promise<AdminStepUpResultDto> {
+    return this.auth.stepUp(admin.id, admin.sessionId, dto.code);
   }
 
   @AdminEndpoint(...ALL_ADMIN_ROLES)

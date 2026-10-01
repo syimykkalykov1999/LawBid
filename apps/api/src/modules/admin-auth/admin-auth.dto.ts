@@ -113,3 +113,14 @@ export class AdminLogoutResultDto {
   @ApiProperty()
   ok!: true;
 }
+
+/** Owner 2026-10-01: a fresh authenticator code before key changes. */
+export class AdminStepUpDto {
+  @ApiProperty({ description: 'The 6-digit authenticator code.' })
+  @Matches(/^\d{6}$/)
+  code!: string;
+}
+
+export class AdminStepUpResultDto {
+  @ApiProperty() validForSeconds!: number;
+}

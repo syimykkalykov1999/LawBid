@@ -287,4 +287,14 @@ export enum ErrorCode {
   MESSAGE_REQUEST_DECLINED = 'MESSAGE_REQUEST_DECLINED',
   // 409: up to 3 messages until the request is accepted (OQ-043).
   MESSAGE_REQUEST_LIMIT = 'MESSAGE_REQUEST_LIMIT',
+  // 503: the integrations admin needs SECRETS_MASTER_KEYS (owner 2026-10-01).
+  INTEGRATIONS_NOT_CONFIGURED = 'INTEGRATIONS_NOT_CONFIGURED',
+  // 409: an integration key change needs a passed test / raced (2026-10-01).
+  INTEGRATION_CONFLICT = 'INTEGRATION_CONFLICT',
+  // 403: a sensitive admin action needs a fresh 2FA code (owner 2026-10-01).
+  ADMIN_STEP_UP_REQUIRED = 'ADMIN_STEP_UP_REQUIRED',
+  // 403 / 409: video posts are off, not configured or over a limit.
+  VIDEO_UNAVAILABLE = 'VIDEO_UNAVAILABLE',
+  VIDEO_TOO_LONG = 'VIDEO_TOO_LONG',
+  VIDEO_NOT_READY = 'VIDEO_NOT_READY',
 }

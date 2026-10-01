@@ -44,3 +44,10 @@ if (!process.env.ADMIN_TOTP_ENC_KEY) {
   process.env.ADMIN_TOTP_ENC_KEY =
     'e2e_admin_totp_enc_key_at_least_32_chars_long';
 }
+
+// Owner 2026-10-01: the admin-managed API keys (Integrations).
+if (!process.env.SECRETS_MASTER_KEYS) {
+  process.env.SECRETS_MASTER_KEYS =
+    'e2e1:e2e-integrations-master-key-0123456789abcdef';
+  process.env.SECRETS_ACTIVE_KID = 'e2e1';
+}

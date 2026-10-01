@@ -1,4 +1,5 @@
 import {
+  ForbiddenException,
   HttpException,
   HttpStatus,
   Inject,
@@ -392,6 +393,66 @@ export class AdminAuthService {
       email: user.email,
       admin_role: user.admin_profile.admin_role,
     };
+  }
+
+  /**
+   * Owner 2026-10-01: a fresh 2FA code before a sensitive action (API
+   * keys). Valid 5 minutes for this admin session; 5 tries / 15 min.
+   */
+  async stepUp(adminId: string, sessionId: string, code: string) {
+    const cipher = this.assertConfigured();
+    const r = await this.rateLimit.consumeFixedWindow(
+      ['admin-stepup', adminId],
+      5,
+      900,
+    );
+    if (!r.allowed) {
+      throw new HttpException(
+        {
+          code: ErrorCode.AUTH_OTP_REQUEST_LIMIT,
+          message: 'Too many attempts. Try again later.',
+          details: { retryAfterSeconds: r.retryAfterSeconds },
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+    const cred = await this.prisma.adminCredential.findUnique({
+      where: { user_id: adminId },
+    });
+    if (!cred?.totp_enabled_at) {
+      throw new ForbiddenException({
+        code: ErrorCode.ADMIN_TOTP_INVALID,
+        message: 'Two-factor authentication is not set up.',
+      });
+    }
+    const ok =
+      verifyTotp(cipher.decrypt(cred.totp_secret_enc), code) &&
+      (await this.redis.set(
+        `adm:totp:used:${adminId}:${code}`,
+        '1',
+        'EX',
+        TOTP_REPLAY_WINDOW_SECONDS,
+        'NX',
+      )) === 'OK';
+    if (!ok) {
+      throw new ForbiddenException({
+        code: ErrorCode.ADMIN_TOTP_INVALID,
+        message: 'Wrong code.',
+      });
+    }
+    const ttl = 300;
+    await this.redis.set(`adm:stepup:${sessionId}`, '1', 'EX', ttl);
+    return { validForSeconds: ttl };
+  }
+
+  /** Throws unless [sessionId] passed a step-up in the last 5 minutes. */
+  async assertStepUp(sessionId: string): Promise<void> {
+    if (!(await this.redis.exists(`adm:stepup:${sessionId}`))) {
+      throw new ForbiddenException({
+        code: ErrorCode.ADMIN_STEP_UP_REQUIRED,
+        message: 'Confirm with your 2FA code first.',
+      });
+    }
   }
 
   private async limit(parts: string[], perHour: number): Promise<void> {

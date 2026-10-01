@@ -27,6 +27,7 @@ import { AdminSessionService } from './admin-session.service';
   // module, so its dependencies (TokenService, AuditLogService) must be
   // visible there too: re-exported from this global module.
   exports: [
+    AdminAuthService,
     AuthModule,
     AdminAccessModule,
     AdminSessionService,
