@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:lawbid/features/team/domain/team_models.dart';
+import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_photos.dart';
 import 'package:lawbid/features/cases/presentation/widgets/client_review_sheet.dart';
@@ -222,8 +224,10 @@ class _WorkCaseScreenState extends ConsumerState<WorkCaseScreen> {
                   title: t.t('cases.work.terms'),
                   child: _TermsLine(bidId: c.ownBidId!, t: t, formats: formats),
                 ),
-              // OQ-038: the hired attorney reviews the client.
-              ClientReviewAction(caseId: c.id),
+              // OQ-038: the hired attorney reviews the client (audit
+              // 2026-10-02: in person — not an assistant in their name).
+              if (!ref.watch(isAssistantProvider))
+                ClientReviewAction(caseId: c.id),
               DetailSection(
                 title: t.t('cases.detail.description'),
                 child: Text(
@@ -251,14 +255,15 @@ class _WorkCaseScreenState extends ConsumerState<WorkCaseScreen> {
           ? null
           : BottomActionBar(
               children: [
-                if (pending)
+                // Audit 2026-10-02: an assistant confirms or disputes only with \"bids\".
+                if (pending && ref.watch(canDoProvider(AssistantDuty.bids)))
                   AppButton(
                     label: t.t('cases.work.confirm'),
                     icon: AppIcons.taskAltRounded,
                     isLoading: _busy,
                     onPressed: _confirm,
                   ),
-                if (pending)
+                if (pending && ref.watch(canDoProvider(AssistantDuty.bids)))
                   AppButton(
                     label: t.t('cases.work.dispute'),
                     variant: AppButtonVariant.secondary,

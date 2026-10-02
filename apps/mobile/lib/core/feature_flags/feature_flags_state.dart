@@ -17,6 +17,10 @@ class FeatureFlagsState {
   final Map<String, bool> flags;
   final Map<String, String> appConfig;
 
+  /// A numeric app_config value the owner can change in the admin panel.
+  int configInt(String key, int fallback) =>
+      num.tryParse(appConfig[key] ?? '')?.toInt() ?? fallback;
+
   /// Current legal documents from the same bootstrap response (stage 1.7
   /// mobile: the consents step links Terms/Privacy/Disclaimer to these).
   final List<LegalDocument> legalDocuments;

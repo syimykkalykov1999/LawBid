@@ -45,6 +45,9 @@ class ConversationsNotifier extends PagedNotifier<Conversation> {
       if (e.name == 'message:new' ||
           e.name == 'conversation:update' ||
           e.name == 'message:read' ||
+          // Audit 2026-10-02: reading a chat on this or another device
+          // only sends the reader a badge update — refresh the unread pills.
+          e.name == 'badge:update' ||
           e.name == RealtimeEvent.reconnected) {
         _debounce?.cancel();
         _debounce = Timer(const Duration(milliseconds: 600), () {
@@ -685,6 +688,10 @@ class ChatThread extends Notifier<ChatThreadState> {
     _lastReadSent = newest.id;
     try {
       await _repo.read(id, newest.id);
+      // Audit 2026-10-02: the chat list and its folders drop this pill now.
+      ref
+        ..invalidate(conversationsProvider)
+        ..invalidate(folderConversationsProvider);
     } on Object {
       _lastReadSent = null;
     }
@@ -711,7 +718,10 @@ class ChatThread extends Notifier<ChatThreadState> {
     ref
       ..invalidate(messageRequestsProvider)
       ..invalidate(messageRequestsCountProvider)
-      ..invalidate(conversationsProvider);
+      ..invalidate(conversationsProvider)
+      // Audit 2026-10-02: folders and their counts follow at once.
+      ..invalidate(folderConversationsProvider)
+      ..invalidate(chatFolderCountsProvider);
   }
 
   Future<void> setMuted(bool muted) async {

@@ -10,7 +10,7 @@ const reelsRu = <String, String>{
   'reels.processing.toast':
       'Рилс загружен. Он появится в ленте, как только видео обработается.',
   'reels.create': 'Новый рилс',
-  'reels.create.sub': 'Вертикальное видео до 90 секунд, как в Instagram.',
+  'reels.create.sub': 'Вертикальное видео, как в Instagram.',
   'reels.pick.gallery': 'Из галереи',
   'reels.pick.camera': 'Снять',
   'reels.limits': 'До {max} секунд, лучше вертикально 9:16.',
@@ -29,6 +29,8 @@ const reelsRu = <String, String>{
       'Выключено: сообщения, звонки и уведомления этой категории приходят, но без звука, push и счётчика.',
   'assistant.paused':
       'Подписка адвоката {name} закончилась. Работа в его аккаунте откроется, как только он её продлит.',
+  'error.api.CALL_STATE_CONFLICT': 'На звонок уже ответили на другом устройстве',
+  'error.api.CALL_NOT_FOUND': 'Звонок уже завершён',
   'stickers.tab.emoji': 'Эмодзи',
   'stickers.tab.stickers': 'Стикеры',
   'stickers.button': 'Эмодзи и стикеры',
@@ -62,7 +64,7 @@ const reelsEn = <String, String>{
   'reels.processing.toast':
       'Reel uploaded. It appears in the feed as soon as the video is processed.',
   'reels.create': 'New reel',
-  'reels.create.sub': 'A vertical video up to 90 seconds, like Instagram.',
+  'reels.create.sub': 'A vertical video, like Instagram.',
   'reels.pick.gallery': 'From gallery',
   'reels.pick.camera': 'Record',
   'reels.limits': 'Up to {max} seconds, vertical 9:16 works best.',
@@ -81,6 +83,8 @@ const reelsEn = <String, String>{
       'Off: messages, calls and notifications of that kind still arrive, without sound, push or a badge.',
   'assistant.paused':
       "{name}'s subscription has ended. You can work in the account again once it is renewed.",
+  'error.api.CALL_STATE_CONFLICT': 'The call was answered on another device',
+  'error.api.CALL_NOT_FOUND': 'The call has already ended',
   'stickers.tab.emoji': 'Emoji',
   'stickers.tab.stickers': 'Stickers',
   'stickers.button': 'Emoji and stickers',

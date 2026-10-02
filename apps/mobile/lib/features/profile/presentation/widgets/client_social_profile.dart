@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -227,7 +228,9 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
                 ),
                 // OQ-043: an attorney can write to a client directly (a
                 // message request until the client accepts).
-                if (ref.watch(actsAsAttorneyProvider)) ...[
+                // Audit 2026-10-02: assistants need the "chats" duty.
+                if (ref.watch(actsAsAttorneyProvider) &&
+                    ref.watch(canDoProvider(AssistantDuty.chats))) ...[
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
                     child: AppButton(

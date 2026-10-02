@@ -58,10 +58,7 @@ class _NotificationSettingsScreenState
     final repo = ref.read(notificationsRepositoryProvider);
     // Owner 2026-10-01: turning "New cases" on says what comes and that it
     // can be changed (the qualifications appear right under the switch).
-    if (c.category == NotifCategory.newCases &&
-        !c.push &&
-        !c.email &&
-        (next.push || next.email)) {
+    if (c.category == NotifCategory.newCases && !c.push && next.push) {
       showAppSnackBar(
           context, ref.read(translatorProvider).t('notif.newCases.turnedOn'));
     }
@@ -209,6 +206,9 @@ class _NotificationSettingsScreenState
                             onChanged:
                                 c.locked ? null : (v) => _toggle(s, c, push: v),
                           ),
+                          // Audit 2026-10-02: only system notices are ever
+                          // emailed — other categories show no dead switch.
+                          if (c.category == NotifCategory.system)
                           SwitchListTile.adaptive(
                             contentPadding: EdgeInsets.zero,
                             title: Text(t.t('notif.settings.email')),
@@ -220,8 +220,7 @@ class _NotificationSettingsScreenState
                           ),
                           // Owner 2026-10-01: which qualifications send
                           // new cases (profile's by default).
-                          if (c.category == NotifCategory.newCases &&
-                              (c.push || c.email))
+                          if (c.category == NotifCategory.newCases && c.push)
                             const NewCaseAlertsSection(),
                         ],
                       ),

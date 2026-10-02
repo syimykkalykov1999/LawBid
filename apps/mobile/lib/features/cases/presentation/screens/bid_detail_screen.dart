@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -176,6 +177,11 @@ class _BidDetailScreenState extends ConsumerState<BidDetailScreen> {
 
   Widget? _actions(CaseBid bid, PartyRole viewer, Translator t) {
     if (!bid.isActive) return null;
+    // Audit 2026-10-02: an assistant negotiates only with "bids".
+    if (viewer == PartyRole.attorney &&
+        !ref.read(canDoProvider(AssistantDuty.bids))) {
+      return null;
+    }
     final myTurn = bid.isTurnOf(viewer);
     final children = <Widget>[
       if (myTurn)

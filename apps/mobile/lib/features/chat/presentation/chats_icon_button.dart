@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:lawbid/features/team/domain/team_models.dart';
+import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -15,6 +17,10 @@ class ChatsIconButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Audit 2026-10-02: assistants without "chats" have no inbox to open.
+    if (!ref.watch(canDoProvider(AssistantDuty.chats))) {
+      return const SizedBox.shrink();
+    }
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final total = ref.watch(badgesProvider.select((b) => b.total));

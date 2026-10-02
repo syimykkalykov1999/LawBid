@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -36,7 +37,9 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
   Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final attorney = ref.watch(actsAsAttorneyProvider);
+    // Audit 2026-10-02: an assistant sees the Cases tab only with "cases".
+    final attorney = ref.watch(actsAsAttorneyProvider) &&
+        ref.watch(canDoProvider(AssistantDuty.cases));
 
     // Owner 2026-09-30 header: clients — scales left, "LawBid" centred,
     // chats right; attorneys — "LawBid" left, Posts | Cases centred,

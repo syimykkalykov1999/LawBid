@@ -230,6 +230,13 @@ String callStatusText(Translator t, CallSession s) {
           return t.t('call.subscription');
         case 'CALL_IN_PROGRESS':
           return t.t('call.inProgress');
+        // Audit 2026-10-02: the other refusals the server sends.
+        case 'ASSISTANT_NOT_ALLOWED':
+        case 'USER_BLOCKED':
+        case 'CONVERSATION_CLOSED':
+        case 'CALL_STATE_CONFLICT':
+        case 'CALL_NOT_FOUND':
+          return t.t('error.api.${s.errorCode}');
       }
       return t.t('call.status.${(s.outcome ?? CallStatus.ended).name}');
     case CallPhase.idle:

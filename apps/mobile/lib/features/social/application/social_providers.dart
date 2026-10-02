@@ -13,6 +13,7 @@ import 'package:lawbid/features/social/data/social_repository.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
+import 'package:lawbid/features/profile/application/profile_providers.dart';
 
 // No silent automatic retries: a failed load shows its error/offline
 // state with Retry at once (docs/01 §8.3).
@@ -51,11 +52,25 @@ final socialRepositoryProvider = Provider<SocialRepository>(
 /// refetching (docs/05 §4 optimistic UI).
 class PostOverrides extends Notifier<Map<String, Post>> {
   @override
-  Map<String, Post> build() => const {};
+  Map<String, Post> build() {
+    // Audit 2026-10-02: another account never inherits these.
+    ref.watch(currentUserIdProvider);
+    return const {};
+  }
 
   void put(Post post) => state = {...state, post.id: post};
 
-  /// A fresh first page from the server is the truth again.
+  /// A fresh first page from the server is the truth again — for the posts
+  /// on that page only (other screens keep their optimistic state).
+  void clearFor(Iterable<String> ids) {
+    final drop = ids.toSet();
+    if (drop.isEmpty || !state.keys.any(drop.contains)) return;
+    state = {
+      for (final e in state.entries)
+        if (!drop.contains(e.key)) e.key: e.value,
+    };
+  }
+
   void clear() => state = const {};
 }
 
@@ -64,7 +79,10 @@ final postOverridesProvider =
 
 class DeletedPosts extends Notifier<Set<String>> {
   @override
-  Set<String> build() => const {};
+  Set<String> build() {
+    ref.watch(currentUserIdProvider);
+    return const {};
+  }
 
   void add(String id) => state = {...state, id};
 }
@@ -75,7 +93,10 @@ final deletedPostsProvider =
 /// Follow state changed in this session, by attorney id.
 class FollowOverrides extends Notifier<Map<String, bool>> {
   @override
-  Map<String, bool> build() => const {};
+  Map<String, bool> build() {
+    ref.watch(currentUserIdProvider);
+    return const {};
+  }
 
   void put(String attorneyId, bool following) =>
       state = {...state, attorneyId: following};
@@ -97,7 +118,9 @@ class FeedNotifier extends PagedNotifier<Post> {
       final page = await repo.feed(cursor: cursor);
       if (cursor == null) {
         fromCache = false;
-        ref.read(postOverridesProvider.notifier).clear();
+        ref
+            .read(postOverridesProvider.notifier)
+            .clearFor(page.items.map((p) => p.id));
       }
       return page;
     } on ApiException catch (e) {
@@ -555,6 +578,14 @@ class SocialActions {
           overrides.put(attorneyId, !following);
           rethrow;
         }
+        // Audit 2026-10-02: follower counts and follow lists follow at once
+        // (the server includes not-yet-flushed counters).
+        _ref
+          ..invalidate(publicAttorneyProfileProvider)
+          ..invalidate(publicClientProfileProvider)
+          ..invalidate(followListProvider)
+          ..invalidate(myFollowingProvider)
+          ..invalidate(suggestionsProvider);
       });
 
   Future<Object?> report(

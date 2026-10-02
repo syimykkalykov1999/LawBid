@@ -385,7 +385,6 @@ class _Published extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    final until = review.editableUntil;
     final children = <Widget>[
       Row(
         children: [
@@ -401,11 +400,9 @@ class _Published extends StatelessWidget {
       Text(t.t('reviews.form.previewHint'),
           style: typography.bodySmall.copyWith(color: colors.textSecondary)),
       ReviewCard(review: review),
-      if (canEdit && until != null) ...[
-        Text(
-          t.t('reviews.form.editableUntil', {'date': formats.date(until)}),
-          style: typography.bodySmall.copyWith(color: colors.textSecondary),
-        ),
+      // Audit 2026-10-02: the server lets the author edit any time (owner
+      // 2026-10-01, Google-Maps reviews) — no "editable until" date.
+      if (canEdit) ...[
         AppButton(
           key: const ValueKey('review-edit'),
           label: t.t('reviews.form.edit'),

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:lawbid/features/team/application/team_providers.dart';
+import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_photos.dart';
@@ -143,19 +145,24 @@ class _AttorneyCaseScreenState extends ConsumerState<AttorneyCaseScreen> {
           ? null
           : BottomActionBar(
               children: [
-                if (c.ownBidId == null)
+                // Audit 2026-10-02: an assistant bids with "bids" or
+                // drafts with "bid drafts", chats with "chats".
+                if (c.ownBidId == null &&
+                    (ref.watch(canDoProvider(AssistantDuty.bids)) ||
+                        ref.watch(canDoProvider(AssistantDuty.bidDrafts))))
                   AppButton(
                     label: t.t('cases.bidForm.cta'),
                     icon: AppIcons.gavelRounded,
                     onPressed: () => context.push(AppRoutes.placeBid(c.id)),
                   ),
-                AppButton(
-                  label: t.t('cases.detail.messageClient'),
-                  icon: AppIcons.chatBubbleOutlineRounded,
-                  variant: AppButtonVariant.secondary,
-                  isLoading: _messaging,
-                  onPressed: () => _message(c),
-                ),
+                if (ref.watch(canDoProvider(AssistantDuty.chats)))
+                  AppButton(
+                    label: t.t('cases.detail.messageClient'),
+                    icon: AppIcons.chatBubbleOutlineRounded,
+                    variant: AppButtonVariant.secondary,
+                    isLoading: _messaging,
+                    onPressed: () => _message(c),
+                  ),
               ],
             ),
     );

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:lawbid/features/team/domain/team_models.dart';
+import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -64,6 +66,9 @@ Future<void> showPostMenu(BuildContext context, WidgetRef ref, Post post) {
           children: [
             const AppSheetHandle(),
             if (post.isMine) ...[
+              // Audit 2026-10-02: an assistant edits only with "publish" and
+              // never deletes the attorney's posts.
+              if (ref.read(canDoProvider(AssistantDuty.publish)))
               AppListRow(
                 icon: AppIcons.editOutlined,
                 label: t.t('post.menu.edit'),
@@ -73,6 +78,7 @@ Future<void> showPostMenu(BuildContext context, WidgetRef ref, Post post) {
                   showEditPostSheet(context, ref, post);
                 },
               ),
+              if (!ref.read(isAssistantProvider))
               AppListRow(
                 icon: AppIcons.deleteOutlineRounded,
                 label: t.t('post.menu.delete'),
