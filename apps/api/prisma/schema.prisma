@@ -2577,3 +2577,216 @@ model VideoAsset {
   @@index([owner_user_id, created_at(sort: Desc)])
   @@map("video_assets")
 }
+
+// ---------------------------------------------------------------------------
+// Owner 2026-10-02 — admin growth & support tools. Status/kind columns are
+// short strings validated by the DTOs (no new enum types: CockroachDB can't
+// use an enum created in the same migration). User/admin ids are plain UUID
+// columns so these tables don't add back-relations to `User`.
+// ---------------------------------------------------------------------------
+
+// Free subscription under a contract (blogger attorneys): 3–12 months,
+// optionally with assistant seats. SubscriptionAccessService treats an
+// unrevoked grant inside [starts_at, ends_at) as an active subscription.
+model ContractGrant {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id         String    @db.Uuid
+  months          Int       @db.Int2
+  assistant_seats Int       @default(0) @db.Int2
+  starts_at       DateTime  @db.Timestamptz
+  ends_at         DateTime  @db.Timestamptz
+  // Contract reference / blogger handle, shown to admins only.
+  contract_ref    String?   @db.String(200)
+  note            String?   @db.String(1000)
+  created_by      String    @db.Uuid
+  revoked_at      DateTime? @db.Timestamptz
+  revoked_by      String?   @db.Uuid
+  revoke_reason   String?   @db.String(500)
+  created_at      DateTime  @default(now()) @db.Timestamptz
+  updated_at      DateTime  @updatedAt @db.Timestamptz
+
+  @@index([user_id, ends_at])
+  @@index([ends_at])
+  @@map("contract_grants")
+}
+
+// Promo codes: percent / fixed amount off, or free days of subscription.
+model PromoCode {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  // Upper-case, unique.
+  code             String    @unique @db.String(40)
+  description      String?   @db.String(300)
+  // percent | amount | free_days
+  discount_type    String    @db.String(16)
+  percent_off      Int?      @db.Int2
+  amount_off_cents Int?
+  free_days        Int?
+  // all | attorney | client
+  audience         String    @default("attorney") @db.String(16)
+  // any | monthly | yearly | promotion
+  applies_to       String    @default("any") @db.String(16)
+  max_redemptions  Int?
+  redeemed_count   Int       @default(0)
+  starts_at        DateTime? @db.Timestamptz
+  expires_at       DateTime? @db.Timestamptz
+  active           Boolean   @default(true)
+  stripe_coupon_id String?
+  created_by       String    @db.Uuid
+  created_at       DateTime  @default(now()) @db.Timestamptz
+  updated_at       DateTime  @updatedAt @db.Timestamptz
+
+  @@index([active, expires_at])
+  @@map("promo_codes")
+}
+
+model PromoRedemption {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  promo_id         String   @db.Uuid
+  user_id          String   @db.Uuid
+  amount_off_cents Int?
+  payment_id       String?  @db.Uuid
+  created_at       DateTime @default(now()) @db.Timestamptz
+
+  @@unique([promo_id, user_id])
+  @@index([user_id])
+  @@map("promo_redemptions")
+}
+
+// Refunds issued from the admin (Stripe refund or manual record).
+model Refund {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  payment_id       String   @db.Uuid
+  user_id          String   @db.Uuid
+  amount_cents     Int
+  reason           String   @db.String(500)
+  // pending | succeeded | failed
+  status           String   @db.String(16)
+  stripe_refund_id String?  @unique
+  failure_reason   String?
+  admin_id         String   @db.Uuid
+  created_at       DateTime @default(now()) @db.Timestamptz
+  updated_at       DateTime @updatedAt @db.Timestamptz
+
+  @@index([payment_id])
+  @@index([created_at(sort: Desc)])
+  @@map("refunds")
+}
+
+// Referrals: every user has one code; a referee joins with it once.
+model ReferralCode {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String   @unique @db.Uuid
+  code       String   @unique @db.String(24)
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  @@map("referral_codes")
+}
+
+model Referral {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  referrer_id     String    @db.Uuid
+  referee_id      String    @unique @db.Uuid
+  code            String    @db.String(24)
+  // pending | qualified | rewarded | rejected
+  status          String    @default("pending") @db.String(16)
+  referrer_role   String    @db.String(16)
+  referee_role    String    @db.String(16)
+  // Snapshot of the program at sign-up time.
+  referrer_reward Json      @default("{}")
+  referee_reward  Json      @default("{}")
+  qualified_at    DateTime? @db.Timestamptz
+  rewarded_at     DateTime? @db.Timestamptz
+  rejected_reason String?   @db.String(300)
+  created_at      DateTime  @default(now()) @db.Timestamptz
+  updated_at      DateTime  @updatedAt @db.Timestamptz
+
+  @@index([referrer_id, created_at(sort: Desc)])
+  @@index([status, created_at])
+  @@map("referrals")
+}
+
+// Paid case promotion (~$10/day): the case is boosted in attorneys' feeds.
+model CasePromotion {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  case_id             String    @db.Uuid
+  user_id             String    @db.Uuid
+  days                Int       @db.Int2
+  price_cents_per_day Int
+  total_cents         Int
+  // pending_payment | active | finished | canceled | refunded
+  status              String    @db.String(20)
+  starts_at           DateTime? @db.Timestamptz
+  ends_at             DateTime? @db.Timestamptz
+  stripe_checkout_id  String?   @unique
+  payment_id          String?   @db.Uuid
+  promo_code_id       String?   @db.Uuid
+  // Granted for free by an admin (no payment).
+  granted_by          String?   @db.Uuid
+  canceled_by         String?   @db.Uuid
+  cancel_reason       String?   @db.String(500)
+  impressions         Int       @default(0)
+  created_at          DateTime  @default(now()) @db.Timestamptz
+  updated_at          DateTime  @updatedAt @db.Timestamptz
+
+  @@index([status, ends_at])
+  @@index([case_id])
+  @@index([user_id, created_at(sort: Desc)])
+  @@map("case_promotions")
+}
+
+// Support tickets from the app (any user) answered in the admin.
+model SupportTicket {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id         String    @db.Uuid
+  subject         String    @db.String(200)
+  // account | billing | verification | case | bug | abuse | other
+  category        String    @default("other") @db.String(20)
+  // open | waiting_user | resolved | closed
+  status          String    @default("open") @db.String(16)
+  // low | normal | high | urgent
+  priority        String    @default("normal") @db.String(8)
+  assignee_id     String?   @db.Uuid
+  unread_by_admin Boolean   @default(true)
+  unread_by_user  Boolean   @default(false)
+  last_message_at DateTime  @default(now()) @db.Timestamptz
+  resolved_at     DateTime? @db.Timestamptz
+  created_at      DateTime  @default(now()) @db.Timestamptz
+  updated_at      DateTime  @updatedAt @db.Timestamptz
+
+  @@index([status, last_message_at(sort: Desc)])
+  @@index([user_id, last_message_at(sort: Desc)])
+  @@index([assignee_id, status])
+  @@map("support_tickets")
+}
+
+model SupportMessage {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ticket_id       String   @db.Uuid
+  // Exactly one of author_user_id (the app user) / author_admin_id.
+  author_user_id  String?  @db.Uuid
+  author_admin_id String?  @db.Uuid
+  // Admin-only note, never shown to the user.
+  internal        Boolean  @default(false)
+  body            String   @db.String(5000)
+  created_at      DateTime @default(now()) @db.Timestamptz
+
+  @@index([ticket_id, created_at])
+  @@map("support_messages")
+}
+
+// Admin overrides of the built-in transactional emails, per locale.
+// Missing row (or enabled=false) = the built-in text is sent.
+model EmailTemplate {
+  key        String   @db.String(64)
+  locale     String   @db.String(5)
+  subject    String   @db.String(200)
+  text_body  String
+  html_body  String?
+  enabled    Boolean  @default(true)
+  updated_by String?  @db.Uuid
+  created_at DateTime @default(now()) @db.Timestamptz
+  updated_at DateTime @updatedAt @db.Timestamptz
+
+  @@id([key, locale])
+  @@map("email_templates")
+}
