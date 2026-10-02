@@ -102,7 +102,7 @@ export default function PromotionsPage() {
       {dialog}
       <PageHeader
         eyebrow="Рост"
-        title="Продвижение дел"
+        title="Продвижение кейсов"
         subtitle="Клиент платит, и его кейс показывается вверху ленты адвокатов. Здесь видно все продвижения; можно подарить дни, продлить или отменить."
         actions={
           canWrite ? (

@@ -15,12 +15,13 @@ import { Badge } from '@/components/ui/card';
 import { Input, Label, Select } from '@/components/ui/input';
 import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { Tabs } from '@/components/ui/tabs';
+import { ClientReviewsPanel, RestoreContentButton } from '@/components/content/client-reviews-panel';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
 import { CONTENT_STATUS, StatusPill } from '@/lib/labels';
 import { formatDateTime } from '@/lib/utils';
 
-type Tab = 'posts' | 'comments' | 'reviews';
+type Tab = 'posts' | 'comments' | 'reviews' | 'client-reviews';
 
 /**
  * Owner 2026-09-30 — every post / news, every comment (posts and cases)
@@ -45,10 +46,19 @@ export default function ContentPage() {
         items={[
           { value: 'posts', label: 'Публикации и новости' },
           { value: 'comments', label: 'Комментарии' },
-          { value: 'reviews', label: 'Отзывы' },
+          { value: 'reviews', label: 'Отзывы об адвокатах' },
+          { value: 'client-reviews', label: 'Отзывы о клиентах' },
         ]}
       />
-      {tab === 'posts' ? <Posts ask={ask} /> : tab === 'comments' ? <Comments ask={ask} /> : <Reviews ask={ask} />}
+      {tab === 'posts' ? (
+        <Posts ask={ask} />
+      ) : tab === 'comments' ? (
+        <Comments ask={ask} />
+      ) : tab === 'reviews' ? (
+        <Reviews ask={ask} />
+      ) : (
+        <ClientReviewsPanel />
+      )}
     </>
   );
 }
@@ -151,6 +161,9 @@ function Posts({ ask }: { ask: Ask }) {
               </Td>
               <Td className="whitespace-nowrap text-xs">{formatDateTime(p.createdAt)}</Td>
               <Td>
+                {p.status !== 'published' && !p.deleted ? (
+                  <RestoreContentButton kind="post" id={p.id} onDone={() => void q.refetch()} />
+                ) : (
                 <Button
                   size="sm"
                   variant="danger"
@@ -162,6 +175,7 @@ function Posts({ ask }: { ask: Ask }) {
                 >
                   Удалить
                 </Button>
+                )}
               </Td>
             </MotionRow>
           ))}
@@ -251,6 +265,9 @@ function Comments({ ask }: { ask: Ask }) {
               </Td>
               <Td className="whitespace-nowrap text-xs text-muted">{formatDateTime(c.createdAt)}</Td>
               <Td>
+                {c.status !== 'published' ? (
+                  <RestoreContentButton kind={thread === 'case' ? 'case-comment' : 'comment'} id={c.id} onDone={() => void q.refetch()} />
+                ) : (
                 <Button
                   size="sm"
                   variant="danger"
@@ -262,6 +279,7 @@ function Comments({ ask }: { ask: Ask }) {
                 >
                   Удалить
                 </Button>
+                )}
               </Td>
             </MotionRow>
           ))}

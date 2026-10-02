@@ -4,6 +4,7 @@ import { useInfiniteQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { CaseList } from '@/components/cases/case-list';
 import { MotionRow } from '@/components/legacy/fade-in';
 import { MoreButton } from '@/components/legacy/more-button';
 import { ErrorNote, PageHeader } from '@/components/page-header';
@@ -14,7 +15,7 @@ import { api, errorText } from '@/lib/api/client';
 import { CASE_STATUS, CONTACT_ISSUE_STATUS, ISSUE_TYPE, label, PARTY_ROLE, partyName, StatusPill } from '@/lib/labels';
 import { formatDateTime } from '@/lib/utils';
 
-type Tab = 'disputes' | 'contact-issues';
+type Tab = 'cases' | 'disputes' | 'contact-issues';
 type DisputeStatus = 'open' | 'resolved';
 type IssueStatus = 'open' | 'confirmed' | 'rejected';
 
@@ -22,22 +23,23 @@ const DISPUTE_STATUS: Record<string, string> = { open: 'открыт', resolved:
 
 /** docs/06 §2.3 item 5: the two support queues. */
 export default function CasesQueuesPage() {
-  const [tab, setTab] = useState<Tab>('disputes');
+  const [tab, setTab] = useState<Tab>('cases');
   const [disputeStatus, setDisputeStatus] = useState<DisputeStatus>('open');
   const [issueStatus, setIssueStatus] = useState<IssueStatus>('open');
   return (
     <>
-      <PageHeader eyebrow="Кейсы" title="Кейсы" subtitle="Споры и обращения «Не могу связаться»; старые сверху." />
+      <PageHeader eyebrow="Кейсы" title="Кейсы" subtitle="Все кейсы с модерацией, споры и обращения «Не могу связаться»." />
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <Tabs<Tab>
           value={tab}
           onChange={setTab}
           items={[
+            { value: 'cases', label: 'Все кейсы' },
             { value: 'disputes', label: 'Споры' },
             { value: 'contact-issues', label: '«Не могу связаться»' },
           ]}
         />
-        {tab === 'disputes' ? (
+        {tab === 'cases' ? null : tab === 'disputes' ? (
           <Tabs<DisputeStatus>
             size="sm"
             value={disputeStatus}
@@ -60,7 +62,7 @@ export default function CasesQueuesPage() {
           />
         )}
       </div>
-      {tab === 'disputes' ? <Disputes status={disputeStatus} /> : <ContactIssues status={issueStatus} />}
+      {tab === 'cases' ? <CaseList /> : tab === 'disputes' ? <Disputes status={disputeStatus} /> : <ContactIssues status={issueStatus} />}
     </>
   );
 }

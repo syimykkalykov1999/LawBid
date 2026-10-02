@@ -287,6 +287,7 @@ export const VIDEO_STATUS: Record<string, string> = {
   processing: 'обрабатывается',
   ready: 'готово',
   failed: 'ошибка',
+  rejected: 'отклонено',
   deleted: 'удалено',
 };
 
