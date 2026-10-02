@@ -65,7 +65,7 @@ class _ChatSelectionBarState extends ConsumerState<ChatSelectionBar> {
 
   Future<void> _move() async {
     final t = ref.read(translatorProvider);
-    final target = await showAppBottomSheet<ChatFolder>(
+    final target = await showAppBottomSheet<ChatListFolder>(
       context: context,
       builder: (ctx) => SafeArea(
         child: Column(
@@ -76,12 +76,17 @@ class _ChatSelectionBarState extends ConsumerState<ChatSelectionBar> {
             AppListRow(
               icon: AppIcons.starOutlineRounded,
               label: t.t('chat.folder.primary'),
-              onTap: () => Navigator.of(ctx).pop(ChatFolder.primary),
+              onTap: () => Navigator.of(ctx).pop(ChatListFolder.primary),
             ),
             AppListRow(
               icon: AppIcons.inboxOutlined,
               label: t.t('chat.folder.general'),
-              onTap: () => Navigator.of(ctx).pop(ChatFolder.general),
+              onTap: () => Navigator.of(ctx).pop(ChatListFolder.general),
+            ),
+            AppListRow(
+              icon: AppIcons.hourglassEmptyRounded,
+              label: t.t('chat.folder.waiting'),
+              onTap: () => Navigator.of(ctx).pop(ChatListFolder.waiting),
             ),
             const SizedBox(height: AppSpacing.md),
           ],
@@ -89,8 +94,18 @@ class _ChatSelectionBarState extends ConsumerState<ChatSelectionBar> {
       ),
     );
     if (target == null || !mounted) return;
+    // Waiting is a mark ("waiting for my answer"); Primary / General move the
+    // chat there and take the mark off.
     await _each(
-      (c) => ref.read(chatRepositoryProvider).organize(c.id, folder: target),
+      (c) => ref.read(chatRepositoryProvider).organize(
+            c.id,
+            folder: target == ChatListFolder.waiting
+                ? null
+                : target == ChatListFolder.primary
+                    ? ChatFolder.primary
+                    : ChatFolder.general,
+            waiting: target == ChatListFolder.waiting,
+          ),
       done: 'chat.organize.moved',
     );
   }
