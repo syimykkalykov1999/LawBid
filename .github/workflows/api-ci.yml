@@ -205,17 +205,15 @@ jobs:
       - name: Start MailHog (no container log dump, keeps the job log readable)
         run: docker run -d --name mailhog --log-driver none -p 1025:1025 -p 8025:8025 mailhog/mailhog:latest
 
-      - name: Start MinIO (S3 for the file / voice e2e suites)
-        # Container registries refuse the image on the runner, so run the
-        # official static binary.
+      - name: Start a local S3 (moto) for the file / voice e2e suites
+        # MinIO images and binaries are no longer pullable on the runner, and
+        # the suites only need a plain S3 API on :9000.
         run: |
-          curl -fsSL https://dl.min.io/server/minio/release/linux-amd64/minio -o /tmp/minio
-          chmod +x /tmp/minio
-          MINIO_ROOT_USER=lawbid MINIO_ROOT_PASSWORD=lawbid_dev_only \
-            nohup /tmp/minio server /tmp/minio-data --address :9000 > /tmp/minio.log 2>&1 &
-          for i in $(seq 1 30); do curl -fs http://localhost:9000/minio/health/live && break; sleep 2; done
+          python3 -m pip install --quiet 'moto[server]'
+          nohup python3 -m moto.server -H 127.0.0.1 -p 9000 > /tmp/moto.log 2>&1 &
+          for i in $(seq 1 30); do curl -s -o /dev/null http://localhost:9000/ && break; sleep 1; done
 
-      - name: e2e tests (real CockroachDB + Redis + MinIO)
+      - name: e2e tests (real CockroachDB + Redis + local S3)
         # One jest process runs every suite in turn and its heap grows past
         # node's default limit (~2 GB) around the 60th suite.
         env:
