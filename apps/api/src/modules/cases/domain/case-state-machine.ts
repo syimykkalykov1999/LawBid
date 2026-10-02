@@ -47,6 +47,12 @@ export type CaseAction =
   | 'admin_resolve_reopen'
   // docs/06 §5.1: account anonymization closes the cases still in work.
   | 'account_deleted_close'
+  // Audit 2026-10-02 (admin panel → Cases): support closes, archives
+  // (also the moderation "hide" — a case has no content status) and
+  // restores an open case. Same edges as the client/system actions.
+  | 'admin_close'
+  | 'admin_archive'
+  | 'admin_restore'
   // In-place actions (status unchanged): §3.5 edit and delete, §10.2
   // "Да, актуален".
   | 'client_edit'
@@ -105,6 +111,9 @@ export const CASE_TRANSITIONS: Readonly<
     to: 'closed',
     event: 'closed',
   },
+  admin_close: { from: ['open'], to: 'closed', event: 'closed' },
+  admin_archive: { from: ['open'], to: 'archived', event: 'archived' },
+  admin_restore: { from: ['archived'], to: 'open', event: 'restored' },
   client_edit: { from: ['open'], to: null, event: 'updated' },
   client_keep_alive: { from: ['open'], to: null, event: 'updated' },
   // §3.5 / §10.1: deletion only from open and archived.
@@ -172,12 +181,15 @@ export function planCaseTransition(
       data = { accepted_bid_id: ctx.acceptedBidId, last_activity_at: now };
       break;
     case 'client_close':
+    case 'admin_close':
       data = { closed_at: now, last_activity_at: now };
       break;
     case 'auto_archive':
+    case 'admin_archive':
       data = { archived_at: now };
       break;
     case 'client_restore':
+    case 'admin_restore':
       // §10.1: last_activity_at = now(), archived_at = null. The stale
       // prompt is reset too (as for "Да, актуален", §10.2), otherwise the
       // §10.2 reminder (stale_prompt_sent_at IS NULL) never fires again.

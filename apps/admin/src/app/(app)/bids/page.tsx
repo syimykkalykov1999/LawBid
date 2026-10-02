@@ -1,36 +1,24 @@
 'use client';
 
+import { MagnifyingGlass } from '@phosphor-icons/react';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useState } from 'react';
 import { CsvButton } from '@/components/csv-button';
+import { MotionRow } from '@/components/legacy/fade-in';
+import { MoreButton } from '@/components/legacy/more-button';
+import { useDebounced } from '@/components/legacy/use-debounced';
 import { ErrorNote, PageHeader } from '@/components/page-header';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/card';
 import { Input, Label, Select } from '@/components/ui/input';
-import { Table, Td, Th } from '@/components/ui/table';
+import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { api, errorText } from '@/lib/api/client';
+import { BID_STATUS, FEE_TYPE, label, StatusPill, usd } from '@/lib/labels';
 import { formatDateTime } from '@/lib/utils';
-
-const STATUS: Record<string, string> = {
-  active: 'активна',
-  accepted: 'принята',
-  rejected_by_client: 'отклонена клиентом',
-  rejected_auto: 'закрыта автоматически',
-  withdrawn: 'отозвана',
-  failed_negotiation: 'не договорились',
-};
-const FEE: Record<string, string> = {
-  fixed: 'фикс',
-  hourly: 'в час',
-  free_consultation: 'бесплатная консультация',
-};
-const usd = (cents: number) =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(cents / 100);
 
 /** Owner 2026-09-30: every bid with its case, attorney, amount and status. */
 export default function BidsPage() {
-  const [text, setText] = useState('');
+  const [input, setInput] = useState('');
+  const text = useDebounced(input.trim(), 300);
   const [status, setStatus] = useState('');
   const q = useInfiniteQuery({
     queryKey: ['admin-bids', text, status],
@@ -46,24 +34,31 @@ export default function BidsPage() {
   const rows = q.data?.pages.flatMap((p) => p.data) ?? [];
   return (
     <>
-      <PageHeader title="Ставки" subtitle="Все ставки адвокатов: сумма, раунды переговоров, статус." />
+      <PageHeader
+        eyebrow="Кейсы"
+        title="Ставки"
+        subtitle="Все ставки адвокатов: сумма, раунды переговоров, статус."
+        actions={<CsvButton entity="bids" />}
+      />
       <div className="mb-4 flex flex-wrap items-end gap-3">
         <div className="w-80 space-y-1">
           <Label htmlFor="bq">Кейс</Label>
-          <Input id="bq" value={text} onChange={(e) => setText(e.target.value)} placeholder="Название кейса" />
+          <div className="relative">
+            <MagnifyingGlass size={16} weight="light" className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-faint" />
+            <Input id="bq" className="pl-9" value={input} onChange={(e) => setInput(e.target.value)} placeholder="Название кейса" />
+          </div>
         </div>
         <div className="w-56 space-y-1">
           <Label htmlFor="bs">Статус</Label>
           <Select id="bs" value={status} onChange={(e) => setStatus(e.target.value)}>
             <option value="">все</option>
-            {Object.entries(STATUS).map(([v, l]) => (
+            {Object.entries(BID_STATUS).map(([v, l]) => (
               <option key={v} value={v}>
                 {l}
               </option>
             ))}
           </Select>
         </div>
-        <CsvButton entity="bids" />
       </div>
       <ErrorNote text={q.error ? errorText(q.error) : null} />
       <Table>
@@ -78,44 +73,35 @@ export default function BidsPage() {
           </tr>
         </thead>
         <tbody>
-          {rows.map((b) => (
-            <tr key={b.id} className="hover:bg-surface-2">
-              <Td className="max-w-sm">
-                <Link href={`/cases/${b.caseId}`} className="text-navy underline">
-                  {b.caseTitle}
-                </Link>
-                {b.outsidePractice ? <div className="text-xs text-gold-600">вне практики адвоката</div> : null}
-              </Td>
-              <Td className="text-xs">{b.attorneyName}</Td>
-              <Td className="text-sm">
-                {b.feeType === 'free_consultation' ? '—' : usd(b.amountCents)}
-                <div className="text-xs text-muted">{FEE[b.feeType] ?? b.feeType}</div>
-              </Td>
-              <Td>{b.rounds}</Td>
-              <Td>
-                <Badge tone={b.status === 'accepted' ? 'success' : b.status === 'active' ? 'gold' : 'neutral'}>
-                  {STATUS[b.status] ?? b.status}
-                </Badge>
-              </Td>
-              <Td className="whitespace-nowrap text-xs">{formatDateTime(b.createdAt)}</Td>
-            </tr>
-          ))}
-          {!q.isPending && rows.length === 0 ? (
-            <tr>
-              <Td colSpan={6} className="py-8 text-center text-muted">
-                Ставок нет
-              </Td>
-            </tr>
-          ) : null}
+          {q.isPending ? (
+            <TableEmpty colSpan={6} loading />
+          ) : rows.length === 0 ? (
+            <TableEmpty colSpan={6}>{text || status ? 'Ничего не найдено' : 'Ставок пока нет'}</TableEmpty>
+          ) : (
+            rows.map((b, i) => (
+              <MotionRow key={b.id} i={i}>
+                <Td className="max-w-sm">
+                  <Link href={`/cases/${b.caseId}`} className="font-medium text-heading hover:underline">
+                    {b.caseTitle}
+                  </Link>
+                  {b.outsidePractice ? <div className="text-xs text-gold-600">вне практики адвоката</div> : null}
+                </Td>
+                <Td className="text-xs">{b.attorneyName}</Td>
+                <Td className="text-sm tabular-nums">
+                  {b.feeType === 'free_consultation' ? '—' : usd(b.amountCents)}
+                  <div className="text-xs text-muted">{label(FEE_TYPE, b.feeType)}</div>
+                </Td>
+                <Td className="tabular-nums">{b.rounds}</Td>
+                <Td>
+                  <StatusPill map={BID_STATUS} value={b.status} />
+                </Td>
+                <Td className="whitespace-nowrap text-xs text-muted">{formatDateTime(b.createdAt)}</Td>
+              </MotionRow>
+            ))
+          )}
         </tbody>
       </Table>
-      {q.hasNextPage ? (
-        <div className="mt-4 flex justify-center">
-          <Button variant="outline" disabled={q.isFetchingNextPage} onClick={() => void q.fetchNextPage()}>
-            Показать ещё
-          </Button>
-        </div>
-      ) : null}
+      <MoreButton show={q.hasNextPage} loading={q.isFetchingNextPage} onClick={() => void q.fetchNextPage()} />
     </>
   );
 }

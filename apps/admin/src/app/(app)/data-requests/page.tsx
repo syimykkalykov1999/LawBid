@@ -2,14 +2,17 @@
 
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { MotionRow } from '@/components/legacy/fade-in';
+import { MoreButton } from '@/components/legacy/more-button';
 import { ErrorNote, PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/card';
-import { Input, Label, Select } from '@/components/ui/input';
-import { Table, Td, Th } from '@/components/ui/table';
+import { Input, Label, Select, Textarea } from '@/components/ui/input';
+import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
-import { DATA_REQUEST_STATUS } from '@/lib/labels';
+import { DATA_REQUEST_STATUS, DATA_REQUEST_TYPE, label, StatusPill } from '@/lib/labels';
 import { formatDateTime } from '@/lib/utils';
 
 const EMPTY = {
@@ -24,8 +27,9 @@ const EMPTY = {
 /** docs/06 §2.3 item 11 / §5.4: registry of subpoenas and court orders. */
 export default function DataRequestsPage() {
   const qc = useQueryClient();
+  const router = useRouter();
+  const toast = useToast();
   const [form, setForm] = useState(EMPTY);
-  const [error, setError] = useState<string | null>(null);
   const q = useInfiniteQuery({
     queryKey: ['data-requests'],
     initialPageParam: undefined as string | undefined,
@@ -42,25 +46,26 @@ export default function DataRequestsPage() {
           agency: form.agency,
           receivedAt: new Date(form.receivedAt).toISOString(),
           scope: form.scope,
-          ...(form.notes ? { notes: form.notes } : {}),
+          ...(form.notes.trim() ? { notes: form.notes.trim() } : {}),
         },
       }),
     onSuccess: () => {
+      toast.success('Запрос зарегистрирован');
       setForm(EMPTY);
-      setError(null);
       void qc.invalidateQueries({ queryKey: ['data-requests'] });
     },
-    onError: (e) => setError(errorText(e)),
+    onError: (e) => toast.error(e),
   });
 
   return (
     <>
       <PageHeader
+        eyebrow="Система"
         title="Запросы госорганов"
-        subtitle="Subpoena / court order: регистрация, пакет данных строго в объёме запроса, каждая выгрузка — в data_access_log."
+        subtitle="Повестки и решения суда: регистрация, пакет данных строго в объёме запроса, каждая выгрузка записывается в журнал доступа."
       />
       <form
-        className="mb-6 grid gap-3 rounded-[var(--radius-lg)] border border-line bg-surface p-4 sm:grid-cols-2 xl:grid-cols-4"
+        className="mb-6 grid gap-3 rounded-[var(--radius-lg)] border border-line bg-surface p-4 shadow-card sm:grid-cols-2 xl:grid-cols-4"
         onSubmit={(e) => {
           e.preventDefault();
           create.mutate();
@@ -69,8 +74,8 @@ export default function DataRequestsPage() {
         <div className="space-y-1">
           <Label htmlFor="rt">Тип</Label>
           <Select id="rt" value={form.requestType} onChange={(e) => setForm({ ...form, requestType: e.target.value as typeof form.requestType })}>
-            <option value="subpoena">subpoena</option>
-            <option value="court_order">court order</option>
+            <option value="subpoena">{DATA_REQUEST_TYPE.subpoena}</option>
+            <option value="court_order">{DATA_REQUEST_TYPE.court_order}</option>
           </Select>
         </div>
         <div className="space-y-1">
@@ -85,17 +90,28 @@ export default function DataRequestsPage() {
           <Label htmlFor="rcv">Получен</Label>
           <Input id="rcv" type="datetime-local" required value={form.receivedAt} onChange={(e) => setForm({ ...form, receivedAt: e.target.value })} />
         </div>
-        <div className="space-y-1 sm:col-span-2 xl:col-span-3">
+        <div className="space-y-1 sm:col-span-2">
           <Label htmlFor="scope">Объём запроса</Label>
-          <Input id="scope" required maxLength={2000} value={form.scope} onChange={(e) => setForm({ ...form, scope: e.target.value })} />
+          <Textarea id="scope" required rows={3} maxLength={2000} value={form.scope} onChange={(e) => setForm({ ...form, scope: e.target.value })} />
         </div>
-        <div className="flex items-end">
-          <Button type="submit" disabled={create.isPending} className="w-full">
+        <div className="space-y-1 sm:col-span-2">
+          <Label htmlFor="notes">Заметки (необязательно)</Label>
+          <Textarea
+            id="notes"
+            rows={3}
+            maxLength={2000}
+            placeholder="Как получен, контакт в органе, сроки"
+            value={form.notes}
+            onChange={(e) => setForm({ ...form, notes: e.target.value })}
+          />
+        </div>
+        <div className="flex items-end sm:col-span-2 xl:col-span-4 xl:justify-end">
+          <Button type="submit" loading={create.isPending} className="w-full xl:w-auto">
             Зарегистрировать
           </Button>
         </div>
       </form>
-      <ErrorNote text={error ?? (q.error ? errorText(q.error) : null)} />
+      <ErrorNote text={q.error ? errorText(q.error) : null} />
       <Table>
         <thead>
           <tr>
@@ -108,41 +124,32 @@ export default function DataRequestsPage() {
           </tr>
         </thead>
         <tbody>
-          {rows.map((r) => (
-            <tr key={r.id} className="hover:bg-surface-2">
+          {q.isPending ? <TableEmpty colSpan={6} loading /> : null}
+          {rows.map((r, i) => (
+            <MotionRow key={r.id} i={i} className="cursor-pointer" onClick={() => router.push(`/data-requests/${r.id}`)}>
               <Td>
-                <Link href={`/data-requests/${r.id}`} className="font-medium text-navy hover:underline">
+                <Link
+                  href={`/data-requests/${r.id}`}
+                  className="font-medium text-heading hover:underline"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   {r.referenceNumber}
                 </Link>
                 <div className="line-clamp-1 text-xs text-muted">{r.scope}</div>
               </Td>
-              <Td>{r.requestType}</Td>
+              <Td>{label(DATA_REQUEST_TYPE, r.requestType)}</Td>
               <Td className="text-xs">{r.agency}</Td>
-              <Td className="whitespace-nowrap">{formatDateTime(r.receivedAt)}</Td>
+              <Td className="whitespace-nowrap text-muted">{formatDateTime(r.receivedAt)}</Td>
               <Td>
-                <Badge tone={r.status === 'fulfilled' ? 'success' : r.status === 'rejected' ? 'danger' : r.status === 'in_progress' ? 'gold' : 'neutral'}>
-                  {DATA_REQUEST_STATUS[r.status] ?? r.status}
-                </Badge>
+                <StatusPill map={DATA_REQUEST_STATUS} value={r.status} />
               </Td>
-              <Td>{r.accessCount}</Td>
-            </tr>
+              <Td className="tabular-nums">{r.accessCount}</Td>
+            </MotionRow>
           ))}
-          {!q.isPending && rows.length === 0 ? (
-            <tr>
-              <Td colSpan={6} className="py-8 text-center text-muted">
-                Запросов нет
-              </Td>
-            </tr>
-          ) : null}
+          {!q.isPending && rows.length === 0 ? <TableEmpty colSpan={6}>Запросов пока нет</TableEmpty> : null}
         </tbody>
       </Table>
-      {q.hasNextPage ? (
-        <div className="mt-4 flex justify-center">
-          <Button variant="outline" disabled={q.isFetchingNextPage} onClick={() => void q.fetchNextPage()}>
-            Показать ещё
-          </Button>
-        </div>
-      ) : null}
+      <MoreButton show={q.hasNextPage} loading={q.isFetchingNextPage} onClick={() => void q.fetchNextPage()} />
     </>
   );
 }

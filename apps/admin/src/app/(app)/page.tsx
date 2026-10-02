@@ -155,10 +155,10 @@ export default function DashboardPage() {
             </div>
             {d ? (
               <div className="relative grid grid-cols-2 gap-x-6 gap-y-5">
-                <Mini label="Активные" value={b?.activeCount ?? d.subscriptions.active} />
-                <Mini label="Пробный период" value={b?.trialingCount ?? d.subscriptions.trialing} />
-                <Mini label="Просрочены" value={b?.pastDueCount ?? d.subscriptions.pastDue} warn />
-                <Mini label="По договору (бесплатно)" value={b?.activeContractGrants ?? 0} />
+                <Mini label="Активные" value={b?.subscriptions.active ?? d.subscriptions.active} />
+                <Mini label="Пробный период" value={b?.subscriptions.trialing ?? d.subscriptions.trialing} />
+                <Mini label="Просрочены" value={b?.subscriptions.pastDue ?? d.subscriptions.pastDue} warn />
+                <Mini label="По договору (бесплатно)" value={b?.contractGrantsActive ?? 0} />
                 <Mini label="Возвраты за 30 дней" value={b ? money(b.refunds30dCents) : '—'} />
                 <Mini label="Промокодов применено" value={b?.promoRedemptions30d ?? '—'} />
               </div>

@@ -14,6 +14,7 @@ import { CountersModule } from '../modules/counters/counters.module';
 import { RealtimeModule } from '../modules/realtime/realtime.module';
 import { BillingModule } from '../modules/billing/billing.module';
 import { PrivacyModule } from '../modules/privacy/privacy.module';
+import { BroadcastFanoutModule } from '../modules/admin-content/broadcast-fanout.module';
 
 /**
  * Root module of the dedicated `worker` process (docs/06_PRODUCTION.md §6:
@@ -22,6 +23,9 @@ import { PrivacyModule } from '../modules/privacy/privacy.module';
  * the job runner, which always runs here regardless of JOBS_ENABLED.
  */
 import { SecretsModule } from '../common/secrets/secrets.module';
+import { AdminAuthModule } from '../modules/admin-auth/admin-auth.module';
+import { MentionsModule } from '../modules/mentions/mentions.module';
+import { ModerationModule } from '../modules/moderation/moderation.module';
 @Module({
   imports: [
     ConfigModule,
@@ -44,6 +48,10 @@ import { SecretsModule } from '../common/secrets/secrets.module';
     // Owner 2026-10-01: keys managed in the admin (push, email, Stripe…).
     SecretsModule,
     NotificationsModule,
+    // Global in the API; PostsService (reached via JobsModule) needs them.
+    MentionsModule,
+    ModerationModule,
+    AdminAuthModule,
     JobsModule.register({ mode: 'worker' }),
     // docs/03 stage 3.2: antivirus scan + image processing (`files` queue).
     FilesWorkerModule,
@@ -51,6 +59,8 @@ import { SecretsModule } from '../common/secrets/secrets.module';
     BillingModule.register({ mode: 'worker' }),
     // docs/06 §5 (stage 6.9): data export ZIP worker.
     PrivacyModule.register({ mode: 'worker' }),
+    // Audit 2026-10-02: admin broadcast fan-out (`admin-broadcast` queue).
+    BroadcastFanoutModule.register({ mode: 'worker' }),
     // docs/04 §12 (stage 4.7): case history PDF export queue.
     CaseHistoryModule.register({ mode: 'worker' }),
     // docs/04 stage 4.8: `push` queue consumer.

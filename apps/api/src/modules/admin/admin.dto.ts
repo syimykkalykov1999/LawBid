@@ -95,7 +95,22 @@ export class DashboardSubscriptionsDto {
   @ApiProperty({ type: 'integer' }) trialing!: number;
   @ApiProperty({ type: 'integer' }) active!: number;
   @ApiProperty({ type: 'integer' }) pastDue!: number;
-  @ApiProperty({ type: 'integer', description: 'active × price (USD).' })
+  @ApiProperty({
+    type: 'integer',
+    description:
+      'Live subscriptions (same rule as the gate and /admin/overview): trialing + active + past_due still in grace.',
+  })
+  live!: number;
+  @ApiProperty({
+    type: 'integer',
+    description:
+      'Monthly recurring revenue, cents: active + past_due in grace; monthly price_cents (incl. seats) + yearly price_cents / 12.',
+  })
+  revenueEstimateCents!: number;
+  @ApiProperty({
+    type: 'integer',
+    description: 'revenueEstimateCents rounded to whole USD.',
+  })
   revenueEstimateUsd!: number;
 }
 

@@ -16,6 +16,7 @@ import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
   AdminEndpoint,
   CurrentAdmin,
+  SkipAutoAudit,
   type AdminActor,
 } from '../admin-auth/admin-auth.decorators';
 import {
@@ -25,6 +26,7 @@ import {
   AdminReviewAppealsQueryDto,
 } from './client-reviews.dto';
 import { ClientReviewsService } from './client-reviews.service';
+import { ReviewAppealsAuditService } from './review-appeals-audit.service';
 
 /** Owner 2026-09-30: appeals against client reviews — accept (remove)
  * or reject (keep), one by one or many at once. */
@@ -32,7 +34,10 @@ import { ClientReviewsService } from './client-reviews.service';
 @AdminEndpoint('super_admin', 'moderator')
 @Controller('admin/review-appeals')
 export class AdminReviewAppealsController {
-  constructor(private readonly reviews: ClientReviewsService) {}
+  constructor(
+    private readonly reviews: ClientReviewsService,
+    private readonly appealsAudit: ReviewAppealsAuditService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'Appeals by status, oldest first' })
@@ -44,6 +49,8 @@ export class AdminReviewAppealsController {
 
   @Post('decide')
   @HttpCode(HttpStatus.OK)
+  // Audit 2026-10-02: one audit row per decided appeal (service).
+  @SkipAutoAudit()
   @ApiOperation({ summary: 'Accept or reject appeals in bulk' })
   @ApiEnvelopeResponse(AdminReviewAppealsDecisionResultDto)
   @ApiErrors({ 400: [ErrorCode.VALIDATION_ERROR] })
@@ -51,6 +58,6 @@ export class AdminReviewAppealsController {
     @CurrentAdmin() admin: AdminActor,
     @Body() dto: AdminReviewAppealsDecisionDto,
   ) {
-    return this.reviews.decideAppeals(admin.id, dto);
+    return this.appealsAudit.decide(admin, dto);
   }
 }

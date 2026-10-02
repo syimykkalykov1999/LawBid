@@ -1,14 +1,17 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsIn,
   IsInt,
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
   Max,
   MaxLength,
   Min,
+  MinLength,
 } from 'class-validator';
 
 class CursorDto {
@@ -167,4 +170,136 @@ export class AdminContactIssueCardDto extends AdminContactIssueDto {
 export interface Page<T> {
   items: T[];
   nextCursor: string | null;
+}
+
+// --- Audit 2026-10-02: the case list, card and actions ------------------------
+
+const CASE_STATUSES = [
+  'open',
+  'in_progress',
+  'pending_completion',
+  'disputed',
+  'closed',
+  'archived',
+] as const;
+
+const toBool = ({ value }: { value: unknown }) =>
+  value === 'true' || value === true
+    ? true
+    : value === 'false' || value === false
+      ? false
+      : value;
+
+export class AdminCasesQueryDto extends CursorDto {
+  @ApiPropertyOptional({ enum: CASE_STATUSES, enumName: 'AdminCaseStatus' })
+  @IsOptional()
+  @IsIn(CASE_STATUSES)
+  status?: (typeof CASE_STATUSES)[number];
+
+  @ApiPropertyOptional({ description: 'Text in the title.' })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
+  @IsString()
+  @MaxLength(100)
+  q?: string;
+
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID('all')
+  clientId?: string;
+
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID('all')
+  practiceAreaId?: string;
+
+  @ApiPropertyOptional({ example: 'IL', description: 'Any state of the case.' })
+  @IsOptional()
+  @Matches(/^[A-Z]{2}$/)
+  stateCode?: string;
+
+  @ApiPropertyOptional({
+    description: 'Only cases with / without open reports.',
+  })
+  @IsOptional()
+  @Transform(toBool)
+  @IsBoolean()
+  hasReports?: boolean;
+}
+
+export class AdminCaseActionDto {
+  @ApiProperty({ minLength: 10, maxLength: 500 })
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
+  @IsString()
+  @MinLength(10)
+  @MaxLength(500)
+  reason!: string;
+}
+
+export class AdminCaseRowDto {
+  @ApiProperty({ format: 'uuid' }) id!: string;
+  @ApiProperty() title!: string;
+  @ApiProperty({ enum: CASE_STATUSES }) status!: string;
+  @ApiProperty({ format: 'uuid' }) clientId!: string;
+  @ApiProperty() clientName!: string;
+  @ApiProperty({ format: 'uuid' }) practiceAreaId!: string;
+  @ApiProperty() practiceAreaName!: string;
+  @ApiProperty() stateCode!: string;
+  @ApiProperty({ type: 'integer' }) bidsCount!: number;
+  @ApiProperty({ type: 'integer' }) commentCount!: number;
+  @ApiProperty({ type: 'integer' }) viewCount!: number;
+  @ApiProperty({ type: 'integer' }) openReports!: number;
+  @ApiProperty({ description: 'A paid / granted promotion is running.' })
+  promoted!: boolean;
+  @ApiProperty({ format: 'date-time' }) lastActivityAt!: string;
+  @ApiProperty({ format: 'date-time' }) createdAt!: string;
+}
+
+export class AdminCaseStateDto {
+  @ApiProperty() code!: string;
+  @ApiProperty() isPrimary!: boolean;
+}
+
+export class AdminCaseBidDto {
+  @ApiProperty({ format: 'uuid' }) id!: string;
+  @ApiProperty({ format: 'uuid' }) attorneyId!: string;
+  @ApiProperty() attorneyName!: string;
+  @ApiProperty() status!: string;
+  @ApiProperty() feeType!: string;
+  @ApiProperty({ type: 'integer' }) amountCents!: number;
+  @ApiProperty({ type: 'integer' }) rounds!: number;
+  @ApiProperty({ format: 'date-time' }) createdAt!: string;
+}
+
+export class AdminCaseCardDto extends AdminCaseRowDto {
+  @ApiProperty() description!: string;
+  @ApiProperty({ type: String, nullable: true }) city!: string | null;
+  @ApiProperty({ enum: ['amount', 'clarify_later'] }) budgetMode!: string;
+  @ApiProperty({ type: 'integer', nullable: true }) budgetCents!: number | null;
+  @ApiProperty({ type: AdminPartyDto }) client!: AdminPartyDto;
+  @ApiProperty({ type: [AdminCaseStateDto] }) states!: AdminCaseStateDto[];
+  @ApiProperty({ type: 'integer' }) photosCount!: number;
+  @ApiProperty({ type: String, format: 'uuid', nullable: true })
+  acceptedBidId!: string | null;
+  @ApiProperty({ type: [AdminCaseBidDto], description: 'Newest first (≤100).' })
+  bids!: AdminCaseBidDto[];
+  @ApiProperty({
+    type: [AdminJournalEntryDto],
+    description: 'case_journal, newest first (last 50).',
+  })
+  journal!: AdminJournalEntryDto[];
+  @ApiProperty({ type: [String], description: 'case_disputes ids.' })
+  disputeIds!: string[];
+  @ApiProperty({ type: [String], description: 'contact_issue_reports ids.' })
+  contactIssueIds!: string[];
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  archivedAt!: string | null;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  closedAt!: string | null;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  promotedUntil!: string | null;
 }

@@ -1,10 +1,12 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import type { Prisma, Subscription, SubscriptionStatus } from '@prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { BidsService } from '../bids/bids.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { PromotionsService } from '../promotions/promotions.service';
+import { ReferralsService } from '../referrals/referrals.service';
 import { SubscriptionAccessService } from '../subscriptions/subscription-access.service';
 import { PAYMENT_PROVIDER } from './billing.constants';
 import type {
@@ -36,6 +38,9 @@ export class SubscriptionSyncService {
     private readonly access: SubscriptionAccessService,
     private readonly bids: BidsService,
     private readonly notifications: NotificationsService,
+    // Owner 2026-10-02: referral qualification + paid case promotions.
+    @Optional() private readonly referrals?: ReferralsService,
+    @Optional() private readonly promotions?: PromotionsService,
   ) {}
 
   async handleEvent(event: ProviderEvent): Promise<void> {
@@ -56,6 +61,11 @@ export class SubscriptionSyncService {
         // subscription (the app's /checkout/complete applies the card
         // trial rule too).
         const session = await this.provider.retrieveCheckoutSession(o.id);
+        // Owner 2026-10-02: a one-time case-promotion payment.
+        if (session?.metadata.kind === 'case_promotion') {
+          await this.promotions?.applyCheckout(session);
+          return;
+        }
         if (session?.subscriptionId)
           await this.syncById(session.subscriptionId);
         return;
@@ -154,9 +164,11 @@ export class SubscriptionSyncService {
     if (statusChanged || transition) await this.access.invalidate(row.user_id);
     if (transition === 'lost') {
       // §1.5 "активна → неактивна": bids withdrawn, contacts closed by the gate.
-      const withdrawn = await this.bids.withdrawActiveBidsForAttorney(
-        row.user_id,
-      );
+      // Owner 2026-10-02: an active contract grant keeps access — bids stay.
+      const covered = (await this.access.activeGrant(row.user_id)) !== null;
+      const withdrawn = covered
+        ? 0
+        : await this.bids.withdrawActiveBidsForAttorney(row.user_id);
       await this.notify(row.user_id, 'subscription_status', {
         status: row.status,
         withdrawnBids: withdrawn,
@@ -243,6 +255,18 @@ export class SubscriptionSyncService {
       // following customer.subscription.updated event; re-reading now
       // could still say `active` and undo the grace period.
       return;
+    }
+    // Owner 2026-10-02: the first paid invoice qualifies a referral (never
+    // breaks billing).
+    if (invoice.amountCents > 0) {
+      try {
+        await this.referrals?.onQualifyingEvent(
+          sub.user_id,
+          'subscription_payment',
+        );
+      } catch (e) {
+        this.logger.warn(`referral hook failed: ${String(e)}`);
+      }
     }
     if (sub.stripe_subscription_id)
       await this.syncById(sub.stripe_subscription_id);

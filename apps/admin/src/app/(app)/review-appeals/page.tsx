@@ -3,11 +3,16 @@
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useState } from 'react';
+import { useConfirm } from '@/components/legacy/confirm';
+import { MotionRow } from '@/components/legacy/fade-in';
+import { MoreButton } from '@/components/legacy/more-button';
 import { ErrorNote, PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/card';
-import { Input, Label, Select } from '@/components/ui/input';
-import { Table, Td, Th } from '@/components/ui/table';
+import { Input, Label } from '@/components/ui/input';
+import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { Tabs } from '@/components/ui/tabs';
+import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
 import { formatDateTime } from '@/lib/utils';
 
@@ -19,6 +24,12 @@ const STATUS_LABEL: Record<Status, string> = {
   rejected: 'отклонены (отзыв оставлен)',
   auto_removed: 'удалены автоматически (30 дней)',
 };
+const STATUS_TAB: Record<Status, string> = {
+  pending: 'Ждут решения',
+  accepted: 'Приняты',
+  rejected: 'Отклонены',
+  auto_removed: 'Удалены автоматически',
+};
 
 /**
  * Owner 2026-09-30: appeals of clients against reviews about them.
@@ -27,6 +38,8 @@ const STATUS_LABEL: Record<Status, string> = {
  */
 export default function ReviewAppealsPage() {
   const qc = useQueryClient();
+  const toast = useToast();
+  const { confirm, dialog } = useConfirm();
   const [status, setStatus] = useState<Status>('pending');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [note, setNote] = useState('');
@@ -46,17 +59,37 @@ export default function ReviewAppealsPage() {
 
   const decide = useMutation({
     mutationFn: async (input: { ids: string[]; decision: 'accept' | 'reject' }) => {
+      const n = input.ids.length;
+      const ok = await confirm(
+        input.decision === 'accept'
+          ? {
+              title: n > 1 ? `Принять ${n} обжалований?` : 'Принять обжалование?',
+              description: 'Отзывы будут удалены, клиент получит уведомление.',
+              confirm: 'Принять и удалить',
+              danger: true,
+            }
+          : {
+              title: n > 1 ? `Отказать по ${n} обжалованиям?` : 'Отказать в обжаловании?',
+              description: 'Отзывы останутся опубликованными.',
+              confirm: 'Отказать',
+            },
+      );
+      if (!ok) return null;
       const r = await api.POST('/admin/review-appeals/decide', {
         body: { ...input, note: note.trim() || undefined },
       });
       if (r.error) throw r.error;
-      return r.data!.data.decided;
+      return { decided: r.data!.data.decided, decision: input.decision };
     },
-    onSuccess: () => {
+    onSuccess: (x) => {
+      if (!x) return;
+      toast.success(x.decision === 'accept' ? `Принято: ${x.decided}` : `Отказано: ${x.decided}`);
       setSelected(new Set());
       setNote('');
       void qc.invalidateQueries({ queryKey: ['review-appeals'] });
+      void qc.invalidateQueries({ queryKey: ['dashboard'] });
     },
+    onError: (e) => toast.error(e),
   });
 
   const toggle = (id: string) =>
@@ -70,29 +103,23 @@ export default function ReviewAppealsPage() {
 
   return (
     <>
+      {dialog}
       <PageHeader
+        eyebrow="Модерация"
         title="Обжалования отзывов"
         subtitle="Клиенты просят удалить отзывы о себе. Принять — отзыв удаляется, отказать — остаётся. Без решения 30 дней — удаляется сам."
       />
-      <div className="mb-4 flex flex-wrap items-end gap-3 rounded-[var(--radius-lg)] border border-line bg-surface p-4">
-        <div className="w-64 space-y-1">
-          <Label htmlFor="st">Статус</Label>
-          <Select
-            id="st"
-            value={status}
-            onChange={(e) => {
-              setStatus(e.target.value as Status);
-              setSelected(new Set());
-            }}
-          >
-            {Object.entries(STATUS_LABEL).map(([v, l]) => (
-              <option key={v} value={v}>
-                {l}
-              </option>
-            ))}
-          </Select>
-        </div>
-        {pending ? (
+      <Tabs<Status>
+        className="mb-4"
+        value={status}
+        onChange={(v) => {
+          setStatus(v);
+          setSelected(new Set());
+        }}
+        items={(Object.keys(STATUS_TAB) as Status[]).map((v) => ({ value: v, label: STATUS_TAB[v] }))}
+      />
+      {pending ? (
+      <div className="mb-4 flex flex-wrap items-end gap-3 rounded-[var(--radius-lg)] border border-line bg-surface p-4 shadow-card">
           <>
             <div className="min-w-64 flex-1 space-y-1">
               <Label htmlFor="note">Комментарий к решению (необязательно)</Label>
@@ -112,9 +139,9 @@ export default function ReviewAppealsPage() {
               Отказать выбранным ({selected.size})
             </Button>
           </>
-        ) : null}
       </div>
-      <ErrorNote text={q.error ? errorText(q.error) : decide.error ? errorText(decide.error) : null} />
+      ) : null}
+      <ErrorNote text={q.error ? errorText(q.error) : null} />
       <Table>
         <thead>
           <tr>
@@ -138,15 +165,16 @@ export default function ReviewAppealsPage() {
           </tr>
         </thead>
         <tbody>
-          {rows.map((r) => (
-            <tr key={r.id} className="hover:bg-surface-2">
+          {q.isPending ? <TableEmpty colSpan={pending ? 8 : 6} loading /> : null}
+          {rows.map((r, i) => (
+            <MotionRow key={r.id} i={i}>
               {pending ? (
                 <Td>
                   <input type="checkbox" aria-label="Выбрать" checked={selected.has(r.id)} onChange={() => toggle(r.id)} />
                 </Td>
               ) : null}
               <Td className="max-w-sm">
-                <div className="text-gold">{'★'.repeat(r.rating)}{'☆'.repeat(5 - r.rating)}</div>
+                <div className="text-gold-600">{'★'.repeat(r.rating)}{'☆'.repeat(5 - r.rating)}</div>
                 {r.body ? <div className="line-clamp-3 text-xs">{r.body}</div> : <div className="text-xs text-muted">без текста</div>}
               </Td>
               <Td className="text-xs">
@@ -154,14 +182,14 @@ export default function ReviewAppealsPage() {
                 <div className="text-muted">{r.authorRole === 'client' ? 'клиент' : 'адвокат'}</div>
               </Td>
               <Td className="text-xs">
-                <Link href={`/users/${r.clientId}`} className="text-navy underline">
+                <Link href={`/users/${r.clientId}`} className="text-gold-600 hover:underline">
                   {r.clientName}
                 </Link>
               </Td>
               <Td className="max-w-sm text-xs">{r.reason}</Td>
-              <Td className="whitespace-nowrap text-xs">{formatDateTime(r.createdAt)}</Td>
+              <Td className="whitespace-nowrap text-xs text-muted">{formatDateTime(r.createdAt)}</Td>
               <Td className="whitespace-nowrap text-xs">
-                {pending ? formatDateTime(r.autoRemoveAt) : <Badge tone={r.status === 'rejected' ? 'neutral' : 'gold'}>{STATUS_LABEL[r.status as Status]}</Badge>}
+                {pending ? formatDateTime(r.autoRemoveAt) : <Badge tone={r.status === 'rejected' ? 'neutral' : 'gold'} dot>{STATUS_LABEL[r.status as Status]}</Badge>}
               </Td>
               {pending ? (
                 <Td className="whitespace-nowrap">
@@ -175,24 +203,16 @@ export default function ReviewAppealsPage() {
                   </div>
                 </Td>
               ) : null}
-            </tr>
+            </MotionRow>
           ))}
           {!q.isPending && rows.length === 0 ? (
-            <tr>
-              <Td colSpan={pending ? 8 : 6} className="py-8 text-center text-muted">
-                Обжалований нет
-              </Td>
-            </tr>
+            <TableEmpty colSpan={pending ? 8 : 6}>
+              {pending ? 'Новых обжалований нет.' : `Нет обжалований со статусом «${STATUS_LABEL[status]}».`}
+            </TableEmpty>
           ) : null}
         </tbody>
       </Table>
-      {q.hasNextPage ? (
-        <div className="mt-4 flex justify-center">
-          <Button variant="outline" disabled={q.isFetchingNextPage} onClick={() => void q.fetchNextPage()}>
-            Показать ещё
-          </Button>
-        </div>
-      ) : null}
+      <MoreButton show={q.hasNextPage} loading={q.isFetchingNextPage} onClick={() => void q.fetchNextPage()} />
     </>
   );
 }

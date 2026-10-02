@@ -58,7 +58,7 @@ export class SubscriptionsController {
   @ApiEnvelopeResponse(CheckoutSessionDto)
   @ApiErrors({
     ...ATTORNEY_ERRORS,
-    400: [E.VALIDATION_ERROR],
+    400: [E.VALIDATION_ERROR, E.PROMO_CODE_INVALID],
     409: [E.SUBSCRIPTION_ALREADY_ACTIVE],
   })
   createCheckout(

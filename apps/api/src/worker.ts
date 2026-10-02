@@ -3,9 +3,12 @@ import { startTelemetry } from './telemetry/otel';
 
 startTelemetry('worker');
 
+import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { Logger } from 'nestjs-pino';
+import { scrubSentryEvent } from './app.setup';
 import { WorkerModule } from './jobs/worker.module';
+import { startSentry } from './telemetry/sentry';
 
 /**
  * Dedicated background-job process (docs/06_PRODUCTION.md §6, ECS service
@@ -19,6 +22,10 @@ async function bootstrap(): Promise<void> {
     bufferLogs: true,
   });
   app.useLogger(app.get(Logger));
+  // Audit 2026-10-02: job failures reach Sentry too (same DSN and scrubbing).
+  await startSentry(app, app.get(ConfigService), scrubSentryEvent).catch(
+    () => false,
+  );
   // SIGTERM from ECS: close the worker gracefully (in-flight job finishes).
   app.enableShutdownHooks();
 }

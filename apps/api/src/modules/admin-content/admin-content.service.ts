@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import type { Prisma, UserRole } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
   decodeCursor,
@@ -24,6 +24,13 @@ import type {
   CreatePracticeAreaDto,
   UpdatePracticeAreaDto,
 } from './admin-content.dto';
+import {
+  effectiveSeats,
+  paidSeats,
+} from '../subscriptions/contract-grant.util';
+import { liveSubscriptionWhere } from '../admin/subscription-metrics';
+import { broadcastAudienceWhere } from './broadcast-audience';
+import { BroadcastFanoutRunner } from './broadcast-fanout.runner';
 
 const PAGE = 50;
 type Page<T> = { items: T[]; nextCursor: string | null };
@@ -80,6 +87,7 @@ export class AdminContentService {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
     private readonly moderation: ModerationService,
+    private readonly fanout: BroadcastFanoutRunner,
   ) {}
 
   /** Audit 2026-10-01: the admin's content actions go through the
@@ -241,9 +249,10 @@ export class AdminContentService {
     if (authorId) await this.tellAuthor(authorId, reason, { commentId: id });
   }
 
-  async reviews(cursor?: string): Promise<Page<AdminReviewRowDto>> {
+  async reviews(cursor?: string, q?: string): Promise<Page<AdminReviewRowDto>> {
     const rows = await this.prisma.review.findMany({
-      where: keyset(cursor),
+      // Audit 2026-10-02: `q` was accepted but ignored.
+      where: { ...reviewSearch(q), ...keyset(cursor) },
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
       take: PAGE + 1,
       include: {
@@ -399,53 +408,16 @@ export class AdminContentService {
   }
 
   /** Every active user of the audience gets an in-app notification and a
-   * push (the "system" category, which the app always shows). */
+   * push (the "system" category, which the app always shows). Audit
+   * 2026-10-02: the request stores the broadcast with the audience size
+   * and queues the fan-out (BroadcastFanoutRunner, batches of 500). */
   async broadcast(
     adminId: string,
     dto: CreateBroadcastDto,
   ): Promise<BroadcastDto> {
-    const role: Record<string, UserRole | undefined> = {
-      attorneys: 'attorney',
-      clients: 'client',
-      assistants: 'assistant',
-    };
-    const where: Prisma.UserWhereInput = {
-      status: 'active',
-      deleted_at: null,
-      role: role[dto.audience] ?? { in: ['client', 'attorney', 'assistant'] },
-      ...(dto.stateCode
-        ? {
-            OR: [
-              { client_profile: { state_code: dto.stateCode } },
-              {
-                attorney_profile: {
-                  licenses: { some: { state_code: dto.stateCode } },
-                },
-              },
-            ],
-          }
-        : {}),
-    };
-    let sent = 0;
-    let after: string | undefined;
-    for (;;) {
-      const batch = await this.prisma.user.findMany({
-        where: { ...where, ...(after ? { id: { gt: after } } : {}) },
-        orderBy: { id: 'asc' },
-        take: 500,
-        select: { id: true },
-      });
-      if (batch.length === 0) break;
-      for (const u of batch) {
-        await this.notifications.emit({
-          type: 'admin_broadcast',
-          recipientId: u.id,
-          payload: { title: dto.title, body: dto.body },
-        });
-      }
-      sent += batch.length;
-      after = batch[batch.length - 1].id;
-    }
+    const recipients = await this.prisma.user.count({
+      where: broadcastAudienceWhere(dto.audience, dto.stateCode),
+    });
     const b = await this.prisma.adminBroadcast.create({
       data: {
         admin_id: adminId,
@@ -453,8 +425,15 @@ export class AdminContentService {
         body: dto.body,
         audience: dto.audience,
         state_code: dto.stateCode ?? null,
-        recipients: sent,
+        recipients,
       },
+    });
+    await this.fanout.start({
+      broadcastId: b.id,
+      title: dto.title,
+      body: dto.body,
+      audience: dto.audience,
+      stateCode: dto.stateCode ?? null,
     });
     return {
       id: b.id,
@@ -462,7 +441,7 @@ export class AdminContentService {
       body: b.body,
       audience: b.audience,
       stateCode: b.state_code,
-      recipients: sent,
+      recipients,
       createdAt: b.created_at.toISOString(),
     };
   }
@@ -653,11 +632,9 @@ export class AdminContentService {
   async overview(): Promise<AdminOverviewDto> {
     const d7 = new Date(Date.now() - 7 * 86400000);
     const d30 = new Date(Date.now() - 30 * 86400000);
-    const live = {
-      in: ['trialing', 'active', 'past_due'] as (
-        'trialing' | 'active' | 'past_due'
-      )[],
-    };
+    // Audit 2026-10-02: the gate's rule (past_due only while in grace),
+    // shared with the dashboard tiles — see subscription-metrics.ts.
+    const live = liveSubscriptionWhere(new Date());
     const [
       clients,
       attorneys,
@@ -684,13 +661,13 @@ export class AdminContentService {
       }),
       this.prisma.assistantMembership.count({ where: { status: 'active' } }),
       this.prisma.subscription.count({
-        where: { status: live, plan: 'monthly' },
+        where: { ...live, plan: 'monthly' },
       }),
       this.prisma.subscription.count({
-        where: { status: live, plan: 'yearly' },
+        where: { ...live, plan: 'yearly' },
       }),
       this.prisma.subscription.aggregate({
-        where: { status: live, plan: 'monthly' },
+        where: { ...live, plan: 'monthly' },
         _sum: { assistant_seats: true },
       }),
       this.prisma.payment.aggregate({
@@ -720,7 +697,10 @@ export class AdminContentService {
       assistants,
       subscriptionsMonthly: monthly,
       subscriptionsYearly: yearly,
-      assistantSeats: (seats._sum.assistant_seats ?? 0) + yearly * 6,
+      assistantSeats:
+        (seats._sum.assistant_seats ?? 0) +
+        yearly * 6 +
+        (await this.extraGrantSeats(live)),
       revenue30dCents: revenue._sum.amount_cents ?? 0,
       cases7d,
       bids7d,
@@ -733,6 +713,55 @@ export class AdminContentService {
       requestsPending,
     };
   }
+
+  /** Owner 2026-10-02: seats an active contract grant adds on top of the
+   * paid ones (per attorney: max(paid, grant) − paid). */
+  private async extraGrantSeats(
+    live: Prisma.SubscriptionWhereInput,
+  ): Promise<number> {
+    const now = new Date();
+    const grants = await this.prisma.contractGrant.findMany({
+      where: {
+        revoked_at: null,
+        starts_at: { lte: now },
+        ends_at: { gt: now },
+        assistant_seats: { gt: 0 },
+      },
+      select: { user_id: true, assistant_seats: true },
+    });
+    if (grants.length === 0) return 0;
+    const byUser = new Map<string, number>();
+    for (const g of grants) {
+      byUser.set(
+        g.user_id,
+        Math.max(byUser.get(g.user_id) ?? 0, g.assistant_seats),
+      );
+    }
+    const subs = await this.prisma.subscription.findMany({
+      where: { ...live, user_id: { in: [...byUser.keys()] } },
+      select: { user_id: true, plan: true, assistant_seats: true },
+    });
+    const paid = new Map(subs.map((x) => [x.user_id, paidSeats(x)]));
+    let extra = 0;
+    for (const [userId, g] of byUser) {
+      const p = paid.get(userId) ?? 0;
+      extra += effectiveSeats(p, g) - p;
+    }
+    return extra;
+  }
+}
+
+/** Review text or either person's name (attorney + client reviews). */
+export function reviewSearch(q?: string): {
+  OR?: Prisma.ReviewWhereInput[];
+} {
+  const term = q?.trim();
+  if (!term) return {};
+  const like = { contains: term, mode: 'insensitive' as const };
+  const person = { OR: [{ first_name: like }, { last_name: like }] };
+  return {
+    OR: [{ body: like }, { attorney: person }, { client: person }],
+  };
 }
 
 function notFound(message = 'Not found.') {

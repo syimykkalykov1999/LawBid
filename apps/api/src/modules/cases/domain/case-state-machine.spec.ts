@@ -40,6 +40,10 @@ const ALLOWED: [CaseStatus, CaseAction, CaseStatus, string][] = [
   ['in_progress', 'account_deleted_close', 'closed', 'closed'],
   ['pending_completion', 'account_deleted_close', 'closed', 'closed'],
   ['disputed', 'account_deleted_close', 'closed', 'closed'],
+  // Audit 2026-10-02: admin panel actions on an open / archived case.
+  ['open', 'admin_close', 'closed', 'closed'],
+  ['open', 'admin_archive', 'archived', 'archived'],
+  ['archived', 'admin_restore', 'open', 'restored'],
   // In-place (§3.5, §10.2): edit / keep-alive only while open; delete only
   // from open or archived.
   ['open', 'client_edit', 'open', 'updated'],
@@ -69,9 +73,9 @@ describe('CaseStateMachine (docs/04 §10.1)', () => {
     CASE_ACTIONS.map((a) => [s, a] as const),
   );
 
-  it('covers every status × action pair (6 × 15)', () => {
-    expect(CASE_ACTIONS).toHaveLength(15);
-    expect(pairs).toHaveLength(90);
+  it('covers every status × action pair (6 × 18)', () => {
+    expect(CASE_ACTIONS).toHaveLength(18);
+    expect(pairs).toHaveLength(108);
   });
 
   it.each(pairs)('%s + %s', (from, action) => {

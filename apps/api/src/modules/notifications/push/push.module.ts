@@ -4,6 +4,7 @@ import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
 import { createEmailProvider } from '../../auth/providers/email/email-provider.factory';
+import { PrismaService } from '../../../prisma/prisma.service';
 import { NotificationsModule } from '../notifications.module';
 import { DynamicPushSender } from './fcm-push.sender';
 import { SecretsService } from '../../../common/secrets/secrets.service';
@@ -51,7 +52,7 @@ export class PushModule {
         },
         {
           provide: NOTIFICATION_EMAIL,
-          inject: [ConfigService, PinoLogger, SecretsService],
+          inject: [ConfigService, PinoLogger, SecretsService, PrismaService],
           useFactory: createEmailProvider,
         },
         NotificationTemplateService,

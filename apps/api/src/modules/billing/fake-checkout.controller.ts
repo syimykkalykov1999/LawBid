@@ -3,6 +3,7 @@ import {
   Get,
   Inject,
   NotFoundException,
+  Optional,
   Param,
   Post,
   Res,
@@ -14,6 +15,7 @@ import { PAYMENT_PROVIDER } from './billing.constants';
 import { FakePaymentProvider } from './fake-payment.provider';
 import type { PaymentProvider } from './payment-provider';
 import { SubscriptionsService } from './subscriptions.service';
+import { PromotionsService } from '../promotions/promotions.service';
 
 const page = (title: string, body: string) => `<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
@@ -43,6 +45,7 @@ export class FakeCheckoutController {
   constructor(
     @Inject(PAYMENT_PROVIDER) private readonly provider: PaymentProvider,
     private readonly subscriptions: SubscriptionsService,
+    @Optional() private readonly promotions?: PromotionsService,
   ) {}
 
   private fake(): FakePaymentProvider {
@@ -55,6 +58,19 @@ export class FakeCheckoutController {
   async show(@Param('id') id: string, @Res() res: Response): Promise<void> {
     const s = await this.fake().retrieveCheckoutSession(id);
     if (!s) throw new NotFoundException();
+    // Owner 2026-10-02: one-time case-promotion payment.
+    if (s.metadata.kind === 'case_promotion') {
+      const dollars = ((s.amountTotalCents ?? 0) / 100).toFixed(2);
+      res.type('html').send(
+        page(
+          'LawBid — Promote case',
+          `<h1>Case promotion</h1><p>$${dollars} one-time payment.</p>
+<form method="post" action="${id}/pay"><button type="submit">Pay with test card</button></form>
+<div class="test">Test mode — no real charge</div>`,
+        ),
+      );
+      return;
+    }
     res.type('html').send(
       page(
         'LawBid — Subscribe',
@@ -69,6 +85,19 @@ export class FakeCheckoutController {
   async pay(@Param('id') id: string, @Res() res: Response): Promise<void> {
     const fake = this.fake();
     await fake.payCheckout(id);
+    const paid = await fake.retrieveCheckoutSession(id);
+    if (paid?.metadata.kind === 'case_promotion') {
+      await this.promotions?.applyCheckout(paid);
+      res
+        .type('html')
+        .send(
+          page(
+            'LawBid — Done',
+            `<h1>Your case is promoted</h1><p>Return to the LawBid app — attorneys now see your case first.</p>`,
+          ),
+        );
+      return;
+    }
     await this.subscriptions.applyCheckout(id);
     res
       .type('html')

@@ -29,6 +29,8 @@ import { BlocksModule } from './modules/blocks/blocks.module';
 import { PresenceModule } from './modules/presence/presence.module';
 import { SecretsModule } from './common/secrets/secrets.module';
 import { AdminIntegrationsModule } from './modules/admin-integrations/admin-integrations.module';
+import { ReferralsModule } from './modules/referrals/referrals.module';
+import { PromotionsModule } from './modules/promotions/promotions.module';
 import { SearchModule } from './modules/search/search.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { CallsModule } from './modules/calls/calls.module';
@@ -56,6 +58,10 @@ import { AdminConfigModule } from './modules/admin-config/admin-config.module';
 import { BillingModule } from './modules/billing/billing.module';
 import { AssistantsModule } from './modules/assistants/assistants.module';
 import { AdminContentModule } from './modules/admin-content/admin-content.module';
+import { AdminMediaModule } from './modules/admin-media/admin-media.module';
+import { AdminBillingModule } from './modules/admin-billing/admin-billing.module';
+import { SupportModule } from './modules/support/support.module';
+import { AdminEmailTemplatesModule } from './modules/admin-email-templates/admin-email-templates.module';
 import { PrivacyModule } from './modules/privacy/privacy.module';
 import { CostGuardModule } from './common/cost-guard/cost-guard.module';
 import { JobsModule } from './jobs/jobs.module';
@@ -153,6 +159,12 @@ const isDev =
     BillingModule.register({ mode: 'api' }),
     AssistantsModule,
     AdminContentModule,
+    // Audit 2026-10-02: reels + stickers in the admin panel.
+    AdminMediaModule,
+    AdminBillingModule,
+    // Owner 2026-10-02: support tickets + transactional email editor.
+    SupportModule,
+    AdminEmailTemplatesModule,
     // docs/06 §5 (stage 6.9): data export endpoint + privacy services.
     PrivacyModule.register({ mode: 'api' }),
     UsersModule,
@@ -180,6 +192,9 @@ const isDev =
     PresenceModule,
     SecretsModule,
     AdminIntegrationsModule,
+    // Owner 2026-10-02: referrals + paid case promotion.
+    ReferralsModule,
+    PromotionsModule,
     // docs/05 §8 chats + §8.5 realtime (publisher global, gateway API-only).
     RealtimeModule,
     RealtimeGatewayModule,

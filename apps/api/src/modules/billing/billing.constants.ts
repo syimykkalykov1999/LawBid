@@ -43,4 +43,6 @@ export const HANDLED_STRIPE_EVENTS = new Set([
   'invoice.payment_action_required',
   'setup_intent.succeeded',
   'charge.refunded',
+  // Owner 2026-10-02: hosted checkout paid (subscription or case promotion).
+  'checkout.session.completed',
 ]);

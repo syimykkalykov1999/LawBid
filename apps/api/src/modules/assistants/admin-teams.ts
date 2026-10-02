@@ -33,11 +33,24 @@ import {
 } from '../../common/dto/api-docs.decorators';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
-import { AdminEndpoint, Roles } from '../admin-auth/admin-auth.decorators';
+import {
+  AdminEndpoint,
+  CurrentAdmin,
+  Roles,
+  SkipAutoAudit,
+  type AdminActor,
+} from '../admin-auth/admin-auth.decorators';
+import { AuditLogService } from '../admin-access/audit-log.service';
+import { withTxRetry } from '../../prisma/tx-retry.util';
 import { AssistantContextService } from '../auth/assistant/assistant-context';
 import { ASSISTANT_DUTIES, type AssistantDuty } from './assistant-duties';
 import { ActivityDto, AssistantMemberDto } from './assistants.dto';
 import { nameOf } from './assistants.service';
+import {
+  effectiveSeats,
+  findActiveGrant,
+  paidSeats,
+} from '../subscriptions/contract-grant.util';
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
@@ -99,11 +112,16 @@ export class AdminTeamDto extends AdminTeamRowDto {
   activity!: ActivityDto[];
 }
 
+export const TEAM_AUDIT = {
+  removeMember: 'admin.team.member_remove',
+} as const;
+
 @Injectable()
 export class AdminTeamsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly context: AssistantContextService,
+    private readonly audit: AuditLogService,
   ) {}
 
   async list(q?: string): Promise<AdminTeamRowDto[]> {
@@ -181,23 +199,40 @@ export class AdminTeamsService {
     };
   }
 
-  async remove(memberId: string, reason: string): Promise<AdminTeamDto> {
+  async remove(
+    memberId: string,
+    reason: string,
+    admin: AdminActor,
+  ): Promise<AdminTeamDto> {
     const m = await this.member(memberId);
-    await this.prisma.$transaction([
-      this.prisma.assistantMembership.update({
+    await withTxRetry(this.prisma, async (tx) => {
+      await tx.assistantMembership.update({
         where: { id: memberId },
         data: { status: 'removed', removed_at: new Date() },
-      }),
+      });
       // The attorney sees in the Team feed that LawBid removed them.
-      this.prisma.assistantActivity.create({
+      await tx.assistantActivity.create({
         data: {
           attorney_id: m.attorney_id,
           membership_id: memberId,
           action: 'admin.remove',
           summary: reason.slice(0, 300),
         },
-      }),
-    ]);
+      });
+      // Audit 2026-10-02: who removed whom and why, with the change.
+      await this.audit.record(
+        {
+          adminId: admin.id,
+          action: TEAM_AUDIT.removeMember,
+          targetType: 'assistant_membership',
+          targetId: memberId,
+          before: { status: m.status, duties: m.duties },
+          after: { status: 'removed', attorneyId: m.attorney_id, reason },
+          ip: admin.ip,
+        },
+        tx,
+      );
+    });
     if (m.assistant_user_id) await this.context.invalidate(m.assistant_user_id);
     return this.get(m.attorney_id);
   }
@@ -239,7 +274,7 @@ export class AdminTeamsService {
   }
 
   private async row(attorneyId: string): Promise<AdminTeamRowDto> {
-    const [u, sub, groups, pending, open] = await Promise.all([
+    const [u, sub, groups, pending, open, grant] = await Promise.all([
       this.prisma.user.findUnique({
         where: { id: attorneyId },
         select: {
@@ -263,6 +298,7 @@ export class AdminTeamsService {
       this.prisma.attorneyTask.count({
         where: { attorney_id: attorneyId, status: { in: ['open', 'taken'] } },
       }),
+      findActiveGrant(this.prisma, attorneyId),
     ]);
     if (!u) {
       throw new NotFoundException({
@@ -278,7 +314,8 @@ export class AdminTeamsService {
         [u.first_name, u.last_name].filter(Boolean).join(' ') || 'Attorney',
       username: u.attorney_profile?.username ?? null,
       plan: sub?.plan ?? 'none',
-      seats: sub ? (sub.plan === 'yearly' ? 6 : sub.assistant_seats) : 0,
+      // Owner 2026-10-02: max(paid seats, contract grant seats).
+      seats: effectiveSeats(paidSeats(sub), grant?.assistant_seats ?? null),
       active: count('active'),
       invited: count('invited'),
       pendingRequests: pending,
@@ -311,14 +348,17 @@ export class AdminTeamsController {
 
   @Post('members/:memberId/remove')
   @Roles('super_admin', 'moderator')
+  // Audit 2026-10-02: the service writes the audit row (before/after).
+  @SkipAutoAudit()
   @ApiOperation({ summary: 'Remove an assistant (access ends at once)' })
   @ApiEnvelopeResponse(AdminTeamDto)
   @ApiErrors({ 404: [ErrorCode.NOT_FOUND] })
   removeAdminTeamMember(
+    @CurrentAdmin() admin: AdminActor,
     @Param() p: AdminMemberParamDto,
     @Body() dto: AdminRemoveMemberDto,
   ): Promise<AdminTeamDto> {
-    return this.teams.remove(p.memberId, dto.reason);
+    return this.teams.remove(p.memberId, dto.reason, admin);
   }
 
   @Patch('members/:memberId/duties')

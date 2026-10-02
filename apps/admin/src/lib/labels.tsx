@@ -355,3 +355,208 @@ export function usd(cents: number | null | undefined, digits = 0): string {
     maximumFractionDigits: digits,
   }).format(cents / 100);
 }
+
+// ---- Added by the legacy-pages restyle (append-only) ----
+
+export const REJECTION_CODE: Record<string, string> = {
+  license_not_found: 'лицензия не найдена',
+  license_inactive: 'лицензия неактивна',
+  name_mismatch: 'имя не совпадает',
+  document_unreadable: 'документ нечитаем',
+  document_expired: 'документ просрочен',
+  selfie_mismatch: 'селфи не совпадает',
+  suspected_fraud: 'подозрение на мошенничество',
+  incomplete_submission: 'неполная заявка',
+  other: 'другое',
+};
+
+/** Object types the moderation queue / card API accept (no sticker packs there). */
+export const MODERATION_TARGET_TYPES = [
+  'post',
+  'comment',
+  'case_comment',
+  'message',
+  'user',
+  'case',
+  'review',
+  'client_review',
+] as const;
+export type ModerationTargetType = (typeof MODERATION_TARGET_TYPES)[number];
+
+/** Status of a reported object: content, user account or case. */
+export const TARGET_STATUS: Record<string, string> = {
+  ...CASE_STATUS,
+  ...STATUS_LABEL,
+  ...CONTENT_STATUS,
+};
+
+/** app_config value types (admin-config.dto ConfigValueType). */
+export const CONFIG_TYPE: Record<string, string> = {
+  integer: 'целое число',
+  number: 'число',
+  boolean: 'да / нет',
+  string: 'строка',
+  'string[]': 'список строк',
+  'integer[]': 'список чисел',
+};
+
+/** Audit-log action names written by the API services (grep `action:` in apps/api/src). */
+export const AUDIT_ACTION: Record<string, string> = {
+  'admin.login': 'Вход в панель',
+  'admin.logout': 'Выход из панели',
+  'admin.recovery_code_used': 'Вход по резервному коду',
+  'admin.totp_enrolled': 'Привязан аутентификатор',
+  'admins.create': 'Создан администратор',
+  'admins.disable': 'Администратор отключён',
+  'admins.enable': 'Администратор включён',
+  'admins.set_role': 'Смена роли администратора',
+  'admins.reset_2fa': 'Сброс 2FA администратора',
+  'users.warn': 'Предупреждение пользователю',
+  'users.suspend': 'Пользователь приостановлен',
+  'users.restore': 'Пользователь восстановлен',
+  'users.sessions_revoked': 'Сессии пользователя отозваны',
+  'users.phone_changed': 'Смена телефона пользователя',
+  'verification.take': 'Заявка взята в работу',
+  'verification.approve': 'Верификация одобрена',
+  'verification.reject': 'Верификация отклонена',
+  'verification.request_info': 'Запрошена информация',
+  'verification.license_decision': 'Решение по лицензии',
+  'verification.license_recheck': 'Перепроверка лицензии',
+  'verification.document_view': 'Просмотр документа',
+  'verification.suspend': 'Адвокат приостановлен',
+  'verification.restore': 'Адвокат восстановлен',
+  'case_dispute.resolve': 'Решение по спору',
+  'contact_issue.resolve': 'Решение по «Не могу связаться»',
+  'client.suspend': 'Клиент приостановлен (жалобы)',
+  'admin.case.archive': 'Кейс в архив',
+  'admin.case.close': 'Кейс закрыт',
+  'admin.case.hide': 'Кейс скрыт',
+  'admin.case.restore': 'Кейс восстановлен',
+  'admin.post.restore': 'Публикация восстановлена',
+  'admin.comment.restore': 'Комментарий восстановлен',
+  'admin.review_appeal.decide': 'Решение по обжалованию отзыва',
+  'admin.team.member_remove': 'Помощник удалён из команды',
+  'admin.video.takedown': 'Видео снято',
+  'admin.sticker_pack.create': 'Создан набор стикеров',
+  'admin.sticker_pack.hide': 'Набор стикеров скрыт',
+  'admin.sticker_pack.unhide': 'Набор стикеров показан',
+  'admin.sticker.add': 'Стикер добавлен',
+  'admin.sticker.remove': 'Стикер удалён',
+  'config.app_config': 'Изменена настройка',
+  'config.flag': 'Изменена функция (флаг)',
+  'config.language': 'Изменён язык',
+  'legal.create': 'Создан юр. документ',
+  'legal.publish': 'Опубликован юр. документ',
+  'data_request.create': 'Зарегистрирован запрос госоргана',
+  'data_request.package': 'Подготовлен пакет данных',
+  'data_request.status': 'Статус запроса госоргана',
+  'attorney.practice_areas.replace': 'Изменены квалификации адвоката',
+  'subscription.extend': 'Подписка продлена',
+  'billing.refund.create': 'Возврат платежа',
+  'billing.promo_code.create': 'Создан промокод',
+  'billing.promo_code.update': 'Изменён промокод',
+  'billing.contract_grant.create': 'Выдан доступ по договору',
+  'billing.contract_grant.extend': 'Продлён доступ по договору',
+  'billing.contract_grant.revoke': 'Отозван доступ по договору',
+  'promotions.grant': 'Продвижение выдано',
+  'promotions.extend': 'Продвижение продлено',
+  'promotions.cancel': 'Продвижение отменено',
+  'promotions.settings': 'Настройки продвижения',
+  'referrals.qualify': 'Реферал: условие выполнено',
+  'referrals.reward': 'Реферал: награда выдана',
+  'referrals.reject': 'Реферал отклонён',
+  'referrals.settings': 'Настройки рефералов',
+  'review.hide': 'Отзыв скрыт',
+  'review.restore': 'Отзыв показан',
+  'review.remove': 'Отзыв удалён',
+};
+
+/** audit_log.target_type values (service rows + the auto-audit route segment). */
+export const AUDIT_TARGET: Record<string, string> = {
+  admin: 'администратор',
+  admins: 'администраторы',
+  app_config: 'настройка',
+  config: 'настройка',
+  assistant_membership: 'помощник',
+  teams: 'команда',
+  attorney_license: 'лицензия',
+  attorney_profile: 'профиль адвоката',
+  case: 'кейс',
+  cases: 'кейс',
+  case_dispute: 'спор',
+  case_disputes: 'спор',
+  case_promotion: 'продвижение кейса',
+  promotions: 'продвижение',
+  contact_issue_report: '«Не могу связаться»',
+  contact_issues: '«Не могу связаться»',
+  contract_grant: 'доступ по договору',
+  data_access_request: 'запрос госоргана',
+  data_requests: 'запрос госоргана',
+  export: 'выгрузка CSV',
+  feature_flag: 'функция (флаг)',
+  feature_flags: 'функция (флаг)',
+  integration: 'ключи сервиса',
+  integrations: 'ключи сервиса',
+  legal_document: 'юр. документ',
+  legal_documents: 'юр. документ',
+  payment: 'платёж',
+  billing: 'оплата',
+  promo_code: 'промокод',
+  referral: 'реферал',
+  referrals: 'реферал',
+  review_appeal: 'обжалование отзыва',
+  review_appeals: 'обжалование отзыва',
+  sticker_pack: 'набор стикеров',
+  subscription: 'подписка',
+  user: 'пользователь',
+  users: 'пользователь',
+  verification: 'верификация',
+  verification_document: 'документ верификации',
+  verification_request: 'заявка на верификацию',
+  video_asset: 'видео',
+  moderation: 'модерация',
+  content: 'контент',
+  practice_areas: 'квалификация',
+  i18n: 'локализация',
+  broadcasts: 'рассылка',
+  support: 'поддержка',
+  auth: 'вход',
+  post: 'публикация',
+  comment: 'комментарий',
+  case_comment: 'комментарий к кейсу',
+  review: 'отзыв',
+  client_review: 'отзыв о клиенте',
+  message: 'сообщение',
+};
+
+const HTTP_VERB: Record<string, string> = {
+  get: 'Просмотр',
+  post: 'Действие',
+  patch: 'Изменение',
+  put: 'Изменение',
+  delete: 'Удаление',
+};
+
+/**
+ * Russian text for an audit action. Service rows use dotted names (map
+ * above); the generic interceptor writes `admin.<method> admin/<route>`.
+ */
+export function auditActionLabel(action: string): string {
+  if (AUDIT_ACTION[action]) return AUDIT_ACTION[action];
+  const exp = /^admin\.export\.(.+)$/.exec(action);
+  if (exp) return `Выгрузка CSV: ${AUDIT_TARGET[exp[1]] ?? exp[1]}`;
+  const restore = /^admin\.(\w+)\.restore$/.exec(action);
+  if (restore) return `Восстановлено: ${AUDIT_TARGET[restore[1]] ?? restore[1]}`;
+  const mod = /^moderation\.(\w+)$/.exec(action);
+  if (mod) return `Модерация: ${(MOD_ACTION[mod[1]] ?? mod[1]).toLowerCase()}`;
+  const http = /^admin\.(get|post|patch|put|delete) admin\/([^/\s]+)(.*)$/.exec(action);
+  if (http) {
+    const section = AUDIT_TARGET[http[2].replace(/-/g, '_')] ?? http[2];
+    const tail = http[3]
+      .split('/')
+      .filter((s) => s && !s.startsWith(':'))
+      .pop();
+    return `${HTTP_VERB[http[1]] ?? http[1]}: ${section}${tail ? ` · ${tail.replace(/[-_]/g, ' ')}` : ''}`;
+  }
+  return action;
+}
