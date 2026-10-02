@@ -22,23 +22,25 @@ void main() {
       },
     );
     bool? result;
-    await tester.pumpWidget(uxApp(
-      Scaffold(
-        body: Builder(
-          builder: (context) => TextButton(
-            onPressed: () async => result = await showShareSheet(
-              context,
-              t: const StaticTranslatorEn(),
-              link: 'https://lawbid.app/post/1',
-              text: 'Custody basics',
+    await tester.pumpWidget(
+      uxApp(
+        Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () async => result = await showShareSheet(
+                context,
+                t: const StaticTranslatorEn(),
+                link: 'https://lawbid.app/post/1',
+                text: 'Custody basics',
+              ),
+              child: const Text('open'),
             ),
-            child: const Text('open'),
           ),
         ),
+        theme: AppTheme.light(),
+        disableAnimations: true,
       ),
-      theme: AppTheme.light(),
-      disableAnimations: true,
-    ));
+    );
     await tester.tap(find.text('open'));
     await tester.pumpAndSettle();
     for (final key in [

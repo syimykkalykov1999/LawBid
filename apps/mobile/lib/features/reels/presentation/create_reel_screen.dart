@@ -5,8 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:video_player/video_player.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
@@ -15,6 +13,7 @@ import 'package:lawbid/features/reels/application/reels_providers.dart';
 import 'package:lawbid/features/reels/presentation/reel_video.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/data/social_repository.dart';
+import 'package:video_player/video_player.dart';
 
 /// Owner 2026-10-01 — "+" → Reel: pick or record a vertical video, add a
 /// title and a caption, publish. The file goes straight to Bunny (with a
@@ -60,7 +59,6 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
     final x = await ImagePicker().pickVideo(
       source: source,
       maxDuration: Duration(seconds: _kMaxSeconds),
-      preferredCameraDevice: CameraDevice.rear,
     );
     if (x == null) return;
     final file = File(x.path);
@@ -77,7 +75,9 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
       await c.dispose();
       if (mounted) {
         showAppSnackBar(
-            context, t.t('reels.tooLong', {'max': '$_kMaxSeconds'}));
+          context,
+          t.t('reels.tooLong', {'max': '$_kMaxSeconds'}),
+        );
       }
       return;
     }
@@ -126,6 +126,7 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
             ),
           );
       if (!mounted) return;
+      // ignore: unawaited_futures
       HapticFeedback.mediumImpact();
       showAppSnackBar(context, t.t('reels.processing.toast'));
       Navigator.of(context).pop();
@@ -165,8 +166,10 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
                 children: [
                   AppIcon(icon, color: colors.goldDark, size: 28),
                   const SizedBox(height: AppSpacing.sm),
-                  Text(label,
-                      style: type.body.copyWith(color: colors.text)),
+                  Text(
+                    label,
+                    style: type.body.copyWith(color: colors.text),
+                  ),
                 ],
               ),
             ),
@@ -203,8 +206,11 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
                             ? ColoredBox(
                                 color: colors.surface,
                                 child: Center(
-                                  child: AppIcon(AppIcons.filmReelOutlined,
-                                      size: 48, color: colors.textSecondary),
+                                  child: AppIcon(
+                                    AppIcons.filmReelOutlined,
+                                    size: 48,
+                                    color: colors.textSecondary,
+                                  ),
                                 ),
                               )
                             : Stack(
@@ -240,11 +246,17 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
                   const SizedBox(height: AppSpacing.lg),
                   Row(
                     children: [
-                      source(AppIcons.addPhotoAlternateOutlined,
-                          t.t('reels.pick.gallery'), ImageSource.gallery),
+                      source(
+                        AppIcons.addPhotoAlternateOutlined,
+                        t.t('reels.pick.gallery'),
+                        ImageSource.gallery,
+                      ),
                       const SizedBox(width: AppSpacing.md),
-                      source(AppIcons.videoCameraOutlined,
-                          t.t('reels.pick.camera'), ImageSource.camera),
+                      source(
+                        AppIcons.videoCameraOutlined,
+                        t.t('reels.pick.camera'),
+                        ImageSource.camera,
+                      ),
                     ],
                   ),
                   const SizedBox(height: AppSpacing.xs),
@@ -272,8 +284,10 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
                   if (_progress != null) ...[
                     const SizedBox(height: AppSpacing.lg),
                     Text(
-                      t.t('reels.uploading',
-                          {'percent': '${(_progress! * 100).round()}'}),
+                      t.t(
+                        'reels.uploading',
+                        {'percent': '${(_progress! * 100).round()}'},
+                      ),
                       style: type.bodySmall.copyWith(color: colors.text),
                     ),
                     const SizedBox(height: AppSpacing.sm),

@@ -116,7 +116,9 @@ class _TasksTabState extends ConsumerState<TasksTab> {
       if (!mounted) return;
       if (!updated.status.active) {
         showAppSnackBar(
-            context, '${t.t('tasks.steps.allDone')} · ${task.title}');
+          context,
+          '${t.t('tasks.steps.allDone')} · ${task.title}',
+        );
       }
     } on Object catch (e) {
       if (mounted) showAppSnackBar(context, errorText(t, e));
@@ -264,9 +266,13 @@ class _TaskList extends ConsumerWidget {
                       typography.caption.copyWith(color: colors.textSecondary),
                 ),
               ),
-            for (final (si, s) in groupTasksByDay(value, t, formats,
-                    now: now, done: listKey.done)
-                .indexed) ...[
+            for (final (si, s) in groupTasksByDay(
+              value,
+              t,
+              formats,
+              now: now,
+              done: listKey.done,
+            ).indexed) ...[
               Padding(
                 padding: EdgeInsets.only(
                   top: si == 0 ? AppSpacing.xs : AppSpacing.lg,

@@ -89,12 +89,14 @@ class ReelsRepository {
     final created = await _tus.post<void>(
       u.tusEndpoint,
       cancelToken: cancel,
-      options: Options(headers: {
-        ...auth,
-        'Upload-Length': '$size',
-        'Upload-Metadata':
-            'filetype ${b64('video/mp4')},title ${b64(u.videoId)}',
-      }),
+      options: Options(
+        headers: {
+          ...auth,
+          'Upload-Length': '$size',
+          'Upload-Metadata':
+              'filetype ${b64('video/mp4')},title ${b64(u.videoId)}',
+        },
+      ),
     );
     var location = created.headers.value('location');
     if (location == null) {
@@ -117,12 +119,14 @@ class ReelsRepository {
             location,
             data: Stream.fromIterable([bytes]),
             cancelToken: cancel,
-            options: Options(headers: {
-              ...auth,
-              'Upload-Offset': '$offset',
-              'Content-Type': 'application/offset+octet-stream',
-              Headers.contentLengthHeader: '$len',
-            }),
+            options: Options(
+              headers: {
+                ...auth,
+                'Upload-Offset': '$offset',
+                'Content-Type': 'application/offset+octet-stream',
+                Headers.contentLengthHeader: '$len',
+              },
+            ),
           );
           offset = int.tryParse(r.headers.value('upload-offset') ?? '') ??
               offset + len;
@@ -136,8 +140,8 @@ class ReelsRepository {
             cancelToken: cancel,
             options: Options(headers: auth),
           );
-          offset = int.tryParse(head.headers.value('upload-offset') ?? '') ??
-              offset;
+          offset =
+              int.tryParse(head.headers.value('upload-offset') ?? '') ?? offset;
         }
       }
     } finally {

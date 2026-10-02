@@ -45,8 +45,9 @@ class ReviewFormScreen extends ConsumerWidget {
           appBar: AppTopBar(
             title: Text(t.t('reviews.form.title')),
             leading: AppBackButton(
-                semanticLabel: t.t('common.back'),
-                onPressed: () => Navigator.of(context).maybePop()),
+              semanticLabel: t.t('common.back'),
+              onPressed: () => Navigator.of(context).maybePop(),
+            ),
           ),
           body: SafeArea(top: false, child: body),
         );
@@ -56,8 +57,12 @@ class ReviewFormScreen extends ConsumerWidget {
         ListView(
           key: const ValueKey('review-loading'),
           physics: const NeverScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide,
-              AppSpacing.lg, AppSpacing.screenSide, AppSpacing.xxl),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.screenSide,
+            AppSpacing.lg,
+            AppSpacing.screenSide,
+            AppSpacing.xxl,
+          ),
           children: const [
             AppSkeletonCard(),
             SizedBox(height: AppSpacing.lg),
@@ -81,7 +86,8 @@ class ReviewFormScreen extends ConsumerWidget {
             : AppErrorState(
                 message: errorText(t, error),
                 retryLabel: t.t('error.retry'),
-                onRetry: retry),
+                onRetry: retry,
+              ),
       ),
       data: (review) => _ReviewForm(
         key: ValueKey('review-form-${review?.id}'),
@@ -136,10 +142,11 @@ class _ReviewFormState extends ConsumerState<_ReviewForm> {
         _editing = false;
       });
       showAppSnackBar(
-          context,
-          t.t(existing == null
-              ? 'reviews.form.published'
-              : 'reviews.form.updated'));
+        context,
+        t.t(
+          existing == null ? 'reviews.form.published' : 'reviews.form.updated',
+        ),
+      );
     } catch (e) {
       if (mounted) setState(() => _error = e);
     } finally {
@@ -158,11 +165,15 @@ class _ReviewFormState extends ConsumerState<_ReviewForm> {
     return Scaffold(
       backgroundColor: colors.bg,
       appBar: AppTopBar(
-        title: Text(t.t(
-            review == null ? 'reviews.form.title' : 'reviews.form.titleYours')),
+        title: Text(
+          t.t(
+            review == null ? 'reviews.form.title' : 'reviews.form.titleYours',
+          ),
+        ),
         leading: AppBackButton(
-            semanticLabel: t.t('common.back'),
-            onPressed: () => Navigator.of(context).maybePop()),
+          semanticLabel: t.t('common.back'),
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
       ),
       body: SafeArea(
         top: false,
@@ -293,13 +304,17 @@ class _Compose extends StatelessWidget {
       Container(
         padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(
-            color: colors.goldTint,
-            borderRadius: BorderRadius.circular(AppRadii.field)),
+          color: colors.goldTint,
+          borderRadius: BorderRadius.circular(AppRadii.field),
+        ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            AppIcon(AppIcons.infoOutlineRounded,
-                size: AppSizes.iconSm, color: colors.goldStroke),
+            AppIcon(
+              AppIcons.infoOutlineRounded,
+              size: AppSizes.iconSm,
+              color: colors.goldStroke,
+            ),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Text(
@@ -317,8 +332,9 @@ class _Compose extends StatelessWidget {
             key: const ValueKey('review-error'),
             padding: const EdgeInsets.all(AppSpacing.md),
             decoration: BoxDecoration(
-                color: colors.dangerTint,
-                borderRadius: BorderRadius.circular(AppRadii.field)),
+              color: colors.dangerTint,
+              borderRadius: BorderRadius.circular(AppRadii.field),
+            ),
             child: Row(
               children: [
                 AppIcon(
@@ -330,9 +346,11 @@ class _Compose extends StatelessWidget {
                 ),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
-                    child: Text(errorText(t, error!),
-                        style:
-                            typography.bodySmall.copyWith(color: colors.text))),
+                  child: Text(
+                    errorText(t, error!),
+                    style: typography.bodySmall.copyWith(color: colors.text),
+                  ),
+                ),
               ],
             ),
           ),
@@ -353,8 +371,12 @@ class _Compose extends StatelessWidget {
     ];
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide, AppSpacing.sm,
-          AppSpacing.screenSide, AppSpacing.xxl),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.screenSide,
+        AppSpacing.sm,
+        AppSpacing.screenSide,
+        AppSpacing.xxl,
+      ),
       children: [
         for (var i = 0; i < children.length; i++) ...[
           if (i > 0) const SizedBox(height: AppSpacing.lg),
@@ -388,17 +410,24 @@ class _Published extends StatelessWidget {
     final children = <Widget>[
       Row(
         children: [
-          AppIcon(AppIcons.checkCircleRounded,
-              color: colors.success, size: AppSizes.iconMd),
+          AppIcon(
+            AppIcons.checkCircleRounded,
+            color: colors.success,
+            size: AppSizes.iconMd,
+          ),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
-            child: Text(t.t('reviews.form.publishedHeading'),
-                style: typography.roleTitle.copyWith(color: colors.text)),
+            child: Text(
+              t.t('reviews.form.publishedHeading'),
+              style: typography.roleTitle.copyWith(color: colors.text),
+            ),
           ),
         ],
       ),
-      Text(t.t('reviews.form.previewHint'),
-          style: typography.bodySmall.copyWith(color: colors.textSecondary)),
+      Text(
+        t.t('reviews.form.previewHint'),
+        style: typography.bodySmall.copyWith(color: colors.textSecondary),
+      ),
       ReviewCard(review: review),
       // Audit 2026-10-02: the server lets the author edit any time (owner
       // 2026-10-01, Google-Maps reviews) — no "editable until" date.
@@ -418,8 +447,12 @@ class _Published extends StatelessWidget {
         ),
     ];
     return ListView(
-      padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide, AppSpacing.lg,
-          AppSpacing.screenSide, AppSpacing.xxl),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.screenSide,
+        AppSpacing.lg,
+        AppSpacing.screenSide,
+        AppSpacing.xxl,
+      ),
       children: [
         for (var i = 0; i < children.length; i++) ...[
           if (i > 0) const SizedBox(height: AppSpacing.md),

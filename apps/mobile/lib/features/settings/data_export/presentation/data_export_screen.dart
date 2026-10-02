@@ -261,8 +261,10 @@ class _StatusCard extends StatelessWidget {
           ),
           if (line.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.md),
-            Text(line,
-                style: typography.body.copyWith(color: colors.textSecondary)),
+            Text(
+              line,
+              style: typography.body.copyWith(color: colors.textSecondary),
+            ),
           ],
           if (job.status == DataExportStatus.ready && job.url != null) ...[
             const SizedBox(height: AppSpacing.lg),

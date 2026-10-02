@@ -3,18 +3,17 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:lawbid/core/l10n/app_language.dart';
+import 'package:lawbid/core/l10n/available_languages.dart';
+import 'package:lawbid/core/l10n/i18n_api_client.dart';
+import 'package:lawbid/core/l10n/l10n_database.dart';
+import 'package:lawbid/core/l10n/l10n_repository.dart';
+import 'package:lawbid/core/l10n/l10n_translator.dart';
+import 'package:lawbid/core/l10n/language_providers.dart';
+import 'package:lawbid/core/l10n/static_translator.dart';
+import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/network/dio_client.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-
-import '../network/dio_client.dart';
-import 'app_language.dart';
-import 'available_languages.dart';
-import 'i18n_api_client.dart';
-import 'l10n_database.dart';
-import 'l10n_repository.dart';
-import 'l10n_translator.dart';
-import 'language_providers.dart';
-import 'static_translator.dart';
-import 'translator.dart';
 
 part 'l10n_providers.g.dart';
 
@@ -30,7 +29,10 @@ final i18nApiClientProvider = Provider<I18nApiClient>(
 );
 
 final l10nRepositoryProvider = Provider<L10nRepository>(
-  (ref) => L10nRepository(ref.watch(l10nDatabaseProvider), ref.watch(i18nApiClientProvider)),
+  (ref) => L10nRepository(
+    ref.watch(l10nDatabaseProvider),
+    ref.watch(i18nApiClientProvider),
+  ),
 );
 
 /// What [translatorProvider] renders from: the cached bundle of the
@@ -38,14 +40,22 @@ final l10nRepositoryProvider = Provider<L10nRepository>(
 /// language). Both are plain in-memory maps loaded from Drift.
 @immutable
 class L10nCacheState {
-  const L10nCacheState({this.lang, this.entries = const {}, this.english = const {}});
+  const L10nCacheState({
+    this.lang,
+    this.entries = const {},
+    this.english = const {},
+  });
 
   /// Code the [entries] belong to; `null` before the first load.
   final String? lang;
   final Map<String, String> entries;
   final Map<String, String> english;
 
-  L10nCacheState copyWith({String? lang, Map<String, String>? entries, Map<String, String>? english}) =>
+  L10nCacheState copyWith({
+    String? lang,
+    Map<String, String>? entries,
+    Map<String, String>? english,
+  }) =>
       L10nCacheState(
         lang: lang ?? this.lang,
         entries: entries ?? this.entries,
@@ -75,7 +85,8 @@ class L10nCacheState {
 class L10nCacheController extends _$L10nCacheController {
   @override
   L10nCacheState build() {
-    ref.listen<AsyncValue<AppLanguage>>(languageControllerProvider, (previous, next) {
+    ref.listen<AsyncValue<AppLanguage>>(languageControllerProvider,
+        (previous, next) {
       final language = next.value;
       if (language == null || language == previous?.value) return;
       unawaited(_loadAndRefresh(language));
@@ -118,13 +129,18 @@ class L10nCacheController extends _$L10nCacheController {
     final repo = ref.read(l10nRepositoryProvider);
     final results = await Future.wait([
       repo.refresh(language.code),
-      if (language != AppLanguage.fallback) repo.refresh(AppLanguage.fallback.code),
+      if (language != AppLanguage.fallback)
+        repo.refresh(AppLanguage.fallback.code),
     ]);
     if (!_isStillCurrent(language)) return;
     final refreshed = results[0];
     final english = results.length > 1 ? results[1] : null;
     if (refreshed == null && english == null) return;
-    state = state.copyWith(lang: language.code, entries: refreshed, english: english);
+    state = state.copyWith(
+      lang: language.code,
+      entries: refreshed,
+      english: english,
+    );
   }
 
   /// Resolves the selected language, awaiting `LanguageController.build()`
@@ -143,17 +159,24 @@ class L10nCacheController extends _$L10nCacheController {
   /// load was in flight) — nothing may touch `ref`/`state` after that.
   bool _isStillCurrent(AppLanguage language) =>
       ref.mounted &&
-      (ref.read(languageControllerProvider).value ?? AppLanguage.fallback) == language;
+      (ref.read(languageControllerProvider).value ?? AppLanguage.fallback) ==
+          language;
 }
 
 /// The current [Translator]. Layered fallback (cached bundle → compiled
 /// seed → English → raw key) lives in [L10nTranslator]. Call sites
 /// (`ref.watch(translatorProvider).t('key')`) never change.
 final translatorProvider = Provider<Translator>((ref) {
-  final language = ref.watch(languageControllerProvider).value ?? AppLanguage.fallback;
+  final language =
+      ref.watch(languageControllerProvider).value ?? AppLanguage.fallback;
   final cache = ref.watch(l10nCacheControllerProvider);
   // While a switch is loading, `cache.entries` still holds the PREVIOUS
   // language's bundle — never render those under the new language.
-  final entries = cache.lang == language.code ? cache.entries : const <String, String>{};
-  return L10nTranslator(language: language, cache: entries, englishCache: cache.english);
+  final entries =
+      cache.lang == language.code ? cache.entries : const <String, String>{};
+  return L10nTranslator(
+    language: language,
+    cache: entries,
+    englishCache: cache.english,
+  );
 });

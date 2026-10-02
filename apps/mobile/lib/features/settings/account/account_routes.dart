@@ -20,8 +20,9 @@ abstract final class AccountRoutes {
 
 /// Pushed on the ROOT navigator (same reasoning as `AppRoutes
 /// .profileSettings`: full-screen settings pages cover the bottom nav).
-List<RouteBase> accountRoutes(
-        {GlobalKey<NavigatorState>? parentNavigatorKey}) =>
+List<RouteBase> accountRoutes({
+  GlobalKey<NavigatorState>? parentNavigatorKey,
+}) =>
     [
       GoRoute(
         path: AccountRoutes.account,

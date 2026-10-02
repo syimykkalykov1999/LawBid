@@ -876,7 +876,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 313C1FC32383D7D17C07E85A /* Release-dev.xcconfig */;
 			buildSettings = {
-				APP_DISPLAY_NAME = "LawBid Dev";
+				APP_DISPLAY_NAME = LawBid;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
@@ -996,7 +996,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 6FB40422094A6EF9F9B260CC /* Profile-dev.xcconfig */;
 			buildSettings = {
-				APP_DISPLAY_NAME = "LawBid Dev";
+				APP_DISPLAY_NAME = LawBid;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
@@ -1060,7 +1060,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 7477B471418869FE1F36481D /* Debug-dev.xcconfig */;
 			buildSettings = {
-				APP_DISPLAY_NAME = "LawBid Dev";
+				APP_DISPLAY_NAME = LawBid;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;

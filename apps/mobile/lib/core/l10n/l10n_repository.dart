@@ -39,7 +39,10 @@ class L10nRepository {
   Future<Map<String, String>?> refresh(String lang) async {
     try {
       final cachedVersion = await _db.getVersion(lang);
-      final result = await _api.getBundle(lang, since: cachedVersion > 0 ? cachedVersion : null);
+      final result = await _api.getBundle(
+        lang,
+        since: cachedVersion > 0 ? cachedVersion : null,
+      );
       if (result.translations.isEmpty && result.version == cachedVersion) {
         return null;
       }

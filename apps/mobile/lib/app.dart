@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-import 'core/app_update/app_update_gate.dart';
-import 'core/config/app_environment.dart';
-import 'core/connectivity/offline_banner_host.dart';
-import 'core/design_system/design_system.dart';
-import 'core/navigation/app_router.dart';
-import 'core/theme/preferences_sync.dart';
-import 'features/calls/presentation/call_host.dart';
+import 'package:lawbid/core/app_update/app_update_gate.dart';
+import 'package:lawbid/core/config/app_environment.dart';
+import 'package:lawbid/core/connectivity/offline_banner_host.dart';
+import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/navigation/app_router.dart';
 import 'package:lawbid/core/navigation/root_messenger.dart';
+import 'package:lawbid/core/theme/preferences_sync.dart';
+import 'package:lawbid/features/calls/presentation/call_host.dart';
 
 class LawBidApp extends ConsumerWidget {
   const LawBidApp({super.key});

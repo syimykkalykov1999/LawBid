@@ -127,8 +127,9 @@ class _MentionSuggestionsState extends ConsumerState<MentionSuggestions> {
                         onTap: () => _pick(p),
                         child: Padding(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: AppSpacing.md,
-                              vertical: AppSpacing.sm),
+                            horizontal: AppSpacing.md,
+                            vertical: AppSpacing.sm,
+                          ),
                           child: Row(
                             children: [
                               AppAvatar(
@@ -158,14 +159,18 @@ class _MentionSuggestionsState extends ConsumerState<MentionSuggestions> {
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                         style: type.caption.copyWith(
-                                            color: colors.textSecondary),
+                                          color: colors.textSecondary,
+                                        ),
                                       ),
                                   ],
                                 ),
                               ),
                               if (_verified(p))
-                                AppIcon(AppIcons.verifiedRounded,
-                                    size: 16, color: colors.info),
+                                AppIcon(
+                                  AppIcons.verifiedRounded,
+                                  size: 16,
+                                  color: colors.info,
+                                ),
                             ],
                           ),
                         ),

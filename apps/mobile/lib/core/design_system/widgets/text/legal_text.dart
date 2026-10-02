@@ -1,8 +1,8 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
-import '../../theme/app_color_tokens.dart';
-import '../../theme/app_typography_tokens.dart';
+import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
+import 'package:lawbid/core/design_system/theme/app_typography_tokens.dart';
 
 /// Centered secondary legal copy with tappable links (file 07 §4
 /// "Юридический текст"). Used for the welcome screen's disclaimer and the
@@ -15,8 +15,8 @@ import '../../theme/app_typography_tokens.dart';
 /// to `caption`/`textSecondary`).
 class LegalText extends StatelessWidget {
   const LegalText({
-    super.key,
     required this.text,
+    super.key,
     this.links = const {},
     this.style,
   });
@@ -29,8 +29,12 @@ class LegalText extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    final baseStyle = (style ?? typography.caption).copyWith(color: colors.textSecondary);
-    final linkStyle = baseStyle.copyWith(color: colors.gold, decoration: TextDecoration.underline);
+    final baseStyle =
+        (style ?? typography.caption).copyWith(color: colors.textSecondary);
+    final linkStyle = baseStyle.copyWith(
+      color: colors.gold,
+      decoration: TextDecoration.underline,
+    );
 
     final spans = <InlineSpan>[];
     if (links.isEmpty) {
@@ -50,7 +54,9 @@ class LegalText extends StatelessWidget {
         final start = match.key;
         if (start < cursor) continue; // overlapping match, skip
         if (start > cursor) {
-          spans.add(TextSpan(text: text.substring(cursor, start), style: baseStyle));
+          spans.add(
+            TextSpan(text: text.substring(cursor, start), style: baseStyle),
+          );
         }
         final label = match.value.key;
         spans.add(

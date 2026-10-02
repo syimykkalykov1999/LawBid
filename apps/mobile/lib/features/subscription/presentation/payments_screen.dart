@@ -129,7 +129,8 @@ class PaymentCard extends StatelessWidget {
                   ),
                   const SizedBox(width: AppSpacing.sm),
                   ExcludeSemantics(
-                      child: StatusPill(label: status, tone: tone)),
+                    child: StatusPill(label: status, tone: tone),
+                  ),
                 ],
               ),
               if (payment.failureCode != null) ...[

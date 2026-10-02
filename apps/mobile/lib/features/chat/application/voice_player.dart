@@ -1,15 +1,13 @@
 import 'dart:async';
-
 import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
-import 'package:path_provider/path_provider.dart';
-
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
+import 'package:path_provider/path_provider.dart';
 
 /// What the one app-wide voice player is doing (OQ-040): only one note
 /// plays at a time, like Telegram.
@@ -54,24 +52,28 @@ class VoicePlayer extends Notifier<VoicePlayback> {
     if (existing != null) return existing;
     final p = AudioPlayer();
     _subs
-      ..add(p.positionStream.listen((pos) {
-        if (ref.mounted) state = state.copyWith(position: pos);
-      }))
-      ..add(p.playerStateStream.listen((s) {
-        if (!ref.mounted) return;
-        if (s.processingState == ProcessingState.completed) {
-          // Finished: back to the start, paused (Telegram).
-          unawaited(p.pause());
-          unawaited(p.seek(Duration.zero));
-          state = state.copyWith(playing: false, position: Duration.zero);
-          return;
-        }
-        state = state.copyWith(
-          playing: s.playing,
-          loading: s.processingState == ProcessingState.loading ||
-              s.processingState == ProcessingState.buffering,
-        );
-      }));
+      ..add(
+        p.positionStream.listen((pos) {
+          if (ref.mounted) state = state.copyWith(position: pos);
+        }),
+      )
+      ..add(
+        p.playerStateStream.listen((s) {
+          if (!ref.mounted) return;
+          if (s.processingState == ProcessingState.completed) {
+            // Finished: back to the start, paused (Telegram).
+            unawaited(p.pause());
+            unawaited(p.seek(Duration.zero));
+            state = state.copyWith(playing: false, position: Duration.zero);
+            return;
+          }
+          state = state.copyWith(
+            playing: s.playing,
+            loading: s.processingState == ProcessingState.loading ||
+                s.processingState == ProcessingState.buffering,
+          );
+        }),
+      );
     return _player = p;
   }
 
@@ -124,6 +126,7 @@ class VoicePlayer extends Notifier<VoicePlayback> {
     if (url == null) return null;
     final dir = await getTemporaryDirectory();
     final file = File('${dir.path}/voice_cache_$messageId.m4a');
+    // ignore: avoid_slow_async_io
     if (await file.exists() && await file.length() > 0) return file.path;
     final res = await ref.read(storageDioProvider).get<List<int>>(
           url,
@@ -139,8 +142,11 @@ class VoicePlayer extends Notifier<VoicePlayback> {
     final v = m.voice;
     if (v == null) return;
     if (state.messageId != m.id) await toggle(m);
-    await _p.seek(Duration(
-        milliseconds: (v.durationMs * fraction.clamp(0.0, 1.0)).round()));
+    await _p.seek(
+      Duration(
+        milliseconds: (v.durationMs * fraction.clamp(0.0, 1.0)).round(),
+      ),
+    );
   }
 
   /// 1× → 1.5× → 2× → 1×.

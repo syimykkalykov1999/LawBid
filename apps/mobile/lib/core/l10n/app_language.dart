@@ -61,7 +61,8 @@ final class AppLanguage {
 
   /// Whether [raw] is a syntactically valid language code for the server
   /// (two lowercase letters after [normalizeCode]).
-  static bool isValidCode(String raw) => RegExp(r'^[a-z]{2}$').hasMatch(normalizeCode(raw));
+  static bool isValidCode(String raw) =>
+      RegExp(r'^[a-z]{2}$').hasMatch(normalizeCode(raw));
 
   @override
   bool operator ==(Object other) => other is AppLanguage && other.code == code;

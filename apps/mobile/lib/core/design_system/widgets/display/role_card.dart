@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-
+import 'package:lawbid/core/design_system/icons/app_icon.dart';
+import 'package:lawbid/core/design_system/icons/app_icons.dart';
 import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
 import 'package:lawbid/core/design_system/theme/app_typography_tokens.dart';
 import 'package:lawbid/core/design_system/tokens/app_colors.dart';
@@ -7,8 +8,6 @@ import 'package:lawbid/core/design_system/tokens/app_motion.dart';
 import 'package:lawbid/core/design_system/tokens/app_radii.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_entrance.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_pressable.dart';
-import 'package:lawbid/core/design_system/icons/app_icon.dart';
-import 'package:lawbid/core/design_system/icons/app_icons.dart';
 
 /// Role-selection card (file 07 §4 "RoleCard", used on `/onboarding/role`,
 /// file 07 §6.4 — that screen itself is built in stage 1.7; this widget is
@@ -19,7 +18,7 @@ import 'package:lawbid/core/design_system/icons/app_icons.dart';
 /// bypasses the normal token system by design.
 ///
 /// A11y (docs/CHANGELOG.md stage 1.5): behaves as a member of a radio group
-/// — [Semantics.inMutuallyExclusiveGroup] + [Semantics.selected] — since
+/// — `Semantics.inMutuallyExclusiveGroup` + `Semantics.selected` — since
 /// this is a custom-drawn card, not a native `Radio`. The checkmark badge
 /// and PRO badge are excluded from the semantics tree individually; the PRO
 /// text is folded into the card's own semantics label instead, so nothing is
@@ -158,7 +157,8 @@ class RoleCard extends StatelessWidget {
                         shape: BoxShape.circle,
                       ),
                       alignment: Alignment.center,
-                      child: AppIcon(AppIcons.check, size: 13, color: colors.navy),
+                      child:
+                          AppIcon(AppIcons.check, size: 13, color: colors.navy),
                     ),
                   ),
                 ),
@@ -172,7 +172,11 @@ class RoleCard extends StatelessWidget {
 }
 
 class _ProBadge extends StatelessWidget {
-  const _ProBadge({required this.label, required this.colors, required this.style});
+  const _ProBadge({
+    required this.label,
+    required this.colors,
+    required this.style,
+  });
 
   final String label;
   final AppColorTokens colors;

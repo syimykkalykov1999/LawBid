@@ -1,3 +1,4 @@
+// ignore_for_file: lines_longer_than_80_chars
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -134,25 +135,26 @@ class _FlipSearchBarState extends State<FlipSearchBar> {
             top: inset,
             bottom: inset,
             child: AnimatedContainer(
-                duration: d,
-                curve: AppMotion.enterCurve,
-                decoration: BoxDecoration(
-                  color: colors.surface,
-                  borderRadius: BorderRadius.circular(AppRadii.pill),
-                  border: Border.all(
-                    color: focused ? colors.gold : colors.border,
-                    width: focused ? 1.5 : 1,
+              duration: d,
+              curve: AppMotion.enterCurve,
+              decoration: BoxDecoration(
+                color: colors.surface,
+                borderRadius: BorderRadius.circular(AppRadii.pill),
+                border: Border.all(
+                  color: focused ? colors.gold : colors.border,
+                  width: focused ? 1.5 : 1,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: focused
+                        ? colors.gold.withValues(alpha: 0.22)
+                        : colors.shadow.withValues(alpha: 0),
+                    blurRadius: focused ? 18 : 0,
+                    spreadRadius: focused ? 1 : 0,
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: focused
-                          ? colors.gold.withValues(alpha: 0.22)
-                          : colors.shadow.withValues(alpha: 0),
-                      blurRadius: focused ? 18 : 0,
-                      spreadRadius: focused ? 1 : 0,
-                    ),
-                  ],
-                )),
+                ],
+              ),
+            ),
           ),
           Row(
             children: [
@@ -188,7 +190,7 @@ class _FlipSearchBarState extends State<FlipSearchBar> {
                               alignment: Alignment.centerLeft,
                               children: [
                                 ...previous,
-                                if (current != null) current
+                                if (current != null) current,
                               ],
                             ),
                             transitionBuilder: _flip,

@@ -1,12 +1,11 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-import '../session/session_providers.dart';
-import 'api_error.dart';
-import '../l10n/api_error_text.dart';
-import '../l10n/l10n_providers.dart';
-import '../navigation/root_messenger.dart';
+import 'package:lawbid/core/l10n/api_error_text.dart';
+import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/navigation/root_messenger.dart';
+import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/core/session/session_providers.dart';
 
 /// Attaches `Authorization: Bearer <accessToken>` to every request that
 /// doesn't opt out via `extra['skipAuth'] == true` (the 4 token-issuing
@@ -37,9 +36,13 @@ class AuthInterceptor extends Interceptor {
   }
 
   @override
-  Future<void> onError(DioException err, ErrorInterceptorHandler handler) async {
+  Future<void> onError(
+    DioException err,
+    ErrorInterceptorHandler handler,
+  ) async {
     final apiError = ApiException.fromDioException(err);
-    final alreadyRetried = err.requestOptions.extra['retriedAfterRefresh'] == true;
+    final alreadyRetried =
+        err.requestOptions.extra['retriedAfterRefresh'] == true;
 
     // Owner 2026-10-01: this account signed in on another phone (one
     // phone + one website per account) or the session was ended — sign
@@ -51,7 +54,8 @@ class AuthInterceptor extends Interceptor {
         rootMessengerKey.currentState?.showSnackBar(
           SnackBar(
             duration: const Duration(seconds: 6),
-            content: Text(apiErrorText(_ref.read(translatorProvider), apiError)),
+            content:
+                Text(apiErrorText(_ref.read(translatorProvider), apiError)),
           ),
         );
       }
@@ -65,8 +69,9 @@ class AuthInterceptor extends Interceptor {
     }
 
     try {
-      final newAccessToken =
-          await _ref.read(sessionControllerProvider.notifier).refreshAccessToken();
+      final newAccessToken = await _ref
+          .read(sessionControllerProvider.notifier)
+          .refreshAccessToken();
       final retryOptions = err.requestOptions
         ..headers['Authorization'] = 'Bearer $newAccessToken'
         ..extra = {...err.requestOptions.extra, 'retriedAfterRefresh': true};

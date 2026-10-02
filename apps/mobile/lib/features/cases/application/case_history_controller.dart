@@ -102,8 +102,11 @@ final caseHistoryProvider = AsyncNotifierProvider.autoDispose<
 );
 
 final caseHistoryDetailProvider =
-    FutureProvider.autoDispose.family<HistoryCaseDetail, String>((ref, id) {
-  final token = ref.watch(historyAccessProvider.select((a) => a.token));
-  if (token == null) throw StateError('reauth required');
-  return ref.watch(casesRepositoryProvider).historyCase(token, id);
-}, retry: (_, __) => null);
+    FutureProvider.autoDispose.family<HistoryCaseDetail, String>(
+  (ref, id) {
+    final token = ref.watch(historyAccessProvider.select((a) => a.token));
+    if (token == null) throw StateError('reauth required');
+    return ref.watch(casesRepositoryProvider).historyCase(token, id);
+  },
+  retry: (_, __) => null,
+);

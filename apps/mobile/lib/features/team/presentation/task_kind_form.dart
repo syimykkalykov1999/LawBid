@@ -29,6 +29,7 @@ class TaskKindForm {
   final String notes;
   final bool files;
 
+  // ignore: prefer_constructors_over_static_methods
   static TaskKindForm of(TaskKind k) => switch (k) {
         TaskKind.call => const TaskKindForm(
             title: 'callTitle',
@@ -84,7 +85,6 @@ class TaskKindForm {
             contact: 'mediator',
             phone: true,
             email: true,
-            notes: 'notes',
           ),
         TaskKind.deadline => const TaskKindForm(
             title: 'deadlineTitle',
@@ -95,7 +95,6 @@ class TaskKindForm {
             title: 'filingTitle',
             when: 'deadlineWhen',
             where: 'fileWhere',
-            notes: 'notes',
           ),
         TaskKind.documents => const TaskKindForm(
             title: 'docsTitle',
@@ -103,7 +102,6 @@ class TaskKindForm {
             contact: 'docsFrom',
             phone: true,
             email: true,
-            notes: 'notes',
           ),
         TaskKind.review => const TaskKindForm(
             title: 'reviewTitle',
@@ -115,12 +113,10 @@ class TaskKindForm {
             when: 'byWhen',
             contact: 'signWith',
             phone: true,
-            notes: 'notes',
           ),
         TaskKind.print => const TaskKindForm(
             title: 'printTitle',
             when: 'byWhen',
-            caseLink: true,
             notes: 'copies',
           ),
         TaskKind.visit => const TaskKindForm(

@@ -1,14 +1,13 @@
 import 'package:flutter/foundation.dart';
-
-import '../../../features/auth/auth_routes.dart';
-import '../../../features/onboarding/application/current_user_controller.dart';
-import '../../../features/onboarding/domain/current_user.dart';
-import '../../../features/onboarding/domain/onboarding_step_id.dart';
-import '../../../features/onboarding/onboarding_routes.dart';
-import '../../../features/profile/domain/verification_gate.dart';
-import '../../../shared/domain/user_role.dart';
-import '../../startup/app_startup.dart';
-import '../app_routes.dart';
+import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/startup/app_startup.dart';
+import 'package:lawbid/features/auth/auth_routes.dart';
+import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
+import 'package:lawbid/features/onboarding/domain/current_user.dart';
+import 'package:lawbid/features/onboarding/domain/onboarding_step_id.dart';
+import 'package:lawbid/features/onboarding/onboarding_routes.dart';
+import 'package:lawbid/features/profile/domain/verification_gate.dart';
+import 'package:lawbid/shared/domain/user_role.dart';
 
 /// OQ-048: where an assistant stands — still loading, joined an
 /// attorney, or not (→ the join screen).
@@ -46,7 +45,7 @@ class GuardSnapshot {
 /// "Гейты навигации только в AppRouterGuard"; docs/01_FOUNDATION_AUTH.md
 /// §11 "Guard-логика навигации"):
 ///
-/// ```
+/// ```text
 /// нет токена                      → /welcome
 /// токен есть, нет согласий/18+    → /onboarding/consents
 /// нет роли                        → /onboarding/role
@@ -216,7 +215,11 @@ abstract final class AppRouterGuard {
     return effective;
   }
 
-  static bool _canRevisit(String location, OnboardingStepId required, CurrentUser user) {
+  static bool _canRevisit(
+    String location,
+    OnboardingStepId required,
+    CurrentUser user,
+  ) {
     if (location == AppRoutes.verification ||
         location == AppRoutes.verificationWizard) {
       return required == OnboardingStepId.verification;

@@ -1,7 +1,7 @@
+// ignore_for_file: lines_longer_than_80_chars
 import 'package:flutter/material.dart';
-
-import '../../persistence/local_kv_store.dart';
-import 'theme_mode_repository.dart';
+import 'package:lawbid/core/design_system/theme/theme_mode_repository.dart';
+import 'package:lawbid/core/persistence/local_kv_store.dart';
 
 const _kThemeModeKey = 'design_system.theme_mode';
 

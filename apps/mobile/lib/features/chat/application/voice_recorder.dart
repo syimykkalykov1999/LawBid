@@ -1,10 +1,9 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
-
-import 'package:lawbid/features/chat/domain/chat_models.dart';
 
 /// OQ-040: 0.5 s … 15 min, like the server's rule.
 const kVoiceMinDuration = Duration(milliseconds: 500);
@@ -49,9 +48,7 @@ class VoiceRecorder {
         '${dir.path}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
     await _rec.start(
       const RecordConfig(
-        encoder: AudioEncoder.aacLc,
         bitRate: 64000,
-        sampleRate: 44100,
         numChannels: 1,
       ),
       path: path,
@@ -109,11 +106,13 @@ class VoiceRecorder {
     for (var i = 0; i < count; i++) {
       final from = (i * samples.length / count).floor();
       final to = math.max(from + 1, ((i + 1) * samples.length / count).floor());
-      out.add(samples
-          .sublist(from, math.min(to, samples.length))
-          .fold(0.0, (double a, b) => math.max(a, b)));
+      out.add(
+        // ignore: prefer_int_literals
+        samples.sublist(from, math.min(to, samples.length)).fold(0.0, math.max),
+      );
     }
-    final peak = out.fold(0.0, (double a, b) => math.max(a, b));
+    // ignore: prefer_int_literals
+    final peak = out.fold(0.0, math.max);
     return [
       for (final v in out)
         (peak <= 0 ? 8 : (8 + 92 * v / peak)).round().clamp(0, 100),

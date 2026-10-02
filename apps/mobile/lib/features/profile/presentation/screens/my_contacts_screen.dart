@@ -36,7 +36,9 @@ class MyContactsScreen extends ConsumerWidget {
     if (user == null) {
       body = userState.isOffline
           ? AppOfflineState(
-              title: t.t('offline.title'), message: t.t('offline.message'))
+              title: t.t('offline.title'),
+              message: t.t('offline.message'),
+            )
           : const ProfileEditSkeleton();
     } else {
       Widget contactTile(ContactType type) {
@@ -55,9 +57,11 @@ class MyContactsScreen extends ConsumerWidget {
           badge: value == null
               ? null
               : AccountBadge(
-                  label: t.t(verified
-                      ? 'account.identifier.verified'
-                      : 'account.contact.unverified'),
+                  label: t.t(
+                    verified
+                        ? 'account.identifier.verified'
+                        : 'account.contact.unverified',
+                  ),
                   tone: verified
                       ? AccountBadgeTone.success
                       : AccountBadgeTone.warning,
@@ -74,7 +78,7 @@ class MyContactsScreen extends ConsumerWidget {
           title: t.t('contacts.section.confirmed'),
           children: [
             contactTile(ContactType.phone),
-            contactTile(ContactType.email)
+            contactTile(ContactType.email),
           ],
         ),
         _Hint(text: t.t('account.contacts.reauthHint')),
@@ -88,8 +92,12 @@ class MyContactsScreen extends ConsumerWidget {
         },
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide,
-              AppSpacing.sm, AppSpacing.screenSide, AppSpacing.xxl),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.screenSide,
+            AppSpacing.sm,
+            AppSpacing.screenSide,
+            AppSpacing.xxl,
+          ),
           children: [
             for (var i = 0; i < sections.length; i++) ...[
               if (i > 0) const SizedBox(height: AppSpacing.section),
@@ -105,8 +113,9 @@ class MyContactsScreen extends ConsumerWidget {
       appBar: AppTopBar(
         title: Text(t.t('contacts.title')),
         leading: AppBackButton(
-            semanticLabel: t.t('common.back'),
-            onPressed: () => Navigator.of(context).maybePop()),
+          semanticLabel: t.t('common.back'),
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
       ),
       body: body,
     );
@@ -125,13 +134,18 @@ class _Hint extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        AppIcon(AppIcons.lockOutlineRounded,
-            size: AppSpacing.lg, color: colors.textSecondary),
+        AppIcon(
+          AppIcons.lockOutlineRounded,
+          size: AppSpacing.lg,
+          color: colors.textSecondary,
+        ),
         const SizedBox(width: AppSpacing.sm),
         Expanded(
-            child: Text(text,
-                style:
-                    typography.caption.copyWith(color: colors.textSecondary))),
+          child: Text(
+            text,
+            style: typography.caption.copyWith(color: colors.textSecondary),
+          ),
+        ),
       ],
     );
   }
@@ -150,9 +164,13 @@ class _ContactPreferencesSection extends ConsumerWidget {
       error: (error, _) => AppCard(
         child: Column(
           children: [
-            Text(t.t(isOfflineError(error)
-                ? 'offline.message'
-                : 'contacts.prefs.error')),
+            Text(
+              t.t(
+                isOfflineError(error)
+                    ? 'offline.message'
+                    : 'contacts.prefs.error',
+              ),
+            ),
             const SizedBox(height: AppSpacing.md),
             AppButton(
               label: t.t('error.retry'),
@@ -220,8 +238,9 @@ class _PreferencesFormState extends ConsumerState<_PreferencesForm> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               ContactPreferenceChips(
-                  value: _method,
-                  onChanged: (m) => setState(() => _method = m)),
+                value: _method,
+                onChanged: (m) => setState(() => _method = m),
+              ),
               const SizedBox(height: AppSpacing.lg),
               AppTextField(
                 controller: _note,

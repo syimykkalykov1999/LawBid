@@ -73,7 +73,9 @@ class ChatFolderPills extends ConsumerWidget {
                         const SizedBox(width: 6),
                         Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 1),
+                            horizontal: 6,
+                            vertical: 1,
+                          ),
                           decoration: BoxDecoration(
                             color: colors.gold,
                             borderRadius: BorderRadius.circular(AppRadii.pill),
@@ -260,8 +262,10 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
                       semanticLabel: t.t('chat.organize.noteHint'),
                       maxLength: 280,
                       maxLines: 3,
-                      leading: AppIcon(AppIcons.stickyNote2Outlined,
-                          color: colors.goldDark),
+                      leading: AppIcon(
+                        AppIcons.stickyNote2Outlined,
+                        color: colors.goldDark,
+                      ),
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     AppButton(

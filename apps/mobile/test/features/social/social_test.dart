@@ -65,11 +65,13 @@ void main() {
   testWidgets('the feed shows post cards with author, likes and tags',
       (tester) async {
     final repo = FakeSocialRepository(posts: [fakePost('p1', likes: 2)]);
-    await tester.pumpWidget(uxApp(
-      const Scaffold(body: PostsFeedView()),
-      theme: AppTheme.light(),
-      overrides: uxOverrides(social: repo),
-    ));
+    await tester.pumpWidget(
+      uxApp(
+        const Scaffold(body: PostsFeedView()),
+        theme: AppTheme.light(),
+        overrides: uxOverrides(social: repo),
+      ),
+    );
     await tester.pumpAndSettle();
     expect(find.text('Saul Goodman'), findsOneWidget);
     // Owner 2026-09-30 card: the like count sits next to the heart.
@@ -81,11 +83,13 @@ void main() {
       "someone else's post ⋯: profile, block, report — no copy link "
       '(the paper plane shares)', (tester) async {
     final repo = FakeSocialRepository(posts: [fakePost('p1')]);
-    await tester.pumpWidget(uxApp(
-      const Scaffold(body: PostsFeedView()),
-      theme: AppTheme.light(),
-      overrides: uxOverrides(social: repo),
-    ));
+    await tester.pumpWidget(
+      uxApp(
+        const Scaffold(body: PostsFeedView()),
+        theme: AppTheme.light(),
+        overrides: uxOverrides(social: repo),
+      ),
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.byIcon(AppIcons.moreHorizRounded).first);
     await tester.pump(const Duration(milliseconds: 400));
@@ -102,11 +106,13 @@ void main() {
       'search: one request per pause, nothing under 2 characters (§7.1)',
       (tester) async {
     final search = FakeSearchRepository();
-    await tester.pumpWidget(uxApp(
-      const SearchScreen(),
-      theme: AppTheme.light(),
-      overrides: uxOverrides(search: search),
-    ));
+    await tester.pumpWidget(
+      uxApp(
+        const SearchScreen(),
+        theme: AppTheme.light(),
+        overrides: uxOverrides(search: search),
+      ),
+    );
     await tester.pump();
     // Owner 2026-09-29 (2nd pass): the big field sits at the top again.
     await tester.enterText(find.byType(TextField), 'a');
@@ -125,11 +131,13 @@ void main() {
 
   testWidgets('search tabs by role: a client has no Cases tab (§7.1)',
       (tester) async {
-    await tester.pumpWidget(uxApp(
-      const SearchScreen(),
-      theme: AppTheme.light(),
-      overrides: uxOverrides(),
-    ));
+    await tester.pumpWidget(
+      uxApp(
+        const SearchScreen(),
+        theme: AppTheme.light(),
+        overrides: uxOverrides(),
+      ),
+    );
     await tester.pumpAndSettle();
     expect(find.text('Cases'), findsNothing);
     expect(find.text('Topics'), findsOneWidget);
@@ -137,7 +145,9 @@ void main() {
 
   test('compact counters', () {
     // 12.5K style past ten thousand.
-    expect(SocialFormat.postLink('lawbid.app', 'p 1'),
-        'https://lawbid.app/post/p%201');
+    expect(
+      SocialFormat.postLink('lawbid.app', 'p 1'),
+      'https://lawbid.app/post/p%201',
+    );
   });
 }

@@ -23,7 +23,7 @@ latter is authoritative for all colors/fonts/components/screens — file 01
 
 | Flavor | App name | Android applicationId / iOS bundle id | Entry point | Config |
 |---|---|---|---|---|
-| dev | LawBid Dev | `com.lawbid.lawbid.dev` | `lib/main_dev.dart` (also `lib/main.dart`) | `config/dev.json` |
+| dev | LawBid | `com.lawbid.lawbid.dev` | `lib/main_dev.dart` (also `lib/main.dart`) | `config/dev.json` |
 | staging | LawBid Staging | `com.lawbid.lawbid.staging` | `lib/main_staging.dart` | `config/staging.json` |
 | prod | LawBid | `com.lawbid.lawbid` (published to App Store / Google Play) | `lib/main_prod.dart` | `config/prod.json` |
 

@@ -47,13 +47,19 @@ class AppEnvironment {
   }) {
     return AppEnvironment(
       flavor: flavor,
-      apiBaseUrl: apiBaseUrlOverride.isNotEmpty ? apiBaseUrlOverride : defaultApiBaseUrl(flavor),
-      deepLinkHost: deepLinkHostOverride.isNotEmpty ? deepLinkHostOverride : defaultDeepLinkHost,
+      apiBaseUrl: apiBaseUrlOverride.isNotEmpty
+          ? apiBaseUrlOverride
+          : defaultApiBaseUrl(flavor),
+      deepLinkHost: deepLinkHostOverride.isNotEmpty
+          ? deepLinkHostOverride
+          : defaultDeepLinkHost,
     );
   }
 
-  static const String _apiBaseUrlDefine = String.fromEnvironment('API_BASE_URL');
-  static const String _deepLinkHostDefine = String.fromEnvironment('DEEP_LINK_HOST');
+  static const String _apiBaseUrlDefine =
+      String.fromEnvironment('API_BASE_URL');
+  static const String _deepLinkHostDefine =
+      String.fromEnvironment('DEEP_LINK_HOST');
 
   /// docs/01_FOUNDATION_AUTH.md §12: universal/app links live on
   /// `lawbid.app`. Must match the iOS `DEEP_LINK_HOST` build setting and
@@ -80,7 +86,7 @@ class AppEnvironment {
   /// (Android `app_name` resValue, iOS `APP_DISPLAY_NAME`); used as the
   /// in-app `MaterialApp.title` so the task switcher matches.
   String get appName => switch (flavor) {
-        AppFlavor.dev => 'LawBid Dev',
+        AppFlavor.dev => 'LawBid',
         AppFlavor.staging => 'LawBid Staging',
         AppFlavor.prod => 'LawBid',
       };
@@ -93,4 +99,5 @@ class AppEnvironment {
 }
 
 /// Riverpod access to [AppEnvironment.current] (overridable in tests).
-final appEnvironmentProvider = Provider<AppEnvironment>((ref) => AppEnvironment.current);
+final appEnvironmentProvider =
+    Provider<AppEnvironment>((ref) => AppEnvironment.current);

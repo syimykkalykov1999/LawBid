@@ -31,8 +31,10 @@ TaskItem makeTask(
       createdAt: _now,
     );
 
-AssistantRequest makeRequest(String id,
-        {RequestStatus status = RequestStatus.pending}) =>
+AssistantRequest makeRequest(
+  String id, {
+  RequestStatus status = RequestStatus.pending,
+}) =>
     AssistantRequest(
       id: id,
       membershipId: 'm1',
@@ -207,11 +209,11 @@ class FakeTeamRepository implements TeamRepository {
     final updated = makeTask(id, status: status, note: note);
     active = [
       for (final t in active)
-        if (t.id != id) t
+        if (t.id != id) t,
     ];
     done = [
       for (final t in done)
-        if (t.id != id) t
+        if (t.id != id) t,
     ];
     if (status.active) {
       active = [...active, updated];
@@ -253,6 +255,7 @@ class FakeTeamRepository implements TeamRepository {
   Future<TaskItem> updateTask(String id, TaskDraft draft) async {
     calls.add('update:$id:${draft.title}');
     final t = makeTask(id, kind: draft.kind, by: null);
+    // ignore: prefer_if_elements_to_conditional_expressions
     active = [for (final x in active) x.id == id ? t : x];
     return t;
   }
@@ -260,17 +263,26 @@ class FakeTeamRepository implements TeamRepository {
   @override
   Future<void> deleteTask(String id) async {
     calls.add('delete:$id');
-    active = [for (final x in active) if (x.id != id) x];
-    done = [for (final x in done) if (x.id != id) x];
+    active = [
+      for (final x in active)
+        if (x.id != id) x,
+    ];
+    done = [
+      for (final x in done)
+        if (x.id != id) x,
+    ];
   }
 
   @override
   Future<TaskItem> addTaskStep(String taskId, TaskStepDraft step) async {
     calls.add('step+:$taskId:${step.title}');
-    return _replace(taskId, (s) => [
-          ...s,
-          TaskStep(id: 's${s.length + 1}', title: step.title, dueAt: step.dueAt),
-        ]);
+    return _replace(
+      taskId,
+      (s) => [
+        ...s,
+        TaskStep(id: 's${s.length + 1}', title: step.title, dueAt: step.dueAt),
+      ],
+    );
   }
 
   @override
@@ -282,27 +294,34 @@ class FakeTeamRepository implements TeamRepository {
     DateTime? dueAt,
   }) async {
     calls.add('step:$taskId:$stepId:${status?.wire}:$note');
-    return _replace(taskId, (s) => [
-          for (final x in s)
-            x.id == stepId
-                ? TaskStep(
-                    id: x.id,
-                    title: x.title,
-                    status: status ?? x.status,
-                    dueAt: dueAt ?? x.dueAt,
-                    note: note ?? x.note,
-                  )
-                : x,
-        ]);
+    return _replace(
+      taskId,
+      (s) => [
+        for (final x in s)
+          // ignore: prefer_if_elements_to_conditional_expressions
+          x.id == stepId
+              ? TaskStep(
+                  id: x.id,
+                  title: x.title,
+                  status: status ?? x.status,
+                  dueAt: dueAt ?? x.dueAt,
+                  note: note ?? x.note,
+                )
+              : x,
+      ],
+    );
   }
 
   @override
   Future<TaskItem> removeTaskStep(String taskId, String stepId) async {
     calls.add('step-:$taskId:$stepId');
-    return _replace(taskId, (s) => [
-          for (final x in s)
-            if (x.id != stepId) x,
-        ]);
+    return _replace(
+      taskId,
+      (s) => [
+        for (final x in s)
+          if (x.id != stepId) x,
+      ],
+    );
   }
 
   @override

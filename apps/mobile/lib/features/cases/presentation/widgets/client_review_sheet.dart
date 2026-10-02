@@ -1,17 +1,16 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:lawbid/features/social/application/social_providers.dart'
-    show socialActionsProvider;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
+import 'package:image_picker/image_picker.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/profile/data/client_reviews_repository.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart'
     show ReviewPhoto;
+import 'package:lawbid/features/social/application/social_providers.dart'
+    show socialActionsProvider;
 
 /// OQ-038: "Review the client" on a case in work — the hired attorney
 /// rates the client (1–5 stars + optional text). Editable; every signed-in
@@ -42,7 +41,7 @@ class ClientReviewAction extends ConsumerWidget {
               .read(clientReviewsRepositoryProvider)
               .save(caseId, rating: rating, body: body, photoIds: photoIds),
         );
-        if (saved == true && context.mounted) {
+        if ((saved ?? false) && context.mounted) {
           ref.invalidate(myClientReviewProvider(caseId));
           showAppSnackBar(context, t.t('client.review.saved'));
         }
@@ -59,8 +58,10 @@ Future<bool?> showClientReviewSheet(
   required int rating,
   required String body,
   required Future<Object?> Function(
-          int rating, String body, List<String> photoIds)
-      onSave,
+    int rating,
+    String body,
+    List<String> photoIds,
+  ) onSave,
   String titleKey = 'client.review.title',
   String hintKey = 'client.review.hint',
   List<ReviewSheetPhoto> photos = const [],
@@ -94,7 +95,10 @@ class _Sheet extends ConsumerStatefulWidget {
   final int rating;
   final String body;
   final Future<Object?> Function(
-      int rating, String body, List<String> photoIds) onSave;
+    int rating,
+    String body,
+    List<String> photoIds,
+  ) onSave;
 
   @override
   ConsumerState<_Sheet> createState() => _SheetState();
@@ -156,7 +160,10 @@ class _SheetState extends ConsumerState<_Sheet> {
     setState(() => _busy = true);
     try {
       await widget.onSave(
-          _rating, _text.text, [for (final p in _photos) p.fileId]);
+        _rating,
+        _text.text,
+        [for (final p in _photos) p.fileId],
+      );
       if (mounted) Navigator.of(context).pop(true);
     } on Object catch (e) {
       if (mounted) {
@@ -173,20 +180,25 @@ class _SheetState extends ConsumerState<_Sheet> {
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     return Padding(
       padding: EdgeInsets.fromLTRB(
-          AppSpacing.screenSide,
-          AppSpacing.md,
-          AppSpacing.screenSide,
-          AppSpacing.lg + MediaQuery.viewInsetsOf(context).bottom),
+        AppSpacing.screenSide,
+        AppSpacing.md,
+        AppSpacing.screenSide,
+        AppSpacing.lg + MediaQuery.viewInsetsOf(context).bottom,
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const AppSheetHandle(),
-          Text(t.t(widget.titleKey),
-              style: type.titleMedium.copyWith(color: colors.text)),
+          Text(
+            t.t(widget.titleKey),
+            style: type.titleMedium.copyWith(color: colors.text),
+          ),
           const SizedBox(height: AppSpacing.xs),
-          Text(t.t(widget.hintKey),
-              style: type.bodySmall.copyWith(color: colors.textSecondary)),
+          Text(
+            t.t(widget.hintKey),
+            style: type.bodySmall.copyWith(color: colors.textSecondary),
+          ),
           const SizedBox(height: AppSpacing.lg),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -238,12 +250,16 @@ class _SheetState extends ConsumerState<_Sheet> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            AppIcon(AppIcons.addAPhotoOutlined,
-                                color: colors.goldDark),
+                            AppIcon(
+                              AppIcons.addAPhotoOutlined,
+                              color: colors.goldDark,
+                            ),
                             const SizedBox(height: 2),
-                            Text(t.t('reviews.photos.add'),
-                                style: type.caption
-                                    .copyWith(color: colors.goldDark)),
+                            Text(
+                              t.t('reviews.photos.add'),
+                              style:
+                                  type.caption.copyWith(color: colors.goldDark),
+                            ),
                           ],
                         ),
                       ),
@@ -276,8 +292,11 @@ class _SheetState extends ConsumerState<_Sheet> {
                             child: const CircleAvatar(
                               radius: 11,
                               backgroundColor: Colors.black54,
-                              child: AppIcon(AppIcons.closeRounded,
-                                  size: 14, color: Colors.white),
+                              child: AppIcon(
+                                AppIcons.closeRounded,
+                                size: 14,
+                                color: Colors.white,
+                              ),
                             ),
                           ),
                         ),
@@ -290,7 +309,8 @@ class _SheetState extends ConsumerState<_Sheet> {
                     child: SizedBox.square(
                       dimension: 76,
                       child: Center(
-                          child: CircularProgressIndicator(strokeWidth: 2)),
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
                     ),
                   ),
               ],

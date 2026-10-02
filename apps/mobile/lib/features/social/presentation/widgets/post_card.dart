@@ -1,33 +1,32 @@
-import 'dart:ui' show ImageFilter;
 import 'dart:math' as math;
+import 'dart:ui' show ImageFilter;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart'
-    show FollowButton;
-import 'package:lawbid/core/l10n/translator.dart';
-import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
-import 'package:lawbid/features/feed/application/feed_topics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lawbid/features/social/presentation/screens/social_screens.dart'
-    show PracticePostsScreen;
-import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:go_router/go_router.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
+import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
+import 'package:lawbid/features/feed/application/feed_topics.dart';
+import 'package:lawbid/features/reels/presentation/reel_video.dart';
+import 'package:lawbid/features/reels/presentation/reels_screen.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
+import 'package:lawbid/features/social/presentation/screens/social_screens.dart'
+    show PracticePostsScreen;
+import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart'
+    show FollowButton;
 import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/social/social_routes.dart';
-import 'package:lawbid/features/reels/presentation/reel_video.dart';
-import 'package:lawbid/features/reels/presentation/reels_screen.dart';
 
 /// Owner 2026-09-30: a feed card fills the list viewport down to the nav
 /// bar with no gaps between cards (edge-to-edge list); never
@@ -127,28 +126,30 @@ class PostCard extends ConsumerWidget {
     // none, the default art of the post's practice — full card width.
     // Owner 2026-10-01: a reel plays muted in the card; a tap opens the
     // full-screen reels starting with it.
-    final Widget picture = p.video != null
+    final picture = p.video != null
         ? InlineReel(post: p, onOpen: () => ReelsScreen.open(context, from: p))
         : p.media.isNotEmpty
-        ? PostMediaCarousel(
-            media: p.media,
-            semanticLabel: t.t('post.media.label'),
-            // The card sizes the photo box (a 2:1 band or the rest of a
-            // full-height card).
-            fill: true,
-            onDoubleTap: () => run(() => ProviderScope.containerOf(context)
-                .read(socialActionsProvider)
-                .like(p)),
-          )
-        : PracticePhoto(
-            // Owner 2026-09-30: the post's qualification; older posts by
-            // their topic hashtag.
-            categoryCode: p.practice?.categoryCode ??
-                p.tags
-                    .map(topicCategory)
-                    .firstWhere((c) => c != null, orElse: () => null),
-            practiceCode: p.practice?.code,
-          );
+            ? PostMediaCarousel(
+                media: p.media,
+                semanticLabel: t.t('post.media.label'),
+                // The card sizes the photo box (a 2:1 band or the rest of a
+                // full-height card).
+                fill: true,
+                onDoubleTap: () => run(
+                  () => ProviderScope.containerOf(context)
+                      .read(socialActionsProvider)
+                      .like(p),
+                ),
+              )
+            : PracticePhoto(
+                // Owner 2026-09-30: the post's qualification; older posts by
+                // their topic hashtag.
+                categoryCode: p.practice?.categoryCode ??
+                    p.tags
+                        .map(topicCategory)
+                        .firstWhere((c) => c != null, orElse: () => null),
+                practiceCode: p.practice?.code,
+              );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -156,7 +157,11 @@ class PostCard extends ConsumerWidget {
         if (p.tags.isNotEmpty || p.practice != null || p.isNews)
           Padding(
             padding: const EdgeInsets.fromLTRB(
-                AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.sm),
+              AppSpacing.lg,
+              0,
+              AppSpacing.lg,
+              AppSpacing.sm,
+            ),
             child: _TopicChips(
               tags: p.tags,
               practice: p.practice,
@@ -202,8 +207,11 @@ class PostCard extends ConsumerWidget {
                           fontWeight: FontWeight.w600,
                         ),
                       ),
-                      AppIcon(AppIcons.chevronRightRounded,
-                          size: 20, color: colors.goldDark),
+                      AppIcon(
+                        AppIcons.chevronRightRounded,
+                        size: 20,
+                        color: colors.goldDark,
+                      ),
                     ],
                   ),
                 ],
@@ -273,7 +281,11 @@ class PostCard extends ConsumerWidget {
         if (p.tags.isNotEmpty || p.practice != null || p.isNews)
           Padding(
             padding: const EdgeInsets.fromLTRB(
-                AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.md),
+              AppSpacing.lg,
+              0,
+              AppSpacing.lg,
+              AppSpacing.md,
+            ),
             child: _TopicChips(
               tags: p.tags,
               practice: p.practice,
@@ -298,7 +310,11 @@ class PostCard extends ConsumerWidget {
         if (rest.isNotEmpty)
           Padding(
             padding: const EdgeInsets.fromLTRB(
-                AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, 0),
+              AppSpacing.lg,
+              AppSpacing.sm,
+              AppSpacing.lg,
+              0,
+            ),
             child:
                 PostBodyText(body: rest, expanded: true, mentions: p.mentions),
           ),
@@ -342,10 +358,18 @@ class PostCard extends ConsumerWidget {
         if (p.likeCount > 0)
           Padding(
             padding: const EdgeInsets.fromLTRB(
-                AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.xs),
+              AppSpacing.lg,
+              0,
+              AppSpacing.lg,
+              AppSpacing.xs,
+            ),
             child: Text(
               SocialFormat.plural(
-                  t, ref.watch(l10nFormatsProvider), 'post.likes', p.likeCount),
+                t,
+                ref.watch(l10nFormatsProvider),
+                'post.likes',
+                p.likeCount,
+              ),
               style: Theme.of(context)
                   .extension<AppTypographyTokens>()!
                   .bodySmall
@@ -358,11 +382,18 @@ class PostCard extends ConsumerWidget {
         if (p.pendingReview)
           Padding(
             padding: const EdgeInsets.fromLTRB(
-                AppSpacing.lg, AppSpacing.xs, AppSpacing.lg, 0),
+              AppSpacing.lg,
+              AppSpacing.xs,
+              AppSpacing.lg,
+              0,
+            ),
             child: Row(
               children: [
-                AppIcon(AppIcons.hourglassTopRounded,
-                    size: 14, color: colors.textSecondary),
+                AppIcon(
+                  AppIcons.hourglassTopRounded,
+                  size: 14,
+                  color: colors.textSecondary,
+                ),
                 const SizedBox(width: AppSpacing.xs),
                 Flexible(
                   child: Text(
@@ -399,7 +430,9 @@ class PostCard extends ConsumerWidget {
               child: Text(
                 t.t('post.viewComments', {
                   'count': SocialFormat.count(
-                      ref.watch(l10nFormatsProvider), p.commentCount)
+                    ref.watch(l10nFormatsProvider),
+                    p.commentCount,
+                  ),
                 }),
               ),
             ),
@@ -429,28 +462,39 @@ class _TimeLine extends ConsumerWidget {
       padding: inline
           ? const EdgeInsets.only(right: AppSpacing.xs)
           : const EdgeInsets.fromLTRB(
-              AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.sm),
+              AppSpacing.lg,
+              0,
+              AppSpacing.lg,
+              AppSpacing.sm,
+            ),
       child: Row(
         mainAxisSize: inline ? MainAxisSize.min : MainAxisSize.max,
         children: [
           Flexible(
-            child: Text(SocialFormat.ago(t, f, post.createdAt),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: type.caption.copyWith(color: colors.textSecondary)),
+            child: Text(
+              SocialFormat.ago(t, f, post.createdAt),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: type.caption.copyWith(color: colors.textSecondary),
+            ),
           ),
           const SizedBox(width: AppSpacing.sm),
           // Next to Save only the globe (with its label for screen
           // readers) so the time is never cut.
           Semantics(
             label: t.t('post.public'),
-            child: AppIcon(AppIcons.publicRounded,
-                size: 14, color: colors.textSecondary),
+            child: AppIcon(
+              AppIcons.publicRounded,
+              size: 14,
+              color: colors.textSecondary,
+            ),
           ),
           if (!inline) ...[
             const SizedBox(width: AppSpacing.xs),
-            Text(t.t('post.public'),
-                style: type.caption.copyWith(color: colors.textSecondary)),
+            Text(
+              t.t('post.public'),
+              style: type.caption.copyWith(color: colors.textSecondary),
+            ),
           ],
         ],
       ),
@@ -529,7 +573,9 @@ class _TopicChips extends ConsumerWidget {
           onTap: onTap,
           child: Container(
             padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.md, vertical: AppSpacing.xs + 2),
+              horizontal: AppSpacing.md,
+              vertical: AppSpacing.xs + 2,
+            ),
             decoration: BoxDecoration(
               color: gold
                   ? colors.goldTint
@@ -543,9 +589,11 @@ class _TopicChips extends ConsumerWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (icon != null) ...[
-                  AppIcon(icon,
-                      size: 15,
-                      color: gold ? colors.goldDark : colors.goldLight),
+                  AppIcon(
+                    icon,
+                    size: 15,
+                    color: gold ? colors.goldDark : colors.goldLight,
+                  ),
                   const SizedBox(width: AppSpacing.xs),
                 ],
                 Flexible(
@@ -577,9 +625,11 @@ class _TopicChips extends ConsumerWidget {
             label: CaseFormat.practice(t, pr.i18nKey, pr.nameEn),
             main: true,
             icon: practiceGlyph(pr.categoryCode),
-            onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
-              builder: (_) => PracticePostsScreen(practice: pr.code),
-            )),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => PracticePostsScreen(practice: pr.code),
+              ),
+            ),
           )
         else if (tags.isNotEmpty)
           pill(
@@ -629,7 +679,11 @@ class _AuthorRow extends ConsumerWidget {
     final a = post.author;
     return Padding(
       padding: const EdgeInsets.fromLTRB(
-          AppSpacing.lg, AppSpacing.md, AppSpacing.xs, AppSpacing.md),
+        AppSpacing.lg,
+        AppSpacing.md,
+        AppSpacing.xs,
+        AppSpacing.md,
+      ),
       child: Row(
         children: [
           Expanded(
@@ -637,9 +691,11 @@ class _AuthorRow extends ConsumerWidget {
               button: true,
               label: t.t('post.author.open', {'name': a.displayName}),
               child: AppPressable(
-                onTap: () => context.push(a.isClient
-                    ? AppRoutes.client(a.username)
-                    : AppRoutes.lawyer(a.username)),
+                onTap: () => context.push(
+                  a.isClient
+                      ? AppRoutes.client(a.username)
+                      : AppRoutes.lawyer(a.username),
+                ),
                 child: Row(
                   children: [
                     GoldRingAvatar(
@@ -828,11 +884,14 @@ class _PostBodyTextState extends ConsumerState<PostBodyText> {
         final r = TapGestureRecognizer()
           ..onTap = () => context.push(SocialRoutes.tag(tag));
         _recognizers.add(r);
-        spans.add(TextSpan(
-          text: token,
-          style: TextStyle(color: colors.goldDark, fontWeight: FontWeight.w600),
-          recognizer: r,
-        ));
+        spans.add(
+          TextSpan(
+            text: token,
+            style:
+                TextStyle(color: colors.goldDark, fontWeight: FontWeight.w600),
+            recognizer: r,
+          ),
+        );
       } else {
         // "@anna." at the end of a sentence: the dot is not the name.
         final trimmed = token.replaceFirst(RegExp(r'\.+$'), '');
@@ -841,22 +900,30 @@ class _PostBodyTextState extends ConsumerState<PostBodyText> {
         final who =
             widget.mentions.where((x) => x.username == handle).firstOrNull;
         if (who == null) {
-          spans.add(TextSpan(
-            text: trimmed,
-            style: TextStyle(color: colors.text, fontWeight: FontWeight.w600),
-          ));
+          spans.add(
+            TextSpan(
+              text: trimmed,
+              style: TextStyle(color: colors.text, fontWeight: FontWeight.w600),
+            ),
+          );
         } else {
           final r = TapGestureRecognizer()
-            ..onTap = () => context.push(who.isAttorney
-                ? AppRoutes.lawyer(who.username)
-                : AppRoutes.client(who.username));
+            ..onTap = () => context.push(
+                  who.isAttorney
+                      ? AppRoutes.lawyer(who.username)
+                      : AppRoutes.client(who.username),
+                );
           _recognizers.add(r);
-          spans.add(TextSpan(
-            text: trimmed,
-            style:
-                TextStyle(color: colors.goldDark, fontWeight: FontWeight.w700),
-            recognizer: r,
-          ));
+          spans.add(
+            TextSpan(
+              text: trimmed,
+              style: TextStyle(
+                color: colors.goldDark,
+                fontWeight: FontWeight.w700,
+              ),
+              recognizer: r,
+            ),
+          );
         }
         if (tail.isNotEmpty) spans.add(TextSpan(text: tail));
       }
@@ -882,31 +949,33 @@ class _PostBodyTextState extends ConsumerState<PostBodyText> {
       overflow: _expanded ? TextOverflow.visible : TextOverflow.ellipsis,
     );
     if (_expanded) return text;
-    return LayoutBuilder(builder: (context, box) {
-      final painter = TextPainter(
-        text: TextSpan(text: widget.body, style: style),
-        maxLines: 3,
-        textDirection: Directionality.of(context),
-        textScaler: MediaQuery.textScalerOf(context),
-      )..layout(maxWidth: box.maxWidth);
-      if (!painter.didExceedMaxLines) return text;
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          text,
-          AppPressable(
-            onTap: () => setState(() => _expanded = true),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
-              child: Text(
-                t.t('post.more'),
-                style: type.bodySmall.copyWith(color: colors.textSecondary),
+    return LayoutBuilder(
+      builder: (context, box) {
+        final painter = TextPainter(
+          text: TextSpan(text: widget.body, style: style),
+          maxLines: 3,
+          textDirection: Directionality.of(context),
+          textScaler: MediaQuery.textScalerOf(context),
+        )..layout(maxWidth: box.maxWidth);
+        if (!painter.didExceedMaxLines) return text;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            text,
+            AppPressable(
+              onTap: () => setState(() => _expanded = true),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+                child: Text(
+                  t.t('post.more'),
+                  style: type.bodySmall.copyWith(color: colors.textSecondary),
+                ),
               ),
             ),
-          ),
-        ],
-      );
-    });
+          ],
+        );
+      },
+    );
   }
 }
 
@@ -923,7 +992,7 @@ class PostMediaCarousel extends StatefulWidget {
     super.key,
   });
 
-  /// Tap on photo [index] (the open post shows the full-screen gallery).
+  /// Tap on photo `index` (the open post shows the full-screen gallery).
   final void Function(int index)? onTap;
 
   final List<PostMedia> media;
@@ -994,8 +1063,10 @@ class _PostMediaCarouselState extends State<PostMediaCarousel>
                         ColoredBox(color: colors.skeletonBase),
                     errorWidget: (_, __, ___) => ColoredBox(
                       color: colors.skeletonBase,
-                      child: AppIcon(AppIcons.imageNotSupportedOutlined,
-                          color: colors.textSecondary),
+                      child: AppIcon(
+                        AppIcons.imageNotSupportedOutlined,
+                        color: colors.textSecondary,
+                      ),
                     ),
                   );
               return GestureDetector(
@@ -1117,8 +1188,9 @@ class _HeartBurst extends StatelessWidget {
                 color: Colors.white,
                 shadows: [
                   Shadow(
-                      color: colors.gold.withValues(alpha: 0.6),
-                      blurRadius: 28),
+                    color: colors.gold.withValues(alpha: 0.6),
+                    blurRadius: 28,
+                  ),
                   Shadow(color: colors.shadow, blurRadius: 12),
                 ],
               ),
@@ -1293,9 +1365,10 @@ class _BounceIconState extends State<BounceIcon>
   late final Animation<double> _scale = TweenSequence<double>([
     TweenSequenceItem(tween: Tween<double>(begin: 1, end: 1.28), weight: 40),
     TweenSequenceItem(
-        tween: Tween<double>(begin: 1.28, end: 1)
-            .chain(CurveTween(curve: Curves.elasticOut)),
-        weight: 60),
+      tween: Tween<double>(begin: 1.28, end: 1)
+          .chain(CurveTween(curve: Curves.elasticOut)),
+      weight: 60,
+    ),
   ]).animate(_c);
 
   @override
@@ -1372,15 +1445,17 @@ class PostCardSkeleton extends StatelessWidget {
       child: const Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(children: [
-            AppSkeleton(
-              width: AppSizes.cardAvatar,
-              height: AppSizes.cardAvatar,
-              borderRadius: AppRadii.pill,
-            ),
-            SizedBox(width: AppSpacing.md),
-            Expanded(child: AppSkeleton(height: AppSpacing.lg)),
-          ]),
+          Row(
+            children: [
+              AppSkeleton(
+                width: AppSizes.cardAvatar,
+                height: AppSizes.cardAvatar,
+                borderRadius: AppRadii.pill,
+              ),
+              SizedBox(width: AppSpacing.md),
+              Expanded(child: AppSkeleton()),
+            ],
+          ),
           SizedBox(height: AppSpacing.lg),
           AspectRatio(
             aspectRatio: 1,
@@ -1402,14 +1477,17 @@ class PostDisclaimer extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final Translator t = ref.watch(translatorProvider);
+    final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        AppIcon(AppIcons.infoOutlineRounded,
-            size: AppSizes.iconSm, color: colors.textSecondary),
+        AppIcon(
+          AppIcons.infoOutlineRounded,
+          size: AppSizes.iconSm,
+          color: colors.textSecondary,
+        ),
         const SizedBox(width: AppSpacing.sm),
         Expanded(
           child: Text(

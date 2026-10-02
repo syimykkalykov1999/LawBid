@@ -1,22 +1,19 @@
 import 'package:flutter/material.dart';
-import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
-import 'package:lawbid/features/chat/presentation/open_direct_chat.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
-import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
+import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
-import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/features/cases/presentation/widgets/client_review_sheet.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
     show showConfirmSheet;
-import 'package:lawbid/features/social/application/social_providers.dart'
-    show currentUserIdProvider;
+import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
+import 'package:lawbid/features/chat/presentation/open_direct_chat.dart';
 import 'package:lawbid/features/profile/data/client_reviews_repository.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
+import 'package:lawbid/features/profile/presentation/widgets/profile_avatar.dart';
 import 'package:lawbid/features/profile/presentation/widgets/review_widgets.dart'
     show
         MapsReviewTile,
@@ -24,7 +21,8 @@ import 'package:lawbid/features/profile/presentation/widgets/review_widgets.dart
         ReviewSummaryPanel,
         showReportReasonSheet,
         showReviewReplySheet;
-import 'package:lawbid/features/profile/presentation/widgets/profile_avatar.dart';
+import 'package:lawbid/features/social/application/social_providers.dart'
+    show currentUserIdProvider;
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart'
     show ProfilePostsGrid;
 import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart'
@@ -32,6 +30,7 @@ import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart'
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/social/social_routes.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
+import 'package:lawbid/features/team/domain/team_models.dart';
 
 enum _Tab { posts, reviews }
 
@@ -87,16 +86,21 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
                   children: [
                     // Owner 2026-09-30: the same size as the attorney's
                     // counters, not a big title.
-                    Text(value,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: type.body.copyWith(
-                            color: colors.text, fontWeight: FontWeight.w700)),
-                    Text(label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style:
-                            type.caption.copyWith(color: colors.textSecondary)),
+                    Text(
+                      value,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: type.body.copyWith(
+                        color: colors.text,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: type.caption.copyWith(color: colors.textSecondary),
+                    ),
                   ],
                 ),
               ),
@@ -127,14 +131,19 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  AppIcon(icon,
-                      size: 20,
-                      color: selected ? colors.text : colors.textSecondary),
+                  AppIcon(
+                    icon,
+                    size: 20,
+                    color: selected ? colors.text : colors.textSecondary,
+                  ),
                   const SizedBox(width: AppSpacing.xs),
-                  Text(label,
-                      style: type.bodySmall.copyWith(
-                          color: selected ? colors.text : colors.textSecondary,
-                          fontWeight: FontWeight.w600)),
+                  Text(
+                    label,
+                    style: type.bodySmall.copyWith(
+                      color: selected ? colors.text : colors.textSecondary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -145,7 +154,11 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
 
     final header = Padding(
       padding: const EdgeInsets.fromLTRB(
-          AppSpacing.screenSide, AppSpacing.md, AppSpacing.screenSide, 0),
+        AppSpacing.screenSide,
+        AppSpacing.md,
+        AppSpacing.screenSide,
+        0,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -159,14 +172,20 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
                 semanticLabel: t.t('profile.avatar.label'),
               ),
               const SizedBox(width: AppSpacing.md),
-              counter(SocialFormat.count(f, p.postsCount),
-                  t.t('client.counter.posts')),
-              counter(SocialFormat.count(f, p.followersCount),
-                  t.t('client.counter.followers'),
-                  onTap: () => context.push(SocialRoutes.followers(p.id))),
-              counter(SocialFormat.count(f, p.followingCount),
-                  t.t('client.counter.following'),
-                  onTap: () => context.push(SocialRoutes.following(p.id))),
+              counter(
+                SocialFormat.count(f, p.postsCount),
+                t.t('client.counter.posts'),
+              ),
+              counter(
+                SocialFormat.count(f, p.followersCount),
+                t.t('client.counter.followers'),
+                onTap: () => context.push(SocialRoutes.followers(p.id)),
+              ),
+              counter(
+                SocialFormat.count(f, p.followingCount),
+                t.t('client.counter.following'),
+                onTap: () => context.push(SocialRoutes.following(p.id)),
+              ),
             ],
           ),
           const SizedBox(height: AppSpacing.md),
@@ -175,11 +194,15 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
               Flexible(
                 child: Semantics(
                   header: true,
-                  child: Text(name,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: type.body.copyWith(
-                          color: colors.text, fontWeight: FontWeight.w700)),
+                  child: Text(
+                    name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: type.body.copyWith(
+                      color: colors.text,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
               ),
               if (p.verified) ...[
@@ -191,8 +214,11 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
           const SizedBox(height: 2),
           Row(
             children: [
-              AppIcon(AppIcons.locationOnOutlined,
-                  size: AppSpacing.lg, color: colors.goldStroke),
+              AppIcon(
+                AppIcons.locationOnOutlined,
+                size: AppSpacing.lg,
+                color: colors.goldStroke,
+              ),
               const SizedBox(width: AppSpacing.xs),
               Flexible(
                 child: Text(
@@ -204,8 +230,10 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
           ),
           if (blocked) ...[
             const SizedBox(height: AppSpacing.sm),
-            Text(t.t(p.isBlocked ? 'block.byYou' : 'block.blockedYou'),
-                style: type.bodySmall.copyWith(color: colors.textSecondary)),
+            Text(
+              t.t(p.isBlocked ? 'block.byYou' : 'block.blockedYou'),
+              style: type.bodySmall.copyWith(color: colors.textSecondary),
+            ),
           ],
           const SizedBox(height: AppSpacing.md),
           if (p.isSelf)
@@ -247,10 +275,16 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
           Row(
             children: [
               tabButton(
-                  _Tab.posts, AppIcons.gridOnRounded, t.t('client.tab.posts')),
+                _Tab.posts,
+                AppIcons.gridOnRounded,
+                t.t('client.tab.posts'),
+              ),
               if (p.canSeeReviews)
-                tabButton(_Tab.reviews, AppIcons.starOutlineRounded,
-                    t.t('client.tab.reviews')),
+                tabButton(
+                  _Tab.reviews,
+                  AppIcons.starOutlineRounded,
+                  t.t('client.tab.reviews'),
+                ),
             ],
           ),
           const SizedBox(height: AppSpacing.sm),
@@ -344,7 +378,7 @@ class _ReviewsListState extends ConsumerState<_ReviewsList> {
             .read(clientReviewsRepositoryProvider)
             .saveOpen(clientId, rating: rating, body: body, photoIds: photoIds),
       );
-      if (saved == true && context.mounted) {
+      if ((saved ?? false) && context.mounted) {
         refresh();
         showAppSnackBar(context, t.t('client.review.saved'));
       }
@@ -352,31 +386,43 @@ class _ReviewsListState extends ConsumerState<_ReviewsList> {
 
     final note = Padding(
       padding: const EdgeInsets.fromLTRB(
-          AppSpacing.screenSide, AppSpacing.sm, AppSpacing.screenSide, 0),
+        AppSpacing.screenSide,
+        AppSpacing.sm,
+        AppSpacing.screenSide,
+        0,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              AppIcon(AppIcons.infoOutlineRounded,
-                  size: AppSizes.iconSm, color: colors.goldDark),
+              AppIcon(
+                AppIcons.infoOutlineRounded,
+                size: AppSizes.iconSm,
+                color: colors.goldDark,
+              ),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: Text(
-                    t.t(isSelf
+                  t.t(
+                    isSelf
                         ? 'client.reviews.selfNote'
-                        : 'client.reviews.publicNote'),
-                    style: type.caption.copyWith(color: colors.textSecondary)),
+                        : 'client.reviews.publicNote',
+                  ),
+                  style: type.caption.copyWith(color: colors.textSecondary),
+                ),
               ),
             ],
           ),
           if (!isSelf) ...[
             const SizedBox(height: AppSpacing.md),
             AppButton(
-              label: t.t(mine == null
-                  ? 'client.reviews.write'
-                  : 'client.reviews.editMine'),
+              label: t.t(
+                mine == null
+                    ? 'client.reviews.write'
+                    : 'client.reviews.editMine',
+              ),
               icon: mine == null
                   ? AppIcons.rateReviewOutlined
                   : AppIcons.editOutlined,
@@ -392,7 +438,11 @@ class _ReviewsListState extends ConsumerState<_ReviewsList> {
     );
     final panel = Padding(
       padding: const EdgeInsets.fromLTRB(
-          AppSpacing.screenSide, AppSpacing.md, AppSpacing.screenSide, 0),
+        AppSpacing.screenSide,
+        AppSpacing.md,
+        AppSpacing.screenSide,
+        0,
+      ),
       child: ReviewSummaryPanel(
         summary: summary,
         selectedStars: _stars,
@@ -421,14 +471,20 @@ class _ReviewsListState extends ConsumerState<_ReviewsList> {
           if (page.items.isEmpty)
             Padding(
               padding: const EdgeInsets.all(AppSpacing.xxl),
-              child: Text(t.t('client.reviews.empty'),
-                  textAlign: TextAlign.center,
-                  style: type.body.copyWith(color: colors.textSecondary)),
+              child: Text(
+                t.t('client.reviews.empty'),
+                textAlign: TextAlign.center,
+                style: type.body.copyWith(color: colors.textSecondary),
+              ),
             ),
           for (final r in page.items)
             Padding(
-              padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide,
-                  AppSpacing.md, AppSpacing.screenSide, 0),
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.screenSide,
+                AppSpacing.md,
+                AppSpacing.screenSide,
+                0,
+              ),
               // Owner 2026-10-01: laid out like a Google Maps review.
               child: MapsReviewTile(
                 id: r.id,
@@ -459,9 +515,11 @@ class _ReviewsListState extends ConsumerState<_ReviewsList> {
                 onDeleteReply:
                     r.canReply ? () => _deleteReply(r, refresh) : null,
                 onMenu: () => _reviewMenu(r, refresh, write),
-                onAuthor: () => context.push(r.authorIsClient
-                    ? AppRoutes.client(r.attorneyUsername)
-                    : AppRoutes.lawyer(r.attorneyUsername)),
+                onAuthor: () => context.push(
+                  r.authorIsClient
+                      ? AppRoutes.client(r.attorneyUsername)
+                      : AppRoutes.lawyer(r.attorneyUsername),
+                ),
               ),
             ),
         ],

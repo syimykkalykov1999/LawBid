@@ -1,9 +1,8 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
-import 'package:lawbid_api/lawbid_api.dart' as api;
-
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
+import 'package:lawbid_api/lawbid_api.dart' as api;
 
 // Owner 2026-09-30: `calls` — incoming and missed calls; `following` and
 // `newCases` — opt-in alerts (off until turned on).
@@ -21,7 +20,12 @@ enum NotifCategory {
 
 @immutable
 class NotifActor {
-  const NotifActor({required this.displayName, this.id, this.username, this.avatarUrl});
+  const NotifActor({
+    required this.displayName,
+    this.id,
+    this.username,
+    this.avatarUrl,
+  });
 
   /// null for a client (no public profile).
   final String? id;
@@ -115,7 +119,11 @@ class CategorySetting {
 
 @immutable
 class QuietHours {
-  const QuietHours({required this.start, required this.end, required this.timezone});
+  const QuietHours({
+    required this.start,
+    required this.end,
+    required this.timezone,
+  });
 
   /// "22:00"
   final String start;
@@ -179,9 +187,13 @@ class ApiNotificationsRepository implements NotificationsRepository {
   /// `new_cases` → [NotifCategory.newCases].
   static NotifCategory _cat(String name) {
     final key = name.replaceAllMapped(
-        RegExp('_([a-z])'), (m) => m.group(1)!.toUpperCase());
-    return NotifCategory.values.firstWhere((c) => c.name == key,
-        orElse: () => NotifCategory.system);
+      RegExp('_([a-z])'),
+      (m) => m.group(1)!.toUpperCase(),
+    );
+    return NotifCategory.values.firstWhere(
+      (c) => c.name == key,
+      orElse: () => NotifCategory.system,
+    );
   }
 
   static NotificationSettings _settings(api.NotificationSettingsDto d) =>
@@ -238,7 +250,10 @@ class ApiNotificationsRepository implements NotificationsRepository {
   @override
   Future<void> markRead({List<String>? ids, bool all = false}) => guardApiCall(
         () => _api.readNotifications(
-          body: api.ReadNotificationsDto(ids: all ? null : ids, all: all ? true : null),
+          body: api.ReadNotificationsDto(
+            ids: all ? null : ids,
+            all: all ? true : null,
+          ),
         ),
       );
 
@@ -257,19 +272,26 @@ class ApiNotificationsRepository implements NotificationsRepository {
 
   @override
   Future<NotificationSettings> updateSettings(
-          List<CategorySetting> items) async =>
-      _settings((await guardApiCall(() => _api.updateNotificationSettings(
-                body: api.UpdateNotificationSettingsDto(items: [
-                  for (final i in items)
-                    api.CategorySettingDto(
-                      category: api.CategorySettingDtoCategory.values
-                          .byName(i.category.name),
-                      pushEnabled: i.push,
-                      emailEnabled: i.email,
-                    ),
-                ]),
-              )))
-          .data);
+    List<CategorySetting> items,
+  ) async =>
+      _settings(
+        (await guardApiCall(
+          () => _api.updateNotificationSettings(
+            body: api.UpdateNotificationSettingsDto(
+              items: [
+                for (final i in items)
+                  api.CategorySettingDto(
+                    category: api.CategorySettingDtoCategory.values
+                        .byName(i.category.name),
+                    pushEnabled: i.push,
+                    emailEnabled: i.email,
+                  ),
+              ],
+            ),
+          ),
+        ))
+            .data,
+      );
 
   static NewCaseAlerts _alerts(api.NewCaseAlertsDto d) => NewCaseAlerts(
         useProfile: d.useProfile,
@@ -286,37 +308,47 @@ class ApiNotificationsRepository implements NotificationsRepository {
     required bool useProfile,
     List<String>? practiceAreaIds,
   }) async =>
-      _alerts((await guardApiCall(() => _api.setNewCaseAlerts(
-                body: api.UpdateNewCaseAlertsDto(
-                  useProfile: useProfile,
-                  practiceAreaIds: practiceAreaIds,
-                ),
-              )))
-          .data);
+      _alerts(
+        (await guardApiCall(
+          () => _api.setNewCaseAlerts(
+            body: api.UpdateNewCaseAlertsDto(
+              useProfile: useProfile,
+              practiceAreaIds: practiceAreaIds,
+            ),
+          ),
+        ))
+            .data,
+      );
 
   @override
-  Future<NotificationSettings> setQuietHours(QuietHours? q) async =>
-      _settings((await guardApiCall(() => _api.setQuietHours(
-                body: api.QuietHoursDto(
-                  start: q?.start,
-                  end: q?.end,
-                  timezone: q?.timezone,
-                ),
-              )))
-          .data);
+  Future<NotificationSettings> setQuietHours(QuietHours? q) async => _settings(
+        (await guardApiCall(
+          () => _api.setQuietHours(
+            body: api.QuietHoursDto(
+              start: q?.start,
+              end: q?.end,
+              timezone: q?.timezone,
+            ),
+          ),
+        ))
+            .data,
+      );
 
   @override
   Future<void> registerPushToken(String token, {required bool ios}) =>
-      guardApiCall(() => _api.registerPushToken(
-            body: api.PushTokenDto(
-              token: token,
-              platform: ios
-                  ? api.PushTokenDtoPlatform.ios
-                  : api.PushTokenDtoPlatform.android,
-            ),
-          ));
+      guardApiCall(
+        () => _api.registerPushToken(
+          body: api.PushTokenDto(
+            token: token,
+            platform: ios
+                ? api.PushTokenDtoPlatform.ios
+                : api.PushTokenDtoPlatform.android,
+          ),
+        ),
+      );
 
   @override
   Future<void> deletePushToken(String token) => guardApiCall(
-      () => _api.deletePushToken(body: api.DeletePushTokenDto(token: token)));
+        () => _api.deletePushToken(body: api.DeletePushTokenDto(token: token)),
+      );
 }

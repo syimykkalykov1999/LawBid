@@ -44,20 +44,24 @@ class InlineNotice extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             ExcludeSemantics(
-                child: AppIcon(icon, size: AppSizes.iconSm, color: fg)),
+              child: AppIcon(icon, size: AppSizes.iconSm, color: fg),
+            ),
             const SizedBox(width: AppSpacing.md),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   if (title != null) ...[
-                    Text(title!,
-                        style:
-                            typography.roleTitle.copyWith(color: colors.text)),
+                    Text(
+                      title!,
+                      style: typography.roleTitle.copyWith(color: colors.text),
+                    ),
                     const SizedBox(height: AppSpacing.xs),
                   ],
-                  Text(message,
-                      style: typography.bodySmall.copyWith(color: colors.text)),
+                  Text(
+                    message,
+                    style: typography.bodySmall.copyWith(color: colors.text),
+                  ),
                   if (action != null) ...[
                     const SizedBox(height: AppSpacing.sm),
                     action!,

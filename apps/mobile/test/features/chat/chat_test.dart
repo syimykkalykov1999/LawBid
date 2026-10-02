@@ -1,3 +1,4 @@
+// ignore_for_file: lines_longer_than_80_chars
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -41,7 +42,11 @@ class _FakeChat implements ChatRepository {
       const CursorPage(items: []);
 
   @override
-  Future<ChatMessage> send(String id, String clientMessageId, String body) async {
+  Future<ChatMessage> send(
+    String id,
+    String clientMessageId,
+    String body,
+  ) async {
     if (offline) throw _offline;
     final r = refuse;
     if (r != null) throw r;
@@ -63,14 +68,16 @@ class _FakeChat implements ChatRepository {
 
 ProviderContainer _container(_FakeChat chat) {
   final db = SocialLocalDatabase(NativeDatabase.memory());
-  final c = ProviderContainer(overrides: [
-    chatRepositoryProvider.overrideWithValue(chat),
-    socialLocalDatabaseProvider.overrideWithValue(db),
-    currentUserIdProvider.overrideWithValue('me'),
-    realtimeClientProvider.overrideWithValue(null),
-    networkInterfaceMonitorProvider.overrideWithValue(FakeNetworkMonitor()),
-    reachabilityProbeProvider.overrideWithValue(FakeProbe().call),
-  ]);
+  final c = ProviderContainer(
+    overrides: [
+      chatRepositoryProvider.overrideWithValue(chat),
+      socialLocalDatabaseProvider.overrideWithValue(db),
+      currentUserIdProvider.overrideWithValue('me'),
+      realtimeClientProvider.overrideWithValue(null),
+      networkInterfaceMonitorProvider.overrideWithValue(FakeNetworkMonitor()),
+      reachabilityProbeProvider.overrideWithValue(FakeProbe().call),
+    ],
+  );
   addTearDown(() async {
     c.dispose();
     await db.close();
@@ -78,7 +85,8 @@ ProviderContainer _container(_FakeChat chat) {
   return c;
 }
 
-Future<void> _settle() => Future<void>.delayed(const Duration(milliseconds: 50));
+Future<void> _settle() =>
+    Future<void>.delayed(const Duration(milliseconds: 50));
 
 void main() {
   test('offline message waits in the outbox, then goes once (§8.4)', () async {
@@ -109,7 +117,10 @@ void main() {
       () async {
     final chat = _FakeChat()
       ..refuse = const ApiException(
-          code: 'CONVERSATION_CLOSED', message: 'closed', statusCode: 409);
+        code: 'CONVERSATION_CLOSED',
+        message: 'closed',
+        statusCode: 409,
+      );
     final c = _container(chat);
     final sub = c.listen(chatThreadProvider('c1'), (_, __) {});
     addTearDown(sub.close);
@@ -135,24 +146,34 @@ void main() {
   test('notification taps open the right screen (§9.2)', () {
     expect(
       notificationRoute(
-          type: 'new_message',
-          payload: {'conversationId': 'c1'},
-          attorney: false),
+        type: 'new_message',
+        payload: {'conversationId': 'c1'},
+        attorney: false,
+      ),
       '/chat/c1',
     );
     expect(
       notificationRoute(
-          type: 'bid_received', payload: {'bidId': 'b1'}, attorney: false),
+        type: 'bid_received',
+        payload: {'bidId': 'b1'},
+        attorney: false,
+      ),
       '/bid/b1',
     );
     expect(
       notificationRoute(
-          type: 'post_like', payload: {'postId': 'p1'}, attorney: true),
+        type: 'post_like',
+        payload: {'postId': 'p1'},
+        attorney: true,
+      ),
       '/post/p1',
     );
     expect(
       notificationRoute(
-          type: 'case_closed', payload: {'caseId': 'k1'}, attorney: false),
+        type: 'case_closed',
+        payload: {'caseId': 'k1'},
+        attorney: false,
+      ),
       '/mine/case/k1',
     );
   });

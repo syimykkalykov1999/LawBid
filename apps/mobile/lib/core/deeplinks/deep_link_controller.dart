@@ -2,17 +2,16 @@ import 'dart:async';
 
 import 'package:app_links/app_links.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-import '../../features/auth/application/onboarding_flow.dart';
-import '../../features/auth/auth_routes.dart';
-import '../../features/auth/domain/onboarding_step.dart';
-import '../../features/onboarding/application/current_user_controller.dart';
-import '../config/app_environment.dart';
-import '../navigation/app_router.dart';
-import '../navigation/guards/app_router_guard.dart';
-import '../session/session_providers.dart';
-import '../startup/app_startup.dart';
-import 'deep_link.dart';
+import 'package:lawbid/core/config/app_environment.dart';
+import 'package:lawbid/core/deeplinks/deep_link.dart';
+import 'package:lawbid/core/navigation/app_router.dart';
+import 'package:lawbid/core/navigation/guards/app_router_guard.dart';
+import 'package:lawbid/core/session/session_providers.dart';
+import 'package:lawbid/core/startup/app_startup.dart';
+import 'package:lawbid/features/auth/application/onboarding_flow.dart';
+import 'package:lawbid/features/auth/auth_routes.dart';
+import 'package:lawbid/features/auth/domain/onboarding_step.dart';
+import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 
 /// Where incoming link URIs come from. Production: `app_links` (custom
 /// scheme + universal links + App Links, cold start and while running).
@@ -25,7 +24,8 @@ abstract interface class DeepLinkSource {
 }
 
 class AppLinksDeepLinkSource implements DeepLinkSource {
-  AppLinksDeepLinkSource([AppLinks? appLinks]) : _appLinks = appLinks ?? AppLinks();
+  AppLinksDeepLinkSource([AppLinks? appLinks])
+      : _appLinks = appLinks ?? AppLinks();
 
   final AppLinks _appLinks;
 
@@ -36,13 +36,13 @@ class AppLinksDeepLinkSource implements DeepLinkSource {
   Stream<Uri> get links => _appLinks.uriLinkStream;
 }
 
-final deepLinkSourceProvider = Provider<DeepLinkSource>((ref) => AppLinksDeepLinkSource());
+final deepLinkSourceProvider =
+    Provider<DeepLinkSource>((ref) => AppLinksDeepLinkSource());
 
 /// Navigation used by [DeepLinkController] — the app router's `go`;
 /// overridable in tests.
 final deepLinkNavigatorProvider = Provider<void Function(String location)>(
-  (ref) =>
-      (location) => ref.read(appRouterProvider).go(location),
+  (ref) => (location) => ref.read(appRouterProvider).go(location),
 );
 
 /// Turns incoming links into app actions (docs/01_FOUNDATION_AUTH.md §12,
@@ -66,7 +66,10 @@ class DeepLinkController extends Notifier<DeepLink?> {
   DeepLink? build() {
     ref
       ..listen(appStartupProvider, (_, __) => _drain())
-      ..listen(sessionControllerProvider.select((s) => s?.sub), (_, __) => _drain())
+      ..listen(
+        sessionControllerProvider.select((s) => s?.sub),
+        (_, __) => _drain(),
+      )
       ..listen(currentUserControllerProvider, (_, __) => _drain())
       ..onDispose(() => _subscription?.cancel());
     return null;
@@ -87,7 +90,8 @@ class DeepLinkController extends Notifier<DeepLink?> {
 
   /// Parses [uri]; unknown/invalid links are ignored.
   void handleUri(Uri uri) {
-    final link = parseDeepLink(uri, host: ref.read(appEnvironmentProvider).deepLinkHost);
+    final link =
+        parseDeepLink(uri, host: ref.read(appEnvironmentProvider).deepLinkHost);
     if (link == null) return;
     state = link;
     _drain();
@@ -106,10 +110,13 @@ class DeepLinkController extends Notifier<DeepLink?> {
         final navigate = ref.read(deepLinkNavigatorProvider);
         unawaited(
           ref.read(onboardingFlowProvider.notifier).verifyEmailMagicLink(
-            token,
-            show: (step) =>
-                navigate(step == OnboardingStep.email ? AuthRoutes.email : AuthRoutes.otp),
-          ),
+                token,
+                show: (step) => navigate(
+                  step == OnboardingStep.email
+                      ? AuthRoutes.email
+                      : AuthRoutes.otp,
+                ),
+              ),
         );
       case ContentDeepLink(:final location):
         if (!hasSession) return; // wait for sign-in
@@ -123,6 +130,7 @@ class DeepLinkController extends Notifier<DeepLink?> {
   }
 }
 
-final deepLinkControllerProvider = NotifierProvider<DeepLinkController, DeepLink?>(
+final deepLinkControllerProvider =
+    NotifierProvider<DeepLinkController, DeepLink?>(
   DeepLinkController.new,
 );

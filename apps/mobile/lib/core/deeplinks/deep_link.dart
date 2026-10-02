@@ -25,7 +25,8 @@ final class EmailCodeDeepLink extends DeepLink {
   final String token;
 
   @override
-  bool operator ==(Object other) => other is EmailCodeDeepLink && other.token == token;
+  bool operator ==(Object other) =>
+      other is EmailCodeDeepLink && other.token == token;
 
   @override
   int get hashCode => token.hashCode;
@@ -48,13 +49,14 @@ final class ContentDeepLink extends DeepLink {
 
   /// In-app go_router location for this link.
   String get location => switch (kind) {
-    ContentKind.caseItem => '/case/${Uri.encodeComponent(id)}',
-    ContentKind.lawyer => '/lawyer/${Uri.encodeComponent(id)}',
-    ContentKind.post => '/post/${Uri.encodeComponent(id)}',
-  };
+        ContentKind.caseItem => '/case/${Uri.encodeComponent(id)}',
+        ContentKind.lawyer => '/lawyer/${Uri.encodeComponent(id)}',
+        ContentKind.post => '/post/${Uri.encodeComponent(id)}',
+      };
 
   @override
-  bool operator ==(Object other) => other is ContentDeepLink && other.kind == kind && other.id == id;
+  bool operator ==(Object other) =>
+      other is ContentDeepLink && other.kind == kind && other.id == id;
 
   @override
   int get hashCode => Object.hash(kind, id);
@@ -84,7 +86,10 @@ DeepLink? parseDeepLink(Uri uri, {required String host}) {
   final List<String> segments;
   final scheme = uri.scheme.toLowerCase();
   if (scheme == deepLinkScheme) {
-    segments = [if (uri.host.isNotEmpty) uri.host.toLowerCase(), ...uri.pathSegments];
+    segments = [
+      if (uri.host.isNotEmpty) uri.host.toLowerCase(),
+      ...uri.pathSegments,
+    ];
   } else if (scheme == 'https') {
     final linkHost = uri.host.toLowerCase();
     final expected = host.toLowerCase();
@@ -110,10 +115,17 @@ DeepLink? parseDeepLink(Uri uri, {required String host}) {
   if (parts.length != 2) return null;
   final id = parts[1];
   return switch (parts[0]) {
-    'case' when _idPattern.hasMatch(id) => ContentDeepLink(ContentKind.caseItem, id),
-    'post' when _idPattern.hasMatch(id) => ContentDeepLink(ContentKind.post, id),
-    'lawyer' when _usernamePattern.hasMatch(id.startsWith('@') ? id.substring(1) : id) =>
-      ContentDeepLink(ContentKind.lawyer, id.startsWith('@') ? id.substring(1) : id),
+    'case' when _idPattern.hasMatch(id) =>
+      ContentDeepLink(ContentKind.caseItem, id),
+    'post' when _idPattern.hasMatch(id) =>
+      ContentDeepLink(ContentKind.post, id),
+    'lawyer'
+        when _usernamePattern
+            .hasMatch(id.startsWith('@') ? id.substring(1) : id) =>
+      ContentDeepLink(
+        ContentKind.lawyer,
+        id.startsWith('@') ? id.substring(1) : id,
+      ),
     _ => null,
   };
 }

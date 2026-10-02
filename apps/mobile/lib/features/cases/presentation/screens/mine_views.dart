@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -10,8 +9,8 @@ import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_cards.dart';
-import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
+import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/mine/presentation/widgets/mine_grid.dart';
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart';
 import 'package:lawbid/features/team/presentation/tasks_tab.dart';
@@ -52,7 +51,7 @@ class _ClientMineViewState extends ConsumerState<ClientMineView> {
       _ClientTab.completed => MyCasesFilter.closed,
       _ClientTab.saved || _ClientTab.planner => MyCasesFilter.active,
     };
-    final Widget body = switch (_tab) {
+    final body = switch (_tab) {
       // Owner 2026-10-01: clients keep a planner too (own tasks + steps).
       _ClientTab.planner => const TasksTab(key: ValueKey('planner')),
       _ClientTab.saved => const SavedPostsList(key: ValueKey('saved')),
@@ -274,7 +273,7 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
           searchBar: const SizedBox.shrink(),
         ),
     };
-    final Widget body = switch (_tab) {
+    final body = switch (_tab) {
       _AttorneyTab.bids => Column(
           key: const ValueKey('bids'),
           children: [
@@ -340,11 +339,12 @@ class _BidsGrid extends ConsumerWidget {
       empty: AppEmptyState(
         icon: AppIcons.gavelRounded,
         message: mineEmpty(
-            t,
-            search,
-            filter == MyBidsFilter.active
-                ? 'mine.bids.emptyActive'
-                : 'mine.bids.emptyFinished'),
+          t,
+          search,
+          filter == MyBidsFilter.active
+              ? 'mine.bids.emptyActive'
+              : 'mine.bids.emptyFinished',
+        ),
         action: filter == MyBidsFilter.active && search.isEmpty
             ? AppButton(
                 label: t.t('mine.bids.findCases'),
@@ -391,11 +391,12 @@ class _WorkGrid extends ConsumerWidget {
             ? AppIcons.workOutlineRounded
             : AppIcons.historyRounded,
         message: mineEmpty(
-            t,
-            search,
-            filter == WorkFilter.active
-                ? 'mine.work.empty'
-                : 'mine.work.completedEmpty'),
+          t,
+          search,
+          filter == WorkFilter.active
+              ? 'mine.work.empty'
+              : 'mine.work.completedEmpty',
+        ),
       ),
       tileOf: (w) => MineTileData(
         title: w.title,
@@ -570,8 +571,9 @@ class CompletedWorkScreen extends ConsumerWidget {
         onLoadMore: n.loadMore,
         onRetryMore: n.retryLoadMore,
         empty: AppEmptyState(
-            icon: AppIcons.historyRounded,
-            message: t.t('mine.work.completedEmpty')),
+          icon: AppIcons.historyRounded,
+          message: t.t('mine.work.completedEmpty'),
+        ),
         itemBuilder: (context, w, _) => WorkCard(
           item: w,
           t: t,

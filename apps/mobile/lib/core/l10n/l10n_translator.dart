@@ -1,7 +1,7 @@
-import 'app_language.dart';
-import 'plural_rules.dart';
-import 'static_translator.dart';
-import 'translator.dart';
+import 'package:lawbid/core/l10n/app_language.dart';
+import 'package:lawbid/core/l10n/plural_rules.dart';
+import 'package:lawbid/core/l10n/static_translator.dart';
+import 'package:lawbid/core/l10n/translator.dart';
 
 /// The real, backend-driven [Translator] (docs/01_FOUNDATION_AUTH.md §9.4).
 /// Synchronous `t(key, [params])` — every call site invokes it inline
@@ -37,7 +37,10 @@ class L10nTranslator implements Translator {
 
   /// Layers 1–3; `null` when the key is unknown everywhere.
   String? lookup(String key) =>
-      cache[key] ?? _compiled?[key] ?? _englishCache[key] ?? _compiledEnglish[key];
+      cache[key] ??
+      _compiled?[key] ??
+      _englishCache[key] ??
+      _compiledEnglish[key];
 
   @override
   String t(String key, [Map<String, String>? params]) =>
@@ -51,9 +54,19 @@ class L10nTranslator implements Translator {
   /// [language].
   @override
   String plural(String key, num count, [Map<String, String>? params]) {
-    final own = resolvePlural(language.code, key, count, (k) => cache[k] ?? _compiled?[k]);
+    final own = resolvePlural(
+      language.code,
+      key,
+      count,
+      (k) => cache[k] ?? _compiled?[k],
+    );
     final template = own ??
-        resolvePlural('en', key, count, (k) => _englishCache[k] ?? _compiledEnglish[k]) ??
+        resolvePlural(
+          'en',
+          key,
+          count,
+          (k) => _englishCache[k] ?? _compiledEnglish[k],
+        ) ??
         '$key.other';
     return interpolate(template, {
       'count': formatPluralCount(language.code, count),

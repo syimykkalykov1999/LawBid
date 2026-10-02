@@ -1,3 +1,4 @@
+// ignore_for_file: lines_longer_than_80_chars
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
@@ -27,7 +28,8 @@ class RecordingSession extends SessionController {
   SessionState? build() => null;
 
   @override
-  Future<void> applyTokens(AuthTokensResult tokens) async => applied.add(tokens);
+  Future<void> applyTokens(AuthTokensResult tokens) async =>
+      applied.add(tokens);
 }
 
 const _tokens = {
@@ -49,28 +51,40 @@ void main() {
 
   setUp(() {
     FlutterSecureStorage.setMockInitialValues({});
-    adapter = FakeHttpAdapter((o) async => o.path == '/auth/otp/request' ? ok({'sent': true}) : ok(_tokens));
-    final dio = Dio(BaseOptions(baseUrl: 'http://test/api/v1'))..httpClientAdapter = adapter;
+    adapter = FakeHttpAdapter(
+      (o) async =>
+          o.path == '/auth/otp/request' ? ok({'sent': true}) : ok(_tokens),
+    );
+    final dio = Dio(BaseOptions(baseUrl: 'http://test/api/v1'))
+      ..httpClientAdapter = adapter;
     session = RecordingSession();
     c = ProviderContainer(
       overrides: [
         authApiClientProvider.overrideWithValue(AuthApiClient(dio)),
-        deviceInfoProvider.overrideWithValue(const DeviceInfo(deviceId: 'd1', platform: 'ios')),
+        deviceInfoProvider.overrideWithValue(
+          const DeviceInfo(deviceId: 'd1', platform: 'ios'),
+        ),
         sessionControllerProvider.overrideWith(() => session),
       ],
     );
     addTearDown(c.dispose);
   });
 
-  test('email code request sends linkChallenge = sha256(verifier) and stores the verifier', () async {
-    await c.read(authRepositoryProvider).requestOtp('ann@example.com', channel: 'email');
+  test(
+      'email code request sends linkChallenge = sha256(verifier) and stores the verifier',
+      () async {
+    await c
+        .read(authRepositoryProvider)
+        .requestOtp('ann@example.com', channel: 'email');
 
     final verifier = await c.read(magicLinkVerifierStoreProvider).read();
     expect(verifier, matches(_b64url43));
     final body = bodyOf(adapter.requests.single);
     expect(body['channel'], 'email');
     expect(body['identifier'], 'ann@example.com');
-    final expected = base64Url.encode(sha256.convert(ascii.encode(verifier!)).bytes).replaceAll('=', '');
+    final expected = base64Url
+        .encode(sha256.convert(ascii.encode(verifier!)).bytes)
+        .replaceAll('=', '');
     expect(body['linkChallenge'], expected);
     expect(body['linkChallenge'], matches(_b64url43));
     expect(MagicLinkVerifierStore.challengeFor(verifier), expected);
@@ -83,19 +97,29 @@ void main() {
     await repo.requestOtp('ann@example.com', channel: 'email');
     final second = await c.read(magicLinkVerifierStoreProvider).read();
     expect(second, isNot(first));
-    expect(bodyOf(adapter.requests.last)['linkChallenge'], MagicLinkVerifierStore.challengeFor(second!));
+    expect(
+      bodyOf(adapter.requests.last)['linkChallenge'],
+      MagicLinkVerifierStore.challengeFor(second!),
+    );
   });
 
   test('phone request sends no challenge and stores nothing', () async {
     await c.read(authRepositoryProvider).requestOtp('+12025550123');
-    expect(bodyOf(adapter.requests.single), {'channel': 'phone', 'identifier': '+12025550123'});
+    expect(
+      bodyOf(adapter.requests.single),
+      {'channel': 'phone', 'identifier': '+12025550123'},
+    );
     expect(await c.read(magicLinkVerifierStoreProvider).read(), isNull);
   });
 
-  test('verifyEmailLink posts token + verifier to /auth/otp/verify-link and applies the session', () async {
+  test(
+      'verifyEmailLink posts token + verifier to /auth/otp/verify-link and applies the session',
+      () async {
     final token = 'A' * 43;
     final verifier = 'v' * 43;
-    final result = await c.read(authRepositoryProvider).verifyEmailLink(token: token, verifier: verifier);
+    final result = await c
+        .read(authRepositoryProvider)
+        .verifyEmailLink(token: token, verifier: verifier);
 
     final req = adapter.requests.single;
     expect(req.path, '/auth/otp/verify-link');
@@ -120,7 +144,9 @@ void main() {
   });
 
   test('session clear (logout) forgets the verifier', () async {
-    await c.read(authRepositoryProvider).requestOtp('ann@example.com', channel: 'email');
+    await c
+        .read(authRepositoryProvider)
+        .requestOtp('ann@example.com', channel: 'email');
     expect(await c.read(magicLinkVerifierStoreProvider).read(), isNotNull);
     await session.clear();
     expect(await c.read(magicLinkVerifierStoreProvider).read(), isNull);

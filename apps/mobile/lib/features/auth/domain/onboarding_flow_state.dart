@@ -1,7 +1,6 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
-
-import '../../../shared/domain/user_role.dart';
-import 'onboarding_step.dart';
+import 'package:lawbid/features/auth/domain/onboarding_step.dart';
+import 'package:lawbid/shared/domain/user_role.dart';
 
 part 'onboarding_flow_state.freezed.dart';
 

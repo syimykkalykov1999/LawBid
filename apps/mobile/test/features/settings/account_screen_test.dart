@@ -1,3 +1,4 @@
+// ignore_for_file: lines_longer_than_80_chars
 import 'dart:async';
 
 import 'package:drift/native.dart';
@@ -54,12 +55,14 @@ class FakeAccountRepository implements AccountRepository {
   @override
   Future<void> linkContact(ContactType type, String value, String code) async {
     calls.add('linkContact:${type.name}:$value:$code');
+    // ignore: only_throw_errors
     if (linkError != null) throw linkError!;
   }
 
   @override
   Future<SocialLinkOutcome> linkSocial(IdentifierProvider provider) async {
     calls.add('linkSocial:${provider.name}');
+    // ignore: only_throw_errors
     if (linkError != null) throw linkError!;
     return socialOutcome;
   }
@@ -153,7 +156,8 @@ void main() {
         (tester) async {
       _tallView(tester);
       final repo = FakeAccountRepository(
-          () async => const [_phone, _apple, _extraEmail]);
+        () async => const [_phone, _apple, _extraEmail],
+      );
       final wrap = await _wrap(repo);
       await tester.pumpWidget(wrap(const AccountScreen()));
       await tester.pumpAndSettle();
@@ -232,7 +236,8 @@ void main() {
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
       final repo = FakeAccountRepository(
-          () async => const [_phone, _apple, _extraEmail]);
+        () async => const [_phone, _apple, _extraEmail],
+      );
       final wrap = await _wrap(repo, textScale: 2);
       await tester.pumpWidget(wrap(const AccountScreen()));
       await tester.pumpAndSettle();
@@ -246,16 +251,18 @@ void main() {
         (tester) async {
       _tallView(tester);
       var linked = false;
-      final repo = FakeAccountRepository(() async => [
-            _phone,
-            if (linked)
-              const AccountIdentifier(
-                id: 'g',
-                provider: IdentifierProvider.google,
-                verified: true,
-                isPrimaryContact: false,
-              ),
-          ]);
+      final repo = FakeAccountRepository(
+        () async => [
+          _phone,
+          if (linked)
+            const AccountIdentifier(
+              id: 'g',
+              provider: IdentifierProvider.google,
+              verified: true,
+              isPrimaryContact: false,
+            ),
+        ],
+      );
       final wrap = await _wrap(repo);
       await tester.pumpWidget(wrap(const AccountScreen()));
       await tester.pumpAndSettle();
@@ -312,10 +319,12 @@ void main() {
       final repo = FakeAccountRepository(() async => const [_phone]);
       final wrap = await _wrap(repo, onboarding: onboarding);
       await tester.pumpWidget(
-        wrap(const AccountContactFlowScreen(
-          type: ContactType.phone,
-          mode: AccountContactMode.primary,
-        )),
+        wrap(
+          const AccountContactFlowScreen(
+            type: ContactType.phone,
+            mode: AccountContactMode.primary,
+          ),
+        ),
       );
       await tester.pumpAndSettle();
 
@@ -340,8 +349,10 @@ void main() {
       await _enterOtp(tester, '222222');
       expect(onboarding.calls.last, 'verifyContact');
       expect(find.text('All set'), findsOneWidget);
-      expect(find.text('Your phone number is verified and saved.'),
-          findsOneWidget);
+      expect(
+        find.text('Your phone number is verified and saved.'),
+        findsOneWidget,
+      );
       await _tearDown(tester);
     });
 
@@ -349,13 +360,17 @@ void main() {
         (tester) async {
       _tallView(tester);
       final onboarding = FakeOnboardingRepository(_client);
-      final wrap = await _wrap(FakeAccountRepository(() async => const []),
-          onboarding: onboarding);
+      final wrap = await _wrap(
+        FakeAccountRepository(() async => const []),
+        onboarding: onboarding,
+      );
       await tester.pumpWidget(
-        wrap(const AccountContactFlowScreen(
-          type: ContactType.phone,
-          mode: AccountContactMode.primary,
-        )),
+        wrap(
+          const AccountContactFlowScreen(
+            type: ContactType.phone,
+            mode: AccountContactMode.primary,
+          ),
+        ),
       );
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField).first, '123');
@@ -376,10 +391,12 @@ void main() {
     final repo = FakeAccountRepository(() async => const []);
     final wrap = await _wrap(repo, textScale: 2);
     await tester.pumpWidget(
-      wrap(const AccountContactFlowScreen(
-        type: ContactType.email,
-        mode: AccountContactMode.link,
-      )),
+      wrap(
+        const AccountContactFlowScreen(
+          type: ContactType.email,
+          mode: AccountContactMode.link,
+        ),
+      ),
     );
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
@@ -397,24 +414,30 @@ void main() {
       final repo = FakeAccountRepository(() async => const [_phone]);
       final wrap = await _wrap(repo);
       await tester.pumpWidget(
-        wrap(const AccountContactFlowScreen(
-          type: ContactType.email,
-          mode: AccountContactMode.link,
-        )),
+        wrap(
+          const AccountContactFlowScreen(
+            type: ContactType.email,
+            mode: AccountContactMode.link,
+          ),
+        ),
       );
       await tester.pumpAndSettle();
 
       expect(find.text('Sign-in email'), findsOneWidget);
       await tester.enterText(
-          find.byType(TextField).first, ' Work@Example.com ');
+        find.byType(TextField).first,
+        ' Work@Example.com ',
+      );
       await tester.tap(find.text('Send code'));
       await tester.pumpAndSettle();
       expect(repo.calls, ['requestLinkCode:email:work@example.com']);
 
       await _enterOtp(tester, '333333');
       expect(repo.calls.last, 'linkContact:email:work@example.com:333333');
-      expect(find.text('You can now sign in with work@example.com.'),
-          findsOneWidget);
+      expect(
+        find.text('You can now sign in with work@example.com.'),
+        findsOneWidget,
+      );
       await _tearDown(tester);
     });
 
@@ -429,10 +452,12 @@ void main() {
         );
       final wrap = await _wrap(repo);
       await tester.pumpWidget(
-        wrap(const AccountContactFlowScreen(
-          type: ContactType.email,
-          mode: AccountContactMode.link,
-        )),
+        wrap(
+          const AccountContactFlowScreen(
+            type: ContactType.email,
+            mode: AccountContactMode.link,
+          ),
+        ),
       );
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField).first, 'x@example.com');
@@ -487,8 +512,10 @@ void main() {
 
     await tester.tap(find.text('Account'));
     await tester.pumpAndSettle();
-    expect(router.routerDelegate.currentConfiguration.last.matchedLocation,
-        AccountRoutes.account);
+    expect(
+      router.routerDelegate.currentConfiguration.last.matchedLocation,
+      AccountRoutes.account,
+    );
     expect(find.byType(AccountScreen), findsOneWidget);
     expect(find.text('Primary contact'), findsOneWidget);
 

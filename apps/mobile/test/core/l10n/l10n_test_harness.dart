@@ -21,7 +21,8 @@ class FakeI18nApiClient extends I18nApiClient {
   FakeI18nApiClient({
     List<I18nLanguageDto>? languages,
     Map<String, Map<String, String>>? bundles,
-  })  : languages = languages ?? [lang('en', 'English', 0), lang('ru', 'Русский', 1)],
+  })  : languages =
+            languages ?? [lang('en', 'English', 0), lang('ru', 'Русский', 1)],
         bundles = bundles ?? {},
         super(Dio());
 
@@ -30,8 +31,19 @@ class FakeI18nApiClient extends I18nApiClient {
   bool offline = false;
   final List<String> calls = [];
 
-  static I18nLanguageDto lang(String code, String name, int sort, {bool active = true}) =>
-      I18nLanguageDto(code: code, nameNative: name, isActive: active, isRtl: false, sort: sort);
+  static I18nLanguageDto lang(
+    String code,
+    String name,
+    int sort, {
+    bool active = true,
+  }) =>
+      I18nLanguageDto(
+        code: code,
+        nameNative: name,
+        isActive: active,
+        isRtl: false,
+        sort: sort,
+      );
 
   static const _offline = ApiException(
     code: ApiException.networkErrorCode,
@@ -87,7 +99,10 @@ class L10nHarness {
     return L10nHarness._(prefs, database, api ?? FakeI18nApiClient());
   }
 
-  List<Override> overrides({List<Locale> systemLocales = const [Locale('en', 'US')]}) => [
+  List<Override> overrides({
+    List<Locale> systemLocales = const [Locale('en', 'US')],
+  }) =>
+      [
         sharedPreferencesProvider.overrideWithValue(prefs),
         l10nDatabaseProvider.overrideWithValue(db),
         i18nApiClientProvider.overrideWithValue(api),

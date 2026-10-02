@@ -1,3 +1,4 @@
+// ignore_for_file: lines_longer_than_80_chars
 import 'dart:async';
 import 'dart:ui';
 
@@ -41,11 +42,13 @@ void main() {
     consent = true;
     repo = FakeSubscriptionRepository(makeOverview());
     collector = FakeCardCollector();
-    container = ProviderContainer(overrides: [
-      subscriptionRepositoryProvider.overrideWithValue(repo),
-      cardCollectorProvider.overrideWithValue(collector),
-      subscriptionPollIntervalProvider.overrideWithValue(Duration.zero),
-    ]);
+    container = ProviderContainer(
+      overrides: [
+        subscriptionRepositoryProvider.overrideWithValue(repo),
+        cardCollectorProvider.overrideWithValue(collector),
+        subscriptionPollIntervalProvider.overrideWithValue(Duration.zero),
+      ],
+    );
     addTearDown(container.dispose);
     // Keep the autoDispose controller alive for the test.
     container.listen(subscribeControllerProvider, (_, __) {});
@@ -74,6 +77,7 @@ void main() {
       priceCents: 39900,
       trialDays: 7,
     );
+    // ignore: cascade_invocations
     repo.onConfirm = (_) =>
         makeOverview(subscription: makeInfo(status: SubscriptionStatus.active));
     expect(await run(), SubscribeOutcome.activated);
@@ -105,9 +109,11 @@ void main() {
       details: {'chargeNowCents': 39900},
       statusCode: 409,
     );
+    // ignore: cascade_invocations
     repo.onConfirm = (chargeNow) => makeOverview(
-        subscription: makeInfo(status: SubscriptionStatus.active),
-        trialEligible: false);
+          subscription: makeInfo(status: SubscriptionStatus.active),
+          trialEligible: false,
+        );
     expect(await run(), SubscribeOutcome.activated);
     expect(asked, [39900]);
     expect(
@@ -129,16 +135,18 @@ void main() {
   test('confirm returns incomplete: polls /me until the webhook lands',
       () async {
     repo.onConfirm = (_) => makeOverview(
-        subscription:
-            makeInfo(status: SubscriptionStatus.incomplete, isActive: false),
-        isActive: false,
-        canStart: false);
-    repo.overviewQueue.addAll([
-      makeOverview(
           subscription:
               makeInfo(status: SubscriptionStatus.incomplete, isActive: false),
           isActive: false,
-          canStart: false),
+          canStart: false,
+        );
+    repo.overviewQueue.addAll([
+      makeOverview(
+        subscription:
+            makeInfo(status: SubscriptionStatus.incomplete, isActive: false),
+        isActive: false,
+        canStart: false,
+      ),
       makeOverview(subscription: makeInfo()),
     ]);
     expect(await run(), SubscribeOutcome.trialStarted);
@@ -149,10 +157,11 @@ void main() {
   test('still incomplete after the polling window: pendingConfirmation',
       () async {
     final pending = makeOverview(
-        subscription:
-            makeInfo(status: SubscriptionStatus.incomplete, isActive: false),
-        isActive: false,
-        canStart: false);
+      subscription:
+          makeInfo(status: SubscriptionStatus.incomplete, isActive: false),
+      isActive: false,
+      canStart: false,
+    );
     repo.onConfirm = (_) => pending;
     expect(await run(), SubscribeOutcome.pendingConfirmation);
     // 15 polls + the overview provider's own first read.
@@ -174,17 +183,21 @@ void main() {
     collector.error = null;
     // Make the first run block on the card sheet.
     final blocking = _BlockingCollector();
-    container = ProviderContainer(overrides: [
-      subscriptionRepositoryProvider.overrideWithValue(repo),
-      cardCollectorProvider.overrideWithValue(blocking),
-      subscriptionPollIntervalProvider.overrideWithValue(Duration.zero),
-    ]);
+    container = ProviderContainer(
+      overrides: [
+        subscriptionRepositoryProvider.overrideWithValue(repo),
+        cardCollectorProvider.overrideWithValue(blocking),
+        subscriptionPollIntervalProvider.overrideWithValue(Duration.zero),
+      ],
+    );
     addTearDown(container.dispose);
     container.listen(subscribeControllerProvider, (_, __) {});
     final first = run();
     await Future<void>.delayed(Duration.zero);
-    expect(container.read(subscribeControllerProvider).phase,
-        SubscribePhase.collectingCard);
+    expect(
+      container.read(subscribeControllerProvider).phase,
+      SubscribePhase.collectingCard,
+    );
     expect(await run(), SubscribeOutcome.cancelled);
     blocking.release.complete();
     repo.onConfirm = (_) => makeOverview(subscription: makeInfo());

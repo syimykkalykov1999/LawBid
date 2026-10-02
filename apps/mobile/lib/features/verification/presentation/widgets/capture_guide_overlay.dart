@@ -88,8 +88,11 @@ class _CaptureGuideOverlayState extends State<CaptureGuideOverlay>
 }
 
 class _GuidePainter extends CustomPainter {
-  _GuidePainter(
-      {required this.guide, required this.scrim, required this.stroke});
+  _GuidePainter({
+    required this.guide,
+    required this.scrim,
+    required this.stroke,
+  });
 
   final CaptureGuide guide;
   final Color? scrim;
@@ -105,12 +108,18 @@ class _GuidePainter extends CustomPainter {
       case CaptureGuide.card:
         final w = size.width * 0.86;
         return Rect.fromCenter(
-            center: center, width: w, height: w / _cardRatio);
+          center: center,
+          width: w,
+          height: w / _cardRatio,
+        );
       case CaptureGuide.document:
         final h = size.height * 0.52;
         final w = (h * _pageRatio).clamp(0, size.width * 0.86).toDouble();
         return Rect.fromCenter(
-            center: center, width: w, height: w / _pageRatio);
+          center: center,
+          width: w,
+          height: w / _pageRatio,
+        );
       case CaptureGuide.selfie:
         final w = size.width * 0.66;
         return Rect.fromCenter(center: center, width: w, height: w * 1.3);
@@ -125,7 +134,9 @@ class _GuidePainter extends CustomPainter {
         : (Path()
           ..addRRect(
             RRect.fromRectAndRadius(
-                frame, const Radius.circular(AppRadii.card)),
+              frame,
+              const Radius.circular(AppRadii.card),
+            ),
           ));
     final fill = scrim;
     if (fill != null) {

@@ -70,6 +70,7 @@ class DocSlot {
           : side == null || (d.side ?? DocSide.front) == side);
 
   @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
   bool operator ==(Object other) =>
       other is DocSlot &&
       other.kind == kind &&
@@ -77,6 +78,7 @@ class DocSlot {
       other.stateCode == stateCode;
 
   @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
   int get hashCode => Object.hash(kind, side, stateCode);
 
   @override

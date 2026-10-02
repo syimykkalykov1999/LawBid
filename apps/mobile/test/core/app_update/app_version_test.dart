@@ -1,3 +1,4 @@
+// ignore_for_file: lines_longer_than_80_chars
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -13,7 +14,10 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   tearDown(AppVersion.resetForTest);
 
-  void mockPackageInfo(String version, {String packageName = 'com.lawbid.lawbid.dev'}) {
+  void mockPackageInfo(
+    String version, {
+    String packageName = 'com.lawbid.lawbid.dev',
+  }) {
     PackageInfo.setMockInitialValues(
       appName: 'LawBid Dev',
       packageName: packageName,
@@ -32,12 +36,16 @@ void main() {
   });
 
   test('a failing platform lookup keeps the non-blocking fallback', () async {
-    final v = await AppVersion.load(source: () async => throw StateError('no plugin'));
+    final v = await AppVersion.load(
+      source: () async => throw StateError('no plugin'),
+    );
     expect(v, AppVersion.fallback);
     expect(AppVersion.packageName, isNull);
   });
 
-  test('every request carries the real version in X-App-Version (not a hardcoded one)', () async {
+  test(
+      'every request carries the real version in X-App-Version (not a hardcoded one)',
+      () async {
     mockPackageInfo('7.8.9');
     await AppVersion.load();
 
@@ -46,8 +54,14 @@ void main() {
     final adapter = FakeHttpAdapter((o) async => ok({'ok': true}));
     final dio = container.read(dioProvider)..httpClientAdapter = adapter;
 
-    await dio.get<dynamic>('/anything', options: Options(extra: const {'skipAuth': true}));
-    await dio.post<dynamic>('/auth/otp/request', options: Options(extra: const {'skipAuth': true}));
+    await dio.get<dynamic>(
+      '/anything',
+      options: Options(extra: const {'skipAuth': true}),
+    );
+    await dio.post<dynamic>(
+      '/auth/otp/request',
+      options: Options(extra: const {'skipAuth': true}),
+    );
 
     expect(adapter.requests, hasLength(2));
     for (final r in adapter.requests) {

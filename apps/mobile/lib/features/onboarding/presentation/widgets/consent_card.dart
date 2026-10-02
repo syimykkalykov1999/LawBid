@@ -30,7 +30,7 @@ class ConsentCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    final Color borderColor = value
+    final borderColor = value
         ? colors.gold
         : showError
             ? colors.danger
@@ -64,7 +64,11 @@ class ConsentCard extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        AppIcon(icon, size: AppSizes.iconSm, color: colors.gold),
+                        AppIcon(
+                          icon,
+                          size: AppSizes.iconSm,
+                          color: colors.gold,
+                        ),
                         const SizedBox(width: AppSpacing.sm),
                         Expanded(
                           child: Text(
@@ -110,8 +114,11 @@ class ConsentCard extends StatelessWidget {
                   ),
                   alignment: Alignment.center,
                   child: value
-                      ? AppIcon(AppIcons.check,
-                          size: AppSizes.iconSm * 0.65, color: colors.navy)
+                      ? AppIcon(
+                          AppIcons.check,
+                          size: AppSizes.iconSm * 0.65,
+                          color: colors.navy,
+                        )
                       : null,
                 ),
               ),

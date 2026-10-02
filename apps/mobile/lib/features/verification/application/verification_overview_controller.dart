@@ -47,8 +47,9 @@ enum VerificationView {
 }
 
 VerificationView viewOf(VerificationOverview o) {
-  if (o.status == VerificationStatus.suspended)
+  if (o.status == VerificationStatus.suspended) {
     return VerificationView.suspended;
+  }
   if (o.status == VerificationStatus.verified) return VerificationView.verified;
   final r = o.request;
   if (r == null) return VerificationView.start;

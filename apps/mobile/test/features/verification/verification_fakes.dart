@@ -184,8 +184,10 @@ class FakeVerificationBackend
   }
 
   @override
-  Future<VerificationRequest> submit(String requestId,
-      {String? comment}) async {
+  Future<VerificationRequest> submit(
+    String requestId, {
+    String? comment,
+  }) async {
     submitCalls++;
     lastComment = comment;
     request = _copy(
@@ -257,7 +259,9 @@ class FakeDocumentSource implements DocumentSource {
 
   @override
   Future<PickedDocument?> capture(
-      BuildContext context, CaptureGuide guide) async {
+    BuildContext context,
+    CaptureGuide guide,
+  ) async {
     captures++;
     return _doc(guide == CaptureGuide.selfie ? 'selfie.jpg' : 'photo.jpg');
   }
@@ -338,10 +342,14 @@ VerificationRequest draft({
       documents: [
         for (final s in states) doc(DocSlot.barLicense(s), id: 'doc-bar-$s'),
         if (identity) ...[
-          doc(DocSlot.identity(IdDocumentType.driversLicense, DocSide.front),
-              id: 'doc-id-front'),
-          doc(DocSlot.identity(IdDocumentType.driversLicense, DocSide.back),
-              id: 'doc-id-back'),
+          doc(
+            DocSlot.identity(IdDocumentType.driversLicense, DocSide.front),
+            id: 'doc-id-front',
+          ),
+          doc(
+            DocSlot.identity(IdDocumentType.driversLicense, DocSide.back),
+            id: 'doc-id-back',
+          ),
         ],
         if (selfie) doc(const DocSlot.selfie(), id: 'doc-selfie'),
       ],

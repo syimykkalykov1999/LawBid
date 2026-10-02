@@ -26,8 +26,11 @@ class ReelsIconButton extends ConsumerWidget {
           child: SizedBox.square(
             dimension: AppSizes.touchTarget,
             child: Center(
-              child: AppIcon(AppIcons.filmReelOutlined,
-                  color: colors.text, size: AppSizes.iconMd),
+              child: AppIcon(
+                AppIcons.filmReelOutlined,
+                color: colors.text,
+                size: AppSizes.iconMd,
+              ),
             ),
           ),
         ),

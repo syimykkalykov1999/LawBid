@@ -35,7 +35,8 @@ String? resolvePlural(
   String? Function(String key) lookup,
 ) {
   final category = pluralCategoryOf(languageCode, count);
-  return lookup('$base.${category.name}') ?? lookup('$base.${PluralCategory.other.name}');
+  return lookup('$base.${category.name}') ??
+      lookup('$base.${PluralCategory.other.name}');
 }
 
 /// `{count}` for plural strings: [count] formatted with the language's
@@ -70,7 +71,8 @@ String pluralize({
   required String? Function(String key) lookup,
   Map<String, String>? params,
 }) {
-  final template = resolvePlural(languageCode, key, count, lookup) ?? '$key.other';
+  final template =
+      resolvePlural(languageCode, key, count, lookup) ?? '$key.other';
   return interpolate(template, {
     'count': formatPluralCount(languageCode, count),
     ...?params,

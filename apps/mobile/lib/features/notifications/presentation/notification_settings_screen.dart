@@ -1,18 +1,18 @@
+// ignore_for_file: lines_longer_than_80_chars
 import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lawbid/features/notifications/presentation/new_case_alerts_section.dart';
-import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
-import 'package:lawbid/shared/domain/user_role.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
 import 'package:lawbid/features/notifications/data/notifications_repository.dart';
+import 'package:lawbid/features/notifications/presentation/new_case_alerts_section.dart';
+import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
+import 'package:lawbid/shared/domain/user_role.dart';
 
 /// docs/05 §9.5 Settings → Notifications: push and email per category
 /// (`system` locked on), quiet hours in the device's time zone.
@@ -29,8 +29,10 @@ class _NotificationSettingsScreenState
   NotificationSettings? _local;
   bool _saving = false;
 
-  Future<void> _apply(Future<NotificationSettings> Function() call,
-      NotificationSettings optimistic) async {
+  Future<void> _apply(
+    Future<NotificationSettings> Function() call,
+    NotificationSettings optimistic,
+  ) async {
     final t = ref.read(translatorProvider);
     final before = _local;
     setState(() {
@@ -52,20 +54,27 @@ class _NotificationSettingsScreenState
     }
   }
 
-  void _toggle(NotificationSettings s, CategorySetting c,
-      {bool? push, bool? email}) {
+  void _toggle(
+    NotificationSettings s,
+    CategorySetting c, {
+    bool? push,
+    bool? email,
+  }) {
     final next = c.copyWith(push: push, email: email);
     final repo = ref.read(notificationsRepositoryProvider);
     // Owner 2026-10-01: turning "New cases" on says what comes and that it
     // can be changed (the qualifications appear right under the switch).
     if (c.category == NotifCategory.newCases && !c.push && next.push) {
       showAppSnackBar(
-          context, ref.read(translatorProvider).t('notif.newCases.turnedOn'));
+        context,
+        ref.read(translatorProvider).t('notif.newCases.turnedOn'),
+      );
     }
     _apply(
       () => repo.updateSettings([next]),
       NotificationSettings(
         categories: [
+          // ignore: prefer_if_elements_to_conditional_expressions
           for (final x in s.categories) x.category == c.category ? next : x,
         ],
         quietHours: s.quietHours,
@@ -75,8 +84,10 @@ class _NotificationSettingsScreenState
 
   Future<void> _setQuiet(NotificationSettings s, QuietHours? q) async {
     final repo = ref.read(notificationsRepositoryProvider);
-    await _apply(() => repo.setQuietHours(q),
-        NotificationSettings(categories: s.categories, quietHours: q));
+    await _apply(
+      () => repo.setQuietHours(q),
+      NotificationSettings(categories: s.categories, quietHours: q),
+    );
   }
 
   Future<void> _pickTime(NotificationSettings s, {required bool start}) async {
@@ -144,8 +155,10 @@ class _NotificationSettingsScreenState
                 AppSpacing.screenSide + MediaQuery.paddingOf(context).bottom,
               ),
               children: [
-                Text(t.t('notif.settings.categories'),
-                    style: type.titleMedium.copyWith(color: colors.text)),
+                Text(
+                  t.t('notif.settings.categories'),
+                  style: type.titleMedium.copyWith(color: colors.text),
+                ),
                 // Owner 2026-10-02: what "off" means.
                 Padding(
                   padding: const EdgeInsets.only(top: AppSpacing.xs),
@@ -162,7 +175,9 @@ class _NotificationSettingsScreenState
                     Container(
                       margin: const EdgeInsets.only(bottom: AppSpacing.sm),
                       padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+                        horizontal: AppSpacing.md,
+                        vertical: AppSpacing.sm,
+                      ),
                       decoration: BoxDecoration(
                         color: colors.surface,
                         borderRadius: BorderRadius.circular(AppRadii.card),
@@ -177,27 +192,33 @@ class _NotificationSettingsScreenState
                                 child: Text(
                                   t.t('notif.category.${c.category.name}'),
                                   style: type.body.copyWith(
-                                      color: colors.text,
-                                      fontWeight: FontWeight.w600),
+                                    color: colors.text,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
                               ),
                               if (c.locked)
-                                AppIcon(AppIcons.lockOutlineRounded,
-                                    size: AppSizes.iconSm,
-                                    color: colors.textSecondary),
+                                AppIcon(
+                                  AppIcons.lockOutlineRounded,
+                                  size: AppSizes.iconSm,
+                                  color: colors.textSecondary,
+                                ),
                             ],
                           ),
                           if (c.locked)
-                            Text(t.t('notif.settings.locked'),
-                                style: type.caption
-                                    .copyWith(color: colors.textSecondary)),
+                            Text(
+                              t.t('notif.settings.locked'),
+                              style: type.caption
+                                  .copyWith(color: colors.textSecondary),
+                            ),
                           // Owner 2026-09-30: what the opt-in alerts are.
                           if (c.category == NotifCategory.following ||
                               c.category == NotifCategory.newCases)
                             Text(
-                                t.t('notif.category.${c.category.name}.hint'),
-                                style: type.caption
-                                    .copyWith(color: colors.textSecondary)),
+                              t.t('notif.category.${c.category.name}.hint'),
+                              style: type.caption
+                                  .copyWith(color: colors.textSecondary),
+                            ),
                           SwitchListTile.adaptive(
                             contentPadding: EdgeInsets.zero,
                             title: Text(t.t('notif.settings.push')),
@@ -209,15 +230,15 @@ class _NotificationSettingsScreenState
                           // Audit 2026-10-02: only system notices are ever
                           // emailed — other categories show no dead switch.
                           if (c.category == NotifCategory.system)
-                          SwitchListTile.adaptive(
-                            contentPadding: EdgeInsets.zero,
-                            title: Text(t.t('notif.settings.email')),
-                            value: c.email,
-                            activeTrackColor: colors.gold,
-                            onChanged: c.locked
-                                ? null
-                                : (v) => _toggle(s, c, email: v),
-                          ),
+                            SwitchListTile.adaptive(
+                              contentPadding: EdgeInsets.zero,
+                              title: Text(t.t('notif.settings.email')),
+                              value: c.email,
+                              activeTrackColor: colors.gold,
+                              onChanged: c.locked
+                                  ? null
+                                  : (v) => _toggle(s, c, email: v),
+                            ),
                           // Owner 2026-10-01: which qualifications send
                           // new cases (profile's by default).
                           if (c.category == NotifCategory.newCases && c.push)
@@ -226,11 +247,15 @@ class _NotificationSettingsScreenState
                       ),
                     ),
                 const SizedBox(height: AppSpacing.lg),
-                Text(t.t('notif.settings.quiet'),
-                    style: type.titleMedium.copyWith(color: colors.text)),
+                Text(
+                  t.t('notif.settings.quiet'),
+                  style: type.titleMedium.copyWith(color: colors.text),
+                ),
                 const SizedBox(height: AppSpacing.xs),
-                Text(t.t('notif.settings.quietHint'),
-                    style: type.caption.copyWith(color: colors.textSecondary)),
+                Text(
+                  t.t('notif.settings.quietHint'),
+                  style: type.caption.copyWith(color: colors.textSecondary),
+                ),
                 SwitchListTile.adaptive(
                   contentPadding: EdgeInsets.zero,
                   title: Text(t.t('notif.settings.quietOn')),
@@ -253,8 +278,10 @@ class _NotificationSettingsScreenState
                       Expanded(
                         child: AppChip(
                           label: '${t.t('notif.settings.from')} ${q.start}',
-                          leading: const AppIcon(AppIcons.nightlightRound,
-                              size: AppSpacing.lg),
+                          leading: const AppIcon(
+                            AppIcons.nightlightRound,
+                            size: AppSpacing.lg,
+                          ),
                           onTap: () => _pickTime(s, start: true),
                         ),
                       ),
@@ -262,8 +289,10 @@ class _NotificationSettingsScreenState
                       Expanded(
                         child: AppChip(
                           label: '${t.t('notif.settings.to')} ${q.end}',
-                          leading: const AppIcon(AppIcons.wbSunnyOutlined,
-                              size: AppSpacing.lg),
+                          leading: const AppIcon(
+                            AppIcons.wbSunnyOutlined,
+                            size: AppSpacing.lg,
+                          ),
                           onTap: () => _pickTime(s, start: false),
                         ),
                       ),
@@ -272,9 +301,10 @@ class _NotificationSettingsScreenState
                 if (q != null)
                   Padding(
                     padding: const EdgeInsets.only(top: AppSpacing.sm),
-                    child: Text(q.timezone,
-                        style:
-                            type.caption.copyWith(color: colors.textSecondary)),
+                    child: Text(
+                      q.timezone,
+                      style: type.caption.copyWith(color: colors.textSecondary),
+                    ),
                   ),
               ],
             ),

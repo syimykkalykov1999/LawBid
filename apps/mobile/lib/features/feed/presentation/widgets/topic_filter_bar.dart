@@ -81,9 +81,11 @@ class TopicFilterBar extends ConsumerWidget {
       options: [
         PickerOption(
           value: '',
-          label: t.t(allowedStates == null
-              ? 'cases.feed.allStates'
-              : 'cases.feed.allLicensedStates'),
+          label: t.t(
+            allowedStates == null
+                ? 'cases.feed.allStates'
+                : 'cases.feed.allLicensedStates',
+          ),
         ),
         for (final s in kUsStates)
           if (allowedStates == null || allowedStates!.contains(s.code))
@@ -124,6 +126,7 @@ class TopicFilterBar extends ConsumerWidget {
     );
     if (!context.mounted) return;
     if (choice == 'topics') await _pickTopics(context, ref);
+    // ignore: use_build_context_synchronously
     if (choice == 'state') await _pickState(context, ref);
   }
 
@@ -135,11 +138,11 @@ class TopicFilterBar extends ConsumerWidget {
     final topics = ref.watch(feedTopicsProvider);
 
     Widget pill({
-      Key? key,
       required String label,
       required IconData icon,
       required bool selected,
       required VoidCallback onTap,
+      Key? key,
       Widget? trailing,
     }) =>
         Semantics(
@@ -154,7 +157,9 @@ class TopicFilterBar extends ConsumerWidget {
               duration:
                   context.reduceMotion ? Duration.zero : AppMotion.stateChange,
               padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+                horizontal: AppSpacing.md,
+                vertical: AppSpacing.sm,
+              ),
               decoration: BoxDecoration(
                 color: selected ? colors.navy : colors.surface,
                 borderRadius: BorderRadius.circular(AppRadii.pill),
@@ -166,9 +171,11 @@ class TopicFilterBar extends ConsumerWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  AppIcon(icon,
-                      size: 18,
-                      color: selected ? colors.goldLight : colors.text),
+                  AppIcon(
+                    icon,
+                    size: 18,
+                    color: selected ? colors.goldLight : colors.text,
+                  ),
                   const SizedBox(width: AppSpacing.xs + 2),
                   Text(
                     label,
@@ -210,8 +217,11 @@ class TopicFilterBar extends ConsumerWidget {
                     color: stateCode != null ? colors.gold : colors.border,
                   ),
                 ),
-                child:
-                    AppIcon(AppIcons.tuneRounded, size: 20, color: colors.goldDark),
+                child: AppIcon(
+                  AppIcons.tuneRounded,
+                  size: 20,
+                  color: colors.goldDark,
+                ),
               ),
             ),
           ),
@@ -222,8 +232,11 @@ class TopicFilterBar extends ConsumerWidget {
               icon: AppIcons.placeOutlined,
               selected: true,
               onTap: () => onState(null),
-              trailing: const AppIcon(AppIcons.closeRounded,
-                  size: 16, color: Colors.white),
+              trailing: const AppIcon(
+                AppIcons.closeRounded,
+                size: 16,
+                color: Colors.white,
+              ),
             ),
           ],
           const SizedBox(width: AppSpacing.sm),
@@ -252,8 +265,9 @@ class TopicFilterBar extends ConsumerWidget {
               onTap: () => onCategory(kNewsTopic),
             ),
           ],
-          for (final c in topics.where((c) =>
-              c != kNewsTopic && !(showNotSure && c == kNotSureTopic))) ...[
+          for (final c in topics.where(
+            (c) => c != kNewsTopic && !(showNotSure && c == kNotSureTopic),
+          )) ...[
             const SizedBox(width: AppSpacing.sm),
             pill(
               label: topicName(ref, c),

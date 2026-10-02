@@ -271,8 +271,10 @@ class TaskRow extends StatelessWidget {
                       Padding(
                         padding: const EdgeInsets.only(left: 34, top: 2),
                         child: Text(
-                          t.t('tasks.steps.more',
-                              {'n': '${steps.length - _visibleSteps}'}),
+                          t.t(
+                            'tasks.steps.more',
+                            {'n': '${steps.length - _visibleSteps}'},
+                          ),
                           style: typography.caption.copyWith(
                             color: colors.goldDark,
                             fontWeight: FontWeight.w600,
@@ -294,7 +296,11 @@ class TaskRow extends StatelessWidget {
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.fromLTRB(
-                          AppSpacing.md, AppSpacing.sm, AppSpacing.sm, AppSpacing.sm),
+                        AppSpacing.md,
+                        AppSpacing.sm,
+                        AppSpacing.sm,
+                        AppSpacing.sm,
+                      ),
                       decoration: BoxDecoration(
                         color: colors.goldTint,
                         borderRadius: BorderRadius.circular(AppRadii.field),
@@ -338,8 +344,11 @@ class TaskRow extends StatelessWidget {
                         ),
                       ),
                       if (task.files.isNotEmpty) ...[
-                        AppIcon(AppIcons.attachFileRounded,
-                            size: 14, color: colors.textSecondary),
+                        AppIcon(
+                          AppIcons.attachFileRounded,
+                          size: 14,
+                          color: colors.textSecondary,
+                        ),
                         Text(
                           '${task.files.length}',
                           style: typography.caption
@@ -413,9 +422,8 @@ class TaskProgress extends StatelessWidget {
             borderRadius: BorderRadius.circular(AppRadii.pill),
             child: TweenAnimationBuilder<double>(
               tween: Tween(end: value),
-              duration: context.reduceMotion
-                  ? Duration.zero
-                  : AppMotion.stateChange,
+              duration:
+                  context.reduceMotion ? Duration.zero : AppMotion.stateChange,
               curve: Curves.easeOutCubic,
               builder: (_, v, __) => LinearProgressIndicator(
                 value: v,
@@ -603,11 +611,19 @@ class TaskStepCheck extends StatelessWidget {
         duration: dur,
         transitionBuilder: (c, a) => ScaleTransition(scale: a, child: c),
         child: done
-            ? const AppIcon(AppIcons.checkRounded,
-                key: ValueKey('d'), size: 16, color: AppColorsLight.navy)
+            ? const AppIcon(
+                AppIcons.checkRounded,
+                key: ValueKey('d'),
+                size: 16,
+                color: AppColorsLight.navy,
+              )
             : notDone
-                ? AppIcon(AppIcons.closeRounded,
-                    key: const ValueKey('n'), size: 15, color: colors.surface)
+                ? AppIcon(
+                    AppIcons.closeRounded,
+                    key: const ValueKey('n'),
+                    size: 15,
+                    color: colors.surface,
+                  )
                 : const SizedBox.shrink(key: ValueKey('o')),
       ),
     );
@@ -664,20 +680,32 @@ class TaskMark extends StatelessWidget {
       TaskStatus.done => (
           colors.gold,
           colors.gold,
-          const AppIcon(AppIcons.checkRounded,
-              key: ValueKey('done'), size: 16, color: AppColorsLight.navy),
+          const AppIcon(
+            AppIcons.checkRounded,
+            key: ValueKey('done'),
+            size: 16,
+            color: AppColorsLight.navy,
+          ),
         ),
       TaskStatus.notDone => (
           colors.text,
           colors.text,
-          AppIcon(AppIcons.closeRounded,
-              key: const ValueKey('not'), size: 15, color: colors.surface),
+          AppIcon(
+            AppIcons.closeRounded,
+            key: const ValueKey('not'),
+            size: 15,
+            color: colors.surface,
+          ),
         ),
       TaskStatus.cancelled => (
           colors.textSecondary,
           Colors.transparent,
-          AppIcon(AppIcons.removeRounded,
-              key: const ValueKey('x'), size: 15, color: colors.textSecondary),
+          AppIcon(
+            AppIcons.removeRounded,
+            key: const ValueKey('x'),
+            size: 15,
+            color: colors.textSecondary,
+          ),
         ),
       TaskStatus.taken => (
           colors.text,

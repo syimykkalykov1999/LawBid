@@ -1,3 +1,4 @@
+// ignore_for_file: lines_longer_than_80_chars
 // docs/06 (subscription, paywall, payment history) compiled-in strings,
 // merged into StaticTranslatorRu/En like file05_strings.dart.
 
@@ -9,12 +10,14 @@ const file06Ru = <String, String>{
   'chat.attach.files': 'Документы (PDF, Word, Excel и др.)',
   'chat.attach.photo': 'Фото',
   'chat.attach.label': 'Файл',
-  'chat.attach.skipped': 'Не добавлено файлов: {count} — неподдерживаемый формат или больше 25 МБ',
+  'chat.attach.skipped':
+      'Не добавлено файлов: {count} — неподдерживаемый формат или больше 25 МБ',
   'chat.files.title': 'Файлы и фото',
   'chat.files.photos': 'Фото',
   'chat.files.documents': 'Документы',
   'chat.files.empty': 'В этом чате пока нет файлов.',
-  'error.api.CHAT_ATTACHMENTS_LOCKED': 'Файлы можно отправлять после принятия ставки.',
+  'error.api.CHAT_ATTACHMENTS_LOCKED':
+      'Файлы можно отправлять после принятия ставки.',
   // --- Owner 2026-09-30 (OQ-046) ---
   'post.create.practice': 'Квалификация',
   'post.create.practicePick': 'Выберите квалификацию',
@@ -24,12 +27,15 @@ const file06Ru = <String, String>{
   'post.create.titleHint': 'Коротко о главном — как на карточке',
   'post.create.bodyField': 'Описание',
   'post.create.required': 'Заполните это поле',
-  'post.create.photosHint': 'До 9 фото. Без фото карточка получит нашу картинку по квалификации.',
+  'post.create.photosHint':
+      'До 9 фото. Без фото карточка получит нашу картинку по квалификации.',
   'post.create.defaultCover': 'Так будет выглядеть карточка без фото:',
   'post.kind.post': 'Пост',
   'post.kind.news': 'Новость',
-  'post.kind.postHint': 'Совет, разбор кейса или опыт — появится в ленте и в вашем профиле.',
-  'post.kind.newsHint': 'Новость по квалификации: её увидят все, кто выбрал «Новости» в фильтрах.',
+  'post.kind.postHint':
+      'Совет, разбор кейса или опыт — появится в ленте и в вашем профиле.',
+  'post.kind.newsHint':
+      'Новость по квалификации: её увидят все, кто выбрал «Новости» в фильтрах.',
   'post.news.create': 'Новая новость',
   'post.news.publish': 'Опубликовать новость',
   'post.news.published': 'Новость опубликована',
@@ -41,10 +47,13 @@ const file06Ru = <String, String>{
   'feed.practice.empty': 'По этой квалификации пока нет постов.',
   'profile.tab.news': 'Новости',
   'profile.news.empty.title': 'Новостей пока нет',
-  'profile.news.empty.self': 'Опубликуйте новость через «+» — её увидят все, кто следит за вашей квалификацией.',
+  'profile.news.empty.self':
+      'Опубликуйте новость через «+» — её увидят все, кто следит за вашей квалификацией.',
   'profile.news.empty.other': 'Этот адвокат ещё не публиковал новости.',
-  'client.reviews.publicNote': 'Отзыв может оставить любой адвокат или клиент. Клиент может обжаловать отзыв — его проверит модерация.',
-  'client.reviews.selfNote': 'Это отзывы о вас. Несправедливый отзыв можно обжаловать через «…».',
+  'client.reviews.publicNote':
+      'Отзыв может оставить любой адвокат или клиент. Клиент может обжаловать отзыв — его проверит модерация.',
+  'client.reviews.selfNote':
+      'Это отзывы о вас. Несправедливый отзыв можно обжаловать через «…».',
   'client.reviews.write': 'Оставить отзыв',
   'client.reviews.editMine': 'Изменить мой отзыв',
   'client.reviews.menu': 'Действия с отзывом',
@@ -54,7 +63,8 @@ const file06Ru = <String, String>{
   'client.reviews.deleted': 'Отзыв удалён',
   'client.reviews.appeal': 'Обжаловать отзыв',
   'client.reviews.appealTitle': 'Обжаловать отзыв',
-  'client.reviews.appealHint': 'Объясните, почему отзыв несправедлив. Модерация решит, удалить его или оставить; если решения не будет 30 дней, отзыв удалится сам.',
+  'client.reviews.appealHint':
+      'Объясните, почему отзыв несправедлив. Модерация решит, удалить его или оставить; если решения не будет 30 дней, отзыв удалится сам.',
   'client.reviews.appealReason': 'Причина',
   'client.reviews.appealSend': 'Отправить',
   'client.reviews.appealSent': 'Жалоба отправлена модерации',
@@ -64,12 +74,16 @@ const file06Ru = <String, String>{
   'client.reviews.appeal.auto_removed': 'Удалён автоматически',
   'client.review.byClient': 'Отзыв клиента',
   'client.review.byAttorney': 'Отзыв адвоката',
-  'cases.outsidePractice.client': 'Этот кейс вне практик адвоката. Перед тем как принять ставку, обсудите с ним опыт и детали.',
-  'cases.outsidePractice.attorney': 'Кейс вне ваших практик. Вы можете сделать ставку — клиент увидит, что эта квалификация не из ваших, и сначала обсудит детали.',
+  'cases.outsidePractice.client':
+      'Этот кейс вне практик адвоката. Перед тем как принять ставку, обсудите с ним опыт и детали.',
+  'cases.outsidePractice.attorney':
+      'Кейс вне ваших практик. Вы можете сделать ставку — клиент увидит, что эта квалификация не из ваших, и сначала обсудит детали.',
   'notif.category.following': 'Подписки',
-  'notif.category.following.hint': 'Новые посты и новости тех, на кого вы подписаны. Выключено, пока не включите.',
+  'notif.category.following.hint':
+      'Новые посты и новости тех, на кого вы подписаны. Выключено, пока не включите.',
   'notif.category.newCases': 'Новые кейсы',
-  'notif.category.newCases.hint': 'Новый кейс по вашим практикам в ваших штатах. Выключено, пока не включите.',
+  'notif.category.newCases.hint':
+      'Новый кейс по вашим практикам в ваших штатах. Выключено, пока не включите.',
   'mine.tab.open': 'Открытые',
   'mine.tab.completed': 'Завершённые',
   'mine.filter.open': 'Открытые',
@@ -83,7 +97,8 @@ const file06Ru = <String, String>{
   'mine.saved.unavailable': 'Недоступен — убрать',
   'error.api.REVIEW_APPEAL_EXISTS': 'Этот отзыв уже обжалован.',
   'inbox.tab.requests': 'Запросы',
-  'call.notAllowedRequest': 'Звонок откроется, когда запрос на переписку примут.',
+  'call.notAllowedRequest':
+      'Звонок откроется, когда запрос на переписку примут.',
   // --- OQ-043: личные чаты и запросы на переписку ---
   'chat.requests.title': 'Запросы на переписку',
   'chat.requests.subtitle': 'Сообщения от людей, с которыми вы не общались',
@@ -99,8 +114,7 @@ const file06Ru = <String, String>{
   'chat.requests.block': 'Блок',
   'chat.requests.sentNote':
       'Запрос отправлен. До ответа можно отправить до 3 сообщений.',
-  'chat.requests.declinedForYou':
-      'Этот человек не принимает ваши сообщения.',
+  'chat.requests.declinedForYou': 'Этот человек не принимает ваши сообщения.',
   'error.api.DIRECT_CHAT_NOT_ALLOWED':
       'Личная переписка доступна между адвокатом и клиентом.',
   'error.api.MESSAGE_REQUEST_DECLINED':
@@ -127,10 +141,8 @@ const file06Ru = <String, String>{
   'call.mute': 'Микрофон',
   'call.speaker': 'Динамик',
   'call.audioOnly': 'Аудиозвонок LawBid',
-  'call.notAllowed':
-      'Звонки откроются после того, как клиент примет бид.',
-  'call.subscription':
-      'Для звонков у адвоката должна быть активная подписка.',
+  'call.notAllowed': 'Звонки откроются после того, как клиент примет бид.',
+  'call.subscription': 'Для звонков у адвоката должна быть активная подписка.',
   'call.inProgress': 'Вы уже в звонке.',
   'call.log.outgoing': 'Исходящий звонок',
   'call.log.incoming': 'Входящий звонок',
@@ -339,9 +351,12 @@ const file06Ru = <String, String>{
   'feed.topics.all': 'Все',
   'feed.topics.pick': 'Выберите темы',
   'search.kind.post': 'Пост',
-  'cases.create.privacy.clients': 'Другие пользователи и клиенты не видят ваш кейс — его видят только адвокаты вашей области права и штата.',
-  'cases.create.privacy.attorneys': 'Адвокаты видят только описание без вашего имени и контактов и присылают предложения (биды).',
-  'cases.create.privacy.files': 'Ваше имя, контакты, фото и документы получит только адвокат, чей бид вы сами примете.',
+  'cases.create.privacy.clients':
+      'Другие пользователи и клиенты не видят ваш кейс — его видят только адвокаты вашей области права и штата.',
+  'cases.create.privacy.attorneys':
+      'Адвокаты видят только описание без вашего имени и контактов и присылают предложения (биды).',
+  'cases.create.privacy.files':
+      'Ваше имя, контакты, фото и документы получит только адвокат, чей бид вы сами примете.',
   'create.title': 'Создать',
   'create.case': 'Новый кейс',
   'create.case.sub': 'Опишите ситуацию — адвокаты пришлют предложения.',
@@ -358,7 +373,8 @@ const file06Ru = <String, String>{
   'client.counter.rating': 'Рейтинг',
   'client.review.action': 'Оценить клиента',
   'client.review.title': 'Отзыв о клиенте',
-  'client.review.hint': 'Как прошла работа с клиентом? Отзыв увидят только адвокаты и сам клиент.',
+  'client.review.hint':
+      'Как прошла работа с клиентом? Отзыв увидят только адвокаты и сам клиент.',
   'client.review.save': 'Сохранить отзыв',
   'client.review.saved': 'Отзыв сохранён',
   'client.review.case': 'Кейс: {title}',
@@ -397,7 +413,8 @@ const file06Ru = <String, String>{
   'search.section.basedOn': 'По вашему поиску «{q}»',
   'search.section.cases': 'Кейсы для вас',
   'search.section.posts': 'Свежие посты',
-  'search.topics.explain': 'Темы — это хэштеги постов по областям права. Нажмите на тему, чтобы увидеть все посты о ней.',
+  'search.topics.explain':
+      'Темы — это хэштеги постов по областям права. Нажмите на тему, чтобы увидеть все посты о ней.',
   'search.topics.practices': 'Темы по областям права',
   'search.topics.practiceSub': 'Посты по теме #{tag}',
   'search.topics.posts': '{count} постов',
@@ -406,7 +423,8 @@ const file06Ru = <String, String>{
   'feed.filters': 'Фильтры',
   'cases.comments.title': 'Комментарии',
   'cases.comments.owner': 'Автор кейса',
-  'cases.comments.hint': 'Видят автор кейса и адвокаты, которым он доступен. Контакты передаются только после принятия бида.',
+  'cases.comments.hint':
+      'Видят автор кейса и адвокаты, которым он доступен. Контакты передаются только после принятия бида.',
   'cases.files.document': 'Документ',
   'cases.files.add': 'Добавить файл',
   'cases.files.open': 'Открыть файл',
@@ -426,7 +444,8 @@ const file06En = <String, String>{
   'chat.files.photos': 'Photos',
   'chat.files.documents': 'Documents',
   'chat.files.empty': 'No files in this chat yet.',
-  'error.api.CHAT_ATTACHMENTS_LOCKED': 'Files can be sent once the bid is accepted.',
+  'error.api.CHAT_ATTACHMENTS_LOCKED':
+      'Files can be sent once the bid is accepted.',
   // --- Owner 2026-09-30 (OQ-046) ---
   'post.create.practice': 'Qualification',
   'post.create.practicePick': 'Choose a qualification',
@@ -436,12 +455,15 @@ const file06En = <String, String>{
   'post.create.titleHint': 'The headline — as on the card',
   'post.create.bodyField': 'Description',
   'post.create.required': 'Fill in this field',
-  'post.create.photosHint': 'Up to 9 photos. Without photos the card gets our art for the qualification.',
+  'post.create.photosHint':
+      'Up to 9 photos. Without photos the card gets our art for the qualification.',
   'post.create.defaultCover': 'This is how the card looks without photos:',
   'post.kind.post': 'Post',
   'post.kind.news': 'News',
-  'post.kind.postHint': 'A tip, a case breakdown or experience — in the feed and on your profile.',
-  'post.kind.newsHint': 'News in a qualification: everyone who picks "News" in the filters sees it.',
+  'post.kind.postHint':
+      'A tip, a case breakdown or experience — in the feed and on your profile.',
+  'post.kind.newsHint':
+      'News in a qualification: everyone who picks "News" in the filters sees it.',
   'post.news.create': 'New news',
   'post.news.publish': 'Publish news',
   'post.news.published': 'News published',
@@ -453,10 +475,13 @@ const file06En = <String, String>{
   'feed.practice.empty': 'No posts in this qualification yet.',
   'profile.tab.news': 'News',
   'profile.news.empty.title': 'No news yet',
-  'profile.news.empty.self': 'Publish news with "+" — everyone following your qualification sees it.',
+  'profile.news.empty.self':
+      'Publish news with "+" — everyone following your qualification sees it.',
   'profile.news.empty.other': 'This attorney has not published news yet.',
-  'client.reviews.publicNote': 'Any attorney or client can leave a review. The client may appeal it — moderators check.',
-  'client.reviews.selfNote': 'These are reviews about you. Appeal an unfair one with "…".',
+  'client.reviews.publicNote':
+      'Any attorney or client can leave a review. The client may appeal it — moderators check.',
+  'client.reviews.selfNote':
+      'These are reviews about you. Appeal an unfair one with "…".',
   'client.reviews.write': 'Write a review',
   'client.reviews.editMine': 'Edit my review',
   'client.reviews.menu': 'Review actions',
@@ -466,7 +491,8 @@ const file06En = <String, String>{
   'client.reviews.deleted': 'Review deleted',
   'client.reviews.appeal': 'Appeal the review',
   'client.reviews.appealTitle': 'Appeal the review',
-  'client.reviews.appealHint': 'Explain why the review is unfair. Moderators decide to remove or keep it; with no decision in 30 days it is removed automatically.',
+  'client.reviews.appealHint':
+      'Explain why the review is unfair. Moderators decide to remove or keep it; with no decision in 30 days it is removed automatically.',
   'client.reviews.appealReason': 'Reason',
   'client.reviews.appealSend': 'Send',
   'client.reviews.appealSent': 'Appeal sent to moderators',
@@ -476,12 +502,16 @@ const file06En = <String, String>{
   'client.reviews.appeal.auto_removed': 'Removed automatically',
   'client.review.byClient': 'Review by a client',
   'client.review.byAttorney': 'Review by an attorney',
-  'cases.outsidePractice.client': 'This case is outside the attorney\'s practices. Discuss their experience and details before accepting the bid.',
-  'cases.outsidePractice.attorney': 'This case is outside your practices. You can bid — the client will see it isn\'t one of your qualifications and will discuss details first.',
+  'cases.outsidePractice.client':
+      "This case is outside the attorney's practices. Discuss their experience and details before accepting the bid.",
+  'cases.outsidePractice.attorney':
+      "This case is outside your practices. You can bid — the client will see it isn't one of your qualifications and will discuss details first.",
   'notif.category.following': 'Following',
-  'notif.category.following.hint': 'New posts and news from people you follow. Off until you turn it on.',
+  'notif.category.following.hint':
+      'New posts and news from people you follow. Off until you turn it on.',
   'notif.category.newCases': 'New cases',
-  'notif.category.newCases.hint': 'A new case in your practices and states. Off until you turn it on.',
+  'notif.category.newCases.hint':
+      'A new case in your practices and states. Off until you turn it on.',
   'mine.tab.open': 'Open',
   'mine.tab.completed': 'Completed',
   'mine.filter.open': 'Open',
@@ -512,8 +542,7 @@ const file06En = <String, String>{
   'chat.requests.block': 'Block',
   'chat.requests.sentNote':
       'Request sent. You can send up to 3 messages until they accept.',
-  'chat.requests.declinedForYou':
-      "This person isn't accepting your messages.",
+  'chat.requests.declinedForYou': "This person isn't accepting your messages.",
   'error.api.DIRECT_CHAT_NOT_ALLOWED':
       'Direct messages are between an attorney and a client.',
   'error.api.MESSAGE_REQUEST_DECLINED':
@@ -541,8 +570,7 @@ const file06En = <String, String>{
   'call.speaker': 'Speaker',
   'call.audioOnly': 'LawBid audio call',
   'call.notAllowed': 'Calls open once the client accepts the bid.',
-  'call.subscription':
-      'The attorney needs an active subscription for calls.',
+  'call.subscription': 'The attorney needs an active subscription for calls.',
   'call.inProgress': "You're already in a call.",
   'call.log.outgoing': 'Outgoing call',
   'call.log.incoming': 'Incoming call',
@@ -566,8 +594,7 @@ const file06En = <String, String>{
   'chat.voice.pause': 'Pause',
   'chat.voice.speed': 'Playback speed',
   'chat.voice.unavailable': 'Unavailable',
-  'chat.voice.noMic':
-      'No microphone access. Allow it in your phone settings.',
+  'chat.voice.noMic': 'No microphone access. Allow it in your phone settings.',
   // --- Subscription (docs/06 §1.7 items 1–2) ---
   'subscription.title': 'Subscription',
   'subscription.plan.badge': 'LawBid for attorneys',
@@ -752,9 +779,12 @@ const file06En = <String, String>{
   'feed.topics.all': 'All',
   'feed.topics.pick': 'Choose topics',
   'search.kind.post': 'Post',
-  'cases.create.privacy.clients': 'Other users and clients never see your case — only attorneys in its area of law and state do.',
-  'cases.create.privacy.attorneys': 'Attorneys see the description without your name or contacts and send you offers (bids).',
-  'cases.create.privacy.files': 'Your name, contacts, photos and documents go only to the attorney whose bid you accept.',
+  'cases.create.privacy.clients':
+      'Other users and clients never see your case — only attorneys in its area of law and state do.',
+  'cases.create.privacy.attorneys':
+      'Attorneys see the description without your name or contacts and send you offers (bids).',
+  'cases.create.privacy.files':
+      'Your name, contacts, photos and documents go only to the attorney whose bid you accept.',
   'create.title': 'Create',
   'create.case': 'New case',
   'create.case.sub': 'Describe your situation — attorneys send offers.',
@@ -762,7 +792,8 @@ const file06En = <String, String>{
   'create.post.sub': 'Share an experience or a question with the community.',
   'client.tab.posts': 'Posts',
   'client.tab.reviews': 'Reviews',
-  'client.reviews.private': "Attorneys' reviews are visible to attorneys and to you only.",
+  'client.reviews.private':
+      "Attorneys' reviews are visible to attorneys and to you only.",
   'client.reviews.empty': 'No reviews from attorneys yet.',
   'client.posts.empty': 'No posts yet.',
   'client.counter.posts': 'Posts',
@@ -771,7 +802,8 @@ const file06En = <String, String>{
   'client.counter.rating': 'Rating',
   'client.review.action': 'Review the client',
   'client.review.title': 'Review of the client',
-  'client.review.hint': 'How was working with this client? Only attorneys and the client see it.',
+  'client.review.hint':
+      'How was working with this client? Only attorneys and the client see it.',
   'client.review.save': 'Save review',
   'client.review.saved': 'Review saved',
   'client.review.case': 'Case: {title}',
@@ -810,7 +842,8 @@ const file06En = <String, String>{
   'search.section.basedOn': 'Based on your search “{q}”',
   'search.section.cases': 'Cases for you',
   'search.section.posts': 'Fresh posts',
-  'search.topics.explain': 'Topics are post hashtags by area of law. Tap a topic to see every post about it.',
+  'search.topics.explain':
+      'Topics are post hashtags by area of law. Tap a topic to see every post about it.',
   'search.topics.practices': 'Topics by area of law',
   'search.topics.practiceSub': 'Posts tagged #{tag}',
   'search.topics.posts': '{count} posts',
@@ -819,7 +852,8 @@ const file06En = <String, String>{
   'feed.filters': 'Filters',
   'cases.comments.title': 'Comments',
   'cases.comments.owner': 'Case owner',
-  'cases.comments.hint': 'Visible to the case owner and attorneys who can see the case. Contacts are shared only after a bid is accepted.',
+  'cases.comments.hint':
+      'Visible to the case owner and attorneys who can see the case. Contacts are shared only after a bid is accepted.',
   'cases.files.document': 'Document',
   'cases.files.add': 'Add a file',
   'cases.files.open': 'Open file',

@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:lawbid/core/network/api_error.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
     show showConfirmSheet;
 import 'package:lawbid/features/social/application/social_providers.dart';
@@ -58,6 +57,7 @@ class _CommentTileState extends ConsumerState<CommentTile> {
     if (_busy) return;
     final before = _c;
     final liked = !before.likedByMe;
+    // ignore: unawaited_futures
     HapticFeedback.selectionClick();
     setState(() {
       _busy = true;
@@ -201,14 +201,17 @@ class _CommentTileState extends ConsumerState<CommentTile> {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: type.bodySmall.copyWith(
-                                  color: colors.text,
-                                  fontWeight: FontWeight.w600),
+                                color: colors.text,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
                           if (a.verified) ...[
                             const SizedBox(width: 3),
                             VerifiedCheck(
-                                label: t.t('post.verified'), size: 13),
+                              label: t.t('post.verified'),
+                              size: 13,
+                            ),
                           ],
                           const SizedBox(width: AppSpacing.sm),
                           Text(
@@ -229,10 +232,12 @@ class _CommentTileState extends ConsumerState<CommentTile> {
                       Row(
                         children: [
                           TextButton(
-                            onPressed: () => widget.onReply((
-                              parentId: _c.parentId ?? _c.id,
-                              name: a.username ?? a.displayName,
-                            )),
+                            onPressed: () => widget.onReply(
+                              (
+                                parentId: _c.parentId ?? _c.id,
+                                name: a.username ?? a.displayName,
+                              ),
+                            ),
                             style: TextButton.styleFrom(
                               padding: EdgeInsets.zero,
                               minimumSize: const Size(0, AppSizes.touchTarget),
@@ -251,16 +256,19 @@ class _CommentTileState extends ConsumerState<CommentTile> {
                                     const Size(0, AppSizes.touchTarget),
                                 foregroundColor: colors.textSecondary,
                               ),
-                              child: Text(t.t(
-                                _showReplies
-                                    ? 'comment.hideReplies'
-                                    : 'comment.showReplies',
-                                {
-                                  'count': SocialFormat.count(
+                              child: Text(
+                                t.t(
+                                  _showReplies
+                                      ? 'comment.hideReplies'
+                                      : 'comment.showReplies',
+                                  {
+                                    'count': SocialFormat.count(
                                       ref.watch(l10nFormatsProvider),
-                                      _c.replyCount),
-                                },
-                              )),
+                                      _c.replyCount,
+                                    ),
+                                  },
+                                ),
+                              ),
                             ),
                           ],
                         ],
@@ -315,7 +323,8 @@ class _Replies extends ConsumerWidget {
           child: SizedBox.square(
             dimension: AppSizes.footerSpinner,
             child: CircularProgressIndicator(
-                strokeWidth: AppSizes.footerSpinnerStroke),
+              strokeWidth: AppSizes.footerSpinnerStroke,
+            ),
           ),
         ),
       ),
@@ -384,9 +393,13 @@ class _CommentComposerState extends ConsumerState<CommentComposer> {
     // case thread) — say so before the text is lost to a 403.
     if (ref.read(isAssistantProvider) &&
         !ref.read(canDoProvider(AssistantDuty.publish)) &&
-        !ref.read(canDoProvider(isCaseRef(widget.postId)
-            ? AssistantDuty.cases
-            : AssistantDuty.posts))) {
+        !ref.read(
+          canDoProvider(
+            isCaseRef(widget.postId)
+                ? AssistantDuty.cases
+                : AssistantDuty.posts,
+          ),
+        )) {
       setState(() => _sending = false);
       showAppSnackBar(
         context,
@@ -439,6 +452,7 @@ class _CommentComposerState extends ConsumerState<CommentComposer> {
         ref.read(commentsProvider(widget.postId).notifier).add(c);
       } else {
         ref.invalidate(repliesProvider(reply.parentId));
+        // ignore: cascade_invocations
         ref.invalidate(commentsProvider(widget.postId));
       }
       // Case threads (OQ-034) have no post to bump. Audit 2026-10-02: the
@@ -462,104 +476,117 @@ class _CommentComposerState extends ConsumerState<CommentComposer> {
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final reply = widget.replyTo;
     // The send button is part of the field: tapping it keeps the keyboard.
-    return TextFieldTapRegion(child: Material(
-      color: colors.surface,
-      child: SafeArea(
-        top: false,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Divider(height: 1, color: colors.border),
-            if (reply != null)
+    return TextFieldTapRegion(
+      child: Material(
+        color: colors.surface,
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Divider(height: 1, color: colors.border),
+              if (reply != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.screenSide,
+                    AppSpacing.sm,
+                    AppSpacing.sm,
+                    0,
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          t.t('comment.replyingTo', {'name': reply.name}),
+                          style: type.caption
+                              .copyWith(color: colors.textSecondary),
+                        ),
+                      ),
+                      AppIconButton(
+                        icon: const AppIcon(AppIcons.closeRounded, size: 18),
+                        semanticLabel: t.t('common.cancel'),
+                        onPressed: widget.onClearReply,
+                      ),
+                    ],
+                  ),
+                ),
+              // OQ-042: "@…" suggests people to mention.
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.screenSide,
+                ),
+                child: MentionSuggestions(controller: _text),
+              ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.screenSide, AppSpacing.sm, AppSpacing.sm, 0),
+                  AppSpacing.screenSide,
+                  AppSpacing.sm,
+                  AppSpacing.sm,
+                  AppSpacing.sm,
+                ),
                 child: Row(
                   children: [
                     Expanded(
-                      child: Text(
-                        t.t('comment.replyingTo', {'name': reply.name}),
-                        style:
-                            type.caption.copyWith(color: colors.textSecondary),
+                      child: TextField(
+                        onTapOutside: hideKeyboardOnTapOutside,
+                        controller: _text,
+                        focusNode: widget.focusNode,
+                        minLines: 1,
+                        maxLines: 4,
+                        maxLength: kCommentMaxChars,
+                        buildCounter: (
+                          _, {
+                          required currentLength,
+                          required isFocused,
+                          maxLength,
+                        }) =>
+                            null,
+                        textCapitalization: TextCapitalization.sentences,
+                        style: type.body.copyWith(color: colors.text),
+                        decoration: InputDecoration(
+                          hintText: t.t('comment.hint'),
+                          isDense: true,
+                          filled: true,
+                          fillColor: colors.bg,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(AppRadii.pill),
+                            borderSide: BorderSide(color: colors.border),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(AppRadii.pill),
+                            borderSide: BorderSide(color: colors.border),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(AppRadii.pill),
+                            borderSide: BorderSide(color: colors.gold),
+                          ),
+                        ),
                       ),
                     ),
-                    AppIconButton(
-                      icon: const AppIcon(AppIcons.closeRounded, size: 18),
-                      semanticLabel: t.t('common.cancel'),
-                      onPressed: widget.onClearReply,
+                    const SizedBox(width: AppSpacing.xs),
+                    ValueListenableBuilder<TextEditingValue>(
+                      valueListenable: _text,
+                      builder: (context, v, _) {
+                        final enabled = v.text.trim().isNotEmpty && !_sending;
+                        return AppIconButton(
+                          icon: AppIcon(
+                            AppIcons.arrowUpwardRounded,
+                            color: enabled ? colors.gold : colors.textSecondary,
+                          ),
+                          isLoading: _sending,
+                          semanticLabel: t.t('comment.send'),
+                          onPressed: enabled ? _send : null,
+                        );
+                      },
                     ),
                   ],
                 ),
               ),
-            // OQ-042: "@…" suggests people to mention.
-            Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: AppSpacing.screenSide),
-              child: MentionSuggestions(controller: _text),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide,
-                  AppSpacing.sm, AppSpacing.sm, AppSpacing.sm),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      onTapOutside: hideKeyboardOnTapOutside,
-                      controller: _text,
-                      focusNode: widget.focusNode,
-                      minLines: 1,
-                      maxLines: 4,
-                      maxLength: kCommentMaxChars,
-                      buildCounter: (_,
-                              {required currentLength,
-                              required isFocused,
-                              maxLength}) =>
-                          null,
-                      textCapitalization: TextCapitalization.sentences,
-                      style: type.body.copyWith(color: colors.text),
-                      decoration: InputDecoration(
-                        hintText: t.t('comment.hint'),
-                        isDense: true,
-                        filled: true,
-                        fillColor: colors.bg,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(AppRadii.pill),
-                          borderSide: BorderSide(color: colors.border),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(AppRadii.pill),
-                          borderSide: BorderSide(color: colors.border),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(AppRadii.pill),
-                          borderSide: BorderSide(color: colors.gold),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.xs),
-                  ValueListenableBuilder<TextEditingValue>(
-                    valueListenable: _text,
-                    builder: (context, v, _) {
-                      final enabled = v.text.trim().isNotEmpty && !_sending;
-                      return AppIconButton(
-                        icon: AppIcon(
-                          AppIcons.arrowUpwardRounded,
-                          color: enabled ? colors.gold : colors.textSecondary,
-                        ),
-                        isLoading: _sending,
-                        semanticLabel: t.t('comment.send'),
-                        onPressed: enabled ? _send : null,
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
-    ));
+    );
   }
 }
 

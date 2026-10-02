@@ -90,7 +90,8 @@ class FakeSubscriptionRepository implements SubscriptionRepository {
   Object? startError;
   SubscriptionStart startResult = startFixture;
 
-  /// What `confirm` returns; the [chargeNow] flag is recorded in [calls].
+  /// What `confirm` returns; the `chargeNow` flag is recorded in [calls].
+  // ignore: avoid_positional_boolean_parameters
   SubscriptionOverview Function(bool chargeNow)? onConfirm;
   Object? confirmError;
   Uri portal = Uri.parse('https://billing.stripe.com/p/session_1');
@@ -99,6 +100,7 @@ class FakeSubscriptionRepository implements SubscriptionRepository {
   Future<SubscriptionOverview> overview() async {
     calls.add('overview');
     if (hold != null) await hold!.future;
+    // ignore: only_throw_errors
     if (overviewError != null) throw overviewError!;
     if (overviewQueue.isNotEmpty) return current = overviewQueue.removeAt(0);
     return current;
@@ -159,6 +161,7 @@ class FakeSubscriptionRepository implements SubscriptionRepository {
   @override
   Future<SubscriptionStart> start() async {
     calls.add('start');
+    // ignore: only_throw_errors
     if (startError != null) throw startError!;
     return startResult;
   }
@@ -172,6 +175,7 @@ class FakeSubscriptionRepository implements SubscriptionRepository {
     if (confirmError != null) {
       final e = confirmError!;
       confirmError = null;
+      // ignore: only_throw_errors
       throw e;
     }
     return current = onConfirm?.call(chargeNow) ??
@@ -229,6 +233,7 @@ class FakeCardCollector implements CardCollector {
   @override
   Future<void> collect(CardCollectionRequest request) async {
     requests.add(request);
+    // ignore: only_throw_errors
     if (error != null) throw error!;
   }
 }

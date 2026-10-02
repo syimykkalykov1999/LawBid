@@ -42,7 +42,8 @@ CurrentUser meFixture({
       if (role == null) MissingRequirement.role,
       if (!hasName) MissingRequirement.name,
       if (role != null && !phoneVerified) MissingRequirement.phoneVerified,
-      if (role == UserRole.client && !emailVerified) MissingRequirement.emailVerified,
+      if (role == UserRole.client && !emailVerified)
+        MissingRequirement.emailVerified,
     },
   );
 }

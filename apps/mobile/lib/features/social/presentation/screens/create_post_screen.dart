@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -91,6 +89,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
       final photo = _Photo(await file.readAsBytes());
       if (!mounted) return;
       setState(() => _photos.add(photo));
+      // ignore: unawaited_futures
       _upload(photo);
     }
   }
@@ -124,6 +123,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
       options: practiceOptions(ref),
     );
     if (picked == null || picked.isEmpty) return;
+    // ignore: unawaited_futures
     HapticFeedback.selectionClick();
     setState(() => _practice = picked.first);
   }
@@ -146,6 +146,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
               body: _text.text.trim(),
               practiceCode: _practice,
             );
+        // ignore: only_throw_errors
         if (error != null) throw error;
         if (!mounted) return;
         Navigator.of(context).pop();
@@ -159,12 +160,13 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
           {
             'title': _title.text.trim(),
             'body': _text.text.trim(),
-            if (_practice != null) 'practiceCode': _practice!,
+            if (_practice != null) 'practiceCode': _practice,
             'kind': _news ? 'news' : 'post',
             'mediaFileIds': [for (final p in _photos) p.fileId!],
           },
         );
         if (!mounted) return;
+        // ignore: unawaited_futures
         HapticFeedback.mediumImpact();
         showAppSnackBar(context, t.t('request.sent'));
         Navigator.of(context).pop();
@@ -181,9 +183,12 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
           );
       if (!mounted) return;
       ref.read(feedProvider.notifier).prepend(post);
+      // ignore: unawaited_futures
       HapticFeedback.mediumImpact();
       showAppSnackBar(
-          context, t.t(_news ? 'post.news.published' : 'post.published'));
+        context,
+        t.t(_news ? 'post.news.published' : 'post.published'),
+      );
       Navigator.of(context).pop();
     } on Object catch (e) {
       if (mounted) {
@@ -219,9 +224,13 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
           semanticLabel: t.t('common.close'),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: Text(t.t(_editing
-            ? 'post.menu.edit'
-            : (_news ? 'post.news.create' : 'post.create.title'))),
+        title: Text(
+          t.t(
+            _editing
+                ? 'post.menu.edit'
+                : (_news ? 'post.news.create' : 'post.create.title'),
+          ),
+        ),
       ),
       body: SafeArea(
         child: Column(
@@ -255,14 +264,17 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                         ? null
                         : practiceLabel(ref, practiceCategoryOf(practice)),
                     icon: practiceGlyph(
-                        practice == null ? null : practiceCategoryOf(practice)),
+                      practice == null ? null : practiceCategoryOf(practice),
+                    ),
                     empty: practice == null,
                     error: false,
                     onTap: _pickPractice,
                   ),
                   const SizedBox(height: AppSpacing.lg),
-                  label(t.t('post.create.titleField'),
-                      error: missing && _title.text.trim().isEmpty),
+                  label(
+                    t.t('post.create.titleField'),
+                    error: missing && _title.text.trim().isEmpty,
+                  ),
                   ValueListenableBuilder<TextEditingValue>(
                     valueListenable: _title,
                     builder: (context, v, _) => AppTextField(
@@ -278,8 +290,10 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                     ),
                   ),
                   const SizedBox(height: AppSpacing.lg),
-                  label(t.t('post.create.bodyField'),
-                      error: missing && _text.text.trim().isEmpty),
+                  label(
+                    t.t('post.create.bodyField'),
+                    error: missing && _text.text.trim().isEmpty,
+                  ),
                   PostTextField(
                     controller: _text,
                     hint: t.t('post.create.hint'),
@@ -290,8 +304,10 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                   if (!_editing) ...[
                     Row(
                       children: [
-                        Text(t.t('post.create.photos'),
-                            style: type.titleMedium),
+                        Text(
+                          t.t('post.create.photos'),
+                          style: type.titleMedium,
+                        ),
                         const Spacer(),
                         Text(
                           '${_photos.length} / $kPostMaxPhotos',
@@ -308,6 +324,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                         buildDefaultDragHandles: false,
                         proxyDecorator: (child, _, __) =>
                             Material(color: Colors.transparent, child: child),
+                        // ignore: deprecated_member_use
                         onReorder: (from, to) => setState(() {
                           final p = _photos.removeAt(from);
                           _photos.insert(to > from ? to - 1 : to, p);
@@ -338,17 +355,21 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                     ),
                     const SizedBox(height: AppSpacing.xs),
                     Text(
-                      t.t(_photos.length > 1
-                          ? 'post.create.reorderHint'
-                          : 'post.create.photosHint'),
+                      t.t(
+                        _photos.length > 1
+                            ? 'post.create.reorderHint'
+                            : 'post.create.photosHint',
+                      ),
                       style: type.caption.copyWith(color: colors.textSecondary),
                     ),
                     // Without photos: a preview of the art the card gets.
                     if (_photos.isEmpty && practice != null) ...[
                       const SizedBox(height: AppSpacing.md),
-                      Text(t.t('post.create.defaultCover'),
-                          style: type.caption
-                              .copyWith(color: colors.textSecondary)),
+                      Text(
+                        t.t('post.create.defaultCover'),
+                        style:
+                            type.caption.copyWith(color: colors.textSecondary),
+                      ),
                       const SizedBox(height: AppSpacing.xs),
                       ClipRRect(
                         borderRadius: BorderRadius.circular(AppRadii.card),
@@ -372,13 +393,18 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
               child: ValueListenableBuilder<TextEditingValue>(
                 valueListenable: _text,
                 builder: (context, _, __) => AppButton(
-                  label: t.t(_editing
-                      ? 'common.save'
-                      : ref.watch(isAssistantProvider) &&
-                              !ref.watch(
-                                  canDoProvider(AssistantDuty.publish))
-                          ? 'request.sendForApproval'
-                          : (_news ? 'post.news.publish' : 'post.create.publish')),
+                  label: t.t(
+                    _editing
+                        ? 'common.save'
+                        : ref.watch(isAssistantProvider) &&
+                                !ref.watch(
+                                  canDoProvider(AssistantDuty.publish),
+                                )
+                            ? 'request.sendForApproval'
+                            : (_news
+                                ? 'post.news.publish'
+                                : 'post.create.publish'),
+                  ),
                   icon: _editing ? AppIcons.checkRounded : AppIcons.sendRounded,
                   isLoading: _publishing,
                   isEnabled:
@@ -412,6 +438,7 @@ class _KindToggle extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    // ignore: avoid_positional_boolean_parameters
     Widget seg(String label, IconData icon, bool selected, bool value) =>
         Expanded(
           child: Semantics(
@@ -433,9 +460,11 @@ class _KindToggle extends StatelessWidget {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    AppIcon(icon,
-                        size: 18,
-                        color: selected ? colors.goldLight : colors.text),
+                    AppIcon(
+                      icon,
+                      size: 18,
+                      color: selected ? colors.goldLight : colors.text,
+                    ),
                     const SizedBox(width: AppSpacing.xs),
                     Text(
                       label,
@@ -499,7 +528,9 @@ class _PracticeField extends StatelessWidget {
           constraints:
               const BoxConstraints(minHeight: AppSizes.touchTarget + 8),
           padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+            horizontal: AppSpacing.md,
+            vertical: AppSpacing.sm,
+          ),
           decoration: BoxDecoration(
             color: colors.surface,
             borderRadius: BorderRadius.circular(AppRadii.field),
@@ -511,8 +542,11 @@ class _PracticeField extends StatelessWidget {
           ),
           child: Row(
             children: [
-              AppIcon(empty ? AppIcons.searchRounded : icon,
-                  size: 20, color: colors.goldDark),
+              AppIcon(
+                empty ? AppIcons.searchRounded : icon,
+                size: 20,
+                color: colors.goldDark,
+              ),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: Column(
@@ -527,9 +561,11 @@ class _PracticeField extends StatelessWidget {
                       ),
                     ),
                     if (sublabel != null)
-                      Text(sublabel!,
-                          style: type.caption
-                              .copyWith(color: colors.textSecondary)),
+                      Text(
+                        sublabel!,
+                        style:
+                            type.caption.copyWith(color: colors.textSecondary),
+                      ),
                   ],
                 ),
               ),
@@ -565,8 +601,11 @@ class _AddPhotoTile extends StatelessWidget {
             borderRadius: BorderRadius.circular(AppRadii.card),
             border: Border.all(color: colors.goldStroke),
           ),
-          child: AppIcon(AppIcons.addPhotoAlternateOutlined,
-              color: colors.goldDark, size: AppSizes.iconLg),
+          child: AppIcon(
+            AppIcons.addPhotoAlternateOutlined,
+            color: colors.goldDark,
+            size: AppSizes.iconLg,
+          ),
         ),
       ),
     );
@@ -622,8 +661,10 @@ class _PhotoTile extends StatelessWidget {
                 color: colors.navy.withValues(alpha: 0.6),
                 child: Center(
                   child: AppIconButton(
-                    icon:
-                        const AppIcon(AppIcons.refreshRounded, color: Colors.white),
+                    icon: const AppIcon(
+                      AppIcons.refreshRounded,
+                      color: Colors.white,
+                    ),
                     semanticLabel: retryLabel,
                     onPressed: onRetry,
                   ),
@@ -638,15 +679,18 @@ class _PhotoTile extends StatelessWidget {
                   color: colors.navy.withValues(alpha: 0.7),
                   borderRadius: BorderRadius.circular(AppRadii.pill),
                 ),
-                child: Text('${index + 1}',
-                    style: type.caption.copyWith(color: Colors.white)),
+                child: Text(
+                  '${index + 1}',
+                  style: type.caption.copyWith(color: Colors.white),
+                ),
               ),
             ),
             Positioned(
               right: 0,
               top: 0,
               child: AppIconButton(
-                icon: const AppIcon(AppIcons.cancelRounded, color: Colors.white),
+                icon:
+                    const AppIcon(AppIcons.cancelRounded, color: Colors.white),
                 semanticLabel: removeLabel,
                 onPressed: onRemove,
               ),

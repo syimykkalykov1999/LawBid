@@ -62,12 +62,12 @@ class _TourStepScreenState extends ConsumerState<TourStepScreen> {
       'client': [
         AppIcons.editNoteRounded,
         AppIcons.localOfferOutlined,
-        AppIcons.handshakeOutlined
+        AppIcons.handshakeOutlined,
       ],
       'attorney': [
         AppIcons.verifiedUserOutlined,
         AppIcons.travelExploreRounded,
-        AppIcons.sendRounded
+        AppIcons.sendRounded,
       ],
     };
     final last = _index == TourStepScreen.pageCount - 1;
@@ -97,7 +97,9 @@ class _TourStepScreenState extends ConsumerState<TourStepScreen> {
                     TextButton(
                       style: TextButton.styleFrom(
                         minimumSize: const Size(
-                            AppSizes.touchTarget, AppSizes.touchTarget),
+                          AppSizes.touchTarget,
+                          AppSizes.touchTarget,
+                        ),
                         foregroundColor: colors.textSecondary,
                       ),
                       onPressed: action.busy
@@ -105,8 +107,10 @@ class _TourStepScreenState extends ConsumerState<TourStepScreen> {
                           : () => ref
                               .read(onboardingActionsProvider.notifier)
                               .complete(),
-                      child: Text(t.t('onboarding.tour.skip'),
-                          style: typography.button),
+                      child: Text(
+                        t.t('onboarding.tour.skip'),
+                        style: typography.button,
+                      ),
                     ),
                 ],
               ),
@@ -123,7 +127,7 @@ class _TourStepScreenState extends ConsumerState<TourStepScreen> {
                   body: t.t('onboarding.tour.$variant.${i + 1}.body'),
                   stepLabel: t.t('common.stepOf', {
                     'current': '${i + 1}',
-                    'total': '${TourStepScreen.pageCount}'
+                    'total': '${TourStepScreen.pageCount}',
                   }),
                 ),
               ),
@@ -145,9 +149,9 @@ class _TourStepScreenState extends ConsumerState<TourStepScreen> {
                     const SizedBox(height: AppSpacing.md),
                   ],
                   AppButton(
-                    label: t.t(last
-                        ? 'onboarding.tour.start'
-                        : 'onboarding.tour.next'),
+                    label: t.t(
+                      last ? 'onboarding.tour.start' : 'onboarding.tour.next',
+                    ),
                     isLoading: action.busy,
                     onPressed: _next,
                   ),
@@ -182,24 +186,31 @@ class _TourPage extends StatelessWidget {
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.screenSide, vertical: AppSpacing.xl),
+        horizontal: AppSpacing.screenSide,
+        vertical: AppSpacing.xl,
+      ),
       child: Column(
         children: staggeredEntrance([
           const SizedBox(height: AppSpacing.xxl),
           Stack(
             alignment: Alignment.center,
             children: [
-              ExcludeSemantics(
-                  child: Opacity(opacity: 0.6, child: WatermarkScales())),
+              const ExcludeSemantics(
+                child:
+                    Opacity(opacity: 0.6, child: WatermarkScales()),
+              ),
               AppIconMedallion(
-                  icon: icon,
-                  size: AppSizes.stateMedallion * 1.4,
-                  iconSize: AppSizes.stateIcon * 1.4),
+                icon: icon,
+                size: AppSizes.stateMedallion * 1.4,
+                iconSize: AppSizes.stateIcon * 1.4,
+              ),
             ],
           ),
           const SizedBox(height: AppSpacing.xxl),
-          Text(stepLabel,
-              style: typography.caption.copyWith(color: colors.goldDark)),
+          Text(
+            stepLabel,
+            style: typography.caption.copyWith(color: colors.goldDark),
+          ),
           const SizedBox(height: AppSpacing.sm),
           Semantics(
             header: true,

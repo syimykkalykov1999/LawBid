@@ -15,7 +15,7 @@ const _knownDocTypes = {
   'terms',
   'privacy',
   'disclaimer',
-  'client_contact_sharing'
+  'client_contact_sharing',
 };
 
 /// `/legal/:docType` — current Terms / Privacy / Disclaimer from
@@ -87,7 +87,9 @@ class _LegalDocumentScreenState extends ConsumerState<LegalDocumentScreen> {
       );
     } else if (doc == null) {
       body = AppEmptyState(
-          icon: AppIcons.descriptionOutlined, message: t.t('legal.notFound'));
+        icon: AppIcons.descriptionOutlined,
+        message: t.t('legal.notFound'),
+      );
     } else {
       body = ListView(
         padding: const EdgeInsets.fromLTRB(
@@ -115,8 +117,10 @@ class _LegalDocumentScreenState extends ConsumerState<LegalDocumentScreen> {
                               .copyWith(color: colors.text),
                         ),
                       )
-                    : SelectableText(block,
-                        style: typography.body.copyWith(color: colors.text)),
+                    : SelectableText(
+                        block,
+                        style: typography.body.copyWith(color: colors.text),
+                      ),
               ),
           if (doc.contentUrl != null)
             AppListRow(
@@ -126,8 +130,9 @@ class _LegalDocumentScreenState extends ConsumerState<LegalDocumentScreen> {
               showChevron: false,
               onTap: () async {
                 await Clipboard.setData(ClipboardData(text: doc.contentUrl!));
-                if (context.mounted)
+                if (context.mounted) {
                   showAppSnackBar(context, t.t('legal.linkCopied'));
+                }
               },
             ),
         ],
@@ -137,9 +142,13 @@ class _LegalDocumentScreenState extends ConsumerState<LegalDocumentScreen> {
     return Scaffold(
       backgroundColor: colors.bg,
       appBar: AppTopBar(
-        title: Text(t.t(_knownDocTypes.contains(widget.docType)
-            ? 'legal.doc.${widget.docType}'
-            : 'legal.doc.document')),
+        title: Text(
+          t.t(
+            _knownDocTypes.contains(widget.docType)
+                ? 'legal.doc.${widget.docType}'
+                : 'legal.doc.document',
+          ),
+        ),
         leading: AppBackButton(
           semanticLabel: t.t('common.close'),
           onPressed: () => Navigator.of(context).maybePop(),

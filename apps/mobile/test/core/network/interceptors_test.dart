@@ -35,14 +35,23 @@ void main() {
       await dio.get<dynamic>('/c', options: RequestFlags.createOptions());
 
       expect(adapter.requests[0].headers['Idempotency-Key'], 'key-1');
-      expect(adapter.requests[1].headers.containsKey('Idempotency-Key'), isFalse);
-      expect(adapter.requests[2].headers.containsKey('Idempotency-Key'), isFalse);
+      expect(
+        adapter.requests[1].headers.containsKey('Idempotency-Key'),
+        isFalse,
+      );
+      expect(
+        adapter.requests[2].headers.containsKey('Idempotency-Key'),
+        isFalse,
+      );
     });
 
     test('keeps a caller-supplied key', () async {
       await dio.post<dynamic>(
         '/a',
-        options: Options(extra: const {RequestFlags.createsResource: true}, headers: {'idempotency-key': 'mine'}),
+        options: Options(
+          extra: const {RequestFlags.createsResource: true},
+          headers: {'idempotency-key': 'mine'},
+        ),
       );
       expect(adapter.requests.single.headers['idempotency-key'], 'mine');
       expect(keySeq, 0);
@@ -50,7 +59,8 @@ void main() {
   });
 
   group('RetryInterceptor', () {
-    test('retries an idempotent GET on network errors with exponential backoff', () async {
+    test('retries an idempotent GET on network errors with exponential backoff',
+        () async {
       var calls = 0;
       adapter.handler = (o) async {
         calls++;
@@ -61,9 +71,15 @@ void main() {
       expect(res.data!['data'], {'n': 3});
       expect(calls, 3);
       expect(sleeps, hasLength(2));
-      expect(sleeps[0], greaterThanOrEqualTo(const Duration(milliseconds: 100)));
+      expect(
+        sleeps[0],
+        greaterThanOrEqualTo(const Duration(milliseconds: 100)),
+      );
       expect(sleeps[0], lessThan(const Duration(milliseconds: 131)));
-      expect(sleeps[1], greaterThanOrEqualTo(const Duration(milliseconds: 200)));
+      expect(
+        sleeps[1],
+        greaterThanOrEqualTo(const Duration(milliseconds: 200)),
+      );
     });
 
     test('gives up after maxRetries (4 attempts total)', () async {
@@ -72,9 +88,13 @@ void main() {
       expect(adapter.requests, hasLength(4));
     });
 
-    test('never retries a plain POST (e.g. /auth/refresh — reuse detection)', () async {
+    test('never retries a plain POST (e.g. /auth/refresh — reuse detection)',
+        () async {
       adapter.handler = (o) async => throwConnectionError(o);
-      await expectLater(dio.post<dynamic>('/auth/refresh'), throwsA(isA<DioException>()));
+      await expectLater(
+        dio.post<dynamic>('/auth/refresh'),
+        throwsA(isA<DioException>()),
+      );
       expect(adapter.requests, hasLength(1));
     });
 
@@ -85,7 +105,10 @@ void main() {
         if (calls == 1) throwConnectionError(o);
         return ok(const {});
       };
-      await dio.post<dynamic>('/users/me/consents', options: RequestFlags.createOptions());
+      await dio.post<dynamic>(
+        '/users/me/consents',
+        options: RequestFlags.createOptions(),
+      );
       expect(adapter.requests, hasLength(2));
       expect(
         adapter.requests.map((r) => r.headers['Idempotency-Key']).toSet(),
@@ -116,7 +139,10 @@ void main() {
       adapter.requests.clear();
       adapter.handler = (o) async => throwConnectionError(o);
       await expectLater(
-        dio.get<dynamic>('/y', options: Options(extra: const {RequestFlags.noRetry: true})),
+        dio.get<dynamic>(
+          '/y',
+          options: Options(extra: const {RequestFlags.noRetry: true}),
+        ),
         throwsA(isA<DioException>()),
       );
       expect(adapter.requests, hasLength(1));

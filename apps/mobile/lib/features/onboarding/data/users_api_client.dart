@@ -28,14 +28,14 @@ class UsersApiClient {
     RequestFlags.createsResource: true,
   };
 
-  Future<api.MeDto> getMe() async =>
-      (await guardApiCall(_users.me)).data;
+  Future<api.MeDto> getMe() async => (await guardApiCall(_users.me)).data;
 
   Future<api.MeDto> updateProfile(api.UpdateProfileDto body) async =>
       (await guardApiCall(() => _users.updateProfile(body: body))).data;
 
   /// `POST /users/me/role` — set once (409 ROLE_ALREADY_SET afterwards).
-  Future<api.MeDto> setRole(api.SetRoleDtoRole role) async => (await guardApiCall(
+  Future<api.MeDto> setRole(api.SetRoleDtoRole role) async =>
+      (await guardApiCall(
         () => _users.setRole(
           body: api.SetRoleDto(role: role),
           extras: _createsResource,

@@ -68,13 +68,15 @@ class PreferencesSyncController extends Notifier<void> {
       (previous, next) => unawaited(_onUser(previous, next)),
       fireImmediately: true,
     );
-    ref.listen<AsyncValue<ThemeMode>>(themeModeControllerProvider, (previous, next) {
+    ref.listen<AsyncValue<ThemeMode>>(themeModeControllerProvider,
+        (previous, next) {
       final before = previous?.value;
       final now = next.value;
       if (before == null || now == null || before == now) return;
       unawaited(_onLocalChange(theme: themeWireName(now)));
     });
-    ref.listen<AsyncValue<AppLanguage>>(languageControllerProvider, (previous, next) {
+    ref.listen<AsyncValue<AppLanguage>>(languageControllerProvider,
+        (previous, next) {
       final before = previous?.value;
       final now = next.value;
       if (before == null || now == null || before == now) return;
@@ -124,14 +126,17 @@ class PreferencesSyncController extends Notifier<void> {
       if (pushLocal || _isPending(_kPendingTheme)) {
         pushTheme = themeWireName(localTheme);
       } else {
-        await ref.read(themeModeControllerProvider.notifier).setThemeMode(serverTheme);
+        await ref
+            .read(themeModeControllerProvider.notifier)
+            .setThemeMode(serverTheme);
       }
     }
     // Either way the resolved language is persisted as an explicit choice,
     // so a later system-locale auto-detection can't silently change (and
     // PATCH) a signed-in account's language.
     final languages = ref.read(languageControllerProvider.notifier);
-    if (localLanguage != serverLanguage && (pushLocal || _isPending(_kPendingLanguage))) {
+    if (localLanguage != serverLanguage &&
+        (pushLocal || _isPending(_kPendingLanguage))) {
       pushLanguage = localLanguage.code;
       await languages.setLanguage(localLanguage);
     } else if (AppLanguage.isValidCode(user.uiLanguage)) {
@@ -150,8 +155,10 @@ class PreferencesSyncController extends Notifier<void> {
     if (user == null) return;
     // A server value being applied locally (see _reconcileAtLogin) lands
     // here too; it already equals the account's value, so nothing is sent.
-    final changedTheme = theme != null && theme != (user.theme ?? 'system') ? theme : null;
-    final changedLanguage = uiLanguage != null && uiLanguage != user.uiLanguage ? uiLanguage : null;
+    final changedTheme =
+        theme != null && theme != (user.theme ?? 'system') ? theme : null;
+    final changedLanguage =
+        uiLanguage != null && uiLanguage != user.uiLanguage ? uiLanguage : null;
     if (changedTheme == null && changedLanguage == null) return;
     await _push(theme: changedTheme, uiLanguage: changedLanguage);
   }
@@ -228,4 +235,6 @@ class PreferencesSyncController extends Notifier<void> {
 }
 
 final preferencesSyncProvider =
-    NotifierProvider<PreferencesSyncController, void>(PreferencesSyncController.new);
+    NotifierProvider<PreferencesSyncController, void>(
+  PreferencesSyncController.new,
+);

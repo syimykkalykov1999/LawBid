@@ -85,9 +85,11 @@ void main() {
             code: 'name_mismatch',
             reason: 'The surname on the ID differs from the license record.',
             licenses: [
-              license('AL',
-                  status: LicenseStatus.rejected,
-                  rejectionCode: 'name_mismatch'),
+              license(
+                'AL',
+                status: LicenseStatus.rejected,
+                rejectionCode: 'name_mismatch',
+              ),
             ],
           ),
         ),
@@ -98,9 +100,11 @@ void main() {
             RequestStatus.approved,
             licenses: [
               license('NY', status: LicenseStatus.verified),
-              license('AL',
-                  status: LicenseStatus.rejected,
-                  rejectionCode: 'license_inactive'),
+              license(
+                'AL',
+                status: LicenseStatus.rejected,
+                rejectionCode: 'license_inactive',
+              ),
             ],
           ),
         ),
@@ -201,8 +205,12 @@ void main() {
         documents: const [],
       ),
     )..nextScan = ScanState.infected;
-    await pump(tester, backend, AppTheme.light(),
-        initial: AppRoutes.verificationWizard);
+    await pump(
+      tester,
+      backend,
+      AppTheme.light(),
+      initial: AppRoutes.verificationWizard,
+    );
     await tester.ensureVisible(find.text('Photo or PDF').last);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Photo or PDF').last);
@@ -213,15 +221,24 @@ void main() {
   group('200% text scale renders without overflow', () {
     for (final key in ['rejected', 'needs_more_info', 'verified']) {
       testWidgets('status $key', (tester) async {
-        await pump(tester, statusStates[key]!(), AppTheme.light(),
-            textScale: 2);
+        await pump(
+          tester,
+          statusStates[key]!(),
+          AppTheme.light(),
+          textScale: 2,
+        );
         expect(tester.takeException(), isNull);
       });
     }
     for (final key in ['licenses', 'identity', 'review']) {
       testWidgets('wizard $key', (tester) async {
-        await pump(tester, wizardSteps[key]!(), AppTheme.dark(),
-            initial: AppRoutes.verificationWizard, textScale: 2);
+        await pump(
+          tester,
+          wizardSteps[key]!(),
+          AppTheme.dark(),
+          initial: AppRoutes.verificationWizard,
+          textScale: 2,
+        );
         expect(tester.takeException(), isNull);
       });
     }

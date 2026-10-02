@@ -1,3 +1,4 @@
+// ignore_for_file: lines_longer_than_80_chars
 // Raw color values for LawBid's design system (file 07, §2).
 // These are the ONLY place hex/ARGB literals may appear. Every widget must read
 // colors through [AppColorTokens] (see ../theme/app_color_tokens.dart), never
@@ -149,9 +150,9 @@ abstract final class AppColorsStatus {
 /// LINT-EXEMPT: approved non-themed brand exception — file 07 §2:
 /// "Карточка «Адвокат» (выбор роли) всегда тёмно-синяя #0A1A3F ... в обеих темах."
 /// The Attorney role card's navy background and its `#C9D2EA` description text do
-/// NOT follow the light/dark [AppColorTokens] — they are fixed regardless of theme.
+/// NOT follow the light/dark `AppColorTokens` — they are fixed regardless of theme.
 /// Consumed directly ONLY by RoleCard's attorney variant. Do not reuse elsewhere;
-/// do not fold into [AppColorTokens] (that would make it theme-lerp'd, which the
+/// do not fold into `AppColorTokens` (that would make it theme-lerp'd, which the
 /// spec explicitly forbids for this one card).
 abstract final class AppColorsFixed {
   static const Color attorneyCardNavy = Color(0xFF0A1A3F);

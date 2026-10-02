@@ -12,8 +12,12 @@ import 'package:lawbid/features/social/data/social_repository.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 
-Post fakePost(String id,
-        {bool liked = false, int likes = 0, bool withPhoto = false}) =>
+Post fakePost(
+  String id, {
+  bool liked = false,
+  int likes = 0,
+  bool withPhoto = false,
+}) =>
     Post(
       id: id,
       author: const PostAuthor(
@@ -79,8 +83,10 @@ class FakeSocialRepository implements SocialRepository {
   }
 
   @override
-  Future<void> setFollowing(String attorneyId,
-      {required bool following}) async {
+  Future<void> setFollowing(
+    String attorneyId, {
+    required bool following,
+  }) async {
     followCalls.add((attorneyId, following));
   }
 
@@ -89,13 +95,18 @@ class FakeSocialRepository implements SocialRepository {
       const CursorPage(items: []);
 
   @override
-  Future<CursorPage<Comment>> comments(String postId,
-          {String? cursor}) async =>
+  Future<CursorPage<Comment>> comments(
+    String postId, {
+    String? cursor,
+  }) async =>
       const CursorPage(items: []);
 
   @override
-  Future<CursorPage<Post>> attorneyPosts(String attorneyId,
-          {String? cursor, bool newsOnly = false}) async =>
+  Future<CursorPage<Post>> attorneyPosts(
+    String attorneyId, {
+    String? cursor,
+    bool newsOnly = false,
+  }) async =>
       CursorPage(items: posts);
 
   @override
@@ -103,10 +114,12 @@ class FakeSocialRepository implements SocialRepository {
       const CursorPage(items: []);
 
   @override
-  Future<String> uploadPostPhoto(Uint8List bytes,
-          {void Function(double progress)? onProgress,
-          bool casePhoto = false,
-          bool reviewPhoto = false}) async =>
+  Future<String> uploadPostPhoto(
+    Uint8List bytes, {
+    void Function(double progress)? onProgress,
+    bool casePhoto = false,
+    bool reviewPhoto = false,
+  }) async =>
       'file-1';
 
   @override
@@ -120,23 +133,33 @@ class FakeSearchRepository implements SearchRepository {
   List<TagInfo> trendingTags = const [];
 
   @override
-  Future<CursorPage<AttorneyRow>> attorneys(String q, SearchFilters f,
-      {String? cursor}) async {
+  Future<CursorPage<AttorneyRow>> attorneys(
+    String q,
+    SearchFilters f, {
+    String? cursor,
+  }) async {
     attorneyQueries.add(q);
     return CursorPage(items: attorneyResults);
   }
 
   @override
-  Future<CursorPage<PersonRow>> people(String q, SearchFilters f,
-      {String? cursor}) async {
+  Future<CursorPage<PersonRow>> people(
+    String q,
+    SearchFilters f, {
+    String? cursor,
+  }) async {
     attorneyQueries.add(q);
     return CursorPage(
-        items: attorneyResults.map(PersonRow.attorney).toList());
+      items: attorneyResults.map(PersonRow.attorney).toList(),
+    );
   }
 
   @override
-  Future<CursorPage<FeedCase>> cases(String q, SearchFilters f,
-          {String? cursor}) async =>
+  Future<CursorPage<FeedCase>> cases(
+    String q,
+    SearchFilters f, {
+    String? cursor,
+  }) async =>
       const CursorPage(items: []);
 
   @override

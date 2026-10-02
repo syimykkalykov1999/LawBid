@@ -41,13 +41,15 @@ class OnboardingBlockerController extends Notifier<OnboardingBlocker?> {
   @override
   OnboardingBlocker? build() => null;
 
+  // ignore: use_setters_to_change_properties
   void set(OnboardingBlocker? value) => state = value;
 }
 
 /// Kept alive across screens: set on one step, shown on another.
 final onboardingBlockerProvider =
     NotifierProvider<OnboardingBlockerController, OnboardingBlocker?>(
-        OnboardingBlockerController.new);
+  OnboardingBlockerController.new,
+);
 
 bool isOnboardingIncomplete(Object? error) =>
     error is ApiException &&
@@ -119,8 +121,10 @@ class OnboardingActions extends Notifier<StepActionState> {
 
   /// §10.2 H: records every decision (required + optional) as one
   /// append-only batch, then moves to the role step.
-  Future<bool> saveConsents(Map<ConsentType, bool> decisions,
-          {Map<ConsentType, String?> documentIds = const {}}) =>
+  Future<bool> saveConsents(
+    Map<ConsentType, bool> decisions, {
+    Map<ConsentType, String?> documentIds = const {},
+  }) =>
       _run(() async {
         await _repo.saveConsents([
           // Only the decisions the screen actually asked for (optional
@@ -161,9 +165,11 @@ class OnboardingActions extends Notifier<StepActionState> {
 
   /// OQ-048: an assistant only gives their name, then onboarding ends and
   /// they join an attorney (AssistantJoinScreen).
-  Future<bool> saveAssistantName(String first, String last) =>
-      _run(() async {
-        await _repo.updateProfile(firstName: first.trim(), lastName: last.trim());
+  Future<bool> saveAssistantName(String first, String last) => _run(() async {
+        await _repo.updateProfile(
+          firstName: first.trim(),
+          lastName: last.trim(),
+        );
         return _repo.completeOnboarding();
       });
 
@@ -183,4 +189,5 @@ class OnboardingActions extends Notifier<StepActionState> {
 
 final onboardingActionsProvider =
     NotifierProvider.autoDispose<OnboardingActions, StepActionState>(
-        OnboardingActions.new);
+  OnboardingActions.new,
+);

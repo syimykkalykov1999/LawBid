@@ -9,7 +9,7 @@ import 'package:lawbid_api/lawbid_api.dart' as api;
 /// Resource-creating POSTs: IdempotencyInterceptor stamps an
 /// Idempotency-Key (review create is REQUIRED to carry one, docs/03 §7.2).
 const Map<String, dynamic> _createsResource = {
-  RequestFlags.createsResource: true
+  RequestFlags.createsResource: true,
 };
 
 /// docs/03 §4 attorney profiles (`/attorneys/*`). Throws [ApiException].
@@ -39,14 +39,22 @@ abstract interface class PracticesRepository {
 /// docs/03 §7 reviews. Throws [ApiException].
 abstract interface class ReviewsRepository {
   /// [rating] 1–5: only reviews with that many stars (tap on the bar).
-  Future<ReviewPage> list(String attorneyId,
-      {String? cursor, int? rating, ReviewsSort sort = ReviewsSort.newest});
+  Future<ReviewPage> list(
+    String attorneyId, {
+    String? cursor,
+    int? rating,
+    ReviewsSort sort = ReviewsSort.newest,
+  });
 
   // Owner 2026-10-01 (Google-style): anyone reviews an attorney; the author
   // edits / deletes; the attorney replies; anyone marks "Helpful" / flags.
   Future<Review?> mine(String attorneyId);
-  Future<Review> saveMine(String attorneyId,
-      {required int rating, String? body, List<String>? photoIds});
+  Future<Review> saveMine(
+    String attorneyId, {
+    required int rating,
+    String? body,
+    List<String>? photoIds,
+  });
   Future<void> delete(String reviewId);
   Future<Review> reply(String reviewId, String? body);
   Future<Review> helpful(String reviewId, {required bool on});
@@ -61,8 +69,11 @@ abstract interface class ReviewsRepository {
 
   Future<Review> update(String reviewId, {required int rating, String? body});
 
-  Future<void> report(String reviewId, ReviewReportReason reason,
-      {String? note});
+  Future<void> report(
+    String reviewId,
+    ReviewReportReason reason, {
+    String? note,
+  });
 }
 
 /// docs/03 §5 the client's private profile. Throws [ApiException].
@@ -91,7 +102,8 @@ class ApiAttorneyProfileRepository implements AttorneyProfileRepository {
   Future<PublicAttorneyProfile> fetchPublic(String username) async =>
       ProfileMappers.publicProfile(
         (await guardApiCall(
-                () => _client.getAttorneyProfile(username: username)))
+          () => _client.getAttorneyProfile(username: username),
+        ))
             .data,
       );
 
@@ -137,7 +149,7 @@ class ApiPracticesRepository implements PracticesRepository {
 
   @override
   Future<List<PracticeCategory>> fetchTree() async =>
-      (await guardApiCall(() => _tree.listPracticeAreas()))
+      (await guardApiCall(_tree.listPracticeAreas))
           .data
           .map(ProfileMappers.category)
           .toList(growable: false);
@@ -170,14 +182,15 @@ class ApiReviewsRepository implements ReviewsRepository {
   static const pageSize = 20;
 
   @override
-  Future<ReviewPage> list(String attorneyId,
-      {String? cursor,
-      int? rating,
-      ReviewsSort sort = ReviewsSort.newest}) async {
+  Future<ReviewPage> list(
+    String attorneyId, {
+    String? cursor,
+    int? rating,
+    ReviewsSort sort = ReviewsSort.newest,
+  }) async {
     final env = await guardApiCall(
       () => _client.list(
         id: attorneyId,
-        limit: pageSize,
         cursor: cursor,
         rating: rating,
         sort: api.ReviewSort.fromJson(sort.wire),
@@ -192,7 +205,8 @@ class ApiReviewsRepository implements ReviewsRepository {
   @override
   Future<ReviewSummary> summary(String attorneyId) async =>
       ProfileMappers.summary(
-          (await guardApiCall(() => _client.summary(id: attorneyId))).data);
+        (await guardApiCall(() => _client.summary(id: attorneyId))).data,
+      );
 
   @override
   Future<Review?> ownForCase(String caseId) async {
@@ -207,8 +221,11 @@ class ApiReviewsRepository implements ReviewsRepository {
   }
 
   @override
-  Future<Review> create(String caseId,
-          {required int rating, String? body}) async =>
+  Future<Review> create(
+    String caseId, {
+    required int rating,
+    String? body,
+  }) async =>
       ProfileMappers.ownReview(
         (await guardApiCall(
           () => _client.create(
@@ -221,8 +238,11 @@ class ApiReviewsRepository implements ReviewsRepository {
       );
 
   @override
-  Future<Review> update(String reviewId,
-          {required int rating, String? body}) async =>
+  Future<Review> update(
+    String reviewId, {
+    required int rating,
+    String? body,
+  }) async =>
       ProfileMappers.ownReview(
         (await guardApiCall(
           () => _client.update(
@@ -234,8 +254,11 @@ class ApiReviewsRepository implements ReviewsRepository {
       );
 
   @override
-  Future<void> report(String reviewId, ReviewReportReason reason,
-          {String? note}) =>
+  Future<void> report(
+    String reviewId,
+    ReviewReportReason reason, {
+    String? note,
+  }) =>
       guardApiCall(
         () => _client.report(
           id: reviewId,
@@ -251,7 +274,8 @@ class ApiReviewsRepository implements ReviewsRepository {
   Future<Review?> mine(String attorneyId) async {
     try {
       return ProfileMappers.ownReview(
-          (await guardApiCall(() => _client.mine(id: attorneyId))).data);
+        (await guardApiCall(() => _client.mine(id: attorneyId))).data,
+      );
     } on Object {
       // `data: null` (no review yet) can't be parsed by the envelope.
       return null;
@@ -259,16 +283,21 @@ class ApiReviewsRepository implements ReviewsRepository {
   }
 
   @override
-  Future<Review> saveMine(String attorneyId,
-          {required int rating,
-          String? body,
-          List<String>? photoIds}) async =>
+  Future<Review> saveMine(
+    String attorneyId, {
+    required int rating,
+    String? body,
+    List<String>? photoIds,
+  }) async =>
       ProfileMappers.ownReview(
         (await guardApiCall(
           () => _client.upsertOpen(
             id: attorneyId,
             body: api.CreateReviewDto(
-                rating: rating, body: _text(body), photoIds: photoIds),
+              rating: rating,
+              body: _text(body),
+              photoIds: photoIds,
+            ),
           ),
         ))
             .data,
@@ -280,21 +309,29 @@ class ApiReviewsRepository implements ReviewsRepository {
 
   @override
   Future<Review> reply(String reviewId, String? body) async =>
-      ProfileMappers.publicReview((await guardApiCall(() => body == null
+      ProfileMappers.publicReview(
+        (await guardApiCall(
+          () => body == null
               ? _client.deleteReviewReply(id: reviewId)
               : _client.replyToReview(
                   id: reviewId,
                   body: api.ReviewReplyDto(body: body.trim()),
-                )))
-          .data);
+                ),
+        ))
+            .data,
+      );
 
   @override
   Future<Review> helpful(String reviewId, {required bool on}) async =>
-      ProfileMappers.publicReview((await guardApiCall(() => _client.markHelpful(
-                id: reviewId,
-                body: api.ReviewHelpfulDto(helpful: on),
-              )))
-          .data);
+      ProfileMappers.publicReview(
+        (await guardApiCall(
+          () => _client.markHelpful(
+            id: reviewId,
+            body: api.ReviewHelpfulDto(helpful: on),
+          ),
+        ))
+            .data,
+      );
 
   static String? _text(String? body) {
     final trimmed = body?.trim();
@@ -314,13 +351,15 @@ class ApiClientProfileRepository implements ClientProfileRepository {
 
   @override
   Future<ClientProfileDetails> fetch() async => ProfileMappers.client(
-      (await guardApiCall(_client.getMyClientProfile)).data);
+        (await guardApiCall(_client.getMyClientProfile)).data,
+      );
 
   @override
   Future<PublicClientProfile> fetchPublic(String username) async =>
       ProfileMappers.publicClient(
         (await guardApiCall(
-                () => _clients.getClientProfile(username: username)))
+          () => _clients.getClientProfile(username: username),
+        ))
             .data,
       );
 
@@ -337,7 +376,8 @@ class ApiClientProfileRepository implements ClientProfileRepository {
       contactMethod: patch.contactMethod == null
           ? null
           : api.UpdateClientProfileDtoContactMethod.fromJson(
-              patch.contactMethod!.wire),
+              patch.contactMethod!.wire,
+            ),
       contactNote: patch.contactNote?.trim(),
     );
     return ProfileMappers.client(
@@ -362,7 +402,8 @@ class ApiClientProfileRepository implements ClientProfileRepository {
     );
     return guardApiCall(
       () async => ProfileMappers.client(
-          api.ClientProfileEnvelope.fromJson(response.data!).data),
+        api.ClientProfileEnvelope.fromJson(response.data!).data,
+      ),
     );
   }
 }

@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
@@ -20,6 +18,7 @@ import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
 import 'package:lawbid/features/cases/presentation/widgets/negotiation_timeline.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
+import 'package:lawbid/features/team/domain/team_models.dart';
 
 /// docs/04 §5.2 bid detail + §6 negotiation, for both parties. Actions are
 /// offered only to the side whose turn it is (§6.3); the server re-checks.
@@ -40,9 +39,7 @@ class _BidDetailScreenState extends ConsumerState<BidDetailScreen> {
   bool _busy = false;
 
   PartyRole get _viewer =>
-      ref.read(actsAsAttorneyProvider)
-          ? PartyRole.attorney
-          : PartyRole.client;
+      ref.read(actsAsAttorneyProvider) ? PartyRole.attorney : PartyRole.client;
 
   Future<void> _act(Future<Object?> Function() action, String doneKey) async {
     if (_busy) return;
@@ -69,15 +66,18 @@ class _BidDetailScreenState extends ConsumerState<BidDetailScreen> {
       context,
       t: t,
       title: t.t(
-          client ? 'cases.accept.clientTitle' : 'cases.accept.attorneyTitle'),
-      message: t.t(client
-          ? 'cases.accept.clientMessage'
-          : 'cases.accept.attorneyMessage'),
+        client ? 'cases.accept.clientTitle' : 'cases.accept.attorneyTitle',
+      ),
+      message: t.t(
+        client ? 'cases.accept.clientMessage' : 'cases.accept.attorneyMessage',
+      ),
       confirmLabel: t.t('cases.accept.confirm'),
     );
     if (ok) {
       await _act(
-          () => ref.read(caseActionsProvider).accept(bid), 'cases.accept.done');
+        () => ref.read(caseActionsProvider).accept(bid),
+        'cases.accept.done',
+      );
     }
   }
 
@@ -111,8 +111,10 @@ class _BidDetailScreenState extends ConsumerState<BidDetailScreen> {
       destructive: true,
     );
     if (ok) {
-      await _act(() => ref.read(caseActionsProvider).decline(bid),
-          'cases.decline.done');
+      await _act(
+        () => ref.read(caseActionsProvider).decline(bid),
+        'cases.decline.done',
+      );
     }
   }
 
@@ -127,8 +129,10 @@ class _BidDetailScreenState extends ConsumerState<BidDetailScreen> {
       destructive: true,
     );
     if (ok) {
-      await _act(() => ref.read(caseActionsProvider).withdraw(bid),
-          'cases.withdraw.done');
+      await _act(
+        () => ref.read(caseActionsProvider).withdraw(bid),
+        'cases.withdraw.done',
+      );
     }
   }
 
@@ -269,11 +273,16 @@ class _BidBody extends StatelessWidget {
               alignment: Alignment.centerLeft,
               child: TextButton.icon(
                 onPressed: () => context.push(AppRoutes.caseDetail(bid.caseId)),
-                icon: AppIcon(AppIcons.descriptionOutlined, color: colors.goldDark),
+                icon: AppIcon(
+                  AppIcons.descriptionOutlined,
+                  color: colors.goldDark,
+                ),
                 label: Text(
                   t.t('cases.bid.openCase'),
                   style: typography.bodySmall.copyWith(
-                      color: colors.goldDark, fontWeight: FontWeight.w600),
+                    color: colors.goldDark,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ),
@@ -300,17 +309,24 @@ class _BidBody extends StatelessWidget {
                 ),
                 const SizedBox(height: AppSpacing.xs),
                 MoneyText(
-                    CaseFormat.terms(t, formats, bid.feeType, bid.amountCents),
-                    large: true),
+                  CaseFormat.terms(t, formats, bid.feeType, bid.amountCents),
+                  large: true,
+                ),
                 const SizedBox(height: AppSpacing.sm),
                 Text(
                   [
                     CaseFormat.feeTypeLabel(t, bid.feeType),
                     CaseFormat.startLabel(
-                        t, formats, bid.startAvailability, bid.startDate),
+                      t,
+                      formats,
+                      bid.startAvailability,
+                      bid.startDate,
+                    ),
                     if (bid.estimatedDurationDays != null)
-                      t.t('cases.bid.duration',
-                          {'days': '${bid.estimatedDurationDays}'}),
+                      t.t(
+                        'cases.bid.duration',
+                        {'days': '${bid.estimatedDurationDays}'},
+                      ),
                   ].join(' · '),
                   style: typography.bodySmall
                       .copyWith(color: colors.textSecondary),
@@ -329,14 +345,19 @@ class _BidBody extends StatelessWidget {
             index: 2,
             child: Row(
               children: [
-                AppIcon(AppIcons.scheduleRounded,
-                    size: AppSpacing.lg, color: colors.info),
+                AppIcon(
+                  AppIcons.scheduleRounded,
+                  size: AppSpacing.lg,
+                  color: colors.info,
+                ),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: Text(
-                    t.t(viewer == PartyRole.client
-                        ? 'cases.bid.waitingAttorney'
-                        : 'cases.bid.waitingClient'),
+                    t.t(
+                      viewer == PartyRole.client
+                          ? 'cases.bid.waitingAttorney'
+                          : 'cases.bid.waitingClient',
+                    ),
                     style: typography.bodySmall
                         .copyWith(color: colors.textSecondary),
                   ),
@@ -349,17 +370,25 @@ class _BidBody extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(bottom: AppSpacing.md),
             child: OutsidePracticeNote(
-                t: t, forClient: viewer == PartyRole.client),
+              t: t,
+              forClient: viewer == PartyRole.client,
+            ),
           ),
         DetailSection(
           title: t.t('cases.bid.message'),
-          child: Text(bid.message,
-              style: typography.body.copyWith(color: colors.text)),
+          child: Text(
+            bid.message,
+            style: typography.body.copyWith(color: colors.text),
+          ),
         ),
         DetailSection(
           title: t.t('cases.bid.history'),
           child: NegotiationTimeline(
-              bid: bid, viewer: viewer, t: t, formats: formats),
+            bid: bid,
+            viewer: viewer,
+            t: t,
+            formats: formats,
+          ),
         ),
       ],
     );
@@ -369,8 +398,11 @@ class _BidBody extends StatelessWidget {
 /// §6.1 counter-offer: new amount (the fee type never changes) and an
 /// optional message up to 500 chars. The client's counter is binding.
 class _CounterSheet extends StatefulWidget {
-  const _CounterSheet(
-      {required this.t, required this.bid, required this.warnBinding});
+  const _CounterSheet({
+    required this.t,
+    required this.bid,
+    required this.warnBinding,
+  });
 
   final Translator t;
   final CaseBid bid;
@@ -418,8 +450,10 @@ class _CounterSheetState extends State<_CounterSheet> {
             children: [
               const AppSheetHandle(),
               const SizedBox(height: AppSpacing.lg),
-              Text(t.t('cases.counter.title'),
-                  style: typography.titleMedium.copyWith(color: colors.text)),
+              Text(
+                t.t('cases.counter.title'),
+                style: typography.titleMedium.copyWith(color: colors.text),
+              ),
               const SizedBox(height: AppSpacing.xs),
               Text(
                 t.t('cases.counter.remaining', {'n': '$remaining'}),
@@ -433,9 +467,11 @@ class _CounterSheetState extends State<_CounterSheet> {
                 label: widget.bid.feeType == FeeType.hourly
                     ? t.t('cases.counter.amountHourly')
                     : t.t('cases.counter.amount'),
-                leading: Text('\$',
-                    style: typography.titleMedium
-                        .copyWith(color: colors.goldDark)),
+                leading: Text(
+                  r'$',
+                  style:
+                      typography.titleMedium.copyWith(color: colors.goldDark),
+                ),
                 keyboardType: TextInputType.number,
                 inputFormatters: [
                   FilteringTextInputFormatter.digitsOnly,
@@ -462,8 +498,11 @@ class _CounterSheetState extends State<_CounterSheet> {
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      AppIcon(AppIcons.gavelRounded,
-                          size: AppSizes.iconSm, color: colors.goldDark),
+                      AppIcon(
+                        AppIcons.gavelRounded,
+                        size: AppSizes.iconSm,
+                        color: colors.goldDark,
+                      ),
                       const SizedBox(width: AppSpacing.sm),
                       Expanded(
                         child: Text(

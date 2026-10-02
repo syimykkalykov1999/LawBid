@@ -18,6 +18,7 @@ class CallHost extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // System call UI answers/declines → the controller.
     ref.watch(callkitEventsProvider);
+    // ignore: cascade_invocations
     ref.listen(callControllerProvider.select((s) => s.phase), (prev, next) {
       final opened = (prev == null || prev == CallPhase.idle) &&
           (next == CallPhase.outgoing || next == CallPhase.incoming);

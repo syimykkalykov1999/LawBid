@@ -36,7 +36,8 @@ void main() {
   for (final entry in screens.entries) {
     for (final brightness in [Brightness.light, Brightness.dark]) {
       final themeName = brightness == Brightness.light ? 'light' : 'dark';
-      final theme = brightness == Brightness.light ? AppTheme.light() : AppTheme.dark();
+      final theme =
+          brightness == Brightness.light ? AppTheme.light() : AppTheme.dark();
 
       testGoldens('${entry.key} screen - $themeName', (tester) async {
         SharedPreferences.setMockInitialValues({});
@@ -68,10 +69,14 @@ void main() {
           await screenMatchesGolden(
             tester,
             'auth_${entry.key}_screen_$themeName',
-            customPump: (tester) => tester.pump(const Duration(milliseconds: 100)),
+            customPump: (tester) =>
+                tester.pump(const Duration(milliseconds: 100)),
           );
         } else {
-          await screenMatchesGolden(tester, 'auth_${entry.key}_screen_$themeName');
+          await screenMatchesGolden(
+            tester,
+            'auth_${entry.key}_screen_$themeName',
+          );
         }
       });
     }

@@ -3,7 +3,7 @@ import 'dart:math';
 
 import 'package:dio/dio.dart';
 
-import 'request_flags.dart';
+import 'package:lawbid/core/network/request_flags.dart';
 
 /// Retries transient failures with exponential backoff + jitter
 /// (docs/01_FOUNDATION_AUTH.md §15 "Этап 1.7": "dio interceptors (auth,
@@ -25,7 +25,7 @@ class RetryInterceptor extends Interceptor {
     this.baseDelay = const Duration(milliseconds: 400),
     Future<void> Function(Duration)? sleep,
     Random? random,
-  })  : _sleep = sleep ?? ((d) => Future<void>.delayed(d)),
+  })  : _sleep = sleep ?? Future<void>.delayed,
         _random = random ?? Random();
 
   final Dio _dio;
@@ -38,7 +38,10 @@ class RetryInterceptor extends Interceptor {
   static const _retryableStatuses = {502, 503, 504};
 
   @override
-  Future<void> onError(DioException err, ErrorInterceptorHandler handler) async {
+  Future<void> onError(
+    DioException err,
+    ErrorInterceptorHandler handler,
+  ) async {
     final options = err.requestOptions;
     final attempt = (options.extra[RequestFlags.retryAttempt] as int?) ?? 0;
     if (attempt >= maxRetries || !isRetryable(err)) {
@@ -78,7 +81,9 @@ class RetryInterceptor extends Interceptor {
         return true;
       case DioExceptionType.badResponse:
         final status = err.response?.statusCode;
-        if (status == null || !_retryableStatuses.contains(status)) return false;
+        if (status == null || !_retryableStatuses.contains(status)) {
+          return false;
+        }
         return !_hasDomainErrorCode(err.response?.data);
       case DioExceptionType.unknown:
         return err.response == null;
@@ -91,7 +96,8 @@ class RetryInterceptor extends Interceptor {
   static bool _isSafeToRepeat(RequestOptions options) {
     final method = options.method.toUpperCase();
     if (_idempotentMethods.contains(method)) return true;
-    return options.headers.keys.any((k) => k.toLowerCase() == 'idempotency-key');
+    return options.headers.keys
+        .any((k) => k.toLowerCase() == 'idempotency-key');
   }
 
   static bool _hasDomainErrorCode(Object? data) {

@@ -1,3 +1,4 @@
+// ignore_for_file: lines_longer_than_80_chars
 import 'dart:async';
 import 'dart:typed_data';
 
@@ -18,7 +19,11 @@ import '../cases/cases_fakes.dart';
 /// Fixed "now" for window rules (review edit, username cooldown).
 final kNow = DateTime.utc(2026, 9, 20, 12);
 
-CurrentUser attorneyMe({String status = 'verified', String username = 'jane.doe', String? avatarUrl}) =>
+CurrentUser attorneyMe({
+  String status = 'verified',
+  String username = 'jane.doe',
+  String? avatarUrl,
+}) =>
     CurrentUser(
       id: 'att-1',
       role: UserRole.attorney,
@@ -34,11 +39,15 @@ CurrentUser attorneyMe({String status = 'verified', String username = 'jane.doe'
       requiredConsentsGranted: true,
       onboarding: OnboardingProgress(
         currentStep: OnboardingStepId.tour,
-        completedAt: DateTime.utc(2026, 9, 1),
+        completedAt: DateTime.utc(2026, 9),
       ),
       missing: const {},
       avatarUrl: avatarUrl,
-      attorneyProfile: AttorneyProfile(username: username, verificationStatus: status, licensedStates: const ['NY']),
+      attorneyProfile: AttorneyProfile(
+        username: username,
+        verificationStatus: status,
+        licensedStates: const ['NY'],
+      ),
     );
 
 CurrentUser clientMe() => CurrentUser(
@@ -56,7 +65,7 @@ CurrentUser clientMe() => CurrentUser(
       requiredConsentsGranted: true,
       onboarding: OnboardingProgress(
         currentStep: OnboardingStepId.tour,
-        completedAt: DateTime.utc(2026, 9, 1),
+        completedAt: DateTime.utc(2026, 9),
       ),
       missing: const {},
       clientProfile: const ClientProfile(stateCode: 'CA', languages: ['en']),
@@ -76,18 +85,46 @@ PublicAttorneyProfile attorneyProfile({
       username: username,
       firstName: 'Jane',
       lastName: 'Doe',
-      bio: 'Family and immigration attorney. 12 years helping families in New York.',
+      bio:
+          'Family and immigration attorney. 12 years helping families in New York.',
       firmName: 'Doe & Partners LLP',
       languages: const ['en', 'es'],
       verifiedBadge: verified,
-      licensedStates: const [StateRef(code: 'NY', name: 'New York'), StateRef(code: 'NJ', name: 'New Jersey')],
-      practices: const [
-        SelectedPractice(id: 'l-div', i18nKey: 'practice.family.divorce', nameEn: 'Divorce', categoryId: _family, categoryI18nKey: 'practice.family', categoryCode: 'family_law'),
-        SelectedPractice(id: 'l-cus', i18nKey: 'practice.family.custody', nameEn: 'Child Custody', categoryId: _family, categoryI18nKey: 'practice.family', categoryCode: 'family_law'),
-        SelectedPractice(id: 'l-vis', i18nKey: 'practice.imm.visas', nameEn: 'Work Visas', categoryId: 'cat-imm', categoryI18nKey: 'practice.imm', categoryCode: 'immigration'),
+      licensedStates: const [
+        StateRef(code: 'NY', name: 'New York'),
+        StateRef(code: 'NJ', name: 'New Jersey'),
       ],
-      rating: withReviews ? const RatingInfo(average: 4.5, count: 12) : const RatingInfo(average: null, count: 0),
-      counters: const ProfileCounters(posts: 24, followers: 1280, following: 36),
+      practices: const [
+        SelectedPractice(
+          id: 'l-div',
+          i18nKey: 'practice.family.divorce',
+          nameEn: 'Divorce',
+          categoryId: _family,
+          categoryI18nKey: 'practice.family',
+          categoryCode: 'family_law',
+        ),
+        SelectedPractice(
+          id: 'l-cus',
+          i18nKey: 'practice.family.custody',
+          nameEn: 'Child Custody',
+          categoryId: _family,
+          categoryI18nKey: 'practice.family',
+          categoryCode: 'family_law',
+        ),
+        SelectedPractice(
+          id: 'l-vis',
+          i18nKey: 'practice.imm.visas',
+          nameEn: 'Work Visas',
+          categoryId: 'cat-imm',
+          categoryI18nKey: 'practice.imm',
+          categoryCode: 'immigration',
+        ),
+      ],
+      rating: withReviews
+          ? const RatingInfo(average: 4.5, count: 12)
+          : const RatingInfo(average: null, count: 0),
+      counters:
+          const ProfileCounters(posts: 24, followers: 1280, following: 36),
       isSelf: isSelf,
       avatarUrl: avatarUrl,
     );
@@ -98,9 +135,21 @@ const practiceTree = [
     i18nKey: 'practice.family',
     nameEn: 'Family Law',
     children: [
-      PracticeLeaf(id: 'l-div', i18nKey: 'practice.family.divorce', nameEn: 'Divorce'),
-      PracticeLeaf(id: 'l-cus', i18nKey: 'practice.family.custody', nameEn: 'Child Custody'),
-      PracticeLeaf(id: 'l-adp', i18nKey: 'practice.family.adoption', nameEn: 'Adoption'),
+      PracticeLeaf(
+        id: 'l-div',
+        i18nKey: 'practice.family.divorce',
+        nameEn: 'Divorce',
+      ),
+      PracticeLeaf(
+        id: 'l-cus',
+        i18nKey: 'practice.family.custody',
+        nameEn: 'Child Custody',
+      ),
+      PracticeLeaf(
+        id: 'l-adp',
+        i18nKey: 'practice.family.adoption',
+        nameEn: 'Adoption',
+      ),
     ],
   ),
   PracticeCategory(
@@ -108,13 +157,22 @@ const practiceTree = [
     i18nKey: 'practice.imm',
     nameEn: 'Immigration',
     children: [
-      PracticeLeaf(id: 'l-vis', i18nKey: 'practice.imm.visas', nameEn: 'Work Visas'),
-      PracticeLeaf(id: 'l-asy', i18nKey: 'practice.imm.asylum', nameEn: 'Asylum'),
+      PracticeLeaf(
+        id: 'l-vis',
+        i18nKey: 'practice.imm.visas',
+        nameEn: 'Work Visas',
+      ),
+      PracticeLeaf(
+        id: 'l-asy',
+        i18nKey: 'practice.imm.asylum',
+        nameEn: 'Asylum',
+      ),
     ],
   ),
 ];
 
-Review review(int i, {int rating = 5, String? body, bool edited = false}) => Review(
+Review review(int i, {int rating = 5, String? body, bool edited = false}) =>
+    Review(
       id: 'r$i',
       rating: rating,
       body: body ?? 'Clear, calm and always one step ahead. Highly recommend.',
@@ -123,7 +181,11 @@ Review review(int i, {int rating = 5, String? body, bool edited = false}) => Rev
       editedAt: edited ? DateTime.utc(2026, 9, 12, 12) : null,
     );
 
-const summaryWithReviews = ReviewSummary(average: 4.5, count: 12, distribution: {5: 8, 4: 3, 3: 1, 2: 0, 1: 0});
+const summaryWithReviews = ReviewSummary(
+  average: 4.5,
+  count: 12,
+  distribution: {5: 8, 4: 3, 3: 1, 2: 0, 1: 0},
+);
 
 class FakeAttorneyRepo implements AttorneyProfileRepository {
   FakeAttorneyRepo({this.profile, this.error, this.own});
@@ -137,6 +199,7 @@ class FakeAttorneyRepo implements AttorneyProfileRepository {
 
   @override
   Future<PublicAttorneyProfile> fetchPublic(String username) async {
+    // ignore: only_throw_errors
     if (error != null) throw error!;
     return profile!;
   }
@@ -153,7 +216,8 @@ class FakeAttorneyRepo implements AttorneyProfileRepository {
   @override
   Future<UsernameCheck> checkUsername(String username) async {
     checked.add(username);
-    return availability[username] ?? UsernameCheck(username: username, available: true);
+    return availability[username] ??
+        UsernameCheck(username: username, available: true);
   }
 }
 
@@ -172,9 +236,13 @@ class FakePracticesRepo implements PracticesRepository {
 
   @override
   Future<List<SelectedPractice>> replace(List<String> leafIds) async {
+    // ignore: only_throw_errors
     if (replaceError != null) throw replaceError!;
     replaced.add(leafIds);
-    final leaves = {for (final c in practiceTree) for (final l in c.children) l.id: (c, l)};
+    final leaves = {
+      for (final c in practiceTree)
+        for (final l in c.children) l.id: (c, l),
+    };
     return [
       for (final id in leafIds)
         SelectedPractice(
@@ -189,7 +257,10 @@ class FakePracticesRepo implements PracticesRepository {
 }
 
 class FakeReviewsRepo implements ReviewsRepository {
-  FakeReviewsRepo({this.pages = const [], this.summaryValue = const ReviewSummary.empty()});
+  FakeReviewsRepo({
+    this.pages = const [],
+    this.summaryValue = const ReviewSummary.empty(),
+  });
 
   /// Pages served in order; the cursor is the page index.
   List<List<Review>> pages;
@@ -208,6 +279,7 @@ class FakeReviewsRepo implements ReviewsRepository {
   @override
   Future<Review?> ownForCase(String caseId) async {
     ownRequests.add(caseId);
+    // ignore: only_throw_errors
     if (ownError != null) throw ownError!;
     return own;
   }
@@ -217,24 +289,36 @@ class FakeReviewsRepo implements ReviewsRepository {
   final sorts = <ReviewsSort>[];
 
   @override
-  Future<ReviewPage> list(String attorneyId,
-      {String? cursor,
-      int? rating,
-      ReviewsSort sort = ReviewsSort.newest}) async {
+  Future<ReviewPage> list(
+    String attorneyId, {
+    String? cursor,
+    int? rating,
+    ReviewsSort sort = ReviewsSort.newest,
+  }) async {
     listCursors.add(cursor);
     sorts.add(sort);
     listFilters.add((rating, sort == ReviewsSort.oldest));
     final index = cursor == null ? 0 : int.parse(cursor);
     if (pages.isEmpty) return const ReviewPage(items: []);
-    final items = pages[index].where((r) => rating == null || r.rating == rating).toList();
-    return ReviewPage(items: items, nextCursor: index + 1 < pages.length ? '${index + 1}' : null);
+    final items = pages[index]
+        .where((r) => rating == null || r.rating == rating)
+        .toList();
+    return ReviewPage(
+      items: items,
+      nextCursor: index + 1 < pages.length ? '${index + 1}' : null,
+    );
   }
 
   @override
   Future<ReviewSummary> summary(String attorneyId) async => summaryValue;
 
   @override
-  Future<Review> create(String caseId, {required int rating, String? body}) async {
+  Future<Review> create(
+    String caseId, {
+    required int rating,
+    String? body,
+  }) async {
+    // ignore: only_throw_errors
     if (createError != null) throw createError!;
     created.add((caseId, rating, body));
     return Review(
@@ -248,7 +332,11 @@ class FakeReviewsRepo implements ReviewsRepository {
   }
 
   @override
-  Future<Review> update(String reviewId, {required int rating, String? body}) async {
+  Future<Review> update(
+    String reviewId, {
+    required int rating,
+    String? body,
+  }) async {
     updated.add((reviewId, rating, body));
     return Review(
       id: reviewId,
@@ -262,8 +350,11 @@ class FakeReviewsRepo implements ReviewsRepository {
   }
 
   @override
-  Future<void> report(String reviewId, ReviewReportReason reason,
-          {String? note}) async =>
+  Future<void> report(
+    String reviewId,
+    ReviewReportReason reason, {
+    String? note,
+  }) async =>
       reported.add((reviewId, reason));
 
   // Owner 2026-10-01 (Google-style).
@@ -274,8 +365,12 @@ class FakeReviewsRepo implements ReviewsRepository {
   Future<Review?> mine(String attorneyId) async => mineValue;
 
   @override
-  Future<Review> saveMine(String attorneyId,
-      {required int rating, String? body, List<String>? photoIds}) async {
+  Future<Review> saveMine(
+    String attorneyId, {
+    required int rating,
+    String? body,
+    List<String>? photoIds,
+  }) async {
     calls.add('save:$attorneyId:$rating');
     return mineValue = Review(
       id: 'mine',
@@ -300,7 +395,11 @@ class FakeReviewsRepo implements ReviewsRepository {
   Future<Review> helpful(String reviewId, {required bool on}) async {
     calls.add('helpful:$reviewId:$on');
     return Review(
-        id: reviewId, rating: 5, createdAt: kNow, helpfulByMe: on);
+      id: reviewId,
+      rating: 5,
+      createdAt: kNow,
+      helpfulByMe: on,
+    );
   }
 }
 
@@ -321,15 +420,18 @@ class FakeClientRepo implements ClientProfileRepository {
 
   @override
   Future<ClientProfileDetails> fetch() async {
+    // ignore: only_throw_errors
     if (error != null) throw error!;
     return profile;
   }
 
   @override
-  Future<ClientProfileDetails> update(ClientProfilePatch patch) async => profile;
+  Future<ClientProfileDetails> update(ClientProfilePatch patch) async =>
+      profile;
 
   @override
   Future<PublicClientProfile> fetchPublic(String username) async {
+    // ignore: only_throw_errors
     if (error != null) throw error!;
     // OQ-038: the own profile screen loads the same public profile.
     if (username == profile.username) {
@@ -357,7 +459,10 @@ class FakeClientRepo implements ClientProfileRepository {
   }
 
   @override
-  Future<ClientProfileDetails> updateContactPreferences({required ContactPreference? method, required String note}) async {
+  Future<ClientProfileDetails> updateContactPreferences({
+    required ContactPreference? method,
+    required String note,
+  }) async {
     prefs.add((method, note));
     return profile;
   }
@@ -377,9 +482,17 @@ class FakeAvatarRepo implements AvatarUploadRepository {
   UploadCancellation? lastCancellation;
 
   @override
-  Future<PresignedUpload> presign({required String mime, required int sizeBytes, required String sha256}) async {
+  Future<PresignedUpload> presign({
+    required String mime,
+    required int sizeBytes,
+    required String sha256,
+  }) async {
     steps.add('presign:$mime:$sizeBytes');
-    return const PresignedUpload(fileId: 'f1', url: 'https://storage.test/bucket', fields: {'key': 'k'});
+    return const PresignedUpload(
+      fileId: 'f1',
+      url: 'https://storage.test/bucket',
+      fields: {'key': 'k'},
+    );
   }
 
   @override
@@ -401,7 +514,10 @@ class FakeAvatarRepo implements AvatarUploadRepository {
     }
     if (uploadFailures > 0) {
       uploadFailures--;
-      throw const ApiException(code: ApiException.networkErrorCode, message: 'offline');
+      throw const ApiException(
+        code: ApiException.networkErrorCode,
+        message: 'offline',
+      );
     }
     onProgress?.call(1);
   }
@@ -422,8 +538,13 @@ class FakeAvatarRepo implements AvatarUploadRepository {
   }
 }
 
-const notFound = ApiException(code: ApiErrorCodes.notFound, message: 'Not found', statusCode: 404);
-const offline = ApiException(code: ApiException.networkErrorCode, message: 'offline');
+const notFound = ApiException(
+  code: ApiErrorCodes.notFound,
+  message: 'Not found',
+  statusCode: 404,
+);
+const offline =
+    ApiException(code: ApiException.networkErrorCode, message: 'offline');
 
 /// Overrides for profile tests.
 List<Override> profileOverrides({
@@ -434,11 +555,16 @@ List<Override> profileOverrides({
   FakeAvatarRepo? avatars,
 }) =>
     [
-      attorneyProfileRepositoryProvider.overrideWithValue(attorneys ?? FakeAttorneyRepo(profile: attorneyProfile())),
-      practicesRepositoryProvider.overrideWithValue(practices ?? FakePracticesRepo()),
+      attorneyProfileRepositoryProvider.overrideWithValue(
+        attorneys ?? FakeAttorneyRepo(profile: attorneyProfile()),
+      ),
+      practicesRepositoryProvider
+          .overrideWithValue(practices ?? FakePracticesRepo()),
       reviewsRepositoryProvider.overrideWithValue(reviews ?? FakeReviewsRepo()),
-      clientProfileRepositoryProvider.overrideWithValue(clients ?? FakeClientRepo()),
-      if (avatars != null) avatarUploadRepositoryProvider.overrideWithValue(avatars),
+      clientProfileRepositoryProvider
+          .overrideWithValue(clients ?? FakeClientRepo()),
+      if (avatars != null)
+        avatarUploadRepositoryProvider.overrideWithValue(avatars),
       clockProvider.overrideWithValue(() => kNow),
       ...casesOverrides(),
     ];
@@ -450,4 +576,9 @@ Future<Widget Function(Widget)> profileWrapper(
   List<Override> overrides = const [],
   double textScale = 1,
 }) =>
-    onboardingWrapper(theme, user: user, extra: overrides, textScale: textScale);
+    onboardingWrapper(
+      theme,
+      user: user,
+      extra: overrides,
+      textScale: textScale,
+    );

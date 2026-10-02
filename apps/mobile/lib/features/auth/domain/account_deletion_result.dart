@@ -4,9 +4,9 @@ part 'account_deletion_result.freezed.dart';
 
 /// Result of `DELETE /users/me` (file 01 §10.7), Phase 4 of the auth
 /// networking work (docs/CHANGELOG.md). Same union style as the other
-/// auth result types in this directory — see [ReauthResult]'s doc comment.
+/// auth result types in this directory — see `ReauthResult`'s doc comment.
 ///
-/// [reauthRequired]/[reauthInvalid] mirror `ReauthGuard`'s two failure
+/// `reauthRequired`/`reauthInvalid` mirror `ReauthGuard`'s two failure
 /// shapes (apps/api/src/modules/auth/guards/reauth.guard.ts): no
 /// `X-Reauth-Token` header at all (`REAUTH_REQUIRED`, 403) vs. a
 /// header that's missing/expired/already-used/bound to a different
@@ -21,7 +21,10 @@ part 'account_deletion_result.freezed.dart';
 @freezed
 sealed class AccountDeletionResult with _$AccountDeletionResult {
   const factory AccountDeletionResult.success() = AccountDeletionSuccess;
-  const factory AccountDeletionResult.reauthRequired() = AccountDeletionReauthRequired;
-  const factory AccountDeletionResult.reauthInvalid() = AccountDeletionReauthInvalid;
-  const factory AccountDeletionResult.networkError() = AccountDeletionNetworkError;
+  const factory AccountDeletionResult.reauthRequired() =
+      AccountDeletionReauthRequired;
+  const factory AccountDeletionResult.reauthInvalid() =
+      AccountDeletionReauthInvalid;
+  const factory AccountDeletionResult.networkError() =
+      AccountDeletionNetworkError;
 }

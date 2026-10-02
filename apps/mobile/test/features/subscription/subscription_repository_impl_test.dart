@@ -71,8 +71,10 @@ void main() {
   test('an unknown future status does not crash the screen', () async {
     adapter.handler =
         (o) async => ok(_me(subscription: _subscription(status: 'paused')));
-    expect((await repo.overview()).subscription!.status,
-        SubscriptionStatus.unknown);
+    expect(
+      (await repo.overview()).subscription!.status,
+      SubscriptionStatus.unknown,
+    );
   });
 
   test('OQ-048: plan, seats and prices are mapped', () async {
@@ -130,15 +132,20 @@ void main() {
     expect(adapter.requests.last.data, {'setupIntentId': 'seti_1'});
 
     final o = await repo.confirm('seti_1', chargeNow: true);
-    expect(adapter.requests.last.data,
-        {'setupIntentId': 'seti_1', 'chargeNow': true});
+    expect(
+      adapter.requests.last.data,
+      {'setupIntentId': 'seti_1', 'chargeNow': true},
+    );
     expect(o.subscription!.status, SubscriptionStatus.active);
   });
 
   test('confirm: TRIAL_UNAVAILABLE surfaces as ApiException with details',
       () async {
     adapter.handler = (o) async => apiError(
-        409, 'SUBSCRIPTION_TRIAL_UNAVAILABLE', {'chargeNowCents': 39900});
+          409,
+          'SUBSCRIPTION_TRIAL_UNAVAILABLE',
+          {'chargeNowCents': 39900},
+        );
     try {
       await repo.confirm('seti_1');
       fail('expected ApiException');
@@ -174,8 +181,10 @@ void main() {
         });
     final page = await repo.payments(cursor: 'c1');
     expect(adapter.requests.single.uri.queryParameters['cursor'], 'c1');
-    expect(page.items.map((p) => p.status),
-        [PaymentStatus.succeeded, PaymentStatus.failed]);
+    expect(
+      page.items.map((p) => p.status),
+      [PaymentStatus.succeeded, PaymentStatus.failed],
+    );
     expect(page.items[1].failureCode, 'card_declined');
     expect(page.nextCursor, 'c2');
   });
@@ -190,9 +199,12 @@ void main() {
   });
 
   test('cancel posts and returns the updated overview', () async {
-    adapter.handler = (o) async => ok(_me(
-        subscription: _subscription(status: 'active')
-          ..['cancelAtPeriodEnd'] = true));
+    adapter.handler = (o) async => ok(
+          _me(
+            subscription: _subscription(status: 'active')
+              ..['cancelAtPeriodEnd'] = true,
+          ),
+        );
     final o = await repo.cancel();
     expect(adapter.requests.single.path, '/subscriptions/cancel');
     expect(o.subscription!.cancelAtPeriodEnd, isTrue);

@@ -72,7 +72,8 @@ abstract final class ApiErrorCodes {
   static const reviewAppealExists = 'REVIEW_APPEAL_EXISTS';
   static const chatAttachmentsLocked = 'CHAT_ATTACHMENTS_LOCKED';
   // OQ-048 plans and assistants.
-  static const subscriptionPlanIncludesSeats = 'SUBSCRIPTION_PLAN_INCLUDES_SEATS';
+  static const subscriptionPlanIncludesSeats =
+      'SUBSCRIPTION_PLAN_INCLUDES_SEATS';
   static const assistantSeatsInUse = 'ASSISTANT_SEATS_IN_USE';
   static const assistantNoFreeSeat = 'ASSISTANT_NO_FREE_SEAT';
   static const assistantNotAllowed = 'ASSISTANT_NOT_ALLOWED';
@@ -323,22 +324,6 @@ class ApiException implements Exception {
     this.requestId,
     this.statusCode,
   });
-
-  /// Synthetic code for a failure that never reached the backend at all
-  /// (timeout, no connectivity, or a response body that isn't the expected
-  /// `{error: {...}}` JSON shape) — not part of the backend's `ErrorCode`
-  /// enum, but every call site that switches on `.code` needs a bucket for
-  /// "the request never got a real answer".
-  static const networkErrorCode = 'NETWORK_ERROR';
-
-  final String code;
-  final String message;
-  final Map<String, dynamic>? details;
-  final String? requestId;
-  final int? statusCode;
-
-  bool get isNetworkError => code == networkErrorCode;
-
   /// Always succeeds — falls back to [networkErrorCode] for anything that
   /// isn't the backend's JSON error envelope, since a thrown [ApiException]
   /// is the one contract every interceptor/repository relies on.
@@ -368,6 +353,21 @@ class ApiException implements Exception {
       statusCode: e.response?.statusCode,
     );
   }
+
+  /// Synthetic code for a failure that never reached the backend at all
+  /// (timeout, no connectivity, or a response body that isn't the expected
+  /// `{error: {...}}` JSON shape) — not part of the backend's `ErrorCode`
+  /// enum, but every call site that switches on `.code` needs a bucket for
+  /// "the request never got a real answer".
+  static const networkErrorCode = 'NETWORK_ERROR';
+
+  final String code;
+  final String message;
+  final Map<String, dynamic>? details;
+  final String? requestId;
+  final int? statusCode;
+
+  bool get isNetworkError => code == networkErrorCode;
 
   @override
   String toString() => 'ApiException($code: $message)';

@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/widgets/star_rating.dart';
+import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 
 /// "4.5" in the interface language, or "—" when there are no reviews
 /// (docs/03 §4.2 "вместо числа прочерк").
@@ -83,7 +82,6 @@ class ReviewCard extends ConsumerWidget {
       onMenu: hasMenu ? () => _menu(context, t) : null,
     );
   }
-
 }
 
 extension on ReviewCard {
@@ -225,7 +223,8 @@ class RatingCard extends ConsumerWidget {
           const SizedBox(width: AppSpacing.md),
           Container(
             constraints: const BoxConstraints(
-                minWidth: AppSizes.stateMedallion - AppSpacing.lg),
+              minWidth: AppSizes.stateMedallion - AppSpacing.lg,
+            ),
             padding: const EdgeInsets.all(AppSpacing.md),
             decoration: BoxDecoration(
               color: ink,
@@ -234,9 +233,11 @@ class RatingCard extends ConsumerWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(number,
-                    style: typography.titleLarge
-                        .copyWith(color: colors.goldLight)),
+                Text(
+                  number,
+                  style:
+                      typography.titleLarge.copyWith(color: colors.goldLight),
+                ),
                 Text(
                   t.t('profile.rating.outOf'),
                   style: typography.caption.copyWith(color: colors.goldLight),
@@ -253,7 +254,7 @@ class RatingCard extends ConsumerWidget {
       label: isNew
           ? '$name. ${t.t('profile.rating.new')}'
           : '$name. ${t.t('reviews.average.label', {
-                  'rating': number
+                  'rating': number,
                 })}. $countText',
       onTap: onTap,
       excludeSemantics: true,
@@ -306,8 +307,10 @@ class ReviewSummaryPanel extends ConsumerWidget {
               Semantics(
                 label: summary.isNew
                     ? t.t('profile.rating.new')
-                    : t.t('reviews.average.label',
-                        {'rating': ratingNumber(formats, t, summary.average)}),
+                    : t.t(
+                        'reviews.average.label',
+                        {'rating': ratingNumber(formats, t, summary.average)},
+                      ),
                 excludeSemantics: true,
                 child: Column(
                   children: [
@@ -317,13 +320,19 @@ class ReviewSummaryPanel extends ConsumerWidget {
                           .copyWith(color: colors.text, height: 1),
                     ),
                     StarRatingDisplay(
-                        value: summary.average ?? 0, size: AppSpacing.md + 2),
+                      value: summary.average ?? 0,
+                      size: AppSpacing.md + 2,
+                    ),
                     const SizedBox(height: AppSpacing.xs),
                     Text(
                       summary.isNew
                           ? t.t('profile.rating.new')
                           : SocialFormat.plural(
-                              t, formats, 'profile.rating.count', total),
+                              t,
+                              formats,
+                              'profile.rating.count',
+                              total,
+                            ),
                       style: typography.caption
                           .copyWith(color: colors.textSecondary),
                     ),
@@ -382,7 +391,8 @@ class ReviewSummaryPanel extends ConsumerWidget {
                                   : 0.4,
                           child: Padding(
                             padding: const EdgeInsets.symmetric(
-                                vertical: AppSpacing.xs + 1),
+                              vertical: AppSpacing.xs + 1,
+                            ),
                             child: Row(
                               children: [
                                 SizedBox(
@@ -394,8 +404,11 @@ class ReviewSummaryPanel extends ConsumerWidget {
                                         .copyWith(color: colors.textSecondary),
                                   ),
                                 ),
-                                AppIcon(AppIcons.starRounded,
-                                    size: AppSpacing.md, color: colors.gold),
+                                AppIcon(
+                                  AppIcons.starRounded,
+                                  size: AppSpacing.md,
+                                  color: colors.gold,
+                                ),
                                 const SizedBox(width: AppSpacing.sm),
                                 Expanded(
                                   child: ClipRRect(
@@ -427,8 +440,10 @@ class ReviewSummaryPanel extends ConsumerWidget {
                                 SizedBox(
                                   width: AppSpacing.xl,
                                   child: Text(
-                                    SocialFormat.count(formats,
-                                        summary.distribution[stars] ?? 0),
+                                    SocialFormat.count(
+                                      formats,
+                                      summary.distribution[stars] ?? 0,
+                                    ),
                                     textAlign: TextAlign.end,
                                     textScaler: TextScaler.noScaling,
                                     style: typography.caption.copyWith(
@@ -469,10 +484,16 @@ class ReviewSummaryPanel extends ConsumerWidget {
             children: [
               const AppSheetHandle(),
               Padding(
-                padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide,
-                    AppSpacing.sm, AppSpacing.screenSide, AppSpacing.md),
-                child: Text(t.t('reviews.sort.label'),
-                    style: typography.titleMedium.copyWith(color: colors.text)),
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.screenSide,
+                  AppSpacing.sm,
+                  AppSpacing.screenSide,
+                  AppSpacing.md,
+                ),
+                child: Text(
+                  t.t('reviews.sort.label'),
+                  style: typography.titleMedium.copyWith(color: colors.text),
+                ),
               ),
               for (final v in ReviewsSort.values)
                 AppListRow(
@@ -506,7 +527,9 @@ class ReviewSummaryPanel extends ConsumerWidget {
 
 /// "Report review" reasons sheet (docs/03 §7.2, `report_reason`).
 Future<ReviewReportReason?> showReportReasonSheet(
-    BuildContext context, Translator t) {
+  BuildContext context,
+  Translator t,
+) {
   return showAppBottomSheet<ReviewReportReason>(
     context: context,
     builder: (sheetContext) {
@@ -582,16 +605,25 @@ class ReviewHelpfulButton extends ConsumerWidget {
     final color = mine ? colors.goldDark : colors.textSecondary;
     final child = Padding(
       padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
+        horizontal: AppSpacing.sm,
+        vertical: AppSpacing.xs,
+      ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          AppIcon(mine ? AppIcons.thumbUpAltRounded : AppIcons.thumbUpAltOutlined,
-              size: 16, color: color),
+          AppIcon(
+            mine ? AppIcons.thumbUpAltRounded : AppIcons.thumbUpAltOutlined,
+            size: 16,
+            color: color,
+          ),
           const SizedBox(width: 6),
-          Text(label,
-              style: type.caption.copyWith(
-                  color: color, fontWeight: FontWeight.w600)),
+          Text(
+            label,
+            style: type.caption.copyWith(
+              color: color,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ],
       ),
     );
@@ -645,7 +677,11 @@ class ReviewReplyBlock extends ConsumerWidget {
       width: double.infinity,
       margin: const EdgeInsets.only(top: AppSpacing.md),
       padding: const EdgeInsets.fromLTRB(
-          AppSpacing.md, AppSpacing.sm, AppSpacing.sm, AppSpacing.sm),
+        AppSpacing.md,
+        AppSpacing.sm,
+        AppSpacing.sm,
+        AppSpacing.sm,
+      ),
       decoration: BoxDecoration(
         color: colors.goldTint,
         borderRadius: BorderRadius.circular(AppRadii.field),
@@ -672,9 +708,11 @@ class ReviewReplyBlock extends ConsumerWidget {
               ),
               if (onEdit != null)
                 AppIconButton(
-                  plain: true,
-                  icon: AppIcon(AppIcons.moreHorizRounded,
-                      color: colors.textSecondary, size: 18),
+                  icon: AppIcon(
+                    AppIcons.moreHorizRounded,
+                    color: colors.textSecondary,
+                    size: 18,
+                  ),
                   semanticLabel: t.t('reviews.reply.menu'),
                   onPressed: () async {
                     final choice = await showAppBottomSheet<String>(
@@ -750,20 +788,25 @@ class _ReplySheetState extends ConsumerState<_ReplySheet> {
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     return Padding(
       padding: EdgeInsets.fromLTRB(
-          AppSpacing.screenSide,
-          AppSpacing.md,
-          AppSpacing.screenSide,
-          AppSpacing.lg + MediaQuery.viewInsetsOf(context).bottom),
+        AppSpacing.screenSide,
+        AppSpacing.md,
+        AppSpacing.screenSide,
+        AppSpacing.lg + MediaQuery.viewInsetsOf(context).bottom,
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const AppSheetHandle(),
-          Text(t.t('reviews.reply.title'),
-              style: type.titleMedium.copyWith(color: colors.text)),
+          Text(
+            t.t('reviews.reply.title'),
+            style: type.titleMedium.copyWith(color: colors.text),
+          ),
           const SizedBox(height: AppSpacing.xs),
-          Text(t.t('reviews.reply.hint'),
-              style: type.bodySmall.copyWith(color: colors.textSecondary)),
+          Text(
+            t.t('reviews.reply.hint'),
+            style: type.bodySmall.copyWith(color: colors.textSecondary),
+          ),
           const SizedBox(height: AppSpacing.md),
           AppTextField(
             key: const ValueKey('review-reply-field'),
@@ -800,7 +843,8 @@ class ReviewBadge extends StatelessWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 2),
+      padding:
+          const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 2),
       decoration: BoxDecoration(
         color: colors.goldTint,
         borderRadius: BorderRadius.circular(AppRadii.pill),
@@ -928,7 +972,11 @@ class _MapsReviewTileState extends ConsumerState<MapsReviewTile> {
     return Container(
       key: ValueKey('maps-review-${w.id}'),
       padding: const EdgeInsets.fromLTRB(
-          AppSpacing.lg, AppSpacing.md, AppSpacing.sm, AppSpacing.sm),
+        AppSpacing.lg,
+        AppSpacing.md,
+        AppSpacing.sm,
+        AppSpacing.sm,
+      ),
       decoration: BoxDecoration(
         color: colors.surface,
         borderRadius: BorderRadius.circular(AppRadii.card),
@@ -956,10 +1004,13 @@ class _MapsReviewTileState extends ConsumerState<MapsReviewTile> {
                   ),
                   alignment: Alignment.center,
                   child: w.authorAvatarUrl == null
-                      ? Text(initials,
+                      ? Text(
+                          initials,
                           style: type.bodySmall.copyWith(
-                              color: colors.gold,
-                              fontWeight: FontWeight.w700))
+                            color: colors.gold,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        )
                       : null,
                 ),
               ),
@@ -981,8 +1032,12 @@ class _MapsReviewTileState extends ConsumerState<MapsReviewTile> {
                       ),
                       if (w.authorReviewCount > 0)
                         Text(
-                          SocialFormat.plural(t, f, 'reviews.authorCount',
-                              w.authorReviewCount),
+                          SocialFormat.plural(
+                            t,
+                            f,
+                            'reviews.authorCount',
+                            w.authorReviewCount,
+                          ),
                           style: type.caption
                               .copyWith(color: colors.textSecondary),
                         ),
@@ -994,8 +1049,10 @@ class _MapsReviewTileState extends ConsumerState<MapsReviewTile> {
                 IconButton(
                   key: ValueKey('review-menu-${w.id}'),
                   tooltip: t.t('reviews.menu'),
-                  icon: AppIcon(AppIcons.moreVertRounded,
-                      color: colors.textSecondary),
+                  icon: AppIcon(
+                    AppIcons.moreVertRounded,
+                    color: colors.textSecondary,
+                  ),
                   onPressed: w.onMenu,
                 ),
             ],
@@ -1012,9 +1069,10 @@ class _MapsReviewTileState extends ConsumerState<MapsReviewTile> {
                 style: type.caption.copyWith(color: colors.textSecondary),
               ),
               if (w.edited)
-                Text(t.t('reviews.edited'),
-                    style:
-                        type.caption.copyWith(color: colors.textSecondary)),
+                Text(
+                  t.t('reviews.edited'),
+                  style: type.caption.copyWith(color: colors.textSecondary),
+                ),
               ...w.badges,
             ],
           ),
@@ -1035,10 +1093,13 @@ class _MapsReviewTileState extends ConsumerState<MapsReviewTile> {
                 onTap: () => setState(() => _expanded = true),
                 child: Padding(
                   padding: const EdgeInsets.only(top: 2),
-                  child: Text(t.t('reviews.more'),
-                      style: type.bodySmall.copyWith(
-                          color: colors.goldDark,
-                          fontWeight: FontWeight.w700)),
+                  child: Text(
+                    t.t('reviews.more'),
+                    style: type.bodySmall.copyWith(
+                      color: colors.goldDark,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
               ),
           ],
@@ -1062,7 +1123,10 @@ class _MapsReviewTileState extends ConsumerState<MapsReviewTile> {
                       height: 96,
                       fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) => Container(
-                          width: 96, height: 96, color: colors.goldTint),
+                        width: 96,
+                        height: 96,
+                        color: colors.goldTint,
+                      ),
                     ),
                   ),
                 ),

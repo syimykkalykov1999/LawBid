@@ -1,3 +1,4 @@
+// ignore_for_file: lines_longer_than_80_chars
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -32,8 +33,10 @@ class RoleScreen extends ConsumerWidget {
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final t = ref.watch(translatorProvider);
     final flowState = ref.watch(onboardingFlowProvider);
-    final serverRole = ref.watch(currentUserControllerProvider.select((s) => s.user?.role));
-    final selectedRole = serverRole ?? flowState.selectedRole ?? UserRole.client;
+    final serverRole =
+        ref.watch(currentUserControllerProvider.select((s) => s.user?.role));
+    final selectedRole =
+        serverRole ?? flowState.selectedRole ?? UserRole.client;
     final action = ref.watch(onboardingActionsProvider);
     final attorneySide =
         selectedRole == UserRole.attorney || selectedRole == UserRole.assistant;
@@ -49,7 +52,9 @@ class RoleScreen extends ConsumerWidget {
         context.go(AppRouterGuard.forwardRoute(user));
         return;
       }
-      final ok = await ref.read(onboardingActionsProvider.notifier).chooseRole(selectedRole);
+      final ok = await ref
+          .read(onboardingActionsProvider.notifier)
+          .chooseRole(selectedRole);
       if (!ok && context.mounted) {
         final error = ref.read(onboardingActionsProvider).error;
         if (error != null) showAppSnackBar(context, errorText(t, error));
@@ -74,7 +79,8 @@ class RoleScreen extends ConsumerWidget {
         child: LayoutBuilder(
           builder: (context, constraints) {
             return SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenSide),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: AppSpacing.screenSide),
               child: ConstrainedBox(
                 constraints: BoxConstraints(minHeight: constraints.maxHeight),
                 child: IntrinsicHeight(
@@ -88,7 +94,8 @@ class RoleScreen extends ConsumerWidget {
                       const SizedBox(height: 8),
                       Text(
                         t.t('onboarding.role.title'),
-                        style: typography.titleMedium.copyWith(color: colors.text),
+                        style:
+                            typography.titleMedium.copyWith(color: colors.text),
                       ),
                       const SizedBox(height: AppSpacing.lg),
                       lockable(
@@ -150,14 +157,16 @@ class RoleScreen extends ConsumerWidget {
                                     ])
                                       Padding(
                                         padding: const EdgeInsets.only(
-                                            bottom: AppSpacing.sm),
+                                          bottom: AppSpacing.sm,
+                                        ),
                                         child: lockable(
                                           role,
                                           _SubRole(
-                                            key: ValueKey(role ==
-                                                    UserRole.assistant
-                                                ? 'role-card-assistant'
-                                                : 'role-sub-attorney'),
+                                            key: ValueKey(
+                                              role == UserRole.assistant
+                                                  ? 'role-card-assistant'
+                                                  : 'role-sub-attorney',
+                                            ),
                                             icon: icon,
                                             title: title,
                                             body: body,
@@ -175,7 +184,8 @@ class RoleScreen extends ConsumerWidget {
                         Text(
                           t.t('onboarding.role.locked'),
                           key: const ValueKey('role-locked-note'),
-                          style: typography.caption.copyWith(color: colors.textSecondary),
+                          style: typography.caption
+                              .copyWith(color: colors.textSecondary),
                         ),
                       ],
                       const Spacer(),
@@ -192,7 +202,8 @@ class RoleScreen extends ConsumerWidget {
                             Text(
                               t.t('onboarding.role.warning'),
                               textAlign: TextAlign.center,
-                              style: typography.caption.copyWith(color: colors.textSecondary),
+                              style: typography.caption
+                                  .copyWith(color: colors.textSecondary),
                             ),
                           ],
                         ),

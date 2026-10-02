@@ -108,7 +108,7 @@ class WizardStepper extends StatelessWidget {
                     alignment: Alignment.centerLeft,
                     children: [
                       ...previous,
-                      if (currentChild != null) currentChild
+                      if (currentChild != null) currentChild,
                     ],
                   ),
                   child: Text(
@@ -178,7 +178,9 @@ class _StepDot extends StatelessWidget {
         boxShadow: state == _DotState.current
             ? [
                 BoxShadow(
-                    color: colors.focusRingGlow, blurRadius: AppSpacing.sm)
+                  color: colors.focusRingGlow,
+                  blurRadius: AppSpacing.sm,
+                ),
               ]
             : null,
       ),

@@ -1,3 +1,4 @@
+// ignore_for_file: lines_longer_than_80_chars
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:golden_toolkit/golden_toolkit.dart';
@@ -33,17 +34,18 @@ void main() {
     });
   }
 
-  testWidgets('client feed header: scales mark left, wordmark centred (owner 2026-09-30)',
+  testWidgets(
+      'client feed header: scales mark left, wordmark centred (owner 2026-09-30)',
       (tester) async {
     await tester.pumpWidget(
       uxApp(
         const FeedScreen(),
         theme: AppTheme.light(),
         overrides: [
-            ...uxOverrides(),
-            // The topic slider reads practice names; no network in tests.
-            practiceTreeProvider.overrideWith((ref) async => const []),
-          ],
+          ...uxOverrides(),
+          // The topic slider reads practice names; no network in tests.
+          practiceTreeProvider.overrideWith((ref) async => const []),
+        ],
       ),
     );
     // The header scales animate forever (owner 2026-09-30), so no settle.
@@ -53,5 +55,4 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(seconds: 30));
   });
-
 }

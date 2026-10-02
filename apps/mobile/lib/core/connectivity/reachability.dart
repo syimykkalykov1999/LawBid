@@ -6,7 +6,7 @@ import 'package:dio/dio.dart';
 /// traffic (docs/01 §8.3 offline state): every HTTP response proves the
 /// server is reachable; every connection-level failure proves it is not.
 /// Owns no dependencies, so the dio stack can feed it without creating a
-/// provider cycle with [ConnectivityService] (which also uses dio for its
+/// provider cycle with `ConnectivityService` (which also uses dio for its
 /// health probe).
 class ReachabilitySignal {
   final StreamController<bool> _controller =

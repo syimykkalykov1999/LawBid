@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -9,6 +8,7 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
+import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
 import 'package:lawbid/features/notifications/data/notifications_repository.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
@@ -17,10 +17,9 @@ import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/social/social_routes.dart';
 import 'package:lawbid/features/subscription/subscription_routes.dart';
-import 'package:lawbid/shared/domain/user_role.dart';
-import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
-import 'package:lawbid/features/team/presentation/assistant_activity_list.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
+import 'package:lawbid/features/team/presentation/assistant_activity_list.dart';
+import 'package:lawbid/shared/domain/user_role.dart';
 
 /// Where a notification (or its push) leads (docs/05 §9.2); null = no
 /// target screen (a sheet with the text is shown instead).
@@ -31,6 +30,7 @@ String? notificationRoute({
   String? myId,
   String? actorUsername,
 }) {
+  // ignore: cast_nullable_to_non_nullable
   String? s(String k) => payload[k] is String ? payload[k] as String : null;
   final caseId = s('caseId');
   final bidId = s('bidId');
@@ -281,9 +281,11 @@ class _GroupHeader extends StatelessWidget {
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     return Padding(
       padding: const EdgeInsets.only(top: AppSpacing.sm, bottom: AppSpacing.sm),
-      child: Text(label,
-          style: type.body
-              .copyWith(color: colors.text, fontWeight: FontWeight.w700)),
+      child: Text(
+        label,
+        style:
+            type.body.copyWith(color: colors.text, fontWeight: FontWeight.w700),
+      ),
     );
   }
 }

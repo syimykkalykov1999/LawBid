@@ -1,8 +1,8 @@
-import '../domain/account_deletion_result.dart';
-import '../domain/otp_verify_result.dart';
-import '../domain/reauth_result.dart';
-import '../domain/social_login_result.dart';
-import 'auth_dtos.dart' show DeviceSession;
+import 'package:lawbid/features/auth/data/auth_dtos.dart' show DeviceSession;
+import 'package:lawbid/features/auth/domain/account_deletion_result.dart';
+import 'package:lawbid/features/auth/domain/otp_verify_result.dart';
+import 'package:lawbid/features/auth/domain/reauth_result.dart';
+import 'package:lawbid/features/auth/domain/social_login_result.dart';
 
 /// Auth operations needed by the onboarding screens (file 01 §10/11) plus
 /// session teardown (file 01 §10.5 `POST /auth/logout`).
@@ -41,7 +41,10 @@ abstract interface class AuthRepository {
   /// Email magic link (`POST /auth/otp/verify-link`): the link's one-time
   /// [token] + the [verifier] stored by the email [requestOtp]. Same
   /// results and session handling as [verifyOtp].
-  Future<OtpVerifyResult> verifyEmailLink({required String token, required String verifier});
+  Future<OtpVerifyResult> verifyEmailLink({
+    required String token,
+    required String verifier,
+  });
 
   /// Verifies [code] for [identifier] on [channel]; applies the session on
   /// success.
@@ -93,7 +96,10 @@ abstract interface class AuthRepository {
   /// `@Public()` and accepts any channel/identifier — see
   /// `AuthApiClient.requestOtp`) before calling this with the code the
   /// person received.
-  Future<ReauthResult> reauthWithOtp({required String identifier, required String code});
+  Future<ReauthResult> reauthWithOtp({
+    required String identifier,
+    required String code,
+  });
 
   /// `DELETE /users/me` (file 01 §10.7) — starts the 14-day deletion grace
   /// period. Requires a fresh, unused [reauthToken] from [reauthWithOtp].

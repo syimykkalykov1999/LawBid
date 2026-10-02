@@ -157,9 +157,11 @@ class _AccountBody extends StatelessWidget {
         badge: value == null
             ? null
             : AccountBadge(
-                label: t.t(verified
-                    ? 'account.identifier.verified'
-                    : 'account.contact.unverified'),
+                label: t.t(
+                  verified
+                      ? 'account.identifier.verified'
+                      : 'account.contact.unverified',
+                ),
                 tone: verified
                     ? AccountBadgeTone.success
                     : AccountBadgeTone.warning,
@@ -187,8 +189,11 @@ class _AccountBody extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            AppIcon(AppIcons.lockOutlineRounded,
-                size: AppSpacing.lg, color: colors.textSecondary),
+            AppIcon(
+              AppIcons.lockOutlineRounded,
+              size: AppSpacing.lg,
+              color: colors.textSecondary,
+            ),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Text(
@@ -225,7 +230,7 @@ class _AccountBody extends StatelessWidget {
               ]
             : [
                 for (final i in identifiers)
-                  _IdentifierTile(t: t, identifier: i)
+                  _IdentifierTile(t: t, identifier: i),
               ],
       ),
       AppListSection(
@@ -324,11 +329,13 @@ class _IdentifierTile extends StatelessWidget {
       badge: i.isPrimaryContact
           ? AccountBadge(
               label: t.t('account.identifier.primary'),
-              tone: AccountBadgeTone.gold)
+              tone: AccountBadgeTone.gold,
+            )
           : (i.verified
               ? AccountBadge(
                   label: t.t('account.identifier.verified'),
-                  tone: AccountBadgeTone.success)
+                  tone: AccountBadgeTone.success,
+                )
               : null),
     );
   }

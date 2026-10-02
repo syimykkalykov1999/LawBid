@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
-import '../design_system/design_system.dart';
-import '../l10n/l10n_providers.dart';
-import '../navigation/app_routes.dart';
-import 'deep_link.dart';
+import 'package:lawbid/core/deeplinks/deep_link.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/navigation/app_routes.dart';
 
 /// Landing screen for a `lawbid.app/case/:id`, `/lawyer/:username` or
 /// `/post/:id` link (docs/01_FOUNDATION_AUTH.md §12) until the real
@@ -15,7 +13,11 @@ import 'package:lawbid/core/design_system/design_system.dart';
 ///
 /// No loading/error/offline/pagination states: nothing is fetched here.
 class DeepLinkPlaceholderScreen extends ConsumerWidget {
-  const DeepLinkPlaceholderScreen({required this.kind, required this.id, super.key});
+  const DeepLinkPlaceholderScreen({
+    required this.kind,
+    required this.id,
+    super.key,
+  });
 
   final ContentKind kind;
   final String id;
@@ -43,7 +45,10 @@ class DeepLinkPlaceholderScreen extends ConsumerWidget {
       backgroundColor: colors.bg,
       appBar: AppTopBar(
         title: Text(t.t(titleKey)),
-        leading: AppBackButton(semanticLabel: t.t('common.back'), onPressed: () => _leave(context)),
+        leading: AppBackButton(
+          semanticLabel: t.t('common.back'),
+          onPressed: () => _leave(context),
+        ),
       ),
       body: AppEmptyState(
         icon: icon,

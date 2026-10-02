@@ -1,3 +1,4 @@
+// ignore_for_file: lines_longer_than_80_chars
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,16 +13,20 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 abstract final class UsPhone {
   static const digitsLength = 10;
 
-  static String digitsOf(String formatted) => formatted.replaceAll(RegExp(r'\D'), '');
+  static String digitsOf(String formatted) =>
+      formatted.replaceAll(RegExp(r'\D'), '');
 
-  static bool isValid(String formatted) => digitsOf(formatted).length == digitsLength;
+  static bool isValid(String formatted) =>
+      digitsOf(formatted).length == digitsLength;
 
   static String toE164(String formatted) => '+1${digitsOf(formatted)}';
 
   /// `+15551234567` → `(555) 123-4567`; anything else is returned as-is.
   static String format(String e164) {
     final digits = digitsOf(e164);
-    final national = digits.length == 11 && digits.startsWith('1') ? digits.substring(1) : digits;
+    final national = digits.length == 11 && digits.startsWith('1')
+        ? digits.substring(1)
+        : digits;
     if (national.length != digitsLength) return e164;
     return '(${national.substring(0, 3)}) ${national.substring(3, 6)}-${national.substring(6)}';
   }
@@ -68,7 +73,10 @@ class CountryCodeChip extends ConsumerWidget {
 /// Formats digits as `(XXX) XXX-XXXX` while typing, capped at 10 digits.
 class UsPhoneFormatter extends TextInputFormatter {
   @override
-  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
     final digits = UsPhone.digitsOf(newValue.text);
     final limited = digits.length > UsPhone.digitsLength
         ? digits.substring(0, UsPhone.digitsLength)

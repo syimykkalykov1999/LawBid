@@ -30,8 +30,10 @@ abstract interface class CallMedia {
 
   Future<void> addCandidate(Map<String, Object?> candidate);
 
+  // ignore: avoid_positional_boolean_parameters
   void setMuted(bool muted);
 
+  // ignore: avoid_positional_boolean_parameters
   Future<void> setSpeaker(bool on);
 
   Future<void> close();
@@ -82,6 +84,7 @@ class WebRtcCallMedia implements CallMedia {
             onState(CallMediaState.connected);
           case RTCPeerConnectionState.RTCPeerConnectionStateFailed:
             onState(CallMediaState.failed);
+          // ignore: no_default_cases
           default:
             break;
         }
@@ -102,7 +105,8 @@ class WebRtcCallMedia implements CallMedia {
   Future<Map<String, Object?>> answer(Map<String, Object?> offer) async {
     final pc = _pc!;
     await pc.setRemoteDescription(
-        RTCSessionDescription(offer['sdp'] as String?, 'offer'));
+      RTCSessionDescription(offer['sdp'] as String?, 'offer'),
+    );
     await _flushCandidates();
     final ans = await pc.createAnswer({'offerToReceiveAudio': true});
     await pc.setLocalDescription(ans);
@@ -112,7 +116,8 @@ class WebRtcCallMedia implements CallMedia {
   @override
   Future<void> setAnswer(Map<String, Object?> answer) async {
     await _pc!.setRemoteDescription(
-        RTCSessionDescription(answer['sdp'] as String?, 'answer'));
+      RTCSessionDescription(answer['sdp'] as String?, 'answer'),
+    );
     await _flushCandidates();
   }
 

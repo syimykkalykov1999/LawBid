@@ -13,15 +13,24 @@ void main() {
       );
 
   test('non-existent US number gets its own message', () {
-    expect(apiErrorText(t, phone('invalid')), contains('Такого номера США нет'));
+    expect(
+      apiErrorText(t, phone('invalid')),
+      contains('Такого номера США нет'),
+    );
   });
 
   test('non-mobile / premium line gets its own message', () {
-    expect(apiErrorText(t, phone('number_type_not_allowed')), contains('мобильный номер США'));
+    expect(
+      apiErrorText(t, phone('number_type_not_allowed')),
+      contains('мобильный номер США'),
+    );
   });
 
   test('non-US +1 country keeps the country message', () {
-    expect(apiErrorText(t, phone('country_not_allowed')), contains('этой страны'));
+    expect(
+      apiErrorText(t, phone('country_not_allowed')),
+      contains('этой страны'),
+    );
     expect(apiErrorText(t, phone(null)), contains('этой страны'));
   });
 }

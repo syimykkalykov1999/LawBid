@@ -59,8 +59,9 @@ class VerificationStatusScreen extends ConsumerWidget {
                   try {
                     await controller.refresh();
                   } on Object catch (e) {
-                    if (context.mounted)
+                    if (context.mounted) {
                       showAppSnackBar(context, errorText(t, e));
+                    }
                   }
                 },
                 child: _StatusBody(
@@ -134,8 +135,10 @@ class _StatusBody extends StatelessWidget {
             body: t.t('verification.status.start.body'),
           ),
           _NeedList(t: t, identity: overview.identityRequired),
-          primary(t.t('verification.status.start.cta'),
-              icon: AppIcons.arrowForwardRounded),
+          primary(
+            t.t('verification.status.start.cta'),
+            icon: AppIcons.arrowForwardRounded,
+          ),
         ]);
       case VerificationView.draft:
         final parts = _draftParts(r!, overview.identityRequired);
@@ -146,8 +149,10 @@ class _StatusBody extends StatelessWidget {
             body: t.t('verification.status.draft.body'),
           ),
           _DraftProgress(t: t, done: parts.$1, total: parts.$2),
-          primary(t.t('verification.status.draft.cta'),
-              icon: AppIcons.arrowForwardRounded),
+          primary(
+            t.t('verification.status.draft.cta'),
+            icon: AppIcons.arrowForwardRounded,
+          ),
         ]);
       case VerificationView.pending:
         children.addAll([
@@ -173,8 +178,10 @@ class _StatusBody extends StatelessWidget {
             message: r!.infoRequestMessage ??
                 t.t('verification.needsInfo.noMessage'),
           ),
-          primary(t.t('verification.status.needsInfo.cta'),
-              icon: AppIcons.uploadFileRounded),
+          primary(
+            t.t('verification.status.needsInfo.cta'),
+            icon: AppIcons.uploadFileRounded,
+          ),
           _Licenses(t: t, licenses: r.licenses),
         ]);
       case VerificationView.rejected:
@@ -361,9 +368,11 @@ class _Hero extends StatelessWidget {
       alignment: Alignment.topCenter,
       children: [
         const Positioned(
-            top: 0,
-            child: ExcludeSemantics(
-                child: WatermarkScales(width: 180, height: 116))),
+          top: 0,
+          child: ExcludeSemantics(
+            child: WatermarkScales(width: 180, height: 116),
+          ),
+        ),
         Padding(
           padding: const EdgeInsets.only(top: AppSpacing.lg),
           child: Column(
@@ -385,8 +394,11 @@ class _Hero extends StatelessWidget {
                         ),
                       ],
                     ),
-                    child: AppIcon(badge.icon,
-                        size: AppSizes.stateIcon + AppSpacing.sm, color: fg),
+                    child: AppIcon(
+                      badge.icon,
+                      size: AppSizes.stateIcon + AppSpacing.sm,
+                      color: fg,
+                    ),
                   ),
                 ),
               ),
@@ -458,8 +470,11 @@ class _NeedList extends StatelessWidget {
 }
 
 class _DraftProgress extends StatelessWidget {
-  const _DraftProgress(
-      {required this.t, required this.done, required this.total});
+  const _DraftProgress({
+    required this.t,
+    required this.done,
+    required this.total,
+  });
 
   final Translator t;
   final int done;
@@ -531,7 +546,8 @@ class _Timeline extends StatelessWidget {
                             child: Container(
                               width: 2,
                               margin: const EdgeInsets.symmetric(
-                                  vertical: AppSpacing.xs),
+                                vertical: AppSpacing.xs,
+                              ),
                               color: rows[i].$3 == _Mark.done
                                   ? colors.gold
                                   : colors.border,
@@ -604,14 +620,20 @@ class _TimelineDot extends StatelessWidget {
           ),
         ),
         child: mark == _Mark.done
-            ? AppIcon(AppIcons.checkRounded, size: AppSpacing.lg, color: colors.navy)
+            ? AppIcon(
+                AppIcons.checkRounded,
+                size: AppSpacing.lg,
+                color: colors.navy,
+              )
             : mark == _Mark.current
                 ? Center(
                     child: Container(
                       width: AppSpacing.sm,
                       height: AppSpacing.sm,
                       decoration: BoxDecoration(
-                          color: colors.gold, shape: BoxShape.circle),
+                        color: colors.gold,
+                        shape: BoxShape.circle,
+                      ),
                     ),
                   )
                 : null,

@@ -37,7 +37,8 @@ void main() {
     client = AuthApiClient(dio);
   });
 
-  test('verifyOtp: body from the generated DTO, skipAuth, typed tokens', () async {
+  test('verifyOtp: body from the generated DTO, skipAuth, typed tokens',
+      () async {
     final result = await client.verifyOtp(
       channel: 'phone',
       identifier: '+12025550123',
@@ -65,8 +66,14 @@ void main() {
         o.path == '/auth/otp/request' ? ok({'sent': true}) : ok(tokens);
     await client.requestOtp(channel: 'email', identifier: 'a@b.co');
     await client.refresh(refreshToken: 'old');
-    expect(adapter.requests.map((r) => r.extra[RequestFlags.skipAuth]), [true, true]);
-    expect(bodyOf(adapter.requests[0]), {'channel': 'email', 'identifier': 'a@b.co'});
+    expect(
+      adapter.requests.map((r) => r.extra[RequestFlags.skipAuth]),
+      [true, true],
+    );
+    expect(
+      bodyOf(adapter.requests[0]),
+      {'channel': 'email', 'identifier': 'a@b.co'},
+    );
     expect(bodyOf(adapter.requests[1]), {'refreshToken': 'old'});
   });
 
@@ -81,8 +88,10 @@ void main() {
     adapter.handler = (o) async => ok({'reauthToken': 'rt-1'});
     final token = await client.reauth(identifier: 'a@b.co', code: '654321');
     expect(token, 'rt-1');
-    expect(bodyOf(adapter.requests.single),
-        {'method': 'otp', 'identifier': 'a@b.co', 'code': '654321'});
+    expect(
+      bodyOf(adapter.requests.single),
+      {'method': 'otp', 'identifier': 'a@b.co', 'code': '654321'},
+    );
   });
 
   test('deleteAccount sends X-Reauth-Token', () async {
@@ -94,7 +103,8 @@ void main() {
     expect(req.headers['X-Reauth-Token'], 'rt-2');
   });
 
-  test('listSessions maps SessionDto rows (chain id, ISO timestamps)', () async {
+  test('listSessions maps SessionDto rows (chain id, ISO timestamps)',
+      () async {
     adapter.handler = (o) async => ok([
           {
             'sessionId': 'chain-1',
@@ -121,23 +131,34 @@ void main() {
       client.refresh(refreshToken: 'stolen'),
       throwsA(
         isA<ApiException>()
-            .having((e) => e.code, 'code', ApiErrorCodes.authRefreshReuseDetected)
+            .having(
+              (e) => e.code,
+              'code',
+              ApiErrorCodes.authRefreshReuseDetected,
+            )
             .having((e) => e.statusCode, 'status', 401),
       ),
     );
   });
 
-  test('a 2xx body outside the contract is NETWORK_ERROR, not a crash', () async {
+  test('a 2xx body outside the contract is NETWORK_ERROR, not a crash',
+      () async {
     adapter.handler = (o) async => ok({'accessToken': 42});
     await expectLater(
-      client.verifyOtp(channel: 'phone', identifier: '+12025550123', code: '123456'),
-      throwsA(isA<ApiException>().having((e) => e.isNetworkError, 'network', isTrue)),
+      client.verifyOtp(
+        channel: 'phone',
+        identifier: '+12025550123',
+        code: '123456',
+      ),
+      throwsA(
+        isA<ApiException>().having((e) => e.isNetworkError, 'network', isTrue),
+      ),
     );
   });
 
   test('socialLogin posts the generated SocialLoginDto', () async {
     await client.socialLogin(
-      api.SocialLoginDto(
+      const api.SocialLoginDto(
         provider: api.SocialLoginDtoProvider.apple,
         idToken: 'id',
         nonce: 'n',
@@ -147,6 +168,11 @@ void main() {
     final req = adapter.requests.single;
     expect(req.path, '/auth/social');
     expect(req.extra[RequestFlags.skipAuth], isTrue);
-    expect(bodyOf(req), {'provider': 'apple', 'idToken': 'id', 'nonce': 'n', 'firstName': 'Ann'});
+    expect(bodyOf(req), {
+      'provider': 'apple',
+      'idToken': 'id',
+      'nonce': 'n',
+      'firstName': 'Ann',
+    });
   });
 }

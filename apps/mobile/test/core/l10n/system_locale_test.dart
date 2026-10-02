@@ -1,3 +1,4 @@
+// ignore_for_file: lines_longer_than_80_chars
 import 'dart:ui' show Locale;
 
 import 'package:flutter_test/flutter_test.dart';
@@ -15,9 +16,15 @@ void main() {
     const compiled = {'en', 'ru'};
 
     test('picks the first system locale whose language is selectable', () {
-      expect(detectSystemLanguage(const [Locale('ru', 'RU')], compiled), AppLanguage.ru);
       expect(
-        detectSystemLanguage(const [Locale('fr', 'FR'), Locale('ru')], compiled),
+        detectSystemLanguage(const [Locale('ru', 'RU')], compiled),
+        AppLanguage.ru,
+      );
+      expect(
+        detectSystemLanguage(
+          const [Locale('fr', 'FR'), Locale('ru')],
+          compiled,
+        ),
         AppLanguage.ru,
         reason: 'walks the preference list, skipping unsupported languages',
       );
@@ -29,7 +36,10 @@ void main() {
     });
 
     test('falls back to en when no system language is active', () {
-      expect(detectSystemLanguage(const [Locale('fr', 'FR')], compiled), AppLanguage.en);
+      expect(
+        detectSystemLanguage(const [Locale('fr', 'FR')], compiled),
+        AppLanguage.en,
+      );
       expect(detectSystemLanguage(const [], compiled), AppLanguage.en);
       expect(
         detectSystemLanguage(const [Locale('es')], compiled),
@@ -56,7 +66,9 @@ void main() {
       expect(await c.read(languageControllerProvider.future), AppLanguage.en);
     });
 
-    test('Spanish device: en offline, then es once the server reports es active', () async {
+    test(
+        'Spanish device: en offline, then es once the server reports es active',
+        () async {
       final h = await L10nHarness.create(
         api: FakeI18nApiClient(
           languages: [
@@ -76,13 +88,21 @@ void main() {
       await c.read(l10nCacheControllerProvider.notifier).refreshInBackground();
       await settle();
 
-      expect(c.read(languageControllerProvider).value, AppLanguage.fromCode('es'));
+      expect(
+        c.read(languageControllerProvider).value,
+        AppLanguage.fromCode('es'),
+      );
       expect(c.read(translatorProvider).t('auth.otp.submit'), 'Verificar');
-      expect(h.prefs.getString('l10n.language'), isNull,
-          reason: 'auto-detection is not an explicit choice; it keeps following the device',);
+      expect(
+        h.prefs.getString('l10n.language'),
+        isNull,
+        reason:
+            'auto-detection is not an explicit choice; it keeps following the device',
+      );
     });
 
-    test('next cold start uses the cached server list for detection, offline', () async {
+    test('next cold start uses the cached server list for detection, offline',
+        () async {
       final h = await L10nHarness.create(
         prefsValues: {
           'l10n.languages.active':
@@ -92,7 +112,10 @@ void main() {
       );
       h.api.offline = true;
       final c = h.container(systemLocales: const [Locale('es')]);
-      expect(await c.read(languageControllerProvider.future), AppLanguage.fromCode('es'));
+      expect(
+        await c.read(languageControllerProvider.future),
+        AppLanguage.fromCode('es'),
+      );
     });
   });
 
@@ -106,21 +129,29 @@ void main() {
     test('setLanguage persists and survives a restart', () async {
       final h = await L10nHarness.create();
       final c = h.container();
-      await c.read(languageControllerProvider.notifier).setLanguage(AppLanguage.ru);
+      await c
+          .read(languageControllerProvider.notifier)
+          .setLanguage(AppLanguage.ru);
       expect(h.prefs.getString('l10n.language'), 'ru');
 
       final c2 = (await L10nHarness.create(keepPrefs: true)).container();
       expect(await c2.read(languageControllerProvider.future), AppLanguage.ru);
     });
 
-    test('a stored language the server deactivated falls back to detection', () async {
+    test('a stored language the server deactivated falls back to detection',
+        () async {
       final h = await L10nHarness.create(
         prefsValues: {'l10n.language': 'es'},
-        api: FakeI18nApiClient(languages: [FakeI18nApiClient.lang('en', 'English', 0)]),
+        api: FakeI18nApiClient(
+          languages: [FakeI18nApiClient.lang('en', 'English', 0)],
+        ),
       );
       final c = h.container(systemLocales: const [Locale('de')]);
-      expect(await c.read(languageControllerProvider.future), AppLanguage.fromCode('es'),
-          reason: 'server list unknown yet: trust the stored choice',);
+      expect(
+        await c.read(languageControllerProvider.future),
+        AppLanguage.fromCode('es'),
+        reason: 'server list unknown yet: trust the stored choice',
+      );
 
       await c.read(activeLanguagesControllerProvider.notifier).refresh();
       await settle();

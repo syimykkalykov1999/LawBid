@@ -1,11 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-import '../../features/onboarding/application/current_user_controller.dart';
-import '../feature_flags/feature_flags_providers.dart';
-import '../l10n/l10n_providers.dart';
-import '../session/session_providers.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
+import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/session/session_providers.dart';
+import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 
 enum StartupStatus {
   /// Splash is doing its work; the guard holds every route at `/splash`.
@@ -45,7 +44,8 @@ class AppStartupController extends Notifier<StartupStatus> {
       ref.read(l10nCacheControllerProvider.notifier).refreshInBackground(),
     ]).timeout(remoteConfigTimeout, onTimeout: () => const []);
 
-    final session = await ref.read(sessionControllerProvider.notifier).bootstrap();
+    final session =
+        await ref.read(sessionControllerProvider.notifier).bootstrap();
     await remote;
 
     if (session == SessionBootstrapResult.offline) {
@@ -60,4 +60,6 @@ class AppStartupController extends Notifier<StartupStatus> {
 }
 
 final appStartupProvider =
-    NotifierProvider<AppStartupController, StartupStatus>(AppStartupController.new);
+    NotifierProvider<AppStartupController, StartupStatus>(
+  AppStartupController.new,
+);

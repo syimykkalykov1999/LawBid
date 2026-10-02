@@ -15,7 +15,6 @@ part 'session_state.freezed.dart';
 /// rather than a bare null check.
 @freezed
 abstract class SessionState with _$SessionState {
-  const SessionState._();
 
   const factory SessionState({
     required String accessToken,
@@ -26,6 +25,7 @@ abstract class SessionState with _$SessionState {
     required String subscriptionStatus,
     required DateTime accessTokenExpiresAt,
   }) = _SessionState;
+  const SessionState._();
 
   bool get isAuthenticated => true;
 }

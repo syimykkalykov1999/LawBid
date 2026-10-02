@@ -1,16 +1,15 @@
+import 'package:lawbid/core/l10n/api_error_text.dart';
+import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/features/auth/application/auth_providers.dart';
+import 'package:lawbid/features/auth/data/auth_repository.dart';
+import 'package:lawbid/features/auth/data/sms_code_retriever.dart';
+import 'package:lawbid/features/auth/domain/onboarding_flow_state.dart';
+import 'package:lawbid/features/auth/domain/onboarding_step.dart';
+import 'package:lawbid/features/auth/domain/otp_verify_result.dart';
+import 'package:lawbid/features/auth/domain/social_login_result.dart';
+import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
+import 'package:lawbid/shared/domain/user_role.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-
-import '../../../core/l10n/api_error_text.dart';
-import '../../../core/l10n/l10n_providers.dart';
-import '../../../shared/domain/user_role.dart';
-import '../../onboarding/application/current_user_controller.dart';
-import '../data/auth_repository.dart';
-import '../data/sms_code_retriever.dart';
-import '../domain/onboarding_flow_state.dart';
-import '../domain/onboarding_step.dart';
-import '../domain/otp_verify_result.dart';
-import '../domain/social_login_result.dart';
-import 'auth_providers.dart';
 
 part 'onboarding_flow.g.dart';
 
@@ -29,12 +28,20 @@ class OnboardingFlow extends _$OnboardingFlow {
 
   /// Welcome screen's "Продолжить с телефоном" — screen 1 → 2.
   void goToPhoneStep() {
-    state = state.copyWith(step: OnboardingStep.phone, channel: AuthChannel.phone, errorMessage: null);
+    state = state.copyWith(
+      step: OnboardingStep.phone,
+      channel: AuthChannel.phone,
+      errorMessage: null,
+    );
   }
 
   /// Email sign-in entry (file 01 §10.2 E).
   void goToEmailStep() {
-    state = state.copyWith(step: OnboardingStep.email, channel: AuthChannel.email, errorMessage: null);
+    state = state.copyWith(
+      step: OnboardingStep.email,
+      channel: AuthChannel.email,
+      errorMessage: null,
+    );
   }
 
   Future<bool> submitPhoneNumber(String e164Phone) =>
@@ -44,11 +51,17 @@ class OnboardingFlow extends _$OnboardingFlow {
       _requestCode(AuthChannel.email, email.trim().toLowerCase());
 
   Future<bool> _requestCode(AuthChannel channel, String identifier) async {
-    state = state.copyWith(isSubmitting: true, errorMessage: null, autofilledCode: null);
+    state = state.copyWith(
+      isSubmitting: true,
+      errorMessage: null,
+      autofilledCode: null,
+    );
     // SMS Retriever must be listening BEFORE the SMS is sent (§10.2 D).
     if (channel == AuthChannel.phone) _listenForSmsCode(identifier);
     try {
-      await ref.read(authRepositoryProvider).requestOtp(identifier, channel: channel.wireName);
+      await ref
+          .read(authRepositoryProvider)
+          .requestOtp(identifier, channel: channel.wireName);
       state = state.copyWith(
         step: OnboardingStep.otp,
         channel: channel,
@@ -72,7 +85,9 @@ class OnboardingFlow extends _$OnboardingFlow {
     if (identifier == null) return null;
     if (state.channel == AuthChannel.phone) _listenForSmsCode(identifier);
     try {
-      await ref.read(authRepositoryProvider).requestOtp(identifier, channel: state.channel.wireName);
+      await ref
+          .read(authRepositoryProvider)
+          .requestOtp(identifier, channel: state.channel.wireName);
       return null;
     } catch (e) {
       return errorText(ref.read(translatorProvider), e);
@@ -143,7 +158,8 @@ class OnboardingFlow extends _$OnboardingFlow {
       return _magicLinkToEmailStep(t.t('auth.magicLink.otherDevice'), show);
     }
     // Same device: the address is still known if the flow survived.
-    final identifier = state.channel == AuthChannel.email ? state.identifier : null;
+    final identifier =
+        state.channel == AuthChannel.email ? state.identifier : null;
     state = OnboardingFlowState(
       step: OnboardingStep.otp,
       channel: AuthChannel.email,
@@ -172,7 +188,8 @@ class OnboardingFlow extends _$OnboardingFlow {
     String message,
     void Function(OnboardingStep step) show,
   ) async {
-    final identifier = state.channel == AuthChannel.email ? state.identifier : null;
+    final identifier =
+        state.channel == AuthChannel.email ? state.identifier : null;
     state = OnboardingFlowState(
       step: OnboardingStep.email,
       channel: AuthChannel.email,
@@ -230,10 +247,12 @@ class OnboardingFlow extends _$OnboardingFlow {
 
   /// Welcome screen's Apple button (file 07 §6.1). A cancelled native
   /// sheet is not an error — no `errorMessage` is set for it.
-  Future<bool> signInWithApple() => _signInWithSocial((repo) => repo.signInWithApple());
+  Future<bool> signInWithApple() =>
+      _signInWithSocial((repo) => repo.signInWithApple());
 
   /// Same as [signInWithApple], via Google.
-  Future<bool> signInWithGoogle() => _signInWithSocial((repo) => repo.signInWithGoogle());
+  Future<bool> signInWithGoogle() =>
+      _signInWithSocial((repo) => repo.signInWithGoogle());
 
   Future<bool> _signInWithSocial(
     Future<SocialLoginResult> Function(AuthRepository) signIn,
@@ -270,7 +289,8 @@ class OnboardingFlow extends _$OnboardingFlow {
   /// losing what's already been entered.
   void goBackTo(OnboardingStep step) {
     if (step != OnboardingStep.otp) _stopSmsListener();
-    state = state.copyWith(step: step, errorMessage: null, autofilledCode: null);
+    state =
+        state.copyWith(step: step, errorMessage: null, autofilledCode: null);
   }
 
   /// «Изменить номер» / "Change number" on the code screen
@@ -278,7 +298,9 @@ class OnboardingFlow extends _$OnboardingFlow {
   /// current channel (phone, or email for an email code). Returns that
   /// step so the screen knows where to navigate.
   OnboardingStep changeIdentifier() {
-    final entry = state.channel == AuthChannel.email ? OnboardingStep.email : OnboardingStep.phone;
+    final entry = state.channel == AuthChannel.email
+        ? OnboardingStep.email
+        : OnboardingStep.phone;
     goBackTo(entry);
     return entry;
   }

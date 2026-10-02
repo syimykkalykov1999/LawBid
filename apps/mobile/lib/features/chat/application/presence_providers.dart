@@ -1,15 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lawbid_api/lawbid_api.dart' as api;
-
+import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
-
-import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/chat/data/realtime_client.dart';
-import 'package:lawbid/features/chat/application/chat_providers.dart';
+import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// A chat partner's activity: online now, or when last seen.
 class PresenceView {
@@ -36,17 +34,19 @@ class PresenceNotifier extends Notifier<PresenceView?> {
       unawaited(sub.cancel());
       realtime.unwatchPresence(userId);
     });
-    unawaited(realtime.watchPresence(userId).then((r) {
-      if (!ref.mounted || r == null || r['ok'] != true) return;
-      if (r['visible'] != true) {
-        state = null;
-        return;
-      }
-      state = PresenceView(
-        online: r['online'] == true,
-        lastSeenAt: DateTime.tryParse('${r['lastSeenAt']}'),
-      );
-    }));
+    unawaited(
+      realtime.watchPresence(userId).then((r) {
+        if (!ref.mounted || r == null || r['ok'] != true) return;
+        if (r['visible'] != true) {
+          state = null;
+          return;
+        }
+        state = PresenceView(
+          online: r['online'] == true,
+          lastSeenAt: DateTime.tryParse('${r['lastSeenAt']}'),
+        );
+      }),
+    );
     return null;
   }
 
@@ -98,13 +98,16 @@ class ActivityStatusNotifier extends AsyncNotifier<bool> {
   Future<bool> build() async =>
       (await guardApiCall(_api.getActivityStatus)).data.showActivityStatus;
 
+  // ignore: avoid_positional_boolean_parameters
   Future<void> set(bool show) async {
     final before = state.value;
     state = AsyncData(show);
     try {
-      await guardApiCall(() => _api.setActivityStatus(
-            body: api.ActivityStatusDto(showActivityStatus: show),
-          ));
+      await guardApiCall(
+        () => _api.setActivityStatus(
+          body: api.ActivityStatusDto(showActivityStatus: show),
+        ),
+      );
       // Audit 2026-10-02: the chat list's online dots follow the rule
       // (it's reciprocal: off = you don't see others either).
       ref.invalidate(conversationsProvider);

@@ -1,19 +1,18 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-import '../../../core/network/dio_client.dart';
-import '../../../core/network/headers_interceptor.dart';
-import '../../../core/session/biometric_auth_service.dart';
-import '../../../core/session/session_providers.dart';
-import '../data/auth_api_client.dart';
-import '../data/auth_dtos.dart';
-import '../data/auth_repository.dart';
-import '../data/magic_link_verifier_store.dart';
-import '../data/real_auth_repository.dart';
-import '../data/social_auth_native_client.dart';
-import '../../../core/navigation/app_router.dart';
-import '../../../core/l10n/l10n_providers.dart';
-import '../../../core/l10n/l10n_formats.dart';
-import '../presentation/other_device_dialog.dart';
+import 'package:lawbid/core/l10n/l10n_formats.dart';
+import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/navigation/app_router.dart';
+import 'package:lawbid/core/network/dio_client.dart';
+import 'package:lawbid/core/network/headers_interceptor.dart';
+import 'package:lawbid/core/session/biometric_auth_service.dart';
+import 'package:lawbid/core/session/session_providers.dart';
+import 'package:lawbid/features/auth/data/auth_api_client.dart';
+import 'package:lawbid/features/auth/data/auth_dtos.dart';
+import 'package:lawbid/features/auth/data/auth_repository.dart';
+import 'package:lawbid/features/auth/data/magic_link_verifier_store.dart';
+import 'package:lawbid/features/auth/data/real_auth_repository.dart';
+import 'package:lawbid/features/auth/data/social_auth_native_client.dart';
+import 'package:lawbid/features/auth/presentation/other_device_dialog.dart';
 
 /// dio-backed [AuthApiClient], built from the shared [dioProvider].
 final authApiClientProvider = Provider<AuthApiClient>(
@@ -57,8 +56,11 @@ final authRepositoryProvider = Provider<AuthRepository>(
     ref.watch(magicLinkVerifierStoreProvider),
     // Owner 2026-10-01: ask before signing another device out.
     confirmOtherDevice: (details) async {
-      final context =
-          ref.read(appRouterProvider).routerDelegate.navigatorKey.currentContext;
+      final context = ref
+          .read(appRouterProvider)
+          .routerDelegate
+          .navigatorKey
+          .currentContext;
       if (context == null || !context.mounted) return false;
       return showOtherDeviceDialog(
         context,

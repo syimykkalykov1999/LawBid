@@ -2,12 +2,10 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
-import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
@@ -16,6 +14,7 @@ import 'package:lawbid/features/social/presentation/widgets/post_card.dart'
     show splitPostBody, topicCategory, topicLabel;
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/social/social_routes.dart';
+import 'package:lawbid/shared/domain/cursor_page.dart';
 
 /// Owner 2026-09-30: Search shows posts and cases as an Instagram-like
 /// grid of tiles that still say what they are — the photo (the post's own
@@ -80,7 +79,9 @@ class SearchTileFrame extends StatelessWidget {
                   alignment: Alignment.centerLeft,
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.sm, vertical: 3),
+                      horizontal: AppSpacing.sm,
+                      vertical: 3,
+                    ),
                     decoration: BoxDecoration(
                       color: colors.navy.withValues(alpha: 0.85),
                       borderRadius: BorderRadius.circular(AppRadii.pill),
@@ -228,7 +229,7 @@ class SearchMyCaseTile extends ConsumerWidget {
     final kind = '${t.t('search.kind.case')} · $practice';
     final footer = '${CaseFormat.budget(t, f, item.budget)} · '
         '${t.t('cases.card.bidsCount', {
-          'count': SocialFormat.count(f, item.bidsCount)
+          'count': SocialFormat.count(f, item.bidsCount),
         })}';
     return SearchTileFrame(
       picture: PracticePhoto(
@@ -367,8 +368,10 @@ class TopicRow extends StatelessWidget {
                   child: categoryCode == null
                       ? ColoredBox(
                           color: colors.goldTint,
-                          child:
-                              AppIcon(AppIcons.tagRounded, color: colors.goldDark),
+                          child: AppIcon(
+                            AppIcons.tagRounded,
+                            color: colors.goldDark,
+                          ),
                         )
                       : PracticePhoto(categoryCode: categoryCode),
                 ),
@@ -396,7 +399,10 @@ class TopicRow extends StatelessWidget {
                   ],
                 ),
               ),
-              AppIcon(AppIcons.chevronRightRounded, color: colors.textSecondary),
+              AppIcon(
+                AppIcons.chevronRightRounded,
+                color: colors.textSecondary,
+              ),
             ],
           ),
         ),

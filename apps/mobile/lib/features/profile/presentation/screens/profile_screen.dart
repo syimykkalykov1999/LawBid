@@ -48,7 +48,9 @@ class ProfileScreen extends ConsumerWidget {
       );
     } else if (user.isAttorney && username != null) {
       body = AttorneyProfileBody(
-          username: username, needsVerification: needsVerification);
+        username: username,
+        needsVerification: needsVerification,
+      );
     } else if (user.isClient) {
       body = const ClientProfileView();
     } else {
@@ -85,8 +87,11 @@ class ProfileScreen extends ConsumerWidget {
               onTap: () => context.push(AppRoutes.profileSettings),
               child: SizedBox.square(
                 dimension: AppSizes.touchTarget,
-                child: AppIcon(AppIcons.settingsOutlined,
-                    color: colors.text, size: AppSizes.iconMd),
+                child: AppIcon(
+                  AppIcons.settingsOutlined,
+                  color: colors.text,
+                  size: AppSizes.iconMd,
+                ),
               ),
             ),
           ),

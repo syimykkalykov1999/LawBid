@@ -22,7 +22,11 @@ import 'package:lawbid/features/social/social_routes.dart';
 /// pauses, double tap likes; actions on the right, author and caption at
 /// the bottom, a thin progress line.
 class ReelsScreen extends ConsumerStatefulWidget {
-  const ReelsScreen({this.initial = const [], this.initialIndex = 0, super.key});
+  const ReelsScreen({
+    this.initial = const [],
+    this.initialIndex = 0,
+    super.key,
+  });
 
   /// Opened from a feed card: that reel first, then the reels feed.
   final List<Post> initial;
@@ -102,16 +106,18 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const AppIcon(AppIcons.filmReelOutlined,
-                                size: 48, color: Colors.white70),
+                            const AppIcon(
+                              AppIcons.filmReelOutlined,
+                              size: 48,
+                              color: Colors.white70,
+                            ),
                             const SizedBox(height: AppSpacing.md),
                             Text(
                               _error != null
                                   ? errorText(t, _error!)
                                   : t.t('reels.empty'),
                               textAlign: TextAlign.center,
-                              style:
-                                  type.body.copyWith(color: Colors.white70),
+                              style: type.body.copyWith(color: Colors.white70),
                             ),
                           ],
                         ),
@@ -135,19 +141,25 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
             SafeArea(
               child: Padding(
                 padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
+                  horizontal: AppSpacing.sm,
+                  vertical: AppSpacing.xs,
+                ),
                 child: Row(
                   children: [
                     IconButton(
                       tooltip: t.t('common.back'),
                       onPressed: () => Navigator.of(context).maybePop(),
-                      icon: const AppIcon(AppIcons.closeRounded,
-                          color: Colors.white),
+                      icon: const AppIcon(
+                        AppIcons.closeRounded,
+                        color: Colors.white,
+                      ),
                     ),
                     Text(
                       t.t('reels.title'),
                       style: type.titleMedium.copyWith(
-                          color: Colors.white, fontWeight: FontWeight.w700),
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                     const Spacer(),
                     IconButton(
@@ -206,7 +218,8 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
   @override
   Widget build(BuildContext context) {
     final p = ref.watch(
-            postOverridesProvider.select((m) => m[widget.post.id])) ??
+          postOverridesProvider.select((m) => m[widget.post.id]),
+        ) ??
         widget.post;
     final t = ref.watch(translatorProvider);
     final f = ref.watch(l10nFormatsProvider);
@@ -215,7 +228,9 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
     final actions = ref.read(socialActionsProvider);
     Future<void> run(Future<Object?> Function() a) async {
       final e = await a();
-      if (e != null && context.mounted) showAppSnackBar(context, errorText(t, e));
+      if (e != null && context.mounted) {
+        showAppSnackBar(context, errorText(t, e));
+      }
     }
 
     final video = p.video;
@@ -225,8 +240,13 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
     ].join('\n');
     const shadow = [Shadow(blurRadius: 8, color: Colors.black54)];
 
-    Widget rail(IconData icon, String label, int? count, VoidCallback onTap,
-            {Color? color}) =>
+    Widget rail(
+      IconData icon,
+      String label,
+      int? count,
+      VoidCallback onTap, {
+      Color? color,
+    }) =>
         Padding(
           padding: const EdgeInsets.only(bottom: AppSpacing.lg),
           child: Semantics(
@@ -244,9 +264,10 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                     Text(
                       SocialFormat.count(f, count),
                       style: type.caption.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
-                          shadows: shadow),
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                        shadows: shadow,
+                      ),
                     ),
                   ],
                 ],
@@ -279,8 +300,11 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
               ),
             if (_paused)
               const Center(
-                child: AppIcon(AppIcons.playArrowRounded,
-                    size: 72, color: Colors.white70),
+                child: AppIcon(
+                  AppIcons.playArrowRounded,
+                  size: 72,
+                  color: Colors.white70,
+                ),
               ),
             // Bottom shade so the caption reads on any video.
             const Positioned(
@@ -319,8 +343,12 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                     setState(() => _paused = true);
                     context.push(SocialRoutes.post(p.id));
                   }),
-                  rail(AppIcons.sendOutlined, t.t('post.share'),
-                      p.shareCount, () => sharePost(context, ref, p)),
+                  rail(
+                    AppIcons.sendOutlined,
+                    t.t('post.share'),
+                    p.shareCount,
+                    () => sharePost(context, ref, p),
+                  ),
                   rail(
                     p.savedByMe
                         ? AppIcons.bookmarkRounded
@@ -356,15 +384,19 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                           p.author.displayName,
                           overflow: TextOverflow.ellipsis,
                           style: type.body.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w700,
-                              shadows: shadow),
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                            shadows: shadow,
+                          ),
                         ),
                       ),
                       if (p.author.verified) ...[
                         const SizedBox(width: 4),
-                        AppIcon(AppIcons.verifiedRounded,
-                            size: 16, color: colors.gold),
+                        AppIcon(
+                          AppIcons.verifiedRounded,
+                          size: 16,
+                          color: colors.gold,
+                        ),
                       ],
                     ],
                   ),
@@ -377,7 +409,9 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                         maxLines: _expanded ? 12 : 2,
                         overflow: TextOverflow.ellipsis,
                         style: type.body.copyWith(
-                            color: Colors.white, shadows: shadow),
+                          color: Colors.white,
+                          shadows: shadow,
+                        ),
                       ),
                     ),
                   ],

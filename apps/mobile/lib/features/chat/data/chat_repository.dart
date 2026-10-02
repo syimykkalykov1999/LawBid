@@ -1,15 +1,14 @@
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
-import 'package:lawbid_api/lawbid_api.dart' as api;
-
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/request_flags.dart';
+import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/profile/data/avatar_upload_repository.dart'
     show sha256Hex;
-import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/stickers/data/stickers_repository.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
+import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// docs/05 §8 chats for the app. Throws [ApiException].
 abstract interface class ChatRepository {
@@ -58,7 +57,7 @@ abstract interface class ChatRepository {
   });
 
   /// OQ-047: presign → upload → confirm → clean scan of a photo or a
-  /// document; [mime] comes from [sniffChatMime].
+  /// document; [mime] comes from `sniffChatMime`.
   Future<String> uploadAttachment(
     Uint8List bytes,
     String mime, {
@@ -107,7 +106,9 @@ class ApiChatRepository implements ChatRepository {
   Future<String> uploadVoice(Uint8List bytes) async {
     if (bytes.length > kVoiceMaxBytes) {
       throw const ApiException(
-          code: ApiErrorCodes.fileTooLarge, message: 'size');
+        code: ApiErrorCodes.fileTooLarge,
+        message: 'size',
+      );
     }
     final target = (await guardApiCall(
       () => _files.presign(
@@ -156,7 +157,9 @@ class ApiChatRepository implements ChatRepository {
     }
     if (status != api.ScanStatus.clean) {
       throw const ApiException(
-          code: ApiErrorCodes.fileNotAttachable, message: 'scan');
+        code: ApiErrorCodes.fileNotAttachable,
+        message: 'scan',
+      );
     }
     return target.fileId;
   }
@@ -169,17 +172,21 @@ class ApiChatRepository implements ChatRepository {
     required int durationMs,
     required List<int> waveform,
   }) async =>
-      ChatMappers.message((await guardApiCall(() => _chat.sendMessage(
-                id: id,
-                body: api.SendMessageDto(
-                  clientMessageId: clientMessageId,
-                  type: api.SendMessageType.voice,
-                  fileId: fileId,
-                  durationMs: durationMs,
-                  waveform: waveform,
-                ),
-              )))
-          .data);
+      ChatMappers.message(
+        (await guardApiCall(
+          () => _chat.sendMessage(
+            id: id,
+            body: api.SendMessageDto(
+              clientMessageId: clientMessageId,
+              type: api.SendMessageType.voice,
+              fileId: fileId,
+              durationMs: durationMs,
+              waveform: waveform,
+            ),
+          ),
+        ))
+            .data,
+      );
 
   @override
   Future<String> uploadAttachment(
@@ -189,17 +196,21 @@ class ApiChatRepository implements ChatRepository {
   }) async {
     if (bytes.length > kChatAttachmentMaxBytes) {
       throw const ApiException(
-          code: ApiErrorCodes.fileTooLarge, message: 'size');
+        code: ApiErrorCodes.fileTooLarge,
+        message: 'size',
+      );
     }
-    final target = (await guardApiCall(() => _files.presign(
-              body: api.PresignFileDto(
-                purpose: api.FilePurpose.chatAttachment,
-                mime: mime,
-                sizeBytes: bytes.length,
-                sha256: sha256Hex(bytes),
-              ),
-              extras: const {RequestFlags.createsResource: true},
-            )))
+    final target = (await guardApiCall(
+      () => _files.presign(
+        body: api.PresignFileDto(
+          purpose: api.FilePurpose.chatAttachment,
+          mime: mime,
+          sizeBytes: bytes.length,
+          sha256: sha256Hex(bytes),
+        ),
+        extras: const {RequestFlags.createsResource: true},
+      ),
+    ))
         .data;
     final parts = mime.split('/');
     try {
@@ -240,7 +251,9 @@ class ApiChatRepository implements ChatRepository {
     }
     if (status != api.ScanStatus.clean) {
       throw const ApiException(
-          code: ApiErrorCodes.fileNotAttachable, message: 'scan');
+        code: ApiErrorCodes.fileNotAttachable,
+        message: 'scan',
+      );
     }
     return target.fileId;
   }
@@ -253,17 +266,21 @@ class ApiChatRepository implements ChatRepository {
     required String fileName,
     String? caption,
   }) async =>
-      ChatMappers.message((await guardApiCall(() => _chat.sendMessage(
-                id: id,
-                body: api.SendMessageDto(
-                  clientMessageId: clientMessageId,
-                  type: api.SendMessageType.attachment,
-                  fileId: fileId,
-                  fileName: fileName,
-                  body: caption,
-                ),
-              )))
-          .data);
+      ChatMappers.message(
+        (await guardApiCall(
+          () => _chat.sendMessage(
+            id: id,
+            body: api.SendMessageDto(
+              clientMessageId: clientMessageId,
+              type: api.SendMessageType.attachment,
+              fileId: fileId,
+              fileName: fileName,
+              body: caption,
+            ),
+          ),
+        ))
+            .data,
+      );
 
   @override
   Future<ChatMessage> sendSticker(
@@ -271,24 +288,32 @@ class ApiChatRepository implements ChatRepository {
     String clientMessageId, {
     required String stickerId,
   }) async =>
-      ChatMappers.message((await guardApiCall(() => _chat.sendMessage(
-                id: id,
-                body: api.SendMessageDto(
-                  clientMessageId: clientMessageId,
-                  type: api.SendMessageType.sticker,
-                  stickerId: stickerId,
-                ),
-              )))
-          .data);
+      ChatMappers.message(
+        (await guardApiCall(
+          () => _chat.sendMessage(
+            id: id,
+            body: api.SendMessageDto(
+              clientMessageId: clientMessageId,
+              type: api.SendMessageType.sticker,
+              stickerId: stickerId,
+            ),
+          ),
+        ))
+            .data,
+      );
 
   @override
-  Future<CursorPage<ChatMessage>> attachments(String id,
-      {String? cursor}) async {
-    final env = await guardApiCall(() => _chat.listMessages(
-          id: id,
-          cursor: cursor,
-          only: api.MessagesFilter.attachment,
-        ));
+  Future<CursorPage<ChatMessage>> attachments(
+    String id, {
+    String? cursor,
+  }) async {
+    final env = await guardApiCall(
+      () => _chat.listMessages(
+        id: id,
+        cursor: cursor,
+        only: api.MessagesFilter.attachment,
+      ),
+    );
     return CursorPage(
       items: env.data.map(ChatMappers.message).toList(),
       nextCursor: env.meta?.nextCursor,
@@ -297,28 +322,38 @@ class ApiChatRepository implements ChatRepository {
 
   @override
   Future<ChatMessage> listened(String id, String messageId) async =>
-      ChatMappers.message((await guardApiCall(
-        () => _chat.voiceListened(id: id, messageId: messageId),
-      ))
-          .data);
+      ChatMappers.message(
+        (await guardApiCall(
+          () => _chat.voiceListened(id: id, messageId: messageId),
+        ))
+            .data,
+      );
 
   @override
   Future<Conversation> startDirect(String userId) async =>
-      ChatMappers.conversation((await guardApiCall(() => _chat.startDirectChat(
-                body: api.StartDirectChatDto(userId: userId),
-              )))
-          .data);
+      ChatMappers.conversation(
+        (await guardApiCall(
+          () => _chat.startDirectChat(
+            body: api.StartDirectChatDto(userId: userId),
+          ),
+        ))
+            .data,
+      );
 
   @override
   Future<int> requestsCount() async =>
-      (await guardApiCall(() => _chat.requestsCount())).data.count.toInt();
+      (await guardApiCall(_chat.requestsCount)).data.count;
 
   @override
   Future<Conversation> answerRequest(String id, {required bool accept}) async =>
-      ChatMappers.conversation((await guardApiCall(() => accept
+      ChatMappers.conversation(
+        (await guardApiCall(
+          () => accept
               ? _chat.acceptMessageRequest(id: id)
-              : _chat.declineMessageRequest(id: id)))
-          .data);
+              : _chat.declineMessageRequest(id: id),
+        ))
+            .data,
+      );
 
   @override
   Future<CursorPage<Conversation>> conversations({
@@ -328,13 +363,15 @@ class ApiChatRepository implements ChatRepository {
     ChatListFolder folder = ChatListFolder.all,
   }) async {
     final f = requests ? ChatListFolder.requests : folder;
-    final env = await guardApiCall(() => _chat.listConversations(
-          cursor: cursor,
-          updatedSince: updatedSince?.toUtc().toIso8601String(),
-          folder: f == ChatListFolder.all
-              ? null
-              : api.ConversationFolder.fromJson(f.name),
-        ));
+    final env = await guardApiCall(
+      () => _chat.listConversations(
+        cursor: cursor,
+        updatedSince: updatedSince?.toUtc().toIso8601String(),
+        folder: f == ChatListFolder.all
+            ? null
+            : api.ConversationFolder.fromJson(f.name),
+      ),
+    );
     return CursorPage(
       items: env.data.map(ChatMappers.conversation).toList(),
       nextCursor: env.meta?.nextCursor,
@@ -350,22 +387,26 @@ class ApiChatRepository implements ChatRepository {
     String? note,
     bool? pinned,
   }) async =>
-      ChatMappers.conversation((await guardApiCall(() => _chat
-              .organizeConversation(
-                id: id,
-                body: api.OrganizeConversationDto(
-                  folder: resetFolder
-                      ? api.OrganizeConversationDtoFolder.auto
-                      : folder == null
-                          ? null
-                          : api.OrganizeConversationDtoFolder.fromJson(
-                              folder.name),
-                  waiting: waiting,
-                  note: note,
-                  pinned: pinned,
-                ),
-              )))
-          .data);
+      ChatMappers.conversation(
+        (await guardApiCall(
+          () => _chat.organizeConversation(
+            id: id,
+            body: api.OrganizeConversationDto(
+              folder: resetFolder
+                  ? api.OrganizeConversationDtoFolder.auto
+                  : folder == null
+                      ? null
+                      : api.OrganizeConversationDtoFolder.fromJson(
+                          folder.name,
+                        ),
+              waiting: waiting,
+              note: note,
+              pinned: pinned,
+            ),
+          ),
+        ))
+            .data,
+      );
 
   @override
   Future<({int waiting, int requests})> folderCounts() async {
@@ -376,7 +417,8 @@ class ApiChatRepository implements ChatRepository {
   @override
   Future<Conversation> conversation(String id) async =>
       ChatMappers.conversation(
-          (await guardApiCall(() => _chat.getConversation(id: id))).data);
+        (await guardApiCall(() => _chat.getConversation(id: id))).data,
+      );
 
   @override
   Future<CursorPage<ChatMessage>> messages(String id, {String? cursor}) async {
@@ -397,13 +439,22 @@ class ApiChatRepository implements ChatRepository {
 
   @override
   Future<ChatMessage> send(
-          String id, String clientMessageId, String body) async =>
-      ChatMappers.message((await guardApiCall(() => _chat.sendMessage(
-                id: id,
-                body: api.SendMessageDto(
-                    clientMessageId: clientMessageId, body: body),
-              )))
-          .data);
+    String id,
+    String clientMessageId,
+    String body,
+  ) async =>
+      ChatMappers.message(
+        (await guardApiCall(
+          () => _chat.sendMessage(
+            id: id,
+            body: api.SendMessageDto(
+              clientMessageId: clientMessageId,
+              body: body,
+            ),
+          ),
+        ))
+            .data,
+      );
 
   @override
   Future<void> read(String id, String lastReadMessageId) => guardApiCall(
@@ -415,12 +466,17 @@ class ApiChatRepository implements ChatRepository {
 
   @override
   Future<Conversation> mute(String id, DateTime? until) async =>
-      ChatMappers.conversation((await guardApiCall(() => _chat.muteConversation(
-                id: id,
-                body: api.MuteConversationDto(
-                    until: until?.toUtc().toIso8601String()),
-              )))
-          .data);
+      ChatMappers.conversation(
+        (await guardApiCall(
+          () => _chat.muteConversation(
+            id: id,
+            body: api.MuteConversationDto(
+              until: until?.toUtc().toIso8601String(),
+            ),
+          ),
+        ))
+            .data,
+      );
 }
 
 /// OQ-047: the server's files.chat_max_size_mb.
@@ -499,9 +555,8 @@ abstract final class ChatMappers {
           api.MessageDtoType.sticker => MessageKind.sticker,
           _ => MessageKind.text,
         },
-        sticker: d.sticker == null
-            ? null
-            : StickersRepository.sticker(d.sticker!),
+        sticker:
+            d.sticker == null ? null : StickersRepository.sticker(d.sticker!),
         body: d.body,
         contactMasked: d.contactMasked,
         clientMessageId: d.clientMessageId,
@@ -510,7 +565,7 @@ abstract final class ChatMappers {
             ? null
             : CallLog(
                 outcome: d.call!.outcome.json ?? 'ended',
-                durationSec: d.call!.durationSec.toInt(),
+                durationSec: d.call!.durationSec,
               ),
         attachment: d.attachment == null
             ? null
@@ -519,18 +574,18 @@ abstract final class ChatMappers {
                 name: d.attachment!.name,
                 isImage: d.attachment!.isImage,
                 mime: d.attachment!.mime,
-                sizeBytes: d.attachment!.sizeBytes?.toInt(),
+                sizeBytes: d.attachment!.sizeBytes,
                 url: d.attachment!.url,
                 previewUrl: d.attachment!.previewUrl,
-                width: d.attachment!.width?.toInt(),
-                height: d.attachment!.height?.toInt(),
+                width: d.attachment!.width,
+                height: d.attachment!.height,
               ),
         voice: d.voice == null
             ? null
             : VoiceNote(
                 url: d.voice!.url,
-                durationMs: d.voice!.durationMs.toInt(),
-                waveform: [for (final v in d.voice!.waveform) v.toInt()],
+                durationMs: d.voice!.durationMs,
+                waveform: [for (final v in d.voice!.waveform) v],
                 listened: d.voice!.listened,
               ),
       );

@@ -145,8 +145,11 @@ class RequestCard extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               if (icon != null) ...[
-                AppIcon(icon,
-                    size: 13, color: gold ? colors.goldDark : colors.gold),
+                AppIcon(
+                  icon,
+                  size: 13,
+                  color: gold ? colors.goldDark : colors.gold,
+                ),
                 const SizedBox(width: 4),
               ],
               Flexible(
@@ -212,13 +215,15 @@ class RequestCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text.rich(
-                      TextSpan(children: [
-                        TextSpan(
-                          text: r.assistantName,
-                          style: const TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                        TextSpan(text: ' $asks'),
-                      ]),
+                      TextSpan(
+                        children: [
+                          TextSpan(
+                            text: r.assistantName,
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          TextSpan(text: ' $asks'),
+                        ],
+                      ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: typography.bodySmall.copyWith(color: colors.text),
@@ -275,8 +280,11 @@ class RequestCard extends StatelessWidget {
                       if (r.practiceName != null)
                         chip(r.practiceName!, icon: AppIcons.balanceRounded),
                       if (r.isNews)
-                        chip(t.t('post.kind.news'),
-                            gold: true, icon: AppIcons.newspaperRounded),
+                        chip(
+                          t.t('post.kind.news'),
+                          gold: true,
+                          icon: AppIcons.newspaperRounded,
+                        ),
                     ],
                   ),
                   const SizedBox(height: AppSpacing.sm),
@@ -319,8 +327,10 @@ class RequestCard extends StatelessWidget {
                           errorBuilder: (_, __, ___) => Container(
                             width: 72,
                             color: colors.goldTint,
-                            child: AppIcon(AppIcons.imageOutlined,
-                                color: colors.gold),
+                            child: AppIcon(
+                              AppIcons.imageOutlined,
+                              color: colors.gold,
+                            ),
                           ),
                         ),
                       ),
@@ -447,8 +457,11 @@ class ActivityRow extends StatelessWidget {
               borderRadius: BorderRadius.circular(AppRadii.field),
               border: Border.all(color: colors.goldStroke),
             ),
-            child: AppIcon(activityIcon(entry.action),
-                color: colors.gold, size: 20),
+            child: AppIcon(
+              activityIcon(entry.action),
+              color: colors.gold,
+              size: 20,
+            ),
           ),
           const SizedBox(width: AppSpacing.md),
           Expanded(
@@ -537,8 +550,11 @@ class AssistantBanner extends StatelessWidget {
         // Owner 2026-10-01: centred.
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          AppIcon(AppIcons.supportAgentRounded,
-              size: AppSizes.iconSm, color: colors.gold),
+          AppIcon(
+            AppIcons.supportAgentRounded,
+            size: AppSizes.iconSm,
+            color: colors.gold,
+          ),
           const SizedBox(width: AppSpacing.sm),
           Flexible(
             child: Text(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart'
     show GavelStrikeButton;
+import 'package:lawbid/core/design_system/icons/app_icon.dart';
 import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
 import 'package:lawbid/core/design_system/theme/app_typography_tokens.dart';
 import 'package:lawbid/core/design_system/tokens/app_motion.dart';
@@ -10,7 +11,6 @@ import 'package:lawbid/core/design_system/widgets/buttons/gavel_strike_button.da
     show GavelStrikeButton;
 import 'package:lawbid/core/design_system/widgets/motion/app_entrance.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_tap_target.dart';
-import 'package:lawbid/core/design_system/icons/app_icon.dart';
 
 enum AppButtonVariant {
   primary,

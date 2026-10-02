@@ -1,12 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lawbid/core/connectivity/offline_banner_host.dart';
 import 'package:lawbid/core/connectivity/connectivity_providers.dart';
+import 'package:lawbid/core/connectivity/offline_banner_host.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../helpers/ux_harness.dart';
 
@@ -121,7 +121,7 @@ void main() {
     await tester.pump();
     expect(find.bySemanticsLabel('Checking the connection'), findsOneWidget);
     probe.hold!.complete();
-    await tester.pumpAndSettle(const Duration(milliseconds: 100));
+    await tester.pumpAndSettle();
 
     expect(probe.calls, greaterThanOrEqualTo(1));
     expect(find.text('Back online'), findsOneWidget);

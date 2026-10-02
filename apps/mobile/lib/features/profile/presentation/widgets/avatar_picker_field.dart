@@ -38,8 +38,13 @@ final avatarImagePickerProvider =
 /// progress ring, a status line, and Retry on failure. Visually a plain
 /// form row so it fits the onboarding step's existing style.
 class AvatarPickerField extends ConsumerWidget {
-  const AvatarPickerField(
-      {super.key, this.initials, this.heroTag, this.label, this.requiredError});
+  const AvatarPickerField({
+    super.key,
+    this.initials,
+    this.heroTag,
+    this.label,
+    this.requiredError,
+  });
 
   final String? initials;
   final String? heroTag;
@@ -57,8 +62,12 @@ class AvatarPickerField extends ConsumerWidget {
       builder: (sheetContext) => SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide,
-              AppSpacing.md, AppSpacing.screenSide, AppSpacing.lg),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.screenSide,
+            AppSpacing.md,
+            AppSpacing.screenSide,
+            AppSpacing.lg,
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -88,8 +97,9 @@ class AvatarPickerField extends ConsumerWidget {
     try {
       bytes = await ref.read(avatarImagePickerProvider)(source);
     } catch (_) {
-      if (context.mounted)
+      if (context.mounted) {
         showAppSnackBar(context, t.t('profile.photo.pickFailed'));
+      }
       return;
     }
     if (bytes == null) return;
@@ -112,8 +122,10 @@ class AvatarPickerField extends ConsumerWidget {
           colors.textSecondary
         ),
       AvatarUploadStage.uploading => (
-          t.t('profile.photo.uploading',
-              {'percent': '${(upload.progress * 100).round()}'}),
+          t.t(
+            'profile.photo.uploading',
+            {'percent': '${(upload.progress * 100).round()}'},
+          ),
           colors.textSecondary,
         ),
       AvatarUploadStage.checking => (
@@ -146,14 +158,20 @@ class AvatarPickerField extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label ?? t.t('profile.photo.label'),
-                  style: typography.bodySmall.copyWith(
-                      color: colors.text, fontWeight: FontWeight.w600)),
+              Text(
+                label ?? t.t('profile.photo.label'),
+                style: typography.bodySmall.copyWith(
+                  color: colors.text,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
               const SizedBox(height: AppSpacing.xs),
               Semantics(
                 liveRegion: true,
-                child: Text(status,
-                    style: typography.caption.copyWith(color: statusColor)),
+                child: Text(
+                  status,
+                  style: typography.caption.copyWith(color: statusColor),
+                ),
               ),
               const SizedBox(height: AppSpacing.xs),
               Wrap(
@@ -170,9 +188,9 @@ class AvatarPickerField extends ConsumerWidget {
                     ),
                   _TextAction(
                     key: const ValueKey('avatar-pick'),
-                    label: t.t(hasPhoto
-                        ? 'profile.photo.change'
-                        : 'profile.photo.add'),
+                    label: t.t(
+                      hasPhoto ? 'profile.photo.change' : 'profile.photo.add',
+                    ),
                     icon: AppIcons.photoCameraOutlined,
                     onTap: upload.busy ? null : () => _pick(context, ref, t),
                   ),
@@ -187,11 +205,12 @@ class AvatarPickerField extends ConsumerWidget {
 }
 
 class _TextAction extends StatelessWidget {
-  const _TextAction(
-      {required this.label,
-      required this.icon,
-      required this.onTap,
-      super.key});
+  const _TextAction({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+    super.key,
+  });
 
   final String label;
   final IconData icon;

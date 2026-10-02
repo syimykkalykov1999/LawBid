@@ -1,10 +1,9 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:video_player/video_player.dart';
-import 'package:visibility_detector/visibility_detector.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
+import 'package:video_player/video_player.dart';
+import 'package:visibility_detector/visibility_detector.dart';
 
 /// Owner 2026-10-01 — one reel video: the poster frame until the stream is
 /// ready, then the video filling its box (cover), looping. Plays only while
@@ -189,15 +188,20 @@ class _InlineReelState extends State<InlineReel> {
             ReelVideo(video: video, active: _visible && video.ready),
             if (!video.ready)
               const Center(
-                child: AppIcon(AppIcons.filmReelOutlined,
-                    size: 40, color: Colors.white70),
+                child: AppIcon(
+                  AppIcons.filmReelOutlined,
+                  size: 40,
+                  color: Colors.white70,
+                ),
               ),
             Positioned(
               top: AppSpacing.md,
               right: AppSpacing.md,
               child: Container(
                 padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.sm, vertical: 4),
+                  horizontal: AppSpacing.sm,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.black.withValues(alpha: 0.45),
                   borderRadius: BorderRadius.circular(999),
@@ -205,8 +209,11 @@ class _InlineReelState extends State<InlineReel> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const AppIcon(AppIcons.filmReelRounded,
-                        size: 14, color: Colors.white),
+                    const AppIcon(
+                      AppIcons.filmReelRounded,
+                      size: 14,
+                      color: Colors.white,
+                    ),
                     if (d != null) ...[
                       const SizedBox(width: 4),
                       Text(

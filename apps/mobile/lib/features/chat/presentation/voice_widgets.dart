@@ -54,7 +54,8 @@ class VoiceMessageBody extends ConsumerWidget {
     final button = Semantics(
       button: true,
       label: t.t(
-          active && playback.playing ? 'chat.voice.pause' : 'chat.voice.play'),
+        active && playback.playing ? 'chat.voice.pause' : 'chat.voice.play',
+      ),
       excludeSemantics: true,
       child: AppPressable(
         onTap: toggle,
@@ -69,7 +70,9 @@ class VoiceMessageBody extends ConsumerWidget {
               ? Padding(
                   padding: const EdgeInsets.all(11),
                   child: CircularProgressIndicator(
-                      strokeWidth: 2, color: colors.navy),
+                    strokeWidth: 2,
+                    color: colors.navy,
+                  ),
                 )
               : AppIcon(
                   active && playback.playing
@@ -158,7 +161,9 @@ class VoiceMessageBody extends ConsumerWidget {
                             onTap: player.cycleSpeed,
                             child: Container(
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 6, vertical: 1),
+                                horizontal: 6,
+                                vertical: 1,
+                              ),
                               decoration: BoxDecoration(
                                 borderRadius:
                                     BorderRadius.circular(AppRadii.pill),
@@ -167,7 +172,9 @@ class VoiceMessageBody extends ConsumerWidget {
                               child: Text(
                                 '${_speed(playback.speed)}×',
                                 style: type.caption.copyWith(
-                                    color: fg, fontWeight: FontWeight.w700),
+                                  color: fg,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                             ),
                           ),
@@ -209,12 +216,16 @@ class _WavePainter extends CustomPainter {
     final paint = Paint()..strokeCap = StrokeCap.round;
     for (var i = 0; i < data.length; i++) {
       final x = i * (w + gap) + w / 2;
+      // ignore: prefer_int_literals
       final h = math.max(3.0, size.height * data[i] / 100);
       paint
         ..color = (i + 0.5) / data.length <= progress ? played : rest
         ..strokeWidth = w;
-      canvas.drawLine(Offset(x, (size.height - h) / 2 + h),
-          Offset(x, (size.height - h) / 2), paint);
+      canvas.drawLine(
+        Offset(x, (size.height - h) / 2 + h),
+        Offset(x, (size.height - h) / 2),
+        paint,
+      );
     }
   }
 

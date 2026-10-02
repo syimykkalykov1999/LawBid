@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -16,8 +15,8 @@ import 'package:lawbid/features/chat/presentation/inbox_screen.dart'
 import 'package:lawbid/features/onboarding/domain/us_states.dart';
 import 'package:lawbid/features/onboarding/presentation/widgets/option_picker_sheet.dart';
 import 'package:lawbid/features/practice/practice_options.dart';
-import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid/features/search/presentation/widgets/flip_search_bar.dart';
+import 'package:lawbid/shared/domain/cursor_page.dart';
 
 /// Owner 2026-09-30: one square of the "Mine" grid — the case's first photo
 /// (or our art of its qualification), a short title and its status.
@@ -126,7 +125,10 @@ class MineTile extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: type.caption.copyWith(
-                              color: Colors.white, fontSize: 10, height: 1.2),
+                            color: Colors.white,
+                            fontSize: 10,
+                            height: 1.2,
+                          ),
                         ),
                       ),
                     ],
@@ -198,7 +200,7 @@ class MinePagedGrid<T> extends ConsumerWidget {
       }
     }
 
-    final Widget body = switch (value) {
+    final body = switch (value) {
       AsyncData(:final value) => RefreshIndicator(
           color: colors.gold,
           backgroundColor: colors.surface,
@@ -265,7 +267,8 @@ class MinePagedGrid<T> extends ConsumerWidget {
                     ),
                   ),
                 const SliverToBoxAdapter(
-                    child: SizedBox(height: AppSpacing.xxl)),
+                  child: SizedBox(height: AppSpacing.xxl),
+                ),
               ],
             ),
           ),
@@ -417,7 +420,11 @@ class _MineSearchBarState extends ConsumerState<MineSearchBar> {
     // on the left, the magnifier on the right.
     return Padding(
       padding: const EdgeInsets.fromLTRB(
-          AppSpacing.screenSide, AppSpacing.sm, AppSpacing.screenSide, 0),
+        AppSpacing.screenSide,
+        AppSpacing.sm,
+        AppSpacing.screenSide,
+        0,
+      ),
       child: FlipSearchBar(
         key: const ValueKey('mine-search'),
         controller: _text,
@@ -426,7 +433,6 @@ class _MineSearchBarState extends ConsumerState<MineSearchBar> {
         cancelLabel: t.t('common.cancel'),
         clearLabel: t.t('search.clear'),
         showCancel: false,
-        height: AppSizes.searchField,
         hints: [t.t('mine.search.hint')],
         leading: Badge(
           isLabelVisible: count > 0,
@@ -435,17 +441,15 @@ class _MineSearchBarState extends ConsumerState<MineSearchBar> {
           textColor: colors.navy,
           child: AppIconButton(
             key: const ValueKey('mine-filters'),
-            plain: true,
             icon: AppIcon(AppIcons.tuneRounded, color: colors.text),
             semanticLabel: t.t('mine.search.filters'),
             onPressed: _filters,
           ),
         ),
         trailing: AppIconButton(
-          plain: true,
           icon: AppIcon(AppIcons.searchRounded, color: colors.goldDark),
           semanticLabel: t.t('mine.search.hint'),
-          onPressed: () => _focus.requestFocus(),
+          onPressed: _focus.requestFocus,
         ),
       ),
     );
@@ -472,7 +476,9 @@ class MineActiveFilters extends ConsumerWidget {
           onTap: onRemove,
           child: Container(
             padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.md, vertical: AppSpacing.xs + 2),
+              horizontal: AppSpacing.md,
+              vertical: AppSpacing.xs + 2,
+            ),
             decoration: BoxDecoration(
               color: colors.navy,
               borderRadius: BorderRadius.circular(AppRadii.pill),
@@ -482,30 +488,44 @@ class MineActiveFilters extends ConsumerWidget {
               children: [
                 ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 220),
-                  child: Text(label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: type.caption.copyWith(color: Colors.white)),
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: type.caption.copyWith(color: Colors.white),
+                  ),
                 ),
                 const SizedBox(width: AppSpacing.xs),
-                const AppIcon(AppIcons.closeRounded, size: 14, color: Colors.white),
+                const AppIcon(
+                  AppIcons.closeRounded,
+                  size: 14,
+                  color: Colors.white,
+                ),
               ],
             ),
           ),
         );
     return Padding(
       padding: const EdgeInsets.fromLTRB(
-          AppSpacing.screenSide, AppSpacing.sm, AppSpacing.screenSide, 0),
+        AppSpacing.screenSide,
+        AppSpacing.sm,
+        AppSpacing.screenSide,
+        0,
+      ),
       child: Wrap(
         spacing: AppSpacing.sm,
         runSpacing: AppSpacing.xs,
         children: [
           if (search.practice != null)
-            chip(practiceLabel(ref, search.practice!),
-                () => onChanged(search.copyWith(practice: () => null))),
+            chip(
+              practiceLabel(ref, search.practice!),
+              () => onChanged(search.copyWith(practice: () => null)),
+            ),
           if (search.state != null)
-            chip(usStateByCode(search.state)?.name ?? search.state!,
-                () => onChanged(search.copyWith(state: () => null))),
+            chip(
+              usStateByCode(search.state)?.name ?? search.state!,
+              () => onChanged(search.copyWith(state: () => null)),
+            ),
         ],
       ),
     );

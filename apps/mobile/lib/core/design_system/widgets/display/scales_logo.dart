@@ -1,17 +1,16 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-
-import '../../../navigation/route_observer.dart';
-import '../../theme/app_color_tokens.dart';
-import '../../tokens/app_fonts.dart';
+import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
+import 'package:lawbid/core/design_system/tokens/app_fonts.dart';
+import 'package:lawbid/core/navigation/route_observer.dart';
 
 /// LawBid's scales-of-justice logo, drawn with [CustomPainter] (file 07 §5) —
 /// never an image, so it stays crisp at any size and re-themes for free.
 ///
 /// One widget serves BOTH usages named in the ТЗ (large animated welcome
 /// screen, small static feed-header logo): when [animated] is false, no
-/// [AnimationController]/[Ticker] is even created, so the "cheap static
+/// [AnimationController]/`Ticker` is even created, so the "cheap static
 /// widget" requirement is met without a second class — see the stage 1.5
 /// architecture review in docs/CHANGELOG.md for the reasoning.
 ///
@@ -82,7 +81,8 @@ class _ScalesLogoState extends State<ScalesLogo>
     }
   }
 
-  bool get _reduceMotion => MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+  bool get _reduceMotion =>
+      MediaQuery.maybeOf(context)?.disableAnimations ?? false;
 
   bool get _shouldRun => widget.animated && !_reduceMotion && _routeCurrent;
 
@@ -183,7 +183,8 @@ class _ScalesLogoState extends State<ScalesLogo>
         : AnimatedBuilder(
             animation: _controller!,
             builder: (context, _) {
-              final seconds = _controller!.lastElapsedDuration?.inMicroseconds ?? 0;
+              final seconds =
+                  _controller!.lastElapsedDuration?.inMicroseconds ?? 0;
               return paint(seconds / Duration.microsecondsPerSecond);
             },
           );
@@ -199,9 +200,9 @@ class _ScalesLogoState extends State<ScalesLogo>
 class _ScalesPainter extends CustomPainter {
   _ScalesPainter({
     required this.tSeconds,
-    this.amplitude = 1,
     required this.scale,
     required this.colors,
+    this.amplitude = 1,
     this.strokeColorOverride,
     this.standExtension = 0,
   });
@@ -229,12 +230,16 @@ class _ScalesPainter extends CustomPainter {
     final dy = p.dy - pivot.dy;
     final cosA = math.cos(angleRad);
     final sinA = math.sin(angleRad);
-    return Offset(pivot.dx + dx * cosA - dy * sinA, pivot.dy + dx * sinA + dy * cosA);
+    return Offset(
+      pivot.dx + dx * cosA - dy * sinA,
+      pivot.dy + dx * sinA + dy * cosA,
+    );
   }
 
   @override
   void paint(Canvas canvas, Size size) {
     canvas.save();
+    // ignore: cascade_invocations
     canvas.scale(scale, scale);
 
     final lineColor = strokeColorOverride ?? colors.goldStroke;
@@ -250,10 +255,19 @@ class _ScalesPainter extends CustomPainter {
     // Стойка — удлинена на standExtension (owner request, 2026-09-22),
     // топпер/коромысло/чаши выше не трогаем.
     final standBottomY = 192 + standExtension;
-    canvas.drawLine(const Offset(150, 21), Offset(150, standBottomY), linePaint);
+    canvas.drawLine(
+      const Offset(150, 21),
+      Offset(150, standBottomY),
+      linePaint,
+    );
     // Основание — сдвинуто вниз вместе со стойкой, тот же зазор 11 между
     // линиями, что и раньше (203-192).
-    canvas.drawLine(Offset(112, standBottomY), Offset(188, standBottomY), linePaint);
+    // ignore: cascade_invocations
+    canvas.drawLine(
+      Offset(112, standBottomY),
+      Offset(188, standBottomY),
+      linePaint,
+    );
     canvas.drawLine(
       Offset(122, standBottomY + 11),
       Offset(178, standBottomY + 11),
@@ -261,8 +275,10 @@ class _ScalesPainter extends CustomPainter {
     );
 
     final angleRad = _angleDeg * math.pi / 180;
-    final leftEnd = Offset(150 - 100 * math.cos(angleRad), 44 - 100 * math.sin(angleRad));
-    final rightEnd = Offset(150 + 100 * math.cos(angleRad), 44 + 100 * math.sin(angleRad));
+    final leftEnd =
+        Offset(150 - 100 * math.cos(angleRad), 44 - 100 * math.sin(angleRad));
+    final rightEnd =
+        Offset(150 + 100 * math.cos(angleRad), 44 + 100 * math.sin(angleRad));
 
     // Коромысло.
     canvas.drawLine(leftEnd, rightEnd, linePaint);
@@ -298,6 +314,7 @@ class _ScalesPainter extends CustomPainter {
     // Ось коромысла: залитый круг радиус 6, поверх линий.
     canvas.drawCircle(_pivot, 6, Paint()..color = lineColor);
 
+    // ignore: cascade_invocations
     canvas.restore();
   }
 
@@ -322,6 +339,7 @@ class _ScalesPainter extends CustomPainter {
     final threadRightTop = xf(origin);
     final threadRightBottom = xf(bowlTopRight);
     canvas.drawLine(threadLeftTop, threadLeftBottom, linePaint);
+    // ignore: cascade_invocations
     canvas.drawLine(threadRightTop, threadRightBottom, linePaint);
 
     // Чаша: полуэллипс — верхняя кромка прямая, низ дугой радиус 38x34.
@@ -334,10 +352,10 @@ class _ScalesPainter extends CustomPainter {
       ..arcToPoint(
         topLeft,
         radius: const Radius.elliptical(38, 34),
-        clockwise: true,
       )
       ..close();
     canvas.drawPath(bowlPath, fillPaint);
+    // ignore: cascade_invocations
     canvas.drawPath(bowlPath, linePaint..strokeWidth = 1.6);
     linePaint.strokeWidth = 2.6; // restore for subsequent lines
 
@@ -356,9 +374,13 @@ class _ScalesPainter extends CustomPainter {
       textDirection: TextDirection.ltr,
     )..layout();
     canvas.save();
+    // ignore: cascade_invocations
     canvas.translate(textCenter.dx, textCenter.dy);
     canvas.rotate(panRotation);
-    textPainter.paint(canvas, Offset(-textPainter.width / 2, -textPainter.height / 2));
+    textPainter.paint(
+      canvas,
+      Offset(-textPainter.width / 2, -textPainter.height / 2),
+    );
     canvas.restore();
   }
 

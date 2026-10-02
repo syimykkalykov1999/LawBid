@@ -4,7 +4,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/services.dart';
 
 /// OS-level "is any network interface up" signal. Abstracted so the
-/// [ConnectivityService] logic is testable without platform channels.
+/// `ConnectivityService` logic is testable without platform channels.
 abstract interface class NetworkInterfaceMonitor {
   /// Current state; `true` when at least one interface (Wi-Fi, cellular,
   /// ethernet, VPN, …) is up.
@@ -17,7 +17,7 @@ abstract interface class NetworkInterfaceMonitor {
 /// [NetworkInterfaceMonitor] over `connectivity_plus`.
 ///
 /// connectivity_plus only reports interfaces, never real reachability
-/// (its own docs say so) — that is why [ConnectivityService] combines it
+/// (its own docs say so) — that is why `ConnectivityService` combines it
 /// with dio failures and a health probe. If the plugin is unavailable
 /// (unit/widget tests, an unsupported platform) the monitor reports
 /// "network present" instead of throwing, so the app degrades to the

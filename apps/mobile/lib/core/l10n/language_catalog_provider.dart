@@ -1,8 +1,7 @@
+import 'package:lawbid/core/l10n/app_language.dart';
+import 'package:lawbid/core/l10n/available_languages.dart';
+import 'package:lawbid/core/l10n/language_catalog.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-
-import 'app_language.dart';
-import 'available_languages.dart';
-import 'language_catalog.dart';
 
 part 'language_catalog_provider.g.dart';
 
@@ -33,7 +32,9 @@ Future<List<LanguageCatalogEntry>> languageCatalog(Ref ref) async {
 ///     server's `sort` order.
 List<LanguageCatalogEntry> mergeLanguageCatalog(List<ServerLanguage>? server) {
   final selectable = selectableLanguageCodes(server);
-  final byCode = {for (final lang in server ?? const <ServerLanguage>[]) lang.code: lang};
+  final byCode = {
+    for (final lang in server ?? const <ServerLanguage>[]) lang.code: lang,
+  };
   AppLanguage? appLanguageFor(String code) =>
       selectable.contains(code) ? AppLanguage.fromCode(code) : null;
 
@@ -50,7 +51,8 @@ List<LanguageCatalogEntry> mergeLanguageCatalog(List<ServerLanguage>? server) {
     );
   }
 
-  final extra = byCode.values.toList()..sort((a, b) => a.sort.compareTo(b.sort));
+  final extra = byCode.values.toList()
+    ..sort((a, b) => a.sort.compareTo(b.sort));
   for (final lang in extra) {
     merged.add(
       LanguageCatalogEntry(

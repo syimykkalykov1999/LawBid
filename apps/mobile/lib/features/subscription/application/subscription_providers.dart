@@ -239,7 +239,7 @@ class SubscribeController extends Notifier<SubscribeState> {
   /// OQ-048 (owner 2026-09-30): pay on Stripe's hosted page in the
   /// browser — plan, seats and assistant phones are fixed in the session.
   /// Waits (polling the session, 15 min max) until it is paid; the
-  /// attorney may stop waiting and come back later — [checkNow] on resume.
+  /// attorney may stop waiting and come back later — `checkNow` on resume.
   Future<SubscribeOutcome> subscribeWeb({
     required SubscriptionPlan plan,
     int assistantSeats = 0,

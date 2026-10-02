@@ -233,10 +233,12 @@ class CurrentUser {
   /// The verified contact a `POST /auth/reauth` code can be sent to —
   /// phone first, then email (see `AuthService.reauth` in apps/api).
   ({String channel, String identifier})? get reauthIdentifier {
-    if (phoneVerified && phone != null)
+    if (phoneVerified && phone != null) {
       return (channel: 'phone', identifier: phone!);
-    if (emailVerified && email != null)
+    }
+    if (emailVerified && email != null) {
       return (channel: 'email', identifier: email!);
+    }
     return null;
   }
 }

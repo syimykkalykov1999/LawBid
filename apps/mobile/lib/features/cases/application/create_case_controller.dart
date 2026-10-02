@@ -175,21 +175,32 @@ class CreateCaseController extends Notifier<CreateCaseState> {
           .read(socialActionsProvider)
           .uploadPhoto(item.bytes, casePhoto: true);
       done = CasePhotoUpload(
-          key: item.key, bytes: item.bytes, fileId: id, name: item.name);
+        key: item.key,
+        bytes: item.bytes,
+        fileId: id,
+        name: item.name,
+      );
     } on Object {
       done = CasePhotoUpload(
-          key: item.key, bytes: item.bytes, failed: true, name: item.name);
+        key: item.key,
+        bytes: item.bytes,
+        failed: true,
+        name: item.name,
+      );
     }
     if (!ref.mounted) return;
-    state = state.copyWith(photos: [
-      for (final p in state.photos) p.key == item.key ? done : p,
-    ]);
+    state = state.copyWith(
+      photos: [
+        // ignore: prefer_if_elements_to_conditional_expressions
+        for (final p in state.photos) p.key == item.key ? done : p,
+      ],
+    );
   }
 
   void removePhoto(int key) => state = state.copyWith(
         photos: [
           for (final p in state.photos)
-            if (p.key != key) p
+            if (p.key != key) p,
         ],
       );
 
@@ -197,9 +208,12 @@ class CreateCaseController extends Notifier<CreateCaseState> {
     final p = state.photos.where((x) => x.key == key).firstOrNull;
     if (p == null || !p.failed) return;
     final again = CasePhotoUpload(key: p.key, bytes: p.bytes, name: p.name);
-    state = state.copyWith(photos: [
-      for (final x in state.photos) x.key == key ? again : x,
-    ]);
+    state = state.copyWith(
+      photos: [
+        // ignore: prefer_if_elements_to_conditional_expressions
+        for (final x in state.photos) x.key == key ? again : x,
+      ],
+    );
     unawaited(_upload(again));
   }
 

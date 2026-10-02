@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
-import '../../theme/app_color_tokens.dart';
-import '../../theme/app_typography_tokens.dart';
-import '../../tokens/app_fonts.dart';
+import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
+import 'package:lawbid/core/design_system/theme/app_typography_tokens.dart';
+import 'package:lawbid/core/design_system/tokens/app_fonts.dart';
 
-/// Circular avatar (file 01 §15 component list): image when [imageUrl] is
+/// Circular avatar (file 01 §15 component list): image when `imageUrl` is
 /// given, otherwise initials on a `surface`-tinted circle. No network image
 /// loading logic here (that's the data layer's job in later stages) — this
 /// widget only lays out whatever [ImageProvider] it's handed.

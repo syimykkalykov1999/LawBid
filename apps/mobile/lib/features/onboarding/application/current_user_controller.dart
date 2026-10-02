@@ -115,7 +115,8 @@ class CurrentUserController extends Notifier<CurrentUserState> {
 
 final currentUserControllerProvider =
     NotifierProvider<CurrentUserController, CurrentUserState>(
-        CurrentUserController.new);
+  CurrentUserController.new,
+);
 
 /// The signed-in user's role (docs/01_FOUNDATION_AUTH.md §11), from
 /// `GET /users/me`, falling back to the access token's `role` claim while
@@ -125,5 +126,6 @@ final currentUserRoleProvider = Provider<UserRole?>((ref) {
       ref.watch(currentUserControllerProvider.select((s) => s.user?.role));
   if (fromMe != null) return fromMe;
   return parseUserRole(
-      ref.watch(sessionControllerProvider.select((s) => s?.role)));
+    ref.watch(sessionControllerProvider.select((s) => s?.role)),
+  );
 });

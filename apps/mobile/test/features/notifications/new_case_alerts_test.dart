@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -30,7 +29,10 @@ const _tree = [
     nameEn: 'Family Law',
     children: [
       PracticeLeaf(
-          id: 'div', i18nKey: 'practice.family_law.divorce', nameEn: 'Divorce'),
+        id: 'div',
+        i18nKey: 'practice.family_law.divorce',
+        nameEn: 'Divorce',
+      ),
     ],
   ),
   PracticeCategory(
@@ -77,16 +79,23 @@ void main() {
     tester.view.physicalSize = const Size(1000, 2400);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
-    await tester.pumpWidget(uxApp(
-      const Scaffold(body: SingleChildScrollView(child: NewCaseAlertsSection())),
-      size: const Size(1000, 2400),
-      theme: AppTheme.light(),
-      disableAnimations: true,
-      overrides: uxOverrides(translator: const _Translator(), extra: [
-        notificationsRepositoryProvider.overrideWithValue(repo),
-        practiceTreeProvider.overrideWith((ref) async => _tree),
-      ]),
-    ));
+    await tester.pumpWidget(
+      uxApp(
+        const Scaffold(
+          body: SingleChildScrollView(child: NewCaseAlertsSection()),
+        ),
+        size: const Size(1000, 2400),
+        theme: AppTheme.light(),
+        disableAnimations: true,
+        overrides: uxOverrides(
+          translator: const _Translator(),
+          extra: [
+            notificationsRepositoryProvider.overrideWithValue(repo),
+            practiceTreeProvider.overrideWith((ref) async => _tree),
+          ],
+        ),
+      ),
+    );
     await tester.pumpAndSettle();
     expect(find.text('As in my profile'), findsOneWidget);
     expect(find.text('Divorce'), findsOneWidget, reason: 'profile preview');
@@ -102,4 +111,3 @@ void main() {
     expect(repo.calls.single, contains('div'), reason: 'starts from profile');
   });
 }
-

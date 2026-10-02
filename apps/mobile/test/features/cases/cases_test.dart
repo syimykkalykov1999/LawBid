@@ -14,7 +14,12 @@ import '../../helpers/onboarding_harness.dart';
 import '../profile/profile_fakes.dart';
 import 'cases_fakes.dart';
 
-CaseBid bidFixture({PartyRole turn = PartyRole.client, int rounds = 0, FeeType fee = FeeType.fixed}) => CaseBid(
+CaseBid bidFixture({
+  PartyRole turn = PartyRole.client,
+  int rounds = 0,
+  FeeType fee = FeeType.fixed,
+}) =>
+    CaseBid(
       id: 'bid-1',
       caseId: 'case-1',
       attorneyId: 'att-1',
@@ -54,8 +59,11 @@ class _PublishRepo extends FakeCasesRepository {
   final ApiException? error;
   bool? consent;
   @override
-  Future<String> createCase(CaseDraft draft,
-      {required bool contactSharingConsent, List<String> photoFileIds = const []}) async {
+  Future<String> createCase(
+    CaseDraft draft, {
+    required bool contactSharingConsent,
+    List<String> photoFileIds = const [],
+  }) async {
     consent = contactSharingConsent;
     if (error != null) throw error!;
     return 'new-case';
@@ -73,16 +81,44 @@ void main() {
       expect(d.copyWith(title: 'Speeding ticket NJ').titleValid, isTrue);
       expect(d.copyWith(description: 'x' * 29).descriptionValid, isFalse);
       expect(d.copyWith(description: 'x' * 30).descriptionValid, isTrue);
-      expect(d.copyWith(primaryStateCode: 'NJ', additionalStateCodes: ['NY', 'PA']).placeValid, isTrue);
-      expect(d.copyWith(primaryStateCode: 'NJ', additionalStateCodes: ['NY', 'PA', 'CT']).placeValid, isFalse);
-      expect(d.copyWith(primaryStateCode: 'NJ', additionalStateCodes: ['NJ']).placeValid, isFalse);
+      expect(
+        d.copyWith(
+          primaryStateCode: 'NJ',
+          additionalStateCodes: ['NY', 'PA'],
+        ).placeValid,
+        isTrue,
+      );
+      expect(
+        d.copyWith(
+          primaryStateCode: 'NJ',
+          additionalStateCodes: ['NY', 'PA', 'CT'],
+        ).placeValid,
+        isFalse,
+      );
+      expect(
+        d.copyWith(
+          primaryStateCode: 'NJ',
+          additionalStateCodes: ['NJ'],
+        ).placeValid,
+        isFalse,
+      );
       expect(d.copyWith(budgetIsAmount: true).budgetValid, isFalse);
-      expect(d.copyWith(budgetIsAmount: true, budgetDollars: 600).budgetValid, isTrue);
-      expect(d.copyWith(budgetIsAmount: true, budgetDollars: 10000001).budgetValid, isFalse);
+      expect(
+        d.copyWith(budgetIsAmount: true, budgetDollars: 600).budgetValid,
+        isTrue,
+      );
+      expect(
+        d.copyWith(budgetIsAmount: true, budgetDollars: 10000001).budgetValid,
+        isFalse,
+      );
     });
 
     test('round-trips through its local JSON and survives corrupt data', () {
-      final d = completeDraft().copyWith(additionalStateCodes: ['NY'], budgetIsAmount: true, budgetDollars: 900);
+      final d = completeDraft().copyWith(
+        additionalStateCodes: ['NY'],
+        budgetIsAmount: true,
+        budgetDollars: 900,
+      );
       final back = CaseDraft.decode(d.encode())!;
       expect(back.title, d.title);
       expect(back.additionalStateCodes, ['NY']);
@@ -103,35 +139,64 @@ void main() {
   });
 
   group('CreateCaseController (docs/04 §3.1, §3.4)', () {
-    testWidgets('publishes with the first-case consent and clears the draft', (tester) async {
+    testWidgets('publishes with the first-case consent and clears the draft',
+        (tester) async {
       final repo = _PublishRepo();
       late ProviderContainer c;
-      final wrap = await onboardingWrapper(AppTheme.light(), user: clientMe(), extra: casesOverrides(repo: repo));
-      await tester.pumpWidget(wrap(Consumer(builder: (context, ref, _) {
-        c = ProviderScope.containerOf(context);
-        return const SizedBox();
-      })));
+      final wrap = await onboardingWrapper(
+        AppTheme.light(),
+        user: clientMe(),
+        extra: casesOverrides(repo: repo),
+      );
+      await tester.pumpWidget(
+        wrap(
+          Consumer(
+            builder: (context, ref, _) {
+              c = ProviderScope.containerOf(context);
+              return const SizedBox();
+            },
+          ),
+        ),
+      );
       final ctrl = c.read(createCaseControllerProvider.notifier);
       c.listen(createCaseControllerProvider, (_, __) {});
       await tester.pump();
       ctrl.update((_) => completeDraft());
-      expect(c.read(createCaseControllerProvider).stepValid, isFalse, reason: 'consent unchecked');
+      expect(
+        c.read(createCaseControllerProvider).stepValid,
+        isFalse,
+        reason: 'consent unchecked',
+      );
       ctrl.setConsent(value: true);
       expect(await ctrl.publish(), isTrue);
       expect(repo.consent, isTrue);
       expect(c.read(createCaseControllerProvider).publishedCaseId, 'new-case');
     });
 
-    testWidgets('contact info in the text sends the client back to step 2', (tester) async {
+    testWidgets('contact info in the text sends the client back to step 2',
+        (tester) async {
       final repo = _PublishRepo(
-        error: const ApiException(code: ApiErrorCodes.caseContainsContactInfo, message: 'x'),
+        error: const ApiException(
+          code: ApiErrorCodes.caseContainsContactInfo,
+          message: 'x',
+        ),
       );
       late ProviderContainer c;
-      final wrap = await onboardingWrapper(AppTheme.light(), user: clientMe(), extra: casesOverrides(repo: repo));
-      await tester.pumpWidget(wrap(Consumer(builder: (context, ref, _) {
-        c = ProviderScope.containerOf(context);
-        return const SizedBox();
-      })));
+      final wrap = await onboardingWrapper(
+        AppTheme.light(),
+        user: clientMe(),
+        extra: casesOverrides(repo: repo),
+      );
+      await tester.pumpWidget(
+        wrap(
+          Consumer(
+            builder: (context, ref, _) {
+              c = ProviderScope.containerOf(context);
+              return const SizedBox();
+            },
+          ),
+        ),
+      );
       final ctrl = c.read(createCaseControllerProvider.notifier);
       c.listen(createCaseControllerProvider, (_, __) {});
       await tester.pump();
@@ -146,8 +211,13 @@ void main() {
   });
 
   group('Screens', () {
-    testWidgets('client "Мои кейсы" empty state offers "Create a case"', (tester) async {
-      final wrap = await onboardingWrapper(AppTheme.light(), user: clientMe(), extra: casesOverrides());
+    testWidgets('client "Мои кейсы" empty state offers "Create a case"',
+        (tester) async {
+      final wrap = await onboardingWrapper(
+        AppTheme.light(),
+        user: clientMe(),
+        extra: casesOverrides(),
+      );
       await tester.pumpWidget(wrap(const Scaffold(body: ClientMineView())));
       await tester.pumpAndSettle();
       // Owner 2026-10-01: Mine opens on the client's planner first.
@@ -158,7 +228,8 @@ void main() {
       expect(find.text('Create a case'), findsOneWidget);
     });
 
-    testWidgets("client's turn: accept, decline and counter are offered", (tester) async {
+    testWidgets("client's turn: accept, decline and counter are offered",
+        (tester) async {
       final wrap = await onboardingWrapper(
         AppTheme.light(),
         user: clientMe(),

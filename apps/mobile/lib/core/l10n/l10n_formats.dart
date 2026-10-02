@@ -1,8 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
-import 'app_language.dart';
-import 'language_providers.dart';
+import 'package:lawbid/core/l10n/app_language.dart';
+import 'package:lawbid/core/l10n/language_providers.dart';
 
 /// Dates/numbers/currency formatted for the selected interface language
 /// (docs/01_FOUNDATION_AUTH.md §9.4: "Даты/числа/валюта форматируются
@@ -34,7 +34,8 @@ class L10nFormats {
   String date(DateTime value) => DateFormat.yMMMd(locale).format(_local(value));
 
   /// `September 27, 2026` / `27 сентября 2026 г.`
-  String dateLong(DateTime value) => DateFormat.yMMMMd(locale).format(_local(value));
+  String dateLong(DateTime value) =>
+      DateFormat.yMMMMd(locale).format(_local(value));
 
   /// `3:05 PM` / `15:05`
   String time(DateTime value) => DateFormat.jm(locale).format(_local(value));
@@ -49,10 +50,12 @@ class L10nFormats {
   /// Money is stored in integer cents (`.cursorrules`): `$1,234.50` /
   /// `1 234,50 $`.
   String currencyFromCents(int cents, {String currencyCode = 'USD'}) =>
-      NumberFormat.simpleCurrency(locale: locale, name: currencyCode).format(cents / 100);
+      NumberFormat.simpleCurrency(locale: locale, name: currencyCode)
+          .format(cents / 100);
 }
 
 final l10nFormatsProvider = Provider<L10nFormats>((ref) {
-  final language = ref.watch(languageControllerProvider).value ?? AppLanguage.fallback;
+  final language =
+      ref.watch(languageControllerProvider).value ?? AppLanguage.fallback;
   return L10nFormats(language);
 });

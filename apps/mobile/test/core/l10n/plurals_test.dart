@@ -12,7 +12,11 @@ void main() {
     test('English: one for exactly 1, other for everything else', () {
       expect(pluralCategoryOf('en', 1), PluralCategory.one);
       for (final n in [0, 2, 5, 11, 21, 101]) {
-        expect(pluralCategoryOf('en', n), PluralCategory.other, reason: 'en $n');
+        expect(
+          pluralCategoryOf('en', n),
+          PluralCategory.other,
+          reason: 'en $n',
+        );
       }
       expect(pluralCategoryOf('en', 1.5), PluralCategory.other);
     });
@@ -39,7 +43,11 @@ void main() {
       cases.forEach((n, category) {
         expect(pluralCategoryOf('ru', n), category, reason: 'ru $n');
       });
-      expect(pluralCategoryOf('ru', 1.5), PluralCategory.other, reason: 'fractions are other');
+      expect(
+        pluralCategoryOf('ru', 1.5),
+        PluralCategory.other,
+        reason: 'fractions are other',
+      );
     });
   });
 
@@ -55,7 +63,11 @@ void main() {
       'cases.count.other': '{count} cases',
     };
 
-    final ru = L10nTranslator(language: AppLanguage.ru, cache: ruBundle, englishCache: enBundle);
+    final ru = L10nTranslator(
+      language: AppLanguage.ru,
+      cache: ruBundle,
+      englishCache: enBundle,
+    );
     final en = L10nTranslator(language: AppLanguage.en, cache: enBundle);
 
     test('Russian picks the CLDR form and formats {count} for ru', () {
@@ -84,7 +96,8 @@ void main() {
       expect(partial.plural('x', 5), '5 шт.', reason: 'many missing → other');
     });
 
-    test('a language without the key falls back to English with English rules', () {
+    test('a language without the key falls back to English with English rules',
+        () {
       final es = L10nTranslator(
         language: AppLanguage.fromCode('es'),
         cache: const {},
@@ -94,7 +107,8 @@ void main() {
       expect(es.plural('cases.count', 3), '3 cases');
     });
 
-    test('explicit params override {count}; unknown key never renders blank', () {
+    test('explicit params override {count}; unknown key never renders blank',
+        () {
       expect(en.plural('cases.count', 3, {'count': 'three'}), 'three cases');
       expect(en.plural('no.such.key', 2), 'no.such.key.other');
     });

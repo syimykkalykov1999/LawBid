@@ -1,8 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-import '../network/api_error.dart';
-import 'app_update_providers.dart';
+import 'package:lawbid/core/app_update/app_update_providers.dart';
+import 'package:lawbid/core/network/api_error.dart';
 
 /// Catches `426 Upgrade Required` / `APP_UPDATE_REQUIRED` from ANY request
 /// (docs/01_FOUNDATION_AUTH.md §7: the server's `AppVersionGuard` checks

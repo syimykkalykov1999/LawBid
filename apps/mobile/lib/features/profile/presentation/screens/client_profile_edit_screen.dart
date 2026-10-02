@@ -23,8 +23,9 @@ class ProfileEditScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isAttorney = ref.watch(currentUserControllerProvider
-        .select((s) => s.user?.isAttorney ?? false));
+    final isAttorney = ref.watch(
+      currentUserControllerProvider.select((s) => s.user?.isAttorney ?? false),
+    );
     return isAttorney
         ? const AttorneyProfileEditScreen()
         : const ClientProfileEditScreen();
@@ -48,8 +49,9 @@ class ClientProfileEditScreen extends ConsumerWidget {
       appBar: AppTopBar(
         title: Text(t.t('profile.edit.title')),
         leading: AppBackButton(
-            semanticLabel: t.t('common.back'),
-            onPressed: () => Navigator.of(context).maybePop()),
+          semanticLabel: t.t('common.back'),
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
       ),
       body: profile.when(
         loading: () => const ProfileEditSkeleton(),
@@ -68,7 +70,8 @@ class ClientProfileEditScreen extends ConsumerWidget {
             : AppErrorState(
                 message: t.t('profile.error'),
                 retryLabel: t.t('error.retry'),
-                onRetry: retry),
+                onRetry: retry,
+              ),
         data: (p) => _ClientEditForm(profile: p),
       ),
     );
@@ -152,7 +155,7 @@ class _ClientEditFormState extends ConsumerState<_ClientEditForm> {
     if (const {
       UsernameStatus.invalid,
       UsernameStatus.taken,
-      UsernameStatus.reserved
+      UsernameStatus.reserved,
     }.contains(_usernameStatus)) {
       return;
     }
@@ -215,21 +218,23 @@ class _ClientEditFormState extends ConsumerState<_ClientEditForm> {
     final fields = <Widget>[
       AppCard(
         child: AvatarPickerField(
-            initials:
-                initialsOf(widget.profile.firstName, widget.profile.lastName)),
+          initials:
+              initialsOf(widget.profile.firstName, widget.profile.lastName),
+        ),
       ),
       AppTextField(
         controller: _username,
         label: t.t('profile.username.label'),
         enabled: nextChange == null || !nextChange.isAfter(DateTime.now()),
-        leading: Text('@',
-            style: Theme.of(context)
-                .extension<AppTypographyTokens>()!
-                .body
-                .copyWith(
+        leading: Text(
+          '@',
+          style:
+              Theme.of(context).extension<AppTypographyTokens>()!.body.copyWith(
                     color: Theme.of(context)
                         .extension<AppColorTokens>()!
-                        .textSecondary)),
+                        .textSecondary,
+                  ),
+        ),
         helperText: usernameHelper,
         errorText: usernameError,
         inputFormatters: [
@@ -264,12 +269,13 @@ class _ClientEditFormState extends ConsumerState<_ClientEditForm> {
             title: t.t('onboarding.profile.state'),
             options: [
               for (final s in kUsStates)
-                PickerOption(value: s.code, label: s.name, sublabel: s.code)
+                PickerOption(value: s.code, label: s.name, sublabel: s.code),
             ],
             initial: {_state},
           );
-          if (result != null && result.isNotEmpty)
+          if (result != null && result.isNotEmpty) {
             setState(() => _state = result.first);
+          }
         },
       ),
       PickerField(
@@ -285,10 +291,11 @@ class _ClientEditFormState extends ConsumerState<_ClientEditForm> {
             options: [
               for (final l in kLanguageCatalog)
                 PickerOption(
-                    value: l.code,
-                    label: l.nativeName,
-                    sublabel:
-                        l.englishName == l.nativeName ? null : l.englishName),
+                  value: l.code,
+                  label: l.nativeName,
+                  sublabel:
+                      l.englishName == l.nativeName ? null : l.englishName,
+                ),
             ],
             initial: _languages,
             multi: true,
@@ -313,8 +320,12 @@ class _ClientEditFormState extends ConsumerState<_ClientEditForm> {
       children: [
         Expanded(
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide,
-                AppSpacing.sm, AppSpacing.screenSide, AppSpacing.xxl),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.screenSide,
+              AppSpacing.sm,
+              AppSpacing.screenSide,
+              AppSpacing.xxl,
+            ),
             children: [
               for (var i = 0; i < fields.length; i++) ...[
                 if (i > 0) const SizedBox(height: AppSpacing.lg),
@@ -324,9 +335,10 @@ class _ClientEditFormState extends ConsumerState<_ClientEditForm> {
           ),
         ),
         ProfileSaveBar(
-            label: t.t('profile.edit.save'),
-            loading: _saving,
-            onPressed: () => _save(t)),
+          label: t.t('profile.edit.save'),
+          loading: _saving,
+          onPressed: () => _save(t),
+        ),
       ],
     );
   }
@@ -334,8 +346,11 @@ class _ClientEditFormState extends ConsumerState<_ClientEditForm> {
 
 /// Preferred contact method chips (docs/01 §11 3A); tap again to clear.
 class ContactPreferenceChips extends ConsumerWidget {
-  const ContactPreferenceChips(
-      {required this.value, required this.onChanged, super.key});
+  const ContactPreferenceChips({
+    required this.value,
+    required this.onChanged,
+    super.key,
+  });
 
   final ContactPreference? value;
   final ValueChanged<ContactPreference?> onChanged;

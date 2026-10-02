@@ -63,12 +63,16 @@ class StepBody extends StatelessWidget {
         children: staggeredEntrance([
           Semantics(
             header: true,
-            child: Text(title,
-                style: typography.titleLarge.copyWith(color: colors.text)),
+            child: Text(
+              title,
+              style: typography.titleLarge.copyWith(color: colors.text),
+            ),
           ),
           const SizedBox(height: AppSpacing.sm),
-          Text(lead,
-              style: typography.body.copyWith(color: colors.textSecondary)),
+          Text(
+            lead,
+            style: typography.body.copyWith(color: colors.textSecondary),
+          ),
           const SizedBox(height: AppSpacing.xl),
           ...children,
         ]),
@@ -282,8 +286,10 @@ class _LicenseBlock extends StatelessWidget {
                   ),
                   Text(
                     [
-                      t.t('verification.license.barShort',
-                          {'number': license.barNumber}),
+                      t.t(
+                        'verification.license.barShort',
+                        {'number': license.barNumber},
+                      ),
                       if (expires != null)
                         t.t('verification.license.expiresShort', {
                           'date': MaterialLocalizations.of(context)
@@ -298,11 +304,15 @@ class _LicenseBlock extends StatelessWidget {
             ),
             if (state.request.isDraft)
               AppIconButton(
-                semanticLabel: t.t('verification.license.remove',
-                    {'state': license.stateName}),
+                semanticLabel: t.t(
+                  'verification.license.remove',
+                  {'state': license.stateName},
+                ),
                 onPressed: () => actions.removeLicense(license),
-                icon: AppIcon(AppIcons.deleteOutlineRounded,
-                    color: colors.textSecondary),
+                icon: AppIcon(
+                  AppIcons.deleteOutlineRounded,
+                  color: colors.textSecondary,
+                ),
               ),
           ],
         ),
@@ -372,16 +382,19 @@ class IdentityStep extends StatelessWidget {
       final slot = DocSlot.identity(type, side);
       return DocumentSlotCard(
         t: t,
-        title: t.t(side == DocSide.front
-            ? 'verification.id.front'
-            : 'verification.id.back'),
+        title: t.t(
+          side == DocSide.front
+              ? 'verification.id.front'
+              : 'verification.id.back',
+        ),
         subtitle: t.t(
           side == DocSide.front
               ? 'verification.id.front.hint'
               : 'verification.id.back.hint',
         ),
-        icon:
-            side == DocSide.front ? AppIcons.badgeOutlined : AppIcons.flipOutlined,
+        icon: side == DocSide.front
+            ? AppIcons.badgeOutlined
+            : AppIcons.flipOutlined,
         documents: state.request.docsFor(slot),
         tasks: state.tasksFor(slot),
         canAdd: state.canAddTo(slot),
@@ -515,8 +528,10 @@ class SelfieStep extends StatelessWidget {
                 AppIcon(icon, size: AppSizes.iconSm, color: colors.goldDark),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
-                  child: Text(t.t(key),
-                      style: typography.body.copyWith(color: colors.text)),
+                  child: Text(
+                    t.t(key),
+                    style: typography.body.copyWith(color: colors.text),
+                  ),
                 ),
               ],
             ),
@@ -718,8 +733,10 @@ class _SummaryRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title,
-                    style: typography.roleTitle.copyWith(color: colors.text)),
+                Text(
+                  title,
+                  style: typography.roleTitle.copyWith(color: colors.text),
+                ),
                 Text(
                   detail,
                   style: typography.bodySmall

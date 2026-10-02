@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../theme/app_color_tokens.dart';
-import '../../theme/app_typography_tokens.dart';
-import '../../tokens/app_radii.dart';
+import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
+import 'package:lawbid/core/design_system/theme/app_typography_tokens.dart';
+import 'package:lawbid/core/design_system/tokens/app_radii.dart';
 
 const int _kOtpLength = 6;
 
@@ -32,13 +32,13 @@ const int _kOtpLength = 6;
 /// needs to change for this restructuring.
 class AppOtpField extends StatefulWidget {
   const AppOtpField({
-    super.key,
     required this.onCompleted,
+    required this.semanticLabel,
+    super.key,
     this.onChanged,
     this.errorText,
     this.autofocus = true,
     this.controller,
-    required this.semanticLabel,
   });
 
   final ValueChanged<String> onCompleted;
@@ -51,6 +51,7 @@ class AppOtpField extends StatefulWidget {
   /// link). Setting its text does NOT fire [onChanged]/[onCompleted] — the
   /// caller already knows the code. Owned by the caller when provided.
   final TextEditingController? controller;
+
   /// Screen-reader label for the whole code field — callers pass
   /// `t('auth.otp.fieldLabel')` (docs/01 §9: no hardcoded UI strings).
   final String semanticLabel;
@@ -122,7 +123,9 @@ class _AppOtpFieldState extends State<AppOtpField> {
                           keyboardType: TextInputType.number,
                           maxLength: _kOtpLength,
                           autofillHints: const [AutofillHints.oneTimeCode],
-                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                          ],
                           cursorWidth: 0,
                           decoration: const InputDecoration(
                             counterText: '',
@@ -138,18 +141,23 @@ class _AppOtpFieldState extends State<AppOtpField> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: List.generate(_kOtpLength, (index) {
-                          final isFocused = _focusNode.hasFocus && index == caretIndex;
-                          final borderColor =
-                              hasError ? colors.danger : (isFocused ? colors.gold : colors.border);
+                          final isFocused =
+                              _focusNode.hasFocus && index == caretIndex;
+                          final borderColor = hasError
+                              ? colors.danger
+                              : (isFocused ? colors.gold : colors.border);
                           final digit = index < text.length ? text[index] : '';
                           return Expanded(
                             child: Padding(
-                              padding: EdgeInsets.only(right: index == _kOtpLength - 1 ? 0 : 8),
+                              padding: EdgeInsets.only(
+                                right: index == _kOtpLength - 1 ? 0 : 8,
+                              ),
                               child: Container(
                                 height: 54,
                                 decoration: BoxDecoration(
                                   color: colors.surface,
-                                  borderRadius: BorderRadius.circular(AppRadii.otpCell),
+                                  borderRadius:
+                                      BorderRadius.circular(AppRadii.otpCell),
                                   border: Border.all(
                                     color: borderColor,
                                     width: isFocused || hasError ? 1.5 : 1.0,
@@ -167,7 +175,8 @@ class _AppOtpFieldState extends State<AppOtpField> {
                                 alignment: Alignment.center,
                                 child: Text(
                                   digit,
-                                  style: typography.otpDigit.copyWith(color: colors.text),
+                                  style: typography.otpDigit
+                                      .copyWith(color: colors.text),
                                 ),
                               ),
                             ),
@@ -180,7 +189,10 @@ class _AppOtpFieldState extends State<AppOtpField> {
               ),
               if (hasError) ...[
                 const SizedBox(height: 4),
-                Text(widget.errorText!, style: typography.caption.copyWith(color: colors.danger)),
+                Text(
+                  widget.errorText!,
+                  style: typography.caption.copyWith(color: colors.danger),
+                ),
               ],
             ],
           ),

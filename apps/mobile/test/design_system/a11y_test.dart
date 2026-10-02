@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
@@ -11,11 +12,10 @@ import 'package:lawbid/features/profile/presentation/screens/settings_screen.dar
 import 'package:lawbid/features/search/presentation/screens/search_screen.dart';
 import 'package:lawbid/features/settings/active_devices/active_devices_providers.dart';
 import 'package:lawbid/features/settings/active_devices/domain/active_devices_repository.dart';
-import 'package:lawbid/features/settings/active_devices/presentation/active_devices_screen.dart';
 import 'package:lawbid/features/settings/active_devices/domain/device_session_info.dart';
+import 'package:lawbid/features/settings/active_devices/presentation/active_devices_screen.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:intl/date_symbol_data_local.dart';
 
 import '../helpers/ux_harness.dart';
 
@@ -61,6 +61,7 @@ class _FakeDevicesRepo implements ActiveDevicesRepository {
 
   @override
   Future<CursorPage<DeviceSessionInfo>> fetchPage({String? cursor}) async {
+    // ignore: only_throw_errors
     if (error != null) throw error!;
     return CursorPage(items: items, nextCursor: this.cursor);
   }

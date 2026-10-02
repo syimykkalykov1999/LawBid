@@ -12,7 +12,7 @@ const _kRefreshTokenKey = 'auth.refresh_token';
 /// token on every cold start.
 class TokenSecureStore {
   const TokenSecureStore([FlutterSecureStorage? storage])
-    : _storage = storage ?? const FlutterSecureStorage();
+      : _storage = storage ?? const FlutterSecureStorage();
 
   final FlutterSecureStorage _storage;
 

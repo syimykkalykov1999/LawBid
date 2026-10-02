@@ -53,7 +53,9 @@ class _CreateCaseScreenState extends ConsumerState<CreateCaseScreen> {
     final state = ref.read(createCaseControllerProvider);
     if (ok && state.publishedCaseId != null) {
       showAppSnackBar(
-          context, ref.read(translatorProvider).t('cases.create.published'));
+        context,
+        ref.read(translatorProvider).t('cases.create.published'),
+      );
       context.pushReplacement(AppRoutes.myCase(state.publishedCaseId!));
     }
   }
@@ -103,8 +105,11 @@ class _CreateCaseScreenState extends ConsumerState<CreateCaseScreen> {
                 onTap: _close,
                 child: SizedBox.square(
                   dimension: AppSizes.touchTarget,
-                  child: AppIcon(AppIcons.closeRounded,
-                      color: colors.text, size: AppSizes.iconMd),
+                  child: AppIcon(
+                    AppIcons.closeRounded,
+                    color: colors.text,
+                    size: AppSizes.iconMd,
+                  ),
                 ),
               ),
             ),
@@ -247,15 +252,20 @@ class _DraftBanner extends StatelessWidget {
           0,
         ),
         padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.sm,
+        ),
         decoration: BoxDecoration(
           color: colors.goldTint,
           borderRadius: BorderRadius.circular(AppRadii.field),
         ),
         child: Row(
           children: [
-            AppIcon(AppIcons.historyEduRounded,
-                color: colors.goldDark, size: AppSizes.iconSm),
+            AppIcon(
+              AppIcons.historyEduRounded,
+              color: colors.goldDark,
+              size: AppSizes.iconSm,
+            ),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Text(
@@ -268,7 +278,9 @@ class _DraftBanner extends StatelessWidget {
               child: Text(
                 t.t('cases.create.startOver'),
                 style: typography.bodySmall.copyWith(
-                    color: colors.goldDark, fontWeight: FontWeight.w600),
+                  color: colors.goldDark,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ],
@@ -326,8 +338,10 @@ class _SaveDraftSheet extends StatelessWidget {
             const SizedBox(height: AppSpacing.sm),
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: Text(t.t('cases.create.keepEditing'),
-                  style: typography.button.copyWith(color: colors.text)),
+              child: Text(
+                t.t('cases.create.keepEditing'),
+                style: typography.button.copyWith(color: colors.text),
+              ),
             ),
           ],
         ),
@@ -339,8 +353,11 @@ class _SaveDraftSheet extends StatelessWidget {
 /// Step 5 (docs/04 §3.1): summary with edit links, disclaimer, first-case
 /// `client_contact_sharing` checkbox.
 class _ReviewStep extends ConsumerWidget {
-  const _ReviewStep(
-      {required this.state, required this.t, required this.formats});
+  const _ReviewStep({
+    required this.state,
+    required this.t,
+    required this.formats,
+  });
 
   final CreateCaseState state;
   final Translator t;
@@ -375,18 +392,24 @@ class _ReviewStep extends ConsumerWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(label,
-                            style: typography.caption
-                                .copyWith(color: colors.textSecondary)),
+                        Text(
+                          label,
+                          style: typography.caption
+                              .copyWith(color: colors.textSecondary),
+                        ),
                         const SizedBox(height: 2),
-                        Text(value,
-                            style:
-                                typography.body.copyWith(color: colors.text)),
+                        Text(
+                          value,
+                          style: typography.body.copyWith(color: colors.text),
+                        ),
                       ],
                     ),
                   ),
-                  AppIcon(AppIcons.editOutlined,
-                      size: AppSpacing.lg, color: colors.textSecondary),
+                  AppIcon(
+                    AppIcons.editOutlined,
+                    size: AppSpacing.lg,
+                    color: colors.textSecondary,
+                  ),
                 ],
               ),
             ),
@@ -407,22 +430,35 @@ class _ReviewStep extends ConsumerWidget {
         ),
         AppCard(
           padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.lg, vertical: AppSpacing.xs),
+            horizontal: AppSpacing.lg,
+            vertical: AppSpacing.xs,
+          ),
           child: Column(
             children: [
               row(
                 t.t('cases.field.practice'),
                 CaseFormat.practice(
-                    t, d.practiceI18nKey ?? '', d.practiceNameEn ?? ''),
+                  t,
+                  d.practiceI18nKey ?? '',
+                  d.practiceNameEn ?? '',
+                ),
                 0,
                 AppIcons.balanceRounded,
               ),
               Divider(height: 1, color: colors.border),
-              row(t.t('cases.field.title'), d.title.trim(), 1,
-                  AppIcons.titleRounded),
+              row(
+                t.t('cases.field.title'),
+                d.title.trim(),
+                1,
+                AppIcons.titleRounded,
+              ),
               Divider(height: 1, color: colors.border),
-              row(t.t('cases.field.description'), d.description.trim(), 1,
-                  AppIcons.notesRounded),
+              row(
+                t.t('cases.field.description'),
+                d.description.trim(),
+                1,
+                AppIcons.notesRounded,
+              ),
               Divider(height: 1, color: colors.border),
               row(
                 t.t('cases.field.place'),
@@ -446,8 +482,11 @@ class _ReviewStep extends ConsumerWidget {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            AppIcon(AppIcons.infoOutlineRounded,
-                size: AppSpacing.lg, color: colors.textSecondary),
+            AppIcon(
+              AppIcons.infoOutlineRounded,
+              size: AppSpacing.lg,
+              color: colors.textSecondary,
+            ),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Text(
@@ -471,19 +510,28 @@ class _ReviewStep extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               for (final (icon, key) in const [
-                (AppIcons.visibilityOffOutlined, 'cases.create.privacy.clients'),
+                (
+                  AppIcons.visibilityOffOutlined,
+                  'cases.create.privacy.clients'
+                ),
                 (AppIcons.gavelRounded, 'cases.create.privacy.attorneys'),
                 (AppIcons.lockOutlineRounded, 'cases.create.privacy.files'),
               ]) ...[
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    AppIcon(icon, size: AppSizes.iconSm, color: colors.goldDark),
+                    AppIcon(
+                      icon,
+                      size: AppSizes.iconSm,
+                      color: colors.goldDark,
+                    ),
                     const SizedBox(width: AppSpacing.sm),
                     Expanded(
-                      child: Text(t.t(key),
-                          style: typography.bodySmall
-                              .copyWith(color: colors.text)),
+                      child: Text(
+                        t.t(key),
+                        style:
+                            typography.bodySmall.copyWith(color: colors.text),
+                      ),
                     ),
                   ],
                 ),
@@ -506,8 +554,11 @@ class _ReviewStep extends ConsumerWidget {
 }
 
 class _ConsentBox extends StatelessWidget {
-  const _ConsentBox(
-      {required this.checked, required this.label, required this.onChanged});
+  const _ConsentBox({
+    required this.checked,
+    required this.label,
+    required this.onChanged,
+  });
 
   final bool checked;
   final String label;
@@ -533,8 +584,9 @@ class _ConsentBox extends StatelessWidget {
             color: colors.surface,
             borderRadius: BorderRadius.circular(AppRadii.card),
             border: Border.all(
-                color: checked ? colors.gold : colors.border,
-                width: checked ? 1.5 : 1),
+              color: checked ? colors.gold : colors.border,
+              width: checked ? 1.5 : 1,
+            ),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -547,19 +599,25 @@ class _ConsentBox extends StatelessWidget {
                   color: checked ? colors.gold : colors.surface,
                   borderRadius: BorderRadius.circular(AppSpacing.xs + 2),
                   border: Border.all(
-                      color: checked ? colors.gold : colors.textSecondary,
-                      width: 1.5),
+                    color: checked ? colors.gold : colors.textSecondary,
+                    width: 1.5,
+                  ),
                 ),
                 child: checked
-                    ? AppIcon(AppIcons.checkRounded,
-                        size: AppSpacing.lg, color: colors.navy)
+                    ? AppIcon(
+                        AppIcons.checkRounded,
+                        size: AppSpacing.lg,
+                        color: colors.navy,
+                      )
                     : null,
               ),
               const SizedBox(width: AppSpacing.md),
               Expanded(
-                  child: Text(label,
-                      style:
-                          typography.bodySmall.copyWith(color: colors.text))),
+                child: Text(
+                  label,
+                  style: typography.bodySmall.copyWith(color: colors.text),
+                ),
+              ),
             ],
           ),
         ),

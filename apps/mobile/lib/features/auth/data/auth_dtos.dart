@@ -34,26 +34,26 @@ class DeviceSession {
   });
 
   factory DeviceSession.fromDto(SessionDto dto) => DeviceSession(
-    sessionId: dto.sessionId,
-    deviceId: dto.deviceId,
-    deviceName: dto.deviceName,
-    platform: dto.platform,
-    appVersion: dto.appVersion,
-    lastUsedAt: dto.lastUsedAt?.toUtc().toIso8601String(),
-    createdAt: dto.createdAt.toUtc().toIso8601String(),
-    isCurrent: dto.isCurrent,
-  );
+        sessionId: dto.sessionId,
+        deviceId: dto.deviceId,
+        deviceName: dto.deviceName,
+        platform: dto.platform,
+        appVersion: dto.appVersion,
+        lastUsedAt: dto.lastUsedAt?.toUtc().toIso8601String(),
+        createdAt: dto.createdAt.toUtc().toIso8601String(),
+        isCurrent: dto.isCurrent,
+      );
 
   factory DeviceSession.fromJson(Map<String, dynamic> json) => DeviceSession(
-    sessionId: json['sessionId'] as String,
-    deviceId: json['deviceId'] as String?,
-    deviceName: json['deviceName'] as String?,
-    platform: json['platform'] as String?,
-    appVersion: json['appVersion'] as String?,
-    lastUsedAt: json['lastUsedAt'] as String?,
-    createdAt: json['createdAt'] as String,
-    isCurrent: json['isCurrent'] as bool,
-  );
+        sessionId: json['sessionId'] as String,
+        deviceId: json['deviceId'] as String?,
+        deviceName: json['deviceName'] as String?,
+        platform: json['platform'] as String?,
+        appVersion: json['appVersion'] as String?,
+        lastUsedAt: json['lastUsedAt'] as String?,
+        createdAt: json['createdAt'] as String,
+        isCurrent: json['isCurrent'] as bool,
+      );
 
   final String sessionId;
   final String? deviceId;

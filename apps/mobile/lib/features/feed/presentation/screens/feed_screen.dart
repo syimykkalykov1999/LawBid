@@ -1,17 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/cases/presentation/screens/attorney_cases_tab.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
-import 'package:lawbid/features/social/presentation/screens/social_screens.dart';
 import 'package:lawbid/features/chat/presentation/chats_icon_button.dart';
-import 'package:lawbid/features/reels/presentation/reels_icon_button.dart';
 import 'package:lawbid/features/feed/application/feed_topics.dart';
 import 'package:lawbid/features/feed/presentation/widgets/topic_filter_bar.dart';
+import 'package:lawbid/features/reels/presentation/reels_icon_button.dart';
+import 'package:lawbid/features/social/presentation/screens/social_screens.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
+import 'package:lawbid/features/team/domain/team_models.dart';
 
 /// Feed tab (docs/01 §3.1, docs/05 §2). Header per docs/07 §10: the small
 /// static ScalesLogo on the left; the right side ([AppFeedHeader.trailing])
@@ -92,10 +91,10 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
               onChanged: (v) => setState(() => _tab = v),
               child: IndexedStack(
                 index: _tab.index,
-                children: [
+                children: const [
                   // Owner 2026-09-30: the topic slider for every role.
-                  const _TopicFeed(),
-                  const AttorneyCasesTab(),
+                  _TopicFeed(),
+                  AttorneyCasesTab(),
                 ],
               ),
             )

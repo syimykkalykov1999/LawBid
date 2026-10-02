@@ -141,7 +141,6 @@ class _OptionPickerSheetState extends ConsumerState<OptionPickerSheet> {
       expand: false,
       initialChildSize: 0.7,
       minChildSize: 0.4,
-      maxChildSize: 1,
       builder: (context, scrollController) => SafeArea(
         top: false,
         child: Padding(
@@ -157,16 +156,21 @@ class _OptionPickerSheetState extends ConsumerState<OptionPickerSheet> {
               const AppSheetHandle(),
               Semantics(
                 header: true,
-                child: Text(widget.title,
-                    style: typography.titleMedium.copyWith(color: colors.text)),
+                child: Text(
+                  widget.title,
+                  style: typography.titleMedium.copyWith(color: colors.text),
+                ),
               ),
               const SizedBox(height: AppSpacing.md),
               AppTextField(
                 controller: _search,
                 hintText: widget.searchHint ?? t.t('common.search'),
                 semanticLabel: widget.searchHint ?? t.t('common.search'),
-                leading: AppIcon(AppIcons.searchRounded,
-                    size: AppSizes.iconSm, color: colors.textSecondary),
+                leading: AppIcon(
+                  AppIcons.searchRounded,
+                  size: AppSizes.iconSm,
+                  color: colors.textSecondary,
+                ),
                 onChanged: (v) => setState(() => _query = v),
               ),
               const SizedBox(height: AppSpacing.md),
@@ -249,9 +253,10 @@ class PickerField extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           ExcludeSemantics(
-            child: Text(label,
-                style:
-                    typography.bodySmall.copyWith(color: colors.textSecondary)),
+            child: Text(
+              label,
+              style: typography.bodySmall.copyWith(color: colors.textSecondary),
+            ),
           ),
           const SizedBox(height: AppSpacing.sm),
           AppPressable(
@@ -259,7 +264,9 @@ class PickerField extends StatelessWidget {
             child: Container(
               constraints: const BoxConstraints(minHeight: 52),
               padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.md, vertical: AppSpacing.md),
+                horizontal: AppSpacing.md,
+                vertical: AppSpacing.md,
+              ),
               decoration: BoxDecoration(
                 color: colors.surface,
                 borderRadius: BorderRadius.circular(AppRadii.field),
@@ -281,17 +288,20 @@ class PickerField extends StatelessWidget {
                     ),
                   ),
                   ChevronGlyph(
-                      direction: ChevronDirection.down,
-                      size: 15,
-                      color: colors.textSecondary),
+                    direction: ChevronDirection.down,
+                    size: 15,
+                    color: colors.textSecondary,
+                  ),
                 ],
               ),
             ),
           ),
           if (hasError) ...[
             const SizedBox(height: AppSpacing.xs),
-            Text(errorText!,
-                style: typography.caption.copyWith(color: colors.danger)),
+            Text(
+              errorText!,
+              style: typography.caption.copyWith(color: colors.danger),
+            ),
           ],
         ],
       ),

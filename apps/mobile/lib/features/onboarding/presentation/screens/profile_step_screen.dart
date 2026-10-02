@@ -153,7 +153,7 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
         _photoMissing(user)) {
       return;
     }
-    final ProfileInput profile = user.isAttorney
+    final profile = user.isAttorney
         ? AttorneyProfileInput(
             firstName: _first.text,
             lastName: _last.text,
@@ -207,9 +207,11 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
     Future<void> pickStates() async {
       final result = await OptionPickerSheet.show(
         context,
-        title: t.t(attorney
-            ? 'onboarding.profile.licensedStates'
-            : 'onboarding.profile.state'),
+        title: t.t(
+          attorney
+              ? 'onboarding.profile.licensedStates'
+              : 'onboarding.profile.state',
+        ),
         options: stateOptions,
         initial: _states,
         multi: attorney,
@@ -239,16 +241,20 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
 
     return OnboardingScaffold(
       step: OnboardingStepId.profile,
-      title: t.t(attorney
-          ? 'onboarding.profile.title.attorney'
-          : assistant
-              ? 'onboarding.role.assistant.title'
-              : 'onboarding.profile.title.client'),
-      subtitle: t.t(attorney
-          ? 'onboarding.profile.subtitle.attorney'
-          : assistant
-              ? 'onboarding.role.assistant.body'
-              : 'onboarding.profile.subtitle.client'),
+      title: t.t(
+        attorney
+            ? 'onboarding.profile.title.attorney'
+            : assistant
+                ? 'onboarding.role.assistant.title'
+                : 'onboarding.profile.title.client',
+      ),
+      subtitle: t.t(
+        attorney
+            ? 'onboarding.profile.subtitle.attorney'
+            : assistant
+                ? 'onboarding.role.assistant.body'
+                : 'onboarding.profile.subtitle.client',
+      ),
       onBack: () =>
           context.go(OnboardingRoutes.forStep(OnboardingStepId.contacts)),
       error: action.error,
@@ -288,16 +294,19 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
         ),
         const SizedBox(height: AppSpacing.xs),
         Text(
-          t.t(attorney
-              ? 'onboarding.profile.realNameHint.attorney'
-              : 'onboarding.profile.realNameHint'),
+          t.t(
+            attorney
+                ? 'onboarding.profile.realNameHint.attorney'
+                : 'onboarding.profile.realNameHint',
+          ),
           style: Theme.of(context)
               .extension<AppTypographyTokens>()!
               .caption
               .copyWith(
-                  color: Theme.of(context)
-                      .extension<AppColorTokens>()!
-                      .textSecondary),
+                color: Theme.of(context)
+                    .extension<AppColorTokens>()!
+                    .textSecondary,
+              ),
         ),
         const SizedBox(height: AppSpacing.lg),
         if (attorney) ...[
@@ -320,24 +329,26 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
           const SizedBox(height: AppSpacing.lg),
         ],
         if (!assistant) ...[
-        PickerField(
-          label: t.t(attorney
-              ? 'onboarding.profile.licensedStates'
-              : 'onboarding.profile.state'),
-          placeholder: t.t('onboarding.profile.select'),
-          value: statesValue,
-          errorText: statesError,
-          onTap: pickStates,
-        ),
-        const SizedBox(height: AppSpacing.lg),
-        PickerField(
-          label: t.t('onboarding.profile.languages'),
-          placeholder: t.t('onboarding.profile.select'),
-          value: _languages.isEmpty
-              ? null
-              : _languages.map(languageLabel).join(', '),
-          onTap: pickLanguages,
-        ),
+          PickerField(
+            label: t.t(
+              attorney
+                  ? 'onboarding.profile.licensedStates'
+                  : 'onboarding.profile.state',
+            ),
+            placeholder: t.t('onboarding.profile.select'),
+            value: statesValue,
+            errorText: statesError,
+            onTap: pickStates,
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          PickerField(
+            label: t.t('onboarding.profile.languages'),
+            placeholder: t.t('onboarding.profile.select'),
+            value: _languages.isEmpty
+                ? null
+                : _languages.map(languageLabel).join(', '),
+            onTap: pickLanguages,
+          ),
         ],
         if (!attorney && !assistant) ...[
           const SizedBox(height: AppSpacing.xl),
@@ -355,7 +366,8 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
                     selected: _contactMethod == m,
                     height: AppSizes.touchTarget,
                     onTap: () => setState(
-                        () => _contactMethod = _contactMethod == m ? null : m),
+                      () => _contactMethod = _contactMethod == m ? null : m,
+                    ),
                   ),
                 ),
             ],

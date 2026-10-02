@@ -20,3 +20,10 @@ analyzer:
 linter:
   rules:
     public_member_api_docs: false
+    # pubspec.yaml groups its dependencies with explanatory comments, not A→Z.
+    sort_pub_dependencies: false
+
+# Audit 2026-10-02: keep the trailing commas the `require_trailing_commas`
+# lint asks for (dart format would otherwise strip them again).
+formatter:
+  trailing_commas: preserve

@@ -77,8 +77,11 @@ class AttorneyVerificationStepScreen extends ConsumerWidget {
 /// Vertical checklist with a connecting rail — also reused by the Mine
 /// tab's verification banner.
 class VerificationChecklist extends StatelessWidget {
-  const VerificationChecklist(
-      {required this.items, required this.statusLabels, super.key});
+  const VerificationChecklist({
+    required this.items,
+    required this.statusLabels,
+    super.key,
+  });
 
   final List<(String title, String? description, ChecklistStatus status)> items;
   final Map<ChecklistStatus, String> statusLabels;
@@ -105,7 +108,8 @@ class VerificationChecklist extends StatelessWidget {
                             child: Container(
                               width: 2,
                               margin: const EdgeInsets.symmetric(
-                                  vertical: AppSpacing.xs),
+                                vertical: AppSpacing.xs,
+                              ),
                               color: items[i].$3 == ChecklistStatus.done
                                   ? colors.gold
                                   : colors.border,
@@ -117,7 +121,8 @@ class VerificationChecklist extends StatelessWidget {
                     Expanded(
                       child: Padding(
                         padding: EdgeInsets.only(
-                            bottom: i < items.length - 1 ? AppSpacing.xl : 0),
+                          bottom: i < items.length - 1 ? AppSpacing.xl : 0,
+                        ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -177,21 +182,28 @@ class _StatusDot extends StatelessWidget {
       ChecklistStatus.done => (
           colors.gold,
           colors.gold,
-          AppIcon(AppIcons.checkRounded, size: AppSizes.iconSm, color: colors.navy)
-              as Widget,
+          AppIcon(
+            AppIcons.checkRounded,
+            size: AppSizes.iconSm,
+            color: colors.navy,
+          ) as Widget,
         ),
       ChecklistStatus.next => (
           colors.goldTint,
           colors.gold,
-          Text(index.toString(),
-                  style: typography.caption.copyWith(color: colors.goldDark))
-              as Widget,
+          Text(
+            index.toString(),
+            style: typography.caption.copyWith(color: colors.goldDark),
+          ) as Widget,
         ),
       ChecklistStatus.locked => (
           colors.surface,
           colors.border,
-          AppIcon(AppIcons.lockOutlineRounded,
-              size: AppSpacing.lg, color: colors.textSecondary) as Widget,
+          AppIcon(
+            AppIcons.lockOutlineRounded,
+            size: AppSpacing.lg,
+            color: colors.textSecondary,
+          ) as Widget,
         ),
     };
     return ExcludeSemantics(

@@ -112,7 +112,9 @@ class _ActiveDevicesScreenState extends ConsumerState<ActiveDevicesScreen> {
       // Rows stay on screen; just say why they didn't update.
       if (mounted) {
         showAppSnackBar(
-            context, errorText(ref.read(translatorProvider), error));
+          context,
+          errorText(ref.read(translatorProvider), error),
+        );
       }
     }
   }

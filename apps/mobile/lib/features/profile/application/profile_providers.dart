@@ -181,10 +181,12 @@ class ReviewsListController extends AsyncNotifier<ReviewsListState> {
     }
     state = AsyncData(current.copyWith(status: AppPaginationStatus.loading));
     try {
-      final page = await ref.read(reviewsRepositoryProvider).list(attorneyId,
-          cursor: current.nextCursor,
-          rating: key.rating,
-          sort: key.sort);
+      final page = await ref.read(reviewsRepositoryProvider).list(
+            attorneyId,
+            cursor: current.nextCursor,
+            rating: key.rating,
+            sort: key.sort,
+          );
       if (!ref.mounted) return;
       state = AsyncData(
         current.copyWith(
@@ -217,7 +219,7 @@ final reviewsListProvider = AsyncNotifierProvider.autoDispose
 /// (Never `t.t()` directly — practice keys live in the server bundle, and
 /// the compiled-in translator asserts on a missing key.)
 String localizedName(Translator t, String i18nKey, String fallback) {
-  final String? value = switch (t) {
+  final value = switch (t) {
     final L10nTranslator l => l.lookup(i18nKey),
     final StaticTranslatorEn s => s.seedEntries[i18nKey],
     final StaticTranslatorRu s => s.seedEntries[i18nKey],

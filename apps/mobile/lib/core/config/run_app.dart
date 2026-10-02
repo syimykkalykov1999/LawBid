@@ -2,17 +2,16 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/app.dart';
+import 'package:lawbid/core/app_update/app_version.dart';
+import 'package:lawbid/core/audio/app_sounds.dart';
+import 'package:lawbid/core/config/app_environment.dart';
+import 'package:lawbid/core/deeplinks/deep_link_controller.dart';
+import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/persistence/persistence_providers.dart';
+import 'package:lawbid/features/calls/application/call_controller.dart';
+import 'package:lawbid/features/calls/application/callkit_bridge.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
-import '../../app.dart';
-import '../audio/app_sounds.dart';
-import '../../features/calls/application/call_controller.dart';
-import '../../features/calls/application/callkit_bridge.dart';
-import '../app_update/app_version.dart';
-import '../deeplinks/deep_link_controller.dart';
-import '../l10n/l10n_providers.dart';
-import '../persistence/persistence_providers.dart';
-import 'app_environment.dart';
 
 /// Shared body of every entry point (`lib/main_dev.dart`,
 /// `lib/main_staging.dart`, `lib/main_prod.dart`; `lib/main.dart` = dev):
@@ -59,6 +58,10 @@ Future<void> runLawBid(AppFlavor flavor) async {
   // screen (stage 1.7 mobile, docs/01_FOUNDATION_AUTH.md §10.2 A; see
   // AppStartupController). AppRouterGuard holds every route at `/splash`
   // until it finishes, so there is no first-redirect race.
-  runApp(UncontrolledProviderScope(
-      container: container, child: const LawBidApp()));
+  runApp(
+    UncontrolledProviderScope(
+      container: container,
+      child: const LawBidApp(),
+    ),
+  );
 }

@@ -59,8 +59,7 @@ class OnboardingScaffold extends ConsumerWidget {
     final t = ref.watch(translatorProvider);
     final role = ref.watch(currentUserRoleProvider);
     final blocker = ref.watch(onboardingBlockerProvider);
-    final shownError =
-        error ?? (blocker?.step == step ? blocker!.error : null);
+    final shownError = error ?? (blocker?.step == step ? blocker!.error : null);
     final order = OnboardingStepId.orderFor(role);
     final index = order.indexOf(step);
     final current = index < 0 ? order.length : index + 1;
@@ -82,11 +81,14 @@ class OnboardingScaffold extends ConsumerWidget {
                 children: [
                   if (onBack != null)
                     AppBackButton(
-                        semanticLabel: t.t('common.back'), onPressed: onBack!)
+                      semanticLabel: t.t('common.back'),
+                      onPressed: onBack!,
+                    )
                   else
                     const SizedBox(
-                        width: AppSizes.touchTarget,
-                        height: AppSizes.touchTarget),
+                      width: AppSizes.touchTarget,
+                      height: AppSizes.touchTarget,
+                    ),
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
                     child: AppStepProgress(
@@ -114,9 +116,11 @@ class OnboardingScaffold extends ConsumerWidget {
                   children: staggeredEntrance([
                     Semantics(
                       header: true,
-                      child: Text(title,
-                          style: typography.titleLarge
-                              .copyWith(color: colors.text)),
+                      child: Text(
+                        title,
+                        style:
+                            typography.titleLarge.copyWith(color: colors.text),
+                      ),
                     ),
                     if (subtitle != null) ...[
                       const SizedBox(height: AppSpacing.sm),
@@ -206,14 +210,18 @@ class ActionErrorBanner extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               AppIcon(
-                offline ? AppIcons.wifiOffRounded : AppIcons.errorOutlineRounded,
+                offline
+                    ? AppIcons.wifiOffRounded
+                    : AppIcons.errorOutlineRounded,
                 size: AppSizes.iconSm,
                 color: offline ? colors.goldDark : colors.danger,
               ),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
-                child: Text(message,
-                    style: typography.bodySmall.copyWith(color: colors.text)),
+                child: Text(
+                  message,
+                  style: typography.bodySmall.copyWith(color: colors.text),
+                ),
               ),
             ],
           ),
@@ -237,8 +245,10 @@ class StepSectionLabel extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: AppSpacing.sm),
       child: Semantics(
         header: true,
-        child: Text(text,
-            style: typography.caption.copyWith(color: colors.textSecondary)),
+        child: Text(
+          text,
+          style: typography.caption.copyWith(color: colors.textSecondary),
+        ),
       ),
     );
   }

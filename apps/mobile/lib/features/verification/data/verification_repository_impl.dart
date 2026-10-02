@@ -145,7 +145,7 @@ String isoDay(DateTime d) => '${d.year.toString().padLeft(4, '0')}-'
     '${d.day.toString().padLeft(2, '0')}';
 
 /// docs/03 §2.2 pre-signed upload. The storage POST goes through
-/// [storageDio] — a bare client WITHOUT the app's interceptors: the bearer
+/// `storageDio` — a bare client WITHOUT the app's interceptors: the bearer
 /// token must never reach the storage host, and S3 refuses a POST-policy
 /// upload that also carries an Authorization header.
 class FileUploadRepositoryImpl implements FileUploadRepository {

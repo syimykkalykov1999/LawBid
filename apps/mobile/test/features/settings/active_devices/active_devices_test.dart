@@ -49,6 +49,7 @@ class _PagedRepo implements ActiveDevicesRepository {
     final error = failNext;
     if (error != null) {
       failNext = null;
+      // ignore: only_throw_errors
       throw error;
     }
     if (failOnce.remove(cursor)) throw _network;
@@ -109,7 +110,9 @@ void main() {
       expect(info.hasName, isFalse);
       expect(info.lastActiveAt, isNull);
       expect(
-          info.createdAt, DateTime.fromMillisecondsSinceEpoch(0, isUtc: true));
+        info.createdAt,
+        DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+      );
     });
   });
 
@@ -134,11 +137,11 @@ void main() {
         ..httpClientAdapter = adapter;
       repo = ActiveDevicesRepositoryImpl(
         ActiveDevicesApiClient(dio),
-        StubAuthRepository(),
+        const StubAuthRepository(),
       );
     });
 
-    test('today\'s API (plain list, no meta) → one page, no cursor', () async {
+    test("today's API (plain list, no meta) → one page, no cursor", () async {
       final page = await repo.fetchPage();
       expect(page.items.single.sessionId, 'a');
       expect(page.hasMore, isFalse);
@@ -162,7 +165,8 @@ void main() {
       await expectLater(
         repo.fetchPage(),
         throwsA(
-            isA<ApiException>().having((e) => e.isNetworkError, 'net', true)),
+          isA<ApiException>().having((e) => e.isNetworkError, 'net', true),
+        ),
       );
     });
 
@@ -195,8 +199,9 @@ void main() {
     setUp(() {
       repo = _PagedRepo({
         null: CursorPage(
-            items: [_session('1', current: true), _session('2')],
-            nextCursor: 'c2'),
+          items: [_session('1', current: true), _session('2')],
+          nextCursor: 'c2',
+        ),
         'c2': CursorPage(items: [_session('2'), _session('3')]),
       });
       container = make();
@@ -209,8 +214,11 @@ void main() {
 
       await ctrl().loadMore();
       expect(repo.requested, [null, 'c2']);
-      expect(value().items.map((s) => s.sessionId), ['1', '2', '3'],
-          reason: 'overlapping row 2 is not duplicated');
+      expect(
+        value().items.map((s) => s.sessionId),
+        ['1', '2', '3'],
+        reason: 'overlapping row 2 is not duplicated',
+      );
       expect(value().hasMore, isFalse);
 
       await ctrl().loadMore();
@@ -295,7 +303,7 @@ void main() {
 
     testWidgets('loading shows skeleton cards, not a spinner', (tester) async {
       final repo = _PagedRepo({
-        null: CursorPage(items: [_session('1')])
+        null: CursorPage(items: [_session('1')]),
       })
         ..hold = Completer<void>();
       await pumpScreen(tester, repo);
@@ -349,7 +357,7 @@ void main() {
     testWidgets('offline with nothing loaded → offline state with Retry',
         (tester) async {
       final repo = _PagedRepo({
-        null: CursorPage(items: [_session('1')])
+        null: CursorPage(items: [_session('1')]),
       })
         ..failNext = _network;
       await pumpScreen(tester, repo);
@@ -364,7 +372,7 @@ void main() {
         (tester) async {
       final monitor = FakeNetworkMonitor();
       final repo = _PagedRepo({
-        null: CursorPage(items: [_session('1')])
+        null: CursorPage(items: [_session('1')]),
       })
         ..failNext = _network;
       await tester.pumpWidget(
@@ -394,7 +402,7 @@ void main() {
 
     testWidgets('server error → error state with Retry', (tester) async {
       final repo = _PagedRepo({
-        null: CursorPage(items: [_session('1')])
+        null: CursorPage(items: [_session('1')]),
       })
         ..failNext = const ApiException(code: 'INTERNAL', message: 'x');
       await pumpScreen(tester, repo);

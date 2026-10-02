@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:lawbid/features/team/team_routes.dart';
-import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
@@ -12,6 +11,7 @@ import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/features/team/presentation/task_editor_screen.dart'
     show normalizeTaskPhone;
 import 'package:lawbid/features/team/presentation/task_widgets.dart';
+import 'package:lawbid/features/team/team_routes.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Opens a task: everything about it and — for the attorney — take /
@@ -146,8 +146,13 @@ class _StepEditorSheetState extends ConsumerState<StepEditorSheet> {
     final formats = ref.watch(l10nFormatsProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    Widget field(String key, TextEditingController c, String hint,
-            {TextInputType? type, IconData? icon}) =>
+    Widget field(
+      String key,
+      TextEditingController c,
+      String hint, {
+      TextInputType? type,
+      IconData? icon,
+    }) =>
         Padding(
           padding: const EdgeInsets.only(bottom: AppSpacing.sm),
           child: AppTextField(
@@ -195,30 +200,50 @@ class _StepEditorSheetState extends ConsumerState<StepEditorSheet> {
               ),
             ),
             const SizedBox(height: AppSpacing.md),
-            field('step-title', _title, t.t('tasks.steps.titleHint'),
-                icon: AppIcons.shortTextRounded),
+            field(
+              'step-title',
+              _title,
+              t.t('tasks.steps.titleHint'),
+              icon: AppIcons.shortTextRounded,
+            ),
             AppListRow(
               key: const ValueKey('step-when'),
               icon: AppIcons.scheduleRounded,
               label: _at == null
                   ? t.t('tasks.steps.pickTime')
                   : formats.dateTime(_at!),
-              showChevron: true,
               onTap: () async {
                 final at = await pickDateTime(context, initial: _at);
                 if (at != null && mounted) setState(() => _at = at);
               },
             ),
             const SizedBox(height: AppSpacing.sm),
-            field('step-place', _place, t.t('tasks.steps.placeHint'),
-                icon: AppIcons.placeOutlined),
-            field('step-name', _name, t.t('tasks.steps.whoHint'),
-                icon: AppIcons.personOutlineRounded),
-            field('step-phone', _phone, '+1 312 555 0123',
-                type: TextInputType.phone, icon: AppIcons.callOutlined),
-            field('step-email', _email, 'name@example.com',
-                type: TextInputType.emailAddress,
-                icon: AppIcons.mailOutlineRounded),
+            field(
+              'step-place',
+              _place,
+              t.t('tasks.steps.placeHint'),
+              icon: AppIcons.placeOutlined,
+            ),
+            field(
+              'step-name',
+              _name,
+              t.t('tasks.steps.whoHint'),
+              icon: AppIcons.personOutlineRounded,
+            ),
+            field(
+              'step-phone',
+              _phone,
+              '+1 312 555 0123',
+              type: TextInputType.phone,
+              icon: AppIcons.callOutlined,
+            ),
+            field(
+              'step-email',
+              _email,
+              'name@example.com',
+              type: TextInputType.emailAddress,
+              icon: AppIcons.mailOutlineRounded,
+            ),
             if (_error != null)
               Padding(
                 padding: const EdgeInsets.only(bottom: AppSpacing.sm),
@@ -301,11 +326,13 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
     }
   }
 
-  Future<void> _toggle(TaskStep step) => _stepOp(() => _ctrl.checkStep(
-        _task,
-        step,
-        step.checked ? TaskStatus.open : TaskStatus.done,
-      ));
+  Future<void> _toggle(TaskStep step) => _stepOp(
+        () => _ctrl.checkStep(
+          _task,
+          step,
+          step.checked ? TaskStatus.open : TaskStatus.done,
+        ),
+      );
 
   Future<void> _addStep() async {
     final d = await showStepEditor(context, taskKind: _task.kind);
@@ -397,10 +424,12 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
         final r = await askTaskOutcome(context, t, done: false);
         if (r == null || !mounted) return;
         final to = r.rescheduleTo;
-        await _stepOp(() => to == null
-            ? _ctrl.checkStep(_task, step, TaskStatus.notDone, note: r.note)
-            // "Not done, move it": one request, the step stays open.
-            : _ctrl.rescheduleStep(_task, step, to, note: r.note));
+        await _stepOp(
+          () => to == null
+              ? _ctrl.checkStep(_task, step, TaskStatus.notDone, note: r.note)
+              // "Not done, move it": one request, the step stays open.
+              : _ctrl.rescheduleStep(_task, step, to, note: r.note),
+        );
       case 'move':
         final at = await pickDateTime(context, initial: step.dueAt);
         if (at != null && mounted) {
@@ -409,14 +438,16 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
       case 'call':
         await launchUrl(Uri(scheme: 'tel', path: step.contactPhone));
       case 'mail':
-        await launchUrl(Uri(
-          scheme: 'mailto',
-          path: step.contactEmail,
-          queryParameters: {'subject': step.title},
-        ));
+        await launchUrl(
+          Uri(
+            scheme: 'mailto',
+            path: step.contactEmail,
+            queryParameters: {'subject': step.title},
+          ),
+        );
       case 'map':
         await launchUrl(
-          Uri.https('maps.google.com', '/', {'q': step.location!}),
+          Uri.https('maps.google.com', '/', {'q': step.location}),
           mode: LaunchMode.externalApplication,
         );
       case 'remove':
@@ -547,7 +578,7 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
               text: task.location!,
               action: t.t('tasks.map'),
               onAction: () => launchUrl(
-                Uri.https('maps.google.com', '/', {'q': task.location!}),
+                Uri.https('maps.google.com', '/', {'q': task.location}),
                 mode: LaunchMode.externalApplication,
               ),
             ),
@@ -607,8 +638,11 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
                   TextButton.icon(
                     key: const ValueKey('task-step-add'),
                     onPressed: _addStep,
-                    icon: AppIcon(AppIcons.addRounded,
-                        size: 18, color: colors.goldDark),
+                    icon: AppIcon(
+                      AppIcons.addRounded,
+                      size: 18,
+                      color: colors.goldDark,
+                    ),
                     label: Text(
                       t.t('tasks.steps.add'),
                       style: TextStyle(color: colors.goldDark),
@@ -684,8 +718,11 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  AppIcon(AppIcons.chatBubbleOutlineRounded,
-                      size: AppSizes.iconSm, color: colors.gold),
+                  AppIcon(
+                    AppIcons.chatBubbleOutlineRounded,
+                    size: AppSizes.iconSm,
+                    color: colors.gold,
+                  ),
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
                     child: Text(
@@ -825,9 +862,11 @@ class _InfoRow extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: AppSpacing.sm),
       child: Row(
         children: [
-          AppIcon(icon,
-              size: AppSizes.iconSm,
-              color: danger ? colors.dangerText : colors.textSecondary),
+          AppIcon(
+            icon,
+            size: AppSizes.iconSm,
+            color: danger ? colors.dangerText : colors.textSecondary,
+          ),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Text(
@@ -872,8 +911,10 @@ class _FileTile extends StatelessWidget {
                   children: [
                     AppIcon(AppIcons.descriptionOutlined, color: colors.gold),
                     const SizedBox(height: 4),
-                    Text('#$index',
-                        style: TextStyle(color: colors.textSecondary)),
+                    Text(
+                      '#$index',
+                      style: TextStyle(color: colors.textSecondary),
+                    ),
                   ],
                 ),
         ),
@@ -958,10 +999,12 @@ class _OutcomeSheetState extends ConsumerState<_OutcomeSheet> {
           AppButton(
             key: const ValueKey('task-outcome-save'),
             label: t.t('common.save'),
-            onPressed: () => Navigator.of(context).pop((
-              note: _note.text.trim().isEmpty ? null : _note.text.trim(),
-              rescheduleTo: _move,
-            )),
+            onPressed: () => Navigator.of(context).pop(
+              (
+                note: _note.text.trim().isEmpty ? null : _note.text.trim(),
+                rescheduleTo: _move,
+              ),
+            ),
           ),
         ],
       ),

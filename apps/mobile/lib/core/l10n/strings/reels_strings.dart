@@ -1,3 +1,4 @@
+// ignore_for_file: lines_longer_than_80_chars
 // Owner 2026-10-01: reels (Bunny Stream) and Telegram-style stickers —
 // compiled-in strings merged into StaticTranslatorRu/En.
 
@@ -29,7 +30,8 @@ const reelsRu = <String, String>{
       'Выключено: сообщения, звонки и уведомления этой категории приходят, но без звука, push и счётчика.',
   'assistant.paused':
       'Подписка адвоката {name} закончилась. Работа в его аккаунте откроется, как только он её продлит.',
-  'error.api.CALL_STATE_CONFLICT': 'На звонок уже ответили на другом устройстве',
+  'error.api.CALL_STATE_CONFLICT':
+      'На звонок уже ответили на другом устройстве',
   'error.api.CALL_NOT_FOUND': 'Звонок уже завершён',
   'stickers.tab.emoji': 'Эмодзи',
   'stickers.tab.stickers': 'Стикеры',

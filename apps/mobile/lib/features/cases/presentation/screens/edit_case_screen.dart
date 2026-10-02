@@ -103,8 +103,9 @@ class _EditFormState extends ConsumerState<_EditForm> {
       setState(() {
         _saving = false;
         _error = e;
-        if (e.code == ApiErrorCodes.caseContainsContactInfo)
+        if (e.code == ApiErrorCodes.caseContainsContactInfo) {
           _index = _steps.indexOf(1);
+        }
       });
     }
   }
@@ -121,7 +122,10 @@ class _EditFormState extends ConsumerState<_EditForm> {
     final Widget step = switch (_step) {
       0 => PracticeStep(draft: _draft, onChange: _change),
       1 => EssenceStep(
-          draft: _draft, onChange: _change, contactError: contactError),
+          draft: _draft,
+          onChange: _change,
+          contactError: contactError,
+        ),
       2 => PlaceStep(
           draft: _draft,
           onChange: _change,

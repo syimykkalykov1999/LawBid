@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/feature_flags/legal_document.dart';
 import 'package:lawbid/core/l10n/app_language.dart';
-import 'package:lawbid/core/l10n/language_providers.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/l10n/language_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/onboarding/application/onboarding_actions.dart';
 import 'package:lawbid/features/onboarding/domain/consent_type.dart';
@@ -32,7 +31,7 @@ class ConsentsStepScreen extends ConsumerStatefulWidget {
 
 class _ConsentsStepScreenState extends ConsumerState<ConsentsStepScreen> {
   final Map<ConsentType, bool> _values = {
-    for (final c in ConsentType.requiredTypes) c: false
+    for (final c in ConsentType.requiredTypes) c: false,
   };
   bool _attempted = false;
 
@@ -73,7 +72,6 @@ class _ConsentsStepScreenState extends ConsumerState<ConsentsStepScreen> {
     bool missing(ConsentType c) => _attempted && !_values[c]!;
     final termsAccepted =
         _values[ConsentType.terms]! && _values[ConsentType.privacy]!;
-
 
     return OnboardingScaffold(
       step: OnboardingStepId.consents,
@@ -167,7 +165,9 @@ class _DocLink extends StatelessWidget {
           child: Container(
             constraints: const BoxConstraints(minHeight: AppSizes.hitTarget),
             padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+              horizontal: AppSpacing.md,
+              vertical: AppSpacing.sm,
+            ),
             decoration: BoxDecoration(
               color: colors.surface,
               borderRadius: BorderRadius.circular(AppRadii.card),
@@ -178,8 +178,11 @@ class _DocLink extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                AppIcon(AppIcons.descriptionOutlined,
-                    size: AppSizes.iconSm, color: colors.gold),
+                AppIcon(
+                  AppIcons.descriptionOutlined,
+                  size: AppSizes.iconSm,
+                  color: colors.gold,
+                ),
                 const SizedBox(width: AppSpacing.sm),
                 Flexible(
                   child: Text(

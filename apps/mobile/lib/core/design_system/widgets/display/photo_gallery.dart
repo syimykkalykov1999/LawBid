@@ -81,7 +81,10 @@ class _GalleryState extends State<_Gallery> {
                 children: [
                   IconButton(
                     tooltip: widget.closeLabel,
-                    icon: const AppIcon(AppIcons.closeRounded, color: Colors.white),
+                    icon: const AppIcon(
+                      AppIcons.closeRounded,
+                      color: Colors.white,
+                    ),
                     onPressed: () => Navigator.of(context).pop(),
                   ),
                   const Spacer(),
@@ -91,7 +94,9 @@ class _GalleryState extends State<_Gallery> {
                       child: Text(
                         '${_page + 1} / ${widget.urls.length}',
                         style: const TextStyle(
-                            color: Colors.white, fontWeight: FontWeight.w600),
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                 ],

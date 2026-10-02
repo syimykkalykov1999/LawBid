@@ -28,7 +28,8 @@ class FakeHttpAdapter implements HttpClientAdapter {
   void close({bool force = false}) {}
 }
 
-ResponseBody jsonBody(Object? body, [int status = 200]) => ResponseBody.fromString(
+ResponseBody jsonBody(Object? body, [int status = 200]) =>
+    ResponseBody.fromString(
       jsonEncode(body),
       status,
       headers: {
@@ -40,12 +41,23 @@ ResponseBody jsonBody(Object? body, [int status = 200]) => ResponseBody.fromStri
 ResponseBody ok(Object? data) => jsonBody({'data': data});
 
 /// `{error: {code, message, details}}` error envelope (docs/01 §7).
-ResponseBody apiError(int status, String code, [Map<String, dynamic>? details]) => jsonBody(
+ResponseBody apiError(
+  int status,
+  String code, [
+  Map<String, dynamic>? details,
+]) =>
+    jsonBody(
       {
-        'error': {'code': code, 'message': code, if (details != null) 'details': details},
+        'error': {
+          'code': code,
+          'message': code,
+          if (details != null) 'details': details,
+        },
       },
       status,
     );
 
-Never throwConnectionError(RequestOptions o) =>
-    throw DioException(requestOptions: o, type: DioExceptionType.connectionError);
+Never throwConnectionError(RequestOptions o) => throw DioException(
+      requestOptions: o,
+      type: DioExceptionType.connectionError,
+    );

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -81,8 +80,9 @@ class AvatarUploadController extends Notifier<AvatarUploadState> {
     try {
       final mime = sniffImageMime(bytes);
       if (mime == null) throw _local(ApiErrorCodes.fileTypeNotAllowed);
-      if (bytes.length > kAvatarMaxBytes)
+      if (bytes.length > kAvatarMaxBytes) {
         throw _local(ApiErrorCodes.fileTooLarge);
+      }
       final target = await repo.presign(
         mime: mime,
         sizeBytes: bytes.length,
@@ -105,19 +105,26 @@ class AvatarUploadController extends Notifier<AvatarUploadState> {
         outcome = await repo.scanStatus(target.fileId);
       }
       if (cancellation.isCancelled) return;
-      if (outcome != ScanOutcome.clean)
+      if (outcome != ScanOutcome.clean) {
         throw _local(ApiErrorCodes.fileNotAttachable);
+      }
       final me = await repo.attach(target.fileId);
       if (!ref.mounted) return;
       ref.read(currentUserControllerProvider.notifier).apply(me);
       state = AvatarUploadState(
-          stage: AvatarUploadStage.done, progress: 1, preview: bytes);
+        stage: AvatarUploadStage.done,
+        progress: 1,
+        preview: bytes,
+      );
     } on UploadCancelledException {
       return;
     } catch (e) {
       if (ref.mounted && !cancellation.isCancelled) {
         state = AvatarUploadState(
-            stage: AvatarUploadStage.failed, preview: bytes, error: e);
+          stage: AvatarUploadStage.failed,
+          preview: bytes,
+          error: e,
+        );
       }
     } finally {
       if (identical(_cancellation, cancellation)) _cancellation = null;
@@ -127,7 +134,10 @@ class AvatarUploadController extends Notifier<AvatarUploadState> {
   void _set(AvatarUploadStage stage, double progress) {
     if (!ref.mounted) return;
     state = AvatarUploadState(
-        stage: stage, progress: progress, preview: state.preview);
+      stage: stage,
+      progress: progress,
+      preview: state.preview,
+    );
   }
 }
 

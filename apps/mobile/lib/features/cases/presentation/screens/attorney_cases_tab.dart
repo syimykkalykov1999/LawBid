@@ -1,23 +1,22 @@
 import 'package:flutter/material.dart';
-import 'package:lawbid/features/onboarding/domain/us_states.dart';
-import 'package:lawbid/features/feed/application/feed_topics.dart';
-import 'package:lawbid/features/social/presentation/widgets/post_card.dart'
-    show feedCardHeight;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
-import 'package:lawbid/features/feed/presentation/widgets/topic_filter_bar.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_cards.dart';
+import 'package:lawbid/features/feed/application/feed_topics.dart';
+import 'package:lawbid/features/feed/presentation/widgets/topic_filter_bar.dart';
+import 'package:lawbid/features/onboarding/domain/us_states.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/screens/verification_required_screen.dart';
+import 'package:lawbid/features/social/presentation/widgets/post_card.dart'
+    show feedCardHeight;
 
 /// The attorney's chosen practices (feed filter options, §4.2 "из своих
 /// выбранных").
@@ -45,7 +44,8 @@ class _AttorneyCasesTabState extends ConsumerState<AttorneyCasesTab> {
     final t = ref.watch(translatorProvider);
     if (ref.watch(attorneyNeedsVerificationProvider)) {
       return const VerificationRequiredView(
-          reason: VerificationGateReason.cases);
+        reason: VerificationGateReason.cases,
+      );
     }
     final practices = ref.watch(myPracticesProvider);
     final profile = ref.watch(ownAttorneyProfileProvider);
@@ -62,8 +62,9 @@ class _AttorneyCasesTabState extends ConsumerState<AttorneyCasesTab> {
           ..invalidate(ownAttorneyProfileProvider),
       );
     }
-    if (!practices.hasValue || !profile.hasValue)
+    if (!practices.hasValue || !profile.hasValue) {
       return const CasesListSkeleton();
+    }
 
     final myPractices = practices.requireValue;
     final licensed = [
@@ -113,55 +114,57 @@ class _AttorneyCasesTabState extends ConsumerState<AttorneyCasesTab> {
           allowedStates: licensed,
         ),
         Expanded(
-          child: LayoutBuilder(builder: (context, box) {
-            final height = feedCardHeight(box.maxHeight);
-            return PagedListBody<FeedCase>(
-              value: value,
-              t: t,
-              edgeToEdge: true,
-              itemKey: (c) => c.id,
-              onRefresh: n.refresh,
-              onLoadMore: n.loadMore,
-              onRetryMore: n.retryLoadMore,
-              // Audit 2026-10-01: the empty state names the active filters
-              // and offers to clear them.
-              empty: _category == null && _state == null
-                  ? AppEmptyState(
-                      icon: AppIcons.inboxOutlined,
-                      title: t.t('cases.feed.emptyTitle'),
-                      message: t.t('cases.feed.emptyMessage'),
-                    )
-                  : AppEmptyState(
-                      icon: AppIcons.filterAltOffOutlined,
-                      title: t.t('cases.feed.emptyFiltered'),
-                      message: [
-                        if (_category != null)
-                          _category == kNotSureTopic
-                              ? t.t('feed.topics.notSure')
-                              : topicName(ref, _category!),
-                        if (_state != null)
-                          usStateByCode(_state)?.name ?? _state!,
-                      ].join(' · '),
-                      action: AppButton(
-                        key: const ValueKey('cases-clear-filters'),
-                        label: t.t('feed.filters.clear'),
-                        variant: AppButtonVariant.secondary,
-                        height: AppSizes.touchTarget,
-                        onPressed: () => setState(() {
-                          _category = null;
-                          _state = null;
-                        }),
-                      ),
-                    ),
-              itemBuilder: (context, c, _) => FeedCaseCard(
-                item: c,
+          child: LayoutBuilder(
+            builder: (context, box) {
+              final height = feedCardHeight(box.maxHeight);
+              return PagedListBody<FeedCase>(
+                value: value,
                 t: t,
-                formats: formats,
-                onTap: () => context.push(AppRoutes.caseDetail(c.id)),
-                feedHeight: height,
-              ),
-            );
-          }),
+                edgeToEdge: true,
+                itemKey: (c) => c.id,
+                onRefresh: n.refresh,
+                onLoadMore: n.loadMore,
+                onRetryMore: n.retryLoadMore,
+                // Audit 2026-10-01: the empty state names the active filters
+                // and offers to clear them.
+                empty: _category == null && _state == null
+                    ? AppEmptyState(
+                        title: t.t('cases.feed.emptyTitle'),
+                        message: t.t('cases.feed.emptyMessage'),
+                      )
+                    : AppEmptyState(
+                        icon: AppIcons.filterAltOffOutlined,
+                        title: t.t('cases.feed.emptyFiltered'),
+                        message: [
+                          if (_category != null)
+                            // ignore: prefer_if_elements_to_conditional_expressions
+                            _category == kNotSureTopic
+                                ? t.t('feed.topics.notSure')
+                                : topicName(ref, _category!),
+                          if (_state != null)
+                            usStateByCode(_state)?.name ?? _state!,
+                        ].join(' · '),
+                        action: AppButton(
+                          key: const ValueKey('cases-clear-filters'),
+                          label: t.t('feed.filters.clear'),
+                          variant: AppButtonVariant.secondary,
+                          height: AppSizes.touchTarget,
+                          onPressed: () => setState(() {
+                            _category = null;
+                            _state = null;
+                          }),
+                        ),
+                      ),
+                itemBuilder: (context, c, _) => FeedCaseCard(
+                  item: c,
+                  t: t,
+                  formats: formats,
+                  onTap: () => context.push(AppRoutes.caseDetail(c.id)),
+                  feedHeight: height,
+                ),
+              );
+            },
+          ),
         ),
       ],
     );

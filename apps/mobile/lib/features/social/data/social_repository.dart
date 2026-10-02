@@ -39,6 +39,7 @@ class PostDraft {
 
   final String title;
   final String body;
+
   /// Owner 2026-10-01: optional (general news has no area of law).
   final String? practiceCode;
   final bool isNews;
@@ -240,7 +241,8 @@ class ApiSocialRepository implements SocialRepository {
 
   @override
   Future<Post> post(String id) async => SocialMappers.post(
-      (await guardApiCall(() => _posts.getPost(id: id))).data);
+        (await guardApiCall(() => _posts.getPost(id: id))).data,
+      );
 
   @override
   Future<CursorPage<Post>> attorneyPosts(
@@ -701,7 +703,7 @@ abstract final class SocialMappers {
         body: d.body,
         media: [
           for (final m in [
-            ...d.media
+            ...d.media,
           ]..sort((a, b) => a.position.compareTo(b.position)))
             PostMedia(
               fileId: m.fileId,
@@ -726,7 +728,7 @@ abstract final class SocialMappers {
               ),
         likeCount: d.likeCount,
         commentCount: d.commentCount,
-        shareCount: d.shareCount.toInt(),
+        shareCount: d.shareCount,
         likedByMe: d.likedByMe,
         savedByMe: d.savedByMe,
         isMine: d.isMine,

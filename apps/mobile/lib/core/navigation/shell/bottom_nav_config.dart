@@ -1,8 +1,6 @@
-
-import '../../../shared/domain/user_role.dart';
-import '../../design_system/widgets/bars/app_bottom_nav.dart';
-import '../../l10n/translator.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/shared/domain/user_role.dart';
 
 /// Role affects bottom-nav CONTENT only, never route topology (file 01 §3):
 /// both roles get the same 4 shell branches (Лента/Поиск/Моё/Профиль), just

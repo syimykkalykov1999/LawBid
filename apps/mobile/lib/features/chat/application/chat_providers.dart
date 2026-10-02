@@ -1,12 +1,9 @@
-import 'package:flutter/services.dart' show HapticFeedback;
-import 'package:lawbid/features/stickers/application/stickers_providers.dart';
-import 'package:lawbid/features/stickers/domain/sticker_models.dart';
-import 'dart:typed_data';
+// ignore_for_file: lines_longer_than_80_chars
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'package:lawbid/core/audio/app_sounds.dart';
 import 'package:lawbid/core/connectivity/connectivity_providers.dart';
 import 'package:lawbid/core/network/api_error.dart';
@@ -14,14 +11,17 @@ import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/features/cases/application/paged_notifier.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/chat/data/chat_repository.dart';
-import 'package:lawbid/features/chat/data/voice_files.dart';
 import 'package:lawbid/features/chat/data/realtime_client.dart';
+import 'package:lawbid/features/chat/data/voice_files.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
+import 'package:lawbid/features/notifications/application/notifications_providers.dart';
+import 'package:lawbid/features/notifications/data/notifications_repository.dart'
+    show NotifCategory;
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/data/social_local_database.dart';
+import 'package:lawbid/features/stickers/application/stickers_providers.dart';
+import 'package:lawbid/features/stickers/domain/sticker_models.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
-import 'package:lawbid/features/notifications/application/notifications_providers.dart';
-import 'package:lawbid/features/notifications/data/notifications_repository.dart' show NotifCategory;
 
 Duration? _noRetry(int retryCount, Object error) => null;
 
@@ -106,24 +106,26 @@ class FolderConversationsNotifier extends ConversationsNotifier {
       .conversations(cursor: cursor, folder: folder);
 }
 
-final folderConversationsProvider = AsyncNotifierProvider.autoDispose
-    .family<FolderConversationsNotifier, PaginatedList<Conversation>,
-        ChatListFolder>(
+final folderConversationsProvider = AsyncNotifierProvider.autoDispose.family<
+    FolderConversationsNotifier, PaginatedList<Conversation>, ChatListFolder>(
   FolderConversationsNotifier.new,
   retry: _noRetry,
 );
 
 /// Waiting / Requests badges; re-read on chat events.
 final chatFolderCountsProvider =
-    FutureProvider.autoDispose<({int waiting, int requests})>((ref) {
-  final sub = ref.watch(realtimeEventsProvider).listen((e) {
-    if (e.name == 'message:new' || e.name == 'conversation:update') {
-      ref.invalidateSelf();
-    }
-  });
-  ref.onDispose(sub.cancel);
-  return ref.watch(chatRepositoryProvider).folderCounts();
-}, retry: _noRetry);
+    FutureProvider.autoDispose<({int waiting, int requests})>(
+  (ref) {
+    final sub = ref.watch(realtimeEventsProvider).listen((e) {
+      if (e.name == 'message:new' || e.name == 'conversation:update') {
+        ref.invalidateSelf();
+      }
+    });
+    ref.onDispose(sub.cancel);
+    return ref.watch(chatRepositoryProvider).folderCounts();
+  },
+  retry: _noRetry,
+);
 
 /// After organizing a chat every folder list and the badges reload.
 void refreshChatFolders(WidgetRef ref) {
@@ -135,15 +137,18 @@ void refreshChatFolders(WidgetRef ref) {
 
 /// How many requests wait for me — the "Requests · N" row; re-read on new
 /// messages and chat updates.
-final messageRequestsCountProvider = FutureProvider.autoDispose<int>((ref) {
-  final sub = ref.watch(realtimeEventsProvider).listen((e) {
-    if (e.name == 'message:new' || e.name == 'conversation:update') {
-      ref.invalidateSelf();
-    }
-  });
-  ref.onDispose(sub.cancel);
-  return ref.watch(chatRepositoryProvider).requestsCount();
-}, retry: _noRetry);
+final messageRequestsCountProvider = FutureProvider.autoDispose<int>(
+  (ref) {
+    final sub = ref.watch(realtimeEventsProvider).listen((e) {
+      if (e.name == 'message:new' || e.name == 'conversation:update') {
+        ref.invalidateSelf();
+      }
+    });
+    ref.onDispose(sub.cancel);
+    return ref.watch(chatRepositoryProvider).requestsCount();
+  },
+  retry: _noRetry,
+);
 
 // --- Outbox (docs/05 §8.4) --------------------------------------------------
 
@@ -159,12 +164,16 @@ class OutboxSender {
           unawaited(drain());
         }
       })
-      ..listen(realtimeEventsProvider, (_, stream) {
-        _sub?.cancel();
-        _sub = stream.listen((e) {
-          if (e.name == RealtimeEvent.reconnected) unawaited(drain());
-        });
-      }, fireImmediately: true)
+      ..listen(
+        realtimeEventsProvider,
+        (_, stream) {
+          _sub?.cancel();
+          _sub = stream.listen((e) {
+            if (e.name == RealtimeEvent.reconnected) unawaited(drain());
+          });
+        },
+        fireImmediately: true,
+      )
       ..onDispose(() => _sub?.cancel());
   }
 
@@ -469,13 +478,15 @@ class ChatThread extends Notifier<ChatThreadState> {
 
   void _markVoice(ChatMessage local, DeliveryState d, String? code) {
     if (!ref.mounted) return;
-    state = state.copyWith(voiceOutbox: [
-      for (final m in state.voiceOutbox)
-        if (m.clientMessageId == local.clientMessageId)
-          m.copyWith(delivery: d, failedCode: code)
-        else
-          m,
-    ]);
+    state = state.copyWith(
+      voiceOutbox: [
+        for (final m in state.voiceOutbox)
+          if (m.clientMessageId == local.clientMessageId)
+            m.copyWith(delivery: d, failedCode: code)
+          else
+            m,
+      ],
+    );
   }
 
   /// OQ-047: a picked photo or document → a local bubble with progress →
@@ -529,6 +540,7 @@ class ChatThread extends Notifier<ChatThreadState> {
       sticker: sticker,
     );
     state = state.copyWith(voiceOutbox: [...state.voiceOutbox, local]);
+    // ignore: unawaited_futures
     HapticFeedback.selectionClick();
     await _sendSticker(local);
   }
@@ -594,13 +606,16 @@ class ChatThread extends Notifier<ChatThreadState> {
 
   void _setProgress(ChatMessage local, double p) {
     if (!ref.mounted) return;
-    state = state.copyWith(voiceOutbox: [
-      for (final m in state.voiceOutbox)
-        if (m.clientMessageId == local.clientMessageId && m.attachment != null)
-          m.copyWith(attachment: m.attachment!.copyWith(progress: p))
-        else
-          m,
-    ]);
+    state = state.copyWith(
+      voiceOutbox: [
+        for (final m in state.voiceOutbox)
+          if (m.clientMessageId == local.clientMessageId &&
+              m.attachment != null)
+            m.copyWith(attachment: m.attachment!.copyWith(progress: p))
+          else
+            m,
+      ],
+    );
   }
 
   /// OQ-040: the recipient played a note — tell the server once.
@@ -618,13 +633,15 @@ class ChatThread extends Notifier<ChatThreadState> {
 
   void _setListened(String messageId) {
     if (!ref.mounted) return;
-    state = state.copyWith(messages: [
-      for (final m in state.messages)
-        if (m.id == messageId && m.voice != null)
-          m.copyWith(voice: m.voice!.copyWith(listened: true))
-        else
-          m,
-    ]);
+    state = state.copyWith(
+      messages: [
+        for (final m in state.messages)
+          if (m.id == messageId && m.voice != null)
+            m.copyWith(voice: m.voice!.copyWith(listened: true))
+          else
+            m,
+      ],
+    );
   }
 
   Future<void> retry(ChatMessage local) async {
@@ -649,10 +666,11 @@ class ChatThread extends Notifier<ChatThreadState> {
     final db = ref.read(socialLocalDatabaseProvider);
     await db.sent(cmid);
     await db.enqueue(
-        clientMessageId: cmid,
-        ownerId: owner,
-        conversationId: id,
-        body: local.body);
+      clientMessageId: cmid,
+      ownerId: owner,
+      conversationId: id,
+      body: local.body,
+    );
     unawaited(ref.read(outboxSenderProvider).drain());
   }
 
@@ -698,6 +716,7 @@ class ChatThread extends Notifier<ChatThreadState> {
   }
 
   /// "печатает…" for the other side, at most every 2 s.
+  // ignore: avoid_positional_boolean_parameters
   void typing(bool active) {
     final rt = ref.read(realtimeClientProvider);
     if (rt == null) return;
@@ -724,9 +743,12 @@ class ChatThread extends Notifier<ChatThreadState> {
       ..invalidate(chatFolderCountsProvider);
   }
 
+  // ignore: avoid_positional_boolean_parameters
   Future<void> setMuted(bool muted) async {
     final updated = await _repo.mute(
-        id, muted ? DateTime.now().add(const Duration(days: 3650)) : null);
+      id,
+      muted ? DateTime.now().add(const Duration(days: 3650)) : null,
+    );
     if (ref.mounted) state = state.copyWith(conversation: updated);
   }
 
@@ -736,23 +758,25 @@ class ChatThread extends Notifier<ChatThreadState> {
       for (final m in state.messages)
         if (m.clientMessageId != null) m.clientMessageId,
     };
-    state = state.copyWith(outbox: [
-      for (final r in rows)
-        if (!sentIds.contains(r.clientMessageId))
-          ChatMessage(
-            id: 'local:${r.clientMessageId}',
-            conversationId: id,
-            senderId: ref.read(currentUserIdProvider),
-            kind: MessageKind.text,
-            body: r.body,
-            clientMessageId: r.clientMessageId,
-            createdAt: r.createdAt,
-            delivery: r.failedCode == null
-                ? DeliveryState.sending
-                : DeliveryState.failed,
-            failedCode: r.failedCode,
-          ),
-    ]);
+    state = state.copyWith(
+      outbox: [
+        for (final r in rows)
+          if (!sentIds.contains(r.clientMessageId))
+            ChatMessage(
+              id: 'local:${r.clientMessageId}',
+              conversationId: id,
+              senderId: ref.read(currentUserIdProvider),
+              kind: MessageKind.text,
+              body: r.body,
+              clientMessageId: r.clientMessageId,
+              createdAt: r.createdAt,
+              delivery: r.failedCode == null
+                  ? DeliveryState.sending
+                  : DeliveryState.failed,
+              failedCode: r.failedCode,
+            ),
+      ],
+    );
   }
 
   void _merge(List<ChatMessage> incoming) {

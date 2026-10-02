@@ -167,7 +167,11 @@ class PlatformSocialAuthNativeClient implements SocialAuthNativeClient {
       if (idToken == null) {
         throw StateError('Google sign-in returned no idToken.');
       }
-      return SocialCredential(provider: 'google', idToken: idToken, nonce: rawNonce);
+      return SocialCredential(
+        provider: 'google',
+        idToken: idToken,
+        nonce: rawNonce,
+      );
     } on GoogleSignInException catch (e) {
       if (e.code == GoogleSignInExceptionCode.canceled) {
         throw const SocialAuthCancelledException();
@@ -186,5 +190,6 @@ class PlatformSocialAuthNativeClient implements SocialAuthNativeClient {
     return bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
   }
 
-  static String _sha256Hex(String input) => sha256.convert(utf8.encode(input)).toString();
+  static String _sha256Hex(String input) =>
+      sha256.convert(utf8.encode(input)).toString();
 }

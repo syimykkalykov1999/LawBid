@@ -157,16 +157,18 @@ class _Sounds implements AppSounds {
 
 class _Harness {
   _Harness() {
-    container = ProviderContainer(overrides: [
-      callsRepositoryProvider.overrideWithValue(repo),
-      callMediaFactoryProvider.overrideWithValue(() => media),
-      realtimeEventsProvider.overrideWithValue(events.stream),
-      appSoundsProvider.overrideWithValue(sounds),
-      callSignalSenderProvider.overrideWithValue((id, data) async {
-        signals.add(data);
-        return true;
-      }),
-    ]);
+    container = ProviderContainer(
+      overrides: [
+        callsRepositoryProvider.overrideWithValue(repo),
+        callMediaFactoryProvider.overrideWithValue(() => media),
+        realtimeEventsProvider.overrideWithValue(events.stream),
+        appSoundsProvider.overrideWithValue(sounds),
+        callSignalSenderProvider.overrideWithValue((id, data) async {
+          signals.add(data);
+          return true;
+        }),
+      ],
+    );
     sub = container.listen(callControllerProvider, (_, __) {});
   }
 
@@ -205,8 +207,10 @@ void main() {
     // OQ-044: ringback while it rings there.
     expect(h.sounds.played, ['ringback']);
 
-    h.emit('call:accepted',
-        _event(_call('c1', CallStatus.active, outgoing: true)));
+    h.emit(
+      'call:accepted',
+      _event(_call('c1', CallStatus.active, outgoing: true)),
+    );
     await _settle();
     expect(h.s.phase, CallPhase.connecting);
     expect(h.signals.single, {'type': 'offer', 'sdp': 'offer-sdp'});
@@ -250,8 +254,10 @@ void main() {
     final h = _Harness();
     addTearDown(h.dispose);
 
-    h.emit('call:incoming',
-        _event(_call('c2', CallStatus.ringing, outgoing: false)));
+    h.emit(
+      'call:incoming',
+      _event(_call('c2', CallStatus.ringing, outgoing: false)),
+    );
     await _settle();
     expect(h.s.phase, CallPhase.incoming);
     expect(h.s.peer?.displayName, 'Paul Phone');
@@ -268,7 +274,9 @@ void main() {
     expect(h.signals.single, {'type': 'answer', 'sdp': 'answer-to-o'});
 
     h.emit(
-        'call:ended', _event(_call('c2', CallStatus.ended, outgoing: false)));
+      'call:ended',
+      _event(_call('c2', CallStatus.ended, outgoing: false)),
+    );
     await _settle();
     expect(h.s.phase, CallPhase.ended);
     expect(h.s.outcome, CallStatus.ended);
@@ -277,8 +285,10 @@ void main() {
   test('ringing in: decline tells the server and closes', () async {
     final h = _Harness();
     addTearDown(h.dispose);
-    h.emit('call:incoming',
-        _event(_call('c3', CallStatus.ringing, outgoing: false)));
+    h.emit(
+      'call:incoming',
+      _event(_call('c3', CallStatus.ringing, outgoing: false)),
+    );
     await _settle();
     await h.c.decline();
     expect(h.repo.declined, ['c3']);
@@ -288,11 +298,15 @@ void main() {
   test('picked up on another of my devices: this one stops ringing', () async {
     final h = _Harness();
     addTearDown(h.dispose);
-    h.emit('call:incoming',
-        _event(_call('c4', CallStatus.ringing, outgoing: false)));
+    h.emit(
+      'call:incoming',
+      _event(_call('c4', CallStatus.ringing, outgoing: false)),
+    );
     await _settle();
-    h.emit('call:accepted',
-        _event(_call('c4', CallStatus.active, outgoing: false)));
+    h.emit(
+      'call:accepted',
+      _event(_call('c4', CallStatus.active, outgoing: false)),
+    );
     await _settle();
     expect(h.s.phase, CallPhase.idle);
   });
@@ -307,7 +321,10 @@ void main() {
 
     final refused = _Harness()
       ..repo.refuse = const ApiException(
-          code: 'CALL_NOT_ALLOWED', message: 'no', statusCode: 409);
+        code: 'CALL_NOT_ALLOWED',
+        message: 'no',
+        statusCode: 409,
+      );
     addTearDown(refused.dispose);
     await refused.c.call('conv');
     expect(refused.s.phase, CallPhase.ended);
@@ -318,8 +335,10 @@ void main() {
     final h = _Harness();
     addTearDown(h.dispose);
     await h.c.call('conv');
-    h.emit('call:incoming',
-        _event(_call('other', CallStatus.ringing, outgoing: false)));
+    h.emit(
+      'call:incoming',
+      _event(_call('other', CallStatus.ringing, outgoing: false)),
+    );
     await _settle();
     expect(h.s.call?.id, 'c1');
     expect(h.s.phase, CallPhase.outgoing);

@@ -1,12 +1,3 @@
-import 'package:lawbid/features/cases/presentation/screens/case_comments_screen.dart';
-import 'package:lawbid/features/cases/domain/case_models.dart';
-import 'package:lawbid/features/cases/presentation/screens/bid_detail_screen.dart';
-import 'package:lawbid/features/cases/presentation/screens/bid_form_screen.dart';
-import 'package:lawbid/features/cases/presentation/screens/case_history_screens.dart';
-import 'package:lawbid/features/cases/presentation/screens/edit_case_screen.dart';
-import 'package:lawbid/features/cases/presentation/screens/mine_views.dart';
-import 'package:lawbid/features/cases/presentation/screens/owner_case_screen.dart';
-import 'package:lawbid/features/cases/presentation/screens/work_case_screen.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -19,6 +10,17 @@ import 'package:lawbid/core/navigation/shell/main_shell.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/core/startup/app_startup.dart';
 import 'package:lawbid/features/auth/auth_routes.dart';
+import 'package:lawbid/features/blocks/presentation/blocked_users_screen.dart';
+import 'package:lawbid/features/cases/domain/case_models.dart';
+import 'package:lawbid/features/cases/presentation/screens/bid_detail_screen.dart';
+import 'package:lawbid/features/cases/presentation/screens/bid_form_screen.dart';
+import 'package:lawbid/features/cases/presentation/screens/case_comments_screen.dart';
+import 'package:lawbid/features/cases/presentation/screens/case_history_screens.dart';
+import 'package:lawbid/features/cases/presentation/screens/edit_case_screen.dart';
+import 'package:lawbid/features/cases/presentation/screens/mine_views.dart';
+import 'package:lawbid/features/cases/presentation/screens/owner_case_screen.dart';
+import 'package:lawbid/features/cases/presentation/screens/work_case_screen.dart';
+import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/create/presentation/screens/create_screen.dart';
 import 'package:lawbid/features/feed/presentation/screens/feed_screen.dart';
 import 'package:lawbid/features/mine/presentation/screens/mine_screen.dart';
@@ -26,28 +28,26 @@ import 'package:lawbid/features/onboarding/application/current_user_controller.d
 import 'package:lawbid/features/onboarding/onboarding_routes.dart';
 import 'package:lawbid/features/onboarding/presentation/screens/legal_document_screen.dart';
 import 'package:lawbid/features/onboarding/presentation/screens/splash_screen.dart';
-import 'package:lawbid/features/settings/active_devices/presentation/active_devices_screen.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/screens/client_profile_edit_screen.dart';
 import 'package:lawbid/features/profile/presentation/screens/delete_account_screen.dart';
 import 'package:lawbid/features/profile/presentation/screens/my_contacts_screen.dart';
 import 'package:lawbid/features/profile/presentation/screens/practices_screen.dart';
-import 'package:lawbid/features/profile/presentation/screens/review_form_screen.dart';
-import 'package:lawbid/features/profile/presentation/screens/verification_required_screen.dart';
 import 'package:lawbid/features/profile/presentation/screens/profile_screen.dart';
-import 'package:lawbid/features/blocks/presentation/blocked_users_screen.dart';
+import 'package:lawbid/features/profile/presentation/screens/review_form_screen.dart';
 import 'package:lawbid/features/profile/presentation/screens/settings_screen.dart';
-import 'package:lawbid/features/settings/account/account_routes.dart';
-import 'package:lawbid/features/verification/presentation/screens/verification_status_screen.dart';
-import 'package:lawbid/features/verification/presentation/screens/verification_wizard_screen.dart';
+import 'package:lawbid/features/profile/presentation/screens/verification_required_screen.dart';
 import 'package:lawbid/features/search/presentation/screens/search_screen.dart';
-import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:lawbid/features/settings/account/account_routes.dart';
+import 'package:lawbid/features/settings/active_devices/presentation/active_devices_screen.dart';
+import 'package:lawbid/features/settings/data_export/presentation/data_export_screen.dart';
 import 'package:lawbid/features/social/social_routes.dart';
 import 'package:lawbid/features/subscription/subscription_routes.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/team_routes.dart';
-import 'package:lawbid/features/settings/data_export/presentation/data_export_screen.dart';
-import 'package:lawbid/features/chat/chat_routes.dart';
+import 'package:lawbid/features/verification/presentation/screens/verification_status_screen.dart';
+import 'package:lawbid/features/verification/presentation/screens/verification_wizard_screen.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'app_router.g.dart';
 
@@ -322,8 +322,10 @@ class _GuardRefresh extends ChangeNotifier {
   _GuardRefresh(Ref ref) {
     ref
       ..listen(appStartupProvider, (_, __) => notifyListeners())
-      ..listen(sessionControllerProvider.select((s) => s?.sub),
-          (_, __) => notifyListeners())
+      ..listen(
+        sessionControllerProvider.select((s) => s?.sub),
+        (_, __) => notifyListeners(),
+      )
       ..listen(currentUserControllerProvider, (_, __) => notifyListeners())
       ..listen(assistantMeProvider, (_, __) => notifyListeners());
   }

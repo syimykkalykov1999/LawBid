@@ -5,15 +5,15 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/chat/presentation/attachment_widgets.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
+import 'package:lawbid/features/team/presentation/task_kind_form.dart';
 import 'package:lawbid/features/team/presentation/task_sheet.dart';
 import 'package:lawbid/features/team/presentation/task_widgets.dart';
-import 'package:lawbid/features/team/presentation/task_kind_form.dart';
-import 'package:lawbid/core/l10n/translator.dart';
 
 /// OQ-048 (owner 2026-09-30): a new task — set by an assistant for the
 /// attorney or by the attorney for themself: what (call, meeting, court,
@@ -98,12 +98,14 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
         final id = await repo.uploadTaskFile(f.bytes, f.mime);
         if (mounted) {
           setState(
-              () => _files[index] = (name: f.name, fileId: id, failed: false));
+            () => _files[index] = (name: f.name, fileId: id, failed: false),
+          );
         }
       } on Object {
         if (mounted) {
           setState(
-              () => _files[index] = (name: f.name, fileId: null, failed: true));
+            () => _files[index] = (name: f.name, fileId: null, failed: true),
+          );
         }
       } finally {
         if (mounted) setState(() => _uploading--);
@@ -145,9 +147,9 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
                   : items.isEmpty
                       ? AppEmptyState(
                           icon: AppIcons.workOutlineRounded,
-                          message: t.t(attorney
-                              ? 'mine.work.empty'
-                              : 'tasks.casesEmpty'),
+                          message: t.t(
+                            attorney ? 'mine.work.empty' : 'tasks.casesEmpty',
+                          ),
                         )
                       : ListView(
                           shrinkWrap: true,
@@ -216,9 +218,11 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
         await ref.read(teamRepositoryProvider).updateTask(existing.id, draft);
       }
       ref.invalidate(tasksProvider((done: false, mine: false)));
+      // ignore: cascade_invocations
       ref.invalidate(tasksProvider((done: false, mine: true)));
       ref.invalidate(tasksProvider((done: true, mine: false)));
       if (!mounted) return;
+      // ignore: unawaited_futures
       HapticFeedback.mediumImpact();
       showAppSnackBar(context, t.t('tasks.saved'));
       Navigator.of(context).pop(true);
@@ -364,9 +368,11 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
           semanticLabel: t.t('common.close'),
           onPressed: () => Navigator.of(context).maybePop(),
         ),
-        title: Text(widget.existing != null
-            ? t.t('tasks.edit')
-            : t.t(assistant ? 'tasks.forAttorney' : 'tasks.forMe')),
+        title: Text(
+          widget.existing != null
+              ? t.t('tasks.edit')
+              : t.t(assistant ? 'tasks.forAttorney' : 'tasks.forMe'),
+        ),
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(
@@ -458,6 +464,7 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
                     buildDefaultDragHandles: false,
+                    // ignore: deprecated_member_use
                     onReorder: (from, to) => setState(() {
                       final s = _steps.removeAt(from);
                       _steps.insert(to > from ? to - 1 : to, s);
@@ -471,8 +478,11 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
                               index: i,
                               child: Padding(
                                 padding: const EdgeInsets.all(AppSpacing.xs),
-                                child: AppIcon(AppIcons.dragIndicatorRounded,
-                                    size: 20, color: colors.textSecondary),
+                                child: AppIcon(
+                                  AppIcons.dragIndicatorRounded,
+                                  size: 20,
+                                  color: colors.textSecondary,
+                                ),
                               ),
                             ),
                             Expanded(
@@ -668,8 +678,10 @@ class _KindTile extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              AppIcon(icon,
-                  color: selected ? colors.gold : colors.textSecondary),
+              AppIcon(
+                icon,
+                color: selected ? colors.gold : colors.textSecondary,
+              ),
               const SizedBox(height: 6),
               Text(
                 label,

@@ -29,7 +29,7 @@ Future<bool> showShareSheet(
   String? text,
 }) async {
   final message = text == null || text.isEmpty ? link : '$text\n$link';
-  final enc = Uri.encodeComponent;
+  const enc = Uri.encodeComponent;
   final box = context.findRenderObject() as RenderBox?;
   final origin = box == null || !box.hasSize
       ? null
@@ -37,8 +37,10 @@ Future<bool> showShareSheet(
 
   Future<bool> open(String url, {String? fallback}) async {
     try {
-      if (await launchUrl(Uri.parse(url),
-          mode: LaunchMode.externalApplication)) {
+      if (await launchUrl(
+        Uri.parse(url),
+        mode: LaunchMode.externalApplication,
+      )) {
         return true;
       }
     } on Object {
@@ -46,8 +48,10 @@ Future<bool> showShareSheet(
     }
     if (fallback == null) return false;
     try {
-      return await launchUrl(Uri.parse(fallback),
-          mode: LaunchMode.externalApplication);
+      return await launchUrl(
+        Uri.parse(fallback),
+        mode: LaunchMode.externalApplication,
+      );
     } on Object {
       return false;
     }
@@ -70,24 +74,30 @@ Future<bool> showShareSheet(
       key: 'whatsapp',
       icon: brand(FontAwesomeIcons.whatsapp, const Color(0xFF25D366)),
       label: 'WhatsApp',
-      go: () => open('whatsapp://send?text=${enc(message)}',
-          fallback: 'https://wa.me/?text=${enc(message)}'),
+      go: () => open(
+            'whatsapp://send?text=${enc(message)}',
+            fallback: 'https://wa.me/?text=${enc(message)}',
+          ),
     ),
     (
       key: 'telegram',
       icon: brand(FontAwesomeIcons.telegram, const Color(0xFF29A9EB)),
       label: 'Telegram',
       go: () => open(
-          'tg://msg_url?url=${enc(link)}&text=${enc(text ?? '')}',
-          fallback:
-              'https://t.me/share/url?url=${enc(link)}&text=${enc(text ?? '')}'),
+            'tg://msg_url?url=${enc(link)}&text=${enc(text ?? '')}',
+            fallback:
+                'https://t.me/share/url?url=${enc(link)}&text=${enc(text ?? '')}',
+          ),
     ),
     (
       key: 'instagram',
       icon: brand(FontAwesomeIcons.instagram, const Color(0xFFE1306C)),
       label: 'Instagram',
-      go: () => copyAndOpen('instagram://direct-inbox',
-          'https://www.instagram.com/direct/inbox/', 'Instagram'),
+      go: () => copyAndOpen(
+            'instagram://direct-inbox',
+            'https://www.instagram.com/direct/inbox/',
+            'Instagram',
+          ),
     ),
     (
       key: 'tiktok',
@@ -107,22 +117,26 @@ Future<bool> showShareSheet(
       key: 'messenger',
       icon: brand(FontAwesomeIcons.facebookMessenger, const Color(0xFF0084FF)),
       label: 'Messenger',
-      go: () => open('fb-messenger://share?link=${enc(link)}',
-          fallback: 'https://www.messenger.com/'),
+      go: () => open(
+            'fb-messenger://share?link=${enc(link)}',
+            fallback: 'https://www.messenger.com/',
+          ),
     ),
     (
       key: 'x',
       icon: brand(FontAwesomeIcons.xTwitter, const Color(0xFF111111)),
       label: 'X',
       go: () => open(
-          'https://twitter.com/intent/tweet?url=${enc(link)}&text=${enc(text ?? '')}'),
+            'https://twitter.com/intent/tweet?url=${enc(link)}&text=${enc(text ?? '')}',
+          ),
     ),
     (
       key: 'linkedin',
       icon: brand(FontAwesomeIcons.linkedin, const Color(0xFF0A66C2)),
       label: 'LinkedIn',
       go: () => open(
-          'https://www.linkedin.com/sharing/share-offsite/?url=${enc(link)}'),
+            'https://www.linkedin.com/sharing/share-offsite/?url=${enc(link)}',
+          ),
     ),
     (
       key: 'viber',
@@ -141,7 +155,8 @@ Future<bool> showShareSheet(
       icon: brand(FontAwesomeIcons.envelope, AppColorsLight.goldDark),
       label: t.t('share.email'),
       go: () => open(
-          'mailto:?subject=${enc(text ?? 'LawBid')}&body=${enc(message)}'),
+            'mailto:?subject=${enc(text ?? 'LawBid')}&body=${enc(message)}',
+          ),
     ),
   ];
 
@@ -157,10 +172,12 @@ Future<bool> showShareSheet(
       if (context.mounted) showAppSnackBar(context, t.t('share.copied'));
       return true;
     case 'more':
-      final r = await SharePlus.instance.share(ShareParams(
-        uri: Uri.parse(link),
-        sharePositionOrigin: origin,
-      ));
+      final r = await SharePlus.instance.share(
+        ShareParams(
+          uri: Uri.parse(link),
+          sharePositionOrigin: origin,
+        ),
+      );
       return r.status != ShareResultStatus.dismissed;
   }
   final target = targets.firstWhere((x) => x.key == picked);
@@ -235,7 +252,11 @@ class _ShareSheet extends StatelessWidget {
     return SafeArea(
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(
-            AppSpacing.screenSide, 0, AppSpacing.screenSide, AppSpacing.lg),
+          AppSpacing.screenSide,
+          0,
+          AppSpacing.screenSide,
+          AppSpacing.lg,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -254,8 +275,10 @@ class _ShareSheet extends StatelessWidget {
                 for (final x in targets) tile(x.key, x.icon, x.label),
                 tile(
                   'more',
-                  const AppIcon(AppIcons.moreHorizRounded,
-                      color: AppColorsLight.navy),
+                  const AppIcon(
+                    AppIcons.moreHorizRounded,
+                    color: AppColorsLight.navy,
+                  ),
                   t.t('share.more'),
                 ),
               ],
@@ -271,7 +294,11 @@ class _ShareSheet extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  AppIcon(AppIcons.linkRounded, size: 18, color: colors.goldDark),
+                  AppIcon(
+                    AppIcons.linkRounded,
+                    size: 18,
+                    color: colors.goldDark,
+                  ),
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
                     child: Text(

@@ -4,10 +4,10 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../theme/app_color_tokens.dart';
-import '../../tokens/app_motion.dart';
-import 'app_button.dart';
-import 'app_icon_button.dart';
+import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
+import 'package:lawbid/core/design_system/tokens/app_motion.dart';
+import 'package:lawbid/core/design_system/widgets/buttons/app_button.dart';
+import 'package:lawbid/core/design_system/widgets/buttons/app_icon_button.dart';
 
 // `GavelStrikeIconButton` (stage 1.7, docs/CHANGELOG.md — file 07 §7.4 lists
 // the welcome screen's 3 social-login icon buttons among the gavel-strike
@@ -32,9 +32,9 @@ part 'gavel_strike_icon_button.dart';
 /// effect on top and fires [onPressed] itself after the spec'd delay.
 class GavelStrikeButton extends StatefulWidget {
   const GavelStrikeButton({
-    super.key,
     required this.label,
     required this.onPressed,
+    super.key,
     this.strike = false,
     this.variant = AppButtonVariant.primary,
     this.icon,
@@ -107,10 +107,12 @@ class _GavelStrikeButtonState extends State<GavelStrikeButton>
   }
 
   void _handleTap() {
-    if (_isAnimating)
+    if (_isAnimating) {
       return; // repeated taps during animation are ignored (file 07 §7.3)
-    if (widget.onPressed == null || !widget.isEnabled || widget.isLoading)
+    }
+    if (widget.onPressed == null || !widget.isEnabled || widget.isLoading) {
       return;
+    }
 
     final reduceMotion =
         MediaQuery.maybeOf(context)?.disableAnimations ?? false;
@@ -275,6 +277,7 @@ class _GavelStrikePainter extends CustomPainter {
     final stripeColor = isLight ? colors.gold : colors.goldDark;
 
     canvas.save();
+    // ignore: cascade_invocations
     canvas.translate(center.dx, center.dy);
 
     // --- Pedestal (under the strike point), file 07 §7.2 item 1 ---
@@ -310,19 +313,21 @@ class _GavelStrikePainter extends CustomPainter {
     // strike point (17,44) lands on the tap position. ---
     if (opacity > 0) {
       canvas.save();
+      // ignore: cascade_invocations, prefer_int_literals
       canvas.scale(mirror ? -1.0 : 1.0, 1.0);
 
       const designSize = 90.0; // wide edge of the 90x60 authoring space
       const renderWidth = 61.0;
       const renderHeight = 41.0;
-      final scaleX = renderWidth / designSize * 1.0;
-      final scaleY = renderHeight / 60.0;
+      const scaleX = renderWidth / designSize * 1.0;
+      const scaleY = renderHeight / 60.0;
 
       // Anchor: strike point (17,44) in design space maps to the touch point.
       const strikePoint = Offset(17, 44);
       const pivot = Offset(80, 26);
 
       canvas.translate(-strikePoint.dx * scaleX, -strikePoint.dy * scaleY);
+      // ignore: cascade_invocations
       canvas.translate(pivot.dx * scaleX, pivot.dy * scaleY);
       canvas.rotate(-rotationDeg * math.pi / 180);
       canvas.translate(-pivot.dx * scaleX, -pivot.dy * scaleY);
@@ -345,6 +350,7 @@ class _GavelStrikePainter extends CustomPainter {
         handlePaint,
       );
       // Head: rect(6,4,22,40) radius 6.
+      // ignore: cascade_invocations
       canvas.drawRRect(
         RRect.fromRectAndRadius(
           const Rect.fromLTWH(6, 4, 22, 40),
@@ -373,7 +379,7 @@ class _GavelStrikePainter extends CustomPainter {
         ..color = colors.goldLight.withValues(alpha: ringOpacity)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2;
-      canvas.drawCircle(const Offset(0, 0), 5 * ringScale, ringPaint);
+      canvas.drawCircle(Offset.zero, 5 * ringScale, ringPaint);
     }
 
     canvas.restore();

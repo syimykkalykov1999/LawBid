@@ -1,3 +1,4 @@
+// ignore_for_file: lines_longer_than_80_chars
 import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
@@ -95,9 +96,10 @@ class DocumentSlotCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title,
-                        style:
-                            typography.roleTitle.copyWith(color: colors.text)),
+                    Text(
+                      title,
+                      style: typography.roleTitle.copyWith(color: colors.text),
+                    ),
                     if (subtitle != null) ...[
                       const SizedBox(height: AppSpacing.xs / 2),
                       Text(
@@ -150,8 +152,11 @@ class DocumentSlotCard extends StatelessWidget {
 }
 
 class SlotAction {
-  const SlotAction(
-      {required this.label, required this.icon, required this.onTap});
+  const SlotAction({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+  });
 
   final String label;
   final IconData icon;
@@ -184,8 +189,11 @@ class _DropZone extends StatelessWidget {
                   AppChip(
                     label: a.label,
                     height: AppSizes.touchTarget,
-                    leading: AppIcon(a.icon,
-                        size: AppSizes.iconSm, color: colors.goldDark),
+                    leading: AppIcon(
+                      a.icon,
+                      size: AppSizes.iconSm,
+                      color: colors.goldDark,
+                    ),
                     onTap: a.onTap,
                   ),
               ],
@@ -253,8 +261,11 @@ class _AttachedRow extends StatelessWidget {
         padding: const EdgeInsets.only(top: AppSpacing.md),
         child: Row(
           children: [
-            AppIcon(AppIcons.verifiedRounded,
-                size: AppSizes.iconSm, color: colors.success),
+            AppIcon(
+              AppIcons.verifiedRounded,
+              size: AppSizes.iconSm,
+              color: colors.success,
+            ),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Text(
@@ -266,8 +277,10 @@ class _AttachedRow extends StatelessWidget {
               AppIconButton(
                 semanticLabel: t.t('verification.upload.remove'),
                 onPressed: onRemove,
-                icon: AppIcon(AppIcons.deleteOutlineRounded,
-                    color: colors.textSecondary),
+                icon: AppIcon(
+                  AppIcons.deleteOutlineRounded,
+                  color: colors.textSecondary,
+                ),
               ),
           ],
         ),
@@ -358,7 +371,10 @@ class _TaskRow extends StatelessWidget {
                   AppIconButton(
                     semanticLabel: t.t('verification.upload.retry'),
                     onPressed: onRetry,
-                    icon: AppIcon(AppIcons.refreshRounded, color: colors.goldDark),
+                    icon: AppIcon(
+                      AppIcons.refreshRounded,
+                      color: colors.goldDark,
+                    ),
                   ),
                 AppIconButton(
                   semanticLabel: task.isActive

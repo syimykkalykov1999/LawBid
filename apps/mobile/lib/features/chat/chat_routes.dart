@@ -45,7 +45,9 @@ List<RouteBase> chatRoutes(GlobalKey<NavigatorState> root) => [
         path: ChatRoutes.requests,
         parentNavigatorKey: root,
         pageBuilder: (context, state) => AppPageTransitions.push(
-            state, const InboxScreen(initialTab: InboxTab.requests)),
+          state,
+          const InboxScreen(initialTab: InboxTab.requests),
+        ),
       ),
       GoRoute(
         path: ChatRoutes.conversationPattern,

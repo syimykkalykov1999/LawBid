@@ -111,8 +111,11 @@ class PlanTierCard extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       if (statusFilled) ...[
-                        const AppIcon(AppIcons.checkRounded,
-                            size: 14, color: AppColorsLight.navy),
+                        const AppIcon(
+                          AppIcons.checkRounded,
+                          size: 14,
+                          color: AppColorsLight.navy,
+                        ),
                         const SizedBox(width: 4),
                       ],
                       Text(
@@ -143,8 +146,7 @@ class PlanTierCard extends StatelessWidget {
                 ),
                 TextSpan(
                   text: '  $period',
-                  style:
-                      typography.body.copyWith(color: colors.textSecondary),
+                  style: typography.body.copyWith(color: colors.textSecondary),
                 ),
               ],
             ),
@@ -158,8 +160,11 @@ class PlanTierCard extends StatelessWidget {
                 children: [
                   Padding(
                     padding: const EdgeInsets.only(top: 2),
-                    child: AppIcon(AppIcons.checkRounded,
-                        size: 16, color: colors.goldDark),
+                    child: AppIcon(
+                      AppIcons.checkRounded,
+                      size: 16,
+                      color: colors.goldDark,
+                    ),
                   ),
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
@@ -235,6 +240,7 @@ class AssistantSeatsControl extends StatelessWidget {
         onPressed: max > 0 ? () => onChanged(1) : null,
       );
     }
+    // ignore: avoid_positional_boolean_parameters
     Widget round(IconData icon, bool enabled, int to, String key) {
       final plus = icon == AppIcons.addRounded;
       return Semantics(
@@ -301,7 +307,12 @@ class AssistantSeatsControl extends StatelessWidget {
                 ],
               ),
             ),
-            round(AppIcons.removeRounded, seats > min, seats - 1, 'seats-minus'),
+            round(
+              AppIcons.removeRounded,
+              seats > min,
+              seats - 1,
+              'seats-minus',
+            ),
             SizedBox(
               width: 26,
               child: Text(

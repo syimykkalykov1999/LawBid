@@ -1,3 +1,4 @@
+// ignore_for_file: lines_longer_than_80_chars
 import 'package:flutter/foundation.dart';
 
 /// docs/05 §2.4 post author: an attorney's public identity.

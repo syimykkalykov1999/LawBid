@@ -1,10 +1,9 @@
 import 'package:go_router/go_router.dart';
-
-import '../../features/cases/presentation/screens/case_route_screens.dart';
-import '../../features/profile/presentation/screens/attorney_profile_screen.dart';
-import '../../features/profile/presentation/screens/client_public_profile_screen.dart';
-import '../../features/social/presentation/screens/social_screens.dart';
-import '../navigation/app_page_transitions.dart';
+import 'package:lawbid/core/navigation/app_page_transitions.dart';
+import 'package:lawbid/features/cases/presentation/screens/case_route_screens.dart';
+import 'package:lawbid/features/profile/presentation/screens/attorney_profile_screen.dart';
+import 'package:lawbid/features/profile/presentation/screens/client_public_profile_screen.dart';
+import 'package:lawbid/features/social/presentation/screens/social_screens.dart';
 
 /// Routes the §12 content deep links land on (docs/01_FOUNDATION_AUTH.md:
 /// `lawbid.app/case/:id`, `/lawyer/:username`, `/post/:id`).
@@ -34,7 +33,8 @@ List<RouteBase> deepLinkRoutes() => [
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
           AttorneyProfileScreen(
-              username: state.pathParameters['username'] ?? ''),
+            username: state.pathParameters['username'] ?? '',
+          ),
         ),
       ),
       GoRoute(
@@ -42,7 +42,8 @@ List<RouteBase> deepLinkRoutes() => [
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
           ClientPublicProfileScreen(
-              username: state.pathParameters['username'] ?? ''),
+            username: state.pathParameters['username'] ?? '',
+          ),
         ),
       ),
       GoRoute(

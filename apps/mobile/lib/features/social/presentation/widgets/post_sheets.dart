@@ -1,24 +1,23 @@
 import 'package:flutter/material.dart';
-import 'package:lawbid/features/team/domain/team_models.dart';
-import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:lawbid/core/navigation/app_routes.dart';
-import 'package:lawbid/features/blocks/presentation/block_actions.dart';
-import 'package:lawbid/features/social/presentation/screens/create_post_screen.dart';
-
 import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/features/blocks/presentation/block_actions.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
     show showConfirmSheet;
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/data/social_repository.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
-import 'package:lawbid/shared/presentation/share_sheet.dart';
+import 'package:lawbid/features/social/presentation/screens/create_post_screen.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
+import 'package:lawbid/features/team/application/team_providers.dart';
+import 'package:lawbid/features/team/domain/team_models.dart';
+import 'package:lawbid/shared/presentation/share_sheet.dart';
 
 String _link(WidgetRef ref, String postId) => SocialFormat.postLink(
       ref.read(appEnvironmentProvider).deepLinkHost,
@@ -69,43 +68,44 @@ Future<void> showPostMenu(BuildContext context, WidgetRef ref, Post post) {
               // Audit 2026-10-02: an assistant edits only with "publish" and
               // never deletes the attorney's posts.
               if (ref.read(canDoProvider(AssistantDuty.publish)))
-              AppListRow(
-                icon: AppIcons.editOutlined,
-                label: t.t('post.menu.edit'),
-                showChevron: false,
-                onTap: () {
-                  Navigator.of(sheet).pop();
-                  showEditPostSheet(context, ref, post);
-                },
-              ),
+                AppListRow(
+                  icon: AppIcons.editOutlined,
+                  label: t.t('post.menu.edit'),
+                  showChevron: false,
+                  onTap: () {
+                    Navigator.of(sheet).pop();
+                    showEditPostSheet(context, ref, post);
+                  },
+                ),
               if (!ref.read(isAssistantProvider))
-              AppListRow(
-                icon: AppIcons.deleteOutlineRounded,
-                label: t.t('post.menu.delete'),
-                destructive: true,
-                showChevron: false,
-                onTap: () async {
-                  Navigator.of(sheet).pop();
-                  final ok = await showConfirmSheet(
-                    context,
-                    t: t,
-                    title: t.t('post.delete.title'),
-                    message: t.t('post.delete.message'),
-                    confirmLabel: t.t('post.menu.delete'),
-                    destructive: true,
-                  );
-                  if (!ok || !context.mounted) return;
-                  final error =
-                      await ref.read(socialActionsProvider).deletePost(post);
-                  if (context.mounted) {
-                    showAppSnackBar(
+                AppListRow(
+                  icon: AppIcons.deleteOutlineRounded,
+                  label: t.t('post.menu.delete'),
+                  destructive: true,
+                  showChevron: false,
+                  onTap: () async {
+                    Navigator.of(sheet).pop();
+                    final ok = await showConfirmSheet(
+                      context,
+                      t: t,
+                      title: t.t('post.delete.title'),
+                      message: t.t('post.delete.message'),
+                      confirmLabel: t.t('post.menu.delete'),
+                      destructive: true,
+                    );
+                    if (!ok || !context.mounted) return;
+                    final error =
+                        await ref.read(socialActionsProvider).deletePost(post);
+                    if (context.mounted) {
+                      showAppSnackBar(
                         context,
                         error == null
                             ? t.t('post.deleted')
-                            : errorText(t, error));
-                  }
-                },
-              ),
+                            : errorText(t, error),
+                      );
+                    }
+                  },
+                ),
             ] else ...[
               // Owner 2026-10-01: the "⋯" of someone else's post — the
               // author's profile, unfollow, block, report ("copy link"
@@ -118,9 +118,11 @@ Future<void> showPostMenu(BuildContext context, WidgetRef ref, Post post) {
                 onTap: () {
                   Navigator.of(sheet).pop();
                   final a = post.author;
-                  context.push(a.isClient
-                      ? AppRoutes.client(a.username)
-                      : AppRoutes.lawyer(a.username));
+                  context.push(
+                    a.isClient
+                        ? AppRoutes.client(a.username)
+                        : AppRoutes.lawyer(a.username),
+                  );
                 },
               ),
               if (following)
@@ -138,8 +140,10 @@ Future<void> showPostMenu(BuildContext context, WidgetRef ref, Post post) {
                       showAppSnackBar(
                         context,
                         error == null
-                            ? t.t('post.menu.unfollowed',
-                                {'name': post.author.displayName})
+                            ? t.t(
+                                'post.menu.unfollowed',
+                                {'name': post.author.displayName},
+                              )
                             : errorText(t, error),
                       );
                     }
@@ -204,8 +208,12 @@ Future<void> showReportSheet(
             children: [
               const AppSheetHandle(),
               Padding(
-                padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide,
-                    AppSpacing.sm, AppSpacing.screenSide, AppSpacing.md),
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.screenSide,
+                  AppSpacing.sm,
+                  AppSpacing.screenSide,
+                  AppSpacing.md,
+                ),
                 child: Text(t.t('report.title'), style: type.titleMedium),
               ),
               for (final reason in ReportReason.values)
@@ -219,10 +227,11 @@ Future<void> showReportSheet(
                         .report(target, id, reason);
                     if (context.mounted) {
                       showAppSnackBar(
-                          context,
-                          error == null
-                              ? t.t('report.sent')
-                              : errorText(t, error));
+                        context,
+                        error == null
+                            ? t.t('report.sent')
+                            : errorText(t, error),
+                      );
                     }
                   },
                 ),
@@ -273,8 +282,12 @@ class PostTextField extends ConsumerWidget {
           maxLines: 10,
           maxLength: kPostMaxChars,
           maxLengthEnforcement: MaxLengthEnforcement.enforced,
-          buildCounter: (_,
-                  {required currentLength, required isFocused, maxLength}) =>
+          buildCounter: (
+            _, {
+            required currentLength,
+            required isFocused,
+            maxLength,
+          }) =>
               null,
           style: type.body.copyWith(color: colors.text),
           decoration: InputDecoration(

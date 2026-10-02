@@ -1,12 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:lawbid/features/team/domain/team_models.dart';
-import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lawbid/features/cases/presentation/widgets/case_photos.dart';
-import 'package:lawbid/features/cases/presentation/widgets/client_review_sheet.dart';
 import 'package:go_router/go_router.dart';
-import 'package:url_launcher/url_launcher.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
@@ -16,15 +10,20 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
+import 'package:lawbid/features/cases/presentation/screens/attorney_case_screen.dart'
+    show routeSubscriptionError;
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_cards.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_header.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_photos.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
+import 'package:lawbid/features/cases/presentation/widgets/client_review_sheet.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
-import 'package:lawbid/features/cases/presentation/screens/attorney_case_screen.dart'
-    show routeSubscriptionError;
 import 'package:lawbid/features/chat/chat_routes.dart';
+import 'package:lawbid/features/team/application/team_providers.dart';
+import 'package:lawbid/features/team/domain/team_models.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// docs/04 §8 + §11.2 "В работе": the case, the client's contacts (locked
 /// behind the subscription, §8.3), "Не могу связаться" (§8.4) and, in
@@ -82,8 +81,9 @@ class _WorkCaseScreenState extends ConsumerState<WorkCaseScreen> {
     );
     if (!ok) return;
     await _run(
-        () => ref.read(caseActionsProvider).confirmCompletion(widget.caseId),
-        'cases.work.confirmed');
+      () => ref.read(caseActionsProvider).confirmCompletion(widget.caseId),
+      'cases.work.confirmed',
+    );
   }
 
   Future<void> _dispute() async {
@@ -96,8 +96,9 @@ class _WorkCaseScreenState extends ConsumerState<WorkCaseScreen> {
     );
     if (reason == null) return;
     await _run(
-        () => ref.read(caseActionsProvider).dispute(widget.caseId, reason),
-        'cases.work.disputed');
+      () => ref.read(caseActionsProvider).dispute(widget.caseId, reason),
+      'cases.work.disputed',
+    );
   }
 
   Future<void> _cantReach() async {
@@ -189,18 +190,25 @@ class _WorkCaseScreenState extends ConsumerState<WorkCaseScreen> {
             children: [
               CaseHeader(
                 practice: CaseFormat.practice(
-                    t, c.practice.i18nKey, c.practice.nameEn),
+                  t,
+                  c.practice.i18nKey,
+                  c.practice.nameEn,
+                ),
                 title: c.title,
                 status: c.status,
                 meta: CaseFormat.place(
-                    c.city, c.primaryStateCode, c.additionalStateCodes.length),
+                  c.city,
+                  c.primaryStateCode,
+                  c.additionalStateCodes.length,
+                ),
                 t: t,
               ),
               if (pending) ...[
                 const SizedBox(height: AppSpacing.lg),
                 NoticeCard(
-                    icon: AppIcons.hourglassTopRounded,
-                    message: t.t('cases.work.pendingNotice')),
+                  icon: AppIcons.hourglassTopRounded,
+                  message: t.t('cases.work.pendingNotice'),
+                ),
               ],
               if (c.status == CaseStatus.disputed) ...[
                 const SizedBox(height: AppSpacing.lg),
@@ -282,8 +290,11 @@ class _WorkCaseScreenState extends ConsumerState<WorkCaseScreen> {
 }
 
 class _TermsLine extends ConsumerWidget {
-  const _TermsLine(
-      {required this.bidId, required this.t, required this.formats});
+  const _TermsLine({
+    required this.bidId,
+    required this.t,
+    required this.formats,
+  });
 
   final String bidId;
   final Translator t;
@@ -298,11 +309,14 @@ class _TermsLine extends ConsumerWidget {
       child: Row(
         children: [
           Expanded(
-              child: MoneyText(
-                  CaseFormat.terms(t, formats, bid.feeType, bid.amountCents))),
-          AppIcon(AppIcons.chevronRightRounded,
-              color:
-                  Theme.of(context).extension<AppColorTokens>()!.textSecondary),
+            child: MoneyText(
+              CaseFormat.terms(t, formats, bid.feeType, bid.amountCents),
+            ),
+          ),
+          AppIcon(
+            AppIcons.chevronRightRounded,
+            color: Theme.of(context).extension<AppColorTokens>()!.textSecondary,
+          ),
         ],
       ),
     );
@@ -343,8 +357,8 @@ class _ContactsBlock extends ConsumerWidget {
               Row(
                 children: [
                   AppAvatar(
-                      initials: initialsOf(value.firstName, value.lastName),
-                      size: AppSizes.cardAvatar),
+                    initials: initialsOf(value.firstName, value.lastName),
+                  ),
                   const SizedBox(width: AppSpacing.md),
                   Expanded(
                     child: Text(
@@ -357,14 +371,16 @@ class _ContactsBlock extends ConsumerWidget {
               const SizedBox(height: AppSpacing.md),
               if (value.phone != null)
                 InfoRow(
-                    icon: AppIcons.callOutlined,
-                    label: t.t('cases.contacts.phone'),
-                    value: value.phone!),
+                  icon: AppIcons.callOutlined,
+                  label: t.t('cases.contacts.phone'),
+                  value: value.phone!,
+                ),
               if (value.email != null)
                 InfoRow(
-                    icon: AppIcons.alternateEmailRounded,
-                    label: t.t('cases.contacts.email'),
-                    value: value.email!),
+                  icon: AppIcons.alternateEmailRounded,
+                  label: t.t('cases.contacts.email'),
+                  value: value.email!,
+                ),
               if (value.contactMethod != null)
                 InfoRow(
                   icon: AppIcons.starOutlineRounded,
@@ -375,9 +391,10 @@ class _ContactsBlock extends ConsumerWidget {
               if (value.contactNote != null &&
                   value.contactNote!.trim().isNotEmpty)
                 InfoRow(
-                    icon: AppIcons.scheduleRounded,
-                    label: t.t('cases.contacts.note'),
-                    value: value.contactNote!),
+                  icon: AppIcons.scheduleRounded,
+                  label: t.t('cases.contacts.note'),
+                  value: value.contactNote!,
+                ),
               const SizedBox(height: AppSpacing.md),
               Row(
                 children: [
@@ -449,8 +466,11 @@ class _ContactsBlock extends ConsumerWidget {
 }
 
 class _ContactAction extends StatelessWidget {
-  const _ContactAction(
-      {required this.icon, required this.label, required this.onTap});
+  const _ContactAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
 
   final IconData icon;
   final String label;
@@ -471,7 +491,8 @@ class _ContactAction extends StatelessWidget {
           onTap: onTap,
           child: Container(
             constraints: const BoxConstraints(
-                minHeight: AppSizes.hitTarget + AppSpacing.md),
+              minHeight: AppSizes.hitTarget + AppSpacing.md,
+            ),
             decoration: BoxDecoration(
               color: colors.goldTint,
               borderRadius: BorderRadius.circular(AppRadii.field),
@@ -486,7 +507,9 @@ class _ContactAction extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: typography.caption.copyWith(
-                      color: colors.text, fontWeight: FontWeight.w600),
+                    color: colors.text,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ],
             ),
@@ -537,8 +560,10 @@ class _ContactIssueSheetState extends State<_ContactIssueSheet> {
             children: [
               const AppSheetHandle(),
               const SizedBox(height: AppSpacing.lg),
-              Text(t.t('cases.issue.title'),
-                  style: typography.titleMedium.copyWith(color: colors.text)),
+              Text(
+                t.t('cases.issue.title'),
+                style: typography.titleMedium.copyWith(color: colors.text),
+              ),
               const SizedBox(height: AppSpacing.md),
               Wrap(
                 spacing: AppSpacing.sm,
@@ -577,11 +602,12 @@ class _ContactIssueSheetState extends State<_ContactIssueSheet> {
 }
 
 class _TextSheet extends StatefulWidget {
-  const _TextSheet(
-      {required this.title,
-      required this.label,
-      required this.submit,
-      required this.min});
+  const _TextSheet({
+    required this.title,
+    required this.label,
+    required this.submit,
+    required this.min,
+  });
 
   final String title;
   final String label;
@@ -619,8 +645,10 @@ class _TextSheetState extends State<_TextSheet> {
           children: [
             const AppSheetHandle(),
             const SizedBox(height: AppSpacing.lg),
-            Text(widget.title,
-                style: typography.titleMedium.copyWith(color: colors.text)),
+            Text(
+              widget.title,
+              style: typography.titleMedium.copyWith(color: colors.text),
+            ),
             const SizedBox(height: AppSpacing.md),
             AppTextField(
               controller: _text,

@@ -112,7 +112,7 @@ class PagedListBody<T> extends ConsumerWidget {
       }
     }
 
-    final Widget body = switch (value) {
+    final body = switch (value) {
       AsyncData(:final value) when value.items.isEmpty && !value.hasMore =>
         RefreshIndicator(
           key: const ValueKey('empty'),
@@ -143,8 +143,12 @@ class PagedListBody<T> extends ConsumerWidget {
           items: value.items,
           padding: edgeToEdge
               ? EdgeInsets.zero
-              : const EdgeInsets.fromLTRB(AppSpacing.screenSide, AppSpacing.sm,
-                  AppSpacing.screenSide, AppSpacing.xxl),
+              : const EdgeInsets.fromLTRB(
+                  AppSpacing.screenSide,
+                  AppSpacing.sm,
+                  AppSpacing.screenSide,
+                  AppSpacing.xxl,
+                ),
           itemKey: itemKey,
           status: value.loadMoreError != null
               ? AppPaginationStatus.error

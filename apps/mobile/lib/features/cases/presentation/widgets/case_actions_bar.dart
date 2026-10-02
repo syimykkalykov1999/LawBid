@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:lawbid/shared/presentation/share_sheet.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
 import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
@@ -11,11 +9,12 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
-import 'package:lawbid/features/social/presentation/widgets/post_card.dart'
-    show BounceIcon;
 import 'package:lawbid/features/social/application/social_providers.dart'
     show socialRepositoryProvider;
+import 'package:lawbid/features/social/presentation/widgets/post_card.dart'
+    show BounceIcon;
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
+import 'package:lawbid/shared/presentation/share_sheet.dart';
 
 /// `https://lawbid.app/case/:id` — opens the attorney case screen.
 String caseLink(String host, String caseId) =>
@@ -46,7 +45,9 @@ class _CaseActionsBarState extends ConsumerState<CaseActionsBar> {
       await ref.read(caseActionsProvider).setSaved(widget.item.id, saved: next);
       if (mounted) {
         showAppSnackBar(
-            context, t.t(next ? 'cases.saved.added' : 'cases.saved.removed'));
+          context,
+          t.t(next ? 'cases.saved.added' : 'cases.saved.removed'),
+        );
       }
     } on Object catch (e) {
       if (!mounted) return;
@@ -61,7 +62,9 @@ class _CaseActionsBarState extends ConsumerState<CaseActionsBar> {
       context,
       t: ref.read(translatorProvider),
       link: caseLink(
-          ref.read(appEnvironmentProvider).deepLinkHost, widget.item.id),
+        ref.read(appEnvironmentProvider).deepLinkHost,
+        widget.item.id,
+      ),
       text: widget.item.title,
     );
     // OQ-037: count it unless the sheet was just closed.

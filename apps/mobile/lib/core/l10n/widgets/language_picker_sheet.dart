@@ -82,7 +82,6 @@ class _LanguagePickerSheetState extends ConsumerState<LanguagePickerSheet> {
       expand: false,
       initialChildSize: 0.75,
       minChildSize: 0.4,
-      maxChildSize: 1,
       builder: (context, scrollController) => SafeArea(
         top: false,
         child: Padding(
@@ -105,8 +104,11 @@ class _LanguagePickerSheetState extends ConsumerState<LanguagePickerSheet> {
               const SizedBox(height: AppSpacing.md),
               AppTextField(
                 controller: _searchController,
-                leading:
-                    AppIcon(AppIcons.search, size: 20, color: colors.textSecondary),
+                leading: AppIcon(
+                  AppIcons.search,
+                  size: 20,
+                  color: colors.textSecondary,
+                ),
                 hintText: t.t('lang.picker.search.hint'),
                 autofocus: true,
                 onChanged: (value) => setState(() => _query = value),

@@ -84,7 +84,7 @@ class PaginatedList<T> {
   PaginatedList<T> without(bool Function(T item) test) => PaginatedList(
         items: [
           for (final item in items)
-            if (!test(item)) item
+            if (!test(item)) item,
         ],
         nextCursor: nextCursor,
         isLoadingMore: isLoadingMore,

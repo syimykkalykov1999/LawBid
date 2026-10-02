@@ -1,11 +1,10 @@
+import 'package:lawbid/features/auth/application/auth_providers.dart';
+import 'package:lawbid/features/auth/data/auth_repository.dart';
+import 'package:lawbid/features/auth/domain/account_deletion_result.dart';
+import 'package:lawbid/features/auth/domain/reauth_result.dart';
+import 'package:lawbid/features/profile/domain/delete_account_flow_state.dart';
+import 'package:lawbid/features/profile/domain/delete_account_step.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-
-import '../../auth/application/auth_providers.dart';
-import '../../auth/data/auth_repository.dart';
-import '../../auth/domain/account_deletion_result.dart';
-import '../../auth/domain/reauth_result.dart';
-import '../domain/delete_account_flow_state.dart';
-import '../domain/delete_account_step.dart';
 
 part 'delete_account_controller.g.dart';
 
@@ -40,7 +39,9 @@ class DeleteAccountController extends _$DeleteAccountController {
     final available =
         await ref.read(biometricAuthServiceProvider).isAvailable();
     state = state.copyWith(
-        step: DeleteAccountStep.reauthPhone, biometricAvailable: available);
+      step: DeleteAccountStep.reauthPhone,
+      biometricAvailable: available,
+    );
   }
 
   /// Local biometric gate (see `BiometricAuthService`'s doc comment for
@@ -125,9 +126,10 @@ class DeleteAccountController extends _$DeleteAccountController {
     final token = state.reauthToken;
     if (token == null) return false;
     state = state.copyWith(
-        isSubmitting: true,
-        errorMessage: null,
-        step: DeleteAccountStep.submitting);
+      isSubmitting: true,
+      errorMessage: null,
+      step: DeleteAccountStep.submitting,
+    );
     final result = await _repo.deleteAccount(reauthToken: token);
     var succeeded = false;
     result.when(

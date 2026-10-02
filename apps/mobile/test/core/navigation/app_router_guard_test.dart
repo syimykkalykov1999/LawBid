@@ -21,7 +21,12 @@ const _signedOut = GuardSnapshot(
 );
 
 /// A client who has passed consents + role with both contacts verified.
-CurrentUser _readyClient({OnboardingStepId? step, bool named = true, bool completed = false}) => meFixture(
+CurrentUser _readyClient({
+  OnboardingStepId? step,
+  bool named = true,
+  bool completed = false,
+}) =>
+    meFixture(
       role: UserRole.client,
       consents: true,
       phone: '+15551234567',
@@ -34,7 +39,8 @@ CurrentUser _readyClient({OnboardingStepId? step, bool named = true, bool comple
       completed: completed,
     );
 
-CurrentUser _readyAttorney({OnboardingStepId? step, bool completed = false}) => meFixture(
+CurrentUser _readyAttorney({OnboardingStepId? step, bool completed = false}) =>
+    meFixture(
       role: UserRole.attorney,
       consents: true,
       phone: '+15551234567',
@@ -62,33 +68,59 @@ void main() {
       const _Case(
         'running → /feed',
         '/feed',
-        GuardSnapshot(startup: StartupStatus.running, hasSession: false, user: CurrentUserState.idle()),
+        GuardSnapshot(
+          startup: StartupStatus.running,
+          hasSession: false,
+          user: CurrentUserState.idle(),
+        ),
         '/splash',
       ),
       const _Case(
         'running → /welcome',
         '/welcome',
-        GuardSnapshot(startup: StartupStatus.running, hasSession: false, user: CurrentUserState.idle()),
+        GuardSnapshot(
+          startup: StartupStatus.running,
+          hasSession: false,
+          user: CurrentUserState.idle(),
+        ),
         '/splash',
       ),
       const _Case(
         'running stays on /splash',
         '/splash',
-        GuardSnapshot(startup: StartupStatus.running, hasSession: false, user: CurrentUserState.idle()),
+        GuardSnapshot(
+          startup: StartupStatus.running,
+          hasSession: false,
+          user: CurrentUserState.idle(),
+        ),
         null,
       ),
       const _Case(
         'offline (stored session, no network) stays on /splash',
         '/feed',
-        GuardSnapshot(startup: StartupStatus.offline, hasSession: false, user: CurrentUserState.idle()),
+        GuardSnapshot(
+          startup: StartupStatus.offline,
+          hasSession: false,
+          user: CurrentUserState.idle(),
+        ),
         '/splash',
       ),
     ],
     'row 1: нет токена → /welcome': [
       const _Case('/feed', '/feed', _signedOut, '/welcome'),
       const _Case('/splash', '/splash', _signedOut, '/welcome'),
-      const _Case('/onboarding/consents', '/onboarding/consents', _signedOut, '/welcome'),
-      const _Case('/profile/settings', '/profile/settings', _signedOut, '/welcome'),
+      const _Case(
+        '/onboarding/consents',
+        '/onboarding/consents',
+        _signedOut,
+        '/welcome',
+      ),
+      const _Case(
+        '/profile/settings',
+        '/profile/settings',
+        _signedOut,
+        '/welcome',
+      ),
       const _Case('welcome is allowed', '/welcome', _signedOut, null),
       const _Case('phone sign-in is allowed', '/auth/phone', _signedOut, null),
       const _Case('email sign-in is allowed', '/auth/email', _signedOut, null),
@@ -99,13 +131,21 @@ void main() {
       const _Case(
         'just signed in on /auth/otp: stay (no splash flicker)',
         '/auth/otp',
-        GuardSnapshot(startup: StartupStatus.ready, hasSession: true, user: CurrentUserState.loading()),
+        GuardSnapshot(
+          startup: StartupStatus.ready,
+          hasSession: true,
+          user: CurrentUserState.loading(),
+        ),
         null,
       ),
       const _Case(
         'loading elsewhere → /splash',
         '/feed',
-        GuardSnapshot(startup: StartupStatus.ready, hasSession: true, user: CurrentUserState.loading()),
+        GuardSnapshot(
+          startup: StartupStatus.ready,
+          hasSession: true,
+          user: CurrentUserState.loading(),
+        ),
         '/splash',
       ),
       _Case(
@@ -120,7 +160,12 @@ void main() {
       ),
     ],
     'row 2: токен есть, нет согласий/18+ → /onboarding/consents': [
-      _Case('fresh account starts at consents (no language step, OQ-006)', '/feed', _signedIn(meFixture()), '/onboarding/consents'),
+      _Case(
+        'fresh account starts at consents (no language step, OQ-006)',
+        '/feed',
+        _signedIn(meFixture()),
+        '/onboarding/consents',
+      ),
       _Case(
         'saved step consents → consents',
         '/feed',
@@ -141,44 +186,89 @@ void main() {
       ),
     ],
     'row 3: нет роли → /onboarding/role': [
-      _Case('from the feed', '/feed', _signedIn(meFixture(consents: true, step: OnboardingStepId.role)), '/onboarding/role'),
+      _Case(
+        'from the feed',
+        '/feed',
+        _signedIn(meFixture(consents: true, step: OnboardingStepId.role)),
+        '/onboarding/role',
+      ),
       _Case(
         'cannot skip to contacts',
         '/onboarding/contacts',
         _signedIn(meFixture(consents: true, step: OnboardingStepId.role)),
         '/onboarding/role',
       ),
-      _Case('stays on role', '/onboarding/role', _signedIn(meFixture(consents: true, step: OnboardingStepId.role)), null),
+      _Case(
+        'stays on role',
+        '/onboarding/role',
+        _signedIn(meFixture(consents: true, step: OnboardingStepId.role)),
+        null,
+      ),
     ],
-    'row 4: клиент без подтверждённых телефона И email → /onboarding/contacts': [
+    'row 4: клиент без подтверждённых телефона И email → /onboarding/contacts':
+        [
       _Case(
         'phone only verified',
         '/feed',
-        _signedIn(meFixture(role: UserRole.client, consents: true, phone: '+15551234567', phoneVerified: true)),
+        _signedIn(
+          meFixture(
+            role: UserRole.client,
+            consents: true,
+            phone: '+15551234567',
+            phoneVerified: true,
+          ),
+        ),
         '/onboarding/contacts',
       ),
       _Case(
         'email only verified',
         '/feed',
-        _signedIn(meFixture(role: UserRole.client, consents: true, email: 'a@b.co', emailVerified: true)),
+        _signedIn(
+          meFixture(
+            role: UserRole.client,
+            consents: true,
+            email: 'a@b.co',
+            emailVerified: true,
+          ),
+        ),
         '/onboarding/contacts',
       ),
       _Case(
         'neither verified',
         '/onboarding/profile',
-        _signedIn(meFixture(role: UserRole.client, consents: true, step: OnboardingStepId.profile)),
+        _signedIn(
+          meFixture(
+            role: UserRole.client,
+            consents: true,
+            step: OnboardingStepId.profile,
+          ),
+        ),
         '/onboarding/contacts',
       ),
       _Case(
         'cannot be skipped even with a later saved step',
         '/onboarding/tour',
-        _signedIn(meFixture(role: UserRole.client, consents: true, phoneVerified: true, step: OnboardingStepId.tour)),
+        _signedIn(
+          meFixture(
+            role: UserRole.client,
+            consents: true,
+            phoneVerified: true,
+            step: OnboardingStepId.tour,
+          ),
+        ),
         '/onboarding/contacts',
       ),
       _Case(
         'cannot be skipped even after completion',
         '/feed',
-        _signedIn(meFixture(role: UserRole.client, consents: true, phoneVerified: true, completed: true)),
+        _signedIn(
+          meFixture(
+            role: UserRole.client,
+            consents: true,
+            phoneVerified: true,
+            completed: true,
+          ),
+        ),
         '/onboarding/contacts',
       ),
     ],
@@ -186,7 +276,14 @@ void main() {
       _Case(
         'attorney signed in by email',
         '/feed',
-        _signedIn(meFixture(role: UserRole.attorney, consents: true, email: 'a@b.co', emailVerified: true)),
+        _signedIn(
+          meFixture(
+            role: UserRole.attorney,
+            consents: true,
+            email: 'a@b.co',
+            emailVerified: true,
+          ),
+        ),
         '/onboarding/contacts',
       ),
       _Case(
@@ -197,9 +294,24 @@ void main() {
       ),
     ],
     'row 6: онбординг не завершён → /onboarding/{текущий шаг}': [
-      _Case('saved profile', '/feed', _signedIn(_readyClient(step: OnboardingStepId.profile)), '/onboarding/profile'),
-      _Case('saved push', '/welcome', _signedIn(_readyClient(step: OnboardingStepId.push)), '/onboarding/push'),
-      _Case('saved tour', '/splash', _signedIn(_readyClient(step: OnboardingStepId.tour)), '/onboarding/tour'),
+      _Case(
+        'saved profile',
+        '/feed',
+        _signedIn(_readyClient(step: OnboardingStepId.profile)),
+        '/onboarding/profile',
+      ),
+      _Case(
+        'saved push',
+        '/welcome',
+        _signedIn(_readyClient(step: OnboardingStepId.push)),
+        '/onboarding/push',
+      ),
+      _Case(
+        'saved tour',
+        '/splash',
+        _signedIn(_readyClient(step: OnboardingStepId.tour)),
+        '/onboarding/tour',
+      ),
       _Case(
         'saved step still "role" (role just set) → first step after role',
         '/onboarding/role',
@@ -262,18 +374,63 @@ void main() {
       ),
     ],
     'row 7: attorney + unverified → главное меню доступно': [
-      _Case('mine tab (shows the verification CTA)', '/mine', _signedIn(_readyAttorney(completed: true)), null),
+      _Case(
+        'mine tab (shows the verification CTA)',
+        '/mine',
+        _signedIn(_readyAttorney(completed: true)),
+        null,
+      ),
       _Case('feed', '/feed', _signedIn(_readyAttorney(completed: true)), null),
-      _Case('verify-now placeholder', '/verification', _signedIn(_readyAttorney(completed: true)), null),
+      _Case(
+        'verify-now placeholder',
+        '/verification',
+        _signedIn(_readyAttorney(completed: true)),
+        null,
+      ),
     ],
     'row 8: клиент/адвокат ok → /feed': [
-      _Case('splash → feed', '/splash', _signedIn(_readyClient(completed: true)), '/feed'),
-      _Case('welcome → feed', '/welcome', _signedIn(_readyClient(completed: true)), '/feed'),
-      _Case('sign-in code → feed', '/auth/otp', _signedIn(_readyClient(completed: true)), '/feed'),
-      _Case('stale onboarding step → feed', '/onboarding/tour', _signedIn(_readyClient(completed: true)), '/feed'),
-      _Case('feed stays', '/feed', _signedIn(_readyClient(completed: true)), null),
-      _Case('settings stay', '/profile/settings', _signedIn(_readyClient(completed: true)), null),
-      _Case('attorney → feed', '/onboarding/verification', _signedIn(_readyAttorney(completed: true)), '/feed'),
+      _Case(
+        'splash → feed',
+        '/splash',
+        _signedIn(_readyClient(completed: true)),
+        '/feed',
+      ),
+      _Case(
+        'welcome → feed',
+        '/welcome',
+        _signedIn(_readyClient(completed: true)),
+        '/feed',
+      ),
+      _Case(
+        'sign-in code → feed',
+        '/auth/otp',
+        _signedIn(_readyClient(completed: true)),
+        '/feed',
+      ),
+      _Case(
+        'stale onboarding step → feed',
+        '/onboarding/tour',
+        _signedIn(_readyClient(completed: true)),
+        '/feed',
+      ),
+      _Case(
+        'feed stays',
+        '/feed',
+        _signedIn(_readyClient(completed: true)),
+        null,
+      ),
+      _Case(
+        'settings stay',
+        '/profile/settings',
+        _signedIn(_readyClient(completed: true)),
+        null,
+      ),
+      _Case(
+        'attorney → feed',
+        '/onboarding/verification',
+        _signedIn(_readyAttorney(completed: true)),
+        '/feed',
+      ),
     ],
   };
 

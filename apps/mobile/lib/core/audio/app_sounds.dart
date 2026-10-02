@@ -1,8 +1,8 @@
 import 'dart:async';
 
+import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:audio_session/audio_session.dart';
 import 'package:just_audio/just_audio.dart';
 
 /// OQ-044 (owner 2026-09-30): the app's own sounds — ringback tones while
@@ -63,7 +63,10 @@ class JustAudioAppSounds implements AppSounds {
   @override
   Future<void> startRingback() async {
     try {
-      final p = _loop ??= AudioPlayer(handleInterruptions: false, androidApplyAudioAttributes: false);
+      final p = _loop ??= AudioPlayer(
+        handleInterruptions: false,
+        androidApplyAudioAttributes: false,
+      );
       // Audit 2026-10-02: the call's audio mode (WebRTC) silenced media
       // playback — ringback now plays on the call's own signalling path,
       // so the caller hears it in the earpiece or the speaker.
@@ -94,7 +97,10 @@ class JustAudioAppSounds implements AppSounds {
   @override
   Future<void> startRingtone() async {
     try {
-      final p = _ring ??= AudioPlayer(handleInterruptions: false, androidApplyAudioAttributes: false);
+      final p = _ring ??= AudioPlayer(
+        handleInterruptions: false,
+        androidApplyAudioAttributes: false,
+      );
       await p.setAndroidAudioAttributes(
         const AndroidAudioAttributes(
           contentType: AndroidAudioContentType.sonification,

@@ -1,9 +1,9 @@
-import '../domain/account_deletion_result.dart';
-import '../domain/otp_verify_result.dart';
-import '../domain/reauth_result.dart';
-import '../domain/social_login_result.dart';
-import 'auth_dtos.dart' show DeviceSession;
-import 'auth_repository.dart';
+import 'package:lawbid/features/auth/data/auth_dtos.dart' show DeviceSession;
+import 'package:lawbid/features/auth/data/auth_repository.dart';
+import 'package:lawbid/features/auth/domain/account_deletion_result.dart';
+import 'package:lawbid/features/auth/domain/otp_verify_result.dart';
+import 'package:lawbid/features/auth/domain/reauth_result.dart';
+import 'package:lawbid/features/auth/domain/social_login_result.dart';
 
 /// Local-only stub kept for widget/golden tests (docs/CHANGELOG.md) — no
 /// longer `authRepositoryProvider`'s default as of the real-backend wiring
@@ -34,7 +34,10 @@ class StubAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<OtpVerifyResult> verifyEmailLink({required String token, required String verifier}) async {
+  Future<OtpVerifyResult> verifyEmailLink({
+    required String token,
+    required String verifier,
+  }) async {
     await Future<void>.delayed(const Duration(milliseconds: 500));
     return const OtpVerifyResult.success(isNewUser: true);
   }
@@ -94,14 +97,19 @@ class StubAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<ReauthResult> reauthWithOtp({required String identifier, required String code}) async {
+  Future<ReauthResult> reauthWithOtp({
+    required String identifier,
+    required String code,
+  }) async {
     await Future<void>.delayed(const Duration(milliseconds: 500));
     if (code == _invalidCode) return const ReauthResult.invalid();
     return const ReauthResult.success(reauthToken: 'stub-reauth-token');
   }
 
   @override
-  Future<AccountDeletionResult> deleteAccount({required String reauthToken}) async {
+  Future<AccountDeletionResult> deleteAccount({
+    required String reauthToken,
+  }) async {
     await Future<void>.delayed(const Duration(milliseconds: 500));
     return const AccountDeletionResult.success();
   }

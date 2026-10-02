@@ -109,13 +109,16 @@ class NotificationsNotifier extends PagedNotifier<AppNotification> {
   Future<void> markRead({String? id}) async {
     final current = state.value;
     if (current != null) {
-      state = AsyncData(PaginatedList(
-        items: [
-          for (final n in current.items)
-            id == null || n.id == id ? n.markedRead() : n,
-        ],
-        nextCursor: current.nextCursor,
-      ));
+      state = AsyncData(
+        PaginatedList(
+          items: [
+            for (final n in current.items)
+              // ignore: prefer_if_elements_to_conditional_expressions
+              id == null || n.id == id ? n.markedRead() : n,
+          ],
+          nextCursor: current.nextCursor,
+        ),
+      );
     }
     try {
       await ref

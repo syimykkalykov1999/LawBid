@@ -1,10 +1,8 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'package:lawbid/core/audio/app_sounds.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/calls/application/call_media.dart';
@@ -12,10 +10,11 @@ import 'package:lawbid/features/calls/data/calls_repository.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/chat/data/realtime_client.dart';
+import 'package:lawbid/features/notifications/application/notifications_providers.dart';
+import 'package:lawbid/features/notifications/data/notifications_repository.dart'
+    show NotifCategory;
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
-import 'package:lawbid/features/notifications/application/notifications_providers.dart';
-import 'package:lawbid/features/notifications/data/notifications_repository.dart' show NotifCategory;
 
 /// What the call screen shows (OQ-041).
 enum CallPhase {
@@ -92,7 +91,9 @@ class CallSession {
 
 /// Sends a signaling payload to the other member of [callId].
 typedef CallSignalSender = Future<bool> Function(
-    String callId, Map<String, Object?> data);
+  String callId,
+  Map<String, Object?> data,
+);
 
 final callSignalSenderProvider = Provider<CallSignalSender>((ref) {
   return (callId, data) async =>
@@ -236,12 +237,14 @@ class CallController extends Notifier<CallSession> {
   Future<void> hangUp({CallEndReason reason = CallEndReason.hangup}) async {
     final call = state.call;
     final wasActive = state.phase == CallPhase.active;
-    _finish(switch (reason) {
-      CallEndReason.noAnswer => CallStatus.missed,
-      CallEndReason.failed => CallStatus.failed,
-      CallEndReason.hangup =>
-        wasActive ? CallStatus.ended : CallStatus.canceled,
-    });
+    _finish(
+      switch (reason) {
+        CallEndReason.noAnswer => CallStatus.missed,
+        CallEndReason.failed => CallStatus.failed,
+        CallEndReason.hangup =>
+          wasActive ? CallStatus.ended : CallStatus.canceled,
+      },
+    );
     if (call != null) await _endQuietly(call.id, reason);
   }
 
@@ -290,8 +293,8 @@ class CallController extends Notifier<CallSession> {
     // the notifications permission to ring (often not granted) — the app
     // rings itself and shows its own incoming screen. In the background
     // the system call screen rings (push / callkit).
-    final foreground = WidgetsBinding.instance.lifecycleState ==
-        AppLifecycleState.resumed;
+    final foreground =
+        WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
     if (foreground) {
       unawaited(ref.read(appSoundsProvider).startRingtone());
     } else if (showSystemUi) {
@@ -314,7 +317,9 @@ class CallController extends Notifier<CallSession> {
             state.phase != CallPhase.ended) {
           _connectTimer?.cancel();
           state = state.copyWith(
-              phase: CallPhase.active, connectedAt: DateTime.now());
+            phase: CallPhase.active,
+            connectedAt: DateTime.now(),
+          );
         } else if (s == CallMediaState.failed && state.busy) {
           unawaited(hangUp(reason: CallEndReason.failed));
         }

@@ -170,7 +170,8 @@ class _RejectDialogState extends State<_RejectDialog> {
         TextButton(
           key: const ValueKey('reject-confirm'),
           onPressed: () => Navigator.of(context).pop(
-              (note: _note.text.trim().isEmpty ? null : _note.text.trim(),)),
+            (note: _note.text.trim().isEmpty ? null : _note.text.trim(),),
+          ),
           child: Text(t.t('team.reject')),
         ),
       ],

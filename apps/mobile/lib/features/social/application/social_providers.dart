@@ -1,19 +1,18 @@
 import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lawbid/features/feed/application/feed_topics.dart'
-    show topicTagFor;
-
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/features/cases/application/paged_notifier.dart';
+import 'package:lawbid/features/feed/application/feed_topics.dart'
+    show topicTagFor;
+import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/social/data/social_local_database.dart';
 import 'package:lawbid/features/social/data/social_repository.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
-import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
-import 'package:lawbid/features/profile/application/profile_providers.dart';
+import 'package:lawbid/shared/domain/cursor_page.dart';
 
 // No silent automatic retries: a failed load shows its error/offline
 // state with Retry at once (docs/01 §8.3).
@@ -32,8 +31,7 @@ final socialLocalDatabaseProvider = Provider<SocialLocalDatabase>((ref) {
 /// whose account they work in, so the attorney's messages/posts are "mine".
 final currentUserIdProvider = Provider<String?>((ref) {
   final acting = ref.watch(activeAssistantProvider)?.attorneyId;
-  return acting ??
-      ref.watch(sessionControllerProvider.select((s) => s?.sub));
+  return acting ?? ref.watch(sessionControllerProvider.select((s) => s?.sub));
 });
 
 final socialRepositoryProvider = Provider<SocialRepository>(
@@ -98,6 +96,7 @@ class FollowOverrides extends Notifier<Map<String, bool>> {
     return const {};
   }
 
+  // ignore: avoid_positional_boolean_parameters
   void put(String attorneyId, bool following) =>
       state = {...state, attorneyId: following};
 }
@@ -191,7 +190,7 @@ final attorneyNewsProvider = AsyncNotifierProvider.autoDispose
   retry: _noRetry,
 );
 
-/// [state] (OQ-034): only posts of attorneys licensed there.
+/// `state` (OQ-034): only posts of attorneys licensed there.
 typedef TagPostsKey = ({String tag, TagSort sort, String? state});
 
 class TagPostsNotifier extends PagedNotifier<Post> {
@@ -287,9 +286,7 @@ class ExplorePostsNotifier extends PagedNotifier<Post> {
           key.state,
           cursor: cursor,
           practice: practice,
-          tag: practice == null
-              ? null
-              : topicTagFor(practice.split('.').first),
+          tag: practice == null ? null : topicTagFor(practice.split('.').first),
           period: key.period,
           withPhotos: key.withPhotos,
           popular: key.popular,
@@ -362,6 +359,7 @@ class CommentsNotifier extends PagedNotifier<Comment> {
     if (current == null) return;
     state = AsyncData(
       PaginatedList(
+        // ignore: prefer_if_elements_to_conditional_expressions
         items: [for (final x in current.items) x.id == c.id ? c : x],
         nextCursor: current.nextCursor,
       ),
@@ -403,6 +401,7 @@ class RepliesNotifier extends PagedNotifier<Comment> {
     if (current == null) return;
     state = AsyncData(
       PaginatedList(
+        // ignore: prefer_if_elements_to_conditional_expressions
         items: [for (final x in current.items) x.id == c.id ? c : x],
         nextCursor: current.nextCursor,
       ),
@@ -568,9 +567,11 @@ class SocialActions {
             );
       });
 
+  // ignore: avoid_positional_boolean_parameters
   Future<Object?> setFollowing(String attorneyId, bool following) =>
       _guard('follow:$attorneyId', () async {
         final overrides = _ref.read(followOverridesProvider.notifier);
+        // ignore: cascade_invocations
         overrides.put(attorneyId, following);
         try {
           await _repo.setFollowing(attorneyId, following: following);
@@ -613,10 +614,12 @@ class SocialActions {
     bool casePhoto = false,
     bool reviewPhoto = false,
   }) =>
-      _repo.uploadPostPhoto(bytes,
-          onProgress: onProgress,
-          casePhoto: casePhoto,
-          reviewPhoto: reviewPhoto);
+      _repo.uploadPostPhoto(
+        bytes,
+        onProgress: onProgress,
+        casePhoto: casePhoto,
+        reviewPhoto: reviewPhoto,
+      );
 }
 
 final socialActionsProvider = Provider<SocialActions>(SocialActions.new);

@@ -2,25 +2,24 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
-import 'package:lawbid/features/cases/domain/case_models.dart';
-import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
-import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/data/cases_repository.dart'
     show CaseFeedExtras;
+import 'package:lawbid/features/cases/domain/case_models.dart';
+import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
+import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/feed/application/feed_topics.dart';
 import 'package:lawbid/features/feed/presentation/widgets/topic_filter_bar.dart'
     show topicName;
-import 'package:lawbid/features/search/presentation/widgets/search_tiles.dart';
-import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/search/application/search_providers.dart';
 import 'package:lawbid/features/search/data/search_repository.dart';
 import 'package:lawbid/features/search/presentation/widgets/flip_search_bar.dart';
 import 'package:lawbid/features/search/presentation/widgets/search_filters_sheet.dart';
+import 'package:lawbid/features/search/presentation/widgets/search_tiles.dart';
+import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
@@ -154,7 +153,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       backgroundColor: colors.gold,
       textColor: colors.navy,
       child: AppIconButton(
-        plain: true,
         icon: AppIcon(AppIcons.tuneRounded, color: colors.text),
         semanticLabel: t.t('search.filters'),
         onPressed: () => _openFilters(kind),
@@ -170,10 +168,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       cancelLabel: t.t('common.cancel'),
       clearLabel: t.t('search.clear'),
       showCancel: false,
-      height: AppSizes.searchField,
       leading: filterButton,
       trailing: AppIconButton(
-        plain: true,
         icon: AppIcon(AppIcons.searchRounded, color: colors.goldDark),
         semanticLabel: t.t('search.open'),
         onPressed: _onMagnifier,
@@ -363,7 +359,7 @@ class _TagTopicRow extends ConsumerWidget {
       subtitle: count == null
           ? '#${tag.tag}'
           : '#${tag.tag} · ${t.t('search.topics.posts', {
-                  'count': SocialFormat.count(f, count)
+                  'count': SocialFormat.count(f, count),
                 })}',
     );
   }
@@ -396,13 +392,19 @@ class _BeforeTyping extends ConsumerWidget {
     final attorney = ref.watch(actsAsAttorneyProvider);
 
     Widget title(String text, {Widget? trailing}) => Padding(
-          padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide,
-              AppSpacing.lg, AppSpacing.sm, AppSpacing.sm),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.screenSide,
+            AppSpacing.lg,
+            AppSpacing.sm,
+            AppSpacing.sm,
+          ),
           child: Row(
             children: [
               Expanded(
-                child: Text(text,
-                    style: type.titleMedium.copyWith(color: colors.text)),
+                child: Text(
+                  text,
+                  style: type.titleMedium.copyWith(color: colors.text),
+                ),
               ),
               if (trailing != null) trailing,
             ],
@@ -422,6 +424,7 @@ class _BeforeTyping extends ConsumerWidget {
     final lastKey = last == null ? null : (q: last, filters: filters);
 
     // "Based on your search" for this tab.
+    // ignore: omit_local_variable_types
     final List<Widget> basedOn = switch (tab) {
       _ when last == null => const [],
       SearchTab.attorneys => [
@@ -463,6 +466,7 @@ class _BeforeTyping extends ConsumerWidget {
         ],
     };
 
+    // ignore: omit_local_variable_types
     final List<Widget> explore = switch (tab) {
       SearchTab.attorneys => [
           const SliverToBoxAdapter(child: SuggestedAttorneys(limit: 8)),
@@ -515,18 +519,27 @@ class _BeforeTyping extends ConsumerWidget {
       SearchTab.tags => [
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide,
-                  AppSpacing.md, AppSpacing.screenSide, 0),
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.screenSide,
+                AppSpacing.md,
+                AppSpacing.screenSide,
+                0,
+              ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  AppIcon(AppIcons.infoOutlineRounded,
-                      size: AppSizes.iconSm, color: colors.goldDark),
+                  AppIcon(
+                    AppIcons.infoOutlineRounded,
+                    size: AppSizes.iconSm,
+                    color: colors.goldDark,
+                  ),
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
-                    child: Text(t.t('search.topics.explain'),
-                        style: type.bodySmall
-                            .copyWith(color: colors.textSecondary)),
+                    child: Text(
+                      t.t('search.topics.explain'),
+                      style:
+                          type.bodySmall.copyWith(color: colors.textSecondary),
+                    ),
                   ),
                 ],
               ),
@@ -577,14 +590,17 @@ class _BeforeTyping extends ConsumerWidget {
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.screenSide),
+                    horizontal: AppSpacing.screenSide,
+                  ),
                   itemCount: recent.length,
                   separatorBuilder: (_, __) =>
                       const SizedBox(width: AppSpacing.sm),
                   itemBuilder: (context, i) => AppChip(
                     label: recent[i],
-                    leading:
-                        const AppIcon(AppIcons.historyRounded, size: AppSpacing.lg),
+                    leading: const AppIcon(
+                      AppIcons.historyRounded,
+                      size: AppSpacing.lg,
+                    ),
                     onTap: () => onRecent(recent[i]),
                   ),
                 ),

@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/app_update/app_update_providers.dart';
+import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/session/session_providers.dart';
+import 'package:lawbid/core/startup/app_startup.dart';
 import 'package:url_launcher/url_launcher.dart';
-
-import '../design_system/design_system.dart';
-import '../l10n/l10n_providers.dart';
-import '../session/session_providers.dart';
-import '../startup/app_startup.dart';
-import 'app_update_providers.dart';
 
 /// Opens the store listing ([storeUrlProvider]); overridable in tests.
 typedef StoreLauncher = Future<bool> Function(Uri url);
@@ -40,19 +39,30 @@ class AppUpdateGate extends ConsumerWidget {
     if (!ready || status == AppUpdateStatus.upToDate) return content;
 
     if (status == AppUpdateStatus.updateRequired) {
-      return Stack(children: [content, const Positioned.fill(child: ForcedUpdateScreen())]);
+      return Stack(
+        children: [
+          content,
+          const Positioned.fill(child: ForcedUpdateScreen()),
+        ],
+      );
     }
 
     // Soft prompt: only inside the app (splash finished AND signed in), so
     // the pre-app flow — welcome, sign-in, onboarding entry — never
     // changes; a forced update above still covers everything.
     final startupDone = ref.watch(appStartupProvider) == StartupStatus.ready;
-    final signedIn = ref.watch(sessionControllerProvider.select((s) => s != null));
+    final signedIn =
+        ref.watch(sessionControllerProvider.select((s) => s != null));
     if (!startupDone || !signedIn) return content;
     return Stack(
       children: [
         content,
-        const Positioned(left: 0, right: 0, bottom: 0, child: SoftUpdatePrompt()),
+        const Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: SoftUpdatePrompt(),
+        ),
       ],
     );
   }
@@ -97,7 +107,9 @@ class ForcedUpdateScreen extends ConsumerWidget {
           body: SafeArea(
             child: LayoutBuilder(
               builder: (context, constraints) => SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenSide),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.screenSide,
+                ),
                 child: ConstrainedBox(
                   constraints: BoxConstraints(minHeight: constraints.maxHeight),
                   child: Column(
@@ -108,14 +120,16 @@ class ForcedUpdateScreen extends ConsumerWidget {
                         child: Text(
                           t.t('app.update.title'),
                           textAlign: TextAlign.center,
-                          style: typography.titleLarge.copyWith(color: colors.text),
+                          style: typography.titleLarge
+                              .copyWith(color: colors.text),
                         ),
                       ),
                       const SizedBox(height: AppSpacing.md),
                       Text(
                         t.t('app.update.message'),
                         textAlign: TextAlign.center,
-                        style: typography.body.copyWith(color: colors.textSecondary),
+                        style: typography.body
+                            .copyWith(color: colors.textSecondary),
                       ),
                       const SizedBox(height: AppSpacing.xl),
                       Builder(
@@ -185,7 +199,9 @@ class SoftUpdatePrompt extends ConsumerWidget {
                       onPressed: () {
                         final soft = ref.read(softUpdateVersionProvider);
                         if (soft != null) {
-                          ref.read(softUpdateDismissalProvider.notifier).dismiss(soft);
+                          ref
+                              .read(softUpdateDismissalProvider.notifier)
+                              .dismiss(soft);
                         }
                       },
                     ),

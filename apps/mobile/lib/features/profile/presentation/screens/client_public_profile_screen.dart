@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -9,15 +8,15 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/blocks/presentation/block_actions.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
-import 'package:lawbid/features/social/domain/social_models.dart'
-    show ReportTarget;
-import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart'
-    show showReportSheet;
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/widgets/attorney_profile_view.dart'
     show ProfileUnavailableState;
 import 'package:lawbid/features/profile/presentation/widgets/client_social_profile.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_handle_bar.dart';
+import 'package:lawbid/features/social/domain/social_models.dart'
+    show ReportTarget;
+import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart'
+    show showReportSheet;
 
 /// `/client/:username` — a client's public mini-profile (owner decision
 /// 2026-09-29, OQ-026): "@username" centered, avatar, name, state, member
@@ -90,7 +89,6 @@ class ClientPublicProfileScreen extends ConsumerWidget {
         actions: [
           if (profile.value case final p? when !p.isSelf)
             AppIconButton(
-              plain: true,
               icon: AppIcon(AppIcons.moreHorizRounded, color: colors.text),
               semanticLabel: t.t('chat.menu'),
               onPressed: () => _more(context, ref, p),
@@ -162,7 +160,7 @@ class _Skeleton extends StatelessWidget {
           children: [
             AppSkeleton(width: 88, height: 88, borderRadius: 44),
             SizedBox(width: AppSpacing.lg),
-            Expanded(child: AppSkeleton(height: 24, borderRadius: 8)),
+            Expanded(child: AppSkeleton(height: 24)),
           ],
         ),
       );

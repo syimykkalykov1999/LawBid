@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 
-import '../tokens/app_fonts.dart';
+import 'package:lawbid/core/design_system/tokens/app_fonts.dart';
 
 /// Design-system type scale (file 07 §3). Access via
 /// `Theme.of(context).extension<AppTypographyTokens>()!`.
 ///
 /// Styles intentionally carry no [Color] — callers apply color from
-/// [AppColorTokens] for the context they're used in (e.g. `body` on `bg`
+/// `AppColorTokens` for the context they're used in (e.g. `body` on `bg`
 /// vs. `onAccent` inside a filled button). This keeps typography and color
 /// as independent, orthogonal tokens.
 ///

@@ -1,3 +1,4 @@
+// ignore_for_file: lines_longer_than_80_chars
 // docs/05 (feed, posts, comments, follows, search, chats, notifications)
 // compiled-in strings, merged into StaticTranslatorRu/En (the seed and
 // fallback layer of L10nTranslator). Plurals: `.one/.few/.many/.other`
@@ -224,7 +225,8 @@ const file05Ru = <String, String>{
   'notif.list.post_like.many': '{name} и ещё {others} отметили ваш пост',
   'notif.list.post_comment': '{name} прокомментировал(-а) ваш пост',
   'notif.list.case_comment': '{name} прокомментировал(-а) ваш кейс',
-  'notif.list.case_comment.many': '{name} и ещё {others} прокомментировали ваш кейс',
+  'notif.list.case_comment.many':
+      '{name} и ещё {others} прокомментировали ваш кейс',
   'notif.list.comment_reply': '{name} ответил(-а) на ваш комментарий',
   'notif.list.comment_like': '{name} отметил(-а) ваш комментарий',
   'notif.list.comment_like.many':
@@ -235,7 +237,8 @@ const file05Ru = <String, String>{
   'notif.list.subscription_status': 'Статус подписки изменился',
   'notif.list.moderation_notice': 'Сообщение от модерации',
   'notif.list.security_new_device': 'Вход в аккаунт с нового устройства',
-  'notif.list.security_phone_changed': 'Поддержка сменила номер телефона по вашему запросу',
+  'notif.list.security_phone_changed':
+      'Поддержка сменила номер телефона по вашему запросу',
   // --- profile header (owner redesign) ---
   'profile.rating.newShort': 'Новый',
   'profile.action.message': 'Написать',
@@ -461,7 +464,8 @@ const file05En = <String, String>{
   'notif.list.post_like.many': '{name} and {others} others liked your post',
   'notif.list.post_comment': '{name} commented on your post',
   'notif.list.case_comment': '{name} commented on your case',
-  'notif.list.case_comment.many': '{name} and {others} more commented on your case',
+  'notif.list.case_comment.many':
+      '{name} and {others} more commented on your case',
   'notif.list.comment_reply': '{name} replied to your comment',
   'notif.list.comment_like': '{name} liked your comment',
   'notif.list.comment_like.many':
@@ -473,7 +477,8 @@ const file05En = <String, String>{
   'notif.list.subscription_status': 'Your subscription status changed',
   'notif.list.moderation_notice': 'A message from moderation',
   'notif.list.security_new_device': 'New sign-in from another device',
-  'notif.list.security_phone_changed': 'Support changed your phone number at your request',
+  'notif.list.security_phone_changed':
+      'Support changed your phone number at your request',
   // --- profile header (owner redesign) ---
   'profile.rating.newShort': 'New',
   'profile.action.message': 'Message',

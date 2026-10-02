@@ -7,19 +7,21 @@ enum _T { a, b, c }
 void main() {
   Future<ValueNotifier<_T>> pump(WidgetTester tester) async {
     final tab = ValueNotifier(_T.a);
-    await tester.pumpWidget(MaterialApp(
-      home: Scaffold(
-        body: ValueListenableBuilder<_T>(
-          valueListenable: tab,
-          builder: (context, value, _) => TabSwipe<_T>(
-            value: value,
-            values: _T.values,
-            onChanged: (v) => tab.value = v,
-            child: SizedBox.expand(child: Center(child: Text(value.name))),
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ValueListenableBuilder<_T>(
+            valueListenable: tab,
+            builder: (context, value, _) => TabSwipe<_T>(
+              value: value,
+              values: _T.values,
+              onChanged: (v) => tab.value = v,
+              child: SizedBox.expand(child: Center(child: Text(value.name))),
+            ),
           ),
         ),
       ),
-    ));
+    );
     return tab;
   }
 

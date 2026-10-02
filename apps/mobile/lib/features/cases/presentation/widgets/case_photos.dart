@@ -1,16 +1,15 @@
 import 'dart:typed_data';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:url_launcher/url_launcher.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/cases/application/create_case_controller.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// Owner decision 2026-09-30 (OQ-031): 0–9 case photos in the wizard.
 /// They upload at once; "Next" waits while any is still uploading.
@@ -66,17 +65,25 @@ class CasePhotosPicker extends ConsumerWidget {
         Row(
           children: [
             Expanded(
-              child: Text(t.t('cases.photos.title'),
-                  style: type.body.copyWith(
-                      color: colors.text, fontWeight: FontWeight.w600)),
+              child: Text(
+                t.t('cases.photos.title'),
+                style: type.body.copyWith(
+                  color: colors.text,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
-            Text('${photos.length} / $kCaseMaxPhotos',
-                style: type.caption.copyWith(color: colors.textSecondary)),
+            Text(
+              '${photos.length} / $kCaseMaxPhotos',
+              style: type.caption.copyWith(color: colors.textSecondary),
+            ),
           ],
         ),
         const SizedBox(height: AppSpacing.xs),
-        Text(t.t('cases.photos.privacy'),
-            style: type.caption.copyWith(color: colors.textSecondary)),
+        Text(
+          t.t('cases.photos.privacy'),
+          style: type.caption.copyWith(color: colors.textSecondary),
+        ),
         const SizedBox(height: AppSpacing.sm),
         // Tiles sit centred, not against the left edge.
         Wrap(
@@ -107,8 +114,10 @@ class CasePhotosPicker extends ConsumerWidget {
                       Center(
                         child: AppIconButton(
                           plain: false,
-                          icon:
-                              AppIcon(AppIcons.refreshRounded, color: colors.danger),
+                          icon: AppIcon(
+                            AppIcons.refreshRounded,
+                            color: colors.danger,
+                          ),
                           semanticLabel: t.t('error.retry'),
                           onPressed: () => c.retryPhoto(p.key),
                         ),
@@ -127,8 +136,11 @@ class CasePhotosPicker extends ConsumerWidget {
                               shape: BoxShape.circle,
                             ),
                             padding: const EdgeInsets.all(2),
-                            child: AppIcon(AppIcons.closeRounded,
-                                size: 18, color: colors.text),
+                            child: AppIcon(
+                              AppIcons.closeRounded,
+                              size: 18,
+                              color: colors.text,
+                            ),
                           ),
                         ),
                       ),
@@ -150,8 +162,10 @@ class CasePhotosPicker extends ConsumerWidget {
                       borderRadius: BorderRadius.circular(AppRadii.field),
                       border: Border.all(color: colors.goldStroke),
                     ),
-                    child: AppIcon(AppIcons.addPhotoAlternateOutlined,
-                        color: colors.goldDark),
+                    child: AppIcon(
+                      AppIcons.addPhotoAlternateOutlined,
+                      color: colors.goldDark,
+                    ),
                   ),
                 ),
               ),
@@ -169,8 +183,10 @@ class CasePhotosPicker extends ConsumerWidget {
                       borderRadius: BorderRadius.circular(AppRadii.field),
                       border: Border.all(color: colors.goldStroke),
                     ),
-                    child:
-                        AppIcon(AppIcons.noteAddOutlined, color: colors.goldDark),
+                    child: AppIcon(
+                      AppIcons.noteAddOutlined,
+                      color: colors.goldDark,
+                    ),
                   ),
                 ),
               ),
@@ -201,8 +217,11 @@ class CasePhotosStrip extends ConsumerWidget {
     if (photos.isEmpty) {
       return Row(
         children: [
-          AppIcon(AppIcons.lockOutlineRounded,
-              size: AppSizes.iconSm, color: colors.goldDark),
+          AppIcon(
+            AppIcons.lockOutlineRounded,
+            size: AppSizes.iconSm,
+            color: colors.goldDark,
+          ),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Text(
@@ -306,8 +325,11 @@ class _DocTile extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          AppIcon(pdf ? AppIcons.pictureAsPdfRounded : AppIcons.descriptionRounded,
-              size: 36, color: colors.goldDark),
+          AppIcon(
+            pdf ? AppIcons.pictureAsPdfRounded : AppIcons.descriptionRounded,
+            size: 36,
+            color: colors.goldDark,
+          ),
           const SizedBox(height: AppSpacing.xs),
           Text(
             name,

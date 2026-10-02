@@ -1,11 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:lawbid/features/team/application/team_providers.dart';
-import 'package:lawbid/features/team/domain/team_models.dart';
-import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lawbid/features/cases/presentation/widgets/case_photos.dart';
 import 'package:go_router/go_router.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
@@ -19,10 +14,14 @@ import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_cards.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_header.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_photos.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_wizard_steps.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
+import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
+import 'package:lawbid/features/team/application/team_providers.dart';
+import 'package:lawbid/features/team/domain/team_models.dart';
 
 /// Opens the subscription call-to-action when the server answers
 /// SUBSCRIPTION_REQUIRED (docs/04 §2); true when it handled [e].
@@ -71,9 +70,12 @@ class _AttorneyCaseScreenState extends ConsumerState<AttorneyCaseScreen> {
     final t = ref.read(translatorProvider);
     try {
       await ref.read(caseActionsProvider).setSaved(c.id, saved: next);
-      if (mounted)
+      if (mounted) {
         showAppSnackBar(
-            context, t.t(next ? 'cases.saved.added' : 'cases.saved.removed'));
+          context,
+          t.t(next ? 'cases.saved.added' : 'cases.saved.removed'),
+        );
+      }
     } on Object catch (e) {
       if (!mounted) return;
       setState(() => _savedOverride = !next);
@@ -219,8 +221,10 @@ class _Body extends ConsumerWidget {
           ),
         DetailSection(
           title: t.t('cases.detail.description'),
-          child: Text(c.description ?? '',
-              style: typography.body.copyWith(color: colors.text)),
+          child: Text(
+            c.description ?? '',
+            style: typography.body.copyWith(color: colors.text),
+          ),
         ),
         // OQ-031: photos once this attorney's bid is accepted; before
         // that only a note that the case has photos.
@@ -252,14 +256,16 @@ class _Body extends ConsumerWidget {
                 value: CaseFormat.budget(t, formats, c.budget),
               ),
               InfoRow(
-                  icon: AppIcons.mapOutlined,
-                  label: t.t('cases.field.states'),
-                  value: states),
+                icon: AppIcons.mapOutlined,
+                label: t.t('cases.field.states'),
+                value: states,
+              ),
               if (c.city != null && c.city!.trim().isNotEmpty)
                 InfoRow(
-                    icon: AppIcons.placeOutlined,
-                    label: t.t('cases.field.city'),
-                    value: c.city!),
+                  icon: AppIcons.placeOutlined,
+                  label: t.t('cases.field.city'),
+                  value: c.city!,
+                ),
               InfoRow(
                 icon: AppIcons.insightsOutlined,
                 label: t.t('cases.detail.activity'),
@@ -275,8 +281,11 @@ class _Body extends ConsumerWidget {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            AppIcon(AppIcons.lockOutlineRounded,
-                size: AppSpacing.lg, color: colors.textSecondary),
+            AppIcon(
+              AppIcons.lockOutlineRounded,
+              size: AppSpacing.lg,
+              color: colors.textSecondary,
+            ),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Text(
@@ -293,8 +302,11 @@ class _Body extends ConsumerWidget {
 
 /// §4.3 "вместо кнопки «Сделать бид» показывается карточка его бида".
 class _OwnBidCard extends ConsumerWidget {
-  const _OwnBidCard(
-      {required this.bidId, required this.t, required this.formats});
+  const _OwnBidCard({
+    required this.bidId,
+    required this.t,
+    required this.formats,
+  });
 
   final String bidId;
   final Translator t;
@@ -315,8 +327,15 @@ class _OwnBidCard extends ConsumerWidget {
               Row(
                 children: [
                   Expanded(
-                      child: MoneyText(CaseFormat.terms(
-                          t, formats, value.feeType, value.amountCents))),
+                    child: MoneyText(
+                      CaseFormat.terms(
+                        t,
+                        formats,
+                        value.feeType,
+                        value.amountCents,
+                      ),
+                    ),
+                  ),
                   BidStatusPill(bid: value, viewer: PartyRole.attorney, t: t),
                 ],
               ),
@@ -330,10 +349,15 @@ class _OwnBidCard extends ConsumerWidget {
                   Text(
                     t.t('cases.detail.openBid'),
                     style: typography.bodySmall.copyWith(
-                        color: colors.goldDark, fontWeight: FontWeight.w600),
+                      color: colors.goldDark,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                  AppIcon(AppIcons.chevronRightRounded,
-                      color: colors.goldDark, size: AppSizes.iconSm),
+                  AppIcon(
+                    AppIcons.chevronRightRounded,
+                    color: colors.goldDark,
+                    size: AppSizes.iconSm,
+                  ),
                 ],
               ),
             ],

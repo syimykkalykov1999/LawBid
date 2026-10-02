@@ -89,8 +89,11 @@ class _CallScreenState extends ConsumerState<CallScreen>
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      AppIcon(AppIcons.lockOutlineRounded,
-                          size: 14, color: colors.goldLight),
+                      AppIcon(
+                        AppIcons.lockOutlineRounded,
+                        size: 14,
+                        color: colors.goldLight,
+                      ),
                       const SizedBox(width: AppSpacing.xs),
                       Text(
                         t.t('call.audioOnly'),
@@ -118,7 +121,8 @@ class _CallScreenState extends ConsumerState<CallScreen>
                   const SizedBox(height: AppSpacing.xl),
                   Padding(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.screenSide),
+                      horizontal: AppSpacing.screenSide,
+                    ),
                     child: Text(
                       name,
                       textAlign: TextAlign.center,
@@ -132,7 +136,8 @@ class _CallScreenState extends ConsumerState<CallScreen>
                     liveRegion: true,
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.screenSide),
+                        horizontal: AppSpacing.screenSide,
+                      ),
                       child: Text(
                         callStatusText(t, s),
                         textAlign: TextAlign.center,
@@ -148,7 +153,11 @@ class _CallScreenState extends ConsumerState<CallScreen>
                   const Spacer(flex: 3),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(
-                        AppSpacing.xl, 0, AppSpacing.xl, AppSpacing.xxl),
+                      AppSpacing.xl,
+                      0,
+                      AppSpacing.xl,
+                      AppSpacing.xxl,
+                    ),
                     child: s.phase == CallPhase.incoming
                         ? Row(
                             mainAxisAlignment: MainAxisAlignment.spaceAround,

@@ -97,7 +97,8 @@ class PracticesScreen extends ConsumerWidget {
             : PracticesEditor(
                 key: const ValueKey('editor'),
                 tree: d.tree,
-                initial: d.selected),
+                initial: d.selected,
+              ),
       );
     }
 
@@ -161,8 +162,9 @@ class _PracticesEditorState extends ConsumerState<PracticesEditor> {
           .user
           ?.attorneyProfile
           ?.username;
-      if (username != null)
+      if (username != null) {
         ref.invalidate(publicAttorneyProfileProvider(username));
+      }
       showAppSnackBar(context, t.t('practices.saved'));
     } catch (e) {
       if (mounted) showAppSnackBar(context, errorText(t, e));
@@ -209,7 +211,7 @@ class _PracticesEditorState extends ConsumerState<PracticesEditor> {
 
     final leafById = {
       for (final c in widget.tree)
-        for (final l in c.children) l.id: l
+        for (final l in c.children) l.id: l,
     };
     final selectedLeaves = [
       for (final id in _selected)
@@ -217,11 +219,17 @@ class _PracticesEditorState extends ConsumerState<PracticesEditor> {
     ]..sort((a, b) => leafName(a).compareTo(leafName(b)));
 
     final list = ListView(
-      padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide, AppSpacing.sm,
-          AppSpacing.screenSide, AppSpacing.xxl),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.screenSide,
+        AppSpacing.sm,
+        AppSpacing.screenSide,
+        AppSpacing.xxl,
+      ),
       children: [
-        Text(t.t('practices.intro'),
-            style: typography.body.copyWith(color: colors.textSecondary)),
+        Text(
+          t.t('practices.intro'),
+          style: typography.body.copyWith(color: colors.textSecondary),
+        ),
         // Owner 2026-10-01: these qualifications also decide which new
         // cases reach the notifications — and that it can be changed.
         const SizedBox(height: AppSpacing.md),
@@ -235,18 +243,23 @@ class _PracticesEditorState extends ConsumerState<PracticesEditor> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              AppIcon(AppIcons.notificationsActiveOutlined,
-                  size: AppSizes.iconSm, color: colors.goldDark),
+              AppIcon(
+                AppIcons.notificationsActiveOutlined,
+                size: AppSizes.iconSm,
+                color: colors.goldDark,
+              ),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(t.t('practices.alertsHint'),
-                        style:
-                            typography.bodySmall.copyWith(color: colors.text)),
+                    Text(
+                      t.t('practices.alertsHint'),
+                      style: typography.bodySmall.copyWith(color: colors.text),
+                    ),
                     GestureDetector(
-                      onTap: () => context.push(ChatRoutes.notificationSettings),
+                      onTap: () =>
+                          context.push(ChatRoutes.notificationSettings),
                       child: Padding(
                         padding: const EdgeInsets.only(top: AppSpacing.xs),
                         child: Text(
@@ -269,8 +282,11 @@ class _PracticesEditorState extends ConsumerState<PracticesEditor> {
           controller: _search,
           hintText: t.t('practices.search'),
           semanticLabel: t.t('practices.search'),
-          leading: AppIcon(AppIcons.searchRounded,
-              color: colors.textSecondary, size: AppSizes.iconSm),
+          leading: AppIcon(
+            AppIcons.searchRounded,
+            color: colors.textSecondary,
+            size: AppSizes.iconSm,
+          ),
           textInputAction: TextInputAction.search,
           onChanged: (_) => setState(() {}),
         ),
@@ -288,8 +304,9 @@ class _PracticesEditorState extends ConsumerState<PracticesEditor> {
             child: Column(
               children: [
                 const AppIconMedallion(
-                    icon: AppIcons.searchOffRounded,
-                    tone: AppMedallionTone.neutral),
+                  icon: AppIcons.searchOffRounded,
+                  tone: AppMedallionTone.neutral,
+                ),
                 const SizedBox(height: AppSpacing.md),
                 Text(
                   t.t('practices.noResults'),
@@ -336,8 +353,12 @@ class _PracticesEditorState extends ConsumerState<PracticesEditor> {
           child: SafeArea(
             top: false,
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide,
-                  AppSpacing.md, AppSpacing.screenSide, AppSpacing.md),
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.screenSide,
+                AppSpacing.md,
+                AppSpacing.screenSide,
+                AppSpacing.md,
+              ),
               child: AppButton(
                 key: const ValueKey('practices-save'),
                 label: t.t('practices.save'),
@@ -388,9 +409,10 @@ class _SelectedChips extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.sm),
           if (leaves.isEmpty)
-            Text(t.t('practices.selected.none'),
-                style:
-                    typography.bodySmall.copyWith(color: colors.textSecondary))
+            Text(
+              t.t('practices.selected.none'),
+              style: typography.bodySmall.copyWith(color: colors.textSecondary),
+            )
           else
             Wrap(
               spacing: AppSpacing.sm,
@@ -407,8 +429,11 @@ class _SelectedChips extends StatelessWidget {
                       child: AppChip(
                         label: nameOf(l),
                         selected: true,
-                        trailing: AppIcon(AppIcons.closeRounded,
-                            size: AppSpacing.lg, color: colors.textSecondary),
+                        trailing: AppIcon(
+                          AppIcons.closeRounded,
+                          size: AppSpacing.lg,
+                          color: colors.textSecondary,
+                        ),
                         onTap: () => onRemove(l.id),
                       ),
                     ),
@@ -501,36 +526,47 @@ class _CategoryCard extends StatelessWidget {
               onTap: onExpand,
               child: ConstrainedBox(
                 constraints: const BoxConstraints(
-                    minHeight: AppSizes.hitTarget + AppSpacing.sm),
+                  minHeight: AppSizes.hitTarget + AppSpacing.sm,
+                ),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
+                    horizontal: AppSpacing.lg,
+                    vertical: AppSpacing.sm,
+                  ),
                   child: Row(
                     children: [
                       Expanded(
-                          child: Text(name,
-                              style: typography.roleTitle
-                                  .copyWith(color: colors.text))),
+                        child: Text(
+                          name,
+                          style:
+                              typography.roleTitle.copyWith(color: colors.text),
+                        ),
+                      ),
                       if (picked > 0)
                         Container(
                           margin: const EdgeInsets.only(right: AppSpacing.sm),
                           padding: const EdgeInsets.symmetric(
-                              horizontal: AppSpacing.sm,
-                              vertical: AppSpacing.xs / 2),
+                            horizontal: AppSpacing.sm,
+                            vertical: AppSpacing.xs / 2,
+                          ),
                           decoration: BoxDecoration(
-                              color: colors.gold,
-                              borderRadius:
-                                  BorderRadius.circular(AppRadii.pill)),
-                          child: Text('$picked',
-                              style: typography.badge
-                                  .copyWith(color: colors.navy)),
+                            color: colors.gold,
+                            borderRadius: BorderRadius.circular(AppRadii.pill),
+                          ),
+                          child: Text(
+                            '$picked',
+                            style:
+                                typography.badge.copyWith(color: colors.navy),
+                          ),
                         ),
                       AnimatedRotation(
                         turns: expanded ? 0.5 : 0,
                         duration:
                             reduce ? Duration.zero : AppMotion.stateChange,
-                        child: AppIcon(AppIcons.expandMoreRounded,
-                            color: colors.textSecondary),
+                        child: AppIcon(
+                          AppIcons.expandMoreRounded,
+                          color: colors.textSecondary,
+                        ),
                       ),
                     ],
                   ),
@@ -546,15 +582,21 @@ class _CategoryCard extends StatelessWidget {
                 ? const SizedBox(width: double.infinity)
                 : Padding(
                     padding: const EdgeInsets.fromLTRB(
-                        AppSpacing.sm, 0, AppSpacing.sm, AppSpacing.sm),
+                      AppSpacing.sm,
+                      0,
+                      AppSpacing.sm,
+                      AppSpacing.sm,
+                    ),
                     child: Column(
                       children: [
                         Divider(height: 1, color: colors.border),
                         _CheckRow(
                           key: ValueKey('select-all-${category.id}'),
-                          label: t.t(allPicked
-                              ? 'practices.clearAll'
-                              : 'practices.selectAll'),
+                          label: t.t(
+                            allPicked
+                                ? 'practices.clearAll'
+                                : 'practices.selectAll',
+                          ),
                           checked: allPicked,
                           emphasized: true,
                           onTap: onToggleAll,
@@ -617,12 +659,16 @@ class _CheckRow extends StatelessWidget {
                     color: checked ? colors.accent : colors.surface,
                     borderRadius: BorderRadius.circular(AppSpacing.xs + 2),
                     border: Border.all(
-                        color: checked ? colors.accent : colors.textSecondary,
-                        width: 1.5),
+                      color: checked ? colors.accent : colors.textSecondary,
+                      width: 1.5,
+                    ),
                   ),
                   child: checked
-                      ? AppIcon(AppIcons.checkRounded,
-                          size: AppSpacing.lg, color: colors.onAccent)
+                      ? AppIcon(
+                          AppIcons.checkRounded,
+                          size: AppSpacing.lg,
+                          color: colors.onAccent,
+                        )
                       : null,
                 ),
                 const SizedBox(width: AppSpacing.md),
@@ -650,8 +696,12 @@ class _PracticesSkeleton extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ListView(
         physics: const NeverScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide, AppSpacing.sm,
-            AppSpacing.screenSide, AppSpacing.xxl),
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.screenSide,
+          AppSpacing.sm,
+          AppSpacing.screenSide,
+          AppSpacing.xxl,
+        ),
         children: [
           const AppSkeleton(height: AppSpacing.md),
           const SizedBox(height: AppSpacing.lg),
@@ -659,8 +709,9 @@ class _PracticesSkeleton extends StatelessWidget {
           const SizedBox(height: AppSpacing.xl),
           for (var i = 0; i < 6; i++) ...[
             const AppSkeleton(
-                height: AppSizes.hitTarget + AppSpacing.sm,
-                borderRadius: AppRadii.card),
+              height: AppSizes.hitTarget + AppSpacing.sm,
+              borderRadius: AppRadii.card,
+            ),
             const SizedBox(height: AppSpacing.sm),
           ],
         ],

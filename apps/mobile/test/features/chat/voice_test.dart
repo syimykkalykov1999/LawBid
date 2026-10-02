@@ -62,7 +62,9 @@ class _FakeVoiceChat implements ChatRepository {
   Future<String> uploadVoice(Uint8List bytes) async {
     if (failUpload) {
       throw const ApiException(
-          code: ApiException.networkErrorCode, message: 'offline');
+        code: ApiException.networkErrorCode,
+        message: 'offline',
+      );
     }
     uploads.add(bytes.length);
     return 'file-${uploads.length}';
@@ -104,14 +106,16 @@ class _FakeVoiceChat implements ChatRepository {
 
 ProviderContainer _container(_FakeVoiceChat chat) {
   final db = SocialLocalDatabase(NativeDatabase.memory());
-  final c = ProviderContainer(overrides: [
-    chatRepositoryProvider.overrideWithValue(chat),
-    socialLocalDatabaseProvider.overrideWithValue(db),
-    currentUserIdProvider.overrideWithValue('me'),
-    realtimeClientProvider.overrideWithValue(null),
-    networkInterfaceMonitorProvider.overrideWithValue(FakeNetworkMonitor()),
-    reachabilityProbeProvider.overrideWithValue(FakeProbe().call),
-  ]);
+  final c = ProviderContainer(
+    overrides: [
+      chatRepositoryProvider.overrideWithValue(chat),
+      socialLocalDatabaseProvider.overrideWithValue(db),
+      currentUserIdProvider.overrideWithValue('me'),
+      realtimeClientProvider.overrideWithValue(null),
+      networkInterfaceMonitorProvider.overrideWithValue(FakeNetworkMonitor()),
+      reachabilityProbeProvider.overrideWithValue(FakeProbe().call),
+    ],
+  );
   addTearDown(() async {
     c.dispose();
     await db.close();
@@ -119,7 +123,8 @@ ProviderContainer _container(_FakeVoiceChat chat) {
   return c;
 }
 
-Future<void> _settle() => Future<void>.delayed(const Duration(milliseconds: 50));
+Future<void> _settle() =>
+    Future<void>.delayed(const Duration(milliseconds: 50));
 
 Future<String> _recordedFile() async {
   final dir = await Directory.systemTemp.createTemp('voice');
@@ -138,10 +143,10 @@ void main() {
     await _settle();
 
     await c.read(chatThreadProvider('c1').notifier).sendVoice(
-          path: await _recordedFile(),
-          durationMs: 4200,
-          waveform: const [5, 60, 100],
-        );
+      path: await _recordedFile(),
+      durationMs: 4200,
+      waveform: const [5, 60, 100],
+    );
     await _settle();
     final s = c.read(chatThreadProvider('c1'));
     expect(chat.uploads, [2048]);
@@ -193,8 +198,10 @@ void main() {
     await thread.voicePlayed(c.read(chatThreadProvider('c1')).messages.single);
     await thread.voicePlayed(chat.voice('own', 'me'));
     expect(chat.listenedIds, ['theirs']);
-    expect(c.read(chatThreadProvider('c1')).messages.single.voice!.listened,
-        isTrue);
+    expect(
+      c.read(chatThreadProvider('c1')).messages.single.voice!.listened,
+      isTrue,
+    );
   });
 
   test('waveform bars: fixed count, 0–100, quiet notes still visible', () {

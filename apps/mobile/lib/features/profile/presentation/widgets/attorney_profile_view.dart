@@ -1,17 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
-    show showConfirmSheet;
-import 'package:lawbid/features/cases/presentation/widgets/client_review_sheet.dart';
-import 'package:lawbid/shared/presentation/share_sheet.dart';
-import 'package:lawbid/features/chat/presentation/open_direct_chat.dart';
-import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
 import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
-import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -19,18 +10,25 @@ import 'package:lawbid/core/l10n/language_catalog.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/blocks/presentation/block_actions.dart';
+import 'package:lawbid/features/cases/presentation/widgets/client_review_sheet.dart';
+import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
+    show showConfirmSheet;
+import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
+import 'package:lawbid/features/chat/presentation/open_direct_chat.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
-import 'package:lawbid/features/social/domain/social_models.dart'
-    show ReportTarget;
-import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart'
-    show showReportSheet;
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_avatar.dart';
 import 'package:lawbid/features/profile/presentation/widgets/review_widgets.dart';
+import 'package:lawbid/features/social/domain/social_models.dart'
+    show ReportTarget;
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart';
 import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart';
+import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart'
+    show showReportSheet;
+import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/social/social_routes.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
+import 'package:lawbid/shared/presentation/share_sheet.dart';
 
 // Owner 2026-09-30: News — the attorney's news posts, apart.
 enum AttorneyProfileTab { posts, news, reviews }
@@ -137,7 +135,7 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
           .read(reviewsRepositoryProvider)
           .saveMine(p.id, rating: rating, body: body, photoIds: photoIds),
     );
-    if (saved == true && mounted) {
+    if ((saved ?? false) && mounted) {
       _refreshReviews();
       showAppSnackBar(context, t.t('reviews.write.saved'));
     }
@@ -162,8 +160,11 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
     }
   }
 
-  Future<void> _reply(Translator t, Review review,
-      {bool remove = false}) async {
+  Future<void> _reply(
+    Translator t,
+    Review review, {
+    bool remove = false,
+  }) async {
     final text = remove
         ? null
         : await showReviewReplySheet(context, initial: review.reply ?? '');
@@ -268,30 +269,35 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
         if (reviewsTab && !p.isSelf)
           Padding(
             padding: const EdgeInsets.only(bottom: AppSpacing.md),
-            child: Builder(builder: (context) {
-              final mine = ref.watch(myAttorneyReviewProvider(p.id)).value;
-              return AppButton(
-                key: const ValueKey('review-write'),
-                label: t.t(mine == null
-                    ? 'reviews.write.action'
-                    : 'reviews.write.edit'),
-                icon: mine == null
-                    ? AppIcons.rateReviewOutlined
-                    : AppIcons.editOutlined,
-                variant: mine == null
-                    ? AppButtonVariant.primary
-                    : AppButtonVariant.secondary,
-                height: AppSizes.touchTarget,
-                onPressed: () => _writeReview(t, mine),
-              );
-            }),
+            child: Builder(
+              builder: (context) {
+                final mine = ref.watch(myAttorneyReviewProvider(p.id)).value;
+                return AppButton(
+                  key: const ValueKey('review-write'),
+                  label: t.t(
+                    mine == null
+                        ? 'reviews.write.action'
+                        : 'reviews.write.edit',
+                  ),
+                  icon: mine == null
+                      ? AppIcons.rateReviewOutlined
+                      : AppIcons.editOutlined,
+                  variant: mine == null
+                      ? AppButtonVariant.primary
+                      : AppButtonVariant.secondary,
+                  height: AppSizes.touchTarget,
+                  onPressed: () => _writeReview(t, mine),
+                );
+              },
+            ),
           ),
         if (reviewsTab && summary != null)
           summary.when(
             skipLoadingOnReload: true,
             loading: () => const AppSkeleton(
-                height: AppSizes.stateMedallion + AppSpacing.xxl,
-                borderRadius: AppRadii.card),
+              height: AppSizes.stateMedallion + AppSpacing.xxl,
+              borderRadius: AppRadii.card,
+            ),
             error: (_, __) => const SizedBox.shrink(),
             // No reviews: the tab's "New — no reviews" state says it all.
             data: (s) => s.isNew
@@ -304,7 +310,8 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
                       sort: _sort,
                       // Tap a bar → only those reviews; tap again → all.
                       onStarsTap: (stars) => setState(
-                          () => _stars = _stars == stars ? null : stars),
+                        () => _stars = _stars == stars ? null : stars,
+                      ),
                       onSort: (v) => setState(() => _sort = v),
                     ),
                   ),
@@ -325,23 +332,27 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
               attorneyId: p.id,
               newsOnly: true,
               emptyTitle: t.t('profile.news.empty.title'),
-              emptyMessage: t.t(p.isSelf
-                  ? 'profile.news.empty.self'
-                  : 'profile.news.empty.other'),
+              emptyMessage: t.t(
+                p.isSelf
+                    ? 'profile.news.empty.self'
+                    : 'profile.news.empty.other',
+              ),
             )
           : ProfilePostsGrid(
               attorneyId: p.id,
               emptyTitle: t.t('profile.posts.empty.title'),
-              emptyMessage: t.t(p.isSelf
-                  ? 'profile.posts.empty.self'
-                  : 'profile.posts.empty.other'),
+              emptyMessage: t.t(
+                p.isSelf
+                    ? 'profile.posts.empty.self'
+                    : 'profile.posts.empty.other',
+              ),
             );
     } else if (reviews == null || reviews.isLoading && state == null) {
       footer = const Column(
         children: [
           ReviewCardSkeleton(),
           SizedBox(height: AppSpacing.md),
-          ReviewCardSkeleton()
+          ReviewCardSkeleton(),
         ],
       );
     } else if (reviews.hasError && state == null) {
@@ -392,12 +403,14 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
         // Only the Reviews tab paginates; the posts placeholder must not
         // wake the (autoDispose) reviews list.
         onLoadMore: () {
-          if (reviewsTab)
+          if (reviewsTab) {
             ref.read(reviewsListProvider(_reviewsKey).notifier).loadMore();
+          }
         },
         onRetry: () {
-          if (reviewsTab)
+          if (reviewsTab) {
             ref.read(reviewsListProvider(_reviewsKey).notifier).loadMore();
+          }
         },
         onRefresh: () async {
           ref
@@ -449,8 +462,10 @@ class _VerificationBanner extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(t.t('gate.verify.title'),
-                      style: typography.roleTitle.copyWith(color: colors.text)),
+                  Text(
+                    t.t('gate.verify.title'),
+                    style: typography.roleTitle.copyWith(color: colors.text),
+                  ),
                   Text(
                     t.t('profile.verifyBanner.body'),
                     style: typography.bodySmall
@@ -501,8 +516,11 @@ class _HeaderCard extends ConsumerWidget {
         child: ProfileAvatar(
           size: _avatar,
           url: profile.avatarUrl,
-          initials: initialsOf(profile.firstName, profile.lastName,
-              fallback: profile.username),
+          initials: initialsOf(
+            profile.firstName,
+            profile.lastName,
+            fallback: profile.username,
+          ),
           heroTag: attorneyAvatarHeroTag(profile.username),
           semanticLabel: t.t('profile.avatar.label'),
         ),
@@ -522,9 +540,9 @@ class _HeaderCard extends ConsumerWidget {
               child: Row(
                 children: [
                   _Counter(
-                      value:
-                          SocialFormat.count(formats, profile.counters.posts),
-                      label: t.t('profile.counters.posts')),
+                    value: SocialFormat.count(formats, profile.counters.posts),
+                    label: t.t('profile.counters.posts'),
+                  ),
                   _Counter(
                     value:
                         SocialFormat.count(formats, profile.counters.followers),
@@ -557,7 +575,9 @@ class _HeaderCard extends ConsumerWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: typography.body.copyWith(
-                      color: colors.text, fontWeight: FontWeight.w700),
+                    color: colors.text,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
             ),
@@ -573,11 +593,13 @@ class _HeaderCard extends ConsumerWidget {
 }
 
 class _Counter extends StatelessWidget {
-  const _Counter(
-      {required this.value,
-      required this.label,
-      this.onTap,
-      this.star = false});
+  const _Counter({
+    required this.value,
+    required this.label,
+    this.onTap,
+    // ignore: unused_element_parameter
+    this.star = false,
+  });
 
   final String value;
   final String label;
@@ -610,7 +632,11 @@ class _Counter extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     if (star) ...[
-                      AppIcon(AppIcons.starRounded, size: 16, color: colors.gold),
+                      AppIcon(
+                        AppIcons.starRounded,
+                        size: 16,
+                        color: colors.gold,
+                      ),
                       const SizedBox(width: 2),
                     ],
                     Flexible(
@@ -619,7 +645,9 @@ class _Counter extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: typography.body.copyWith(
-                            color: colors.text, fontWeight: FontWeight.w700),
+                          color: colors.text,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                   ],
@@ -660,9 +688,11 @@ class _AboutSection extends ConsumerWidget {
         // the Reviews tab.
         if (bio != null && bio.isNotEmpty) ...[
           const SizedBox(height: AppSpacing.sm),
-          Text(bio,
-              style: typography.bodySmall
-                  .copyWith(color: colors.text, height: 1.4)),
+          Text(
+            bio,
+            style:
+                typography.bodySmall.copyWith(color: colors.text, height: 1.4),
+          ),
         ],
       ],
     );
@@ -692,7 +722,10 @@ List<PracticeChipGroup> groupPractices(
       if (entry.value.length == 1)
         PracticeChipGroup(
           label: localizedName(
-              t, entry.value.first.i18nKey, entry.value.first.nameEn),
+            t,
+            entry.value.first.i18nKey,
+            entry.value.first.nameEn,
+          ),
           items: const [],
         )
       else
@@ -704,7 +737,7 @@ List<PracticeChipGroup> groupPractices(
                 humanizeCode(entry.value.first.categoryCode),
           ),
           items: [
-            for (final p in entry.value) localizedName(t, p.i18nKey, p.nameEn)
+            for (final p in entry.value) localizedName(t, p.i18nKey, p.nameEn),
           ],
         ),
   ];
@@ -734,8 +767,11 @@ class _ChipRows extends ConsumerWidget {
             children: [
               Semantics(
                 label: label,
-                child:
-                    AppIcon(icon, size: AppSizes.iconSm, color: colors.goldDark),
+                child: AppIcon(
+                  icon,
+                  size: AppSizes.iconSm,
+                  color: colors.goldDark,
+                ),
               ),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
@@ -768,20 +804,28 @@ class _ChipRows extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (firms.isNotEmpty)
-          row(t.t('profile.section.firm'), AppIcons.apartmentRounded,
-              [for (final f in firms) AppChip(label: f)]),
+          row(
+            t.t('profile.section.firm'),
+            AppIcons.apartmentRounded,
+            [for (final f in firms) AppChip(label: f)],
+          ),
         if (groups.isNotEmpty)
           row(t.t('profile.section.practices'), AppIcons.gavelRounded, [
             for (final g in groups)
               AppChip(
                 label: g.items.isEmpty
                     ? g.label
-                    : t.t('profile.practices.group',
-                        {'name': g.label, 'count': '${g.items.length}'}),
+                    : t.t(
+                        'profile.practices.group',
+                        {'name': g.label, 'count': '${g.items.length}'},
+                      ),
                 trailing: g.items.isEmpty
                     ? null
-                    : AppIcon(AppIcons.expandMoreRounded,
-                        size: AppSpacing.lg, color: colors.textSecondary),
+                    : AppIcon(
+                        AppIcons.expandMoreRounded,
+                        size: AppSpacing.lg,
+                        color: colors.textSecondary,
+                      ),
                 onTap: g.items.isEmpty ? null : () => _showGroup(context, g),
               ),
           ]),
@@ -807,8 +851,12 @@ class _ChipRows extends ConsumerWidget {
         return SafeArea(
           top: false,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide,
-                AppSpacing.md, AppSpacing.screenSide, AppSpacing.lg),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.screenSide,
+              AppSpacing.md,
+              AppSpacing.screenSide,
+              AppSpacing.lg,
+            ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -816,9 +864,10 @@ class _ChipRows extends ConsumerWidget {
                 const AppSheetHandle(),
                 Semantics(
                   header: true,
-                  child: Text(group.label,
-                      style:
-                          typography.titleMedium.copyWith(color: colors.text)),
+                  child: Text(
+                    group.label,
+                    style: typography.titleMedium.copyWith(color: colors.text),
+                  ),
                 ),
                 const SizedBox(height: AppSpacing.md),
                 Wrap(
@@ -854,7 +903,9 @@ class StepLabel extends StatelessWidget {
           child: Text(
             label,
             style: typography.bodySmall.copyWith(
-                color: colors.textSecondary, fontWeight: FontWeight.w600),
+              color: colors.textSecondary,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
       ],
@@ -874,12 +925,17 @@ class _BlockNotice extends StatelessWidget {
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     return Row(
       children: [
-        AppIcon(AppIcons.blockFlipped, size: AppSizes.iconSm, color: colors.danger),
+        AppIcon(
+          AppIcons.blockFlipped,
+          size: AppSizes.iconSm,
+          color: colors.danger,
+        ),
         const SizedBox(width: AppSpacing.sm),
         Expanded(
-          child: Text(text,
-              style:
-                  typography.bodySmall.copyWith(color: colors.textSecondary)),
+          child: Text(
+            text,
+            style: typography.bodySmall.copyWith(color: colors.textSecondary),
+          ),
         ),
       ],
     );
@@ -987,8 +1043,12 @@ class _IconSquare extends StatelessWidget {
 
 /// Instagram-style secondary button: soft fill, no icon, small type.
 class _QuietButton extends StatelessWidget {
-  const _QuietButton(
-      {required this.label, required this.onTap, this.loading = false});
+  const _QuietButton({
+    required this.label,
+    required this.onTap,
+    // ignore: unused_element_parameter
+    this.loading = false,
+  });
 
   static const double height = AppSizes.touchTarget;
 
@@ -1018,17 +1078,21 @@ class _QuietButton extends StatelessWidget {
               ? SizedBox.square(
                   dimension: AppSizes.iconSm,
                   child: CircularProgressIndicator(
-                      strokeWidth: 2, color: colors.text),
+                    strokeWidth: 2,
+                    color: colors.text,
+                  ),
                 )
               : Padding(
                   padding:
                       const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
                   child: FittedBox(
                     fit: BoxFit.scaleDown,
-                    child: Text(label,
-                        maxLines: 1,
-                        style: typography.button
-                            .copyWith(fontSize: 14, color: colors.text)),
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      style: typography.button
+                          .copyWith(fontSize: 14, color: colors.text),
+                    ),
                   ),
                 ),
         ),
@@ -1067,7 +1131,8 @@ class _Tabs extends ConsumerWidget {
     ];
     return DecoratedBox(
       decoration: BoxDecoration(
-          border: Border(bottom: BorderSide(color: colors.border))),
+        border: Border(bottom: BorderSide(color: colors.border)),
+      ),
       child: Stack(
         children: [
           Row(
@@ -1142,21 +1207,28 @@ class _TabMessage extends StatelessWidget {
     return AppEntrance(
       child: Padding(
         padding: const EdgeInsets.symmetric(
-            vertical: AppSpacing.xl, horizontal: AppSpacing.lg),
+          vertical: AppSpacing.xl,
+          horizontal: AppSpacing.lg,
+        ),
         child: Column(
           children: [
             AppIconMedallion(
-                icon: icon,
-                size: AppSizes.stateMedallion - AppSpacing.xl,
-                iconSize: AppSizes.iconLg),
+              icon: icon,
+              size: AppSizes.stateMedallion - AppSpacing.xl,
+              iconSize: AppSizes.iconLg,
+            ),
             const SizedBox(height: AppSpacing.md),
-            Text(title,
-                textAlign: TextAlign.center,
-                style: typography.roleTitle.copyWith(color: colors.text)),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: typography.roleTitle.copyWith(color: colors.text),
+            ),
             const SizedBox(height: AppSpacing.xs),
-            Text(message,
-                textAlign: TextAlign.center,
-                style: typography.body.copyWith(color: colors.textSecondary)),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: typography.body.copyWith(color: colors.textSecondary),
+            ),
             if (actionLabel != null) ...[
               const SizedBox(height: AppSpacing.lg),
               SizedBox(
@@ -1186,25 +1258,33 @@ class AttorneyProfileSkeleton extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListView(
       physics: const NeverScrollableScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide, AppSpacing.sm,
-          AppSpacing.screenSide, AppSpacing.xxl),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.screenSide,
+        AppSpacing.sm,
+        AppSpacing.screenSide,
+        AppSpacing.xxl,
+      ),
       children: const [
         AppSkeleton(height: 200, borderRadius: AppRadii.card),
         SizedBox(height: AppSpacing.md),
         AppSkeleton(height: 104, borderRadius: AppRadii.card),
         SizedBox(height: AppSpacing.lg),
         FractionallySizedBox(
-            widthFactor: 0.3,
-            alignment: Alignment.centerLeft,
-            child: AppSkeleton(
-                height: AppSpacing.xl, borderRadius: AppRadii.pill)),
+          widthFactor: 0.3,
+          alignment: Alignment.centerLeft,
+          child: AppSkeleton(
+            height: AppSpacing.xl,
+            borderRadius: AppRadii.pill,
+          ),
+        ),
         SizedBox(height: AppSpacing.md),
         AppSkeleton(height: AppSpacing.md),
         SizedBox(height: AppSpacing.sm),
         FractionallySizedBox(
-            widthFactor: 0.8,
-            alignment: Alignment.centerLeft,
-            child: AppSkeleton(height: AppSpacing.md)),
+          widthFactor: 0.8,
+          alignment: Alignment.centerLeft,
+          child: AppSkeleton(height: AppSpacing.md),
+        ),
         SizedBox(height: AppSpacing.lg),
         Row(
           children: [
@@ -1215,8 +1295,9 @@ class AttorneyProfileSkeleton extends StatelessWidget {
         ),
         SizedBox(height: AppSpacing.xl),
         AppSkeleton(
-            height: AppSizes.touchTarget + AppSpacing.sm,
-            borderRadius: AppRadii.button),
+          height: AppSizes.touchTarget + AppSpacing.sm,
+          borderRadius: AppRadii.button,
+        ),
       ],
     );
   }

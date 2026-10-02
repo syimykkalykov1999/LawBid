@@ -45,43 +45,45 @@ Future<void> showLawbidIncoming({
   bool silent = false,
 }) async {
   try {
-    await FlutterCallkitIncoming.showCallkitIncoming(CallKitParams(
-      id: callId,
-      nameCaller: callerName,
-      appName: 'LawBid',
-      avatar: avatarUrl,
-      handle: 'LawBid',
-      // 0 = audio call.
-      type: 0,
-      duration: 45000,
-      extra: {'callId': callId},
-      missedCallNotification: const NotificationParams(
-        showNotification: false,
+    await FlutterCallkitIncoming.showCallkitIncoming(
+      CallKitParams(
+        id: callId,
+        nameCaller: callerName,
+        appName: 'LawBid',
+        avatar: avatarUrl,
+        handle: 'LawBid',
+        // 0 = audio call.
+        type: 0,
+        duration: 45000,
+        extra: {'callId': callId},
+        missedCallNotification: const NotificationParams(
+          showNotification: false,
+        ),
+        android: AndroidParams(
+          isCustomNotification: true,
+          isShowLogo: false,
+          // res/raw/silence.wav when calls are switched off.
+          // Audit 2026-10-02: our own melody (res/raw/ringtone.wav), so it
+          // rings even on phones with no default ringtone set.
+          ringtonePath: silent ? 'silence' : 'ringtone',
+          backgroundColor: '#0A1A3F',
+          actionColor: '#C9A24A',
+          textColor: '#ffffff',
+          incomingCallNotificationChannelName: 'Incoming calls',
+          isShowFullLockedScreen: true,
+          textAccept: 'Accept',
+          textDecline: 'Decline',
+        ),
+        ios: const IOSParams(
+          handleType: 'generic',
+          supportsVideo: false,
+          maximumCallGroups: 1,
+          maximumCallsPerCallGroup: 1,
+          supportsDTMF: false,
+          supportsHolding: false,
+        ),
       ),
-      android: AndroidParams(
-        isCustomNotification: true,
-        isShowLogo: false,
-        // res/raw/silence.wav when calls are switched off.
-        // Audit 2026-10-02: our own melody (res/raw/ringtone.wav), so it
-        // rings even on phones with no default ringtone set.
-        ringtonePath: silent ? 'silence' : 'ringtone',
-        backgroundColor: '#0A1A3F',
-        actionColor: '#C9A24A',
-        textColor: '#ffffff',
-        incomingCallNotificationChannelName: 'Incoming calls',
-        isShowFullLockedScreen: true,
-        textAccept: 'Accept',
-        textDecline: 'Decline',
-      ),
-      ios: const IOSParams(
-        handleType: 'generic',
-        supportsVideo: false,
-        maximumCallGroups: 1,
-        maximumCallsPerCallGroup: 1,
-        supportsDTMF: false,
-        supportsHolding: false,
-      ),
-    ));
+    );
   } on Object catch (e) {
     debugPrint('callkit unavailable: $e');
   }
@@ -128,26 +130,31 @@ final callkitEventsProvider = Provider<void>((ref) {
   }
   StreamSubscription<CallEvent?>? sub;
   try {
-    sub = FlutterCallkitIncoming.onEvent.listen((event) async {
-      final controller = ref.read(callControllerProvider.notifier);
-      switch (event) {
-        case CallEventActionCallAccept(:final callKitParams):
-          await controller.ringFromPush(callKitParams.id, accept: true);
-        case CallEventActionCallDecline(:final callKitParams):
-          final s = ref.read(callControllerProvider);
-          if (s.call?.id == callKitParams.id) {
-            await controller.decline();
-          } else {
-            try {
-              await ref.read(callsRepositoryProvider).decline(callKitParams.id);
-            } on Object {
-              // Already over.
+    sub = FlutterCallkitIncoming.onEvent.listen(
+      (event) async {
+        final controller = ref.read(callControllerProvider.notifier);
+        switch (event) {
+          case CallEventActionCallAccept(:final callKitParams):
+            await controller.ringFromPush(callKitParams.id, accept: true);
+          case CallEventActionCallDecline(:final callKitParams):
+            final s = ref.read(callControllerProvider);
+            if (s.call?.id == callKitParams.id) {
+              await controller.decline();
+            } else {
+              try {
+                await ref
+                    .read(callsRepositoryProvider)
+                    .decline(callKitParams.id);
+              } on Object {
+                // Already over.
+              }
             }
-          }
-        default:
-          break;
-      }
-    }, onError: (Object _) {});
+          default:
+            break;
+        }
+      },
+      onError: (Object _) {},
+    );
   } on Object {
     // No plugin.
   }

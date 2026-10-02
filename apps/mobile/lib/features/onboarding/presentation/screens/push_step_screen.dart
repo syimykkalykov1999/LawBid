@@ -73,13 +73,15 @@ class PushStepScreen extends ConsumerWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              AppIconMedallion(icon: icon, size: AppSizes.rowMedallion),
+              AppIconMedallion(icon: icon),
               const SizedBox(width: AppSpacing.md),
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.only(top: AppSpacing.sm),
-                  child: Text(text,
-                      style: typography.body.copyWith(color: colors.text)),
+                  child: Text(
+                    text,
+                    style: typography.body.copyWith(color: colors.text),
+                  ),
                 ),
               ),
             ],

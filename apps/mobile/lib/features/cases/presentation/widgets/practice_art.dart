@@ -112,8 +112,9 @@ class PracticeArt extends StatelessWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final dark = Theme.of(context).brightness == Brightness.dark;
     final artKey = [practiceCode, categoryCode].firstWhere(
-        (c) => c != null && kPracticeArtAssets.contains(c),
-        orElse: () => null);
+      (c) => c != null && kPracticeArtAssets.contains(c),
+      orElse: () => null,
+    );
     final asset = artKey == null ? null : 'assets/practice_art/$artKey.jpg';
 
     Widget fallback() => Stack(
@@ -142,15 +143,18 @@ class PracticeArt extends StatelessWidget {
           ],
         );
 
-    final Widget picture = imageUrl != null
+    final picture = imageUrl != null
         ? Image.network(
             imageUrl!,
             fit: BoxFit.cover,
             errorBuilder: (_, __, ___) => fallback(),
           )
         : asset != null
-            ? Image.asset(asset,
-                fit: BoxFit.cover, errorBuilder: (_, __, ___) => fallback())
+            ? Image.asset(
+                asset,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => fallback(),
+              )
             : fallback();
 
     // Fade: transparent at the text side, visible at the right edge.
@@ -158,8 +162,6 @@ class PracticeArt extends StatelessWidget {
       child: ShaderMask(
         blendMode: BlendMode.dstIn,
         shaderCallback: (rect) => LinearGradient(
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
           colors: [
             Colors.white.withValues(alpha: 0),
             Colors.white.withValues(alpha: dark ? 0.55 : 0.75),
@@ -192,8 +194,9 @@ class PracticePhoto extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final artKey = [practiceCode, categoryCode].firstWhere(
-        (c) => c != null && kPracticeArtAssets.contains(c),
-        orElse: () => null);
+      (c) => c != null && kPracticeArtAssets.contains(c),
+      orElse: () => null,
+    );
     final panel = DecoratedBox(
       decoration: BoxDecoration(
         gradient: LinearGradient(

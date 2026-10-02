@@ -1,17 +1,17 @@
+// ignore_for_file: lines_longer_than_80_chars
 import 'package:flutter/material.dart';
-import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
-import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
+import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
+import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 
 /// A practice name by its i18n key; a readable fallback while the key is
 /// not in the local bundle yet.
@@ -41,7 +41,9 @@ class AttorneyTile extends ConsumerWidget {
       onTap: () => context.push(AppRoutes.lawyer(row.username)),
       child: Padding(
         padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.screenSide, vertical: AppSpacing.md),
+          horizontal: AppSpacing.screenSide,
+          vertical: AppSpacing.md,
+        ),
         child: Row(
           children: [
             GoldRingAvatar(
@@ -63,7 +65,9 @@ class AttorneyTile extends ConsumerWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: type.body.copyWith(
-                              color: colors.text, fontWeight: FontWeight.w600),
+                            color: colors.text,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                       if (row.verified) ...[
@@ -79,8 +83,11 @@ class AttorneyTile extends ConsumerWidget {
                   const SizedBox(height: 2),
                   Row(
                     children: [
-                      AppIcon(AppIcons.starRounded,
-                          size: AppSizes.iconSm, color: colors.gold),
+                      AppIcon(
+                        AppIcons.starRounded,
+                        size: AppSizes.iconSm,
+                        color: colors.gold,
+                      ),
                       const SizedBox(width: 2),
                       Text(
                         row.ratingCount == 0
@@ -139,7 +146,6 @@ class ClientTile extends ConsumerWidget {
               url: row.avatarUrl,
               initials: row.displayName.substring(0, 1).toUpperCase(),
               size: 52,
-              ring: false,
             ),
             const SizedBox(width: AppSpacing.md),
             Expanded(
@@ -247,7 +253,8 @@ class FollowButton extends ConsumerWidget {
           decoration: BoxDecoration(
             color: following ? Colors.transparent : colors.ctaBright,
             borderRadius: BorderRadius.circular(
-                expanded ? AppRadii.field : AppRadii.pill),
+              expanded ? AppRadii.field : AppRadii.pill,
+            ),
             border: Border.all(
               color: following ? colors.border : colors.ctaBright,
             ),
@@ -313,11 +320,13 @@ class SuggestedAttorneys extends ConsumerWidget {
     if (value.isLoading && rows.isEmpty) {
       return const Padding(
         padding: EdgeInsets.all(AppSpacing.screenSide),
-        child: Column(children: [
-          AppSkeleton(height: 52),
-          SizedBox(height: AppSpacing.md),
-          AppSkeleton(height: 52),
-        ]),
+        child: Column(
+          children: [
+            AppSkeleton(height: 52),
+            SizedBox(height: AppSpacing.md),
+            AppSkeleton(height: 52),
+          ],
+        ),
       );
     }
     if (rows.isEmpty) return const SizedBox.shrink();
@@ -325,8 +334,12 @@ class SuggestedAttorneys extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide,
-              AppSpacing.lg, AppSpacing.screenSide, AppSpacing.xs),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.screenSide,
+            AppSpacing.lg,
+            AppSpacing.screenSide,
+            AppSpacing.xs,
+          ),
           child: Text(
             t.t('suggestions.title'),
             style: type.titleMedium.copyWith(color: colors.text),

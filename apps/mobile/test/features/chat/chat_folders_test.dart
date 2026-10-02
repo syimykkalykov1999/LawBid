@@ -7,8 +7,8 @@ import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/chat/data/chat_repository.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
-import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
+import 'package:lawbid/shared/domain/cursor_page.dart';
 
 import '../../helpers/ux_harness.dart';
 
@@ -64,24 +64,30 @@ class _Chats implements ChatRepository {
     ChatListFolder folder = ChatListFolder.all,
   }) async {
     folders.add(requests ? ChatListFolder.requests : folder);
-    return CursorPage(items: switch (folder) {
-      ChatListFolder.waiting => [
-          _conv('w',
+    return CursorPage(
+      items: switch (folder) {
+        ChatListFolder.waiting => [
+            _conv(
+              'w',
               note: 'Send him the retainer documents',
-              waitingSince: DateTime.now().subtract(const Duration(hours: 3))),
-        ],
-      ChatListFolder.primary => [
-          _conv('p', caseTitle: 'Custody', folder: ChatFolder.primary),
-        ],
-      _ => [
-          _conv('p',
+              waitingSince: DateTime.now().subtract(const Duration(hours: 3)),
+            ),
+          ],
+        ChatListFolder.primary => [
+            _conv('p', caseTitle: 'Custody', folder: ChatFolder.primary),
+          ],
+        _ => [
+            _conv(
+              'p',
               caseTitle: 'Custody',
               folder: ChatFolder.primary,
               mineLast: true,
-              read: true),
-          _conv('w', note: 'Send him the retainer documents', mineLast: true),
-        ],
-    });
+              read: true,
+            ),
+            _conv('w', note: 'Send him the retainer documents', mineLast: true),
+          ],
+      },
+    );
   }
 
   @override
@@ -116,24 +122,28 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     var folder = ChatListFolder.all;
-    await tester.pumpWidget(uxApp(
-      Scaffold(
-        body: StatefulBuilder(
-          builder: (context, setState) => ConversationsView(
-            folder: folder,
-            onFolder: (f) => setState(() => folder = f),
+    await tester.pumpWidget(
+      uxApp(
+        Scaffold(
+          body: StatefulBuilder(
+            builder: (context, setState) => ConversationsView(
+              folder: folder,
+              onFolder: (f) => setState(() => folder = f),
+            ),
           ),
         ),
+        size: const Size(1000, 2000),
+        theme: AppTheme.light(),
+        disableAnimations: true,
+        overrides: uxOverrides(
+          extra: [
+            chatRepositoryProvider.overrideWithValue(repo),
+            currentUserIdProvider.overrideWithValue('me'),
+            realtimeClientProvider.overrideWithValue(null),
+          ],
+        ),
       ),
-      size: const Size(1000, 2000),
-      theme: AppTheme.light(),
-      disableAnimations: true,
-      overrides: uxOverrides(extra: [
-        chatRepositoryProvider.overrideWithValue(repo),
-        currentUserIdProvider.overrideWithValue('me'),
-        realtimeClientProvider.overrideWithValue(null),
-      ]),
-    ));
+    );
     await tester.pumpAndSettle();
     // All · Primary · General · Waiting (1) · Requests (2).
     expect(find.text('All'), findsOneWidget);
@@ -155,7 +165,9 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('chat-organize-w')));
     await tester.pumpAndSettle();
     await tester.enterText(
-        find.byKey(const ValueKey('organize-note')), 'Call back at 5');
+      find.byKey(const ValueKey('organize-note')),
+      'Call back at 5',
+    );
     await tester.tap(find.byKey(const ValueKey('organize-save')));
     await tester.pumpAndSettle();
     expect(repo.organized.last, 'w:null:true:Call back at 5:null');

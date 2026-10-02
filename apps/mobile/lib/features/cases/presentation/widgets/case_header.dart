@@ -35,8 +35,11 @@ class CaseHeader extends StatelessWidget {
         AppEntrance(
           child: Row(
             children: [
-              AppIcon(AppIcons.balanceRounded,
-                  size: AppSpacing.lg, color: colors.goldDark),
+              AppIcon(
+                AppIcons.balanceRounded,
+                size: AppSpacing.lg,
+                color: colors.goldDark,
+              ),
               const SizedBox(width: AppSpacing.xs + 2),
               Expanded(
                 child: Text(
@@ -55,8 +58,10 @@ class CaseHeader extends StatelessWidget {
           index: 1,
           child: Semantics(
             header: true,
-            child: Text(title,
-                style: typography.titleLarge.copyWith(color: colors.text)),
+            child: Text(
+              title,
+              style: typography.titleLarge.copyWith(color: colors.text),
+            ),
           ),
         ),
         const SizedBox(height: AppSpacing.md),
@@ -68,9 +73,11 @@ class CaseHeader extends StatelessWidget {
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               CaseStatusPill(status: status, t: t),
-              Text(meta,
-                  style: typography.bodySmall
-                      .copyWith(color: colors.textSecondary)),
+              Text(
+                meta,
+                style:
+                    typography.bodySmall.copyWith(color: colors.textSecondary),
+              ),
               if (extra != null) extra!,
             ],
           ),
@@ -120,8 +127,10 @@ class NoticeCard extends StatelessWidget {
               AppIcon(icon, color: fg, size: AppSizes.iconSm),
               const SizedBox(width: AppSpacing.md),
               Expanded(
-                child: Text(message,
-                    style: typography.bodySmall.copyWith(color: colors.text)),
+                child: Text(
+                  message,
+                  style: typography.bodySmall.copyWith(color: colors.text),
+                ),
               ),
             ],
           ),
@@ -151,7 +160,9 @@ class ActionSheetItem {
 }
 
 Future<void> showActionSheet(
-        BuildContext context, List<ActionSheetItem> items) =>
+  BuildContext context,
+  List<ActionSheetItem> items,
+) =>
     showAppBottomSheet<void>(
       context: context,
       builder: (context) {
@@ -182,7 +193,8 @@ Future<void> showActionSheet(
                       },
                       child: ConstrainedBox(
                         constraints: const BoxConstraints(
-                            minHeight: AppSizes.hitTarget + AppSpacing.sm),
+                          minHeight: AppSizes.hitTarget + AppSpacing.sm,
+                        ),
                         child: Row(
                           children: [
                             AppIconMedallion(

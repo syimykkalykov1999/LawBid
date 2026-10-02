@@ -40,26 +40,32 @@ class StickersRepository {
   Future<StickerPack> get(String ref) async =>
       pack((await guardApiCall(() => _stickers.getStickerPack(ref: ref))).data);
 
-  Future<StickerPack> create(String title) async => pack((await guardApiCall(
-        () => _stickers.createStickerPack(
-          body: api.CreateStickerPackDto(title: title),
-          extras: const {RequestFlags.createsResource: true},
-        ),
-      ))
-          .data);
+  Future<StickerPack> create(String title) async => pack(
+        (await guardApiCall(
+          () => _stickers.createStickerPack(
+            body: api.CreateStickerPackDto(title: title),
+            extras: const {RequestFlags.createsResource: true},
+          ),
+        ))
+            .data,
+      );
 
-  Future<StickerPack> rename(String ref, String title) async =>
-      pack((await guardApiCall(() => _stickers.renameStickerPack(
-                ref: ref,
-                body: api.UpdateStickerPackDto(title: title),
-              )))
-          .data);
+  Future<StickerPack> rename(String ref, String title) async => pack(
+        (await guardApiCall(
+          () => _stickers.renameStickerPack(
+            ref: ref,
+            body: api.UpdateStickerPackDto(title: title),
+          ),
+        ))
+            .data,
+      );
 
   Future<void> delete(String ref) =>
       guardApiCall(() => _stickers.deleteStickerPack(ref: ref));
 
   Future<StickerPack> install(String ref) async => pack(
-      (await guardApiCall(() => _stickers.installStickerPack(ref: ref))).data);
+        (await guardApiCall(() => _stickers.installStickerPack(ref: ref))).data,
+      );
 
   Future<void> uninstall(String ref) =>
       guardApiCall(() => _stickers.uninstallStickerPack(ref: ref));
@@ -82,17 +88,21 @@ class StickersRepository {
   }) async {
     if (bytes.length > maxBytes) {
       throw const ApiException(
-          code: ApiErrorCodes.fileTooLarge, message: 'size');
+        code: ApiErrorCodes.fileTooLarge,
+        message: 'size',
+      );
     }
-    final target = (await guardApiCall(() => _files.presign(
-              body: api.PresignFileDto(
-                purpose: api.FilePurpose.sticker,
-                mime: mime,
-                sizeBytes: bytes.length,
-                sha256: sha256Hex(bytes),
-              ),
-              extras: const {RequestFlags.createsResource: true},
-            )))
+    final target = (await guardApiCall(
+      () => _files.presign(
+        body: api.PresignFileDto(
+          purpose: api.FilePurpose.sticker,
+          mime: mime,
+          sizeBytes: bytes.length,
+          sha256: sha256Hex(bytes),
+        ),
+        extras: const {RequestFlags.createsResource: true},
+      ),
+    ))
         .data;
     final parts = mime.split('/');
     try {
@@ -127,13 +137,19 @@ class StickersRepository {
     }
     if (status != api.ScanStatus.clean) {
       throw const ApiException(
-          code: ApiErrorCodes.fileNotAttachable, message: 'scan');
+        code: ApiErrorCodes.fileNotAttachable,
+        message: 'scan',
+      );
     }
-    return sticker((await guardApiCall(() => _stickers.addSticker(
-              ref: packRef,
-              body: api.AddStickerDto(fileId: target.fileId, emoji: emoji ?? '🙂'),
-            )))
-        .data);
+    return sticker(
+      (await guardApiCall(
+        () => _stickers.addSticker(
+          ref: packRef,
+          body: api.AddStickerDto(fileId: target.fileId, emoji: emoji ?? '🙂'),
+        ),
+      ))
+          .data,
+    );
   }
 
   static ChatSticker sticker(api.StickerDto d) =>

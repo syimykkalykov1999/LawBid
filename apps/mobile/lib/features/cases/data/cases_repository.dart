@@ -1,13 +1,12 @@
-import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
-import 'package:lawbid_api/lawbid_api.dart' as api;
-
+import 'package:flutter/foundation.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/request_flags.dart';
 import 'package:lawbid/features/cases/data/cases_mappers.dart';
 import 'package:lawbid/features/cases/domain/case_draft.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
+import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// Resource-creating POSTs carry an Idempotency-Key (IdempotencyInterceptor).
 const Map<String, dynamic> _createsResource = {
@@ -69,18 +68,26 @@ class CaseFeedExtras {
 /// Network access only through here (.cursorrules).
 abstract interface class CasesRepository {
   // --- client ---
-  Future<String> createCase(CaseDraft draft,
-      {required bool contactSharingConsent,
-      List<String> photoFileIds = const []});
+  Future<String> createCase(
+    CaseDraft draft, {
+    required bool contactSharingConsent,
+    List<String> photoFileIds = const [],
+  });
 
   /// §3.5 edit: only changed fields are sent — practice area and states
   /// only when they changed (the server refuses those once bids exist).
   Future<void> updateCase(OwnerCase original, CaseDraft draft);
-  Future<CursorPage<CaseSummary>> myCases(MyCasesFilter filter,
-      {String? cursor, MineSearch search = const MineSearch()});
+  Future<CursorPage<CaseSummary>> myCases(
+    MyCasesFilter filter, {
+    String? cursor,
+    MineSearch search = const MineSearch(),
+  });
   Future<OwnerCase> ownerCase(String caseId);
-  Future<CursorPage<CaseBid>> caseBids(String caseId, BidsSort sort,
-      {String? cursor});
+  Future<CursorPage<CaseBid>> caseBids(
+    String caseId,
+    BidsSort sort, {
+    String? cursor,
+  });
   Future<void> closeCase(String caseId);
   Future<void> deleteCase(String caseId);
   Future<void> restoreCase(String caseId);
@@ -90,8 +97,11 @@ abstract interface class CasesRepository {
   // --- both parties of a bid ---
   Future<CaseBid> bid(String bidId);
   Future<CaseBid> accept(String bidId);
-  Future<CaseBid> counter(String bidId,
-      {required int amountCents, String? message});
+  Future<CaseBid> counter(
+    String bidId, {
+    required int amountCents,
+    String? message,
+  });
   Future<CaseBid> decline(String bidId);
   Future<CaseBid> withdraw(String bidId);
 
@@ -107,15 +117,26 @@ abstract interface class CasesRepository {
   Future<void> recordView(String caseId);
   Future<void> setSaved(String caseId, {required bool saved});
   Future<CaseBid> placeBid(String caseId, BidInput input);
-  Future<CursorPage<MyBid>> myBids(MyBidsFilter filter,
-      {String? cursor, MineSearch search = const MineSearch()});
-  Future<CursorPage<WorkItem>> myWork(WorkFilter filter,
-      {String? cursor, MineSearch search = const MineSearch()});
-  Future<CursorPage<SavedCase>> savedCases(
-      {String? cursor, MineSearch search = const MineSearch()});
+  Future<CursorPage<MyBid>> myBids(
+    MyBidsFilter filter, {
+    String? cursor,
+    MineSearch search = const MineSearch(),
+  });
+  Future<CursorPage<WorkItem>> myWork(
+    WorkFilter filter, {
+    String? cursor,
+    MineSearch search = const MineSearch(),
+  });
+  Future<CursorPage<SavedCase>> savedCases({
+    String? cursor,
+    MineSearch search = const MineSearch(),
+  });
   Future<ClientContacts> contacts(String caseId);
   Future<void> reportContactIssue(
-      String caseId, ContactIssueType type, String? note);
+    String caseId,
+    ContactIssueType type,
+    String? note,
+  );
   Future<void> confirmCompletion(String caseId);
   Future<void> dispute(String caseId, String reason);
   Future<CaseConversation> openConversation(String caseId);
@@ -219,7 +240,6 @@ class ApiCasesRepository implements CasesRepository {
     final env = await guardApiCall(
       () => _cases.listMyCases(
         cursor: cursor,
-        limit: pageSize,
         filter: switch (filter) {
           MyCasesFilter.active => api.Filter.active,
           MyCasesFilter.open => api.Filter.open,
@@ -253,7 +273,6 @@ class ApiCasesRepository implements CasesRepository {
       () => _cases.listCaseBids(
         id: caseId,
         cursor: cursor,
-        limit: pageSize,
         sort: switch (sort) {
           BidsSort.newest => api.Sort.newest,
           BidsSort.lowestPrice => api.Sort.lowestPrice,
@@ -291,7 +310,8 @@ class ApiCasesRepository implements CasesRepository {
 
   @override
   Future<CaseBid> bid(String bidId) async => CasesMappers.bid(
-      (await guardApiCall(() => _bids.getBid(id: bidId))).data);
+        (await guardApiCall(() => _bids.getBid(id: bidId))).data,
+      );
 
   @override
   Future<CaseBid> accept(String bidId) async => CasesMappers.bid(
@@ -324,11 +344,13 @@ class ApiCasesRepository implements CasesRepository {
 
   @override
   Future<CaseBid> decline(String bidId) async => CasesMappers.bid(
-      (await guardApiCall(() => _bids.decline(id: bidId))).data);
+        (await guardApiCall(() => _bids.decline(id: bidId))).data,
+      );
 
   @override
   Future<CaseBid> withdraw(String bidId) async => CasesMappers.bid(
-      (await guardApiCall(() => _bids.withdraw(id: bidId))).data);
+        (await guardApiCall(() => _bids.withdraw(id: bidId))).data,
+      );
 
   // --- attorney -------------------------------------------------------
 
@@ -342,7 +364,6 @@ class ApiCasesRepository implements CasesRepository {
   }) async {
     final env = await guardApiCall(
       () => _cases.listCaseFeed(
-        limit: pageSize,
         cursor: cursor,
         practiceAreaId: practiceAreaId,
         // Owner 2026-09-30: any qualification picked in the topic filter
@@ -351,9 +372,8 @@ class ApiCasesRepository implements CasesRepository {
         practice: practiceCategory,
         state: state,
         // Audit 2026-10-01: the Search tab's filters, on the server.
-        period: extras.period == null
-            ? null
-            : api.Period.fromJson(extras.period!),
+        period:
+            extras.period == null ? null : api.Period.fromJson(extras.period!),
         budgetMin: extras.budgetMin,
         budgetMax: extras.budgetMax,
         budgetUnknown: extras.budgetUnknown ? true : null,
@@ -410,11 +430,13 @@ class ApiCasesRepository implements CasesRepository {
       );
 
   @override
-  Future<CursorPage<MyBid>> myBids(MyBidsFilter filter,
-      {String? cursor, MineSearch search = const MineSearch()}) async {
+  Future<CursorPage<MyBid>> myBids(
+    MyBidsFilter filter, {
+    String? cursor,
+    MineSearch search = const MineSearch(),
+  }) async {
     final env = await guardApiCall(
       () => _mine.listMyBids(
-        limit: pageSize,
         cursor: cursor,
         q: _q(search),
         practice: search.practice,
@@ -431,11 +453,13 @@ class ApiCasesRepository implements CasesRepository {
   }
 
   @override
-  Future<CursorPage<WorkItem>> myWork(WorkFilter filter,
-      {String? cursor, MineSearch search = const MineSearch()}) async {
+  Future<CursorPage<WorkItem>> myWork(
+    WorkFilter filter, {
+    String? cursor,
+    MineSearch search = const MineSearch(),
+  }) async {
     final env = await guardApiCall(
       () => _mine.listMyWork(
-        limit: pageSize,
         cursor: cursor,
         q: _q(search),
         practice: search.practice,
@@ -452,12 +476,13 @@ class ApiCasesRepository implements CasesRepository {
   }
 
   @override
-  Future<CursorPage<SavedCase>> savedCases(
-      {String? cursor, MineSearch search = const MineSearch()}) async {
+  Future<CursorPage<SavedCase>> savedCases({
+    String? cursor,
+    MineSearch search = const MineSearch(),
+  }) async {
     final env = await guardApiCall(
       () => _mine.listSavedItems(
         type: api.Type.valueCase,
-        limit: pageSize,
         cursor: cursor,
         q: _q(search),
         practice: search.practice,
@@ -527,7 +552,6 @@ class ApiCasesRepository implements CasesRepository {
     final env = await guardApiCall(
       () => _history.listCaseHistory(
         xReauthToken: reauthToken,
-        limit: pageSize,
         cursor: cursor,
       ),
     );
@@ -539,11 +563,15 @@ class ApiCasesRepository implements CasesRepository {
 
   @override
   Future<HistoryCaseDetail> historyCase(
-          String reauthToken, String caseId) async =>
+    String reauthToken,
+    String caseId,
+  ) async =>
       CasesMappers.historyDetail(
         (await guardApiCall(
           () => _history.getCaseHistory(
-              caseId: caseId, xReauthToken: reauthToken),
+            caseId: caseId,
+            xReauthToken: reauthToken,
+          ),
         ))
             .data,
       );
@@ -559,7 +587,9 @@ class ApiCasesRepository implements CasesRepository {
 
   @override
   Future<HistoryExport> exportStatus(
-          String reauthToken, String exportId) async =>
+    String reauthToken,
+    String exportId,
+  ) async =>
       CasesMappers.export(
         (await guardApiCall(
           () => _history.getCaseHistoryExport(

@@ -1,12 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/feature_flags/default_feature_flags.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_api_client.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_state.dart';
+import 'package:lawbid/core/feature_flags/semver.dart';
+import 'package:lawbid/core/network/dio_client.dart';
+import 'package:lawbid/core/network/headers_interceptor.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-
-import '../network/dio_client.dart';
-import '../network/headers_interceptor.dart';
-import 'default_feature_flags.dart';
-import 'feature_flags_api_client.dart';
-import 'feature_flags_state.dart';
-import 'semver.dart';
 
 part 'feature_flags_providers.g.dart';
 
@@ -61,7 +60,9 @@ class FeatureFlagsController extends _$FeatureFlagsController {
         // flags untouched rather than wiping them back to defaults —
         // mirrors L10nRepository.refresh's "nothing new -> null, caller
         // keeps its existing map" behavior.
-        flags: result.flags.isEmpty ? state.flags : {...defaultFeatureFlags, ...result.flags},
+        flags: result.flags.isEmpty
+            ? state.flags
+            : {...defaultFeatureFlags, ...result.flags},
         appConfig: result.appConfig,
         legalDocuments: result.legalDocuments,
       );
@@ -85,7 +86,8 @@ class FeatureFlagsController extends _$FeatureFlagsController {
 /// doesn't cover.
 final isAppUpdateRequiredProvider = Provider<bool>((ref) {
   final state = ref.watch(featureFlagsControllerProvider);
-  final minVersion = state.appConfig['min_app_version_${HeadersInterceptor.platformName}'];
+  final minVersion =
+      state.appConfig['min_app_version_${HeadersInterceptor.platformName}'];
   if (minVersion == null) return false;
   return isVersionBelow(HeadersInterceptor.appVersion, minVersion);
 });

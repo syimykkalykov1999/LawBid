@@ -56,7 +56,9 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
       return;
     }
     setState(() => _localError = null);
-    final ok = await ref.read(onboardingFlowProvider.notifier).submitEmail(_controller.text);
+    final ok = await ref
+        .read(onboardingFlowProvider.notifier)
+        .submitEmail(_controller.text);
     if (ok && mounted) await context.push(AuthRoutes.otp);
   }
 
@@ -66,7 +68,8 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final t = ref.watch(translatorProvider);
     final flowState = ref.watch(onboardingFlowProvider);
-    final phoneEnabled = ref.watch(featureFlagsControllerProvider).isEnabled('phone_login');
+    final phoneEnabled =
+        ref.watch(featureFlagsControllerProvider).isEnabled('phone_login');
 
     return Scaffold(
       backgroundColor: colors.bg,
@@ -77,9 +80,12 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
             LayoutBuilder(
               builder: (context, constraints) {
                 return SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenSide),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.screenSide,
+                  ),
                   child: ConstrainedBox(
-                    constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                    constraints:
+                        BoxConstraints(minHeight: constraints.maxHeight),
                     child: IntrinsicHeight(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -88,7 +94,9 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
                           AppBackButton(
                             semanticLabel: t.t('common.back'),
                             onPressed: () {
-                              ref.read(onboardingFlowProvider.notifier).goBackTo(OnboardingStep.welcome);
+                              ref
+                                  .read(onboardingFlowProvider.notifier)
+                                  .goBackTo(OnboardingStep.welcome);
                               // Reached via go() from a magic-link code screen
                               // there is nothing underneath — go home instead.
                               if (context.canPop()) {
@@ -103,13 +111,15 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
                             header: true,
                             child: Text(
                               t.t('auth.email.title'),
-                              style: typography.titleLarge.copyWith(color: colors.text),
+                              style: typography.titleLarge
+                                  .copyWith(color: colors.text),
                             ),
                           ),
                           const SizedBox(height: AppSpacing.sm),
                           Text(
                             t.t('auth.email.subtitle'),
-                            style: typography.body.copyWith(color: colors.textSecondary),
+                            style: typography.body
+                                .copyWith(color: colors.textSecondary),
                           ),
                           const SizedBox(height: 26),
                           AppTextField(
@@ -123,8 +133,12 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
                             textInputAction: TextInputAction.go,
                             onSubmitted: (_) => _submit(t),
                             onChanged: (_) {
-                              if (_localError != null) setState(() => _localError = null);
-                              ref.read(onboardingFlowProvider.notifier).clearError();
+                              if (_localError != null) {
+                                setState(() => _localError = null);
+                              }
+                              ref
+                                  .read(onboardingFlowProvider.notifier)
+                                  .clearError();
                             },
                           ),
                           if (phoneEnabled) ...[
@@ -132,7 +146,9 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
                             SwitchChannelLink(
                               label: t.t('auth.email.usePhone'),
                               onTap: () {
-                                ref.read(onboardingFlowProvider.notifier).goToPhoneStep();
+                                ref
+                                    .read(onboardingFlowProvider.notifier)
+                                    .goToPhoneStep();
                                 context.pushReplacement(AuthRoutes.phone);
                               },
                             ),
@@ -151,10 +167,12 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
                                 LegalText(
                                   text: t.t('auth.phone.terms'),
                                   links: {
-                                    t.t('auth.phone.terms.usage'): () =>
-                                        context.push(AppRoutes.legalDoc('terms')),
+                                    t.t('auth.phone.terms.usage'): () => context
+                                        .push(AppRoutes.legalDoc('terms')),
                                     t.t('auth.phone.terms.privacy'): () =>
-                                        context.push(AppRoutes.legalDoc('privacy')),
+                                        context.push(
+                                          AppRoutes.legalDoc('privacy'),
+                                        ),
                                   },
                                 ),
                               ],

@@ -252,8 +252,11 @@ enum UsernameIssue { invalid, reserved, taken }
 
 @immutable
 class UsernameCheck {
-  const UsernameCheck(
-      {required this.username, required this.available, this.issue});
+  const UsernameCheck({
+    required this.username,
+    required this.available,
+    this.issue,
+  });
   final String username;
   final bool available;
   final UsernameIssue? issue;
@@ -359,7 +362,7 @@ class Review {
 
   /// Owner 2026-10-01 (Google-style): the author edits any time while
   /// the review is not moderated.
-  bool canEdit(DateTime now) => editable != false;
+  bool canEdit(DateTime now) => editable ?? true;
 }
 
 /// A page of a cursor-paginated list (`meta.nextCursor`).
@@ -383,7 +386,9 @@ enum ReviewReportReason {
 
   /// `off_topic` …
   String get wire => name.replaceAllMapped(
-      RegExp('[A-Z]'), (m) => '_${m.group(0)!.toLowerCase()}');
+        RegExp('[A-Z]'),
+        (m) => '_${m.group(0)!.toLowerCase()}',
+      );
 }
 
 /// Owner 2026-10-01: Google-style review orders.

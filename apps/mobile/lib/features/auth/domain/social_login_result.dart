@@ -3,7 +3,7 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 part 'social_login_result.freezed.dart';
 
 /// Result of a native social sign-in + backend exchange (`POST
-/// /auth/social`), mirroring [OtpVerifyResult]'s union style (see that
+/// /auth/social`), mirroring `OtpVerifyResult`'s union style (see that
 /// file's doc comment, otp_verify_result.dart, for why a union instead of
 /// a `bool success`) — one variant per distinct outcome `RealAuthRepository
 /// .signInWithApple()`/`.signInWithGoogle()` can produce, so
@@ -15,12 +15,12 @@ part 'social_login_result.freezed.dart';
 /// Apple/Google native SDK wiring against the already-live
 /// `POST /auth/social` backend endpoint.
 ///
-/// [cancelled] is NOT an error — it's the native sign-in sheet being
+/// `cancelled` is NOT an error — it's the native sign-in sheet being
 /// dismissed by the user, same as tapping outside an action sheet; see
 /// `RealAuthRepository`'s doc comment on how `SocialAuthCancelledException`
 /// (data/social_auth_native_client.dart) maps to it.
 ///
-/// [accountExists] mirrors the backend's `ACCOUNT_EXISTS_USE_OTHER_METHOD`
+/// `accountExists` mirrors the backend's `ACCOUNT_EXISTS_USE_OTHER_METHOD`
 /// (409, `details: {maskedIdentifier, availableMethods}` —
 /// apps/api/src/common/errors/error-code.enum.ts): the social identity's
 /// email already belongs to an account created a different way (e.g.
@@ -32,10 +32,12 @@ part 'social_login_result.freezed.dart';
 /// build_runner build` is required before this compiles.
 @freezed
 sealed class SocialLoginResult with _$SocialLoginResult {
-  const factory SocialLoginResult.success({required bool isNewUser}) = SocialLoginSuccess;
+  const factory SocialLoginResult.success({required bool isNewUser}) =
+      SocialLoginSuccess;
   const factory SocialLoginResult.cancelled() = SocialLoginCancelled;
   const factory SocialLoginResult.invalidToken() = SocialLoginInvalidToken;
-  const factory SocialLoginResult.providerDisabled() = SocialLoginProviderDisabled;
+  const factory SocialLoginResult.providerDisabled() =
+      SocialLoginProviderDisabled;
   const factory SocialLoginResult.accountExists({
     required String maskedIdentifier,
     required List<String> availableMethods,

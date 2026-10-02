@@ -52,9 +52,11 @@ class _ContactsStepScreenState extends ConsumerState<ContactsStepScreen> {
     return OnboardingScaffold(
       step: OnboardingStepId.contacts,
       title: t.t('onboarding.contacts.title'),
-      subtitle: t.t(user.isClient
-          ? 'onboarding.contacts.subtitle.client'
-          : 'onboarding.contacts.subtitle.attorney'),
+      subtitle: t.t(
+        user.isClient
+            ? 'onboarding.contacts.subtitle.client'
+            : 'onboarding.contacts.subtitle.attorney',
+      ),
       onBack: () => context.go(OnboardingRoutes.forStep(OnboardingStepId.role)),
       error: action.error,
       primaryLabel: t.t('onboarding.continue'),
@@ -105,9 +107,10 @@ class _ContactsStepScreenState extends ConsumerState<ContactsStepScreen> {
                     .extension<AppTypographyTokens>()!
                     .caption
                     .copyWith(
-                        color: Theme.of(context)
-                            .extension<AppColorTokens>()!
-                            .textSecondary),
+                      color: Theme.of(context)
+                          .extension<AppColorTokens>()!
+                          .textSecondary,
+                    ),
               ),
             ),
           ],

@@ -8,7 +8,8 @@ import 'package:lawbid/core/design_system/design_system.dart';
 void main() {
   for (final brightness in [Brightness.light, Brightness.dark]) {
     final name = brightness == Brightness.light ? 'light' : 'dark';
-    final theme = brightness == Brightness.light ? AppTheme.light() : AppTheme.dark();
+    final theme =
+        brightness == Brightness.light ? AppTheme.light() : AppTheme.dark();
 
     testGoldens('AppButton default - $name', (tester) async {
       await tester.pumpWidgetBuilder(
@@ -26,7 +27,11 @@ void main() {
       await tester.pumpWidgetBuilder(
         const Padding(
           padding: EdgeInsets.all(16),
-          child: AppButton(label: 'Получить код', onPressed: _noop, isLoading: true),
+          child: AppButton(
+            label: 'Получить код',
+            onPressed: _noop,
+            isLoading: true,
+          ),
         ),
         wrapper: materialAppWrapper(theme: theme),
         surfaceSize: const Size(320, 100),

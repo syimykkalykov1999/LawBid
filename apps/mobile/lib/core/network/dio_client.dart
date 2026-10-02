@@ -5,10 +5,10 @@ import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/connectivity/connectivity_providers.dart';
 import 'package:lawbid/core/connectivity/reachability.dart';
 
-import 'auth_interceptor.dart';
-import 'headers_interceptor.dart';
-import 'idempotency_interceptor.dart';
-import 'retry_interceptor.dart';
+import 'package:lawbid/core/network/auth_interceptor.dart';
+import 'package:lawbid/core/network/headers_interceptor.dart';
+import 'package:lawbid/core/network/idempotency_interceptor.dart';
+import 'package:lawbid/core/network/retry_interceptor.dart';
 
 /// The single [Dio] instance for the whole app (docs/01_FOUNDATION_AUTH.md
 /// §10.4). Every network call goes through this — no screen/repository

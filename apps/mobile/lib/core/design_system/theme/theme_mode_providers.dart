@@ -1,10 +1,10 @@
+// ignore_for_file: lines_longer_than_80_chars
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/design_system/theme/local_theme_mode_repository.dart';
+import 'package:lawbid/core/design_system/theme/theme_mode_repository.dart';
+import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-
-import '../../persistence/persistence_providers.dart';
-import 'local_theme_mode_repository.dart';
-import 'theme_mode_repository.dart';
 
 part 'theme_mode_providers.g.dart';
 

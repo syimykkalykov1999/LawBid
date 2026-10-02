@@ -1,16 +1,15 @@
+// ignore_for_file: lines_longer_than_80_chars
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
-import '../../../../core/design_system/design_system.dart';
-import '../../../../core/feature_flags/feature_flags_providers.dart';
-import '../../../../core/l10n/l10n_providers.dart';
-import '../../../../core/l10n/widgets/language_picker_sheet.dart';
-import '../../../../core/navigation/app_routes.dart';
-import '../../application/onboarding_flow.dart';
-import '../../auth_routes.dart';
-import '../../domain/onboarding_step.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
+import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/l10n/widgets/language_picker_sheet.dart';
+import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/features/auth/application/onboarding_flow.dart';
+import 'package:lawbid/features/auth/auth_routes.dart';
+import 'package:lawbid/features/auth/domain/onboarding_step.dart';
 
 /// `/welcome` (file 07 §6.1). Layout, 2026-09-22 revision (owner request,
 /// this conversation, after seeing it run on-device): title text first,
@@ -73,6 +72,7 @@ class WelcomeScreen extends ConsumerWidget {
       if (ok) {
         final step = ref.read(onboardingFlowProvider).step;
         if (step == OnboardingStep.role) {
+          // ignore: unawaited_futures
           context.push(AuthRoutes.role);
         } else if (step == OnboardingStep.completed) {
           context.go(AppRoutes.feed);
@@ -160,7 +160,8 @@ class WelcomeScreen extends ConsumerWidget {
         ? const SizedBox.shrink()
         : Row(
             mainAxisAlignment: MainAxisAlignment.center,
-            children: spacedIconButtons);
+            children: spacedIconButtons,
+          );
 
     return Scaffold(
       backgroundColor: colors.bg,
@@ -177,15 +178,18 @@ class WelcomeScreen extends ConsumerWidget {
                 children: [
                   AppIconButton(
                     plain: false,
-                    icon: AppIcon(isDark
-                        ? AppIcons.darkModeOutlined
-                        : AppIcons.lightModeOutlined),
+                    icon: AppIcon(
+                      isDark
+                          ? AppIcons.darkModeOutlined
+                          : AppIcons.lightModeOutlined,
+                    ),
                     semanticLabel: t.t('theme.toggle.label'),
                     onPressed: () {
                       ref
                           .read(themeModeControllerProvider.notifier)
                           .setThemeMode(
-                              isDark ? ThemeMode.light : ThemeMode.dark);
+                            isDark ? ThemeMode.light : ThemeMode.dark,
+                          );
                     },
                   ),
                   AppIconButton(
@@ -202,7 +206,8 @@ class WelcomeScreen extends ConsumerWidget {
                 builder: (context, constraints) {
                   return SingleChildScrollView(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.screenSide),
+                      horizontal: AppSpacing.screenSide,
+                    ),
                     child: ConstrainedBox(
                       constraints:
                           BoxConstraints(minHeight: constraints.maxHeight),
@@ -220,7 +225,6 @@ class WelcomeScreen extends ConsumerWidget {
                             const ScalesLogo(
                               size: 236,
                               animated: true,
-                              semanticLabel: 'LawBid',
                               standExtension: 50,
                             ),
                             // Flexible, not fixed (owner request, 2026-09-22:

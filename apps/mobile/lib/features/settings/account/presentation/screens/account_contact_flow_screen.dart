@@ -105,14 +105,17 @@ class _AccountContactFlowScreenState
     final raw = _controller.text;
     final valid = _isPhone ? UsPhone.isValid(raw) : isPlausibleEmail(raw);
     if (!valid) {
-      setState(() => _localError = t.t(
-            _isPhone ? 'auth.phone.error.invalid' : 'auth.email.error.invalid',
-          ));
+      setState(
+        () => _localError = t.t(
+          _isPhone ? 'auth.phone.error.invalid' : 'auth.email.error.invalid',
+        ),
+      );
       return;
     }
     setState(() => _localError = null);
     unawaited(
-        _sendCode(_isPhone ? UsPhone.toE164(raw) : raw.trim().toLowerCase()));
+      _sendCode(_isPhone ? UsPhone.toE164(raw) : raw.trim().toLowerCase()),
+    );
   }
 
   String _titleKey() {
@@ -184,7 +187,10 @@ class _AccountContactFlowScreenState
   }
 
   Widget _stage(
-      BuildContext context, Translator t, ContactVerificationState state) {
+    BuildContext context,
+    Translator t,
+    ContactVerificationState state,
+  ) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final kind = _isPhone ? 'phone' : 'email';
@@ -253,9 +259,11 @@ class _AccountContactFlowScreenState
             Semantics(
               header: true,
               child: Text(
-                t.t(confirming
-                    ? 'account.flow.identity.title'
-                    : 'account.flow.code.title'),
+                t.t(
+                  confirming
+                      ? 'account.flow.identity.title'
+                      : 'account.flow.code.title',
+                ),
                 style: typography.titleLarge.copyWith(color: colors.text),
               ),
             ),
@@ -329,8 +337,10 @@ class _AccountContactFlowScreenState
             const SizedBox(height: AppSpacing.sm),
             Text(
               widget.mode == AccountContactMode.link
-                  ? t.t('account.flow.done.linked',
-                      {'value': display(state.value ?? '')})
+                  ? t.t(
+                      'account.flow.done.linked',
+                      {'value': display(state.value ?? '')},
+                    )
                   : t.t('account.flow.done.$kind'),
               style: typography.body.copyWith(color: colors.textSecondary),
             ),

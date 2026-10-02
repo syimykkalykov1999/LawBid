@@ -59,7 +59,12 @@ class FakeOnboardingRepository implements OnboardingRepository {
   }
 
   @override
-  Future<CurrentUser> updateProfile({String? firstName, String? lastName, String? uiLanguage, String? theme}) async {
+  Future<CurrentUser> updateProfile({
+    String? firstName,
+    String? lastName,
+    String? uiLanguage,
+    String? theme,
+  }) async {
     calls.add('updateProfile');
     return me;
   }
@@ -71,7 +76,10 @@ class FakeOnboardingRepository implements OnboardingRepository {
   }
 
   @override
-  Future<CurrentUser> saveStep(OnboardingStepId step, [Map<String, dynamic>? data]) async {
+  Future<CurrentUser> saveStep(
+    OnboardingStepId step, [
+    Map<String, dynamic>? data,
+  ]) async {
     calls.add('saveStep:${step.name}');
     return me;
   }
@@ -80,7 +88,10 @@ class FakeOnboardingRepository implements OnboardingRepository {
   ProfileInput? lastProfile;
 
   @override
-  Future<CurrentUser> saveProfileStep(OnboardingStepId next, ProfileInput profile) async {
+  Future<CurrentUser> saveProfileStep(
+    OnboardingStepId next,
+    ProfileInput profile,
+  ) async {
     calls.add('saveProfileStep:${next.name}');
     lastProfile = profile;
     return me;
@@ -93,6 +104,7 @@ class FakeOnboardingRepository implements OnboardingRepository {
   @override
   Future<CurrentUser> completeOnboarding() async {
     calls.add('complete');
+    // ignore: only_throw_errors
     if (completeError != null) throw completeError!;
     return me;
   }
@@ -104,23 +116,37 @@ class FakeOnboardingRepository implements OnboardingRepository {
   }
 
   @override
-  Future<void> requestReauthCode({required String channel, required String identifier}) async {
+  Future<void> requestReauthCode({
+    required String channel,
+    required String identifier,
+  }) async {
     calls.add('requestReauthCode:$identifier');
   }
 
   @override
-  Future<String> reauth({required String identifier, required String code}) async {
+  Future<String> reauth({
+    required String identifier,
+    required String code,
+  }) async {
     calls.add('reauth');
     return 'rt';
   }
 
   @override
-  Future<void> requestContactCode({required ContactType type, required String value, String? reauthToken}) async {
+  Future<void> requestContactCode({
+    required ContactType type,
+    required String value,
+    String? reauthToken,
+  }) async {
     calls.add('requestContactCode:$value');
   }
 
   @override
-  Future<void> verifyContact({required ContactType type, required String value, required String code}) async {
+  Future<void> verifyContact({
+    required ContactType type,
+    required String value,
+    required String code,
+  }) async {
     calls.add('verifyContact');
   }
 }
@@ -139,15 +165,20 @@ Future<Widget Function(Widget)> onboardingWrapper(
   final prefs = await SharedPreferences.getInstance();
   final l10nDb = L10nDatabase(NativeDatabase.memory());
   addTearDown(l10nDb.close);
-  final state = userState ?? (user == null ? const CurrentUserState.idle() : CurrentUserState.ready(user));
+  final state = userState ??
+      (user == null
+          ? const CurrentUserState.idle()
+          : CurrentUserState.ready(user));
   return (Widget child) => ProviderScope(
         overrides: [
           sharedPreferencesProvider.overrideWithValue(prefs),
           l10nDatabaseProvider.overrideWithValue(l10nDb),
-          currentUserControllerProvider.overrideWith(() => FixedUserController(state)),
+          currentUserControllerProvider
+              .overrideWith(() => FixedUserController(state)),
           appStartupProvider.overrideWith(() => FixedStartup(startup)),
           languageCatalogProvider.overrideWith((ref) async => kLanguageCatalog),
-          if (repo != null) onboardingRepositoryProvider.overrideWithValue(repo),
+          if (repo != null)
+            onboardingRepositoryProvider.overrideWithValue(repo),
           // docs/05: screens that show posts/follows never hit the network.
           ...socialOverrides(),
           ...extra,
@@ -157,7 +188,8 @@ Future<Widget Function(Widget)> onboardingWrapper(
           debugShowCheckedModeBanner: false,
           home: Builder(
             builder: (context) => MediaQuery(
-              data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(textScale)),
+              data: MediaQuery.of(context)
+                  .copyWith(textScaler: TextScaler.linear(textScale)),
               child: child,
             ),
           ),

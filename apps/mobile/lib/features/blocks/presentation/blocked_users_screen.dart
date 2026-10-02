@@ -59,7 +59,6 @@ class BlockedUsersScreen extends ConsumerWidget {
                               ? '?'
                               : u.displayName.substring(0, 1).toUpperCase(),
                           size: 44,
-                          ring: false,
                         ),
                         const SizedBox(width: AppSpacing.md),
                         Expanded(

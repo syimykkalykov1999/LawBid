@@ -202,7 +202,10 @@ void main() {
       await expectLater(
         FileUploadRepositoryImpl(dio, storageDio).presignAndUpload(
           PickedDocument(
-              name: 'a.pdf', mime: 'application/pdf', bytes: Uint8List(1)),
+            name: 'a.pdf',
+            mime: 'application/pdf',
+            bytes: Uint8List(1),
+          ),
           selfie: false,
           onProgress: (_) {},
           cancellation: c,

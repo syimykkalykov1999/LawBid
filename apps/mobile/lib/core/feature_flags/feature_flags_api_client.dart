@@ -1,7 +1,6 @@
 import 'package:dio/dio.dart';
-
-import '../network/api_error.dart';
-import 'legal_document.dart';
+import 'package:lawbid/core/feature_flags/legal_document.dart';
+import 'package:lawbid/core/network/api_error.dart';
 
 /// `GET /config/bootstrap`'s response body
 /// (apps/api/src/modules/feature-flags/services/bootstrap.service.ts
@@ -22,23 +21,6 @@ class FeatureFlagsBootstrapResult {
     required this.appConfig,
     this.legalDocuments = const [],
   });
-
-  /// `{flagKey: enabled}`, e.g. `{"apple_login": true, "video_posts":
-  /// false}` — see `apps/api/prisma/schema.prisma`'s `FeatureFlag` model.
-  final Map<String, bool> flags;
-
-  /// `{configKey: value}`, values kept only when they're strings (every
-  /// key `seedAppConfig` writes is one — see
-  /// `apps/api/prisma/seed.ts`). A non-string value (or a key this
-  /// client doesn't recognize) is silently dropped rather than crashing
-  /// the parse — `app_config` is meant to grow keys over time without a
-  /// client release, per the same reasoning as `defaultFeatureFlags`.
-  final Map<String, String> appConfig;
-
-  /// `legal_documents` — consumed by the onboarding consents step
-  /// (stage 1.7 mobile, docs/01_FOUNDATION_AUTH.md §10.2 H).
-  final List<LegalDocument> legalDocuments;
-
   factory FeatureFlagsBootstrapResult.fromJson(Map<String, dynamic> json) {
     final rawFlags = json['flags'];
     final flags = <String, bool>{};
@@ -65,7 +47,10 @@ class FeatureFlagsBootstrapResult {
 
     final rawDocs = json['legal_documents'];
     final legalDocuments = rawDocs is List
-        ? rawDocs.map(LegalDocument.tryParse).whereType<LegalDocument>().toList()
+        ? rawDocs
+            .map(LegalDocument.tryParse)
+            .whereType<LegalDocument>()
+            .toList()
         : const <LegalDocument>[];
 
     return FeatureFlagsBootstrapResult(
@@ -74,6 +59,22 @@ class FeatureFlagsBootstrapResult {
       legalDocuments: legalDocuments,
     );
   }
+
+  /// `{flagKey: enabled}`, e.g. `{"apple_login": true, "video_posts":
+  /// false}` — see `apps/api/prisma/schema.prisma`'s `FeatureFlag` model.
+  final Map<String, bool> flags;
+
+  /// `{configKey: value}`, values kept only when they're strings (every
+  /// key `seedAppConfig` writes is one — see
+  /// `apps/api/prisma/seed.ts`). A non-string value (or a key this
+  /// client doesn't recognize) is silently dropped rather than crashing
+  /// the parse — `app_config` is meant to grow keys over time without a
+  /// client release, per the same reasoning as `defaultFeatureFlags`.
+  final Map<String, String> appConfig;
+
+  /// `legal_documents` — consumed by the onboarding consents step
+  /// (stage 1.7 mobile, docs/01_FOUNDATION_AUTH.md §10.2 H).
+  final List<LegalDocument> legalDocuments;
 }
 
 /// `/config/bootstrap` (docs/01_FOUNDATION_AUTH.md §10.2 "A. Splash",

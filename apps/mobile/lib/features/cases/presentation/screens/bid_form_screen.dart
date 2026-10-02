@@ -2,18 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/data/cases_repository.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/screens/attorney_case_screen.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_wizard_steps.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
-import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 
@@ -91,9 +90,10 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
       await ref.read(teamRepositoryProvider).saveBidDraft(
             widget.caseId,
             feeType: _fee.json,
-            amountCents: _fee == FeeType.freeConsultation || _amountDollars == null
-                ? null
-                : _amountDollars! * 100,
+            amountCents:
+                _fee == FeeType.freeConsultation || _amountDollars == null
+                    ? null
+                    : _amountDollars! * 100,
             message: _message.text.trim().isEmpty ? null : _message.text,
             startAvailability: _start.json,
             startDate: _startDate,
@@ -206,7 +206,9 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
       backgroundColor: colors.bg,
       appBar: AppTopBar(
         leading: AppBackButton(
-            semanticLabel: t.t('common.back'), onPressed: () => context.pop()),
+          semanticLabel: t.t('common.back'),
+          onPressed: () => context.pop(),
+        ),
         title: Text(t.t('cases.bidForm.title')),
       ),
       body: ListView(
@@ -214,9 +216,9 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
         children: [
           WizardHeading(
             title: t.t('cases.bidForm.heading'),
-            subtitle: t.t(assistant
-                ? 'assistant.mode.noBids'
-                : 'cases.bidForm.subtitle'),
+            subtitle: t.t(
+              assistant ? 'assistant.mode.noBids' : 'cases.bidForm.subtitle',
+            ),
           ),
           if (_draftBy != null) ...[
             Container(
@@ -242,9 +244,10 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
               ),
             ),
           ],
-          Text(t.t('cases.bidForm.feeType'),
-              style:
-                  typography.bodySmall.copyWith(color: colors.textSecondary)),
+          Text(
+            t.t('cases.bidForm.feeType'),
+            style: typography.bodySmall.copyWith(color: colors.textSecondary),
+          ),
           const SizedBox(height: AppSpacing.sm),
           SegmentedChoice<FeeType>(
             value: _fee,
@@ -265,12 +268,16 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
                     padding: const EdgeInsets.only(top: AppSpacing.lg),
                     child: AppTextField(
                       controller: _amount,
-                      label: t.t(_fee == FeeType.hourly
-                          ? 'cases.bidForm.rate'
-                          : 'cases.bidForm.amount'),
-                      leading: Text('\$',
-                          style: typography.titleMedium
-                              .copyWith(color: colors.goldDark)),
+                      label: t.t(
+                        _fee == FeeType.hourly
+                            ? 'cases.bidForm.rate'
+                            : 'cases.bidForm.amount',
+                      ),
+                      leading: Text(
+                        r'$',
+                        style: typography.titleMedium
+                            .copyWith(color: colors.goldDark),
+                      ),
                       keyboardType: TextInputType.number,
                       inputFormatters: [
                         FilteringTextInputFormatter.digitsOnly,
@@ -292,15 +299,18 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
             maxLength: BidLimits.messageMax,
             textCapitalization: TextCapitalization.sentences,
             errorText: _message.text.isNotEmpty && !_messageOk
-                ? t.t('cases.bidForm.messageError',
-                    {'min': '${BidLimits.messageMin}'})
+                ? t.t(
+                    'cases.bidForm.messageError',
+                    {'min': '${BidLimits.messageMin}'},
+                  )
                 : null,
             onChanged: (_) => setState(() {}),
           ),
           const SizedBox(height: AppSpacing.lg),
-          Text(t.t('cases.bidForm.start'),
-              style:
-                  typography.bodySmall.copyWith(color: colors.textSecondary)),
+          Text(
+            t.t('cases.bidForm.start'),
+            style: typography.bodySmall.copyWith(color: colors.textSecondary),
+          ),
           const SizedBox(height: AppSpacing.sm),
           Wrap(
             spacing: AppSpacing.sm,
@@ -340,9 +350,10 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
             const SizedBox(height: AppSpacing.lg),
             Semantics(
               liveRegion: true,
-              child: Text(_error!,
-                  style:
-                      typography.bodySmall.copyWith(color: colors.dangerText)),
+              child: Text(
+                _error!,
+                style: typography.bodySmall.copyWith(color: colors.dangerText),
+              ),
             ),
           ],
         ],

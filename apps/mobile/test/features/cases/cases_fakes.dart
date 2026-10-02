@@ -19,31 +19,66 @@ class FakeCasesRepository implements CasesRepository {
   CursorPage<T> _empty<T>() => CursorPage<T>(items: const []);
 
   @override
-  Future<CursorPage<CaseSummary>> myCases(MyCasesFilter filter, {String? cursor, MineSearch search = const MineSearch()}) async {
+  Future<CursorPage<CaseSummary>> myCases(
+    MyCasesFilter filter, {
+    String? cursor,
+    MineSearch search = const MineSearch(),
+  }) async {
     calls.add('myCases:${filter.name}');
     return CursorPage(
-        items: filter == MyCasesFilter.active || filter == MyCasesFilter.open
-            ? myCasesItems
-            : const []);
+      items: filter == MyCasesFilter.active || filter == MyCasesFilter.open
+          ? myCasesItems
+          : const [],
+    );
   }
 
   @override
-  Future<CursorPage<CaseBid>> caseBids(String caseId, BidsSort sort, {String? cursor}) async => _empty();
+  Future<CursorPage<CaseBid>> caseBids(
+    String caseId,
+    BidsSort sort, {
+    String? cursor,
+  }) async =>
+      _empty();
 
   @override
-  Future<CursorPage<FeedCase>> feed({String? cursor, String? practiceAreaId, String? practiceCategory, String? state, CaseFeedExtras extras = const CaseFeedExtras()}) async => _empty();
+  Future<CursorPage<FeedCase>> feed({
+    String? cursor,
+    String? practiceAreaId,
+    String? practiceCategory,
+    String? state,
+    CaseFeedExtras extras = const CaseFeedExtras(),
+  }) async =>
+      _empty();
 
   @override
-  Future<CursorPage<MyBid>> myBids(MyBidsFilter filter, {String? cursor, MineSearch search = const MineSearch()}) async => _empty();
+  Future<CursorPage<MyBid>> myBids(
+    MyBidsFilter filter, {
+    String? cursor,
+    MineSearch search = const MineSearch(),
+  }) async =>
+      _empty();
 
   @override
-  Future<CursorPage<WorkItem>> myWork(WorkFilter filter, {String? cursor, MineSearch search = const MineSearch()}) async => _empty();
+  Future<CursorPage<WorkItem>> myWork(
+    WorkFilter filter, {
+    String? cursor,
+    MineSearch search = const MineSearch(),
+  }) async =>
+      _empty();
 
   @override
-  Future<CursorPage<SavedCase>> savedCases({String? cursor, MineSearch search = const MineSearch()}) async => _empty();
+  Future<CursorPage<SavedCase>> savedCases({
+    String? cursor,
+    MineSearch search = const MineSearch(),
+  }) async =>
+      _empty();
 
   @override
-  Future<CursorPage<HistoryCase>> history(String reauthToken, {String? cursor}) async => _empty();
+  Future<CursorPage<HistoryCase>> history(
+    String reauthToken, {
+    String? cursor,
+  }) async =>
+      _empty();
 
   @override
   dynamic noSuchMethod(Invocation invocation) {

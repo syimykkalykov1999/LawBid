@@ -24,18 +24,27 @@ void main() {
   setUpAll(initializeDateFormatting);
   setUp(() => repo = FakeTeamRepository());
 
-  Future<void> pump(WidgetTester tester, Widget child,
-      {ThemeData? theme, double textScale = 1, bool assistant = false}) async {
-    await tester.pumpWidget(uxApp(
-      Scaffold(body: child),
-      theme: theme ?? AppTheme.light(),
-      disableAnimations: true,
-      textScale: textScale,
-      overrides: uxOverrides(extra: [
-        teamRepositoryProvider.overrideWithValue(repo),
-        if (assistant) isAssistantProvider.overrideWithValue(true),
-      ]),
-    ));
+  Future<void> pump(
+    WidgetTester tester,
+    Widget child, {
+    ThemeData? theme,
+    double textScale = 1,
+    bool assistant = false,
+  }) async {
+    await tester.pumpWidget(
+      uxApp(
+        Scaffold(body: child),
+        theme: theme ?? AppTheme.light(),
+        disableAnimations: true,
+        textScale: textScale,
+        overrides: uxOverrides(
+          extra: [
+            teamRepositoryProvider.overrideWithValue(repo),
+            if (assistant) isAssistantProvider.overrideWithValue(true),
+          ],
+        ),
+      ),
+    );
     await tester.pump();
     await tester.pump();
   }
@@ -104,7 +113,9 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('task-not-done')));
       await tester.pumpAndSettle();
       await tester.enterText(
-          find.byKey(const ValueKey('task-outcome')), 'No answer');
+        find.byKey(const ValueKey('task-outcome')),
+        'No answer',
+      );
       await tester.tap(find.byKey(const ValueKey('task-outcome-save')));
       await tester.pumpAndSettle();
       expect(repo.calls, contains('status:t2:not_done:No answer'));
@@ -115,8 +126,12 @@ void main() {
         makeTask('t3', dueAt: DateTime.now(), note: 'Long note'),
         makeTask('t4', kind: TaskKind.court, by: null),
       ];
-      await pump(tester, const TasksTab(),
-          theme: AppTheme.dark(), textScale: 2);
+      await pump(
+        tester,
+        const TasksTab(),
+        theme: AppTheme.dark(),
+        textScale: 2,
+      );
       expect(tester.takeException(), isNull);
     });
   });
@@ -128,22 +143,32 @@ void main() {
     // Owner 2026-10-01: the fields open once a kind is picked.
     expect(find.byKey(const ValueKey('task-kind-picked')), findsOneWidget);
     final save = find.byKey(const ValueKey('task-save'));
-    await tester.scrollUntilVisible(save, 300,
-        scrollable: find.byType(Scrollable).first);
+    await tester.scrollUntilVisible(
+      save,
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.ensureVisible(save);
     await tester.pumpAndSettle();
     await tester.tap(save);
     await tester.pump();
     await tester.scrollUntilVisible(
-        find.byKey(const ValueKey('task-title')), -300,
-        scrollable: find.byType(Scrollable).first);
+      find.byKey(const ValueKey('task-title')),
+      -300,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('Fill in this field'), findsOneWidget);
     await tester.enterText(
-        find.byKey(const ValueKey('task-title')), 'Hearing at 10');
+      find.byKey(const ValueKey('task-title')),
+      'Hearing at 10',
+    );
     FocusManager.instance.primaryFocus?.unfocus();
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(save, 300,
-        scrollable: find.byType(Scrollable).first);
+    await tester.scrollUntilVisible(
+      save,
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.tap(save);
     await tester.pump();
     await tester.pump();
@@ -156,15 +181,19 @@ void main() {
     tester.view.physicalSize = const Size(1200, 4000);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
-    await tester.pumpWidget(uxApp(
-      const Scaffold(body: TaskEditorScreen()),
-      theme: AppTheme.light(),
-      size: const Size(1200, 4000),
-      disableAnimations: true,
-      overrides: uxOverrides(extra: [
-        teamRepositoryProvider.overrideWithValue(repo),
-      ]),
-    ));
+    await tester.pumpWidget(
+      uxApp(
+        const Scaffold(body: TaskEditorScreen()),
+        theme: AppTheme.light(),
+        size: const Size(1200, 4000),
+        disableAnimations: true,
+        overrides: uxOverrides(
+          extra: [
+            teamRepositoryProvider.overrideWithValue(repo),
+          ],
+        ),
+      ),
+    );
     await tester.pump();
     // Only "What to do" until a kind is picked.
     expect(find.byKey(const ValueKey('task-title')), findsNothing);
@@ -242,22 +271,28 @@ void main() {
       tester.view.physicalSize = const Size(1200, 4000);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
-      await tester.pumpWidget(uxApp(
-        Scaffold(body: TaskEditorScreen(existing: makeTask('e1', by: null))),
-        theme: AppTheme.light(),
-        size: const Size(1200, 4000),
-        disableAnimations: true,
-        overrides: uxOverrides(extra: [
-          teamRepositoryProvider.overrideWithValue(repo),
-        ]),
-      ));
+      await tester.pumpWidget(
+        uxApp(
+          Scaffold(body: TaskEditorScreen(existing: makeTask('e1', by: null))),
+          theme: AppTheme.light(),
+          size: const Size(1200, 4000),
+          disableAnimations: true,
+          overrides: uxOverrides(
+            extra: [
+              teamRepositoryProvider.overrideWithValue(repo),
+            ],
+          ),
+        ),
+      );
       await tester.pump();
       expect(find.text('Edit task'), findsWidgets);
       expect(find.text('Task e1'), findsOneWidget);
       // The checklist is managed on the task itself, not here.
       expect(find.byKey(const ValueKey('task-editor-step-add')), findsNothing);
       await tester.enterText(
-          find.byKey(const ValueKey('task-title')), 'Call Ann back');
+        find.byKey(const ValueKey('task-title')),
+        'Call Ann back',
+      );
       await tester.tap(find.byKey(const ValueKey('task-save')));
       await tester.pumpAndSettle();
       expect(repo.calls, contains('update:e1:Call Ann back'));
@@ -296,10 +331,14 @@ void main() {
     testWidgets('a finished checklist: unchecking a step reopens it',
         (tester) async {
       repo.done = [
-        makeTask('u3', status: TaskStatus.done, steps: const [
-          TaskStep(id: 'a', title: 'Call A', status: TaskStatus.done),
-          TaskStep(id: 'b', title: 'Call B', status: TaskStatus.done),
-        ]),
+        makeTask(
+          'u3',
+          status: TaskStatus.done,
+          steps: const [
+            TaskStep(id: 'a', title: 'Call A', status: TaskStatus.done),
+            TaskStep(id: 'b', title: 'Call B', status: TaskStatus.done),
+          ],
+        ),
       ];
       await pump(tester, const TasksTab());
       await tester.tap(find.byKey(const ValueKey('tasks-view-done')));
@@ -359,25 +398,33 @@ void main() {
       tester.view.physicalSize = const Size(1200, 4000);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
-      await tester.pumpWidget(uxApp(
-        const Scaffold(body: TaskEditorScreen()),
-        theme: AppTheme.light(),
-        size: const Size(1200, 4000),
-        disableAnimations: true,
-        overrides: uxOverrides(extra: [
-          teamRepositoryProvider.overrideWithValue(repo),
-        ]),
-      ));
+      await tester.pumpWidget(
+        uxApp(
+          const Scaffold(body: TaskEditorScreen()),
+          theme: AppTheme.light(),
+          size: const Size(1200, 4000),
+          disableAnimations: true,
+          overrides: uxOverrides(
+            extra: [
+              teamRepositoryProvider.overrideWithValue(repo),
+            ],
+          ),
+        ),
+      );
       await tester.pump();
       await tester.tap(find.byKey(const ValueKey('task-kind-call')));
       await tester.pump();
       await tester.enterText(
-          find.byKey(const ValueKey('task-title')), 'Monday calls');
+        find.byKey(const ValueKey('task-title')),
+        'Monday calls',
+      );
       for (final name in ['Brown', 'Lee']) {
         await tester.tap(find.byKey(const ValueKey('task-editor-step-add')));
         await tester.pumpAndSettle();
         await tester.enterText(
-            find.byKey(const ValueKey('step-title')), 'Call $name');
+          find.byKey(const ValueKey('step-title')),
+          'Call $name',
+        );
         await tester.tap(find.byKey(const ValueKey('step-save')));
         await tester.pumpAndSettle();
       }
@@ -397,9 +444,13 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('team-add')));
       await tester.pumpAndSettle();
       await tester.enterText(
-          find.byKey(const ValueKey('team-add-phone')), '+13125550111');
+        find.byKey(const ValueKey('team-add-phone')),
+        '+13125550111',
+      );
       await tester.enterText(
-          find.byKey(const ValueKey('team-add-name')), 'Sam');
+        find.byKey(const ValueKey('team-add-name')),
+        'Sam',
+      );
       await tester.tap(find.byKey(const ValueKey('team-add-save')));
       await tester.pumpAndSettle();
       expect(repo.calls, contains('add:+13125550111:Sam'));
@@ -420,7 +471,9 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('request-reject-r2')));
       await tester.pumpAndSettle();
       await tester.enterText(
-          find.byKey(const ValueKey('reject-note')), 'Not now');
+        find.byKey(const ValueKey('reject-note')),
+        'Not now',
+      );
       await tester.tap(find.byKey(const ValueKey('reject-confirm')));
       await tester.pumpAndSettle();
       expect(repo.calls, contains('reject:r2:Not now'));
@@ -436,20 +489,26 @@ void main() {
       );
       await pump(tester, const AssistantJoinScreen(), assistant: true);
       expect(
-          find.text('Ada Counsel added you as an assistant'), findsOneWidget);
+        find.text('Ada Counsel added you as an assistant'),
+        findsOneWidget,
+      );
       expect(find.byKey(const ValueKey('join-accept')), findsOneWidget);
     });
 
     testWidgets("not added: the attorney's phone gets a code", (tester) async {
       await pump(tester, const AssistantJoinScreen(), assistant: true);
       await tester.enterText(
-          find.byKey(const ValueKey('join-phone')), '+13125550101');
+        find.byKey(const ValueKey('join-phone')),
+        '+13125550101',
+      );
       await tester.tap(find.byKey(const ValueKey('join-send')));
       await tester.pump();
       await tester.pump();
       expect(repo.calls, contains('code:+13125550101'));
-      expect(find.textContaining("The code went to the attorney's phone"),
-          findsOneWidget);
+      expect(
+        find.textContaining("The code went to the attorney's phone"),
+        findsOneWidget,
+      );
     });
   });
 }

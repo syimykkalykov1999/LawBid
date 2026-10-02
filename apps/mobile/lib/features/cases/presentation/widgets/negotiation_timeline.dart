@@ -138,8 +138,10 @@ class _OfferBubble extends StatelessWidget {
           ),
           if (offer.message != null && offer.message!.trim().isNotEmpty) ...[
             const SizedBox(height: AppSpacing.xs),
-            Text(offer.message!,
-                style: typography.bodySmall.copyWith(color: colors.text)),
+            Text(
+              offer.message!,
+              style: typography.bodySmall.copyWith(color: colors.text),
+            ),
           ],
           const SizedBox(height: AppSpacing.sm),
           Text(

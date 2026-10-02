@@ -31,12 +31,16 @@ class WizardHeading extends StatelessWidget {
       children: [
         Semantics(
           header: true,
-          child: Text(title,
-              style: typography.titleLarge.copyWith(color: colors.text)),
+          child: Text(
+            title,
+            style: typography.titleLarge.copyWith(color: colors.text),
+          ),
         ),
         const SizedBox(height: AppSpacing.sm),
-        Text(subtitle,
-            style: typography.body.copyWith(color: colors.textSecondary)),
+        Text(
+          subtitle,
+          style: typography.body.copyWith(color: colors.textSecondary),
+        ),
         const SizedBox(height: AppSpacing.xl),
       ],
     );
@@ -214,7 +218,8 @@ class _CategoryTile extends StatelessWidget {
                 onTap: onToggle,
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(
-                      minHeight: AppSizes.hitTarget + AppSpacing.sm),
+                    minHeight: AppSizes.hitTarget + AppSpacing.sm,
+                  ),
                   child: Padding(
                     padding:
                         const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
@@ -233,8 +238,10 @@ class _CategoryTile extends StatelessWidget {
                           turns: open ? 0.5 : 0,
                           duration: motion,
                           curve: AppMotion.enterCurve,
-                          child: AppIcon(AppIcons.expandMoreRounded,
-                              color: colors.textSecondary),
+                          child: AppIcon(
+                            AppIcons.expandMoreRounded,
+                            color: colors.textSecondary,
+                          ),
                         ),
                       ],
                     ),
@@ -311,7 +318,8 @@ class _LeafTile extends StatelessWidget {
                 ? null
                 : Border.all(
                     color: selected ? colors.gold : colors.border,
-                    width: selected ? 1.5 : 1),
+                    width: selected ? 1.5 : 1,
+                  ),
           ),
           child: Row(
             children: [
@@ -323,12 +331,16 @@ class _LeafTile extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(label,
-                        style: typography.body.copyWith(color: colors.text)),
+                    Text(
+                      label,
+                      style: typography.body.copyWith(color: colors.text),
+                    ),
                     if (caption != null)
-                      Text(caption!,
-                          style: typography.caption
-                              .copyWith(color: colors.textSecondary)),
+                      Text(
+                        caption!,
+                        style: typography.caption
+                            .copyWith(color: colors.textSecondary),
+                      ),
                   ],
                 ),
               ),
@@ -346,9 +358,14 @@ class _LeafTile extends StatelessWidget {
                     width: AppSizes.iconSm,
                     height: AppSizes.iconSm,
                     decoration: BoxDecoration(
-                        color: colors.gold, shape: BoxShape.circle),
-                    child: AppIcon(AppIcons.checkRounded,
-                        size: AppSpacing.md + 1, color: colors.navy),
+                      color: colors.gold,
+                      shape: BoxShape.circle,
+                    ),
+                    child: AppIcon(
+                      AppIcons.checkRounded,
+                      size: AppSpacing.md + 1,
+                      color: colors.navy,
+                    ),
                   ),
                 ),
               ),
@@ -540,7 +557,8 @@ class _StatePickerSheetState extends State<_StatePickerSheet> {
                         onTap: () => Navigator.of(context).pop(s.code),
                         child: ConstrainedBox(
                           constraints: const BoxConstraints(
-                              minHeight: AppSizes.hitTarget),
+                            minHeight: AppSizes.hitTarget,
+                          ),
                           child: Row(
                             children: [
                               SizedBox(
@@ -554,9 +572,11 @@ class _StatePickerSheetState extends State<_StatePickerSheet> {
                                 ),
                               ),
                               Expanded(
-                                child: Text(s.name,
-                                    style: typography.body
-                                        .copyWith(color: colors.text)),
+                                child: Text(
+                                  s.name,
+                                  style: typography.body
+                                      .copyWith(color: colors.text),
+                                ),
                               ),
                             ],
                           ),
@@ -600,9 +620,10 @@ class PickerField extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label,
-              style:
-                  typography.bodySmall.copyWith(color: colors.textSecondary)),
+          Text(
+            label,
+            style: typography.bodySmall.copyWith(color: colors.textSecondary),
+          ),
           const SizedBox(height: AppSpacing.xs + 2),
           Semantics(
             button: true,
@@ -628,8 +649,10 @@ class PickerField extends StatelessWidget {
                             .copyWith(color: colors.text, fontSize: 16),
                       ),
                     ),
-                    AppIcon(AppIcons.expandMoreRounded,
-                        color: colors.textSecondary),
+                    AppIcon(
+                      AppIcons.expandMoreRounded,
+                      color: colors.textSecondary,
+                    ),
                   ],
                 ),
               ),
@@ -637,9 +660,10 @@ class PickerField extends StatelessWidget {
           ),
           if (helper != null) ...[
             const SizedBox(height: AppSpacing.xs),
-            Text(helper!,
-                style:
-                    typography.caption.copyWith(color: colors.textSecondary)),
+            Text(
+              helper!,
+              style: typography.caption.copyWith(color: colors.textSecondary),
+            ),
           ],
         ],
       ),
@@ -704,10 +728,14 @@ class _PlaceStepState extends ConsumerState<PlaceStep> {
           enabled: !locked,
           helper: locked ? t.t('cases.edit.statesLocked') : null,
           onTap: () async {
-            final code = await pickState(context, t,
-                exclude: d.additionalStateCodes.toSet());
-            if (code != null)
+            final code = await pickState(
+              context,
+              t,
+              exclude: d.additionalStateCodes.toSet(),
+            );
+            if (code != null) {
               widget.onChange((x) => x.copyWith(primaryStateCode: code));
+            }
           },
         ),
         const SizedBox(height: AppSpacing.lg),
@@ -730,8 +758,11 @@ class _PlaceStepState extends ConsumerState<PlaceStep> {
                 selected: true,
                 trailing: locked
                     ? null
-                    : AppIcon(AppIcons.closeRounded,
-                        size: AppSpacing.lg, color: colors.textSecondary),
+                    : AppIcon(
+                        AppIcons.closeRounded,
+                        size: AppSpacing.lg,
+                        color: colors.textSecondary,
+                      ),
                 onTap: locked
                     ? null
                     : () => widget.onChange(
@@ -747,16 +778,21 @@ class _PlaceStepState extends ConsumerState<PlaceStep> {
                 d.additionalStateCodes.length < CaseLimits.maxAdditionalStates)
               AppChip(
                 label: t.t('cases.field.addState'),
-                leading: AppIcon(AppIcons.addRounded,
-                    size: AppSpacing.lg, color: colors.goldDark),
+                leading: AppIcon(
+                  AppIcons.addRounded,
+                  size: AppSpacing.lg,
+                  color: colors.goldDark,
+                ),
                 onTap: () async {
                   final code = await pickState(context, t, exclude: taken());
                   if (code != null) {
                     widget.onChange(
-                      (x) => x.copyWith(additionalStateCodes: [
-                        ...x.additionalStateCodes,
-                        code
-                      ]),
+                      (x) => x.copyWith(
+                        additionalStateCodes: [
+                          ...x.additionalStateCodes,
+                          code,
+                        ],
+                      ),
                     );
                   }
                 },
@@ -828,9 +864,11 @@ class _BudgetStepState extends ConsumerState<BudgetStep> {
                   controller: _amount,
                   label: t.t('cases.field.budgetAmount'),
                   hintText: '600',
-                  leading: Text('\$',
-                      style: typography.titleMedium
-                          .copyWith(color: colors.goldDark)),
+                  leading: Text(
+                    r'$',
+                    style:
+                        typography.titleMedium.copyWith(color: colors.goldDark),
+                  ),
                   keyboardType: TextInputType.number,
                   inputFormatters: [
                     FilteringTextInputFormatter.digitsOnly,
@@ -839,8 +877,9 @@ class _BudgetStepState extends ConsumerState<BudgetStep> {
                   errorText: _amount.text.isNotEmpty && !d.budgetValid
                       ? t.t('cases.field.budgetError', {
                           'max': CaseFormat.money(
-                              ref.watch(l10nFormatsProvider),
-                              CaseLimits.budgetMaxDollars * 100),
+                            ref.watch(l10nFormatsProvider),
+                            CaseLimits.budgetMaxDollars * 100,
+                          ),
                         })
                       : null,
                   onChanged: (v) {
@@ -938,7 +977,8 @@ class SegmentedChoice<T> extends StatelessWidget {
                           onTap: () => onChanged(options[i].$1),
                           child: ConstrainedBox(
                             constraints: const BoxConstraints(
-                                minHeight: AppSizes.touchTarget),
+                              minHeight: AppSizes.touchTarget,
+                            ),
                             child: Center(
                               child: AnimatedDefaultTextStyle(
                                 duration: motion,

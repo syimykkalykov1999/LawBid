@@ -1,18 +1,17 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:lawbid/features/practice/practice_options.dart'
-    as practice_options;
-import 'package:lawbid/features/feed/application/feed_topics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart'
-    show PracticePhoto;
-import 'package:lawbid/features/practice/practice_options.dart' as practices;
 import 'package:go_router/go_router.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
+import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart'
+    show PracticePhoto;
+import 'package:lawbid/features/feed/application/feed_topics.dart';
+import 'package:lawbid/features/practice/practice_options.dart'
+    as practice_options;
+import 'package:lawbid/features/practice/practice_options.dart' as practices;
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart';
@@ -54,37 +53,41 @@ class PostsFeedView extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translatorProvider);
     final value = _withoutDeleted(
-        ref.watch(feedProvider), ref.watch(deletedPostsProvider));
+      ref.watch(feedProvider),
+      ref.watch(deletedPostsProvider),
+    );
     final notifier = ref.read(feedProvider.notifier);
-    return LayoutBuilder(builder: (context, box) {
-      final height = feedCardHeight(box.maxHeight);
-      return PagedListBody<Post>(
-        value: value,
-        t: t,
-        edgeToEdge: true,
-        skeleton: const PostListSkeleton(),
-        itemKey: (p) => p.id,
-        itemBuilder: (context, p, _) => PostCard(post: p, feedHeight: height),
-        // §2.3: "Пока в ленте пусто" + recommended attorneys to follow.
-        empty: ListView(
-          padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
-          children: [
-            SizedBox(
-              height: 340,
-              child: AppEmptyState(
-                icon: AppIcons.dynamicFeedRounded,
-                title: t.t('feed.empty.title'),
-                message: t.t('feed.empty.message'),
+    return LayoutBuilder(
+      builder: (context, box) {
+        final height = feedCardHeight(box.maxHeight);
+        return PagedListBody<Post>(
+          value: value,
+          t: t,
+          edgeToEdge: true,
+          skeleton: const PostListSkeleton(),
+          itemKey: (p) => p.id,
+          itemBuilder: (context, p, _) => PostCard(post: p, feedHeight: height),
+          // §2.3: "Пока в ленте пусто" + recommended attorneys to follow.
+          empty: ListView(
+            padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
+            children: [
+              SizedBox(
+                height: 340,
+                child: AppEmptyState(
+                  icon: AppIcons.dynamicFeedRounded,
+                  title: t.t('feed.empty.title'),
+                  message: t.t('feed.empty.message'),
+                ),
               ),
-            ),
-            const SuggestedAttorneys(),
-          ],
-        ),
-        onRefresh: notifier.refresh,
-        onLoadMore: notifier.loadMore,
-        onRetryMore: notifier.retryLoadMore,
-      );
-    });
+              const SuggestedAttorneys(),
+            ],
+          ),
+          onRefresh: notifier.refresh,
+          onLoadMore: notifier.loadMore,
+          onRetryMore: notifier.retryLoadMore,
+        );
+      },
+    );
   }
 }
 
@@ -99,25 +102,29 @@ class LatestPostsView extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translatorProvider);
     final notifier = ref.read(latestPostsProvider(stateCode).notifier);
-    return LayoutBuilder(builder: (context, box) {
-      final height = feedCardHeight(box.maxHeight);
-      return PagedListBody<Post>(
-        value: _withoutDeleted(ref.watch(latestPostsProvider(stateCode)),
-            ref.watch(deletedPostsProvider)),
-        t: t,
-        edgeToEdge: true,
-        skeleton: const PostListSkeleton(),
-        itemKey: (p) => p.id,
-        itemBuilder: (context, p, _) => PostCard(post: p, feedHeight: height),
-        empty: AppEmptyState(
-          icon: AppIcons.mapOutlined,
-          message: t.t('feed.state.empty'),
-        ),
-        onRefresh: notifier.refresh,
-        onLoadMore: notifier.loadMore,
-        onRetryMore: notifier.retryLoadMore,
-      );
-    });
+    return LayoutBuilder(
+      builder: (context, box) {
+        final height = feedCardHeight(box.maxHeight);
+        return PagedListBody<Post>(
+          value: _withoutDeleted(
+            ref.watch(latestPostsProvider(stateCode)),
+            ref.watch(deletedPostsProvider),
+          ),
+          t: t,
+          edgeToEdge: true,
+          skeleton: const PostListSkeleton(),
+          itemKey: (p) => p.id,
+          itemBuilder: (context, p, _) => PostCard(post: p, feedHeight: height),
+          empty: AppEmptyState(
+            icon: AppIcons.mapOutlined,
+            message: t.t('feed.state.empty'),
+          ),
+          onRefresh: notifier.refresh,
+          onLoadMore: notifier.loadMore,
+          onRetryMore: notifier.retryLoadMore,
+        );
+      },
+    );
   }
 }
 
@@ -140,25 +147,29 @@ class FilteredPostsView extends ConsumerWidget {
     final t = ref.watch(translatorProvider);
     final key = (state: stateCode, practice: practice, news: newsOnly);
     final notifier = ref.read(filteredPostsProvider(key).notifier);
-    return LayoutBuilder(builder: (context, box) {
-      final height = feedCardHeight(box.maxHeight);
-      return PagedListBody<Post>(
-        value: _withoutDeleted(ref.watch(filteredPostsProvider(key)),
-            ref.watch(deletedPostsProvider)),
-        t: t,
-        edgeToEdge: true,
-        skeleton: const PostListSkeleton(),
-        itemKey: (p) => p.id,
-        itemBuilder: (context, p, _) => PostCard(post: p, feedHeight: height),
-        empty: AppEmptyState(
-          icon: newsOnly ? AppIcons.newspaperRounded : AppIcons.tagRounded,
-          message: t.t(newsOnly ? 'feed.news.empty' : 'feed.practice.empty'),
-        ),
-        onRefresh: notifier.refresh,
-        onLoadMore: notifier.loadMore,
-        onRetryMore: notifier.retryLoadMore,
-      );
-    });
+    return LayoutBuilder(
+      builder: (context, box) {
+        final height = feedCardHeight(box.maxHeight);
+        return PagedListBody<Post>(
+          value: _withoutDeleted(
+            ref.watch(filteredPostsProvider(key)),
+            ref.watch(deletedPostsProvider),
+          ),
+          t: t,
+          edgeToEdge: true,
+          skeleton: const PostListSkeleton(),
+          itemKey: (p) => p.id,
+          itemBuilder: (context, p, _) => PostCard(post: p, feedHeight: height),
+          empty: AppEmptyState(
+            icon: newsOnly ? AppIcons.newspaperRounded : AppIcons.tagRounded,
+            message: t.t(newsOnly ? 'feed.news.empty' : 'feed.practice.empty'),
+          ),
+          onRefresh: notifier.refresh,
+          onLoadMore: notifier.loadMore,
+          onRetryMore: notifier.retryLoadMore,
+        );
+      },
+    );
   }
 }
 
@@ -201,25 +212,29 @@ class TopicPostsView extends ConsumerWidget {
     final t = ref.watch(translatorProvider);
     final key = (tag: tag, sort: TagSort.fresh, state: stateCode);
     final notifier = ref.read(tagPostsProvider(key).notifier);
-    return LayoutBuilder(builder: (context, box) {
-      final height = feedCardHeight(box.maxHeight);
-      return PagedListBody<Post>(
-        value: _withoutDeleted(
-            ref.watch(tagPostsProvider(key)), ref.watch(deletedPostsProvider)),
-        t: t,
-        edgeToEdge: true,
-        skeleton: const PostListSkeleton(),
-        itemKey: (p) => p.id,
-        itemBuilder: (context, p, _) => PostCard(post: p, feedHeight: height),
-        empty: AppEmptyState(
-          icon: AppIcons.tagRounded,
-          message: t.t('tag.empty'),
-        ),
-        onRefresh: notifier.refresh,
-        onLoadMore: notifier.loadMore,
-        onRetryMore: notifier.retryLoadMore,
-      );
-    });
+    return LayoutBuilder(
+      builder: (context, box) {
+        final height = feedCardHeight(box.maxHeight);
+        return PagedListBody<Post>(
+          value: _withoutDeleted(
+            ref.watch(tagPostsProvider(key)),
+            ref.watch(deletedPostsProvider),
+          ),
+          t: t,
+          edgeToEdge: true,
+          skeleton: const PostListSkeleton(),
+          itemKey: (p) => p.id,
+          itemBuilder: (context, p, _) => PostCard(post: p, feedHeight: height),
+          empty: AppEmptyState(
+            icon: AppIcons.tagRounded,
+            message: t.t('tag.empty'),
+          ),
+          onRefresh: notifier.refresh,
+          onLoadMore: notifier.loadMore,
+          onRetryMore: notifier.retryLoadMore,
+        );
+      },
+    );
   }
 }
 
@@ -261,8 +276,9 @@ class _PostScreenState extends ConsumerState<PostScreen> {
       backgroundColor: colors.bg,
       appBar: AppTopBar(
         leading: AppBackButton(
-            semanticLabel: t.t('common.back'),
-            onPressed: () => Navigator.of(context).maybePop()),
+          semanticLabel: t.t('common.back'),
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
         title: Text(t.t('post.title')),
       ),
       body: deleted
@@ -301,7 +317,12 @@ class _PostScreenState extends ConsumerState<PostScreen> {
                             ),
                           ),
                           ...commentThreadSlivers(
-                              context, ref, widget.postId, comments, _reply),
+                            context,
+                            ref,
+                            widget.postId,
+                            comments,
+                            _reply,
+                          ),
                         ],
                       ),
                     ),
@@ -364,7 +385,8 @@ List<Widget> commentThreadSlivers(
                     child: SizedBox.square(
                       dimension: AppSizes.footerSpinner,
                       child: CircularProgressIndicator(
-                          strokeWidth: AppSizes.footerSpinnerStroke),
+                        strokeWidth: AppSizes.footerSpinnerStroke,
+                      ),
                     ),
                   ),
                 );
@@ -373,7 +395,10 @@ List<Widget> commentThreadSlivers(
             }
             final c = value.items[i];
             return CommentTile(
-                key: ValueKey(c.id), comment: c, onReply: onReply);
+              key: ValueKey(c.id),
+              comment: c,
+              onReply: onReply,
+            );
           },
         ),
       ],
@@ -391,11 +416,13 @@ List<Widget> commentThreadSlivers(
         const SliverToBoxAdapter(
           child: Padding(
             padding: EdgeInsets.all(AppSpacing.screenSide),
-            child: Column(children: [
-              AppSkeleton(height: 44),
-              SizedBox(height: AppSpacing.md),
-              AppSkeleton(height: 44),
-            ]),
+            child: Column(
+              children: [
+                AppSkeleton(height: 44),
+                SizedBox(height: AppSpacing.md),
+                AppSkeleton(height: 44),
+              ],
+            ),
           ),
         ),
       ],
@@ -427,8 +454,9 @@ class _TagScreenState extends ConsumerState<TagScreen> {
         backgroundColor: colors.bg,
         appBar: AppTopBar(
           leading: AppBackButton(
-              semanticLabel: t.t('common.back'),
-              onPressed: () => Navigator.of(context).maybePop()),
+            semanticLabel: t.t('common.back'),
+            onPressed: () => Navigator.of(context).maybePop(),
+          ),
           title: Text(practice_options.practiceLabel(ref, category)),
         ),
         body: FilteredPostsView(
@@ -439,14 +467,17 @@ class _TagScreenState extends ConsumerState<TagScreen> {
     }
     final key = (tag: widget.tag, sort: _sort, state: null);
     final value = _withoutDeleted(
-        ref.watch(tagPostsProvider(key)), ref.watch(deletedPostsProvider));
+      ref.watch(tagPostsProvider(key)),
+      ref.watch(deletedPostsProvider),
+    );
     final notifier = ref.read(tagPostsProvider(key).notifier);
     return Scaffold(
       backgroundColor: colors.bg,
       appBar: AppTopBar(
         leading: AppBackButton(
-            semanticLabel: t.t('common.back'),
-            onPressed: () => Navigator.of(context).maybePop()),
+          semanticLabel: t.t('common.back'),
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
         title: Text('#${widget.tag}'),
       ),
       body: Column(
@@ -518,11 +549,16 @@ class FollowListScreen extends ConsumerWidget {
       backgroundColor: colors.bg,
       appBar: AppTopBar(
         leading: AppBackButton(
-            semanticLabel: t.t('common.back'),
-            onPressed: () => Navigator.of(context).maybePop()),
-        title: Text(t.t(kind == FollowListKind.followers
-            ? 'follow.followers'
-            : 'follow.followingList')),
+          semanticLabel: t.t('common.back'),
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
+        title: Text(
+          t.t(
+            kind == FollowListKind.followers
+                ? 'follow.followers'
+                : 'follow.followingList',
+          ),
+        ),
       ),
       body: PagedListBody<PersonRow>(
         value: value,
@@ -531,9 +567,11 @@ class FollowListScreen extends ConsumerWidget {
         itemBuilder: (context, r, _) => PersonTile(row: r),
         empty: AppEmptyState(
           icon: AppIcons.peopleOutlineRounded,
-          message: t.t(kind == FollowListKind.followers
-              ? 'follow.followers.empty'
-              : 'follow.following.empty'),
+          message: t.t(
+            kind == FollowListKind.followers
+                ? 'follow.followers.empty'
+                : 'follow.following.empty',
+          ),
         ),
         onRefresh: notifier.$1,
         onLoadMore: notifier.$2,
@@ -563,8 +601,11 @@ class SavedPostsList extends ConsumerWidget {
     final notifier = ref.read(savedPostsProvider.notifier);
     final overrides = ref.watch(postOverridesProvider);
     return PagedListBody<SavedPost>(
-      value: value.whenData((v) => v.without(
-          (s) => s.post != null && overrides[s.postId]?.savedByMe == false)),
+      value: value.whenData(
+        (v) => v.without(
+          (s) => s.post != null && overrides[s.postId]?.savedByMe == false,
+        ),
+      ),
       t: t,
       skeleton: const PostListSkeleton(),
       itemKey: (s) => s.postId,
@@ -578,10 +619,15 @@ class SavedPostsList extends ConsumerWidget {
               ),
               child: Row(
                 children: [
-                  AppIcon(AppIcons.hideSourceRounded, color: colors.textSecondary),
+                  AppIcon(
+                    AppIcons.hideSourceRounded,
+                    color: colors.textSecondary,
+                  ),
                   const SizedBox(width: AppSpacing.md),
-                  Text(t.t('post.unavailable'),
-                      style: type.body.copyWith(color: colors.textSecondary)),
+                  Text(
+                    t.t('post.unavailable'),
+                    style: type.body.copyWith(color: colors.textSecondary),
+                  ),
                 ],
               ),
             )
@@ -719,8 +765,11 @@ class ProfilePostsGrid extends ConsumerWidget {
                                 const Positioned(
                                   top: 6,
                                   right: 6,
-                                  child: AppIcon(AppIcons.newspaperRounded,
-                                      size: 16, color: Colors.white),
+                                  child: AppIcon(
+                                    AppIcons.newspaperRounded,
+                                    size: 16,
+                                    color: Colors.white,
+                                  ),
                                 ),
                             ],
                           )
@@ -752,8 +801,11 @@ class ProfilePostsGrid extends ConsumerWidget {
                                     const Positioned(
                                       top: 6,
                                       right: 6,
-                                      child: AppIcon(AppIcons.collectionsRounded,
-                                          size: 16, color: Colors.white),
+                                      child: AppIcon(
+                                        AppIcons.collectionsRounded,
+                                        size: 16,
+                                        color: Colors.white,
+                                      ),
                                     ),
                                 ],
                               ),

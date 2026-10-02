@@ -203,11 +203,11 @@ void main() {
     backend.request = draft();
     await ready();
     uploads.pendingPolls = 2;
-    ctrl().upload(DocSlot.barLicense('AL'), _file());
+    ctrl().upload(const DocSlot.barLicense('AL'), _file());
     await settle();
     expect(uploads.polls, greaterThanOrEqualTo(2));
     expect(now().uploads, isEmpty);
-    expect(now().request.docsFor(DocSlot.barLicense('AL')), hasLength(2));
+    expect(now().request.docsFor(const DocSlot.barLicense('AL')), hasLength(2));
   });
 
   test(
@@ -216,7 +216,7 @@ void main() {
     backend.request = draft();
     await ready();
     uploads.pendingPolls = 100;
-    ctrl().upload(DocSlot.barLicense('AL'), _file());
+    ctrl().upload(const DocSlot.barLicense('AL'), _file());
     await settle();
     final task = now().uploads.single;
     expect(task.phase, UploadPhase.failed);
@@ -234,7 +234,7 @@ void main() {
     backend.request = draft();
     await ready();
     uploads.failUploads = 1;
-    ctrl().upload(DocSlot.barLicense('AL'), _file());
+    ctrl().upload(const DocSlot.barLicense('AL'), _file());
     await settle();
     final task = now().uploads.single;
     expect(task.phase, UploadPhase.failed);
@@ -264,7 +264,7 @@ void main() {
     backend.request = draft();
     await ready();
     backend.nextScan = ScanState.infected;
-    ctrl().upload(DocSlot.barLicense('AL'), _file());
+    ctrl().upload(const DocSlot.barLicense('AL'), _file());
     await settle();
     expect(now().uploads.single.phase, UploadPhase.infected);
     expect(now().blocker, SubmitBlocker.uploadsFailed);

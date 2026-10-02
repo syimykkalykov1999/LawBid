@@ -49,6 +49,7 @@ Future<bool> toggleBlock(
     ref.invalidate(blockedUsersProvider);
     // Audit 2026-10-02: everything that hides blocked people refreshes now
     // (feed, chats, open chat, suggestions), not on the next pull.
+    // ignore: cascade_invocations
     ref
       ..invalidate(blockedIdsProvider)
       ..invalidate(feedProvider)

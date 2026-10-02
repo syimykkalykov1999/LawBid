@@ -1,7 +1,7 @@
-import 'default_feature_flags.dart';
-import 'legal_document.dart';
+import 'package:lawbid/core/feature_flags/default_feature_flags.dart';
+import 'package:lawbid/core/feature_flags/legal_document.dart';
 
-/// [FeatureFlagsController]'s state (feature_flags_providers.dart):
+/// `FeatureFlagsController`'s state (feature_flags_providers.dart):
 /// the last-known flag map and the `app_config` map `/config/bootstrap`
 /// returned alongside it (min/soft update versions — see
 /// `isAppUpdateRequiredProvider`). Bundled into one class (rather than

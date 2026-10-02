@@ -1,5 +1,5 @@
-import 'package:flutter/foundation.dart' show listEquals;
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/cases/data/cases_mappers.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
@@ -123,10 +123,12 @@ class SearchFilters {
       ];
 
   @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
   bool operator ==(Object other) =>
       other is SearchFilters && listEquals(other._props, _props);
 
   @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
   int get hashCode => Object.hashAll(_props);
 }
 

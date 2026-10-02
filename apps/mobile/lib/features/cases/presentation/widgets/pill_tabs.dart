@@ -161,9 +161,10 @@ class FilterChips<T> extends StatelessWidget {
           children: [
             for (final (key, label) in options) ...[
               AppChip(
-                  label: label,
-                  selected: key == value,
-                  onTap: () => onChanged(key)),
+                label: label,
+                selected: key == value,
+                onTap: () => onChanged(key),
+              ),
               const SizedBox(width: AppSpacing.sm),
             ],
           ],

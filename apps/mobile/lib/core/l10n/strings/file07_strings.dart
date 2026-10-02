@@ -1,3 +1,4 @@
+// ignore_for_file: lines_longer_than_80_chars
 // OQ-048 (owner 2026-09-30): plans, attorney assistants, approvals and
 // tasks — compiled-in strings merged into StaticTranslatorRu/En.
 
@@ -24,7 +25,8 @@ const file07Ru = <String, String>{
   'reviews.role.assistant': 'Помощник адвоката',
   'reviews.reply.action': 'Ответить публично',
   'reviews.reply.title': 'Ответ на отзыв',
-  'reviews.reply.hint': 'Ответ увидят все. Удалить сам отзыв нельзя — если он нарушает правила, пожалуйтесь на него.',
+  'reviews.reply.hint':
+      'Ответ увидят все. Удалить сам отзыв нельзя — если он нарушает правила, пожалуйтесь на него.',
   'reviews.reply.placeholder': 'Ваш ответ',
   'reviews.reply.send': 'Опубликовать ответ',
   'reviews.reply.saved': 'Ответ опубликован',
@@ -36,7 +38,8 @@ const file07Ru = <String, String>{
   'reviews.write.action': 'Написать отзыв',
   'reviews.write.edit': 'Изменить мой отзыв',
   'reviews.write.title': 'Ваш отзыв',
-  'reviews.write.hint': 'Оставить отзыв может любой — работали вы вместе или нет. Отзывы по общему кейсу отмечаются как подтверждённые.',
+  'reviews.write.hint':
+      'Оставить отзыв может любой — работали вы вместе или нет. Отзывы по общему кейсу отмечаются как подтверждённые.',
   'reviews.write.saved': 'Отзыв опубликован',
   'reviews.sort.relevant': 'Самые релевантные',
   'reviews.sort.highest': 'Сначала высокие оценки',
@@ -53,10 +56,14 @@ const file07Ru = <String, String>{
   'chat.folder.general': 'Общие',
   'chat.folder.waiting': 'Ожидают ответа',
   'chat.folder.requests': 'Запросы',
-  'chat.folder.waiting.explain': 'Чаты, где человек ждёт вашего ответа. Заметка на чате напоминает, что нужно сделать.',
-  'chat.folder.primary.empty': 'Здесь чаты с клиентами по кейсам и те, что вы переместили в «Основные».',
-  'chat.folder.general.empty': 'Здесь остальные переписки. Любой чат можно переместить через ⋯.',
-  'chat.folder.waiting.empty': 'Никто не ждёт ответа. Отметьте чат через ⋯ → «Ожидает моего ответа».',
+  'chat.folder.waiting.explain':
+      'Чаты, где человек ждёт вашего ответа. Заметка на чате напоминает, что нужно сделать.',
+  'chat.folder.primary.empty':
+      'Здесь чаты с клиентами по кейсам и те, что вы переместили в «Основные».',
+  'chat.folder.general.empty':
+      'Здесь остальные переписки. Любой чат можно переместить через ⋯.',
+  'chat.folder.waiting.empty':
+      'Никто не ждёт ответа. Отметьте чат через ⋯ → «Ожидает моего ответа».',
   'chat.folder.requests.empty': 'Новых запросов нет',
   'chat.organize.title': 'Действия с чатом',
   'chat.organize.pin': 'Закрепить сверху',
@@ -64,16 +71,20 @@ const file07Ru = <String, String>{
   'chat.organize.pinned': 'Чат закреплён сверху',
   'chat.organize.unpinned': 'Чат откреплён',
   'chat.organize.moveTo': 'Переместить в «{folder}»',
-  'chat.organize.autoHint': 'Сейчас папка выбрана автоматически: чаты по кейсам — в «Основных»',
+  'chat.organize.autoHint':
+      'Сейчас папка выбрана автоматически: чаты по кейсам — в «Основных»',
   'chat.organize.auto': 'Папка автоматически',
   'chat.organize.moved': 'Чат перемещён',
   'chat.organize.waiting': 'Ожидает моего ответа',
-  'chat.organize.waitingHint': 'Например: «уточню у адвоката и напишу» — чат попадёт в «Ожидают ответа»',
-  'chat.organize.noteHint': 'Заметка: что сделать (отправить документы, перезвонить…)',
+  'chat.organize.waitingHint':
+      'Например: «уточню у адвоката и напишу» — чат попадёт в «Ожидают ответа»',
+  'chat.organize.noteHint':
+      'Заметка: что сделать (отправить документы, перезвонить…)',
   'chat.organize.saved': 'Сохранено',
   'chat.waiting.chip': 'Ждёт ответа · {ago}',
   'notif.newCases.which': 'Какие кейсы присылать',
-  'notif.newCases.explain': 'По умолчанию — по квалификациям из вашего профиля и только в штатах, где у вас лицензия. Можно поменять в любой момент.',
+  'notif.newCases.explain':
+      'По умолчанию — по квалификациям из вашего профиля и только в штатах, где у вас лицензия. Можно поменять в любой момент.',
   'notif.newCases.profile': 'Как в моём профиле',
   'notif.newCases.custom': 'Только выбранные квалификации',
   'notif.newCases.customHint': 'Выберите категории или подкатегории',
@@ -84,12 +95,16 @@ const file07Ru = <String, String>{
   'notif.newCases.none': 'Пока не выбрано',
   'notif.newCases.more': 'и ещё {n}',
   'notif.newCases.saved': 'Настройки новых кейсов сохранены',
-  'notif.newCases.profileEmpty': 'В профиле пока нет квалификаций — добавьте их или выберите здесь.',
-  'notif.newCases.turnedOn': 'Будут приходить новые кейсы по квалификациям профиля. Ниже можно выбрать другие.',
-  'practices.alertsHint': 'Новые кейсы по этим квалификациям приходят в уведомления (если включены «Новые кейсы»). Другие квалификации можно выбрать в Настройки → Уведомления.',
+  'notif.newCases.profileEmpty':
+      'В профиле пока нет квалификаций — добавьте их или выберите здесь.',
+  'notif.newCases.turnedOn':
+      'Будут приходить новые кейсы по квалификациям профиля. Ниже можно выбрать другие.',
+  'practices.alertsHint':
+      'Новые кейсы по этим квалификациям приходят в уведомления (если включены «Новые кейсы»). Другие квалификации можно выбрать в Настройки → Уведомления.',
   'practices.alertsLink': 'Настроить уведомления',
   'onboarding.role.sub.attorney': 'Я адвокат',
-  'onboarding.role.sub.attorney.body': 'Свой профиль, кейсы, ставки и команда помощников',
+  'onboarding.role.sub.attorney.body':
+      'Свой профиль, кейсы, ставки и команда помощников',
   'share.title': 'Поделиться',
   'share.more': 'Ещё',
   'share.copy': 'Копировать',
@@ -115,17 +130,20 @@ const file07Ru = <String, String>{
   'presence.yesterdayAt': 'был(а) вчера в {time}',
   'presence.on': 'был(а) {date}',
   'settings.activityStatus': 'Показывать статус активности',
-  'settings.activityStatus.hint': 'Собеседники видят, когда вы в сети. Если выключить — вы тоже не будете видеть их статус.',
+  'settings.activityStatus.hint':
+      'Собеседники видят, когда вы в сети. Если выключить — вы тоже не будете видеть их статус.',
   'tasks.pickKind': 'Выберите, что нужно сделать — откроются нужные поля',
   'tasks.kindChange': 'Изменить',
-  'tasks.field.phoneInvalid': 'Номер в формате 312 555 0123 или +1 312 555 0123',
+  'tasks.field.phoneInvalid':
+      'Номер в формате 312 555 0123 или +1 312 555 0123',
   'subscription.action.resume': 'Оставить подписку',
   'subscription.resume.done': 'Подписка продолжится — отмена снята',
   'tasks.casesEmpty': 'Пока нет активных дел',
   'tasks.field.caseNone': 'Без дела',
   'tasks.delete': 'Удалить',
   'tasks.delete.title': 'Удалить задачу?',
-  'tasks.delete.body': 'Задача и все её шаги удалятся без возможности восстановления.',
+  'tasks.delete.body':
+      'Задача и все её шаги удалятся без возможности восстановления.',
   'tasks.deleted': 'Задача удалена',
   'tasks.reopen': 'Вернуть в работу',
   'tasks.reopened': 'Снова в работе',
@@ -142,13 +160,17 @@ const file07Ru = <String, String>{
   'tasks.steps.reopen': 'Снять отметку',
   'tasks.steps.move': 'Перенести время',
   'tasks.steps.remove': 'Удалить шаг',
-  'tasks.steps.emptyHint': 'Несколько звонков, встреч или адресов — добавьте их шагами в эту задачу.',
-  'tasks.steps.editorHint': '5 звонков или 6 встреч? Добавьте их шагами в одну задачу — у каждого своё время и своя галочка.',
+  'tasks.steps.emptyHint':
+      'Несколько звонков, встреч или адресов — добавьте их шагами в эту задачу.',
+  'tasks.steps.editorHint':
+      '5 звонков или 6 встреч? Добавьте их шагами в одну задачу — у каждого своё время и своя галочка.',
   'prime.title': 'Prime — годовой тариф',
-  'prime.line': 'Адвокат и все 6 помощников на год. Выгода {save} в год (−20%).',
+  'prime.line':
+      'Адвокат и все 6 помощников на год. Выгода {save} в год (−20%).',
   'prime.cta': 'Перейти на Prime',
   'prime.confirm.title': 'Перейти на Prime?',
-  'prime.confirm.body': 'Годовой тариф {price} в год. Разница с текущим месячным планом будет списана сейчас. Все 6 мест помощников сразу включены.',
+  'prime.confirm.body':
+      'Годовой тариф {price} в год. Разница с текущим месячным планом будет списана сейчас. Все 6 мест помощников сразу включены.',
   'prime.done': 'Готово — у вас Prime',
   'tasks.emailInvalid': 'Проверьте email',
   'tasks.write': 'Написать',
@@ -228,14 +250,17 @@ const file07Ru = <String, String>{
   'tasks.f.notes': 'Подробности',
   'tasks.f.contactName': 'Контакт',
   'tasks.f.email': 'Email',
-  'error.api.AUTH_OTHER_DEVICE_ACTIVE': 'Аккаунт уже открыт на другом устройстве.',
+  'error.api.AUTH_OTHER_DEVICE_ACTIVE':
+      'Аккаунт уже открыт на другом устройстве.',
   'otherDevice.title': 'Аккаунт уже открыт на другом устройстве',
-  'otherDevice.body': 'Сейчас в этот аккаунт выполнен вход: {device}{when}.\n\nОдин аккаунт работает одновременно только на одном телефоне и на одном сайте. Если продолжите, на том устройстве произойдёт выход.',
+  'otherDevice.body':
+      'Сейчас в этот аккаунт выполнен вход: {device}{when}.\n\nОдин аккаунт работает одновременно только на одном телефоне и на одном сайте. Если продолжите, на том устройстве произойдёт выход.',
   'otherDevice.when': ', активность {date}',
   'otherDevice.phone': 'другой телефон',
   'otherDevice.web': 'сайт в другом браузере',
   'otherDevice.continue': 'Продолжить и выйти там',
-  'error.api.AUTH_SIGNED_IN_ELSEWHERE': 'В этот аккаунт вошли на другом телефоне. Один аккаунт работает на одном телефоне (и на сайте).',
+  'error.api.AUTH_SIGNED_IN_ELSEWHERE':
+      'В этот аккаунт вошли на другом телефоне. Один аккаунт работает на одном телефоне (и на сайте).',
   // --- OQ-049: access switches with responsibility ---
   'duty.bids': 'Ставки и переговоры',
   'duty.bids.hint':
@@ -253,7 +278,8 @@ const file07Ru = <String, String>{
       'У помощника пока нет доступов. Включите нужные — ответственность за его действия несёте вы.',
   'team.liabilityAccepted': 'Ответственность принята: {date}',
   'error.api.TASK_CLOSED': 'Задача отменена — её нельзя менять',
-  'error.api.TASK_STEPS_LIMIT': 'В одной задаче до 100 шагов — создайте ещё одну',
+  'error.api.TASK_STEPS_LIMIT':
+      'В одной задаче до 100 шагов — создайте ещё одну',
   'error.api.ASSISTANT_LIABILITY_REQUIRED':
       'Чтобы включить доступ, примите ответственность за действия помощника.',
   'common.delete': 'Удалить',
@@ -438,10 +464,12 @@ const file07Ru = <String, String>{
   // --- Tasks ---
   'mine.tab.tasks': 'Ежедневник',
   'tasks.add': 'Добавить задачу',
-  'tasks.doubleTapHint': 'Двойное нажатие на задачу — «Выполнено». Нажатие — подробности.',
+  'tasks.doubleTapHint':
+      'Двойное нажатие на задачу — «Выполнено». Нажатие — подробности.',
   'tasks.forAttorney': 'Задача для адвоката',
   'tasks.forMe': 'Новая задача',
-  'client.plus.task.hint': 'Заметка, звонок, встреча, документы — в ваш ежедневник',
+  'client.plus.task.hint':
+      'Заметка, звонок, встреча, документы — в ваш ежедневник',
   'tasks.empty': 'Задач нет',
   'tasks.empty.body':
       'Звонки, встречи, суды, сроки, документы — всё в одном списке по дням.',
@@ -565,7 +593,8 @@ const file07En = <String, String>{
   'reviews.role.assistant': "Attorney's assistant",
   'reviews.reply.action': 'Reply publicly',
   'reviews.reply.title': 'Reply to the review',
-  'reviews.reply.hint': "Everyone sees your reply. You can't delete the review itself — report it if it breaks the rules.",
+  'reviews.reply.hint':
+      "Everyone sees your reply. You can't delete the review itself — report it if it breaks the rules.",
   'reviews.reply.placeholder': 'Your reply',
   'reviews.reply.send': 'Post reply',
   'reviews.reply.saved': 'Reply posted',
@@ -577,7 +606,8 @@ const file07En = <String, String>{
   'reviews.write.action': 'Write a review',
   'reviews.write.edit': 'Edit my review',
   'reviews.write.title': 'Your review',
-  'reviews.write.hint': "Anyone can leave a review — whether or not you worked together. Reviews after a shared case are marked as verified.",
+  'reviews.write.hint':
+      'Anyone can leave a review — whether or not you worked together. Reviews after a shared case are marked as verified.',
   'reviews.write.saved': 'Review posted',
   'reviews.sort.relevant': 'Most relevant',
   'reviews.sort.highest': 'Highest rating',
@@ -594,10 +624,14 @@ const file07En = <String, String>{
   'chat.folder.general': 'General',
   'chat.folder.waiting': 'Waiting',
   'chat.folder.requests': 'Requests',
-  'chat.folder.waiting.explain': 'Chats where someone is waiting for your answer. The note on a chat reminds you what to do.',
-  'chat.folder.primary.empty': 'Case chats with clients and chats you moved to Primary show here.',
-  'chat.folder.general.empty': 'Other conversations show here. Move any chat with ⋯.',
-  'chat.folder.waiting.empty': 'Nobody is waiting. Mark a chat with ⋯ → “Waiting for my answer”.',
+  'chat.folder.waiting.explain':
+      'Chats where someone is waiting for your answer. The note on a chat reminds you what to do.',
+  'chat.folder.primary.empty':
+      'Case chats with clients and chats you moved to Primary show here.',
+  'chat.folder.general.empty':
+      'Other conversations show here. Move any chat with ⋯.',
+  'chat.folder.waiting.empty':
+      'Nobody is waiting. Mark a chat with ⋯ → “Waiting for my answer”.',
   'chat.folder.requests.empty': 'No new requests',
   'chat.organize.title': 'Chat actions',
   'chat.organize.pin': 'Pin to the top',
@@ -605,16 +639,19 @@ const file07En = <String, String>{
   'chat.organize.pinned': 'Chat pinned to the top',
   'chat.organize.unpinned': 'Chat unpinned',
   'chat.organize.moveTo': 'Move to {folder}',
-  'chat.organize.autoHint': 'The folder is automatic now: case chats go to Primary',
+  'chat.organize.autoHint':
+      'The folder is automatic now: case chats go to Primary',
   'chat.organize.auto': 'Folder: automatic',
   'chat.organize.moved': 'Chat moved',
   'chat.organize.waiting': 'Waiting for my answer',
-  'chat.organize.waitingHint': 'E.g. “I’ll check with the attorney and get back” — the chat goes to Waiting',
+  'chat.organize.waitingHint':
+      'E.g. “I’ll check with the attorney and get back” — the chat goes to Waiting',
   'chat.organize.noteHint': 'Note: what to do (send documents, call back…)',
   'chat.organize.saved': 'Saved',
   'chat.waiting.chip': 'Waiting · {ago}',
   'notif.newCases.which': 'Which cases to send',
-  'notif.newCases.explain': "By default — your profile's qualifications, and only in states where you're licensed. You can change it any time.",
+  'notif.newCases.explain':
+      "By default — your profile's qualifications, and only in states where you're licensed. You can change it any time.",
   'notif.newCases.profile': 'As in my profile',
   'notif.newCases.custom': 'Only the qualifications I choose',
   'notif.newCases.customHint': 'Pick categories or subcategories',
@@ -625,12 +662,16 @@ const file07En = <String, String>{
   'notif.newCases.none': 'Nothing chosen yet',
   'notif.newCases.more': 'and {n} more',
   'notif.newCases.saved': 'New-case alerts saved',
-  'notif.newCases.profileEmpty': 'Your profile has no qualifications yet — add them or choose here.',
-  'notif.newCases.turnedOn': "You'll get new cases in your profile's qualifications. You can choose others below.",
-  'practices.alertsHint': 'New cases in these qualifications come to your notifications (when "New cases" is on). Choose other qualifications in Settings → Notifications.',
+  'notif.newCases.profileEmpty':
+      'Your profile has no qualifications yet — add them or choose here.',
+  'notif.newCases.turnedOn':
+      "You'll get new cases in your profile's qualifications. You can choose others below.",
+  'practices.alertsHint':
+      'New cases in these qualifications come to your notifications (when "New cases" is on). Choose other qualifications in Settings → Notifications.',
   'practices.alertsLink': 'Notification settings',
   'onboarding.role.sub.attorney': "I'm the attorney",
-  'onboarding.role.sub.attorney.body': 'My profile, cases, bids and a team of assistants',
+  'onboarding.role.sub.attorney.body':
+      'My profile, cases, bids and a team of assistants',
   'share.title': 'Share',
   'share.more': 'More',
   'share.copy': 'Copy',
@@ -656,12 +697,15 @@ const file07En = <String, String>{
   'presence.yesterdayAt': 'last seen yesterday at {time}',
   'presence.on': 'last seen {date}',
   'settings.activityStatus': 'Show activity status',
-  'settings.activityStatus.hint': 'People you chat with see when you are online. Turn it off and you will not see theirs either.',
+  'settings.activityStatus.hint':
+      'People you chat with see when you are online. Turn it off and you will not see theirs either.',
   'tasks.pickKind': 'Pick what to do — its fields will open',
   'tasks.kindChange': 'Change',
-  'tasks.field.phoneInvalid': 'Enter a number like 312 555 0123 or +1 312 555 0123',
+  'tasks.field.phoneInvalid':
+      'Enter a number like 312 555 0123 or +1 312 555 0123',
   'subscription.action.resume': 'Keep my subscription',
-  'subscription.resume.done': 'Your subscription continues — the cancellation is off',
+  'subscription.resume.done':
+      'Your subscription continues — the cancellation is off',
   'tasks.casesEmpty': 'No active cases yet',
   'tasks.field.caseNone': 'No case',
   'tasks.delete': 'Delete',
@@ -683,13 +727,17 @@ const file07En = <String, String>{
   'tasks.steps.reopen': 'Uncheck',
   'tasks.steps.move': 'Move to another time',
   'tasks.steps.remove': 'Remove step',
-  'tasks.steps.emptyHint': 'Several calls, meetings or addresses? Add them to this task as steps.',
-  'tasks.steps.editorHint': '5 calls or 6 meetings? Add them as steps of one task — each with its own time and checkmark.',
+  'tasks.steps.emptyHint':
+      'Several calls, meetings or addresses? Add them to this task as steps.',
+  'tasks.steps.editorHint':
+      '5 calls or 6 meetings? Add them as steps of one task — each with its own time and checkmark.',
   'prime.title': 'Prime — the yearly plan',
-  'prime.line': 'The attorney and all 6 assistants for a year. Save {save} a year (−20%).',
+  'prime.line':
+      'The attorney and all 6 assistants for a year. Save {save} a year (−20%).',
   'prime.cta': 'Switch to Prime',
   'prime.confirm.title': 'Switch to Prime?',
-  'prime.confirm.body': 'The yearly plan is {price} per year. The difference from your monthly plan is charged now. All 6 assistant seats are included at once.',
+  'prime.confirm.body':
+      'The yearly plan is {price} per year. The difference from your monthly plan is charged now. All 6 assistant seats are included at once.',
   'prime.done': "Done — you're on Prime",
   'tasks.emailInvalid': 'Check the email',
   'tasks.write': 'Write',
@@ -769,14 +817,17 @@ const file07En = <String, String>{
   'tasks.f.notes': 'Details',
   'tasks.f.contactName': 'Contact',
   'tasks.f.email': 'Email',
-  'error.api.AUTH_OTHER_DEVICE_ACTIVE': 'This account is open on another device.',
+  'error.api.AUTH_OTHER_DEVICE_ACTIVE':
+      'This account is open on another device.',
   'otherDevice.title': 'This account is open on another device',
-  'otherDevice.body': 'This account is signed in on {device}{when}.\n\nOne account works on one phone and one website at a time. If you continue, that device will be signed out.',
+  'otherDevice.body':
+      'This account is signed in on {device}{when}.\n\nOne account works on one phone and one website at a time. If you continue, that device will be signed out.',
   'otherDevice.when': ', active {date}',
   'otherDevice.phone': 'another phone',
   'otherDevice.web': 'the website in another browser',
   'otherDevice.continue': 'Continue and sign out there',
-  'error.api.AUTH_SIGNED_IN_ELSEWHERE': 'This account signed in on another phone. One account works on one phone (plus the website).',
+  'error.api.AUTH_SIGNED_IN_ELSEWHERE':
+      'This account signed in on another phone. One account works on one phone (plus the website).',
   // --- OQ-049: access switches with responsibility ---
   'duty.bids': 'Bids and negotiation',
   'duty.bids.hint':
@@ -794,7 +845,8 @@ const file07En = <String, String>{
       'This assistant has no access yet. Switch on what they need — you are responsible for their actions.',
   'team.liabilityAccepted': 'Responsibility accepted: {date}',
   'error.api.TASK_CLOSED': 'This task was cancelled and can no longer change',
-  'error.api.TASK_STEPS_LIMIT': 'A task holds up to 100 steps — start another one',
+  'error.api.TASK_STEPS_LIMIT':
+      'A task holds up to 100 steps — start another one',
   'error.api.ASSISTANT_LIABILITY_REQUIRED':
       "To switch access on, accept responsibility for your assistant's actions.",
   'common.delete': 'Delete',
@@ -983,7 +1035,8 @@ const file07En = <String, String>{
   'tasks.doubleTapHint': 'Double-tap a task to mark it done. Tap for details.',
   'tasks.forAttorney': 'Task for the attorney',
   'tasks.forMe': 'New task',
-  'client.plus.task.hint': 'A note, call, meeting, documents — into your planner',
+  'client.plus.task.hint':
+      'A note, call, meeting, documents — into your planner',
   'tasks.empty': 'No tasks',
   'tasks.empty.body':
       'Calls, meetings, court dates, deadlines, documents — one list by day.',

@@ -63,8 +63,9 @@ class AttorneyProfileEditScreen extends ConsumerWidget {
       appBar: AppTopBar(
         title: Text(t.t('profile.edit.title')),
         leading: AppBackButton(
-            semanticLabel: t.t('common.back'),
-            onPressed: () => Navigator.of(context).maybePop()),
+          semanticLabel: t.t('common.back'),
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
       ),
       body: own.when(
         loading: () => const _EditSkeleton(),
@@ -83,7 +84,8 @@ class AttorneyProfileEditScreen extends ConsumerWidget {
             : AppErrorState(
                 message: t.t('profile.error'),
                 retryLabel: t.t('error.retry'),
-                onRetry: retry),
+                onRetry: retry,
+              ),
         data: (p) => _AttorneyEditForm(profile: p),
       ),
     );
@@ -111,7 +113,7 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
         ? widget.profile.firms
         : [
             if ((widget.profile.firmName ?? '').trim().isNotEmpty)
-              widget.profile.firmName!
+              widget.profile.firmName!,
           ]),
   ];
   late Set<String> _languages = widget.profile.languages.toSet();
@@ -160,8 +162,9 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
                 };
         });
       } catch (_) {
-        if (mounted && seq == _checkSeq)
+        if (mounted && seq == _checkSeq) {
           setState(() => _usernameStatus = UsernameStatus.error);
+        }
       }
     });
   }
@@ -197,7 +200,7 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
       UsernameStatus.checking,
       UsernameStatus.taken,
       UsernameStatus.reserved,
-      UsernameStatus.invalid
+      UsernameStatus.invalid,
     }.contains(_usernameStatus)) {
       return;
     }
@@ -276,8 +279,10 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
         switch (_usernameStatus) {
       UsernameStatus.unchanged => (
           usernameLocked
-              ? t.t('profile.username.cooldown',
-                  {'date': formats.date(p.usernameNextChangeAt!)})
+              ? t.t(
+                  'profile.username.cooldown',
+                  {'date': formats.date(p.usernameNextChangeAt!)},
+                )
               : t.t('profile.username.hint'),
           null,
         ),
@@ -324,8 +329,10 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
         controller: _username,
         label: t.t('profile.username.label'),
         enabled: !usernameLocked,
-        leading: Text('@',
-            style: typography.body.copyWith(color: colors.textSecondary)),
+        leading: Text(
+          '@',
+          style: typography.body.copyWith(color: colors.textSecondary),
+        ),
         helperText: usernameHelper,
         errorText: usernameError,
         inputFormatters: [
@@ -354,8 +361,10 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
                 for (final f in _firms)
                   AppChip(
                     label: f,
-                    trailing:
-                        const AppIcon(AppIcons.closeRounded, size: AppSizes.iconSm),
+                    trailing: const AppIcon(
+                      AppIcons.closeRounded,
+                      size: AppSizes.iconSm,
+                    ),
                     onTap: () =>
                         setState(() => _firms = [..._firms]..remove(f)),
                   ),
@@ -388,8 +397,10 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
                   child: AppTextField(
                     controller: _firm,
                     semanticLabel: t.t('onboarding.profile.firm'),
-                    helperText: t.t('profile.edit.firms.helper',
-                        {'max': '$kAttorneyFirmsMax'}),
+                    helperText: t.t(
+                      'profile.edit.firms.helper',
+                      {'max': '$kAttorneyFirmsMax'},
+                    ),
                     maxLength: kAttorneyFirmMax,
                     textCapitalization: TextCapitalization.words,
                     textInputAction: TextInputAction.done,
@@ -424,10 +435,11 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
             options: [
               for (final l in kLanguageCatalog)
                 PickerOption(
-                    value: l.code,
-                    label: l.nativeName,
-                    sublabel:
-                        l.englishName == l.nativeName ? null : l.englishName),
+                  value: l.code,
+                  label: l.nativeName,
+                  sublabel:
+                      l.englishName == l.nativeName ? null : l.englishName,
+                ),
             ],
             initial: _languages,
             multi: true,
@@ -459,8 +471,12 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
       children: [
         Expanded(
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide,
-                AppSpacing.sm, AppSpacing.screenSide, AppSpacing.xxl),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.screenSide,
+              AppSpacing.sm,
+              AppSpacing.screenSide,
+              AppSpacing.xxl,
+            ),
             children: [
               for (var i = 0; i < fields.length; i++) ...[
                 if (i > 0) const SizedBox(height: AppSpacing.lg),
@@ -470,17 +486,21 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
           ),
         ),
         _SaveBar(
-            label: t.t('profile.edit.save'),
-            loading: _saving,
-            onPressed: () => _save(t)),
+          label: t.t('profile.edit.save'),
+          loading: _saving,
+          onPressed: () => _save(t),
+        ),
       ],
     );
   }
 }
 
 class _Licenses extends StatelessWidget {
-  const _Licenses(
-      {required this.licenses, required this.t, required this.onAddState});
+  const _Licenses({
+    required this.licenses,
+    required this.t,
+    required this.onAddState,
+  });
 
   final List<AttorneyLicense> licenses;
   final Translator t;
@@ -501,18 +521,28 @@ class _Licenses extends StatelessWidget {
         for (final l in licenses)
           Padding(
             padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.lg, vertical: AppSpacing.md),
+              horizontal: AppSpacing.lg,
+              vertical: AppSpacing.md,
+            ),
             child: Row(
               children: [
-                AppIcon(AppIcons.accountBalanceOutlined,
-                    size: AppSizes.iconSm, color: colors.goldStroke),
+                AppIcon(
+                  AppIcons.accountBalanceOutlined,
+                  size: AppSizes.iconSm,
+                  color: colors.goldStroke,
+                ),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
-                    child: Text(l.state.name,
-                        style: typography.body.copyWith(color: colors.text))),
+                  child: Text(
+                    l.state.name,
+                    style: typography.body.copyWith(color: colors.text),
+                  ),
+                ),
                 Container(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.sm, vertical: AppSpacing.xs / 2),
+                    horizontal: AppSpacing.sm,
+                    vertical: AppSpacing.xs / 2,
+                  ),
                   decoration: BoxDecoration(
                     color: switch (l.status) {
                       LicenseState.verified => colors.successTint,
@@ -535,8 +565,11 @@ class _Licenses extends StatelessWidget {
 }
 
 class _SaveBar extends StatelessWidget {
-  const _SaveBar(
-      {required this.label, required this.loading, required this.onPressed});
+  const _SaveBar({
+    required this.label,
+    required this.loading,
+    required this.onPressed,
+  });
 
   final String label;
   final bool loading;
@@ -547,18 +580,24 @@ class _SaveBar extends StatelessWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     return DecoratedBox(
       decoration: BoxDecoration(
-          color: colors.surface,
-          border: Border(top: BorderSide(color: colors.border))),
+        color: colors.surface,
+        border: Border(top: BorderSide(color: colors.border)),
+      ),
       child: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide,
-              AppSpacing.md, AppSpacing.screenSide, AppSpacing.md),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.screenSide,
+            AppSpacing.md,
+            AppSpacing.screenSide,
+            AppSpacing.md,
+          ),
           child: AppButton(
-              key: const ValueKey('profile-save'),
-              label: label,
-              isLoading: loading,
-              onPressed: onPressed),
+            key: const ValueKey('profile-save'),
+            label: label,
+            isLoading: loading,
+            onPressed: onPressed,
+          ),
         ),
       ),
     );
@@ -567,11 +606,12 @@ class _SaveBar extends StatelessWidget {
 
 /// Save bar shared with the client editor.
 class ProfileSaveBar extends StatelessWidget {
-  const ProfileSaveBar(
-      {required this.label,
-      required this.loading,
-      required this.onPressed,
-      super.key});
+  const ProfileSaveBar({
+    required this.label,
+    required this.loading,
+    required this.onPressed,
+    super.key,
+  });
 
   final String label;
   final bool loading;
@@ -588,8 +628,12 @@ class _EditSkeleton extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ListView(
         physics: const NeverScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide, AppSpacing.sm,
-            AppSpacing.screenSide, AppSpacing.xxl),
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.screenSide,
+          AppSpacing.sm,
+          AppSpacing.screenSide,
+          AppSpacing.xxl,
+        ),
         children: [
           const AppSkeletonCard(),
           for (var i = 0; i < 5; i++) ...[

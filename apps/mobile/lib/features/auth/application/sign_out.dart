@@ -1,8 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../notifications/application/push_service.dart';
-
-import '../../../core/session/session_providers.dart';
-import 'auth_providers.dart';
+import 'package:lawbid/core/session/session_providers.dart';
+import 'package:lawbid/features/auth/application/auth_providers.dart';
+import 'package:lawbid/features/notifications/application/push_service.dart';
 
 /// Signs out: `POST /auth/logout` (best effort) + local session clear
 /// (secure storage too). AppRouterGuard then sends the user to /welcome —

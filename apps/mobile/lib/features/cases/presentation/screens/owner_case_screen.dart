@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lawbid/features/cases/presentation/widgets/case_photos.dart';
 import 'package:go_router/go_router.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
@@ -16,10 +13,12 @@ import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_cards.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_header.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_photos.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_wizard_steps.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
+import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 
 /// docs/04 §11.1 — the client's case: description, status actions, the
 /// accepted attorney, and the bids (§5.2) with sorting.
@@ -197,8 +196,10 @@ class _OwnerCaseScreenState extends ConsumerState<OwnerCaseScreen> {
           label: t.t('cases.owner.restore'),
           icon: AppIcons.unarchiveOutlined,
           isLoading: _busy,
-          onPressed: () => _run(() => actions.restoreCase(c.id),
-              doneKey: 'cases.owner.restored'),
+          onPressed: () => _run(
+            () => actions.restoreCase(c.id),
+            doneKey: 'cases.owner.restored',
+          ),
         ),
       if (c.status == CaseStatus.closed && c.acceptedBid != null)
         AppButton(
@@ -261,7 +262,9 @@ class _OwnerCaseBody extends ConsumerWidget {
             title: c.title,
             status: c.status,
             meta: t.t(
-                'cases.detail.published', {'date': formats.date(c.createdAt)}),
+              'cases.detail.published',
+              {'date': formats.date(c.createdAt)},
+            ),
             t: t,
           ),
           if (c.status == CaseStatus.pendingCompletion) ...[
@@ -293,15 +296,18 @@ class _OwnerCaseBody extends ConsumerWidget {
             DetailSection(
               title: t.t('cases.owner.attorneyAtWork'),
               child: _AcceptedAttorneyCard(
-                  bid: c.acceptedBid!,
-                  t: t,
-                  formats: formats,
-                  conversationId: c.conversationId),
+                bid: c.acceptedBid!,
+                t: t,
+                formats: formats,
+                conversationId: c.conversationId,
+              ),
             ),
           DetailSection(
             title: t.t('cases.detail.description'),
-            child: Text(c.description,
-                style: typography.body.copyWith(color: colors.text)),
+            child: Text(
+              c.description,
+              style: typography.body.copyWith(color: colors.text),
+            ),
           ),
           if (c.photos.isNotEmpty)
             DetailSection(
@@ -325,14 +331,16 @@ class _OwnerCaseBody extends ConsumerWidget {
                   value: CaseFormat.budget(t, formats, c.budget),
                 ),
                 InfoRow(
-                    icon: AppIcons.mapOutlined,
-                    label: t.t('cases.field.states'),
-                    value: states),
+                  icon: AppIcons.mapOutlined,
+                  label: t.t('cases.field.states'),
+                  value: states,
+                ),
                 if (c.city != null && c.city!.trim().isNotEmpty)
                   InfoRow(
-                      icon: AppIcons.placeOutlined,
-                      label: t.t('cases.field.city'),
-                      value: c.city!),
+                    icon: AppIcons.placeOutlined,
+                    label: t.t('cases.field.city'),
+                    value: c.city!,
+                  ),
                 InfoRow(
                   icon: AppIcons.visibilityOutlined,
                   label: t.t('cases.detail.views'),
@@ -343,8 +351,10 @@ class _OwnerCaseBody extends ConsumerWidget {
           ),
           if (showBids)
             DetailSection(
-              title: t.t('cases.bids.title',
-                  {'count': SocialFormat.count(formats, c.bidsCount)}),
+              title: t.t(
+                'cases.bids.title',
+                {'count': SocialFormat.count(formats, c.bidsCount)},
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -358,9 +368,10 @@ class _OwnerCaseBody extends ConsumerWidget {
                           (BidsSort.highestRating, 'cases.bids.sortRating'),
                         ]) ...[
                           AppChip(
-                              label: t.t(key),
-                              selected: sort == s,
-                              onTap: () => onSort(s)),
+                            label: t.t(key),
+                            selected: sort == s,
+                            onTap: () => onSort(s),
+                          ),
                           const SizedBox(width: AppSpacing.sm),
                         ],
                       ],
@@ -368,7 +379,11 @@ class _OwnerCaseBody extends ConsumerWidget {
                   ),
                   const SizedBox(height: AppSpacing.md),
                   _BidsList(
-                      value: bids, t: t, formats: formats, bidsKey: bidsKey),
+                    value: bids,
+                    t: t,
+                    formats: formats,
+                    bidsKey: bidsKey,
+                  ),
                 ],
               ),
             ),
@@ -419,7 +434,8 @@ class _BidsList extends ConsumerWidget {
                   onAttorneyTap: value.items[i].attorney?.username.isNotEmpty ??
                           false
                       ? () => context.push(
-                          AppRoutes.lawyer(value.items[i].attorney!.username))
+                            AppRoutes.lawyer(value.items[i].attorney!.username),
+                          )
                       : null,
                 ),
               ),
@@ -496,12 +512,18 @@ class _AcceptedAttorneyCard extends StatelessWidget {
                   : () => context.push(AppRoutes.lawyer(a.username)),
             ),
           const SizedBox(height: AppSpacing.md),
-          MoneyText(CaseFormat.terms(t, formats, bid.feeType, bid.amountCents),
-              large: true),
+          MoneyText(
+            CaseFormat.terms(t, formats, bid.feeType, bid.amountCents),
+            large: true,
+          ),
           const SizedBox(height: AppSpacing.xs),
           Text(
             CaseFormat.startLabel(
-                t, formats, bid.startAvailability, bid.startDate),
+              t,
+              formats,
+              bid.startAvailability,
+              bid.startDate,
+            ),
             style: typography.caption.copyWith(color: colors.textSecondary),
           ),
           const SizedBox(height: AppSpacing.lg),

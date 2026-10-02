@@ -63,7 +63,7 @@ final actsAsAttorneyProvider = Provider<bool>((ref) {
       ref.watch(activeAssistantProvider) != null;
 });
 
-/// The assistant holds [duty] (always true for the attorney).
+/// The assistant holds `duty` (always true for the attorney).
 final canDoProvider = Provider.family<bool, AssistantDuty>((ref, duty) {
   if (!ref.watch(isAssistantProvider)) return true;
   return ref.watch(activeAssistantProvider)?.can(duty) ?? false;
@@ -157,6 +157,7 @@ class TeamRequestsNotifier extends PagedNotifier<AssistantRequest> {
     state = AsyncData(
       PaginatedList(
         items: [
+          // ignore: prefer_if_elements_to_conditional_expressions
           for (final r in current.items) r.id == id ? updated : r,
         ],
         nextCursor: current.nextCursor,
@@ -267,6 +268,7 @@ class TasksController extends AsyncNotifier<List<TaskItem>> {
     if (ref.mounted && before != null) {
       state = AsyncData([
         for (final t in before)
+          // ignore: prefer_if_elements_to_conditional_expressions
           t.id != task.id
               ? t
               : TaskItem(
@@ -290,6 +292,7 @@ class TasksController extends AsyncNotifier<List<TaskItem>> {
                   doneAt: t.doneAt,
                   steps: [
                     for (final s in t.steps)
+                      // ignore: prefer_if_elements_to_conditional_expressions
                       s.id != step.id
                           ? s
                           : TaskStep(

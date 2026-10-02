@@ -1,9 +1,8 @@
 import 'dart:async';
 
 import 'package:dio/dio.dart';
-import 'package:lawbid/core/config/app_environment.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
+import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/connectivity/connectivity_service.dart';
 import 'package:lawbid/core/connectivity/connectivity_status.dart';
 import 'package:lawbid/core/connectivity/network_interface_monitor.dart';
@@ -43,7 +42,7 @@ final reachabilityProbeProvider = Provider<ReachabilityProbe>((ref) {
         options: Options(
           extra: const {
             RequestFlags.skipAuth: true,
-            RequestFlags.noRetry: true
+            RequestFlags.noRetry: true,
           },
           sendTimeout: const Duration(seconds: 5),
           receiveTimeout: const Duration(seconds: 5),

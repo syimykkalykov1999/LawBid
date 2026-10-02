@@ -61,7 +61,7 @@ class RealtimeClient {
 
   static String _originOf(String apiBaseUrl) {
     final u = Uri.parse(apiBaseUrl);
-    return u.replace(path: '', query: null, fragment: null).toString();
+    return u.replace(path: '').toString();
   }
 
   Future<void> connect() async {
@@ -134,14 +134,19 @@ class RealtimeClient {
   void _join(String conversationId, [int attempt = 0]) {
     final s = _socket;
     if (s == null || !s.connected || !_rooms.contains(conversationId)) return;
-    s.emitWithAck('conversation:join', {'conversationId': conversationId},
-        ack: (Object? data) {
-      final ok = data is Map && data['ok'] == true;
-      if (!ok && attempt < 4 && !_disposed) {
-        Future<void>.delayed(Duration(milliseconds: 300 * (attempt + 1)),
-            () => _join(conversationId, attempt + 1));
-      }
-    });
+    s.emitWithAck(
+      'conversation:join',
+      {'conversationId': conversationId},
+      ack: (Object? data) {
+        final ok = data is Map && data['ok'] == true;
+        if (!ok && attempt < 4 && !_disposed) {
+          Future<void>.delayed(
+            Duration(milliseconds: 300 * (attempt + 1)),
+            () => _join(conversationId, attempt + 1),
+          );
+        }
+      },
+    );
   }
 
   void s0(io.Socket s, String userId) =>
@@ -152,12 +157,16 @@ class RealtimeClient {
   Future<Map<String, Object?>?> watchPresence(String userId) {
     _watched.add(userId);
     final s = _socket;
-    if (s == null || !s.connected) return Future.value(null);
+    if (s == null || !s.connected) return Future.value();
     final done = Completer<Map<String, Object?>?>();
-    s.emitWithAck('presence:watch', {'userId': userId}, ack: (Object? r) {
-      if (done.isCompleted) return;
-      done.complete(r is Map ? Map<String, Object?>.from(r) : null);
-    });
+    s.emitWithAck(
+      'presence:watch',
+      {'userId': userId},
+      ack: (Object? r) {
+        if (done.isCompleted) return;
+        done.complete(r is Map ? Map<String, Object?>.from(r) : null);
+      },
+    );
     return done.future
         .timeout(const Duration(seconds: 5), onTimeout: () => null);
   }
@@ -176,8 +185,10 @@ class RealtimeClient {
 
   void typing(String conversationId, {required bool active}) {
     if (!connected) return;
-    _socket!.emit(active ? 'typing:start' : 'typing:stop',
-        {'conversationId': conversationId});
+    _socket!.emit(
+      active ? 'typing:start' : 'typing:stop',
+      {'conversationId': conversationId},
+    );
   }
 
   /// OQ-041: WebRTC signaling (offer / answer / ICE) to the other member
@@ -186,10 +197,13 @@ class RealtimeClient {
     final s = _socket;
     if (s == null || !s.connected) return Future.value(false);
     final done = Completer<bool>();
-    s.emitWithAck('call:signal', {'callId': callId, 'data': data},
-        ack: (Object? r) {
-      if (!done.isCompleted) done.complete(r is Map && r['ok'] == true);
-    });
+    s.emitWithAck(
+      'call:signal',
+      {'callId': callId, 'data': data},
+      ack: (Object? r) {
+        if (!done.isCompleted) done.complete(r is Map && r['ok'] == true);
+      },
+    );
     return done.future
         .timeout(const Duration(seconds: 5), onTimeout: () => false);
   }

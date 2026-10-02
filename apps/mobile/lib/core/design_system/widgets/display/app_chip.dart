@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../../theme/app_color_tokens.dart';
-import '../../theme/app_typography_tokens.dart';
-import '../../tokens/app_spacing.dart';
-import '../motion/app_tap_target.dart';
+import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
+import 'package:lawbid/core/design_system/theme/app_typography_tokens.dart';
+import 'package:lawbid/core/design_system/tokens/app_spacing.dart';
+import 'package:lawbid/core/design_system/widgets/motion/app_tap_target.dart';
 
 /// General-purpose pill chip (file 01 §15 component list). File 07 does not
 /// give this a standalone spec (only the phone screen's 52px-tall country
@@ -12,8 +12,8 @@ import '../motion/app_tap_target.dart';
 /// (feed/search, files 4-5) and here for that country selector.
 class AppChip extends StatelessWidget {
   const AppChip({
-    super.key,
     required this.label,
+    super.key,
     this.leading,
     this.trailing,
     this.onTap,
@@ -56,8 +56,9 @@ class AppChip extends StatelessWidget {
             color: colors.surface,
             borderRadius: BorderRadius.circular(height / 2),
             border: Border.all(
-                color: selected ? colors.gold : colors.border,
-                width: selected ? 1.5 : 1),
+              color: selected ? colors.gold : colors.border,
+              width: selected ? 1.5 : 1,
+            ),
           ),
           child: Row(
             mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
@@ -73,8 +74,10 @@ class AppChip extends StatelessWidget {
                   ),
                 )
               else
-                Text(label,
-                    style: typography.bodySmall.copyWith(color: colors.text)),
+                Text(
+                  label,
+                  style: typography.bodySmall.copyWith(color: colors.text),
+                ),
               if (trailing != null) ...[const SizedBox(width: 6), trailing!],
             ],
           ),

@@ -1,3 +1,4 @@
+// ignore_for_file: lines_longer_than_80_chars
 import 'dart:async';
 import 'dart:io';
 import 'dart:math';
@@ -5,10 +6,10 @@ import 'dart:math';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../app_update/app_version.dart';
-import '../l10n/app_language.dart';
-import '../l10n/language_providers.dart';
-import '../persistence/persistence_providers.dart';
+import 'package:lawbid/core/app_update/app_version.dart';
+import 'package:lawbid/core/l10n/app_language.dart';
+import 'package:lawbid/core/l10n/language_providers.dart';
+import 'package:lawbid/core/persistence/persistence_providers.dart';
 
 const _kDeviceIdKey = 'network.device_id';
 
@@ -47,7 +48,8 @@ class HeadersInterceptor extends Interceptor {
   }
 
   static String _languageTag(Ref ref) {
-    final language = ref.read(languageControllerProvider).value ?? AppLanguage.en;
+    final language =
+        ref.read(languageControllerProvider).value ?? AppLanguage.en;
     return language.code;
   }
 

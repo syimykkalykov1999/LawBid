@@ -18,6 +18,7 @@ class FakeNetworkMonitor implements NetworkInterfaceMonitor {
   bool up;
   final StreamController<bool> _changes = StreamController<bool>.broadcast();
 
+  // ignore: avoid_positional_boolean_parameters
   void set(bool value) {
     up = value;
     _changes.add(value);
@@ -32,7 +33,7 @@ class FakeNetworkMonitor implements NetworkInterfaceMonitor {
   Future<void> close() => _changes.close();
 }
 
-/// Controllable [ReachabilityProbe]: answers [result], counts calls, and
+/// Controllable `ReachabilityProbe`: answers [result], counts calls, and
 /// can be held open with [hold] to observe the "checking" state.
 class FakeProbe {
   bool result = true;

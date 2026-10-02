@@ -285,8 +285,11 @@ class _CameraCaptureScreenState extends ConsumerState<CameraCaptureScreen>
 }
 
 class _Shutter extends StatelessWidget {
-  const _Shutter(
-      {required this.label, required this.busy, required this.onTap});
+  const _Shutter({
+    required this.label,
+    required this.busy,
+    required this.onTap,
+  });
 
   final String label;
   final bool busy;

@@ -1,17 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/cases/presentation/screens/create_case_screen.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
-import 'package:lawbid/features/social/presentation/screens/create_post_screen.dart';
 import 'package:lawbid/features/reels/application/reels_providers.dart';
 import 'package:lawbid/features/reels/presentation/create_reel_screen.dart';
-import 'package:lawbid/shared/domain/user_role.dart';
+import 'package:lawbid/features/social/presentation/screens/create_post_screen.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/features/team/presentation/task_editor_screen.dart';
+import 'package:lawbid/shared/domain/user_role.dart';
 
 /// The "+" full-screen creation flow (file 07 §3.4). Clients (OQ-038): a
 /// new case (docs/04) or a post. Attorneys (owner 2026-09-30): a post or
@@ -96,18 +95,23 @@ class _Chooser extends ConsumerWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(title,
-                            style:
-                                type.titleMedium.copyWith(color: colors.text)),
+                        Text(
+                          title,
+                          style: type.titleMedium.copyWith(color: colors.text),
+                        ),
                         const SizedBox(height: AppSpacing.xs),
-                        Text(sub,
-                            style: type.bodySmall
-                                .copyWith(color: colors.textSecondary)),
+                        Text(
+                          sub,
+                          style: type.bodySmall
+                              .copyWith(color: colors.textSecondary),
+                        ),
                       ],
                     ),
                   ),
-                  AppIcon(AppIcons.chevronRightRounded,
-                      color: colors.textSecondary),
+                  AppIcon(
+                    AppIcons.chevronRightRounded,
+                    color: colors.textSecondary,
+                  ),
                 ],
               ),
             ),
@@ -116,8 +120,12 @@ class _Chooser extends ConsumerWidget {
 
     List<Widget> reel() => [
           const SizedBox(height: AppSpacing.md),
-          option(_Kind.reel, AppIcons.filmReelOutlined, t.t('reels.create'),
-              t.t('reels.create.sub')),
+          option(
+            _Kind.reel,
+            AppIcons.filmReelOutlined,
+            t.t('reels.create'),
+            t.t('reels.create.sub'),
+          ),
         ];
 
     return Scaffold(
@@ -135,43 +143,69 @@ class _Chooser extends ConsumerWidget {
         children: assistant
             ? [
                 if (canTask) ...[
-                  option(_Kind.task, AppIcons.eventNoteOutlined,
-                      t.t('assistant.plus.task'),
-                      t.t('assistant.plus.task.hint')),
+                  option(
+                    _Kind.task,
+                    AppIcons.eventNoteOutlined,
+                    t.t('assistant.plus.task'),
+                    t.t('assistant.plus.task.hint'),
+                  ),
                   const SizedBox(height: AppSpacing.md),
                 ],
                 if (canPost) ...[
                   option(
-                      _Kind.post,
-                      AppIcons.editNoteRounded,
-                      t.t('create.post'),
-                      t.t(direct
+                    _Kind.post,
+                    AppIcons.editNoteRounded,
+                    t.t('create.post'),
+                    t.t(
+                      direct
                           ? 'create.post.subAttorney'
-                          : 'assistant.plus.post.hint')),
+                          : 'assistant.plus.post.hint',
+                    ),
+                  ),
                   if (reels && direct) ...reel(),
                 ],
               ]
             : attorney
-            ? [
-                option(_Kind.post, AppIcons.editNoteRounded, t.t('create.post'),
-                    t.t('create.post.subAttorney')),
-                if (reels) ...reel(),
-                const SizedBox(height: AppSpacing.md),
-                option(_Kind.task, AppIcons.eventNoteOutlined,
-                    t.t('tasks.forMe'), t.t('assistant.plus.task.hint')),
-              ]
-            : [
-                option(_Kind.caseKind, AppIcons.gavelRounded, t.t('create.case'),
-                    t.t('create.case.sub')),
-                const SizedBox(height: AppSpacing.md),
-                option(_Kind.post, AppIcons.editNoteRounded, t.t('create.post'),
-                    t.t('create.post.sub')),
-                if (reels) ...reel(),
-                const SizedBox(height: AppSpacing.md),
-                // Owner 2026-10-01: clients keep a planner too.
-                option(_Kind.task, AppIcons.eventNoteOutlined,
-                    t.t('tasks.forMe'), t.t('client.plus.task.hint')),
-              ],
+                ? [
+                    option(
+                      _Kind.post,
+                      AppIcons.editNoteRounded,
+                      t.t('create.post'),
+                      t.t('create.post.subAttorney'),
+                    ),
+                    if (reels) ...reel(),
+                    const SizedBox(height: AppSpacing.md),
+                    option(
+                      _Kind.task,
+                      AppIcons.eventNoteOutlined,
+                      t.t('tasks.forMe'),
+                      t.t('assistant.plus.task.hint'),
+                    ),
+                  ]
+                : [
+                    option(
+                      _Kind.caseKind,
+                      AppIcons.gavelRounded,
+                      t.t('create.case'),
+                      t.t('create.case.sub'),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    option(
+                      _Kind.post,
+                      AppIcons.editNoteRounded,
+                      t.t('create.post'),
+                      t.t('create.post.sub'),
+                    ),
+                    if (reels) ...reel(),
+                    const SizedBox(height: AppSpacing.md),
+                    // Owner 2026-10-01: clients keep a planner too.
+                    option(
+                      _Kind.task,
+                      AppIcons.eventNoteOutlined,
+                      t.t('tasks.forMe'),
+                      t.t('client.plus.task.hint'),
+                    ),
+                  ],
       ),
     );
   }

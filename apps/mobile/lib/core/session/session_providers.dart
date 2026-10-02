@@ -1,14 +1,13 @@
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/core/session/refresh_coordinator.dart';
+import 'package:lawbid/core/session/session_state.dart';
+import 'package:lawbid/core/session/token_secure_store.dart';
+import 'package:lawbid/features/auth/application/auth_providers.dart';
+import 'package:lawbid/features/auth/data/auth_dtos.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-
-import '../../features/auth/application/auth_providers.dart';
-import '../../features/auth/data/auth_dtos.dart';
-import '../network/api_error.dart';
-import 'refresh_coordinator.dart';
-import 'session_state.dart';
-import 'token_secure_store.dart';
 
 part 'session_providers.g.dart';
 
@@ -69,7 +68,9 @@ class SessionController extends _$SessionController {
   /// [bootstrap].
   Future<void> applyTokens(AuthTokensResult tokens) async {
     state = _decode(tokens);
-    await ref.read(tokenSecureStoreProvider).writeRefreshToken(tokens.refreshToken);
+    await ref
+        .read(tokenSecureStoreProvider)
+        .writeRefreshToken(tokens.refreshToken);
   }
 
   /// Single-flight refresh (docs/01_FOUNDATION_AUTH.md §15 manual QA item
@@ -95,7 +96,10 @@ class SessionController extends _$SessionController {
     try {
       final client = ref.read(authApiClientProvider);
       final deviceInfo = ref.read(deviceInfoProvider);
-      final tokens = await client.refresh(refreshToken: refreshToken, deviceInfo: deviceInfo);
+      final tokens = await client.refresh(
+        refreshToken: refreshToken,
+        deviceInfo: deviceInfo,
+      );
       await applyTokens(tokens);
       return tokens.accessToken;
     } on ApiException catch (e) {
@@ -137,8 +141,8 @@ class SessionController extends _$SessionController {
       throw const FormatException('Access token is not a valid JWT.');
     }
     final normalized = base64Url.normalize(parts[1]);
-    final payload =
-        jsonDecode(utf8.decode(base64Url.decode(normalized))) as Map<String, dynamic>;
+    final payload = jsonDecode(utf8.decode(base64Url.decode(normalized)))
+        as Map<String, dynamic>;
     return SessionState(
       accessToken: tokens.accessToken,
       sub: payload['sub'] as String,
@@ -146,7 +150,8 @@ class SessionController extends _$SessionController {
       sid: payload['sid'] as String,
       verified: payload['verified'] as bool,
       subscriptionStatus: payload['subscriptionStatus'] as String,
-      accessTokenExpiresAt: DateTime.now().add(Duration(seconds: tokens.accessTokenExpiresIn)),
+      accessTokenExpiresAt:
+          DateTime.now().add(Duration(seconds: tokens.accessTokenExpiresIn)),
     );
   }
 }

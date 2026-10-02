@@ -25,7 +25,8 @@ class FixedFlags extends FeatureFlagsController {
   final Map<String, String> appConfig;
 
   @override
-  FeatureFlagsState build() => FeatureFlagsState(flags: defaultFeatureFlags, appConfig: appConfig);
+  FeatureFlagsState build() =>
+      FeatureFlagsState(flags: defaultFeatureFlags, appConfig: appConfig);
 
   @override
   Future<void> refreshInBackground() async {}
@@ -34,14 +35,14 @@ class FixedFlags extends FeatureFlagsController {
 class SignedInSession extends SessionController {
   @override
   SessionState? build() => SessionState(
-    accessToken: 'at',
-    sub: 'user-1',
-    role: 'client',
-    sid: 's1',
-    verified: false,
-    subscriptionStatus: 'none',
-    accessTokenExpiresAt: DateTime.utc(2030),
-  );
+        accessToken: 'at',
+        sub: 'user-1',
+        role: 'client',
+        sid: 's1',
+        verified: false,
+        subscriptionStatus: 'none',
+        accessTokenExpiresAt: DateTime.utc(2030),
+      );
 }
 
 class ReadyStartup extends AppStartupController {
@@ -71,11 +72,12 @@ Future<List<Override>> baseOverrides({
 }
 
 /// The real app wiring of the gate: MaterialApp.builder → AppUpdateGate.
-Widget gatedApp(ProviderContainer container, {Widget? home}) => UncontrolledProviderScope(
-  container: container,
-  child: MaterialApp(
-    theme: AppTheme.light(),
-    builder: (context, child) => AppUpdateGate(child: child),
-    home: home ?? const Scaffold(body: Text('HOME')),
-  ),
-);
+Widget gatedApp(ProviderContainer container, {Widget? home}) =>
+    UncontrolledProviderScope(
+      container: container,
+      child: MaterialApp(
+        theme: AppTheme.light(),
+        builder: (context, child) => AppUpdateGate(child: child),
+        home: home ?? const Scaffold(body: Text('HOME')),
+      ),
+    );

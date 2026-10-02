@@ -1,6 +1,5 @@
-import 'package:lawbid_api/lawbid_api.dart' as api;
-
 import 'package:lawbid/features/cases/domain/case_models.dart';
+import 'package:lawbid_api/lawbid_api.dart' as api;
 
 DateTime _date(String iso) => DateTime.parse(iso).toLocal();
 DateTime? _dateOrNull(String? iso) => iso == null ? null : _date(iso);
@@ -70,7 +69,7 @@ abstract final class CasesMappers {
         url: p.url,
         previewUrl: p.previewUrl,
         mime: p.mime,
-        sizeBytes: p.sizeBytes.toInt(),
+        sizeBytes: p.sizeBytes,
       );
 
   static BidAttorney attorney(api.BidAttorneySummaryDto a) => BidAttorney(
@@ -150,8 +149,8 @@ abstract final class CasesMappers {
         isNew: c.isNew,
         hasOwnBid: c.hasOwnBid,
         isSaved: c.isSaved,
-        commentCount: c.commentCount.toInt(),
-        shareCount: c.shareCount.toInt(),
+        commentCount: c.commentCount,
+        shareCount: c.shareCount,
       );
 
   static FeedCase attorneyCase(api.CaseDetailForAttorneyDto c) => FeedCase(
@@ -175,8 +174,8 @@ abstract final class CasesMappers {
         ownBidId: c.ownBidId,
         photos: c.photos.map(casePhoto).toList(growable: false),
         photosCount: c.photosCount.toInt(),
-        commentCount: c.commentCount.toInt(),
-        shareCount: c.shareCount.toInt(),
+        commentCount: c.commentCount,
+        shareCount: c.shareCount,
         inMyPractice: c.inMyPractice,
       );
 
@@ -291,9 +290,9 @@ abstract final class CasesMappers {
                 api.CaseHistoryEventDtoActorRole.admin => HistoryActor.admin,
                 _ => HistoryActor.system,
               },
-              amountCents: e.amountCents?.toInt(),
+              amountCents: e.amountCents,
               feeType: e.feeType,
-              roundNo: e.roundNo?.toInt(),
+              roundNo: e.roundNo,
               reason: e.reason,
             ),
         ],

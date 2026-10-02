@@ -281,8 +281,11 @@ class VerificationWizardController extends AsyncNotifier<WizardState> {
 
   /// Starts uploading [document] into [slot]. Too large → throws an
   /// [ApiException] (`FILE_TOO_LARGE`) before any network call.
-  void upload(DocSlot slot, PickedDocument document,
-      {int maxBytes = _maxBytes}) {
+  void upload(
+    DocSlot slot,
+    PickedDocument document, {
+    int maxBytes = _maxBytes,
+  }) {
     final s = _s;
     if (s == null) return;
     if (document.sizeBytes > maxBytes) {
@@ -363,9 +366,13 @@ class VerificationWizardController extends AsyncNotifier<WizardState> {
       );
       if (cancellation.isCancelled) return;
       _patch(
-          id,
-          (t) => t.copyWith(
-              phase: UploadPhase.scanning, progress: 1, fileId: fileId));
+        id,
+        (t) => t.copyWith(
+          phase: UploadPhase.scanning,
+          progress: 1,
+          fileId: fileId,
+        ),
+      );
       var scan = await _files.confirm(fileId);
       var polls = 0;
       while (scan == ScanState.pending) {
@@ -394,8 +401,9 @@ class VerificationWizardController extends AsyncNotifier<WizardState> {
         _patch(id, (t) => t.copyWith(phase: UploadPhase.failed, error: error));
       }
     } finally {
-      if (identical(_cancellations[id], cancellation))
+      if (identical(_cancellations[id], cancellation)) {
         _cancellations.remove(id);
+      }
     }
   }
 
@@ -417,6 +425,7 @@ class VerificationWizardController extends AsyncNotifier<WizardState> {
     _emit(
       s.copyWith(
         uploads: [
+          // ignore: prefer_if_elements_to_conditional_expressions
           for (final u in s.uploads) u.localId == task.localId ? task : u,
         ],
       ),

@@ -99,7 +99,8 @@ class _AddLicenseSheetState extends ConsumerState<AddLicenseSheet> {
     } on Object catch (e) {
       if (mounted) {
         setState(
-            () => _serverError = errorText(ref.read(translatorProvider), e));
+          () => _serverError = errorText(ref.read(translatorProvider), e),
+        );
       }
     } finally {
       if (mounted) setState(() => _busy = false);

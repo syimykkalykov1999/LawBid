@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../theme/app_color_tokens.dart';
-import '../../theme/app_typography_tokens.dart';
-import '../../tokens/app_radii.dart';
-import '../../tokens/app_spacing.dart';
+import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
+import 'package:lawbid/core/design_system/theme/app_typography_tokens.dart';
+import 'package:lawbid/core/design_system/tokens/app_radii.dart';
+import 'package:lawbid/core/design_system/tokens/app_spacing.dart';
 
 /// General-purpose text field (file 07 §4 "AppTextField"): height 52, radius
 /// 12, `surface` fill, 1px `border`, focused border `gold` 1.5px, text 16.
@@ -79,7 +79,8 @@ class _AppTextFieldState extends State<AppTextField> {
   @override
   void initState() {
     super.initState();
-    _focusNode.addListener(() => setState(() => _focused = _focusNode.hasFocus));
+    _focusNode
+        .addListener(() => setState(() => _focused = _focusNode.hasFocus));
   }
 
   @override
@@ -94,7 +95,8 @@ class _AppTextFieldState extends State<AppTextField> {
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final hasError = widget.errorText != null && widget.errorText!.isNotEmpty;
 
-    final borderColor = hasError ? colors.danger : (_focused ? colors.gold : colors.border);
+    final borderColor =
+        hasError ? colors.danger : (_focused ? colors.gold : colors.border);
     final borderWidth = _focused || hasError ? 1.5 : 1.0;
 
     return Semantics(
@@ -107,7 +109,8 @@ class _AppTextFieldState extends State<AppTextField> {
             ExcludeSemantics(
               child: Text(
                 widget.label!,
-                style: typography.bodySmall.copyWith(color: colors.textSecondary),
+                style:
+                    typography.bodySmall.copyWith(color: colors.textSecondary),
               ),
             ),
             const SizedBox(height: AppSpacing.sm),
@@ -161,13 +164,16 @@ class _AppTextFieldState extends State<AppTextField> {
                     enabled: widget.enabled,
                     cursorColor: colors.gold,
                     cursorWidth: 1.5,
-                    style: const TextStyle(fontSize: 16).copyWith(color: colors.text),
+                    style: const TextStyle(fontSize: 16)
+                        .copyWith(color: colors.text),
                     decoration: InputDecoration(
                       hintText: widget.hintText,
-                      hintStyle: typography.body.copyWith(color: colors.textSecondary),
+                      hintStyle:
+                          typography.body.copyWith(color: colors.textSecondary),
                       border: InputBorder.none,
                       isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+                      contentPadding:
+                          const EdgeInsets.symmetric(vertical: AppSpacing.md),
                     ),
                   ),
                 ),
@@ -177,7 +183,10 @@ class _AppTextFieldState extends State<AppTextField> {
           ),
           if (hasError) ...[
             const SizedBox(height: AppSpacing.xs),
-            Text(widget.errorText!, style: typography.caption.copyWith(color: colors.danger)),
+            Text(
+              widget.errorText!,
+              style: typography.caption.copyWith(color: colors.danger),
+            ),
           ] else if (widget.helperText != null || widget.maxLength != null) ...[
             const SizedBox(height: AppSpacing.xs),
             Row(
@@ -185,14 +194,16 @@ class _AppTextFieldState extends State<AppTextField> {
                 Expanded(
                   child: Text(
                     widget.helperText ?? '',
-                    style: typography.caption.copyWith(color: colors.textSecondary),
+                    style: typography.caption
+                        .copyWith(color: colors.textSecondary),
                   ),
                 ),
                 if (widget.maxLength != null)
                   ExcludeSemantics(
                     child: Text(
                       '${widget.controller?.text.characters.length ?? 0}/${widget.maxLength}',
-                      style: typography.caption.copyWith(color: colors.textSecondary),
+                      style: typography.caption
+                          .copyWith(color: colors.textSecondary),
                     ),
                   ),
               ],

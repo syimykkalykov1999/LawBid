@@ -58,7 +58,9 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
     if (context.canPop()) {
       context.pop();
     } else {
-      context.go(entry == OnboardingStep.email ? AuthRoutes.email : AuthRoutes.phone);
+      context.go(
+        entry == OnboardingStep.email ? AuthRoutes.email : AuthRoutes.phone,
+      );
     }
   }
 
@@ -79,6 +81,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
       if (!mounted) return;
       final t = ref.read(translatorProvider);
       final phone = displayIdentifier(ref.read(onboardingFlowProvider));
+      // ignore: deprecated_member_use
       SemanticsService.announce(
         t.t('auth.otp.subtitle', {'phone': phone}),
         TextDirection.ltr,
@@ -119,9 +122,12 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
             LayoutBuilder(
               builder: (context, constraints) {
                 return SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenSide),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.screenSide,
+                  ),
                   child: ConstrainedBox(
-                    constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                    constraints:
+                        BoxConstraints(minHeight: constraints.maxHeight),
                     child: IntrinsicHeight(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -134,18 +140,22 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                           AppBackButton(
                             semanticLabel: t.t('common.back'),
                             onPressed: () => _returnToEntry(
-                              ref.read(onboardingFlowProvider.notifier).changeIdentifier(),
+                              ref
+                                  .read(onboardingFlowProvider.notifier)
+                                  .changeIdentifier(),
                             ),
                           ),
                           const SizedBox(height: 34),
                           Text(
                             t.t('auth.otp.title'),
-                            style: typography.titleLarge.copyWith(color: colors.text),
+                            style: typography.titleLarge
+                                .copyWith(color: colors.text),
                           ),
                           const SizedBox(height: 8),
                           Text(
                             t.t('auth.otp.subtitle', {'phone': phone}),
-                            style: typography.body.copyWith(color: colors.textSecondary),
+                            style: typography.body
+                                .copyWith(color: colors.textSecondary),
                           ),
                           const SizedBox(height: 26),
                           AppOtpField(
@@ -169,7 +179,9 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                                   : 'auth.otp.changeNumber',
                             ),
                             onTap: () => _returnToEntry(
-                              ref.read(onboardingFlowProvider.notifier).changeIdentifier(),
+                              ref
+                                  .read(onboardingFlowProvider.notifier)
+                                  .changeIdentifier(),
                             ),
                           ),
                           const Spacer(),
@@ -188,7 +200,9 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                               // works if autofill/paste didn't trigger
                               // onCompleted for some reason.
                               onPressed: () {
-                                if (_currentCode.length == 6) _handleCompleted(_currentCode);
+                                if (_currentCode.length == 6) {
+                                  _handleCompleted(_currentCode);
+                                }
                               },
                             ),
                           ),
@@ -301,13 +315,17 @@ class _ResendCountdownState extends State<_ResendCountdown> {
     if (_remaining > 0) {
       final minutes = _remaining ~/ 60;
       final seconds = (_remaining % 60).toString().padLeft(2, '0');
-      final label = widget.t.t('auth.otp.resendIn', {'time': '$minutes:$seconds'});
+      final label =
+          widget.t.t('auth.otp.resendIn', {'time': '$minutes:$seconds'});
       // Fast-updating (1/sec) text — excluded from the semantics tree so a
       // screen reader doesn't re-announce it every second (a11y review,
       // docs/CHANGELOG.md stage 1.7). The static link below IS announced
       // once it appears.
       return ExcludeSemantics(
-        child: Text(label, style: typography.caption.copyWith(color: colors.textSecondary)),
+        child: Text(
+          label,
+          style: typography.caption.copyWith(color: colors.textSecondary),
+        ),
       );
     }
 

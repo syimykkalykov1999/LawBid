@@ -15,14 +15,12 @@ abstract final class AppIcons {
       IconData(0xe68a, fontFamily: lightFamily);
   static const IconData addAPhotoOutlined =
       IconData(0xec58, fontFamily: lightFamily);
-  static const IconData addCall =
-      IconData(0xec56, fontFamily: lightFamily);
+  static const IconData addCall = IconData(0xec56, fontFamily: lightFamily);
   static const IconData addLocationAltOutlined =
       IconData(0xe314, fontFamily: lightFamily);
   static const IconData addPhotoAlternateOutlined =
       IconData(0xe2cc, fontFamily: lightFamily);
-  static const IconData addRounded =
-      IconData(0xe3d4, fontFamily: lightFamily);
+  static const IconData addRounded = IconData(0xe3d4, fontFamily: lightFamily);
   static const IconData adminPanelSettingsOutlined =
       IconData(0xe4cc, fontFamily: lightFamily);
   static const IconData alternateEmailRounded =
@@ -35,8 +33,7 @@ abstract final class AppIcons {
       IconData(0xe06c, fontFamily: lightFamily);
   static const IconData arrowUpwardRounded =
       IconData(0xe08e, fontFamily: lightFamily);
-  static const IconData article =
-      IconData(0xe0a8, fontFamily: lightFamily);
+  static const IconData article = IconData(0xe0a8, fontFamily: lightFamily);
   static const IconData articleOutlined =
       IconData(0xe0a8, fontFamily: lightFamily);
   static const IconData articleRounded =
@@ -65,8 +62,7 @@ abstract final class AppIcons {
       IconData(0xe0ea, fontFamily: fillFamily);
   static const IconData businessCenterRounded =
       IconData(0xe0ee, fontFamily: lightFamily);
-  static const IconData call =
-      IconData(0xe3b8, fontFamily: lightFamily);
+  static const IconData call = IconData(0xe3b8, fontFamily: lightFamily);
   static const IconData callEndRounded =
       IconData(0xe3bc, fontFamily: fillFamily);
   static const IconData callMadeRounded =
@@ -77,8 +73,7 @@ abstract final class AppIcons {
       IconData(0xe3b8, fontFamily: lightFamily);
   static const IconData callReceivedRounded =
       IconData(0xe3be, fontFamily: lightFamily);
-  static const IconData callRounded =
-      IconData(0xe3b8, fontFamily: lightFamily);
+  static const IconData callRounded = IconData(0xe3b8, fontFamily: lightFamily);
   static const IconData campaignOutlined =
       IconData(0xe324, fontFamily: lightFamily);
   static const IconData campaignRounded =
@@ -91,8 +86,7 @@ abstract final class AppIcons {
       IconData(0xe168, fontFamily: lightFamily);
   static const IconData chatBubbleRounded =
       IconData(0xe168, fontFamily: fillFamily);
-  static const IconData check =
-      IconData(0xe182, fontFamily: lightFamily);
+  static const IconData check = IconData(0xe182, fontFamily: lightFamily);
   static const IconData checkCircleOutlineRounded =
       IconData(0xe184, fontFamily: lightFamily);
   static const IconData checkCircleRounded =
@@ -107,8 +101,7 @@ abstract final class AppIcons {
       IconData(0xe1ae, fontFamily: lightFamily);
   static const IconData collectionsRounded =
       IconData(0xe836, fontFamily: lightFamily);
-  static const IconData computer =
-      IconData(0xe560, fontFamily: lightFamily);
+  static const IconData computer = IconData(0xe560, fontFamily: lightFamily);
   static const IconData computerRounded =
       IconData(0xe560, fontFamily: lightFamily);
   static const IconData constructionRounded =
@@ -145,8 +138,7 @@ abstract final class AppIcons {
       IconData(0xe32c, fontFamily: lightFamily);
   static const IconData doneAllRounded =
       IconData(0xe53a, fontFamily: lightFamily);
-  static const IconData doneRounded =
-      IconData(0xe182, fontFamily: lightFamily);
+  static const IconData doneRounded = IconData(0xe182, fontFamily: lightFamily);
   static const IconData downloadRounded =
       IconData(0xe20c, fontFamily: lightFamily);
   static const IconData dragIndicatorRounded =
@@ -155,8 +147,7 @@ abstract final class AppIcons {
       IconData(0xe3b2, fontFamily: lightFamily);
   static const IconData dynamicFeedRounded =
       IconData(0xe466, fontFamily: lightFamily);
-  static const IconData ecoRounded =
-      IconData(0xe2da, fontFamily: lightFamily);
+  static const IconData ecoRounded = IconData(0xe2da, fontFamily: lightFamily);
   static const IconData editNoteRounded =
       IconData(0xe34c, fontFamily: lightFamily);
   static const IconData editOutlined =
@@ -197,16 +188,14 @@ abstract final class AppIcons {
       IconData(0xe2a8, fontFamily: fillFamily);
   static const IconData filterAltOffOutlined =
       IconData(0xe26c, fontFamily: lightFamily);
-  static const IconData fingerprint =
-      IconData(0xe23e, fontFamily: lightFamily);
+  static const IconData fingerprint = IconData(0xe23e, fontFamily: lightFamily);
   static const IconData flagOutlined =
       IconData(0xe244, fontFamily: lightFamily);
   static const IconData flightTakeoffRounded =
       IconData(0xe504, fontFamily: lightFamily);
   static const IconData flipOutlined =
       IconData(0xed6a, fontFamily: lightFamily);
-  static const IconData folder =
-      IconData(0xe24a, fontFamily: lightFamily);
+  static const IconData folder = IconData(0xe24a, fontFamily: lightFamily);
   static const IconData folderOpenRounded =
       IconData(0xe256, fontFamily: lightFamily);
   static const IconData folderOutlined =
@@ -219,8 +208,7 @@ abstract final class AppIcons {
       IconData(0xe660, fontFamily: lightFamily);
   static const IconData forumOutlined =
       IconData(0xe17e, fontFamily: lightFamily);
-  static const IconData gavel =
-      IconData(0xea32, fontFamily: lightFamily);
+  static const IconData gavel = IconData(0xea32, fontFamily: lightFamily);
   static const IconData gavelOutlined =
       IconData(0xea32, fontFamily: lightFamily);
   static const IconData gavelRounded =
@@ -251,8 +239,7 @@ abstract final class AppIcons {
       IconData(0xe1a0, fontFamily: lightFamily);
   static const IconData homeOutlined =
       IconData(0xe2c2, fontFamily: lightFamily);
-  static const IconData homeRounded =
-      IconData(0xe2c2, fontFamily: fillFamily);
+  static const IconData homeRounded = IconData(0xe2c2, fontFamily: fillFamily);
   static const IconData homeWorkRounded =
       IconData(0xe2c4, fontFamily: lightFamily);
   static const IconData hourglassEmptyRounded =
@@ -277,8 +264,7 @@ abstract final class AppIcons {
       IconData(0xeaf0, fontFamily: lightFamily);
   static const IconData keyOffRounded =
       IconData(0xe2d6, fontFamily: lightFamily);
-  static const IconData language =
-      IconData(0xe288, fontFamily: lightFamily);
+  static const IconData language = IconData(0xe288, fontFamily: lightFamily);
   static const IconData languageRounded =
       IconData(0xe288, fontFamily: lightFamily);
   static const IconData lightModeOutlined =
@@ -287,8 +273,7 @@ abstract final class AppIcons {
       IconData(0xe2dc, fontFamily: lightFamily);
   static const IconData linkOffRounded =
       IconData(0xe2e4, fontFamily: lightFamily);
-  static const IconData linkRounded =
-      IconData(0xe2e2, fontFamily: lightFamily);
+  static const IconData linkRounded = IconData(0xe2e2, fontFamily: lightFamily);
   static const IconData localOfferOutlined =
       IconData(0xe478, fontFamily: lightFamily);
   static const IconData localPoliceRounded =
@@ -309,8 +294,7 @@ abstract final class AppIcons {
       IconData(0xe218, fontFamily: lightFamily);
   static const IconData manageAccountsOutlined =
       IconData(0xe4cc, fontFamily: lightFamily);
-  static const IconData mapOutlined =
-      IconData(0xe31a, fontFamily: lightFamily);
+  static const IconData mapOutlined = IconData(0xe31a, fontFamily: lightFamily);
   static const IconData markEmailReadOutlined =
       IconData(0xe216, fontFamily: lightFamily);
   static const IconData markEmailUnreadOutlined =
@@ -321,8 +305,7 @@ abstract final class AppIcons {
       IconData(0xe0e6, fontFamily: lightFamily);
   static const IconData micOffRounded =
       IconData(0xe328, fontFamily: lightFamily);
-  static const IconData micRounded =
-      IconData(0xe326, fontFamily: fillFamily);
+  static const IconData micRounded = IconData(0xe326, fontFamily: fillFamily);
   static const IconData militaryTechRounded =
       IconData(0xe320, fontFamily: lightFamily);
   static const IconData modeCommentOutlined =
@@ -355,14 +338,12 @@ abstract final class AppIcons {
       IconData(0xe5de, fontFamily: lightFamily);
   static const IconData pauseCircleOutlineRounded =
       IconData(0xe3a0, fontFamily: lightFamily);
-  static const IconData pauseRounded =
-      IconData(0xe39e, fontFamily: fillFamily);
+  static const IconData pauseRounded = IconData(0xe39e, fontFamily: fillFamily);
   static const IconData paymentsOutlined =
       IconData(0xe588, fontFamily: lightFamily);
   static const IconData peopleOutlineRounded =
       IconData(0xe4d6, fontFamily: lightFamily);
-  static const IconData person =
-      IconData(0xe4c2, fontFamily: lightFamily);
+  static const IconData person = IconData(0xe4c2, fontFamily: lightFamily);
   static const IconData personAddAlt1Rounded =
       IconData(0xe4d0, fontFamily: lightFamily);
   static const IconData personOffOutlined =
@@ -375,14 +356,12 @@ abstract final class AppIcons {
       IconData(0xe4c2, fontFamily: fillFamily);
   static const IconData personalInjuryRounded =
       IconData(0xe0b2, fontFamily: lightFamily);
-  static const IconData petsRounded =
-      IconData(0xe648, fontFamily: lightFamily);
+  static const IconData petsRounded = IconData(0xe648, fontFamily: lightFamily);
   static const IconData phoneAndroid =
       IconData(0xe1e0, fontFamily: lightFamily);
   static const IconData phoneDisabledOutlined =
       IconData(0xe3c2, fontFamily: lightFamily);
-  static const IconData phoneIphone =
-      IconData(0xe1e0, fontFamily: lightFamily);
+  static const IconData phoneIphone = IconData(0xe1e0, fontFamily: lightFamily);
   static const IconData phoneIphoneRounded =
       IconData(0xe1e0, fontFamily: lightFamily);
   static const IconData phoneMissedRounded =
@@ -417,8 +396,7 @@ abstract final class AppIcons {
       IconData(0xe412, fontFamily: lightFamily);
   static const IconData publicRounded =
       IconData(0xe28c, fontFamily: lightFamily);
-  static const IconData pushPin =
-      IconData(0xe3e2, fontFamily: fillFamily);
+  static const IconData pushPin = IconData(0xe3e2, fontFamily: fillFamily);
   static const IconData pushPinOutlined =
       IconData(0xe3e2, fontFamily: lightFamily);
   static const IconData radioButtonCheckedRounded =
@@ -455,8 +433,7 @@ abstract final class AppIcons {
       IconData(0xed2c, fontFamily: lightFamily);
   static const IconData schoolRounded =
       IconData(0xe62c, fontFamily: lightFamily);
-  static const IconData search =
-      IconData(0xe30c, fontFamily: lightFamily);
+  static const IconData search = IconData(0xe30c, fontFamily: lightFamily);
   static const IconData searchOffRounded =
       IconData(0xe30e, fontFamily: lightFamily);
   static const IconData searchOutlined =
@@ -467,8 +444,7 @@ abstract final class AppIcons {
       IconData(0xe40c, fontFamily: lightFamily);
   static const IconData sendOutlined =
       IconData(0xe398, fontFamily: lightFamily);
-  static const IconData sendRounded =
-      IconData(0xe398, fontFamily: fillFamily);
+  static const IconData sendRounded = IconData(0xe398, fontFamily: fillFamily);
   static const IconData settingsOutlined =
       IconData(0xe272, fontFamily: lightFamily);
   static const IconData shieldOutlined =
@@ -481,16 +457,14 @@ abstract final class AppIcons {
       IconData(0xe654, fontFamily: lightFamily);
   static const IconData smartphoneRounded =
       IconData(0xe1e0, fontFamily: lightFamily);
-  static const IconData smsOutlined =
-      IconData(0xe170, fontFamily: lightFamily);
+  static const IconData smsOutlined = IconData(0xe170, fontFamily: lightFamily);
   static const IconData starBorderRounded =
       IconData(0xe46a, fontFamily: lightFamily);
   static const IconData starHalfRounded =
       IconData(0xe70a, fontFamily: fillFamily);
   static const IconData starOutlineRounded =
       IconData(0xe46a, fontFamily: lightFamily);
-  static const IconData starRounded =
-      IconData(0xe46a, fontFamily: fillFamily);
+  static const IconData starRounded = IconData(0xe46a, fontFamily: fillFamily);
   static const IconData stickyNote2Outlined =
       IconData(0xe348, fontFamily: lightFamily);
   static const IconData supportAgentOutlined =
@@ -499,8 +473,7 @@ abstract final class AppIcons {
       IconData(0xe584, fontFamily: lightFamily);
   static const IconData tableChartRounded =
       IconData(0xe476, fontFamily: lightFamily);
-  static const IconData tagRounded =
-      IconData(0xe2a2, fontFamily: lightFamily);
+  static const IconData tagRounded = IconData(0xe2a2, fontFamily: lightFamily);
   static const IconData taskAltRounded =
       IconData(0xe184, fontFamily: lightFamily);
   static const IconData thumbUpAltOutlined =
@@ -517,12 +490,10 @@ abstract final class AppIcons {
       IconData(0xe28c, fontFamily: lightFamily);
   static const IconData travelExploreRounded =
       IconData(0xe28c, fontFamily: lightFamily);
-  static const IconData tuneRounded =
-      IconData(0xe434, fontFamily: lightFamily);
+  static const IconData tuneRounded = IconData(0xe434, fontFamily: lightFamily);
   static const IconData unarchiveOutlined =
       IconData(0xe00c, fontFamily: lightFamily);
-  static const IconData undoRounded =
-      IconData(0xe08a, fontFamily: lightFamily);
+  static const IconData undoRounded = IconData(0xe08a, fontFamily: lightFamily);
   static const IconData uploadFileOutlined =
       IconData(0xe61e, fontFamily: lightFamily);
   static const IconData uploadFileRounded =
@@ -547,8 +518,7 @@ abstract final class AppIcons {
       IconData(0xe4f2, fontFamily: lightFamily);
   static const IconData workOutlineRounded =
       IconData(0xe0ee, fontFamily: lightFamily);
-  static const IconData workRounded =
-      IconData(0xe0ee, fontFamily: fillFamily);
+  static const IconData workRounded = IconData(0xe0ee, fontFamily: fillFamily);
   static const IconData workspacePremiumOutlined =
       IconData(0xe616, fontFamily: lightFamily);
 
@@ -559,10 +529,8 @@ abstract final class AppIcons {
       IconData(0xe8c0, fontFamily: lightFamily);
   static const IconData filmReelRounded =
       IconData(0xe8c0, fontFamily: fillFamily);
-  static const IconData speakerHigh =
-      IconData(0xe44a, fontFamily: fillFamily);
-  static const IconData speakerSlash =
-      IconData(0xe45a, fontFamily: fillFamily);
+  static const IconData speakerHigh = IconData(0xe44a, fontFamily: fillFamily);
+  static const IconData speakerSlash = IconData(0xe45a, fontFamily: fillFamily);
   static const IconData playCircleRounded =
       IconData(0xe3d2, fontFamily: fillFamily);
   static const IconData stickerOutlined =

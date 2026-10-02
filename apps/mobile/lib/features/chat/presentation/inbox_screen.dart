@@ -1,29 +1,29 @@
+// ignore_for_file: lines_longer_than_80_chars
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lawbid/features/chat/application/presence_providers.dart';
 import 'package:go_router/go_router.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
-import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
-import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
-import 'package:lawbid/features/chat/application/chat_providers.dart';
-import 'package:lawbid/features/chat/presentation/chat_folders.dart';
-import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/calls/presentation/call_log_entry.dart'
     show callLogKey;
+import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
+import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
+import 'package:lawbid/features/chat/application/chat_providers.dart';
+import 'package:lawbid/features/chat/application/presence_providers.dart';
+import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
+import 'package:lawbid/features/chat/presentation/chat_folders.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
 import 'package:lawbid/features/notifications/presentation/notifications_view.dart';
+import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/presentation/team_inbox_tab.dart';
 import 'package:lawbid/features/team/team_routes.dart';
-import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 
 // OQ-048: [team] — assistants' approval requests and activity (attorney).
@@ -107,7 +107,6 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                               dimension: AppSizes.touchTarget,
                               child: AppIconButton(
                                 key: const ValueKey('team-settings'),
-                                plain: true,
                                 icon: AppIcon(
                                   AppIcons.manageAccountsOutlined,
                                   size: 28,
@@ -121,10 +120,11 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                               count: badges.notifications,
                               selected: tab == InboxTab.notifications,
                               label: t.t('inbox.tab.notifications'),
-                              onTap: () => setState(() => _tab =
-                                  tab == InboxTab.notifications
-                                      ? InboxTab.chats
-                                      : InboxTab.notifications),
+                              onTap: () => setState(
+                                () => _tab = tab == InboxTab.notifications
+                                    ? InboxTab.chats
+                                    : InboxTab.notifications,
+                              ),
                             ),
                     ),
                   ),
@@ -157,9 +157,10 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                               child: Text(t.t('notif.markAllRead')),
                             ),
                           AppIconButton(
-                            plain: true,
-                            icon: AppIcon(AppIcons.tuneRounded,
-                                color: colors.text),
+                            icon: AppIcon(
+                              AppIcons.tuneRounded,
+                              color: colors.text,
+                            ),
                             semanticLabel: t.t('settings.notifications'),
                             onPressed: () =>
                                 context.push(ChatRoutes.notificationSettings),
@@ -226,8 +227,11 @@ class _InboxTabs extends StatelessWidget {
                         color: selected ? colors.onAccent : colors.text,
                         fontWeight: FontWeight.w700,
                       ),
-                      child: Text(label,
-                          maxLines: 1, overflow: TextOverflow.ellipsis),
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                   ),
                   if (count > 0) ...[
@@ -412,9 +416,10 @@ class ConversationsView extends ConsumerWidget {
         header: folder == ChatListFolder.waiting
             ? Padding(
                 padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                child: Text(t.t('chat.folder.waiting.explain'),
-                    style:
-                        type.bodySmall.copyWith(color: colors.textSecondary)),
+                child: Text(
+                  t.t('chat.folder.waiting.explain'),
+                  style: type.bodySmall.copyWith(color: colors.textSecondary),
+                ),
               )
             : null,
         empty: folder == ChatListFolder.all
@@ -471,8 +476,10 @@ class MessageRequestsView extends ConsumerWidget {
       ),
       header: Padding(
         padding: const EdgeInsets.only(bottom: AppSpacing.md),
-        child: Text(t.t('chat.requests.explain'),
-            style: type.bodySmall.copyWith(color: colors.textSecondary)),
+        child: Text(
+          t.t('chat.requests.explain'),
+          style: type.bodySmall.copyWith(color: colors.textSecondary),
+        ),
       ),
       empty: AppEmptyState(
         icon: AppIcons.markEmailReadOutlined,
@@ -489,6 +496,7 @@ class MessageRequestsView extends ConsumerWidget {
 }
 
 class ConversationRow extends ConsumerWidget {
+  // ignore: use_key_in_widget_constructors
   const ConversationRow({required this.conversation});
 
   final Conversation conversation;
@@ -496,7 +504,7 @@ class ConversationRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translatorProvider);
-    final L10nFormats f = ref.watch(l10nFormatsProvider);
+    final f = ref.watch(l10nFormatsProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final me = ref.watch(currentUserIdProvider);
@@ -547,17 +555,25 @@ class ConversationRow extends ConsumerWidget {
                             if (c.counterpart.verified) ...[
                               const SizedBox(width: 3),
                               VerifiedCheck(
-                                  label: t.t('post.verified'), size: 14),
+                                label: t.t('post.verified'),
+                                size: 14,
+                              ),
                             ],
                             if (c.muted) ...[
                               const SizedBox(width: AppSpacing.xs),
-                              AppIcon(AppIcons.notificationsOffOutlined,
-                                  size: 14, color: colors.textSecondary),
+                              AppIcon(
+                                AppIcons.notificationsOffOutlined,
+                                size: 14,
+                                color: colors.textSecondary,
+                              ),
                             ],
                             if (c.pinned) ...[
                               const SizedBox(width: AppSpacing.xs),
-                              AppIcon(AppIcons.pushPin,
-                                  size: 14, color: colors.goldDark),
+                              AppIcon(
+                                AppIcons.pushPin,
+                                size: 14,
+                                color: colors.goldDark,
+                              ),
                             ],
                           ],
                         ),
@@ -577,8 +593,10 @@ class ConversationRow extends ConsumerWidget {
                               child: SizedBox(
                                 width: 32,
                                 height: 28,
-                                child: AppIcon(AppIcons.moreHorizRounded,
-                                    color: colors.textSecondary),
+                                child: AppIcon(
+                                  AppIcons.moreHorizRounded,
+                                  color: colors.textSecondary,
+                                ),
                               ),
                             ),
                           ),
@@ -595,9 +613,11 @@ class ConversationRow extends ConsumerWidget {
                           c.counterpartLastReadId == last.id
                               ? AppIcons.doneAllRounded
                               : AppIcons.doneRounded,
-                          key: ValueKey(c.counterpartLastReadId == last.id
-                              ? 'chat-read-${c.id}'
-                              : 'chat-sent-${c.id}'),
+                          key: ValueKey(
+                            c.counterpartLastReadId == last.id
+                                ? 'chat-read-${c.id}'
+                                : 'chat-sent-${c.id}',
+                          ),
                           size: 16,
                           color: c.counterpartLastReadId == last.id
                               ? colors.gold
@@ -644,7 +664,9 @@ class ConversationRow extends ConsumerWidget {
                       key: ValueKey('chat-note-${c.id}'),
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.sm, vertical: 5),
+                        horizontal: AppSpacing.sm,
+                        vertical: 5,
+                      ),
                       decoration: BoxDecoration(
                         color: colors.goldTint,
                         borderRadius: BorderRadius.circular(AppRadii.field),
@@ -655,8 +677,11 @@ class ConversationRow extends ConsumerWidget {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          AppIcon(AppIcons.stickyNote2Outlined,
-                              size: 14, color: colors.goldDark),
+                          AppIcon(
+                            AppIcons.stickyNote2Outlined,
+                            size: 14,
+                            color: colors.goldDark,
+                          ),
                           const SizedBox(width: 6),
                           Expanded(
                             child: Text(
@@ -760,12 +785,13 @@ class _CaseChip extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           AppIcon(
-              icon ??
-                  (closed
-                      ? AppIcons.lockOutlineRounded
-                      : AppIcons.balanceRounded),
-              size: 12,
-              color: colors.goldDark),
+            icon ??
+                (closed
+                    ? AppIcons.lockOutlineRounded
+                    : AppIcons.balanceRounded),
+            size: 12,
+            color: colors.goldDark,
+          ),
           const SizedBox(width: 4),
           Flexible(
             child: Text(
@@ -819,8 +845,11 @@ class CounterpartAvatar extends StatelessWidget {
           color: colors.goldTint,
           border: Border.all(color: colors.goldStroke),
         ),
-        child: AppIcon(AppIcons.personOutlineRounded,
-            color: colors.goldDark, size: size * 0.5),
+        child: AppIcon(
+          AppIcons.personOutlineRounded,
+          color: colors.goldDark,
+          size: size * 0.5,
+        ),
       );
     }
     final name = counterpart.displayName ?? counterpart.username ?? '?';

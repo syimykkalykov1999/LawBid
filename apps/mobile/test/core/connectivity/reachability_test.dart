@@ -117,8 +117,10 @@ void main() {
       final dio = container.read(dioProvider)
         ..httpClientAdapter = FakeHttpAdapter(throwConnectionError);
       await expectLater(
-        dio.get<Object?>('/auth/sessions',
-            options: Options(extra: const {RequestFlags.noRetry: true})),
+        dio.get<Object?>(
+          '/auth/sessions',
+          options: Options(extra: const {RequestFlags.noRetry: true}),
+        ),
         throwsA(isA<DioException>()),
       );
       expect(container.read(reachabilitySignalProvider).lastKnown, isFalse);

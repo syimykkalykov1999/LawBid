@@ -42,7 +42,9 @@ class AttorneyProfileBody extends ConsumerWidget {
         error: (error, _) {
           if (error is ApiException && error.code == ApiErrorCodes.notFound) {
             return ProfileUnavailableState(
-                key: const ValueKey('404'), onBack: onBack);
+              key: const ValueKey('404'),
+              onBack: onBack,
+            );
           }
           if (isOfflineError(error)) {
             return AppOfflineState(
@@ -117,8 +119,9 @@ class AttorneyProfileScreen extends ConsumerWidget {
       appBar: ProfileHandleBar(
         handle: username,
         leading: AppBackButton(
-            semanticLabel: t.t('common.back'),
-            onPressed: () => _leave(context)),
+          semanticLabel: t.t('common.back'),
+          onPressed: () => _leave(context),
+        ),
         // Owner 2026-09-30: "⋯" (Block / Report) opposite the @username.
         actions: [
           if (ref.watch(publicAttorneyProfileProvider(username)).value

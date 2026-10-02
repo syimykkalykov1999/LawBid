@@ -4,16 +4,15 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'package:lawbid/core/navigation/app_router.dart';
+import 'package:lawbid/features/calls/application/call_controller.dart';
+import 'package:lawbid/features/calls/application/callkit_bridge.dart';
+import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
 import 'package:lawbid/features/notifications/presentation/notifications_view.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
-import 'package:lawbid/features/calls/application/call_controller.dart';
-import 'package:lawbid/features/calls/application/callkit_bridge.dart';
-import 'package:lawbid/features/chat/application/chat_providers.dart';
 
 /// docs/05 §9.5 push on the device: FCM token registered for this session
 /// (`POST /push-tokens`), re-registered when it rotates, removed on
@@ -70,17 +69,21 @@ class PushService {
         ..add(FirebaseMessaging.onMessageOpenedApp.listen(_open))
         // A push in the foreground: realtime already updated the screen;
         // just refresh the badge.
-        ..add(FirebaseMessaging.onMessage.listen((msg) {
-          // OQ-041: the socket may have missed the ring.
-          if (msg.data['type'] == 'incoming_call' &&
-              msg.data['callId'] is String) {
-            unawaited(_ref
-                .read(callControllerProvider.notifier)
-                .ringFromPush(msg.data['callId'] as String));
-            return;
-          }
-          _ref.read(badgesProvider.notifier).refresh();
-        }));
+        ..add(
+          FirebaseMessaging.onMessage.listen((msg) {
+            // OQ-041: the socket may have missed the ring.
+            if (msg.data['type'] == 'incoming_call' &&
+                msg.data['callId'] is String) {
+              unawaited(
+                _ref
+                    .read(callControllerProvider.notifier)
+                    .ringFromPush(msg.data['callId'] as String),
+              );
+              return;
+            }
+            _ref.read(badgesProvider.notifier).refresh();
+          }),
+        );
       final initial = await m.getInitialMessage();
       if (initial != null) _open(initial);
     } on Object catch (e) {
@@ -116,9 +119,11 @@ class PushService {
   void _open(RemoteMessage message) {
     final data = message.data;
     if (data['type'] == 'incoming_call' && data['callId'] is String) {
-      unawaited(_ref
-          .read(callControllerProvider.notifier)
-          .ringFromPush(data['callId'] as String));
+      unawaited(
+        _ref
+            .read(callControllerProvider.notifier)
+            .ringFromPush(data['callId'] as String),
+      );
       return;
     }
     final route = notificationRoute(

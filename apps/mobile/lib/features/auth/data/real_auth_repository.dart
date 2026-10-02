@@ -1,16 +1,15 @@
+import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/core/session/session_providers.dart';
+import 'package:lawbid/features/auth/data/auth_api_client.dart';
+import 'package:lawbid/features/auth/data/auth_dtos.dart';
+import 'package:lawbid/features/auth/data/auth_repository.dart';
+import 'package:lawbid/features/auth/data/magic_link_verifier_store.dart';
+import 'package:lawbid/features/auth/data/social_auth_native_client.dart';
+import 'package:lawbid/features/auth/domain/account_deletion_result.dart';
+import 'package:lawbid/features/auth/domain/otp_verify_result.dart';
+import 'package:lawbid/features/auth/domain/reauth_result.dart';
+import 'package:lawbid/features/auth/domain/social_login_result.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
-
-import '../../../core/network/api_error.dart';
-import '../../../core/session/session_providers.dart';
-import '../domain/account_deletion_result.dart';
-import '../domain/otp_verify_result.dart';
-import '../domain/reauth_result.dart';
-import '../domain/social_login_result.dart';
-import 'auth_api_client.dart';
-import 'auth_dtos.dart';
-import 'auth_repository.dart';
-import 'magic_link_verifier_store.dart';
-import 'social_auth_native_client.dart';
 
 /// Real dio-backed [AuthRepository] (docs/CHANGELOG.md, stage-1.7-auth —
 /// replaces `StubAuthRepository` as `authRepositoryProvider`'s default).
@@ -29,8 +28,7 @@ class RealAuthRepository implements AuthRepository {
 
   /// Owner 2026-10-01 (one phone + one website per account): asks whether
   /// to continue and sign the other device out. Null = never continue.
-  final Future<bool> Function(Map<String, dynamic> details)?
-      confirmOtherDevice;
+  final Future<bool> Function(Map<String, dynamic> details)? confirmOtherDevice;
 
   /// A 409 AUTH_OTHER_DEVICE_ACTIVE becomes the tokens after the user
   /// confirmed, or rethrows.
@@ -65,7 +63,8 @@ class RealAuthRepository implements AuthRepository {
   Future<void> requestOtp(String identifier, {String channel = 'phone'}) async {
     // Email login codes also arrive as a magic link, bound to this device
     // by a fresh verifier (only its SHA-256 leaves the device).
-    final linkChallenge = channel == 'email' ? await _magicLink.createChallenge() : null;
+    final linkChallenge =
+        channel == 'email' ? await _magicLink.createChallenge() : null;
     await _client.requestOtp(
       channel: channel,
       identifier: identifier,
@@ -96,7 +95,10 @@ class RealAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<OtpVerifyResult> verifyEmailLink({required String token, required String verifier}) async {
+  Future<OtpVerifyResult> verifyEmailLink({
+    required String token,
+    required String verifier,
+  }) async {
     try {
       final tokens = await _orContinue(
         () => _client.verifyOtpLink(
@@ -210,9 +212,13 @@ class RealAuthRepository implements AuthRepository {
   Future<void> revokeSession(String sessionId) => _client.endSession(sessionId);
 
   @override
-  Future<ReauthResult> reauthWithOtp({required String identifier, required String code}) async {
+  Future<ReauthResult> reauthWithOtp({
+    required String identifier,
+    required String code,
+  }) async {
     try {
-      final reauthToken = await _client.reauth(identifier: identifier, code: code);
+      final reauthToken =
+          await _client.reauth(identifier: identifier, code: code);
       return ReauthResult.success(reauthToken: reauthToken);
     } on ApiException catch (e) {
       switch (e.code) {
@@ -229,7 +235,9 @@ class RealAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<AccountDeletionResult> deleteAccount({required String reauthToken}) async {
+  Future<AccountDeletionResult> deleteAccount({
+    required String reauthToken,
+  }) async {
     try {
       await _client.deleteAccount(reauthToken: reauthToken);
       // docs/01_FOUNDATION_AUTH.md §10.7 + AccountDeletionService

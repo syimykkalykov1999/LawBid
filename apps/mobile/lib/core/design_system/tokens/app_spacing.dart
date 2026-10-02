@@ -1,3 +1,4 @@
+// ignore_for_file: lines_longer_than_80_chars
 // 4px grid spacing tokens (file 07 §4: "Сетка кратна 4. Боковые отступы экрана 22.").
 // Plain const class, not a ThemeExtension: spacing does not vary by theme brightness
 // and does not need BuildContext — see stage 1.5 architecture review in CHANGELOG.md.

@@ -170,8 +170,10 @@ class _PlanPickerState extends State<PlanPicker> {
                   seats: _seats,
                   max: _p.maxSeats,
                   seatPrice: _price(_p.seatCents),
-                  total: t.t('plans.total.month',
-                      {'price': _price(_p.monthlyTotal(_seats))}),
+                  total: t.t(
+                    'plans.total.month',
+                    {'price': _price(_p.monthlyTotal(_seats))},
+                  ),
                   onChanged: _setSeats,
                 ),
         ),
@@ -183,9 +185,8 @@ class _PlanPickerState extends State<PlanPicker> {
           price: _price(_p.yearlyCents),
           period: t.t('plans.perYear'),
           features: yearlyFeatures(t, _price(_p.yearlySavingsCents)),
-          status: yearly
-              ? t.t('plans.status.selected')
-              : t.t('plans.yearly.badge'),
+          status:
+              yearly ? t.t('plans.status.selected') : t.t('plans.yearly.badge'),
           highlighted: yearly,
           onTap: () => _setPlan(SubscriptionPlan.yearly),
         ),
@@ -214,7 +215,7 @@ class _PlanPickerState extends State<PlanPicker> {
           key: const ValueKey('subscribe-cta'),
           label: '${t.t(trial ? 'plans.pay.trial' : 'plans.pay')} · '
               '${t.t(yearly ? 'plans.total.year' : 'plans.total.month', {
-                'price': _price(total)
+                'price': _price(total),
               })}',
           icon: AppIcons.lockOutlineRounded,
           isLoading: widget.state.busy,
@@ -485,8 +486,10 @@ class _ActivePlansState extends State<ActivePlans> {
                       seats: seats,
                       max: _p.maxSeats,
                       seatPrice: _price(_p.seatCents),
-                      total: t.t('plans.total.month',
-                          {'price': _price(_p.monthlyTotal(seats))}),
+                      total: t.t(
+                        'plans.total.month',
+                        {'price': _price(_p.monthlyTotal(seats))},
+                      ),
                       onChanged: (v) => setState(() => _draft = v),
                     ),
                     if (changed) ...[
@@ -514,9 +517,7 @@ class _ActivePlansState extends State<ActivePlans> {
           price: _price(_p.yearlyCents),
           period: t.t('plans.perYear'),
           features: yearlyFeatures(t, _price(_p.yearlySavingsCents)),
-          status: !monthly && active
-              ? activeLabel
-              : t.t('plans.yearly.badge'),
+          status: !monthly && active ? activeLabel : t.t('plans.yearly.badge'),
           statusFilled: !monthly && active,
           highlighted: !monthly && active,
           child: !active

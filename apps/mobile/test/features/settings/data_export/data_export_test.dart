@@ -42,6 +42,7 @@ class _FakeRepo implements DataExportRepository {
   @override
   Future<DataExport> request(String reauthToken) async {
     calls.add('request:$reauthToken');
+    // ignore: only_throw_errors
     if (requestError != null) throw requestError!;
     return _job(DataExportStatus.queued);
   }
@@ -60,13 +61,15 @@ void main() {
 
   group('ApiDataExportRepository', () {
     test('request sends the reauth header; status maps the row', () async {
-      final adapter = FakeHttpAdapter((o) async => ok({
-            'exportId': '11111111-1111-1111-1111-111111111111',
-            'status': 'ready',
-            'url': 'https://s3.test/exports/x.zip?sig=1',
-            'expiresAt': '2026-10-01T12:00:00.000Z',
-            'createdAt': '2026-09-30T12:00:00.000Z',
-          }));
+      final adapter = FakeHttpAdapter(
+        (o) async => ok({
+          'exportId': '11111111-1111-1111-1111-111111111111',
+          'status': 'ready',
+          'url': 'https://s3.test/exports/x.zip?sig=1',
+          'expiresAt': '2026-10-01T12:00:00.000Z',
+          'createdAt': '2026-09-30T12:00:00.000Z',
+        }),
+      );
       final dio = Dio(BaseOptions(baseUrl: 'https://api.test'))
         ..httpClientAdapter = adapter;
       final repo = ApiDataExportRepository(dio);
@@ -78,8 +81,10 @@ void main() {
       expect(job.expiresAt, DateTime.utc(2026, 10, 1, 12));
 
       await repo.status(job.id);
-      expect(adapter.requests.last.path,
-          endsWith('/users/me/data-export/${job.id}'));
+      expect(
+        adapter.requests.last.path,
+        endsWith('/users/me/data-export/${job.id}'),
+      );
     });
 
     test('an unknown status does not crash', () {
@@ -92,19 +97,23 @@ void main() {
     late _FakeRepo repo;
 
     Future<void> pump(WidgetTester tester, {bool open = true}) async {
-      await tester.pumpWidget(uxApp(
-        const DataExportScreen(),
-        theme: AppTheme.light(),
-        disableAnimations: true,
-        overrides: uxOverrides(extra: [
-          dataExportRepositoryProvider.overrideWithValue(repo),
-          dataExportPollIntervalProvider
-              .overrideWithValue(const Duration(milliseconds: 10)),
-          historyAccessProvider.overrideWith(
-            () => open ? _OpenAccess() : _LockedAccess(),
+      await tester.pumpWidget(
+        uxApp(
+          const DataExportScreen(),
+          theme: AppTheme.light(),
+          disableAnimations: true,
+          overrides: uxOverrides(
+            extra: [
+              dataExportRepositoryProvider.overrideWithValue(repo),
+              dataExportPollIntervalProvider
+                  .overrideWithValue(const Duration(milliseconds: 10)),
+              historyAccessProvider.overrideWith(
+                () => open ? _OpenAccess() : _LockedAccess(),
+              ),
+            ],
           ),
-        ]),
-      ));
+        ),
+      );
       await tester.pump();
       await tester.pump();
     }
@@ -153,7 +162,10 @@ void main() {
 
     testWidgets('a consumed reauth token locks the gate again', (tester) async {
       repo.requestError = const ApiException(
-          code: ApiErrorCodes.reauthInvalid, message: 'x', statusCode: 401);
+        code: ApiErrorCodes.reauthInvalid,
+        message: 'x',
+        statusCode: 401,
+      );
       await pump(tester);
       await tester.tap(find.byKey(const ValueKey('request-export')));
       await tester.pump();
@@ -164,7 +176,10 @@ void main() {
     testWidgets('server error is shown inline, button stays usable',
         (tester) async {
       repo.requestError = const ApiException(
-          code: 'PAYLOAD_TOO_LARGE', message: 'x', statusCode: 413);
+        code: 'PAYLOAD_TOO_LARGE',
+        message: 'x',
+        statusCode: 413,
+      );
       await pump(tester);
       await tester.tap(find.byKey(const ValueKey('request-export')));
       await tester.pump();

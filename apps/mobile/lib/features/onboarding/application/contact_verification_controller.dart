@@ -114,7 +114,9 @@ class ContactVerificationController extends Notifier<ContactVerificationState> {
                 .requestContactCode(type: type, value: value);
           } on ApiException {
             state = state.copyWith(
-                stage: ContactVerificationStage.editing, value: value);
+              stage: ContactVerificationStage.editing,
+              value: value,
+            );
             rethrow;
           }
           state = state.copyWith(
@@ -127,10 +129,14 @@ class ContactVerificationController extends Notifier<ContactVerificationState> {
         final target = me?.reauthIdentifier;
         if (target == null) {
           throw const ApiException(
-              code: kNoReauthContactCode, message: 'No verified contact');
+            code: kNoReauthContactCode,
+            message: 'No verified contact',
+          );
         }
         await ref.read(onboardingRepositoryProvider).requestReauthCode(
-            channel: target.channel, identifier: target.identifier);
+              channel: target.channel,
+              identifier: target.identifier,
+            );
         state = state.copyWith(
           stage: ContactVerificationStage.confirmIdentity,
           value: value,
@@ -150,14 +156,18 @@ class ContactVerificationController extends Notifier<ContactVerificationState> {
         final token = await repo.reauth(identifier: target, code: code);
         try {
           await repo.requestContactCode(
-              type: type, value: value, reauthToken: token);
+            type: type,
+            value: value,
+            reauthToken: token,
+          );
         } on ApiException {
           state = state.copyWith(stage: ContactVerificationStage.editing);
           rethrow;
         }
         state = state.copyWith(
-            stage: ContactVerificationStage.codeSent,
-            attempt: state.attempt + 1);
+          stage: ContactVerificationStage.codeSent,
+          attempt: state.attempt + 1,
+        );
       });
 
   /// Step 3: verifies the new contact, then refreshes `GET /users/me`.
@@ -180,7 +190,9 @@ class ContactVerificationController extends Notifier<ContactVerificationState> {
   /// Back to editing (change the number/address).
   void edit() {
     state = state.copyWith(
-        stage: ContactVerificationStage.editing, clearError: true);
+      stage: ContactVerificationStage.editing,
+      clearError: true,
+    );
   }
 }
 

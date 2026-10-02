@@ -49,6 +49,7 @@ class _AssistantJoinScreenState extends ConsumerState<AssistantJoinScreen> {
       if (me != null) {
         ref.read(assistantMeProvider.notifier).apply(me);
         if (me.active) {
+          // ignore: unawaited_futures
           HapticFeedback.mediumImpact();
           showAppSnackBar(
             context,
@@ -104,8 +105,11 @@ class _AssistantJoinScreenState extends ConsumerState<AssistantJoinScreen> {
                 color: colors.goldTint,
                 border: Border.all(color: colors.gold),
               ),
-              child: AppIcon(AppIcons.supportAgentRounded,
-                  size: 40, color: colors.gold),
+              child: AppIcon(
+                AppIcons.supportAgentRounded,
+                size: 40,
+                color: colors.gold,
+              ),
             ),
           ),
           const SizedBox(height: AppSpacing.lg),

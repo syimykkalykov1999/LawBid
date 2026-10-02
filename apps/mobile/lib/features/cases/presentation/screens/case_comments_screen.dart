@@ -65,13 +65,19 @@ class _CaseCommentsScreenState extends ConsumerState<CaseCommentsScreen> {
                 slivers: [
                   SliverToBoxAdapter(
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide,
-                          AppSpacing.md, AppSpacing.screenSide, 0),
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.screenSide,
+                        AppSpacing.md,
+                        AppSpacing.screenSide,
+                        0,
+                      ),
                       child: Row(
                         children: [
-                          AppIcon(AppIcons.lockOutlineRounded,
-                              size: AppSizes.iconSm,
-                              color: colors.textSecondary),
+                          AppIcon(
+                            AppIcons.lockOutlineRounded,
+                            size: AppSizes.iconSm,
+                            color: colors.textSecondary,
+                          ),
                           const SizedBox(width: AppSpacing.sm),
                           Expanded(
                             child: Text(
@@ -85,7 +91,12 @@ class _CaseCommentsScreenState extends ConsumerState<CaseCommentsScreen> {
                     ),
                   ),
                   ...commentThreadSlivers(
-                      context, ref, _thread, comments, _reply),
+                    context,
+                    ref,
+                    _thread,
+                    comments,
+                    _reply,
+                  ),
                 ],
               ),
             ),

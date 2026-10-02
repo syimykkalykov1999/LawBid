@@ -10,7 +10,9 @@ abstract final class ProfileMappers {
   static RatingInfo rating(api.RatingDto d) {
     final count = d.count.toInt();
     return RatingInfo(
-        average: count == 0 ? null : d.avg.toDouble(), count: count);
+      average: count == 0 ? null : d.avg.toDouble(),
+      count: count,
+    );
   }
 
   static ProfileCounters counters(api.ProfileCountersDto d) => ProfileCounters(
@@ -173,20 +175,20 @@ abstract final class ProfileMappers {
         isBlocked: d.isBlocked,
         hasBlockedMe: d.hasBlockedMe,
         verified: d.verifiedBadge,
-        postsCount: d.postsCount.toInt(),
-        followersCount: d.followersCount.toInt(),
-        followingCount: d.followingCount.toInt(),
+        postsCount: d.postsCount,
+        followersCount: d.followersCount,
+        followingCount: d.followingCount,
         isFollowing: d.isFollowing,
         canSeeReviews: d.canSeeReviews,
         ratingAvg: d.ratingAvg?.toDouble(),
-        ratingCount: d.ratingCount.toInt(),
+        ratingCount: d.ratingCount,
       );
 
   static ClientReview clientReview(api.ClientReviewDto d) => ClientReview(
         id: d.id,
         caseId: d.caseId,
         caseTitle: d.caseTitle,
-        rating: d.rating.toInt(),
+        rating: d.rating,
         body: d.body,
         attorneyId: d.attorney.id,
         attorneyUsername: d.attorney.username,
@@ -196,13 +198,12 @@ abstract final class ProfileMappers {
         isMine: d.isMine,
         createdAt: DateTime.parse(d.createdAt).toLocal(),
         authorIsClient: d.attorney.role == api.ClientReviewAuthorDtoRole.client,
-        canAppeal: false,
         appealStatus: d.appealStatus?.json,
         authorRole: d.attorney.role.json ?? 'attorney',
         canReply: d.canReply,
         reply: d.reply,
         replyAt: d.replyAt?.toLocal(),
-        helpfulCount: d.helpfulCount.toInt(),
+        helpfulCount: d.helpfulCount,
         helpfulByMe: d.helpfulByMe,
         editedAt: d.editedAt?.toLocal(),
         photos: [for (final p in d.photos) _photo(p)],

@@ -79,14 +79,18 @@ void main() {
     await addLicense(tester, 'Add a state', 'Alabama', 'al123');
     await addLicense(tester, 'Add another state', 'Alaska', 'AK-77');
     expect(
-        backend.request!.pendingLicenses.map((l) => l.stateCode), ['AL', 'AK']);
+      backend.request!.pendingLicenses.map((l) => l.stateCode),
+      ['AL', 'AK'],
+    );
     expect(backend.request!.pendingLicenses.first.barNumber, 'AL123');
 
     for (var i = 0; i < 2; i++) {
       await tapText(tester, 'Photo or PDF', at: i);
     }
-    expect(backend.attached.where((s) => s.kind == DocKind.barLicense),
-        hasLength(2));
+    expect(
+      backend.attached.where((s) => s.kind == DocKind.barLicense),
+      hasLength(2),
+    );
     await tapText(tester, 'Continue');
 
     expect(find.text('Identity document'), findsWidgets);
@@ -171,7 +175,8 @@ void main() {
     expect(
       backend.request!
           .docsFor(
-              DocSlot.identity(IdDocumentType.driversLicense, DocSide.front))
+            DocSlot.identity(IdDocumentType.driversLicense, DocSide.front),
+          )
           .length,
       2,
     );
@@ -194,9 +199,11 @@ void main() {
         rejectionCode: 'name_mismatch',
         rejectionReason: 'The surname on the ID differs.',
         licenses: [
-          license('AL',
-              status: LicenseStatus.rejected,
-              rejectionCode: 'license_not_found'),
+          license(
+            'AL',
+            status: LicenseStatus.rejected,
+            rejectionCode: 'license_not_found',
+          ),
         ],
         documents: const [],
       ),
@@ -209,9 +216,13 @@ void main() {
       findsOneWidget,
     );
     expect(
-        find.textContaining('The surname on the ID differs.'), findsOneWidget);
-    expect(find.textContaining('License not found in the state database'),
-        findsOneWidget);
+      find.textContaining('The surname on the ID differs.'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('License not found in the state database'),
+      findsOneWidget,
+    );
     expect(find.text('Requests in the last 30 days: 1 of 5.'), findsOneWidget);
 
     await tapText(tester, 'Submit a new request');
@@ -225,12 +236,12 @@ void main() {
     final backend = FakeVerificationBackend(
       status: VerificationStatus.rejected,
       submissionsLast30Days: 5,
-      request: VerificationRequest(
+      request: const VerificationRequest(
         id: 'old',
         status: RequestStatus.rejected,
         rejectionCode: 'other',
-        licenses: const [],
-        documents: const [],
+        licenses: [],
+        documents: [],
       ),
     );
     await pumpApp(tester, backend);

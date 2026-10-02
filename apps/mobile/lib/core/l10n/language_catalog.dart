@@ -1,4 +1,4 @@
-import 'app_language.dart';
+import 'package:lawbid/core/l10n/app_language.dart';
 
 /// One row of the language picker (see `widgets/language_picker_sheet.dart`).
 ///
@@ -51,20 +51,60 @@ const List<LanguageCatalogEntry> kLanguageCatalog = [
     englishName: 'Russian',
     appLanguage: AppLanguage.ru,
   ),
-  LanguageCatalogEntry(code: 'es', nativeName: 'Español', englishName: 'Spanish'),
+  LanguageCatalogEntry(
+    code: 'es',
+    nativeName: 'Español',
+    englishName: 'Spanish',
+  ),
   LanguageCatalogEntry(code: 'zh', nativeName: '中文', englishName: 'Chinese'),
-  LanguageCatalogEntry(code: 'tl', nativeName: 'Tagalog', englishName: 'Tagalog'),
-  LanguageCatalogEntry(code: 'vi', nativeName: 'Tiếng Việt', englishName: 'Vietnamese'),
-  LanguageCatalogEntry(code: 'ar', nativeName: 'العربية', englishName: 'Arabic'),
-  LanguageCatalogEntry(code: 'fr', nativeName: 'Français', englishName: 'French'),
+  LanguageCatalogEntry(
+    code: 'tl',
+    nativeName: 'Tagalog',
+    englishName: 'Tagalog',
+  ),
+  LanguageCatalogEntry(
+    code: 'vi',
+    nativeName: 'Tiếng Việt',
+    englishName: 'Vietnamese',
+  ),
+  LanguageCatalogEntry(
+    code: 'ar',
+    nativeName: 'العربية',
+    englishName: 'Arabic',
+  ),
+  LanguageCatalogEntry(
+    code: 'fr',
+    nativeName: 'Français',
+    englishName: 'French',
+  ),
   LanguageCatalogEntry(code: 'ko', nativeName: '한국어', englishName: 'Korean'),
-  LanguageCatalogEntry(code: 'ht', nativeName: 'Kreyòl Ayisyen', englishName: 'Haitian Creole'),
-  LanguageCatalogEntry(code: 'de', nativeName: 'Deutsch', englishName: 'German'),
+  LanguageCatalogEntry(
+    code: 'ht',
+    nativeName: 'Kreyòl Ayisyen',
+    englishName: 'Haitian Creole',
+  ),
+  LanguageCatalogEntry(
+    code: 'de',
+    nativeName: 'Deutsch',
+    englishName: 'German',
+  ),
   LanguageCatalogEntry(code: 'fa', nativeName: 'فارسی', englishName: 'Persian'),
-  LanguageCatalogEntry(code: 'it', nativeName: 'Italiano', englishName: 'Italian'),
-  LanguageCatalogEntry(code: 'pt', nativeName: 'Português', englishName: 'Portuguese'),
+  LanguageCatalogEntry(
+    code: 'it',
+    nativeName: 'Italiano',
+    englishName: 'Italian',
+  ),
+  LanguageCatalogEntry(
+    code: 'pt',
+    nativeName: 'Português',
+    englishName: 'Portuguese',
+  ),
   LanguageCatalogEntry(code: 'pl', nativeName: 'Polski', englishName: 'Polish'),
   LanguageCatalogEntry(code: 'hi', nativeName: 'हिन्दी', englishName: 'Hindi'),
-  LanguageCatalogEntry(code: 'uk', nativeName: 'Українська', englishName: 'Ukrainian'),
+  LanguageCatalogEntry(
+    code: 'uk',
+    nativeName: 'Українська',
+    englishName: 'Ukrainian',
+  ),
   LanguageCatalogEntry(code: 'ja', nativeName: '日本語', englishName: 'Japanese'),
 ];

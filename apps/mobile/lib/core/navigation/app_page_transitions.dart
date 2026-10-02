@@ -1,6 +1,5 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -53,6 +52,7 @@ abstract final class AppPageTransitions {
   static Page<void> modal(GoRouterState state, Widget child) {
     // Owner 2026-10-01: a screen that rose from the bottom closes with a
     // pull down from its top, like a sheet.
+    // ignore: parameter_assignments
     child = PullDownToClose(threshold: 110, child: child);
     if (_cupertino) {
       return CupertinoPage<void>(

@@ -51,7 +51,8 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
     if (!ok) return;
     setState(() => _primeBusy = true);
     try {
-      final next = await ref.read(subscriptionRepositoryProvider).switchToYearly();
+      final next =
+          await ref.read(subscriptionRepositoryProvider).switchToYearly();
       ref.read(subscriptionOverviewProvider.notifier).apply(next);
       if (mounted) showAppSnackBar(context, _t.t('prime.done'));
     } on Object catch (e) {
@@ -740,4 +741,3 @@ String subscriptionPrice(L10nFormats formats, int cents) => cents % 100 == 0
         locale: formats.locale,
         name: 'USD',
       ).format(cents / 100);
-

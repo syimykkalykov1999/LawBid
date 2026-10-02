@@ -24,7 +24,11 @@ void main() {
     pages: [
       [
         review(0, edited: true),
-        review(1, rating: 4, body: 'Explained every option in plain English and kept me updated.'),
+        review(
+          1,
+          rating: 4,
+          body: 'Explained every option in plain English and kept me updated.',
+        ),
       ],
     ],
     summaryValue: summaryWithReviews,
@@ -32,16 +36,28 @@ void main() {
 
   final cases = <String, (Widget, CurrentUser, List<Override>, Size)>{
     'attorney_profile_reviews': (
-      const AttorneyProfileScreen(username: 'jane.doe', initialTab: AttorneyProfileTab.reviews),
+      const AttorneyProfileScreen(
+        username: 'jane.doe',
+        initialTab: AttorneyProfileTab.reviews,
+      ),
       clientMe(),
       profileOverrides(reviews: reviewsRepo),
       const Size(390, 1900),
     ),
     'attorney_profile_new': (
-      const AttorneyProfileScreen(username: 'sam.new', initialTab: AttorneyProfileTab.reviews),
+      const AttorneyProfileScreen(
+        username: 'sam.new',
+        initialTab: AttorneyProfileTab.reviews,
+      ),
       clientMe(),
       profileOverrides(
-        attorneys: FakeAttorneyRepo(profile: attorneyProfile(withReviews: false, verified: false, username: 'sam.new')),
+        attorneys: FakeAttorneyRepo(
+          profile: attorneyProfile(
+            withReviews: false,
+            verified: false,
+            username: 'sam.new',
+          ),
+        ),
       ),
       const Size(390, 1500),
     ),
@@ -51,8 +67,20 @@ void main() {
       profileOverrides(
         practices: FakePracticesRepo(
           selected: const [
-            SelectedPractice(id: 'l-div', i18nKey: 'practice.family.divorce', nameEn: 'Divorce', categoryId: 'cat-family', categoryI18nKey: 'practice.family'),
-            SelectedPractice(id: 'l-vis', i18nKey: 'practice.imm.visas', nameEn: 'Work Visas', categoryId: 'cat-imm', categoryI18nKey: 'practice.imm'),
+            SelectedPractice(
+              id: 'l-div',
+              i18nKey: 'practice.family.divorce',
+              nameEn: 'Divorce',
+              categoryId: 'cat-family',
+              categoryI18nKey: 'practice.family',
+            ),
+            SelectedPractice(
+              id: 'l-vis',
+              i18nKey: 'practice.imm.visas',
+              nameEn: 'Work Visas',
+              categoryId: 'cat-imm',
+              categoryI18nKey: 'practice.imm',
+            ),
           ],
         ),
       ),
@@ -72,7 +100,13 @@ void main() {
             children: [
               ReviewCard(review: review(0, edited: true)),
               const SizedBox(height: AppSpacing.md),
-              ReviewCard(review: review(2, rating: 3, body: 'Good result, but replies sometimes took a few days.')),
+              ReviewCard(
+                review: review(
+                  2,
+                  rating: 3,
+                  body: 'Good result, but replies sometimes took a few days.',
+                ),
+              ),
             ],
           ),
         ),
@@ -86,13 +120,15 @@ void main() {
   for (final entry in cases.entries) {
     for (final brightness in [Brightness.light, Brightness.dark]) {
       final name = brightness == Brightness.light ? 'light' : 'dark';
-      final theme = brightness == Brightness.light ? AppTheme.light() : AppTheme.dark();
+      final theme =
+          brightness == Brightness.light ? AppTheme.light() : AppTheme.dark();
       final (screen, user, overrides, size) = entry.value;
 
       testGoldens('${entry.key} - $name', (tester) async {
         await tester.pumpWidgetBuilder(
           screen,
-          wrapper: await profileWrapper(theme, user: user, overrides: overrides),
+          wrapper:
+              await profileWrapper(theme, user: user, overrides: overrides),
           surfaceSize: size,
         );
         await screenMatchesGolden(tester, '${entry.key}_$name');

@@ -36,6 +36,7 @@ class ProfileAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
+    // ignore: omit_local_variable_types
     final ImageProvider? image = preview != null
         ? MemoryImage(preview!)
         : (url != null && url!.isNotEmpty ? NetworkImage(url!) : null);
@@ -74,8 +75,11 @@ class ProfileAvatar extends StatelessWidget {
 
 /// Blue check (docs/03 §6.3). Status blue from docs/01 §8.1 (`info`).
 class VerifiedBadge extends StatelessWidget {
-  const VerifiedBadge(
-      {required this.semanticLabel, super.key, this.size = AppSizes.iconSm});
+  const VerifiedBadge({
+    required this.semanticLabel,
+    super.key,
+    this.size = AppSizes.iconSm,
+  });
 
   final String semanticLabel;
   final double size;

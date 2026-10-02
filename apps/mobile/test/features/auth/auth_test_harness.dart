@@ -23,7 +23,9 @@ import '../../helpers/onboarding_harness.dart' show FixedUserController;
 
 /// Records every OTP call; no simulated latency.
 class RecordingAuthRepository extends StubAuthRepository {
-  RecordingAuthRepository({this.verifyResult = const OtpVerifyResult.success(isNewUser: true)});
+  RecordingAuthRepository({
+    this.verifyResult = const OtpVerifyResult.success(isNewUser: true),
+  });
 
   OtpVerifyResult verifyResult;
   final List<String> requested = [];
@@ -46,7 +48,10 @@ class RecordingAuthRepository extends StubAuthRepository {
   }
 
   @override
-  Future<OtpVerifyResult> verifyEmailLink({required String token, required String verifier}) async {
+  Future<OtpVerifyResult> verifyEmailLink({
+    required String token,
+    required String verifier,
+  }) async {
     verifiedLinks.add((token: token, verifier: verifier));
     return verifyResult;
   }
@@ -99,7 +104,9 @@ Future<List<Override>> authOverrides({
     sharedPreferencesProvider.overrideWithValue(prefs),
     l10nDatabaseProvider.overrideWithValue(l10nDb),
     authRepositoryProvider.overrideWithValue(repo),
-    smsCodeRetrieverProvider.overrideWithValue(retriever ?? FakeSmsCodeRetriever(isSupported: false)),
+    smsCodeRetrieverProvider.overrideWithValue(
+      retriever ?? FakeSmsCodeRetriever(isSupported: false),
+    ),
     if (fixedSignedOutUser)
       currentUserControllerProvider.overrideWith(
         () => FixedUserController(const CurrentUserState.idle()),
@@ -107,7 +114,8 @@ Future<List<Override>> authOverrides({
   ];
 }
 
-Widget routedApp(ProviderContainer container, GoRouter router) => UncontrolledProviderScope(
-  container: container,
-  child: MaterialApp.router(theme: AppTheme.light(), routerConfig: router),
-);
+Widget routedApp(ProviderContainer container, GoRouter router) =>
+    UncontrolledProviderScope(
+      container: container,
+      child: MaterialApp.router(theme: AppTheme.light(), routerConfig: router),
+    );

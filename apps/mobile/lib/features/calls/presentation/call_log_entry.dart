@@ -77,7 +77,11 @@ class CallLogEntry extends ConsumerWidget {
 
     final bubble = Container(
       padding: const EdgeInsets.fromLTRB(
-          AppSpacing.md, AppSpacing.sm, AppSpacing.md, AppSpacing.sm),
+        AppSpacing.md,
+        AppSpacing.sm,
+        AppSpacing.md,
+        AppSpacing.sm,
+      ),
       decoration: BoxDecoration(
         color: mine ? colors.accent : colors.surface,
         borderRadius: BorderRadius.only(
@@ -131,8 +135,11 @@ class CallLogEntry extends ConsumerWidget {
           ),
           if (canCall) ...[
             const SizedBox(width: AppSpacing.md),
-            AppIcon(AppIcons.callOutlined,
-                size: 20, color: mine ? colors.goldLight : colors.goldDark),
+            AppIcon(
+              AppIcons.callOutlined,
+              size: 20,
+              color: mine ? colors.goldLight : colors.goldDark,
+            ),
           ],
         ],
       ),

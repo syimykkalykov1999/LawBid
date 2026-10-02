@@ -35,14 +35,20 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
     super.dispose();
   }
 
-  Future<void> _submit(BuildContext context, WidgetRef ref, Translator t) async {
+  Future<void> _submit(
+    BuildContext context,
+    WidgetRef ref,
+    Translator t,
+  ) async {
     if (!UsPhone.isValid(_controller.text)) {
       setState(() => _localError = t.t('auth.phone.error.invalid'));
       return;
     }
     setState(() => _localError = null);
     final e164 = UsPhone.toE164(_controller.text);
-    final ok = await ref.read(onboardingFlowProvider.notifier).submitPhoneNumber(e164);
+    final ok =
+        await ref.read(onboardingFlowProvider.notifier).submitPhoneNumber(e164);
+    // ignore: unawaited_futures
     if (ok && context.mounted) context.push(AuthRoutes.otp);
   }
 
@@ -53,7 +59,8 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
     final t = ref.watch(translatorProvider);
     final flowState = ref.watch(onboardingFlowProvider);
     final networkError = flowState.errorMessage;
-    final emailEnabled = ref.watch(featureFlagsControllerProvider).isEnabled('email_login');
+    final emailEnabled =
+        ref.watch(featureFlagsControllerProvider).isEnabled('email_login');
 
     return Scaffold(
       backgroundColor: colors.bg,
@@ -72,9 +79,12 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
             LayoutBuilder(
               builder: (context, constraints) {
                 return SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenSide),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.screenSide,
+                  ),
                   child: ConstrainedBox(
-                    constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                    constraints:
+                        BoxConstraints(minHeight: constraints.maxHeight),
                     child: IntrinsicHeight(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -102,12 +112,14 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
                           const SizedBox(height: 34),
                           Text(
                             t.t('auth.phone.title'),
-                            style: typography.titleLarge.copyWith(color: colors.text),
+                            style: typography.titleLarge
+                                .copyWith(color: colors.text),
                           ),
                           const SizedBox(height: 8),
                           Text(
                             t.t('auth.phone.subtitle'),
-                            style: typography.body.copyWith(color: colors.textSecondary),
+                            style: typography.body
+                                .copyWith(color: colors.textSecondary),
                           ),
                           const SizedBox(height: 26),
                           AppTextField(
@@ -119,10 +131,16 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
                             autofocus: true,
                             semanticLabel: t.t('auth.phone.fieldLabel'),
                             inputFormatters: [UsPhoneFormatter()],
-                            autofillHints: const [AutofillHints.telephoneNumberNational],
+                            autofillHints: const [
+                              AutofillHints.telephoneNumberNational,
+                            ],
                             onChanged: (_) {
-                              if (_localError != null) setState(() => _localError = null);
-                              ref.read(onboardingFlowProvider.notifier).clearError();
+                              if (_localError != null) {
+                                setState(() => _localError = null);
+                              }
+                              ref
+                                  .read(onboardingFlowProvider.notifier)
+                                  .clearError();
                             },
                           ),
                           if (emailEnabled) ...[
@@ -130,7 +148,9 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
                             SwitchChannelLink(
                               label: t.t('auth.phone.useEmail'),
                               onTap: () {
-                                ref.read(onboardingFlowProvider.notifier).goToEmailStep();
+                                ref
+                                    .read(onboardingFlowProvider.notifier)
+                                    .goToEmailStep();
                                 context.pushReplacement(AuthRoutes.email);
                               },
                             ),
@@ -149,10 +169,12 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
                                 LegalText(
                                   text: t.t('auth.phone.terms'),
                                   links: {
-                                    t.t('auth.phone.terms.usage'): () =>
-                                        context.push(AppRoutes.legalDoc('terms')),
+                                    t.t('auth.phone.terms.usage'): () => context
+                                        .push(AppRoutes.legalDoc('terms')),
                                     t.t('auth.phone.terms.privacy'): () =>
-                                        context.push(AppRoutes.legalDoc('privacy')),
+                                        context.push(
+                                          AppRoutes.legalDoc('privacy'),
+                                        ),
                                   },
                                 ),
                               ],
@@ -175,7 +197,11 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
 /// Text link that switches between phone and email sign-in. 44px tall
 /// touch target (file 07 §9).
 class SwitchChannelLink extends StatelessWidget {
-  const SwitchChannelLink({required this.label, required this.onTap, super.key});
+  const SwitchChannelLink({
+    required this.label,
+    required this.onTap,
+    super.key,
+  });
 
   final String label;
   final VoidCallback onTap;

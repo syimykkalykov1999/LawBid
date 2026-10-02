@@ -27,5 +27,4 @@ class ReelsMuted extends Notifier<bool> {
   void toggle() => state = !state;
 }
 
-final reelsMutedProvider =
-    NotifierProvider<ReelsMuted, bool>(ReelsMuted.new);
+final reelsMutedProvider = NotifierProvider<ReelsMuted, bool>(ReelsMuted.new);

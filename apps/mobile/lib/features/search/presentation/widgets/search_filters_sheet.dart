@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:lawbid/features/practice/practice_options.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/language_catalog.dart';
@@ -13,6 +11,7 @@ import 'package:lawbid/features/cases/presentation/widgets/case_wizard_steps.dar
 import 'package:lawbid/features/feed/presentation/widgets/topic_filter_bar.dart'
     show topicName;
 import 'package:lawbid/features/onboarding/presentation/widgets/option_picker_sheet.dart';
+import 'package:lawbid/features/practice/practice_options.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/search/data/search_repository.dart';
 
@@ -187,16 +186,20 @@ class _FiltersSheetState extends ConsumerState<_FiltersSheet> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title,
-                  style: type.bodySmall.copyWith(
-                      color: colors.textSecondary,
-                      fontWeight: FontWeight.w600)),
+              Text(
+                title,
+                style: type.bodySmall.copyWith(
+                  color: colors.textSecondary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
               const SizedBox(height: AppSpacing.sm),
               child,
             ],
           ),
         );
 
+    // ignore: avoid_positional_boolean_parameters
     Widget picker(String label, bool selected, VoidCallback onTap) => Align(
           alignment: Alignment.centerLeft,
           child: AppChip(
@@ -222,6 +225,7 @@ class _FiltersSheetState extends ConsumerState<_FiltersSheet> {
           ],
         );
 
+    // ignore: avoid_positional_boolean_parameters
     Widget toggle(String label, bool value, void Function(bool) on) => Padding(
           padding: const EdgeInsets.only(top: AppSpacing.sm),
           child: Semantics(
@@ -297,23 +301,28 @@ class _FiltersSheetState extends ConsumerState<_FiltersSheet> {
               _f.role,
               // Audit 2026-10-01: clients have no practice / rating /
               // language — switching to clients clears those filters.
-              (r) => _set((_) => r == 'client'
-                  ? _with(
-                      role: r,
-                      practiceAreaId: null,
-                      practiceLabel: null,
-                      minRating: null,
-                      language: null,
-                    )
-                  : _with(role: r)),
+              (r) => _set(
+                (_) => r == 'client'
+                    ? _with(
+                        role: r,
+                        practiceAreaId: null,
+                        practiceLabel: null,
+                        minRating: null,
+                        language: null,
+                      )
+                    : _with(role: r),
+              ),
             ),
           ),
           stateSection(t.t('search.filter.state')),
           if (_f.role != 'client') ...[
             section(
               t.t('search.filter.practice'),
-              picker(_f.practiceLabel ?? any, _f.practiceAreaId != null,
-                  _pickPracticeLeaf),
+              picker(
+                _f.practiceLabel ?? any,
+                _f.practiceAreaId != null,
+                _pickPracticeLeaf,
+              ),
             ),
             section(
               t.t('search.filter.minRating'),
@@ -333,12 +342,18 @@ class _FiltersSheetState extends ConsumerState<_FiltersSheet> {
             ),
             section(
               t.t('search.filter.language'),
-              picker(_languageName(_f.language) ?? any, _f.language != null,
-                  _pickLanguage),
+              picker(
+                _languageName(_f.language) ?? any,
+                _f.language != null,
+                _pickLanguage,
+              ),
             ),
           ],
-          toggle(t.t('search.filter.verifiedOnly'), _f.verifiedOnly,
-              (v) => _set((_) => _with(verifiedOnly: v))),
+          toggle(
+            t.t('search.filter.verifiedOnly'),
+            _f.verifiedOnly,
+            (v) => _set((_) => _with(verifiedOnly: v)),
+          ),
         ],
       SearchFilterKind.cases => [
           categorySection(t.t('search.filter.practice')),
@@ -354,10 +369,16 @@ class _FiltersSheetState extends ConsumerState<_FiltersSheet> {
               (b) => _set((_) => _with(budgetMin: b.$1, budgetMax: b.$2)),
             ),
           ),
-          toggle(t.t('search.filter.budgetUnknown'), _f.budgetUnknown,
-              (v) => _set((_) => _with(budgetUnknown: v))),
-          toggle(t.t('search.filter.noBids'), _f.noBids,
-              (v) => _set((_) => _with(noBids: v))),
+          toggle(
+            t.t('search.filter.budgetUnknown'),
+            _f.budgetUnknown,
+            (v) => _set((_) => _with(budgetUnknown: v)),
+          ),
+          toggle(
+            t.t('search.filter.noBids'),
+            _f.noBids,
+            (v) => _set((_) => _with(noBids: v)),
+          ),
         ],
       SearchFilterKind.myCases => [
           section(
@@ -389,8 +410,11 @@ class _FiltersSheetState extends ConsumerState<_FiltersSheet> {
               (s) => _set((_) => _with(postSort: s)),
             ),
           ),
-          toggle(t.t('search.filter.withPhotos'), _f.withPhotos,
-              (v) => _set((_) => _with(withPhotos: v))),
+          toggle(
+            t.t('search.filter.withPhotos'),
+            _f.withPhotos,
+            (v) => _set((_) => _with(withPhotos: v)),
+          ),
         ],
       SearchFilterKind.topics => [
           section(
@@ -424,8 +448,12 @@ class _FiltersSheetState extends ConsumerState<_FiltersSheet> {
           maxHeight: MediaQuery.sizeOf(context).height * 0.85,
         ),
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide,
-              AppSpacing.md, AppSpacing.screenSide, AppSpacing.lg),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.screenSide,
+            AppSpacing.md,
+            AppSpacing.screenSide,
+            AppSpacing.lg,
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,

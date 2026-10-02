@@ -1,3 +1,4 @@
+// ignore_for_file: lines_longer_than_80_chars
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
@@ -21,7 +22,9 @@ typedef PickedChatFile = ({Uint8List bytes, String name, String mime});
 /// The paperclip next to the message field: photos, camera or files (every
 /// common document format). Files the server would refuse are reported.
 Future<List<PickedChatFile>> pickChatFiles(
-    BuildContext context, Translator t) async {
+  BuildContext context,
+  Translator t,
+) async {
   final choice = await showAppBottomSheet<String>(
     context: context,
     builder: (sheet) => SafeArea(
@@ -160,7 +163,7 @@ class AttachmentMessageBody extends ConsumerWidget {
 
     final Widget content;
     if (a.isImage) {
-      final Widget image = a.localBytes != null
+      final image = a.localBytes != null
           ? Image.memory(a.localBytes!, fit: BoxFit.cover, cacheWidth: 600)
           : (a.previewUrl ?? a.url) != null
               ? Image.network(
@@ -171,7 +174,7 @@ class AttachmentMessageBody extends ConsumerWidget {
                 )
               : ColoredBox(color: colors.skeletonBase);
       final ratio = (a.width != null && a.height != null && a.height! > 0)
-          ? (a.width! / a.height!).clamp(0.6, 1.8).toDouble()
+          ? (a.width! / a.height!).clamp(0.6, 1.8)
           : 4 / 3;
       content = Semantics(
         button: a.url != null,
@@ -180,8 +183,11 @@ class AttachmentMessageBody extends ConsumerWidget {
         child: AppPressable(
           onTap: a.url == null
               ? () {}
-              : () => showPhotoGallery(context,
-                  urls: [a.url!], closeLabel: t.t('common.close')),
+              : () => showPhotoGallery(
+                    context,
+                    urls: [a.url!],
+                    closeLabel: t.t('common.close'),
+                  ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(12),
             child: SizedBox(
@@ -264,7 +270,9 @@ class AttachmentMessageBody extends ConsumerWidget {
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: type.bodySmall.copyWith(
-                                color: fg, fontWeight: FontWeight.w600),
+                              color: fg,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                           Text(
                             [
@@ -279,8 +287,11 @@ class AttachmentMessageBody extends ConsumerWidget {
                       ),
                     ),
                     if (a.url != null)
-                      AppIcon(AppIcons.openInNewRounded,
-                          size: 18, color: fg.withValues(alpha: 0.75)),
+                      AppIcon(
+                        AppIcons.openInNewRounded,
+                        size: 18,
+                        color: fg.withValues(alpha: 0.75),
+                      ),
                   ],
                 ),
                 if (sending)
@@ -309,8 +320,10 @@ class AttachmentMessageBody extends ConsumerWidget {
           const SizedBox(height: AppSpacing.xs),
           SizedBox(
             width: a.isImage ? 220 : 240,
-            child: Text(message.body,
-                style: type.body.copyWith(color: fg, height: 1.35)),
+            child: Text(
+              message.body,
+              style: type.body.copyWith(color: fg, height: 1.35),
+            ),
           ),
         ],
       ],
@@ -389,10 +402,16 @@ class _ChatFilesScreenState extends ConsumerState<ChatFilesScreen> {
 
     Widget header(String text) => SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide,
-                AppSpacing.lg, AppSpacing.screenSide, AppSpacing.sm),
-            child: Text(text,
-                style: type.titleMedium.copyWith(color: colors.text)),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.screenSide,
+              AppSpacing.lg,
+              AppSpacing.screenSide,
+              AppSpacing.sm,
+            ),
+            child: Text(
+              text,
+              style: type.titleMedium.copyWith(color: colors.text),
+            ),
           ),
         );
 
@@ -408,7 +427,8 @@ class _ChatFilesScreenState extends ConsumerState<ChatFilesScreen> {
       body: _error != null && _items.isEmpty
           ? Center(
               child:
-                  TextButton(onPressed: _load, child: Text(t.t('error.retry'))))
+                  TextButton(onPressed: _load, child: Text(t.t('error.retry'))),
+            )
           : !_loading && _items.isEmpty
               ? AppEmptyState(
                   icon: AppIcons.folderOpenRounded,
@@ -440,14 +460,18 @@ class _ChatFilesScreenState extends ConsumerState<ChatFilesScreen> {
                               return AppPressable(
                                 onTap: a.url == null
                                     ? () {}
-                                    : () => showPhotoGallery(context,
-                                        urls: photoUrls,
-                                        initial: photoUrls.indexOf(a.url!),
-                                        closeLabel: t.t('common.close')),
+                                    : () => showPhotoGallery(
+                                          context,
+                                          urls: photoUrls,
+                                          initial: photoUrls.indexOf(a.url!),
+                                          closeLabel: t.t('common.close'),
+                                        ),
                                 child: a.previewUrl == null
                                     ? ColoredBox(color: colors.skeletonBase)
-                                    : Image.network(a.previewUrl!,
-                                        fit: BoxFit.cover),
+                                    : Image.network(
+                                        a.previewUrl!,
+                                        fit: BoxFit.cover,
+                                      ),
                               );
                             },
                           ),
@@ -469,21 +493,30 @@ class _ChatFilesScreenState extends ConsumerState<ChatFilesScreen> {
                                   color: look.color,
                                   borderRadius: BorderRadius.circular(8),
                                 ),
-                                child: AppIcon(look.icon,
-                                    color: Colors.white, size: 20),
+                                child: AppIcon(
+                                  look.icon,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
                               ),
-                              title: Text(a.name,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: type.bodySmall.copyWith(
-                                      color: colors.text,
-                                      fontWeight: FontWeight.w600)),
+                              title: Text(
+                                a.name,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: type.bodySmall.copyWith(
+                                  color: colors.text,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                               subtitle: Text(
-                                  '${fileSizeLabel(a.sizeBytes)} · ${f.date(m.createdAt)}',
-                                  style: type.caption
-                                      .copyWith(color: colors.textSecondary)),
-                              trailing: AppIcon(AppIcons.openInNewRounded,
-                                  color: colors.textSecondary),
+                                '${fileSizeLabel(a.sizeBytes)} · ${f.date(m.createdAt)}',
+                                style: type.caption
+                                    .copyWith(color: colors.textSecondary),
+                              ),
+                              trailing: AppIcon(
+                                AppIcons.openInNewRounded,
+                                color: colors.textSecondary,
+                              ),
                               onTap: a.url == null
                                   ? null
                                   : () => openCaseDocument(a.url!),
@@ -496,12 +529,13 @@ class _ChatFilesScreenState extends ConsumerState<ChatFilesScreen> {
                           child: Padding(
                             padding: EdgeInsets.all(AppSpacing.lg),
                             child: Center(
-                                child:
-                                    CircularProgressIndicator(strokeWidth: 2)),
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
                           ),
                         ),
                       const SliverToBoxAdapter(
-                          child: SizedBox(height: AppSpacing.xxl)),
+                        child: SizedBox(height: AppSpacing.xxl),
+                      ),
                     ],
                   ),
                 ),

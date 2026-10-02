@@ -159,7 +159,10 @@ class _SeatsCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              const AppIcon(AppIcons.groups2Rounded, color: AppColorsLight.gold),
+              const AppIcon(
+                AppIcons.groups2Rounded,
+                color: AppColorsLight.gold,
+              ),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: Text(
@@ -269,9 +272,9 @@ class _MemberTile extends StatelessWidget {
                         borderRadius: BorderRadius.circular(AppRadii.pill),
                       ),
                       child: Text(
-                        t.t(active
-                            ? 'team.status.active'
-                            : 'team.status.invited'),
+                        t.t(
+                          active ? 'team.status.active' : 'team.status.invited',
+                        ),
                         style: typography.caption.copyWith(
                           color: active ? colors.success : colors.gold,
                           fontWeight: FontWeight.w600,
@@ -295,8 +298,11 @@ class _MemberTile extends StatelessWidget {
                       if (member.duties.contains(d))
                         Tooltip(
                           message: dutyLabel(t, d),
-                          child: AppIcon(dutyIcon(d),
-                              size: 16, color: colors.textSecondary),
+                          child: AppIcon(
+                            dutyIcon(d),
+                            size: 16,
+                            color: colors.textSecondary,
+                          ),
                         ),
                   ],
                 ),
@@ -475,9 +481,11 @@ class _MemberSheetState extends ConsumerState<_MemberSheet> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        content: Text(t.t('team.remove.confirm', {
-          'name': widget.member.label,
-        })),
+        content: Text(
+          t.t('team.remove.confirm', {
+            'name': widget.member.label,
+          }),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
@@ -570,11 +578,14 @@ class _MemberSheetState extends ConsumerState<_MemberSheet> {
               key: ValueKey('duty-${d.wire}'),
               contentPadding: EdgeInsets.zero,
               secondary: AppIcon(dutyIcon(d), color: colors.gold),
-              title: Text(dutyLabel(t, d),
-                  style: typography.body.copyWith(color: colors.text)),
-              subtitle: Text(dutyHint(t, d),
-                  style:
-                      typography.caption.copyWith(color: colors.textSecondary)),
+              title: Text(
+                dutyLabel(t, d),
+                style: typography.body.copyWith(color: colors.text),
+              ),
+              subtitle: Text(
+                dutyHint(t, d),
+                style: typography.caption.copyWith(color: colors.textSecondary),
+              ),
               value: _duties.contains(d),
               activeThumbColor: colors.gold,
               onChanged: (v) => _toggle(d, v),

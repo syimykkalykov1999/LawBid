@@ -53,7 +53,7 @@ android {
         create("dev") {
             dimension = "env"
             applicationIdSuffix = ".dev"
-            resValue("string", "app_name", "LawBid Dev")
+            resValue("string", "app_name", "LawBid")
         }
         create("staging") {
             dimension = "env"

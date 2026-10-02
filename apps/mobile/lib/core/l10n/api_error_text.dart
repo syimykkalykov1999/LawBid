@@ -1,5 +1,5 @@
-import '../network/api_error.dart';
-import 'translator.dart';
+import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/network/api_error.dart';
 
 /// Localized, user-facing text for an [ApiException] — docs/01_FOUNDATION_
 /// AUTH.md §7: "Клиент показывает локализованный текст по `code`, а не по
@@ -66,7 +66,8 @@ const _keys = <String, String>{
   ApiErrorCodes.reviewAlreadyExists: 'error.api.REVIEW_ALREADY_EXISTS',
   ApiErrorCodes.reviewAppealExists: 'error.api.REVIEW_APPEAL_EXISTS',
   ApiErrorCodes.chatAttachmentsLocked: 'error.api.CHAT_ATTACHMENTS_LOCKED',
-  ApiErrorCodes.subscriptionPlanIncludesSeats: 'error.api.SUBSCRIPTION_PLAN_INCLUDES_SEATS',
+  ApiErrorCodes.subscriptionPlanIncludesSeats:
+      'error.api.SUBSCRIPTION_PLAN_INCLUDES_SEATS',
   ApiErrorCodes.assistantSeatsInUse: 'error.api.ASSISTANT_SEATS_IN_USE',
   ApiErrorCodes.assistantNoFreeSeat: 'error.api.ASSISTANT_NO_FREE_SEAT',
   ApiErrorCodes.assistantNotAllowed: 'error.api.ASSISTANT_NOT_ALLOWED',
