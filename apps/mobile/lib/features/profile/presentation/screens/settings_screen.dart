@@ -138,6 +138,13 @@ class SettingsScreen extends ConsumerWidget {
             label: t.t('settings.legal'),
             onTap: () => context.push(AppRoutes.legalDoc('terms')),
           ),
+          // Owner 2026-10-02: About LawBid + the website.
+          AppListRow(
+            icon: AppIcons.infoOutlineRounded,
+            label: t.t('about.title'),
+            subtitle: t.t('about.hint'),
+            onTap: () => context.push(AppRoutes.about),
+          ),
           // OQ-028: who I blocked, with Unblock.
           AppListRow(
             icon: AppIcons.blockFlipped,
