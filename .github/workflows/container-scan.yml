@@ -28,7 +28,7 @@ jobs:
       - name: Build image
         run: docker build -f apps/api/Dockerfile -t lawbid-api:ci .
       - name: Trivy (fail on CRITICAL/HIGH)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: lawbid-api:ci
           format: sarif
