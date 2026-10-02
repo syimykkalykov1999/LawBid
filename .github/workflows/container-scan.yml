@@ -31,6 +31,12 @@ jobs:
       # Trivy CLI image against the local image instead.
       - name: Trivy (fail on CRITICAL/HIGH)
         run: |
+          # Readable list in the log first, then the gating SARIF run.
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:0.58.0 image \
+            --severity CRITICAL,HIGH --ignore-unfixed --exit-code 0 \
+            --format table lawbid-api:ci
           docker run --rm \
             -v /var/run/docker.sock:/var/run/docker.sock \
             -v "$PWD:/out" \
@@ -38,7 +44,7 @@ jobs:
             --severity CRITICAL,HIGH --ignore-unfixed --exit-code 1 \
             --format sarif --output /out/trivy.sarif lawbid-api:ci
       - uses: github/codeql-action/upload-sarif@v3
-        if: always() && hashFiles('trivy.sarif') != ''
+        if: ${{ always() && vars.CODE_SCANNING_ENABLED == 'true' && hashFiles('trivy.sarif') != '' }}
         # Needs GitHub code scanning; a private repo without it must not
         # turn the scan itself red.
         continue-on-error: true
