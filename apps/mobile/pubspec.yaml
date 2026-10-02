@@ -43,7 +43,7 @@ dependencies:
   # features/auth/data/social_auth_native_client.dart's doc comment for
   # the exact contract (Apple wants a hashed nonce, Google wants the raw
   # one — see that file's `TODO(nonce-verify)` on the google_sign_in side).
-  sign_in_with_apple: ^6.1.4
+  sign_in_with_apple: ^8.2.0
   google_sign_in: ^7.2.0
   crypto: ^3.0.6
 
