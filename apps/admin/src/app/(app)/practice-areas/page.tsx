@@ -91,7 +91,7 @@ export default function PracticeAreasPage() {
         </thead>
         <tbody>
           {rows.map((p) => (
-            <tr key={p.id} className="hover:bg-canvas">
+            <tr key={p.id} className="hover:bg-surface-2">
               <Td className={p.parentCode ? 'pl-8 text-xs text-muted' : 'text-xs font-semibold'}>{p.code}</Td>
               <Td>
                 <Input

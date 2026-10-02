@@ -28,7 +28,7 @@ export default function CasesQueuesPage() {
             onClick={() => setTab(t)}
             className={cn(
               'rounded-full border px-4 py-1.5 text-sm',
-              tab === t ? 'border-navy bg-navy text-white' : 'border-line bg-surface hover:bg-canvas',
+              tab === t ? 'border-transparent bg-primary text-primary-fg' : 'border-line bg-surface hover:bg-surface-2',
             )}
           >
             {t === 'disputes' ? 'Споры' : '«Не могу связаться»'}
@@ -73,7 +73,7 @@ function Disputes({ resolved }: { resolved: boolean }) {
         </thead>
         <tbody>
           {rows.map((d) => (
-            <tr key={d.id} className="hover:bg-canvas">
+            <tr key={d.id} className="hover:bg-surface-2">
               <Td>
                 <Link href={`/cases/disputes/${d.id}`} className="font-medium text-navy hover:underline">
                   {d.case.title}
@@ -134,7 +134,7 @@ function ContactIssues({ resolved }: { resolved: boolean }) {
         </thead>
         <tbody>
           {rows.map((r) => (
-            <tr key={r.id} className="hover:bg-canvas">
+            <tr key={r.id} className="hover:bg-surface-2">
               <Td>
                 <Link href={`/cases/contact-issues/${r.id}`} className="font-medium text-navy hover:underline">
                   {r.case.title}

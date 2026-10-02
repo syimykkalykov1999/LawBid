@@ -200,6 +200,7 @@ export class AdminConfigService {
       paid: required.length > 0,
       requiredKeys: required,
       missingKeys: await this.missingKeys(r.key),
+      notBuilt: UNBUILT_FLAGS.has(r.key),
       updatedBy: r.updated_by,
       updatedAt: r.updated_at.toISOString(),
     };

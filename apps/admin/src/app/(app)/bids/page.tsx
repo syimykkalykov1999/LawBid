@@ -79,7 +79,7 @@ export default function BidsPage() {
         </thead>
         <tbody>
           {rows.map((b) => (
-            <tr key={b.id} className="hover:bg-canvas">
+            <tr key={b.id} className="hover:bg-surface-2">
               <Td className="max-w-sm">
                 <Link href={`/cases/${b.caseId}`} className="text-navy underline">
                   {b.caseTitle}

@@ -57,7 +57,7 @@ export default function IntegrationsPage() {
       />
       <ErrorNote text={error ?? (q.error ? errorText(q.error) : null)} />
       {data && !data.storageEnabled ? (
-        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-gold-600">
+        <div className="mb-4 rounded-lg border border-gold/30 bg-accent-soft p-4 text-sm text-gold-600">
           Хранение ключей в админке выключено: на сервере не задан мастер-ключ
           шифрования (SECRETS_MASTER_KEYS, SECRETS_ACTIVE_KID). Сейчас ключи
           берутся только из настроек сервера.
@@ -150,7 +150,7 @@ function IntegrationCard({
         </p>
       ) : null}
       {it.warning ? (
-        <p className="mt-3 rounded-md bg-amber-50 p-2 text-xs text-gold-600">
+        <p className="mt-3 rounded-md bg-accent-soft p-2 text-xs text-gold-600">
           ⚠︎ {it.warning}
         </p>
       ) : null}
@@ -170,7 +170,7 @@ function IntegrationCard({
       </dl>
 
       {pending ? (
-        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50/60 p-3">
+        <div className="mt-4 rounded-lg border border-gold/30 bg-accent-soft p-3">
           <div className="flex items-center justify-between">
             <div className="text-sm font-medium text-navy">
               Новая версия {pending.version} ждёт включения

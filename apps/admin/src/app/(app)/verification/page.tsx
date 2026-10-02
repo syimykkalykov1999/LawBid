@@ -78,7 +78,7 @@ export default function VerificationQueuePage() {
         </thead>
         <tbody>
           {rows.map((r) => (
-            <tr key={r.id} className="hover:bg-canvas">
+            <tr key={r.id} className="hover:bg-surface-2">
               <Td>
                 <Link href={`/verification/${r.id}`} className="font-medium text-navy hover:underline">
                   {[r.attorney.firstName, r.attorney.lastName].filter(Boolean).join(' ') || `@${r.attorney.username}`}

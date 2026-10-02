@@ -82,7 +82,7 @@ export default function TeamsPage() {
         </thead>
         <tbody>
           {(list.data ?? []).map((t) => (
-            <tr key={t.attorneyId} className="hover:bg-canvas">
+            <tr key={t.attorneyId} className="hover:bg-surface-2">
               <Td>
                 <Link href={`/users/${t.attorneyId}`} className="text-navy underline">
                   {t.attorneyName}

@@ -92,7 +92,7 @@ export default function ModerationQueuePage() {
         </thead>
         <tbody>
           {rows.map((r) => (
-            <tr key={`${r.targetType}:${r.targetId}`} className="hover:bg-canvas">
+            <tr key={`${r.targetType}:${r.targetId}`} className="hover:bg-surface-2">
               <Td className="max-w-md">
                 <Link href={`/moderation/${r.targetType}/${r.targetId}`} className="font-medium text-navy hover:underline">
                   {TARGET_TYPE[r.targetType] ?? r.targetType}

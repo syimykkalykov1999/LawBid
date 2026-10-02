@@ -44,7 +44,7 @@ export default function ContentPage() {
             onClick={() => setTab(t)}
             className={cn(
               'rounded-full border px-4 py-1.5 text-sm',
-              tab === t ? 'border-gold bg-navy text-white' : 'border-line bg-surface',
+              tab === t ? 'border-transparent bg-primary text-primary-fg' : 'border-line bg-surface',
             )}
           >
             {label}
@@ -125,7 +125,7 @@ function Posts({ ask }: { ask: Ask }) {
         </thead>
         <tbody>
           {rows.map((p) => (
-            <tr key={p.id} className="hover:bg-canvas">
+            <tr key={p.id} className="hover:bg-surface-2">
               <Td className="max-w-md">
                 {p.kind === 'news' ? <Badge tone="gold">новость</Badge> : null}
                 <div className="font-medium">{p.title ?? '—'}</div>
@@ -224,7 +224,7 @@ function Comments({ ask }: { ask: Ask }) {
         </thead>
         <tbody>
           {rows.map((c) => (
-            <tr key={c.id} className="hover:bg-canvas">
+            <tr key={c.id} className="hover:bg-surface-2">
               <Td className="max-w-md text-sm">{c.body}</Td>
               <Td className="text-xs">
                 <Link href={`/users/${c.authorId}`} className="text-navy underline">
@@ -310,7 +310,7 @@ function Reviews({ ask }: { ask: Ask }) {
         </thead>
         <tbody>
           {rows.map((r) => (
-            <tr key={r.id} className="hover:bg-canvas">
+            <tr key={r.id} className="hover:bg-surface-2">
               <Td className="max-w-md">
                 <div className="text-gold">
                   {'★'.repeat(r.rating)}

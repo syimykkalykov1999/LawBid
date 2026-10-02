@@ -139,7 +139,7 @@ export default function ReviewAppealsPage() {
         </thead>
         <tbody>
           {rows.map((r) => (
-            <tr key={r.id} className="hover:bg-canvas">
+            <tr key={r.id} className="hover:bg-surface-2">
               {pending ? (
                 <Td>
                   <input type="checkbox" aria-label="Выбрать" checked={selected.has(r.id)} onChange={() => toggle(r.id)} />

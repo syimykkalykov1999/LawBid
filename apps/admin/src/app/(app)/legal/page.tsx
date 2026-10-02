@@ -80,7 +80,7 @@ export default function LegalPage() {
             </thead>
             <tbody>
               {(q.data ?? []).map((d) => (
-                <tr key={d.id} className={d.isCurrent ? 'bg-emerald-50/40' : ''}>
+                <tr key={d.id} className={d.isCurrent ? 'bg-success-soft' : ''}>
                   <Td>{DOC_TYPES.find(([v]) => v === d.docType)?.[1] ?? d.docType}</Td>
                   <Td className="font-mono">{d.locale}</Td>
                   <Td className="font-mono">{d.version}</Td>

@@ -214,7 +214,7 @@ export default function VerificationCardPage() {
       />
       <ErrorNote text={error} />
       {active && r.reviewerId && !mine ? (
-        <p className="mb-4 rounded-md bg-amber-50 px-3 py-2 text-sm text-gold-600">
+        <p className="mb-4 rounded-md bg-accent-soft px-3 py-2 text-sm text-gold-600">
           Заявку проверяет другой администратор ({r.reviewerId.slice(0, 8)}…).
         </p>
       ) : null}

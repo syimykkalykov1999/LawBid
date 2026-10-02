@@ -67,7 +67,7 @@ export default function I18nPage() {
         actions={
           // A file download from a route handler, not an app page.
           // eslint-disable-next-line @next/next/no-html-link-for-pages
-          <a href="/api/proxy/i18n/export" className="inline-flex h-9 items-center rounded-[var(--radius-md)] border border-line bg-surface px-3 text-sm hover:bg-canvas">
+          <a href="/api/proxy/i18n/export" className="inline-flex h-9 items-center rounded-[var(--radius-md)] border border-line bg-surface px-3 text-sm hover:bg-surface-2">
             Экспорт xlsx
           </a>
         }

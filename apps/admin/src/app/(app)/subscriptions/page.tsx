@@ -52,7 +52,7 @@ export default function SubscriptionsPage() {
         </thead>
         <tbody>
           {rows.map((u) => (
-            <tr key={u.id} className="hover:bg-canvas">
+            <tr key={u.id} className="hover:bg-surface-2">
               <Td>
                 <Link href={`/users/${u.id}`} className="font-medium text-navy hover:underline">
                   {[u.firstName, u.lastName].filter(Boolean).join(' ') || (u.username ? `@${u.username}` : u.id)}
