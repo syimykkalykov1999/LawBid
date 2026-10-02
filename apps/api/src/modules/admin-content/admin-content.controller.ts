@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  ForbiddenException,
   Get,
   Headers,
   HttpCode,
@@ -339,6 +340,13 @@ export class AdminContentController {
     @Headers('x-justification') justificationHeader: string | undefined,
     @Res() res: Response,
   ): Promise<void> {
+    // Owner 2026-10-02: payments are money; only the super admin exports them.
+    if (p.entity === 'payments' && admin.adminRole !== 'super_admin') {
+      throw new ForbiddenException({
+        code: E.FORBIDDEN,
+        message: 'Payments are available to the super admin only.',
+      });
+    }
     // Audit 2026-10-02: the users CSV holds contacts — same rule as
     // GET /admin/users/:id/contacts.
     const justification =

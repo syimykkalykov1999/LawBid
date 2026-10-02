@@ -7,6 +7,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
@@ -24,8 +25,11 @@ import {
   AdminAccountDto,
   AdminIdParamDto,
   CreateAdminDto,
+  SetAdminCredentialsDto,
+  SetAdminPermissionsDto,
   SetAdminRoleDto,
 } from './admin.dto';
+import { AdminAuthService } from '../admin-auth/admin-auth.service';
 import { AdminsService } from './admins.service';
 
 const E = ErrorCode;
@@ -38,7 +42,10 @@ const TARGET_ERRORS = { 400: [E.VALIDATION_ERROR], 404: [E.NOT_FOUND] };
 @SkipAutoAudit()
 @Controller('admin/admins')
 export class AdminsController {
-  constructor(private readonly admins: AdminsService) {}
+  constructor(
+    private readonly admins: AdminsService,
+    private readonly auth: AdminAuthService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'All administrator accounts' })
@@ -56,7 +63,7 @@ export class AdminsController {
     @CurrentAdmin() actor: AdminActor,
     @Body() dto: CreateAdminDto,
   ): Promise<AdminAccountDto> {
-    return this.admins.create(actor, dto.email, dto.role);
+    return this.admins.create(actor, dto.email, dto.role, dto.permissions);
   }
 
   @Patch(':id/role')
@@ -69,6 +76,45 @@ export class AdminsController {
     @Body() dto: SetAdminRoleDto,
   ): Promise<AdminAccountDto> {
     return this.admins.setRole(actor, params.id, dto.role);
+  }
+
+  @Patch(':id/permissions')
+  @ApiOperation({
+    summary:
+      'Toggle areas for an admin (view / manage). Money, keys and admin sections cannot be granted.',
+  })
+  @ApiEnvelopeResponse(AdminAccountDto)
+  @ApiErrors(TARGET_ERRORS)
+  setAdminPermissions(
+    @CurrentAdmin() actor: AdminActor,
+    @Param() params: AdminIdParamDto,
+    @Body() dto: SetAdminPermissionsDto,
+  ): Promise<AdminAccountDto> {
+    return this.admins.setPermissions(actor, params.id, dto.permissions);
+  }
+
+  @Put(':id/credentials')
+  @ApiOperation({
+    summary:
+      'Set an admin’s login and/or password (needs a fresh 2FA step-up; their sessions end)',
+  })
+  @ApiEnvelopeResponse(AdminAccountDto)
+  @ApiErrors({
+    ...TARGET_ERRORS,
+    403: [E.ADMIN_STEP_UP_REQUIRED],
+    409: [E.ADMIN_LOGIN_TAKEN],
+  })
+  async setAdminCredentials(
+    @CurrentAdmin() actor: AdminActor,
+    @Param() params: AdminIdParamDto,
+    @Body() dto: SetAdminCredentialsDto,
+  ): Promise<AdminAccountDto> {
+    await this.auth.assertStepUp(actor.sessionId);
+    await this.auth.setCredentialsFor(actor, params.id, {
+      login: dto.login,
+      password: dto.password,
+    });
+    return this.admins.get(params.id);
   }
 
   @Post(':id/disable')

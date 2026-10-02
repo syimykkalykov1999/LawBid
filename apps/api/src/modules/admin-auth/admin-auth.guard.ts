@@ -21,6 +21,7 @@ import {
   JUSTIFICATION_KEY,
   type RequestAdmin,
 } from './admin-auth.decorators';
+import { canAccess, parsePermissions } from './admin-permissions';
 import { AdminSessionService } from './admin-session.service';
 
 export const JUSTIFICATION_MIN = 10;
@@ -93,7 +94,7 @@ export class AdminAuthGuard implements CanActivate {
         role: true,
         status: true,
         deleted_at: true,
-        admin_profile: { select: { admin_role: true } },
+        admin_profile: { select: { admin_role: true, permissions: true } },
       },
     });
     if (
@@ -106,7 +107,26 @@ export class AdminAuthGuard implements CanActivate {
       throw forbidden();
     }
     const adminRole = user.admin_profile.admin_role;
-    if (!allowed.includes(adminRole)) throw forbidden();
+    const permissions = parsePermissions(user.admin_profile.permissions);
+    if (adminRole === 'super_admin') {
+      if (!allowed.includes(adminRole)) throw forbidden();
+    } else {
+      // Owner 2026-10-02: everyone but the super admin works by the area
+      // toggles; money, keys and admin management are closed for them in
+      // the API itself (not only hidden in the panel).
+      const superOnly = allowed.length === 1 && allowed[0] === 'super_admin';
+      if (
+        superOnly ||
+        !canAccess(
+          adminRole,
+          permissions,
+          req.originalUrl || req.url,
+          req.method,
+        )
+      ) {
+        throw forbidden();
+      }
+    }
 
     const needsJustification = this.reflector.getAllAndOverride<boolean>(
       JUSTIFICATION_KEY,
@@ -122,7 +142,13 @@ export class AdminAuthGuard implements CanActivate {
       adminRole,
       sessionId: claims.jti,
       justification,
+      permissions,
     };
+    // Last action shown in the sessions overview (fire and forget).
+    void this.sessions.noteActivity(
+      claims.jti,
+      `${req.method} ${(req.originalUrl || req.url).split('?')[0]}`,
+    );
     return true;
   }
 }

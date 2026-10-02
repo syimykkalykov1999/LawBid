@@ -25,6 +25,7 @@ export async function POST(req: Request): Promise<Response> {
     headers: {
       'content-type': 'application/json',
       'x-forwarded-for': req.headers.get('x-forwarded-for') ?? '',
+      'user-agent': req.headers.get('user-agent') ?? '',
     },
     body: JSON.stringify(
       body.recoveryCode

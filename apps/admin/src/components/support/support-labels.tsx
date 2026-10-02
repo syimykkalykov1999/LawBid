@@ -1,7 +1,8 @@
 import { Badge, type Tone } from '@/components/ui/card';
 import type { components } from '@/lib/api/schema';
 import { PRIORITY, TICKET_CATEGORY } from '@/lib/labels';
-import type { AdminRole } from '@/lib/rbac';
+import type { Me } from '@/lib/hooks';
+import { can } from '@/lib/rbac';
 
 export type TicketRow = components['schemas']['AdminSupportTicketRowDto'];
 export type TicketDetail = components['schemas']['AdminSupportTicketDetailDto'];
@@ -14,9 +15,9 @@ export const STATUSES: TicketStatus[] = ['open', 'waiting_user', 'resolved', 'cl
 export const PRIORITIES: TicketPriority[] = ['low', 'normal', 'high', 'urgent'];
 export const CATEGORIES: TicketCategory[] = ['account', 'billing', 'verification', 'case', 'bug', 'abuse', 'other'];
 
-/** super_admin and support answer tickets; moderator only reads. */
-export function canWriteSupport(role: AdminRole | undefined): boolean {
-  return role === 'super_admin' || role === 'support';
+/** Answer tickets with the support toggle on "manage"; "view" only reads. */
+export function canWriteSupport(me: Me | undefined): boolean {
+  return can(me, 'support', 'manage');
 }
 
 const PRIORITY_TONE: Record<TicketPriority, Tone> = {

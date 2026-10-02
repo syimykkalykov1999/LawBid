@@ -14,7 +14,9 @@ export function StepUpDialog({
   open,
   onDone,
   onCancel,
+  description = 'Для изменения ключей нужен свежий 6-значный код. Он действует 5 минут.',
 }: {
+  description?: string;
   open: boolean;
   onDone: () => void;
   onCancel: () => void;
@@ -44,7 +46,7 @@ export function StepUpDialog({
       onClose={onCancel}
       eyebrow="Подтверждение"
       title="Код из приложения-аутентификатора"
-      description="Для изменения ключей нужен свежий 6-значный код. Он действует 5 минут."
+      description={description}
     >
       <form
         className="space-y-3"

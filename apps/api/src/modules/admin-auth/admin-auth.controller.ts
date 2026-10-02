@@ -6,7 +6,10 @@ import {
   HttpStatus,
   Ip,
   Post,
+  Put,
+  Req,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   ApiEnvelopeResponse,
@@ -19,10 +22,18 @@ import {
   ALL_ADMIN_ROLES,
   AdminEndpoint,
   AuditAction,
+  SkipAutoAudit,
   CurrentAdmin,
   type AdminActor,
 } from './admin-auth.decorators';
 import {
+  AdminChangeOwnCredentialsDto,
+  AdminOkDto,
+  AdminPasswordLoginDto,
+  AdminRecoverPasswordDto,
+  AdminRecoverQuestionDto,
+  AdminRecoverQuestionResultDto,
+  AdminSecurityQuestionDto,
   AdminLoginStartDto,
   AdminLoginVerifyDto,
   AdminLoginVerifyResultDto,
@@ -99,8 +110,14 @@ export class AdminAuthController {
   adminTotp(
     @Body() dto: AdminTotpDto,
     @Ip() ip: string,
+    @Req() req: Request,
   ): Promise<AdminSessionDto> {
-    return this.auth.totpVerify(dto.ticket, dto.code, ip || null);
+    return this.auth.totpVerify(
+      dto.ticket,
+      dto.code,
+      ip || null,
+      req.headers['user-agent'] ?? null,
+    );
   }
 
   @Public()
@@ -112,8 +129,14 @@ export class AdminAuthController {
   adminRecovery(
     @Body() dto: AdminRecoveryDto,
     @Ip() ip: string,
+    @Req() req: Request,
   ): Promise<AdminSessionDto> {
-    return this.auth.recovery(dto.ticket, dto.recoveryCode, ip || null);
+    return this.auth.recovery(
+      dto.ticket,
+      dto.recoveryCode,
+      ip || null,
+      req.headers['user-agent'] ?? null,
+    );
   }
 
   @AdminEndpoint(...ALL_ADMIN_ROLES)
@@ -149,5 +172,92 @@ export class AdminAuthController {
   @ApiEnvelopeResponse(AdminMeDto)
   adminMe(@CurrentAdmin() admin: AdminActor): Promise<AdminMeDto> {
     return this.auth.me(admin);
+  }
+
+  @Public()
+  @Post('login/password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Login + password; returns the same 2FA ticket as the emailed code',
+  })
+  @ApiEnvelopeResponse(AdminLoginVerifyResultDto)
+  @ApiErrors({
+    ...START_ERRORS,
+    401: [E.ADMIN_CREDENTIALS_INVALID],
+  })
+  adminLoginPassword(
+    @Body() dto: AdminPasswordLoginDto,
+    @Ip() ip: string,
+  ): Promise<AdminLoginVerifyResultDto> {
+    return this.auth.loginPassword(dto.login, dto.password, ip || null);
+  }
+
+  @Public()
+  @Post('recover/question')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Show the super admin security question' })
+  @ApiEnvelopeResponse(AdminRecoverQuestionResultDto)
+  @ApiErrors(START_ERRORS)
+  async adminRecoverQuestion(
+    @Body() dto: AdminRecoverQuestionDto,
+    @Ip() ip: string,
+  ): Promise<AdminRecoverQuestionResultDto> {
+    return { question: await this.auth.recoverQuestion(dto.login, ip || null) };
+  }
+
+  @Public()
+  @Post('recover/password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Super admin forgot the password: answer the question, set a new one (sessions end)',
+  })
+  @ApiEnvelopeResponse(AdminOkDto)
+  @ApiErrors({ ...START_ERRORS, 401: [E.ADMIN_RECOVERY_FAILED] })
+  async adminRecoverPassword(
+    @Body() dto: AdminRecoverPasswordDto,
+    @Ip() ip: string,
+  ): Promise<AdminOkDto> {
+    await this.auth.recoverPassword(
+      dto.login,
+      dto.answer,
+      dto.newPassword,
+      ip || null,
+    );
+    return { ok: true };
+  }
+
+  @AdminEndpoint(...ALL_ADMIN_ROLES)
+  @Put('me/credentials')
+  @SkipAutoAudit()
+  @ApiOperation({ summary: 'Change my own login and/or password' })
+  @ApiEnvelopeResponse(AdminOkDto)
+  @ApiErrors({
+    ...START_ERRORS,
+    403: [E.ADMIN_CREDENTIALS_INVALID],
+    409: [E.ADMIN_LOGIN_TAKEN],
+  })
+  async adminChangeOwnCredentials(
+    @CurrentAdmin() admin: AdminActor,
+    @Body() dto: AdminChangeOwnCredentialsDto,
+  ): Promise<AdminOkDto> {
+    await this.auth.changeOwnCredentials(admin, dto);
+    return { ok: true };
+  }
+
+  @AdminEndpoint('super_admin')
+  @Put('me/security-question')
+  @SkipAutoAudit()
+  @ApiOperation({
+    summary: 'Super admin: set the recovery question and answer',
+  })
+  @ApiEnvelopeResponse(AdminOkDto)
+  async adminSetSecurityQuestion(
+    @CurrentAdmin() admin: AdminActor,
+    @Body() dto: AdminSecurityQuestionDto,
+  ): Promise<AdminOkDto> {
+    await this.auth.setSecurityQuestion(admin, dto.question, dto.answer);
+    return { ok: true };
   }
 }

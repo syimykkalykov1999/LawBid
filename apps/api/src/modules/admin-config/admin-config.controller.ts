@@ -20,6 +20,7 @@ import {
   CurrentAdmin,
   SkipAutoAudit,
   type AdminActor,
+  ALL_ADMIN_ROLES,
 } from '../admin-auth/admin-auth.decorators';
 import {
   ConfigEntryDto,
@@ -42,7 +43,7 @@ const E = ErrorCode;
 /** docs/06 §2.3 items 7–10 — super_admin only (§2.2). The service writes
  * before/after audit rows itself. */
 @ApiTags('admin-config')
-@AdminEndpoint('super_admin')
+@AdminEndpoint(...ALL_ADMIN_ROLES)
 @SkipAutoAudit()
 @Controller('admin')
 export class AdminConfigController {

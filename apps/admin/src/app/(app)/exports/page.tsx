@@ -5,6 +5,7 @@ import { CsvButton } from '@/components/csv-button';
 import { FadeIn } from '@/components/legacy/fade-in';
 import { PageHeader } from '@/components/page-header';
 import { Badge, Card } from '@/components/ui/card';
+import { useMe } from '@/lib/hooks';
 
 const ENTITIES: { code: string; title: string; hint: string; icon: Icon; reason?: boolean }[] = [
   { code: 'users', title: 'Пользователи', hint: 'роль, статус, имя, телефон, email, дата регистрации', icon: Users, reason: true },
@@ -17,6 +18,9 @@ const ENTITIES: { code: string; title: string; hint: string; icon: Icon; reason?
 
 /** Owner 2026-09-30: CSV exports (UTF-8, up to 50 000 rows each). */
 export default function ExportsPage() {
+  const { data: me } = useMe();
+  // Payments are money: the super admin only.
+  const entities = ENTITIES.filter((e) => e.code !== 'payments' || me?.role === 'super_admin');
   return (
     <>
       <PageHeader
@@ -25,7 +29,7 @@ export default function ExportsPage() {
         subtitle="Файл открывается в Excel или Google Sheets. До 50 000 строк."
       />
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {ENTITIES.map((e, i) => (
+        {entities.map((e, i) => (
           <FadeIn key={e.code} i={i}>
             <Card spotlight className="flex h-full flex-col p-5">
               <div className="flex items-center gap-3">

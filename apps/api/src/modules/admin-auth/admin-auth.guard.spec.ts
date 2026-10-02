@@ -28,7 +28,7 @@ interface Row {
   role: string | null;
   status: string;
   deleted_at: Date | null;
-  admin_profile: { admin_role: AdminRole } | null;
+  admin_profile: { admin_role: AdminRole; permissions: unknown } | null;
 }
 
 const CLAIMS = { sub: 'u1', jti: 's1', role: 'verifier' };
@@ -40,6 +40,8 @@ interface Opts {
   verify?: () => typeof CLAIMS;
   session?: string | null;
   headers?: Record<string, string>;
+  url?: string;
+  method?: string;
 }
 
 function setup(opts: Opts) {
@@ -58,6 +60,7 @@ function setup(opts: Opts) {
     touch: jest
       .fn()
       .mockResolvedValue(opts.session === undefined ? 'u1' : opts.session),
+    noteActivity: jest.fn().mockResolvedValue(undefined),
   } as unknown as AdminSessionService;
   const prisma = {
     user: {
@@ -75,7 +78,13 @@ function setup(opts: Opts) {
   const req: {
     header: (n: string) => string | undefined;
     admin?: RequestAdmin;
-  } = { header: (n) => headers[n.toLowerCase()] };
+    originalUrl: string;
+    method: string;
+  } = {
+    header: (n) => headers[n.toLowerCase()],
+    originalUrl: opts.url ?? '/api/v1/admin/verification/requests',
+    method: opts.method ?? 'GET',
+  };
   const ctx = {
     getHandler: () => undefined,
     getClass: () => undefined,
@@ -92,7 +101,12 @@ const admin = (role: AdminRole | null, extra: Partial<Row> = {}): Row => ({
   role: 'admin',
   status: 'active',
   deleted_at: null,
-  admin_profile: role ? { admin_role: role } : null,
+  admin_profile: role
+    ? {
+        admin_role: role,
+        permissions: role === 'verifier' ? { verification: 'manage' } : {},
+      }
+    : null,
   ...extra,
 });
 
@@ -107,6 +121,7 @@ describe('AdminAuthGuard (docs/06 §2.1–2.2, deny by default)', () => {
       adminRole: 'verifier',
       sessionId: 's1',
       justification: null,
+      permissions: { verification: 'manage' },
     });
   });
 
@@ -175,6 +190,71 @@ describe('AdminAuthGuard (docs/06 §2.1–2.2, deny by default)', () => {
   ])('403: %s', async (_name, opts) => {
     const { guard, ctx } = setup(opts);
     await expect(guard.canActivate(ctx)).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+  });
+
+  it('non-super admins follow the area toggles, not the role list', async () => {
+    const view = setup({
+      allowed: ['support', 'super_admin'],
+      url: '/api/v1/admin/support/tickets',
+      row: {
+        ...admin('support'),
+        admin_profile: {
+          admin_role: 'support',
+          permissions: { support: 'view' },
+        },
+      },
+    });
+    await expect(view.guard.canActivate(view.ctx)).resolves.toBe(true);
+    const write = setup({
+      allowed: ['support', 'super_admin'],
+      url: '/api/v1/admin/support/tickets/1/messages',
+      method: 'POST',
+      row: {
+        ...admin('support'),
+        admin_profile: {
+          admin_role: 'support',
+          permissions: { support: 'view' },
+        },
+      },
+    });
+    await expect(write.guard.canActivate(write.ctx)).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+  });
+
+  it('money, keys and admin management are closed to non-super admins even with a role and toggles', async () => {
+    for (const url of [
+      '/api/v1/admin/billing/payments',
+      '/api/v1/admin/integrations',
+      '/api/v1/admin/admins',
+    ]) {
+      const t = setup({
+        allowed: ['finance', 'support', 'super_admin'],
+        url,
+        row: {
+          ...admin('finance'),
+          admin_profile: {
+            admin_role: 'finance',
+            permissions: { users: 'manage', money: 'manage', keys: 'manage' },
+          },
+        },
+      });
+      await expect(t.guard.canActivate(t.ctx)).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+    }
+  });
+
+  it('a super-admin-only route stays closed to everyone else', async () => {
+    const t = setup({
+      allowed: ['super_admin'],
+      url: '/api/v1/admin/auth/me/security-question',
+      method: 'PUT',
+      row: admin('support'),
+    });
+    await expect(t.guard.canActivate(t.ctx)).rejects.toBeInstanceOf(
       ForbiddenException,
     );
   });

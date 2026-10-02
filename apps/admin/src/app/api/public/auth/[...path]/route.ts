@@ -1,9 +1,16 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { apiBaseUrl } from '@/lib/api/server';
 
-/** The two unauthenticated sign-in steps (login/start, login/verify) —
- * forwarded so the browser only ever talks to this origin. */
-const ALLOWED = new Set(['login/start', 'login/verify']);
+/** The unauthenticated sign-in steps (emailed code, login + password,
+ * forgotten-password recovery) — forwarded so the browser only ever talks
+ * to this origin. */
+const ALLOWED = new Set([
+  'login/start',
+  'login/verify',
+  'login/password',
+  'recover/question',
+  'recover/password',
+]);
 
 export async function POST(
   req: NextRequest,
@@ -21,6 +28,7 @@ export async function POST(
     headers: {
       'content-type': 'application/json',
       'x-forwarded-for': req.headers.get('x-forwarded-for') ?? '',
+      'user-agent': req.headers.get('user-agent') ?? '',
     },
     body: await req.text(),
     cache: 'no-store',

@@ -26,6 +26,7 @@ import { Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
 import { useMe } from '@/lib/hooks';
+import { can } from '@/lib/rbac';
 import { cn, formatDateTime } from '@/lib/utils';
 
 /** Code emails whose senders don't pass a locale yet (ru override unused). */
@@ -193,7 +194,7 @@ export default function EmailTemplateEditorPage() {
     toast.info('Стандартный текст подставлен — проверьте переменные и сохраните');
   }
 
-  if (me && me.role !== 'super_admin') {
+  if (me && !can(me, 'email_templates')) {
     return (
       <>
         <BackLink />

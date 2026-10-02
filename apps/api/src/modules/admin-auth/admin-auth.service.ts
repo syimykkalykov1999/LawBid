@@ -1,4 +1,6 @@
 import {
+  BadRequestException,
+  ConflictException,
   ForbiddenException,
   HttpException,
   HttpStatus,
@@ -8,7 +10,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { AdminRole } from '@prisma/client';
+import { Prisma, type AdminRole } from '@prisma/client';
 import type Redis from 'ioredis';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { ErrorCode } from '../../common/errors/error-code.enum';
@@ -20,10 +22,21 @@ import { RateLimitService } from '../auth/services/rate-limit.service';
 import { TokenService } from '../auth/services/token.service';
 import type { AdminActor } from './admin-auth.decorators';
 import type {
+  AdminChangeOwnCredentialsDto,
   AdminLoginVerifyResultDto,
   AdminMeDto,
   AdminSessionDto,
 } from './admin-auth.dto';
+import {
+  dummyHash,
+  hashSecret,
+  LOGIN_PATTERN,
+  normalizeAnswer,
+  normalizeLogin,
+  passwordProblem,
+  verifySecret,
+} from './admin-password.util';
+import { parsePermissions } from './admin-permissions';
 import {
   ADMIN_SESSION_TTL_SECONDS,
   AdminSessionService,
@@ -43,6 +56,8 @@ const TOTP_REPLAY_WINDOW_SECONDS = 95;
 const RECOVERY_CODES = 10;
 const LOGIN_START_PER_EMAIL_PER_HOUR = 5;
 const LOGIN_VERIFY_PER_EMAIL_PER_HOUR = 10;
+const LOGIN_PASSWORD_PER_LOGIN_PER_HOUR = 10;
+const NEUTRAL_QUESTION = 'Secret question';
 const TOTP_ISSUER = 'LawBid Admin';
 
 export const ADMIN_AUDIT = {
@@ -50,6 +65,10 @@ export const ADMIN_AUDIT = {
   logout: 'admin.logout',
   totpEnrolled: 'admin.totp_enrolled',
   recoveryUsed: 'admin.recovery_code_used',
+  passwordLogin: 'admin.login_password',
+  credentialsChanged: 'admin.credentials_changed',
+  securityQuestionSet: 'admin.security_question_set',
+  passwordRecovered: 'admin.password_recovered',
 } as const;
 
 interface AdminRow {
@@ -131,13 +150,76 @@ export class AdminAuthService {
       });
     }
 
+    return this.startSecondFactor(admin, cipher);
+  }
+
+  /** Password first factor → the same 2FA ticket the emailed code gives. */
+  async loginPassword(
+    login: string,
+    password: string,
+    ip: string | null,
+  ): Promise<AdminLoginVerifyResultDto> {
+    const cipher = this.assertConfigured();
+    const normalized = normalizeLogin(login);
+    await this.limit(
+      ['admin-pw', 'login', this.rateLimit.hashIdentifier(normalized)],
+      LOGIN_PASSWORD_PER_LOGIN_PER_HOUR,
+    );
+    if (ip)
+      await this.limit(['admin-pw', 'ip', ip], this.loginStartPerIpPerHour);
+    const cred = await this.prisma.adminCredential.findUnique({
+      where: { login: normalized },
+      select: {
+        password_hash: true,
+        user: {
+          select: {
+            id: true,
+            email: true,
+            role: true,
+            status: true,
+            deleted_at: true,
+            admin_profile: { select: { admin_role: true } },
+          },
+        },
+      },
+    });
+    // Always hash-compare, so an unknown login costs the same as a wrong
+    // password.
+    const ok = await verifySecret(
+      password,
+      cred?.password_hash ?? (await dummyHash()),
+    );
+    const u = cred?.user;
+    if (
+      !ok ||
+      !cred?.password_hash ||
+      !u?.email ||
+      u.role !== 'admin' ||
+      u.status !== 'active' ||
+      u.deleted_at ||
+      !u.admin_profile
+    ) {
+      throw new UnauthorizedException({
+        code: ErrorCode.ADMIN_CREDENTIALS_INVALID,
+        message: 'Wrong login or password.',
+      });
+    }
+    return this.startSecondFactor(
+      { id: u.id, email: u.email, admin_role: u.admin_profile.admin_role },
+      cipher,
+    );
+  }
+
+  /** First sign-in (or after a 2FA reset) binds a fresh authenticator. */
+  private async startSecondFactor(
+    admin: AdminRow,
+    cipher: SecretCipher,
+  ): Promise<AdminLoginVerifyResultDto> {
     const cred = await this.prisma.adminCredential.findUnique({
       where: { user_id: admin.id },
     });
     let enrollment: AdminLoginVerifyResultDto['totpEnrollment'] = null;
     if (!cred?.totp_enabled_at) {
-      // First sign-in (or after a 2FA reset): a fresh secret each time the
-      // email step is passed, until one is confirmed by a valid code.
       const secret = generateTotpSecret();
       await this.prisma.adminCredential.upsert({
         where: { user_id: admin.id },
@@ -167,6 +249,7 @@ export class AdminAuthService {
     ticket: string,
     code: string,
     ip: string | null,
+    userAgent: string | null = null,
   ): Promise<AdminSessionDto> {
     const cipher = this.assertConfigured();
     const { admin, jti, cred } = await this.openTicket(ticket);
@@ -213,13 +296,14 @@ export class AdminAuthService {
         data: { last_login_at: new Date() },
       });
     }
-    return this.issueSession(admin, ip, recoveryCodes);
+    return this.issueSession(admin, ip, recoveryCodes, userAgent);
   }
 
   async recovery(
     ticket: string,
     recoveryCode: string,
     ip: string | null,
+    userAgent: string | null = null,
   ): Promise<AdminSessionDto> {
     this.assertConfigured();
     const { admin, jti, cred } = await this.openTicket(ticket);
@@ -244,7 +328,7 @@ export class AdminAuthService {
       after: { remainingCodes: remaining.length },
       ip,
     });
-    return this.issueSession(admin, ip);
+    return this.issueSession(admin, ip, undefined, userAgent);
   }
 
   async logout(actor: AdminActor): Promise<void> {
@@ -252,24 +336,414 @@ export class AdminAuthService {
   }
 
   async me(actor: AdminActor): Promise<AdminMeDto> {
+    return this.buildMe(actor.id, actor.adminRole);
+  }
+
+  private async buildMe(
+    userId: string,
+    fallbackRole: AdminRole,
+  ): Promise<AdminMeDto> {
     const user = await this.prisma.user.findUniqueOrThrow({
-      where: { id: actor.id },
+      where: { id: userId },
       select: {
         id: true,
         email: true,
-        admin_profile: { select: { admin_role: true } },
+        admin_profile: { select: { admin_role: true, permissions: true } },
         admin_credential: {
-          select: { totp_enabled_at: true, last_login_at: true },
+          select: {
+            totp_enabled_at: true,
+            last_login_at: true,
+            login: true,
+            password_hash: true,
+            security_question: true,
+            security_answer_hash: true,
+          },
         },
       },
     });
+    const role = user.admin_profile?.admin_role ?? fallbackRole;
+    const c = user.admin_credential;
     return {
       id: user.id,
       email: user.email ?? '',
-      role: user.admin_profile?.admin_role ?? actor.adminRole,
-      totpEnabled: Boolean(user.admin_credential?.totp_enabled_at),
-      lastLoginAt: user.admin_credential?.last_login_at?.toISOString() ?? null,
+      role,
+      totpEnabled: Boolean(c?.totp_enabled_at),
+      lastLoginAt: c?.last_login_at?.toISOString() ?? null,
+      login: c?.login ?? null,
+      hasPassword: Boolean(c?.password_hash),
+      permissions:
+        role === 'super_admin'
+          ? {}
+          : parsePermissions(user.admin_profile?.permissions),
+      hasSecurityQuestion: Boolean(c?.security_answer_hash),
+      securityQuestion:
+        role === 'super_admin' ? (c?.security_question ?? null) : null,
     };
+  }
+
+  // ---- login + password management -------------------------------------
+
+  /** An admin changes their own login and/or password. */
+  async changeOwnCredentials(
+    actor: AdminActor,
+    dto: AdminChangeOwnCredentialsDto,
+  ): Promise<void> {
+    const cipher = this.assertConfigured();
+    if (!dto.newLogin && !dto.newPassword) {
+      throw invalid('Nothing to change.');
+    }
+    await this.limit(['admin-own-cred', actor.id], 10);
+    const cred = await this.prisma.adminCredential.findUnique({
+      where: { user_id: actor.id },
+    });
+    if (cred?.password_hash) {
+      const ok = await verifySecret(
+        dto.currentPassword ?? '',
+        cred.password_hash,
+      );
+      if (!ok) {
+        // 403, not 401: the panel treats 401 as "session over".
+        throw new ForbiddenException({
+          code: ErrorCode.ADMIN_CREDENTIALS_INVALID,
+          message: 'The current password is wrong.',
+        });
+      }
+    }
+    const login = dto.newLogin ? this.checkLogin(dto.newLogin) : undefined;
+    const effectiveLogin = login ?? cred?.login ?? null;
+    if (dto.newPassword) {
+      const problem = passwordProblem(dto.newPassword, effectiveLogin);
+      if (problem) throw invalid(problem);
+    }
+    await this.writeCredentials(actor.id, cipher, {
+      login,
+      password: dto.newPassword,
+    });
+    await this.audit.record({
+      adminId: actor.id,
+      action: ADMIN_AUDIT.credentialsChanged,
+      targetType: 'admin',
+      targetId: actor.id,
+      after: {
+        by: 'self',
+        loginChanged: Boolean(login),
+        passwordChanged: Boolean(dto.newPassword),
+      },
+      ip: actor.ip,
+    });
+    if (dto.newPassword)
+      await this.revokeOtherSessions(actor.id, actor.sessionId);
+  }
+
+  /**
+   * Super admin sets another admin's login and/or password (the caller
+   * checks role and step-up). Their sessions end; the authenticator stays.
+   */
+  async setCredentialsFor(
+    actor: AdminActor,
+    targetId: string,
+    input: { login?: string; password?: string },
+  ): Promise<void> {
+    const cipher = this.assertConfigured();
+    if (!input.login && !input.password) throw invalid('Nothing to change.');
+    const target = await this.prisma.user.findFirst({
+      where: { id: targetId, role: 'admin', deleted_at: null },
+      select: {
+        id: true,
+        admin_profile: { select: { admin_role: true } },
+        admin_credential: { select: { login: true } },
+      },
+    });
+    if (!target?.admin_profile) {
+      throw invalid('Administrator not found.');
+    }
+    const login = input.login ? this.checkLogin(input.login) : undefined;
+    const effectiveLogin = login ?? target.admin_credential?.login ?? null;
+    if (input.password) {
+      const problem = passwordProblem(input.password, effectiveLogin);
+      if (problem) throw invalid(problem);
+    }
+    await this.writeCredentials(targetId, cipher, {
+      login,
+      password: input.password,
+    });
+    await this.audit.record({
+      adminId: actor.id,
+      action: ADMIN_AUDIT.credentialsChanged,
+      targetType: 'admin',
+      targetId,
+      after: {
+        by: 'super_admin',
+        loginChanged: Boolean(login),
+        passwordChanged: Boolean(input.password),
+      },
+      ip: actor.ip,
+    });
+    if (input.password || login) await this.sessions.revokeAllForUser(targetId);
+  }
+
+  /**
+   * One-time setup from the server console (`npm run admin:set-credentials`):
+   * sets the login/password (and optionally the security question) of an
+   * existing super admin. Values come from environment variables, never
+   * from the repository.
+   */
+  async bootstrapSuperAdmin(input: {
+    email?: string;
+    login: string;
+    password: string;
+    question?: string;
+    answer?: string;
+  }): Promise<{ userId: string; login: string }> {
+    const cipher = this.assertConfigured();
+    const email = input.email?.trim().toLowerCase();
+    const admins = await this.prisma.user.findMany({
+      where: {
+        role: 'admin',
+        deleted_at: null,
+        ...(email ? { email } : {}),
+        admin_profile: { admin_role: 'super_admin' },
+      },
+      select: { id: true },
+      take: 2,
+    });
+    if (admins.length !== 1) {
+      throw invalid(
+        email
+          ? 'No super admin with this email.'
+          : 'Set SEED_ADMIN_EMAIL: there is not exactly one super admin.',
+      );
+    }
+    const userId = admins[0].id;
+    const login = this.checkLogin(input.login);
+    const problem = passwordProblem(input.password, login);
+    if (problem) throw invalid(problem);
+    await this.writeCredentials(userId, cipher, {
+      login,
+      password: input.password,
+    });
+    if (input.question && input.answer) {
+      const answer = normalizeAnswer(input.answer);
+      if (input.question.trim().length < 3 || answer.length < 4) {
+        throw invalid('Question or answer too short.');
+      }
+      await this.prisma.adminCredential.update({
+        where: { user_id: userId },
+        data: {
+          security_question: input.question.trim(),
+          security_answer_hash: await hashSecret(answer),
+        },
+      });
+    }
+    await this.sessions.revokeAllForUser(userId);
+    await this.audit.record({
+      adminId: userId,
+      action: ADMIN_AUDIT.credentialsChanged,
+      targetType: 'admin',
+      targetId: userId,
+      after: { by: 'console', loginChanged: true, passwordChanged: true },
+    });
+    return { userId, login };
+  }
+
+  /** Super admin only: the question and (hashed) answer used to recover. */
+  async setSecurityQuestion(
+    actor: AdminActor,
+    question: string,
+    answer: string,
+  ): Promise<void> {
+    const cipher = this.assertConfigured();
+    if (actor.adminRole !== 'super_admin') {
+      throw new ForbiddenException({
+        code: ErrorCode.FORBIDDEN,
+        message: 'Only the super admin can set a security question.',
+      });
+    }
+    const q = question.trim();
+    const a = normalizeAnswer(answer);
+    if (q.length < 3 || a.length < 4)
+      throw invalid(
+        'Question or answer too short (answer: at least 4 characters).',
+      );
+    const answerHash = await hashSecret(a);
+    await this.ensureCredential(actor.id, cipher);
+    await this.prisma.adminCredential.update({
+      where: { user_id: actor.id },
+      data: { security_question: q, security_answer_hash: answerHash },
+    });
+    await this.audit.record({
+      adminId: actor.id,
+      action: ADMIN_AUDIT.securityQuestionSet,
+      targetType: 'admin',
+      targetId: actor.id,
+      ip: actor.ip,
+    });
+  }
+
+  /** The question to show on the recovery form. */
+  async recoverQuestion(login: string, ip: string | null): Promise<string> {
+    const normalized = normalizeLogin(login);
+    await this.limit(
+      ['admin-recover-q', 'login', this.rateLimit.hashIdentifier(normalized)],
+      10,
+    );
+    if (ip) await this.limit(['admin-recover-q', 'ip', ip], 20);
+    const cred = await this.findSuperCredential(normalized);
+    return cred?.security_question ?? NEUTRAL_QUESTION;
+  }
+
+  /**
+   * Forgot the password: the super admin answers the security question and
+   * picks a new password. It does NOT sign anyone in (the authenticator
+   * or a recovery code is still required), ends every session and is
+   * audited.
+   */
+  async recoverPassword(
+    login: string,
+    answer: string,
+    newPassword: string,
+    ip: string | null,
+  ): Promise<void> {
+    this.assertConfigured();
+    const normalized = normalizeLogin(login);
+    await this.limit(
+      ['admin-recover', 'login', this.rateLimit.hashIdentifier(normalized)],
+      5,
+    );
+    if (ip) await this.limit(['admin-recover', 'ip', ip], 10);
+    const cred = await this.findSuperCredential(normalized);
+    const ok = await verifySecret(
+      normalizeAnswer(answer),
+      cred?.security_answer_hash ?? (await dummyHash()),
+    );
+    // Without a bound authenticator the answer alone would be the only
+    // factor (the next sign-in would hand out a fresh enrollment), so
+    // recovery is closed until the authenticator is bound.
+    if (!ok || !cred?.security_answer_hash || !cred.totp_enabled_at) {
+      throw new UnauthorizedException({
+        code: ErrorCode.ADMIN_RECOVERY_FAILED,
+        message: 'The answer is not right.',
+      });
+    }
+    const problem = passwordProblem(newPassword, normalized);
+    if (problem) throw invalid(problem);
+    await this.prisma.adminCredential.update({
+      where: { user_id: cred.user_id },
+      data: {
+        password_hash: await hashSecret(newPassword),
+        password_changed_at: new Date(),
+      },
+    });
+    await this.sessions.revokeAllForUser(cred.user_id);
+    await this.audit.record({
+      adminId: cred.user_id,
+      action: ADMIN_AUDIT.passwordRecovered,
+      targetType: 'admin',
+      targetId: cred.user_id,
+      ip,
+    });
+  }
+
+  private async findSuperCredential(login: string) {
+    const cred = await this.prisma.adminCredential.findUnique({
+      where: { login },
+      select: {
+        user_id: true,
+        security_question: true,
+        security_answer_hash: true,
+        totp_enabled_at: true,
+        user: {
+          select: {
+            role: true,
+            status: true,
+            deleted_at: true,
+            admin_profile: { select: { admin_role: true } },
+          },
+        },
+      },
+    });
+    const u = cred?.user;
+    if (
+      !cred ||
+      u?.role !== 'admin' ||
+      u.status !== 'active' ||
+      u.deleted_at ||
+      u.admin_profile?.admin_role !== 'super_admin'
+    ) {
+      return null;
+    }
+    return cred;
+  }
+
+  private checkLogin(raw: string): string {
+    const login = normalizeLogin(raw);
+    if (!LOGIN_PATTERN.test(login)) {
+      throw invalid(
+        'Login: 4-40 characters, letters, digits, dot, dash or underscore.',
+      );
+    }
+    return login;
+  }
+
+  /** The row needs an authenticator secret from the start; sign-in
+   * replaces it with a fresh one until a code confirms it. */
+  private async ensureCredential(
+    userId: string,
+    cipher: SecretCipher,
+  ): Promise<void> {
+    await this.prisma.adminCredential.upsert({
+      where: { user_id: userId },
+      create: {
+        user_id: userId,
+        totp_secret_enc: cipher.encrypt(generateTotpSecret()),
+      },
+      update: {},
+    });
+  }
+
+  private async writeCredentials(
+    userId: string,
+    cipher: SecretCipher,
+    change: { login?: string; password?: string },
+  ): Promise<void> {
+    await this.ensureCredential(userId, cipher);
+    try {
+      await this.prisma.adminCredential.update({
+        where: { user_id: userId },
+        data: {
+          ...(change.login ? { login: change.login } : {}),
+          ...(change.password
+            ? {
+                password_hash: await hashSecret(change.password),
+                password_changed_at: new Date(),
+              }
+            : {}),
+        },
+      });
+    } catch (e) {
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === 'P2002'
+      ) {
+        throw new ConflictException({
+          code: ErrorCode.ADMIN_LOGIN_TAKEN,
+          message: 'This login is already used by another administrator.',
+        });
+      }
+      throw e;
+    }
+  }
+
+  private async revokeOtherSessions(
+    userId: string,
+    keepSessionId: string,
+  ): Promise<void> {
+    const live = await this.sessions.listForUsers([userId]);
+    for (const s of live) {
+      if (s.sessionId !== keepSessionId) {
+        await this.sessions.revoke(s.sessionId, userId);
+      }
+    }
   }
 
   // ---------------------------------------------------------------------
@@ -278,9 +752,10 @@ export class AdminAuthService {
     admin: AdminRow,
     ip: string | null,
     recoveryCodes?: string[],
+    userAgent: string | null = null,
   ): Promise<AdminSessionDto> {
     const jti = randomUUID();
-    await this.sessions.create(admin.id, jti);
+    await this.sessions.create(admin.id, jti, { ip, userAgent });
     const accessToken = this.tokens.signAdminToken(
       { sub: admin.id, jti, role: admin.admin_role },
       ADMIN_SESSION_TTL_SECONDS,
@@ -293,22 +768,12 @@ export class AdminAuthService {
       after: { method: recoveryCodes ? 'totp_enrolled' : 'totp' },
       ip,
     });
-    const cred = await this.prisma.adminCredential.findUnique({
-      where: { user_id: admin.id },
-      select: { last_login_at: true },
-    });
     return {
       accessToken,
       expiresAt: new Date(
         Date.now() + ADMIN_SESSION_TTL_SECONDS * 1000,
       ).toISOString(),
-      admin: {
-        id: admin.id,
-        email: admin.email,
-        role: admin.admin_role,
-        totpEnabled: true,
-        lastLoginAt: cred?.last_login_at?.toISOString() ?? null,
-      },
+      admin: await this.buildMe(admin.id, admin.admin_role),
       ...(recoveryCodes ? { recoveryCodes } : {}),
     };
   }
@@ -483,6 +948,9 @@ export class AdminAuthService {
     return `adm:ticket:${jti}`;
   }
 }
+
+const invalid = (message: string) =>
+  new BadRequestException({ code: ErrorCode.VALIDATION_ERROR, message });
 
 const ticketInvalid = () =>
   new UnauthorizedException({

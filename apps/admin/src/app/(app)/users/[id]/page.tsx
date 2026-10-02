@@ -17,6 +17,7 @@ import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
 import { useMe } from '@/lib/hooks';
+import { can } from '@/lib/rbac';
 import {
   BID_STATUS,
   CASE_STATUS,
@@ -69,7 +70,7 @@ export default function UserCardPage() {
     queryFn: async () => (await api.GET('/admin/users/{id}', { params: { path: { id } } })).data!.data,
   });
   const u = q.data;
-  const canSanction = me?.role === 'super_admin' || me?.role === 'moderator';
+  const canSanction = can(me, 'users', 'manage');
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: ['user', id] });
     void qc.invalidateQueries({ queryKey: ['users'] });
@@ -392,7 +393,7 @@ export default function UserCardPage() {
           )}
         </section>
       ) : null}
-      {u.role === 'attorney' && (me?.role === 'super_admin' || me?.role === 'finance' || me?.role === 'support') ? (
+      {u.role === 'attorney' && me?.role === 'super_admin' ? (
         <div className="mt-6 max-w-xl">
           <SubscriptionCard userId={u.id} />
         </div>

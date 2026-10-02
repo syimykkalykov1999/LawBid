@@ -1,5 +1,13 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEmail, IsString, Length, Matches, MaxLength } from 'class-validator';
+import {
+  IsEmail,
+  IsOptional,
+  IsString,
+  Length,
+  Matches,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 
 /** docs/06 §2.1 admin sign-in: email → email code → TOTP (or recovery). */
 
@@ -8,6 +16,93 @@ export class AdminLoginStartDto {
   @IsEmail()
   @MaxLength(254)
   email!: string;
+}
+
+/** Login + password: the first factor next to the emailed code. */
+export class AdminPasswordLoginDto {
+  @ApiProperty({ example: 'your.login', maxLength: 40 })
+  @IsString()
+  @MaxLength(40)
+  login!: string;
+
+  @ApiProperty({ maxLength: 128 })
+  @IsString()
+  @MaxLength(128)
+  password!: string;
+}
+
+export class AdminRecoverQuestionDto {
+  @ApiProperty({ maxLength: 40 })
+  @IsString()
+  @MaxLength(40)
+  login!: string;
+}
+
+export class AdminRecoverQuestionResultDto {
+  @ApiProperty({
+    description:
+      'The super admin’s own security question (a neutral text for any other login).',
+  })
+  question!: string;
+}
+
+export class AdminRecoverPasswordDto {
+  @ApiProperty({ maxLength: 40 })
+  @IsString()
+  @MaxLength(40)
+  login!: string;
+
+  @ApiProperty({ maxLength: 200 })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(200)
+  answer!: string;
+
+  @ApiProperty({ minLength: 10, maxLength: 128 })
+  @IsString()
+  @MaxLength(128)
+  newPassword!: string;
+}
+
+export class AdminChangeOwnCredentialsDto {
+  @ApiPropertyOptional({
+    description: 'Required when a password is already set.',
+    maxLength: 128,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(128)
+  currentPassword?: string;
+
+  @ApiPropertyOptional({ maxLength: 40 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  newLogin?: string;
+
+  @ApiPropertyOptional({ minLength: 10, maxLength: 128 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(128)
+  newPassword?: string;
+}
+
+export class AdminSecurityQuestionDto {
+  @ApiProperty({ minLength: 3, maxLength: 200 })
+  @IsString()
+  @MinLength(3)
+  @MaxLength(200)
+  question!: string;
+
+  @ApiProperty({ minLength: 4, maxLength: 200 })
+  @IsString()
+  @MinLength(4)
+  @MaxLength(200)
+  answer!: string;
+}
+
+export class AdminOkDto {
+  @ApiProperty() ok!: boolean;
 }
 
 export class AdminLoginVerifyDto {
@@ -85,6 +180,26 @@ export class AdminMeDto {
 
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   lastLoginAt!: string | null;
+
+  @ApiProperty({ type: String, nullable: true, description: 'Login, if set.' })
+  login!: string | null;
+
+  @ApiProperty({ description: 'A password is set.' })
+  hasPassword!: boolean;
+
+  @ApiProperty({
+    type: 'object',
+    additionalProperties: { type: 'string', enum: ['view', 'manage'] },
+    description:
+      'Area toggles (empty for the super admin, who reaches everything).',
+  })
+  permissions!: Record<string, 'view' | 'manage'>;
+
+  @ApiProperty({ description: 'Super admin: a security question is set.' })
+  hasSecurityQuestion!: boolean;
+
+  @ApiProperty({ type: String, nullable: true })
+  securityQuestion!: string | null;
 }
 
 export class AdminSessionDto {

@@ -11,6 +11,10 @@ import { withTxRetry } from '../../prisma/tx-retry.util';
 import { AuditLogService } from '../admin-access/audit-log.service';
 import type { AdminActor } from '../admin-auth/admin-auth.decorators';
 import { AdminSessionService } from '../admin-auth/admin-session.service';
+import {
+  defaultPermissionsForRole,
+  parsePermissions,
+} from '../admin-auth/admin-permissions';
 import type { AdminAccountDto, AdminRoleName } from './admin.dto';
 
 export const ADMINS_AUDIT = {
@@ -19,6 +23,7 @@ export const ADMINS_AUDIT = {
   disable: 'admins.disable',
   enable: 'admins.enable',
   resetTotp: 'admins.reset_2fa',
+  setPermissions: 'admins.set_permissions',
 } as const;
 
 const ADMIN_SELECT = {
@@ -26,8 +31,15 @@ const ADMIN_SELECT = {
   email: true,
   status: true,
   created_at: true,
-  admin_profile: { select: { admin_role: true } },
-  admin_credential: { select: { totp_enabled_at: true, last_login_at: true } },
+  admin_profile: { select: { admin_role: true, permissions: true } },
+  admin_credential: {
+    select: {
+      totp_enabled_at: true,
+      last_login_at: true,
+      login: true,
+      password_hash: true,
+    },
+  },
 } as const;
 
 type AdminRow = Prisma.UserGetPayload<{ select: typeof ADMIN_SELECT }>;
@@ -67,7 +79,14 @@ export class AdminsService {
     actor: AdminActor,
     email: string,
     role: AdminRoleName,
+    permissions?: Record<string, string>,
   ): Promise<AdminAccountDto> {
+    const perms =
+      role === 'super_admin'
+        ? {}
+        : permissions
+          ? parsePermissions(permissions)
+          : defaultPermissionsForRole(role);
     const normalized = email.trim().toLowerCase();
     const created = await withTxRetry(this.prisma, async (tx) => {
       const existing = await tx.user.findUnique({
@@ -90,7 +109,7 @@ export class AdminsService {
           // it now keeps the account out of "unverified email" flows.
           email_verified_at: new Date(),
           ui_language: 'en',
-          admin_profile: { create: { admin_role: role } },
+          admin_profile: { create: { admin_role: role, permissions: perms } },
         },
         select: ADMIN_SELECT,
       });
@@ -100,7 +119,7 @@ export class AdminsService {
           action: ADMINS_AUDIT.create,
           targetType: 'admin',
           targetId: user.id,
-          after: { email: normalized, role },
+          after: { email: normalized, role, permissions: perms },
           ip: actor.ip,
         },
         tx,
@@ -182,12 +201,61 @@ export class AdminsService {
     return present(updated);
   }
 
+  /** Super admin toggles areas for another admin. Read live on each request,
+   * so it applies at once; no session is ended. */
+  async setPermissions(
+    actor: AdminActor,
+    id: string,
+    input: Record<string, string>,
+  ): Promise<AdminAccountDto> {
+    if (id === actor.id) throw cannotTargetSelf();
+    const next = parsePermissions(input);
+    const updated = await withTxRetry(this.prisma, async (tx) => {
+      const before = await this.load(tx, id);
+      if (before.admin_profile?.admin_role === 'super_admin') {
+        throw new ForbiddenException({
+          code: ErrorCode.FORBIDDEN,
+          message: 'The super admin already has access to everything.',
+        });
+      }
+      const after = await tx.user.update({
+        where: { id },
+        data: { admin_profile: { update: { permissions: next } } },
+        select: ADMIN_SELECT,
+      });
+      await this.audit.record(
+        {
+          adminId: actor.id,
+          action: ADMINS_AUDIT.setPermissions,
+          targetType: 'admin',
+          targetId: id,
+          before: parsePermissions(before.admin_profile?.permissions),
+          after: next,
+          ip: actor.ip,
+        },
+        tx,
+      );
+      return after;
+    });
+    return present(updated);
+  }
+
+  /** Reload one account for the response after a credentials change. */
+  async get(id: string): Promise<AdminAccountDto> {
+    return present(await this.load(this.prisma, id));
+  }
+
   /** Drops the authenticator binding and recovery codes: the next sign-in
    * enrolls again. Every session of that admin ends now. */
   async resetTotp(actor: AdminActor, id: string): Promise<AdminAccountDto> {
     const updated = await withTxRetry(this.prisma, async (tx) => {
       const before = await this.load(tx, id);
-      await tx.adminCredential.deleteMany({ where: { user_id: id } });
+      // Keep login/password/security question: only the authenticator
+      // binding and recovery codes go.
+      await tx.adminCredential.updateMany({
+        where: { user_id: id },
+        data: { totp_enabled_at: null, recovery_codes_hash: [] },
+      });
       await this.audit.record(
         {
           adminId: actor.id,
@@ -209,7 +277,7 @@ export class AdminsService {
   }
 
   private async load(
-    tx: Prisma.TransactionClient,
+    tx: Prisma.TransactionClient | PrismaService,
     id: string,
   ): Promise<AdminRow> {
     const user = await tx.user.findFirst({
@@ -233,6 +301,9 @@ function present(u: AdminRow): AdminAccountDto {
     role: u.admin_profile?.admin_role ?? 'support',
     status: u.status === 'active' ? 'active' : 'disabled',
     totpEnabled: Boolean(u.admin_credential?.totp_enabled_at),
+    login: u.admin_credential?.login ?? null,
+    hasPassword: Boolean(u.admin_credential?.password_hash),
+    permissions: parsePermissions(u.admin_profile?.permissions),
     lastLoginAt: u.admin_credential?.last_login_at?.toISOString() ?? null,
     createdAt: u.created_at.toISOString(),
   };
