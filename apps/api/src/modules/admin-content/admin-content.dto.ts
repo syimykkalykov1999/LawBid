@@ -12,6 +12,7 @@ import {
   Max,
   MaxLength,
   Min,
+  MinLength,
 } from 'class-validator';
 
 const trim = ({ value }: { value: unknown }) =>
@@ -277,4 +278,49 @@ export class AdminOverviewDto {
   @ApiProperty({ type: 'integer' }) tasksOpen!: number;
   @ApiProperty({ type: 'integer' }) tasksDone30d!: number;
   @ApiProperty({ type: 'integer' }) requestsPending!: number;
+}
+
+// --- Audit 2026-10-02: restore, client reviews --------------------------------
+
+/** A moderation reason for the audit log (10–500 characters). */
+export class AdminReasonDto {
+  @ApiProperty({ minLength: 10, maxLength: 500 })
+  @Transform(trim)
+  @IsString()
+  @MinLength(10)
+  @MaxLength(500)
+  reason!: string;
+}
+
+export class AdminClientReviewsQueryDto extends AdminListQueryDto {
+  @ApiPropertyOptional({
+    enum: ['published', 'hidden', 'removed'],
+    enumName: 'AdminReviewStatus',
+  })
+  @IsOptional()
+  @IsIn(['published', 'hidden', 'removed'])
+  status?: 'published' | 'hidden' | 'removed';
+}
+
+export class AdminClientReviewRowDto {
+  @ApiProperty({ format: 'uuid' }) id!: string;
+  @ApiProperty({ type: 'integer' }) rating!: number;
+  @ApiPropertyOptional({ type: String, nullable: true }) body!: string | null;
+  @ApiProperty({ format: 'uuid' }) authorId!: string;
+  @ApiProperty() authorName!: string;
+  @ApiProperty({ enum: ['attorney', 'client', 'assistant'] })
+  authorRole!: string;
+  @ApiProperty({ format: 'uuid' }) clientId!: string;
+  @ApiProperty() clientName!: string;
+  @ApiPropertyOptional({ type: String, nullable: true })
+  caseTitle!: string | null;
+  @ApiProperty({ enum: ['published', 'hidden', 'removed'] }) status!: string;
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    enum: ['pending', 'accepted', 'rejected', 'auto_removed'],
+    description: "The reviewed client's appeal, if any.",
+  })
+  appealStatus!: string | null;
+  @ApiProperty() createdAt!: string;
 }

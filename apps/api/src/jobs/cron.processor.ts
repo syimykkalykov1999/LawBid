@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { CRON_JOBS } from './jobs.constants';
+import { PromotionsService } from '../modules/promotions/promotions.service';
 import { SessionsCleanupJob } from './handlers/sessions-cleanup.job';
 import { OtpCleanupJob } from './handlers/otp-cleanup.job';
 import { DisposableDomainsRefreshJob } from './disposable-domains/disposable-domains-refresh.job';
@@ -54,6 +55,7 @@ export class CronProcessor {
     private readonly calls: CallsService,
     private readonly clientReviews: ClientReviewsService,
     private readonly postVideos: PostVideosService,
+    private readonly promotions: PromotionsService,
   ) {}
 
   async process(name: string): Promise<unknown> {
@@ -106,6 +108,8 @@ export class CronProcessor {
         return this.clientReviews.sweepAppeals();
       case CRON_JOBS.videosSweep:
         return this.postVideos.sweep();
+      case CRON_JOBS.promotionsExpire:
+        return this.promotions.expire();
       default:
         // A job left over from an older/newer release: fail it visibly
         // rather than "succeed" doing nothing.

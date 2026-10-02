@@ -16,7 +16,10 @@ const securityHeaders = [
       `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === 'production' ? '' : " 'unsafe-eval'"}`,
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: https:",
-      "connect-src 'self'",
+      // Reels play from signed Bunny/S3 links and sticker files upload
+      // straight to the media bucket (admin/media).
+      "media-src 'self' https: blob:",
+      `connect-src 'self' https:${process.env.NODE_ENV === 'production' ? '' : ' http://localhost:9000'}`,
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",

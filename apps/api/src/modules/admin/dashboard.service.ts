@@ -3,9 +3,11 @@ import type Redis from 'ioredis';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import type { DashboardDto } from './admin.dto';
-
-/** docs/06 §1.1: "$399 в месяц, единственный тариф". */
-export const SUBSCRIPTION_PRICE_USD = 399;
+import {
+  liveSubscriptionWhere,
+  monthlyRevenueCents,
+  payingSubscriptionWhere,
+} from './subscription-metrics';
 const CACHE_KEY = 'adm:dashboard';
 const CACHE_TTL_SECONDS = 60;
 const DAY_MS = 86_400_000;
@@ -56,6 +58,8 @@ export class DashboardService {
       openReports,
       openDisputes,
       openContactIssues,
+      live,
+      revenueByPlan,
     ] = await Promise.all([
       p.user.count({
         where: { role: 'client', created_at: { gte: since24h } },
@@ -83,7 +87,20 @@ export class DashboardService {
       p.report.count({ where: { status: 'open' } }),
       p.caseDispute.count({ where: { status: 'open' } }),
       p.contactIssueReport.count({ where: { status: 'open' } }),
+      // Audit 2026-10-02: the same "live" rule as the overview and the gate.
+      p.subscription.count({ where: liveSubscriptionWhere(now) }),
+      p.subscription.groupBy({
+        by: ['plan'],
+        where: payingSubscriptionWhere(now),
+        _sum: { price_cents: true },
+      }),
     ]);
+    const revenueCents = monthlyRevenueCents(
+      revenueByPlan.map((r) => ({
+        plan: r.plan,
+        priceCents: r._sum.price_cents ?? 0,
+      })),
+    );
     return {
       newUsers: { clients24h, attorneys24h, clients7d, attorneys7d },
       verification: {
@@ -96,7 +113,9 @@ export class DashboardService {
         trialing,
         active,
         pastDue,
-        revenueEstimateUsd: active * SUBSCRIPTION_PRICE_USD,
+        live,
+        revenueEstimateCents: revenueCents,
+        revenueEstimateUsd: Math.round(revenueCents / 100),
       },
       openCases,
       bids24h,

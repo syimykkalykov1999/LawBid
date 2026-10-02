@@ -10,7 +10,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { Payment, Subscription } from '@prisma/client';
+import type { Payment, PromoCode, Subscription } from '@prisma/client';
 import { Queue } from 'bullmq';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
@@ -34,6 +34,13 @@ import {
   YEARLY_PRICE_CENTS,
 } from './billing.constants';
 import { DEFAULT_DUTIES } from '../assistants/assistant-duties';
+import {
+  checkPromo,
+  ensurePromoCoupon,
+  promoDiscountCents,
+  type PromoDiscountType,
+  recordPromoRedemption,
+} from '../admin-billing/promo-rules';
 import type {
   CheckoutRequestDto,
   CheckoutSessionDto,
@@ -56,6 +63,7 @@ const PAYMENTS_PAGE = 20;
  */
 import { SecretsService } from '../../common/secrets/secrets.service';
 import { refreshProvider } from './dynamic-payment.provider';
+import { ReferralsService } from '../referrals/referrals.service';
 @Injectable()
 export class SubscriptionsService {
   private readonly logger = new Logger(SubscriptionsService.name);
@@ -72,6 +80,7 @@ export class SubscriptionsService {
     private readonly sync: SubscriptionSyncService,
     private readonly config: ConfigService,
     @Optional() private readonly secrets?: SecretsService,
+    @Optional() private readonly referrals?: ReferralsService,
   ) {
     this.portalReturnUrl =
       config.get<string>('STRIPE_PORTAL_RETURN_URL') ??
@@ -132,11 +141,11 @@ export class SubscriptionsService {
     }
     const lineItems =
       plan === 'yearly'
-        ? [{ priceId: (await this.prices()).yearly, quantity: 1 }]
+        ? [{ priceId: await this.requirePrice('yearly'), quantity: 1 }]
         : [
             { priceId, quantity: 1 },
             ...(seats > 0
-              ? [{ priceId: (await this.prices()).seat, quantity: seats }]
+              ? [{ priceId: await this.requirePrice('seat'), quantity: seats }]
               : []),
           ];
     const existing = await this.prisma.subscription.findUnique({
@@ -160,11 +169,31 @@ export class SubscriptionsService {
       });
     }
     const eligible = await this.attorneyTrialEligible(user.sub);
+    const priceCents =
+      plan === 'yearly'
+        ? YEARLY_PRICE_CENTS
+        : SUBSCRIPTION_PRICE_CENTS + seats * ASSISTANT_SEAT_PRICE_CENTS;
+    // Owner 2026-10-02: an optional promo code — a coupon on the session,
+    // or free days added to the trial. Redeemed when the checkout is paid.
+    const promo = req.promoCode
+      ? await this.checkoutPromo(user, req.promoCode, plan)
+      : null;
+    const couponId = promo
+      ? await ensurePromoCoupon(
+          this.prisma,
+          this.provider,
+          promo,
+          SUBSCRIPTION_CURRENCY,
+        )
+      : await this.referralCoupon(user.sub);
+    const promoDays =
+      promo?.discount_type === 'free_days' ? (promo.free_days ?? 0) : 0;
+    const trialDays = (eligible ? TRIAL_DAYS : 0) + promoDays;
     const base = this.checkoutReturnBase;
     const session = await this.provider.createCheckoutSession({
       customerId,
       lineItems,
-      trialDays: eligible ? TRIAL_DAYS : null,
+      trialDays: trialDays > 0 ? trialDays : null,
       successUrl: `${base}/subscription/success?session_id={CHECKOUT_SESSION_ID}`,
       cancelUrl: `${base}/subscription/cancel`,
       metadata: {
@@ -172,17 +201,34 @@ export class SubscriptionsService {
         plan,
         seats: String(seats),
         phones: phones.join(','),
+        ...(promo
+          ? {
+              promoId: promo.id,
+              promoFreeDays: String(promoDays),
+              promoOffCents: String(
+                promoDiscountCents(promo, priceCents) ?? '',
+              ),
+            }
+          : {}),
       },
+      ...(couponId ? { couponId } : {}),
     });
     return {
       url: session.url ?? '',
       sessionId: session.id,
       trialEligible: eligible,
-      priceCents:
-        plan === 'yearly'
-          ? YEARLY_PRICE_CENTS
-          : SUBSCRIPTION_PRICE_CENTS + seats * ASSISTANT_SEAT_PRICE_CENTS,
+      priceCents,
       trialDays: TRIAL_DAYS,
+      ...(promo
+        ? {
+            promo: {
+              code: promo.code,
+              discountType: promo.discount_type as PromoDiscountType,
+              discountCents: promoDiscountCents(promo, priceCents),
+              freeDays: promoDays || null,
+            },
+          }
+        : {}),
     };
   }
 
@@ -243,12 +289,20 @@ export class SubscriptionsService {
           remote.defaultPaymentMethodId,
         )
       : null;
+    const promoDays = Number(session.metadata.promoFreeDays ?? 0) || 0;
     if (
       remote.status === 'trialing' &&
       !(await this.cardTrialEligible(fingerprint, owner))
     ) {
-      // §1.1: this card already had a trial elsewhere — charge now.
-      remote = await this.provider.endTrialNow(remote.id);
+      // §1.1: this card already had a trial elsewhere — charge now
+      // (owner 2026-10-02: a promo's free days are still given).
+      remote =
+        promoDays > 0
+          ? await this.provider.extendUntil(
+              remote.id,
+              Math.floor(Date.now() / 1000) + promoDays * 86_400,
+            )
+          : await this.provider.endTrialNow(remote.id);
     }
     const existing = await this.prisma.subscription.findUnique({
       where: { user_id: owner },
@@ -317,7 +371,66 @@ export class SubscriptionsService {
         });
       });
     }
+    // Owner 2026-10-02: the promo code is used once the checkout is paid
+    // (an abandoned page does not burn it). Idempotent per user.
+    if (session.metadata.promoId) {
+      const off = Number(session.metadata.promoOffCents);
+      await recordPromoRedemption(this.prisma, {
+        promoId: session.metadata.promoId,
+        userId: owner,
+        amountOffCents: Number.isFinite(off) && off > 0 ? off : null,
+      });
+    }
     await this.access.invalidate(owner);
+  }
+
+  /**
+   * Owner 2026-10-02: a referred attorney's first-invoice discount, as a
+   * one-use coupon. Only when no promo code was given (Stripe takes one
+   * discount per session). Never blocks the checkout.
+   */
+  private async referralCoupon(userId: string): Promise<string | null> {
+    if (!this.referrals || !this.provider.createCoupon) return null;
+    try {
+      const percent =
+        await this.referrals.pendingReferralDiscountPercent(userId);
+      if (percent <= 0) return null;
+      const coupon = await this.provider.createCoupon({
+        code: `REF${userId.replace(/-/g, '').slice(0, 10).toUpperCase()}${Date.now().toString(36).toUpperCase()}`,
+        percentOff: percent,
+        amountOffCents: null,
+        currency: SUBSCRIPTION_CURRENCY,
+        maxRedemptions: 1,
+        redeemBy: Math.floor(Date.now() / 1000) + 24 * 3600,
+        metadata: { kind: 'referral_discount', userId },
+      });
+      return coupon.couponId;
+    } catch (e) {
+      this.logger.warn(`referral coupon skipped: ${String(e)}`);
+      return null;
+    }
+  }
+
+  /** Owner 2026-10-02: a promo code given at checkout, or 400. */
+  private async checkoutPromo(
+    user: RequestUser,
+    code: string,
+    plan: 'monthly' | 'yearly',
+  ): Promise<PromoCode> {
+    const check = await checkPromo(this.prisma, {
+      code,
+      userId: user.sub,
+      role: user.role,
+      purchase: plan,
+    });
+    if (!check.valid) {
+      throw new BadRequestException({
+        code: ErrorCode.PROMO_CODE_INVALID,
+        message: 'This promo code cannot be used.',
+        details: { field: 'promoCode', reason: check.reason },
+      });
+    }
+    return check.promo;
   }
 
   /** OQ-048: monthly plan — change the number of assistant seats. */
@@ -346,7 +459,7 @@ export class SubscriptionsService {
     }
     await this.provider.switchToYearly(
       row.stripe_subscription_id,
-      (await this.prices()).yearly,
+      await this.requirePrice('yearly'),
     );
     await this.prisma.subscription.update({
       where: { id: row.id },
@@ -393,7 +506,7 @@ export class SubscriptionsService {
     }
     await this.provider.setSeatQuantity(
       row.stripe_subscription_id,
-      (await this.prices()).seat,
+      await this.requirePrice('seat'),
       seats,
     );
     await this.prisma.subscription.update({
@@ -498,16 +611,24 @@ export class SubscriptionsService {
   }
 
   async me(user: RequestUser): Promise<SubscriptionMeDto> {
-    const [row, profile] = await Promise.all([
+    const [row, profile, grant] = await Promise.all([
       this.prisma.subscription.findUnique({ where: { user_id: user.sub } }),
       this.prisma.attorneyProfile.findUnique({
         where: { user_id: user.sub },
         select: { verification_status: true },
       }),
+      this.access.activeGrant(user.sub),
     ]);
-    const isActive = SubscriptionAccessService.rowIsActive(row);
+    // Owner 2026-10-02: a free subscription under a contract counts.
+    const isActive = SubscriptionAccessService.rowIsActive(row) || !!grant;
     return {
       subscription: row ? presentSubscription(row) : null,
+      contractGrant: grant
+        ? {
+            endsAt: grant.ends_at.toISOString(),
+            assistantSeats: grant.assistant_seats,
+          }
+        : null,
       isActive,
       canStart: profile?.verification_status === 'verified' && !isActive,
       trialEligible: await this.attorneyTrialEligible(user.sub),
@@ -702,8 +823,8 @@ export class SubscriptionsService {
    */
   private async prices(): Promise<{
     monthly: string | undefined;
-    seat: string;
-    yearly: string;
+    seat: string | undefined;
+    yearly: string | undefined;
   }> {
     await refreshProvider(this.provider);
     const f = (await this.secrets?.get('stripe'))?.fields ?? {};
@@ -716,12 +837,28 @@ export class SubscriptionsService {
       seat:
         f.priceSeatId ??
         this.config.get<string>('STRIPE_PRICE_SEAT_ID') ??
-        'price_fake_seat_100',
+        (fake ? 'price_fake_seat_100' : undefined),
       yearly:
         f.priceYearlyId ??
         this.config.get<string>('STRIPE_PRICE_YEARLY_ID') ??
-        'price_fake_yearly_9590',
+        (fake ? 'price_fake_yearly_9590' : undefined),
     };
+  }
+
+  /** Seat / yearly price id, or 503 when a live Stripe has none set. */
+  private async requirePrice(kind: 'seat' | 'yearly'): Promise<string> {
+    const priceId = (await this.prices())[kind];
+    if (!priceId) {
+      throw new ServiceUnavailableException({
+        code: ErrorCode.PAYMENTS_NOT_CONFIGURED,
+        message:
+          kind === 'seat'
+            ? 'Stripe price for assistant seats is not set.'
+            : 'Stripe price for the yearly plan is not set.',
+        details: { price: kind },
+      });
+    }
+    return priceId;
   }
 
   private async assertConfigured(): Promise<string> {

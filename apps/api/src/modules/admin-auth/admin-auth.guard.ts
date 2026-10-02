@@ -114,14 +114,7 @@ export class AdminAuthGuard implements CanActivate {
     );
     let justification: string | null = null;
     if (needsJustification) {
-      const raw = (req.header('x-justification') ?? '').trim();
-      if (raw.length < JUSTIFICATION_MIN || raw.length > JUSTIFICATION_MAX) {
-        throw new BadRequestException({
-          code: ErrorCode.JUSTIFICATION_REQUIRED,
-          message: `X-Justification header (${JUSTIFICATION_MIN}–${JUSTIFICATION_MAX} characters) is required to view this data.`,
-        });
-      }
-      justification = raw;
+      justification = readJustification(req.header('x-justification'));
     }
 
     req.admin = {
@@ -132,6 +125,34 @@ export class AdminAuthGuard implements CanActivate {
     };
     return true;
   }
+}
+
+/**
+ * Audit 2026-10-02: browsers refuse non-Latin-1 header values, so the
+ * admin UI sends `encodeURIComponent(reason)`. A value with %-escapes is
+ * decoded; plain ASCII (older clients, curl) passes as is, and a value
+ * that isn't valid percent-encoding is kept verbatim.
+ */
+export function decodeJustification(raw: string | undefined): string {
+  const value = (raw ?? '').trim();
+  if (!/%[0-9a-f]{2}/i.test(value)) return value;
+  try {
+    return decodeURIComponent(value).trim();
+  } catch {
+    return value;
+  }
+}
+
+/** The decoded `X-Justification` (10–500 chars) or JUSTIFICATION_REQUIRED. */
+export function readJustification(raw: string | undefined): string {
+  const value = decodeJustification(raw);
+  if (value.length < JUSTIFICATION_MIN || value.length > JUSTIFICATION_MAX) {
+    throw new BadRequestException({
+      code: ErrorCode.JUSTIFICATION_REQUIRED,
+      message: `X-Justification header (${JUSTIFICATION_MIN}–${JUSTIFICATION_MAX} characters) is required to view this data.`,
+    });
+  }
+  return value;
 }
 
 const unauthorized = (message: string) =>

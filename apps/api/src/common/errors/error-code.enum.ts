@@ -299,4 +299,36 @@ export enum ErrorCode {
   VIDEO_NOT_READY = 'VIDEO_NOT_READY',
   // Owner 2026-10-01: stickers — 409: over a pack/sticker/install limit.
   STICKER_LIMIT_REACHED = 'STICKER_LIMIT_REACHED',
+  // Owner 2026-10-02: 409 — a closed support ticket can't get replies.
+  SUPPORT_TICKET_CLOSED = 'SUPPORT_TICKET_CLOSED',
+  // Owner 2026-10-02 referrals — 404: no such referral code.
+  REFERRAL_CODE_INVALID = 'REFERRAL_CODE_INVALID',
+  // 409: self-referral, already referred, sign-up window passed, no role.
+  REFERRAL_NOT_ALLOWED = 'REFERRAL_NOT_ALLOWED',
+  // 409: admin action not valid for the referral's current status.
+  REFERRAL_INVALID_STATE = 'REFERRAL_INVALID_STATE',
+  // Owner 2026-10-02 case promotion — 409: the case already has one.
+  PROMOTION_ALREADY_ACTIVE = 'PROMOTION_ALREADY_ACTIVE',
+  // 409: promotion action not valid for its current status.
+  PROMOTION_INVALID_STATE = 'PROMOTION_INVALID_STATE',
+  // Owner 2026-10-02: 400 — promo code unknown, expired, used up or not
+  // valid for this purchase.
+  PROMO_CODE_INVALID = 'PROMO_CODE_INVALID',
+  // Owner 2026-10-02 (admin billing): 409 a promo code with this code
+  // exists (PROMO_CODE_INVALID above is the 400 for using one).
+  PROMO_CODE_EXISTS = 'PROMO_CODE_EXISTS',
+  // 409: the user is not a live attorney (contract grants).
+  CONTRACT_GRANT_NOT_ATTORNEY = 'CONTRACT_GRANT_NOT_ATTORNEY',
+  // 409: the grant was revoked (no extend / revoke again).
+  CONTRACT_GRANT_REVOKED = 'CONTRACT_GRANT_REVOKED',
+  // 409: refund above what is left of the payment; payment not refundable.
+  REFUND_AMOUNT_EXCEEDED = 'REFUND_AMOUNT_EXCEEDED',
+  REFUND_NOT_ALLOWED = 'REFUND_NOT_ALLOWED',
+  // 502: the payment provider refused the refund.
+  REFUND_PROVIDER_FAILED = 'REFUND_PROVIDER_FAILED',
+  // Admin 2026-10-02 — 409: restore/hide/takedown not valid for the
+  // content's current state (e.g. restoring a post its author deleted).
+  CONTENT_INVALID_STATE = 'CONTENT_INVALID_STATE',
+  // 409: an official sticker pack with this short name exists.
+  STICKER_PACK_NAME_TAKEN = 'STICKER_PACK_NAME_TAKEN',
 }

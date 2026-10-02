@@ -5,6 +5,7 @@ import { AuthModule } from '../auth/auth.module';
 import { BidsModule } from '../bids/bids.module';
 import { SecretsService } from '../../common/secrets/secrets.service';
 import { createEmailProvider } from '../auth/providers/email/email-provider.factory';
+import { PrismaService } from '../../prisma/prisma.service';
 import { CaseLifecycleModule } from '../cases/lifecycle/case-lifecycle.module';
 import { S3StorageService } from '../files/storage/s3-storage.service';
 import { JournalModule } from '../journal/journal.module';
@@ -52,7 +53,7 @@ export class PrivacyModule {
         S3StorageService,
         {
           provide: NOTIFICATION_EMAIL,
-          inject: [ConfigService, PinoLogger, SecretsService],
+          inject: [ConfigService, PinoLogger, SecretsService, PrismaService],
           useFactory: createEmailProvider,
         },
         AccountAnonymizationService,

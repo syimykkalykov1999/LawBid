@@ -20,6 +20,28 @@ import {
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
 
+/** Owner 2026-10-02: the promo code applied to a checkout. */
+export class CheckoutPromoDto {
+  @ApiProperty() code!: string;
+  @ApiProperty({
+    enum: ['percent', 'amount', 'free_days'],
+    enumName: 'PromoDiscountType',
+  })
+  discountType!: 'percent' | 'amount' | 'free_days';
+  @ApiProperty({
+    type: 'integer',
+    nullable: true,
+    description: 'Off the first invoice (percent / amount codes).',
+  })
+  discountCents!: number | null;
+  @ApiProperty({
+    type: 'integer',
+    nullable: true,
+    description: 'Free days added to the trial (free_days codes).',
+  })
+  freeDays!: number | null;
+}
+
 /** Owner 2026-09-30: Stripe's hosted payment page for the subscription. */
 export class CheckoutSessionDto {
   @ApiProperty({ description: 'Open in the browser.' })
@@ -28,6 +50,11 @@ export class CheckoutSessionDto {
   @ApiProperty() trialEligible!: boolean;
   @ApiProperty({ type: 'integer' }) priceCents!: number;
   @ApiProperty({ type: 'integer' }) trialDays!: number;
+  @ApiPropertyOptional({
+    type: CheckoutPromoDto,
+    description: 'Present when a promo code was applied (owner 2026-10-02).',
+  })
+  promo?: CheckoutPromoDto;
 }
 
 /** POST /subscriptions/checkout (OQ-048): the plan, seats and the phones
@@ -60,6 +87,18 @@ export class CheckoutRequestDto {
   @ArrayMaxSize(6)
   @Matches(/^\+[1-9][0-9]{7,14}$/, { each: true })
   assistantPhones?: string[];
+
+  @ApiPropertyOptional({
+    description:
+      'Owner 2026-10-02: a promo code (case-insensitive). 400 PROMO_CODE_INVALID with details.reason when it cannot be used.',
+    example: 'BLOGGER20',
+    maxLength: 40,
+  })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @Length(3, 40)
+  promoCode?: string;
 }
 
 export class SetSeatsDto {
@@ -156,9 +195,22 @@ export class PlanPricesDto {
   @ApiProperty({ type: 'integer' }) maxSeats!: number;
 }
 
+/** Owner 2026-10-02: "Free under contract until …". */
+export class ContractGrantInfoDto {
+  @ApiProperty({ format: 'date-time' }) endsAt!: string;
+  @ApiProperty({ type: 'integer' }) assistantSeats!: number;
+}
+
 export class SubscriptionMeDto {
   @ApiProperty({ type: SubscriptionDto, nullable: true })
   subscription!: SubscriptionDto | null;
+  @ApiProperty({
+    type: ContractGrantInfoDto,
+    nullable: true,
+    description:
+      'An active free subscription under a contract (isActive is true while it runs).',
+  })
+  contractGrant!: ContractGrantInfoDto | null;
   @ApiProperty({ type: PlanPricesDto })
   prices!: PlanPricesDto;
   @ApiProperty() isActive!: boolean;

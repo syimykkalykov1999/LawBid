@@ -29,6 +29,9 @@ import {
 } from '../queries/cases-visible.sql';
 import { CaseViewTrackingService } from './case-view-tracking.service';
 
+/** Owner 2026-10-02: promoted cases on top of the first feed page. */
+const PROMOTED_FEED_SLOTS = 3;
+
 type CaseWithPracticeArea = Case & {
   practice_area: PracticeArea & { parent: PracticeArea | null };
   states: { state_code: string; is_primary: boolean }[];
@@ -101,35 +104,61 @@ export class CasesFeedService {
       AND NOT EXISTS (SELECT 1 FROM user_blocks ub
         WHERE (ub.blocker_id = ${viewer.userId}::UUID AND ub.blocked_id = c.client_id)
            OR (ub.blocker_id = c.client_id AND ub.blocked_id = ${viewer.userId}::UUID))`;
-    const rows = await this.prisma.$queryRaw<
-      { id: string; created_at: Date }[]
-    >(
-      query.practice
-        ? buildPracticeCasesSql({
-            attorneyId: viewer.userId,
-            practice: query.practice,
-            state: query.state,
-            cursor,
-            limit: limit + 1,
-            since,
-            extra,
-          })
-        : buildVisibleCasesSql({
-            attorneyId: viewer.userId,
-            practiceAreaId: query.practiceAreaId,
-            practiceCategory: query.practiceCategory,
-            state: query.state,
-            cursor,
-            limit: limit + 1,
-            since,
-            extra,
-          }),
+    const run = (
+      filter: Prisma.Sql,
+      pageCursor: typeof cursor,
+      take: number,
+    ): Promise<{ id: string; created_at: Date }[]> =>
+      this.prisma.$queryRaw<{ id: string; created_at: Date }[]>(
+        query.practice
+          ? buildPracticeCasesSql({
+              attorneyId: viewer.userId,
+              practice: query.practice,
+              state: query.state,
+              cursor: pageCursor,
+              limit: take,
+              since,
+              extra: filter,
+            })
+          : buildVisibleCasesSql({
+              attorneyId: viewer.userId,
+              practiceAreaId: query.practiceAreaId,
+              practiceCategory: query.practiceCategory,
+              state: query.state,
+              cursor: pageCursor,
+              limit: take,
+              since,
+              extra: filter,
+            }),
+      );
+    // Owner 2026-10-02 (paid case promotion): up to PROMOTED_FEED_SLOTS
+    // active promoted cases this attorney may see (same filters) go on top
+    // of the first page and are left out of the keyset pages, so cursor
+    // pagination stays intact and nothing repeats.
+    const promotedIds = await this.activePromotedCaseIds();
+    const slot = promotedIds.length
+      ? (
+          await run(
+            Prisma.sql`${extra} AND c.id = ANY(${promotedIds}::UUID[])`,
+            undefined,
+            PROMOTED_FEED_SLOTS,
+          )
+        ).map((r) => r.id)
+      : [];
+    const rows = await run(
+      slot.length
+        ? Prisma.sql`${extra} AND c.id <> ALL(${slot}::UUID[])`
+        : extra,
+      cursor,
+      limit + 1,
     );
     const page = rows.slice(0, limit);
+    const shownPromoted = cursor ? [] : slot;
     const items = await this.hydrate(
-      page.map((r) => r.id),
+      [...shownPromoted, ...page.map((r) => r.id)],
       viewer.userId,
     );
+    if (shownPromoted.length) this.countImpressions(shownPromoted);
     const last = page[page.length - 1];
     return {
       items,
@@ -276,6 +305,7 @@ export class CasesFeedService {
       ]);
     const bidCaseIds = new Set(ownBids.map((b) => b.case_id));
     const savedIds = new Set(saved.map((s) => s.item_id));
+    const promoted = new Set(await this.activePromotedCaseIds(ids));
     const byId = new Map(rows.map((r) => [r.id, r]));
     const now = Date.now();
     const items: CaseFeedItemDto[] = [];
@@ -321,8 +351,50 @@ export class CasesFeedService {
         ),
         isSaved: savedIds.has(c.id),
         shareCount: Math.max(0, c.share_count + (pendingShares.get(c.id) ?? 0)),
+        promoted: promoted.has(c.id),
       });
     }
     return items;
+  }
+
+  /** Cases with a running paid/granted promotion (owner 2026-10-02),
+   * optionally limited to [ids]. Best effort: [] on any error. */
+  async activePromotedCaseIds(ids?: string[]): Promise<string[]> {
+    if (ids && ids.length === 0) return [];
+    try {
+      const now = new Date();
+      const rows = await this.prisma.casePromotion.findMany({
+        where: {
+          status: 'active',
+          starts_at: { lte: now },
+          ends_at: { gt: now },
+          ...(ids ? { case_id: { in: ids } } : {}),
+        },
+        select: { case_id: true },
+        orderBy: { starts_at: 'asc' },
+        take: 200,
+      });
+      return [...new Set(rows.map((r) => r.case_id))];
+    } catch {
+      return [];
+    }
+  }
+
+  /** Fire-and-forget impression counter for promoted cases shown. */
+  private countImpressions(caseIds: string[]): void {
+    const now = new Date();
+    void Promise.resolve()
+      .then(() =>
+        this.prisma.casePromotion.updateMany({
+          where: {
+            case_id: { in: caseIds },
+            status: 'active',
+            starts_at: { lte: now },
+            ends_at: { gt: now },
+          },
+          data: { impressions: { increment: 1 } },
+        }),
+      )
+      .catch(() => undefined);
   }
 }

@@ -121,16 +121,31 @@ describe('Admin content (e2e)', () => {
       })
       .expect(201);
     expect(b.body.data.recipients).toBeGreaterThan(0);
-    expect(
-      await prisma.notification.count({
+    // Audit 2026-10-02: the fan-out runs in the background (queue).
+    let delivered = 0;
+    for (let i = 0; i < 50 && delivered === 0; i++) {
+      delivered = await prisma.notification.count({
         where: { user_id: author.id, type: 'admin_broadcast' },
-      }),
-    ).toBe(1);
+      });
+      if (delivered === 0) await new Promise((r) => setTimeout(r, 100));
+    }
+    expect(delivered).toBe(1);
 
+    // Audit 2026-10-02: the users CSV (contacts) needs a justification.
+    await api().get('/api/v1/admin/export/users').set(admin.auth).expect(400);
     const csv = await api()
       .get('/api/v1/admin/export/users')
       .set(admin.auth)
+      .set(
+        'X-Justification',
+        encodeURIComponent('Ежемесячный отчёт для юриста'),
+      )
       .expect(200);
+    expect(
+      await prisma.auditLog.count({
+        where: { action: 'admin.export.users', justification: { not: null } },
+      }),
+    ).toBeGreaterThan(0);
     expect(csv.headers['content-type']).toContain('text/csv');
     expect(csv.text.split('\n')[0]).toBe(
       'id,role,status,first_name,last_name,phone,email,created_at',

@@ -5,6 +5,15 @@ All notable changes to this project are documented here, per
 .cursorrules (each stage ends with a CHANGELOG update + commit on
 branch cursor/stage-X-Y-description).
 
+## Admin redesign + growth, support and moderation tools (2026-10-02)
+
+- Admin panel: new design (day / night themes, grouped sidebar, ⌘K palette, motion); working pages for feature switches, subscriptions, contract subscriptions, payments and refunds, promo codes, case promotion, referrals, support tickets, email templates, broadcasts, media (reels, sticker packs), case cards; every older page restyled with the audited bugs fixed (Cyrillic `X-Justification`, missing case page, CSV export with a reason, empty states, error toasts).
+- API (additive): `/admin/billing/*` (contract grants 3-12 months incl. assistants, promo codes, payments, refunds), `POST /billing/promo/validate`, `promoCode` at checkout, `me.contractGrant`; `/referrals/*`, `/promotions/quote`, `/cases/:id/promotion[s]`; `/support/tickets*` + `/admin/support/*`; `/admin/email-templates*`; `/admin/cases*`, `/admin/media/*`, client-review and restore moderation; broadcasts run in the background; migration `20261002030000_owner_admin_growth_support`.
+- Audit fixes: Stripe seat / yearly price ids never fall back to fake ids with a live provider; SES cache keyed by a secret hash; Sentry DSN from Integrations (API and worker); worker boots again; dashboard revenue uses the access-gate rule; audit rows for team assistant removal, review-appeal decisions and every export.
+- CI: Trivy step, CodeQL permissions and the deploy workflow validation fixed (deploys run only with the repository variable `DEPLOY_ENABLED=true`).
+- Referrals (additive): admin writes the program words per language (`texts` en/ru: title, summary, terms, share message with `{{code}}`/`{{url}}`), `maxInvitesPerReferrer` (0 = no limit; `REFERRAL_NOT_ALLOWED` reason `limit_reached`), and can give a user a vanity code (`PUT /admin/referrals/codes`, `GET /admin/referrals/codes`; 4-24 letters/digits). `GET /referrals/me` now returns `texts` + `textsLanguage` (from the user's UI language). Apply accepts any 4-24 letter/digit code.
+- App follow-ups (mobile, not done here): support screens, contract-grant and promo-code display in billing, referral and case-promotion screens, `promoted` badge, `ReportTargetType` for sticker packs, regenerate the Dart client.
+
 ## Owner pass 13 (2026-10-01) — OQ-051
 
 - Subscription screen: two plan cards (monthly $399 with "Add assistant +$100" inside, yearly Prime below), "Active" / "Selected" top-right, "What's included" lists, team management inside the yearly card, billing below; problems (payment failed, ended) shown first. A scheduled cancel can be taken back in the app (`POST /subscriptions/resume`, "Keep my subscription").

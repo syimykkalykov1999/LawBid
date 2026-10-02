@@ -245,6 +245,10 @@ export class CaseFeedItemDto {
 
   @ApiProperty({ description: "In the viewer's saved items." })
   isSaved!: boolean;
+
+  /** Owner 2026-10-02: a running paid case promotion ("Promoted" badge). */
+  @ApiProperty({ description: 'Promoted by its client right now.' })
+  promoted!: boolean;
 }
 
 /** GET /cases/:id for an attorney (docs/04 §4.3): the feed item plus the

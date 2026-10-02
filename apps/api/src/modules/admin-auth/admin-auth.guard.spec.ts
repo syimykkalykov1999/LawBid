@@ -17,7 +17,11 @@ import {
   JUSTIFICATION_KEY,
   type RequestAdmin,
 } from './admin-auth.decorators';
-import { AdminAuthGuard } from './admin-auth.guard';
+import {
+  AdminAuthGuard,
+  decodeJustification,
+  readJustification,
+} from './admin-auth.guard';
 import type { AdminSessionService } from './admin-session.service';
 
 interface Row {
@@ -196,6 +200,45 @@ describe('AdminAuthGuard (docs/06 §2.1–2.2, deny by default)', () => {
     await expect(ok.guard.canActivate(ok.ctx)).resolves.toBe(true);
     expect(ok.req.admin?.justification).toBe(
       'Reviewing bar card for request 42',
+    );
+  });
+
+  it('decodes a percent-encoded (Cyrillic) X-Justification', async () => {
+    const reason = 'Проверка лицензии по заявке 42';
+    const ok = setup({
+      allowed: ['verifier'],
+      justification: true,
+      headers: { 'x-justification': encodeURIComponent(reason) },
+    });
+    await expect(ok.guard.canActivate(ok.ctx)).resolves.toBe(true);
+    expect(ok.req.admin?.justification).toBe(reason);
+  });
+});
+
+describe('decodeJustification / readJustification', () => {
+  it('keeps plain ASCII as is (backward compatible)', () => {
+    expect(decodeJustification('  Checking a refund dispute  ')).toBe(
+      'Checking a refund dispute',
+    );
+    expect(decodeJustification(undefined)).toBe('');
+  });
+
+  it('decodes %-escapes and keeps malformed escapes verbatim', () => {
+    expect(decodeJustification('Support%20ticket%20%2342')).toBe(
+      'Support ticket #42',
+    );
+    expect(decodeJustification('100%25 sure %E0%A4%A')).toBe(
+      '100%25 sure %E0%A4%A',
+    );
+  });
+
+  it('counts the length after decoding', () => {
+    // 9 Cyrillic letters encode to 54 ASCII chars but are still too short.
+    expect(() =>
+      readJustification(encodeURIComponent('Проверочка'.slice(0, 9))),
+    ).toThrow(BadRequestException);
+    expect(readJustification(encodeURIComponent('Проверка договора'))).toBe(
+      'Проверка договора',
     );
   });
 });

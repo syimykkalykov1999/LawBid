@@ -437,20 +437,27 @@ async function seedAdmin(): Promise<void> {
   const existing = await prisma.user.findFirst({
     where: { email, role: 'admin' },
   });
-  if (existing) {
-    console.log(`  admin: ${email} already exists (${existing.id})`);
-    return;
-  }
-  const admin = await prisma.user.create({
-    data: {
-      role: 'admin',
-      status: 'active',
-      email,
-      email_verified_at: new Date(),
-      ui_language: 'en',
-    },
+  const admin =
+    existing ??
+    (await prisma.user.create({
+      data: {
+        role: 'admin',
+        status: 'active',
+        email,
+        email_verified_at: new Date(),
+        ui_language: 'en',
+      },
+    }));
+  // Admin sign-in requires an admin_profiles row (AdminAuthService
+  // .findAdmin); without it the seeded super admin could never log in.
+  await prisma.adminProfile.upsert({
+    where: { user_id: admin.id },
+    update: {},
+    create: { user_id: admin.id, admin_role: 'super_admin' },
   });
-  console.log(`  admin: created ${email} (${admin.id})`);
+  console.log(
+    `  admin: ${existing ? 'already exists' : 'created'} ${email} (${admin.id}), super_admin`,
+  );
 }
 
 async function main(): Promise<void> {

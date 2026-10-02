@@ -95,6 +95,11 @@ const ASYNC_METHODS = new Set([
   'switchToYearly',
   'retrieveInvoice',
   'retrieveCharge',
+  'createCoupon',
+  'deleteCoupon',
+  'refund',
+  'creditCustomerBalance',
+  'createOneTimeCheckout',
 ]);
 
 /** Refreshes a dynamic provider (no-op for a plain one). */

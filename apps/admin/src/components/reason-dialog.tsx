@@ -2,7 +2,8 @@
 
 import { useCallback, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Label, Select } from '@/components/ui/input';
+import { Dialog } from '@/components/ui/dialog';
+import { Label, Select, Textarea } from '@/components/ui/input';
 
 export interface ReasonOptions {
   title: string;
@@ -67,30 +68,20 @@ function ReasonDialog({
     (opts.optionalText || trimmed.length >= min) && trimmed.length <= max;
 
   return (
-    <div
-      role="dialog"
-      aria-modal
-      aria-labelledby="reason-title"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-navy/60 p-4"
-      onKeyDown={(e) => {
-        if (e.key === 'Escape') onClose(null);
-      }}
+    <Dialog
+      open
+      onClose={() => onClose(null)}
+      title={opts.title}
+      description={opts.description}
+      eyebrow={opts.danger ? 'Подтверждение' : undefined}
     >
       <form
-        className="w-full max-w-md space-y-4 rounded-[var(--radius-lg)] bg-surface p-5 shadow-xl"
+        className="space-y-4"
         onSubmit={(e) => {
           e.preventDefault();
           if (ok) onClose({ text: trimmed, choice: choice || undefined });
         }}
       >
-        <div>
-          <h2 id="reason-title" className="text-lg font-semibold text-navy">
-            {opts.title}
-          </h2>
-          {opts.description ? (
-            <p className="mt-1 text-sm text-muted">{opts.description}</p>
-          ) : null}
-        </div>
         {opts.choices ? (
           <div className="space-y-1.5">
             <Label htmlFor="reason-choice">{opts.choiceLabel ?? 'Причина'}</Label>
@@ -111,20 +102,22 @@ function ReasonDialog({
           <Label htmlFor="reason-text">
             {opts.label ?? 'Комментарий'}
             {!opts.optionalText ? (
-              <span className="ml-1 text-xs text-muted">(не короче {min} символов)</span>
+              <span className="ml-1 text-xs font-normal text-muted">(не короче {min} символов)</span>
             ) : null}
           </Label>
-          <textarea
+          <Textarea
             id="reason-text"
             autoFocus
             rows={4}
             maxLength={max}
             value={text}
             onChange={(e) => setText(e.target.value)}
-            className="w-full rounded-[var(--radius-md)] border border-line bg-surface px-3 py-2 text-sm"
           />
-          <div className="text-right text-xs text-muted">
-            {trimmed.length}/{max}
+          <div className="flex justify-between text-xs text-faint">
+            <span>{!opts.optionalText && trimmed.length < min ? `ещё ${min - trimmed.length}` : ''}</span>
+            <span>
+              {trimmed.length}/{max}
+            </span>
           </div>
         </div>
         <div className="flex justify-end gap-2">
@@ -136,6 +129,6 @@ function ReasonDialog({
           </Button>
         </div>
       </form>
-    </div>
+    </Dialog>
   );
 }

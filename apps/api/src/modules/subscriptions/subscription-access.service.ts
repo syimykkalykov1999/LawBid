@@ -3,8 +3,13 @@ import type { Prisma } from '@prisma/client';
 import type Redis from 'ioredis';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
+import {
+  type ActiveGrant,
+  findActiveGrant,
+  type GrantDb,
+} from './contract-grant.util';
 
-type Db = Pick<Prisma.TransactionClient, 'subscription'>;
+type Db = Pick<Prisma.TransactionClient, 'subscription' | 'contractGrant'>;
 
 const CACHE_TTL_SECONDS = 60;
 const key = (userId: string) => `sub:active:${userId}`;
@@ -15,7 +20,8 @@ const key = (userId: string) => `sub:active:${userId}`;
  * SubscriptionAccessService.isActive()"). True when `status IN
  * ('trialing','active')`, or `past_due` inside the grace period
  * (`grace_ends_at`, set from `subscription.past_due_grace_days` when the
- * payment failed). Cached in Redis for 60 s; the webhook handler and the
+ * payment failed), or an unrevoked contract grant with starts_at <= now <
+ * ends_at (owner 2026-10-02). Cached in Redis for 60 s; the webhook handler and the
  * admin actions call `invalidate`. A transaction client (`db`) bypasses
  * the cache — the bid-accept path re-checks inside its own transaction.
  */
@@ -56,11 +62,18 @@ export class SubscriptionAccessService {
     );
   }
 
+  /** Owner 2026-10-02: the attorney's active contract grant (uncached). */
+  activeGrant(attorneyId: string, db?: GrantDb): Promise<ActiveGrant | null> {
+    return findActiveGrant(db ?? this.prisma, attorneyId);
+  }
+
   private async compute(attorneyId: string, db: Db): Promise<boolean> {
     const row = await db.subscription.findUnique({
       where: { user_id: attorneyId },
       select: { status: true, grace_ends_at: true },
     });
-    return SubscriptionAccessService.rowIsActive(row);
+    if (SubscriptionAccessService.rowIsActive(row)) return true;
+    // Owner 2026-10-02: a free subscription under a contract.
+    return (await findActiveGrant(db, attorneyId)) !== null;
   }
 }
