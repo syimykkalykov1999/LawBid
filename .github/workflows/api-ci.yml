@@ -209,9 +209,12 @@ jobs:
         # MinIO images and binaries are no longer pullable on the runner, and
         # the suites only need a plain S3 API on :9000.
         run: |
-          python3 -m pip install --quiet 'moto[server]'
+          # A venv: the runner's apt pyOpenSSL breaks against the newer
+          # cryptography that moto pulls in (moto died on import).
+          python3 -m venv /tmp/moto-venv
+          /tmp/moto-venv/bin/pip install --quiet 'moto[server]'
           # setsid: own session, so the runner's step cleanup cannot take it down.
-          setsid nohup python3 -m moto.server -H 0.0.0.0 -p 9000 > /tmp/moto.log 2>&1 < /dev/null &
+          setsid nohup /tmp/moto-venv/bin/python -m moto.server -H 0.0.0.0 -p 9000 > /tmp/moto.log 2>&1 < /dev/null &
           for i in $(seq 1 30); do curl -s -o /dev/null http://127.0.0.1:9000/ && exit 0; sleep 1; done
           echo "moto did not start"; cat /tmp/moto.log; exit 1
 
