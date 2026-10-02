@@ -175,6 +175,10 @@ abstract final class ApiErrorCodes {
   static const stickerLimitReached = 'STICKER_LIMIT_REACHED';
   // Audit 2026-10-02: support, referrals, promotions, promo codes.
   static const supportTicketClosed = 'SUPPORT_TICKET_CLOSED';
+  // Admin panel sign-in (never shown in the app, kept so the list matches).
+  static const adminCredentialsInvalid = 'ADMIN_CREDENTIALS_INVALID';
+  static const adminLoginTaken = 'ADMIN_LOGIN_TAKEN';
+  static const adminRecoveryFailed = 'ADMIN_RECOVERY_FAILED';
   static const referralCodeInvalid = 'REFERRAL_CODE_INVALID';
   static const referralNotAllowed = 'REFERRAL_NOT_ALLOWED';
   static const referralInvalidState = 'REFERRAL_INVALID_STATE';
@@ -324,6 +328,9 @@ abstract final class ApiErrorCodes {
     videoNotReady,
     stickerLimitReached,
     supportTicketClosed,
+    adminCredentialsInvalid,
+    adminLoginTaken,
+    adminRecoveryFailed,
     referralCodeInvalid,
     referralNotAllowed,
     referralInvalidState,

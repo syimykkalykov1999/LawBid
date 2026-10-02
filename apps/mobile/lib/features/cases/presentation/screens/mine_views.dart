@@ -43,15 +43,13 @@ class ClientMineView extends ConsumerStatefulWidget {
 class _ClientMineViewState extends ConsumerState<ClientMineView> {
   _ClientTab _tab = _ClientTab.planner;
   _CaseSection _section = _CaseSection.open;
-  bool _archived = false;
   MineSearch _search = const MineSearch();
 
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
     final filter = switch (_section) {
-      _CaseSection.open =>
-        _archived ? MyCasesFilter.archived : MyCasesFilter.open,
+      _CaseSection.open => MyCasesFilter.open,
       _CaseSection.inProgress => MyCasesFilter.inProgress,
       _CaseSection.completed => MyCasesFilter.closed,
     };
@@ -81,17 +79,6 @@ class _ClientMineViewState extends ConsumerState<ClientMineView> {
               ],
               onChanged: (v) => setState(() => _section = v),
             ),
-            if (_section == _CaseSection.open) ...[
-              const SizedBox(height: AppSpacing.sm),
-              FilterChips<bool>(
-                value: _archived,
-                options: [
-                  (false, t.t('mine.filter.active')),
-                  (true, t.t('mine.filter.archived')),
-                ],
-                onChanged: (v) => setState(() => _archived = v),
-              ),
-            ],
             const SizedBox(height: AppSpacing.sm),
             Expanded(child: _ClientCasesGrid(filter: filter, search: _search)),
           ],
