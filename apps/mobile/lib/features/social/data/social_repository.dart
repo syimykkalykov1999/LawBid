@@ -31,7 +31,11 @@ class PostDraft {
     this.practiceCode,
     this.isNews = false,
     this.mediaFileIds = const [],
+    this.videoAssetId,
   });
+
+  /// Owner 2026-10-01: a reel — the uploaded video instead of photos.
+  final String? videoAssetId;
 
   final String title;
   final String body;
@@ -318,6 +322,7 @@ class ApiSocialRepository implements SocialRepository {
               body: draft.body,
               mediaFileIds:
                   draft.mediaFileIds.isEmpty ? null : draft.mediaFileIds,
+              videoAssetId: draft.videoAssetId,
             ),
             extras: _createsResource,
           ),
@@ -728,6 +733,16 @@ abstract final class SocialMappers {
         createdAt: DateTime.parse(d.createdAt),
         editedAt: d.editedAt == null ? null : DateTime.parse(d.editedAt!),
         status: d.status.name,
+        video: d.video == null
+            ? null
+            : PostVideo(
+                status: d.video!.status.json ?? d.video!.status.name,
+                playbackUrl: d.video!.playbackUrl,
+                thumbnailUrl: d.video!.thumbnailUrl,
+                durationSec: d.video!.durationSec,
+                width: d.video!.width,
+                height: d.video!.height,
+              ),
       );
 
   static Comment comment(api.CommentDto d) => Comment(

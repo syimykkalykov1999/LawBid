@@ -17,6 +17,7 @@ CreatePostDto _$CreatePostDtoFromJson(Map<String, dynamic> json) =>
       mediaFileIds: (json['mediaFileIds'] as List<dynamic>?)
           ?.map((e) => e as String)
           .toList(),
+      videoAssetId: json['videoAssetId'] as String?,
     );
 
 Map<String, dynamic> _$CreatePostDtoToJson(CreatePostDto instance) =>
@@ -26,4 +27,5 @@ Map<String, dynamic> _$CreatePostDtoToJson(CreatePostDto instance) =>
       'kind': instance.kind.toJson(),
       'body': instance.body,
       'mediaFileIds': ?instance.mediaFileIds,
+      'videoAssetId': ?instance.videoAssetId,
     };

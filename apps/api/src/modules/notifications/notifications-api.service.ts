@@ -165,6 +165,8 @@ export class NotificationsApiService {
         },
       });
     }
+    // Owner 2026-10-02: a switched-off category leaves the badges at once.
+    await this.badges.settingsChanged(userId);
     return this.settings(userId);
   }
 

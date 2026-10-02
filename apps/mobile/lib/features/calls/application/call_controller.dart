@@ -13,6 +13,8 @@ import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/chat/data/realtime_client.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
+import 'package:lawbid/features/notifications/application/notifications_providers.dart';
+import 'package:lawbid/features/notifications/data/notifications_repository.dart' show NotifCategory;
 
 /// What the call screen shows (OQ-041).
 enum CallPhase {
@@ -278,6 +280,9 @@ class CallController extends Notifier<CallSession> {
   void _ring(AppCall call, {bool showSystemUi = true}) {
     _reset();
     state = CallSession(phase: CallPhase.incoming, call: call, peer: call.peer);
+    // Owner 2026-10-02: "Calls" off in Settings → the call still comes
+    // (the in-app screen), but without the ringing system UI or a buzz.
+    if (isCategoryMuted(ref, NotifCategory.calls)) return;
     unawaited(HapticFeedback.heavyImpact());
     if (showSystemUi) {
       unawaited(ref.read(systemCallUiProvider).showIncoming(call));

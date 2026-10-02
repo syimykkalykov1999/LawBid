@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Owner 2026-10-02: the silent ringtone is referenced by name from Dart
+     (calls switched off in Settings), so the shrinker must keep it. -->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@raw/silence" />

@@ -12,6 +12,8 @@ enum ContentStatus {
   hidden('hidden'),
   @JsonValue('removed')
   removed('removed'),
+  @JsonValue('processing')
+  processing('processing'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

@@ -38,7 +38,10 @@ import {
   OrganizeConversationDto,
 } from './chat.dto';
 import { ChatService } from './chat.service';
-import { RequiresDuty } from '../auth/assistant/assistant-context';
+import {
+  RequiresDuty,
+  AttorneyOnly,
+} from '../auth/assistant/assistant-context';
 
 /** docs/05 §8, §15 "Чаты" (stage 5.7). */
 @ApiTags('chat')
@@ -192,6 +195,8 @@ export class ChatController {
     return this.chat.read(user, p.id, dto.lastReadMessageId);
   }
 
+  // Audit 2026-10-02: these are the attorney's own chat settings.
+  @AttorneyOnly()
   @Patch(':id/organize')
   @ApiOperation({
     summary:
@@ -210,6 +215,8 @@ export class ChatController {
     return this.chat.organize(user, p.id, dto);
   }
 
+  // Audit 2026-10-02: these are the attorney's own chat settings.
+  @AttorneyOnly()
   @Patch(':id/mute')
   @ApiOperation({ summary: 'Mute push until a time; null unmutes (§8.4)' })
   @ApiEnvelopeResponse(ConversationDto)

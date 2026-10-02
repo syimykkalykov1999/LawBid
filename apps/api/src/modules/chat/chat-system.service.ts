@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
+import { BadgesService } from '../notifications/badges.service';
 import { RealtimePublisher } from '../realtime/realtime-publisher.service';
 
 /** docs/05 §8.2 system messages; the app localizes `chat.system.<key>`. */
@@ -22,7 +23,10 @@ export interface ChatChange {
  */
 @Injectable()
 export class ChatSystemMessages {
-  constructor(private readonly realtime: RealtimePublisher) {}
+  constructor(
+    private readonly realtime: RealtimePublisher,
+    private readonly badges: BadgesService,
+  ) {}
 
   async post(
     tx: Prisma.TransactionClient,
@@ -68,6 +72,11 @@ export class ChatSystemMessages {
       this.realtime.toUsers(c.userIds, 'conversation:update', {
         conversationId: c.conversationId,
       });
+      // A system line is unread for both sides: recount their chat badges
+      // (it used to drift until the next recount).
+      for (const uid of c.userIds) {
+        void this.badges.chatsChanged(uid).catch(() => undefined);
+      }
     }
   }
 }

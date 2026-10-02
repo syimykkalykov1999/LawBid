@@ -118,8 +118,8 @@ export class PushDispatcher
   }
 
   /** OQ-041: ring the callee while the call is still ringing. Calls ring
-   * through quiet hours and chat mute, like a phone; only a blocked,
-   * inactive or opted-out ("messages" off) recipient is skipped. */
+   * through quiet hours and chat mute, like a phone; only a blocked or
+   * inactive recipient is skipped ("calls" off = rings silently). */
   private async dispatchCall(data: CallJobData): Promise<DispatchResult> {
     const call = await this.prisma.call.findUnique({
       where: { id: data.callId },
@@ -134,9 +134,9 @@ export class PushDispatcher
     });
     if (!call || call.callee.status !== 'active') return 'no_user';
     if (call.status !== 'ringing') return 'no_push';
-    if (!(await this.pushAllowed(data.recipientId, 'calls'))) {
-      return 'disabled';
-    }
+    // Owner 2026-10-02: calls switched off still come through — silently
+    // (no ringtone), so a call is never lost.
+    const silent = !(await this.pushAllowed(data.recipientId, 'calls'));
     const name =
       [call.caller.first_name, call.caller.last_name]
         .filter(Boolean)
@@ -154,6 +154,7 @@ export class PushDispatcher
           callId: data.callId,
           conversationId: call.conversation_id,
           callerName: name,
+          ...(silent ? { silent: '1' } : {}),
         },
         call: true,
       },
@@ -173,6 +174,7 @@ export class PushDispatcher
         type: true,
         category: true,
         payload: true,
+        read_at: true,
         user_id: true,
         user: {
           select: {
@@ -195,6 +197,8 @@ export class PushDispatcher
       await this.badges.notificationsChanged(n.user_id);
     }
     if (data.push === false) return 'no_push';
+    // Audit 2026-10-02: read in the app while quiet hours held it → no push.
+    if (data.deferred && n.read_at) return 'no_push';
     if (!(await this.pushAllowed(n.user_id, n.category))) return 'disabled';
     if (!data.deferred && !QUIET_EXEMPT.has(n.type)) {
       const until = await this.quietUntil(n.user_id);
@@ -258,11 +262,15 @@ export class PushDispatcher
             user_id: data.recipientId,
           },
         },
-        select: { muted_until: true },
+        select: {
+          muted_until: true,
+          last_read_message_id: true,
+        },
       }),
       this.prisma.message.findUnique({
         where: { id: data.messageId },
         select: {
+          created_at: true,
           body_display: true,
           type: true,
           deleted_at: true,
@@ -274,6 +282,17 @@ export class PushDispatcher
       return 'no_user';
     }
     if (message.deleted_at) return 'no_push';
+    // Audit 2026-10-02: a push held by quiet hours is dropped when the
+    // message was read in the meantime.
+    if (data.deferred && part.last_read_message_id) {
+      const lastRead = await this.prisma.message.findUnique({
+        where: { id: part.last_read_message_id },
+        select: { created_at: true },
+      });
+      if (lastRead && lastRead.created_at >= message.created_at) {
+        return 'no_push';
+      }
+    }
     if (part.muted_until && part.muted_until > new Date()) return 'muted';
     if (await this.realtime.isViewing(data.recipientId, data.conversationId)) {
       return 'viewing';
@@ -302,7 +321,12 @@ export class PushDispatcher
         : // OQ-047: say what was attached; the file name stays private.
           message.type === 'attachment'
           ? (ru ? '📎 Файл' : '📎 File') + (caption ? `: ${caption}` : '')
-          : caption;
+          : // Owner 2026-10-01: a sticker.
+            message.type === 'sticker'
+            ? ru
+              ? 'Стикер'
+              : 'Sticker'
+            : caption;
     // Owner 2026-10-01: an assistant's message says so (not who exactly).
     const from = message.sent_by_name
       ? ru

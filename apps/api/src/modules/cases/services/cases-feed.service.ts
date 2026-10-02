@@ -97,7 +97,10 @@ export class CasesFeedService {
       ${query.budgetMin !== undefined ? Prisma.sql`AND c.budget_cents >= ${query.budgetMin * 100}` : Prisma.empty}
       ${query.budgetMax !== undefined ? Prisma.sql`AND c.budget_cents <= ${query.budgetMax * 100}` : Prisma.empty}
       ${query.budgetUnknown ? Prisma.sql`AND c.budget_mode = 'clarify_later'` : Prisma.empty}
-      ${query.noBids ? Prisma.sql`AND c.bids_count = 0` : Prisma.empty}`;
+      ${query.noBids ? Prisma.sql`AND c.bids_count = 0` : Prisma.empty}
+      AND NOT EXISTS (SELECT 1 FROM user_blocks ub
+        WHERE (ub.blocker_id = ${viewer.userId}::UUID AND ub.blocked_id = c.client_id)
+           OR (ub.blocker_id = c.client_id AND ub.blocked_id = ${viewer.userId}::UUID))`;
     const rows = await this.prisma.$queryRaw<
       { id: string; created_at: Date }[]
     >(

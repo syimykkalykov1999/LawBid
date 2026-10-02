@@ -1,3 +1,4 @@
+import { RequiresDuty } from '../auth/assistant/assistant-context';
 import {
   Body,
   Controller,
@@ -55,6 +56,8 @@ const E = ErrorCode;
 export class CasesFeedController {
   constructor(private readonly feed: CasesFeedService) {}
 
+  // Audit 2026-10-02: assistants need the "cases" duty.
+  @RequiresDuty('cases')
   @Get('cases')
   @ApiOperation({ summary: 'Attorney case feed (docs/04 §4.2)' })
   @ApiEnvelopeResponse(CaseFeedItemDto, { isArray: true })
@@ -66,6 +69,8 @@ export class CasesFeedController {
     return this.feed.listFeed({ userId: user.sub, role: user.role }, query);
   }
 
+  // Audit 2026-10-02: assistants need the "cases" duty.
+  @RequiresDuty('cases')
   @Get('cases/:id')
   @ApiOperation({
     summary: 'Case detail for an attorney (docs/04 §4.3, no client field)',
@@ -79,6 +84,8 @@ export class CasesFeedController {
     return this.feed.getDetailForAttorney(user.sub, params.id);
   }
 
+  // Audit 2026-10-02: assistants need the "cases" duty.
+  @RequiresDuty('cases')
   @Post('cases/:id/view')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({

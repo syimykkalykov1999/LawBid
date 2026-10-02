@@ -1,4 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
+import type { NotificationCategory } from '@prisma/client';
+import { DEFAULT_PUSH, LOCKED_CATEGORIES } from './notification-rules';
 import type Redis from 'ioredis';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
@@ -73,8 +75,38 @@ export class BadgesService {
     }
   }
 
+  /**
+   * Owner 2026-10-02: a category the user switched off in Settings →
+   * Notifications still delivers (the chat, the bell list, the call) but
+   * never counts on a badge, pushes or rings. Unset categories follow the
+   * §9.5 defaults; `system` can't be switched off.
+   */
+  async mutedCategories(userId: string): Promise<Set<NotificationCategory>> {
+    const rows = await this.prisma.notificationSetting.findMany({
+      where: { user_id: userId },
+      select: { category: true, push_enabled: true },
+    });
+    const set = new Map(rows.map((r) => [r.category, r.push_enabled]));
+    const muted = new Set<NotificationCategory>();
+    for (const c of Object.keys(DEFAULT_PUSH) as NotificationCategory[]) {
+      if (LOCKED_CATEGORIES.has(c)) continue;
+      if (!(set.get(c) ?? DEFAULT_PUSH[c])) muted.add(c);
+    }
+    return muted;
+  }
+
+  /** Settings → Notifications changed: recount both badges. */
+  async settingsChanged(userId: string): Promise<void> {
+    await this.rebuild(userId);
+    await this.publish(userId);
+  }
+
   /** A message for [userId] arrived (after commit). */
   async messageArrived(userId: string): Promise<void> {
+    if ((await this.mutedCategories(userId)).has('messages')) {
+      await this.publish(userId);
+      return;
+    }
     // Only bumps an existing counter (a missing hash is rebuilt on read):
     // one atomic round trip.
     await this.redis.eval(
@@ -122,15 +154,18 @@ export class BadgesService {
 
   /** Partial index notifications_user_unread_idx; stops at the cap. */
   private async countNotifications(userId: string): Promise<number> {
+    const muted = [...(await this.mutedCategories(userId))].map(String);
     const [row] = await this.prisma.$queryRaw<{ n: bigint }[]>`
       SELECT count(*) AS n FROM (
         SELECT 1 FROM notifications
         WHERE user_id = ${userId}::UUID AND read_at IS NULL
+          AND NOT (category::STRING = ANY(${muted}::STRING[]))
         LIMIT ${NOTIFS_CAP}) x`;
     return Number(row?.n ?? 0);
   }
 
   private async countChats(userId: string): Promise<number> {
+    if ((await this.mutedCategories(userId)).has('messages')) return 0;
     // Per chat at most UNREAD_CAP rows are read (the index on
     // messages(conversation_id, created_at DESC) stops each scan early).
     const [row] = await this.prisma.$queryRaw<{ n: bigint }[]>`
@@ -144,8 +179,13 @@ export class BadgesService {
           ORDER BY m.created_at DESC
           LIMIT ${UNREAD_CAP}) x)), 0)::INT8 AS n
       FROM conversation_participants cp
+      JOIN conversations c ON c.id = cp.conversation_id
       LEFT JOIN messages lr ON lr.id = cp.last_read_message_id
-      WHERE cp.user_id = ${userId}::UUID`;
+      WHERE cp.user_id = ${userId}::UUID
+        -- Message requests sent to me (pending or declined) never count:
+        -- the same rule as the "All" folder (OQ-043).
+        AND (c.request_status::STRING IN ('none', 'accepted')
+             OR c.requested_by = ${userId}::UUID)`;
     return Number(row?.n ?? 0);
   }
 }

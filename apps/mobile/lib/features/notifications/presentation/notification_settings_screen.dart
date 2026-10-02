@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/features/notifications/presentation/new_case_alerts_section.dart';
@@ -38,6 +40,9 @@ class _NotificationSettingsScreenState
     try {
       final saved = await call();
       if (mounted) setState(() => _local = saved);
+      // Owner 2026-10-02: chimes, ringing and badges follow at once.
+      ref.invalidate(mutedCategoriesProvider);
+      unawaited(ref.read(badgesProvider.notifier).refresh());
     } on Object catch (e) {
       if (!mounted) return;
       setState(() => _local = before);
@@ -144,6 +149,14 @@ class _NotificationSettingsScreenState
               children: [
                 Text(t.t('notif.settings.categories'),
                     style: type.titleMedium.copyWith(color: colors.text)),
+                // Owner 2026-10-02: what "off" means.
+                Padding(
+                  padding: const EdgeInsets.only(top: AppSpacing.xs),
+                  child: Text(
+                    t.t('notif.settings.offHint'),
+                    style: type.caption.copyWith(color: colors.textSecondary),
+                  ),
+                ),
                 const SizedBox(height: AppSpacing.sm),
                 for (final c in s.categories)
                   if (c.category != NotifCategory.marketing &&

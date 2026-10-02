@@ -410,6 +410,20 @@ export class FilesService {
     return out;
   }
 
+  /** Owner 2026-10-01: public links of clean sticker images. */
+  async stickerUrls(fileIds: string[]): Promise<Map<string, string>> {
+    const out = new Map<string, string>();
+    if (fileIds.length === 0) return out;
+    const files = await this.prisma.file.findMany({
+      where: { id: { in: fileIds }, purpose: 'sticker' },
+    });
+    for (const file of files) {
+      const url = await this.mediaUrlOf(file);
+      if (url) out.set(file.id, url);
+    }
+    return out;
+  }
+
   /**
    * OQ-031: short-lived signed links for clean case photos (documents
    * bucket — never the CDN), in [fileIds] order. The caller decides who

@@ -105,6 +105,34 @@ class PostPractice {
   final String i18nKey;
 }
 
+/// Owner 2026-10-01: a reel's video (Bunny Stream). [playbackUrl] is an
+/// HLS playlist, null until the video is ready.
+class PostVideo {
+  const PostVideo({
+    required this.status,
+    this.playbackUrl,
+    this.thumbnailUrl,
+    this.durationSec,
+    this.width,
+    this.height,
+  });
+
+  /// `awaiting_upload` | `processing` | `ready` | `failed` | `rejected` | `deleted`.
+  final String status;
+  final String? playbackUrl;
+  final String? thumbnailUrl;
+  final int? durationSec;
+  final int? width;
+  final int? height;
+
+  bool get ready => status == 'ready' && playbackUrl != null;
+
+  /// Width / height; reels default to 9:16.
+  double get aspectRatio => (width != null && height != null && height! > 0)
+      ? width! / height!
+      : 9 / 16;
+}
+
 class Post {
   const Post({
     required this.id,
@@ -125,7 +153,11 @@ class Post {
     this.title,
     this.isNews = false,
     this.practice,
+    this.video,
   });
+
+  /// Owner 2026-10-01: a reel — the post's video instead of photos.
+  final PostVideo? video;
 
   /// Owner 2026-09-30: the card title; null on older posts (the body's
   /// first line is shown instead).
@@ -193,6 +225,7 @@ class Post {
         title: title ?? this.title,
         isNews: isNews,
         practice: practice ?? this.practice,
+        video: video,
       );
 }
 

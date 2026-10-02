@@ -120,6 +120,8 @@ enum FilePurpose {
   task_attachment
   // Owner 2026-10-01: photos in reviews (public media, like posts).
   review_photo
+  // Owner 2026-10-01: a sticker image (public media, ≤512 px).
+  sticker
 
   @@map("file_purpose")
 }
@@ -392,6 +394,8 @@ enum MessageType {
   call
   // OQ-047: a photo or a document (file_id, file_name, optional caption).
   attachment
+  // Owner 2026-10-01: a Telegram-style sticker (messages.sticker_id).
+  sticker
 
   @@map("message_type")
 }
@@ -607,6 +611,9 @@ model User {
   last_active_at          DateTime?               @db.Timestamptz
   integration_credentials IntegrationCredential[] @relation("IntegrationCredentialCreator")
   video_assets            VideoAsset[]            @relation("VideoAssetOwner")
+  sticker_packs           StickerPack[]           @relation("StickerPackOwner")
+  installed_sticker_packs UserStickerPack[]
+  recent_stickers         UserRecentSticker[]
   /// Owner 2026-10-01: others see "online / last seen" (reciprocal).
   show_activity_status    Boolean                 @default(true)
   deletion_requested_at   DateTime?               @db.Timestamptz
@@ -732,6 +739,7 @@ model File {
   post_media     PostMedia[]
   case_photos    CasePhoto[]
   voice_messages Message[]   @relation("MessageVoice")
+  sticker        Sticker?
 
   @@index([owner_user_id])
   @@map("files")
@@ -1813,12 +1821,16 @@ model Message {
   sent_by_membership_id String?      @db.Uuid
   sent_by_name          String?      @db.String(80)
   listened_at           DateTime?    @db.Timestamptz
+  // Owner 2026-10-01: a sticker message.
+  sticker_id            String?      @db.Uuid
+  sticker               Sticker?     @relation(fields: [sticker_id], references: [id], onDelete: SetNull)
   deleted_at            DateTime?    @db.Timestamptz
   created_at            DateTime     @default(now()) @db.Timestamptz
   updated_at            DateTime     @updatedAt @db.Timestamptz
 
   @@unique([conversation_id, sender_id, client_message_id])
   @@index([file_id])
+  @@index([sticker_id])
   @@index([conversation_id, created_at(sort: Desc)])
   // docs/06 §5.1: anonymization scrubs a user's messages by sender.
   @@index([sender_id])
@@ -2576,4 +2588,69 @@ model VideoAsset {
   @@index([status, created_at])
   @@index([owner_user_id, created_at(sort: Desc)])
   @@map("video_assets")
+}
+
+// Owner 2026-10-01: Telegram-style sticker packs. owner_user_id NULL =
+// official (admin panel); status `hidden` = taken down by moderation.
+model StickerPack {
+  id            String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  owner_user_id String?           @db.Uuid
+  owner         User?             @relation("StickerPackOwner", fields: [owner_user_id], references: [id], onDelete: Cascade)
+  title         String            @db.String(64)
+  short_name    String            @unique @db.String(40)
+  is_official   Boolean           @default(false)
+  status        String            @default("active") @db.String(16)
+  sticker_count Int               @default(0)
+  install_count Int               @default(0)
+  created_at    DateTime          @default(now()) @db.Timestamptz
+  updated_at    DateTime          @default(now()) @updatedAt @db.Timestamptz
+  deleted_at    DateTime?         @db.Timestamptz
+  stickers      Sticker[]
+  installs      UserStickerPack[]
+
+  @@index([owner_user_id, created_at(sort: Desc)], map: "sticker_packs_owner_idx")
+  @@index([is_official, status, install_count(sort: Desc)], map: "sticker_packs_official_idx")
+  @@map("sticker_packs")
+}
+
+model Sticker {
+  id         String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  pack_id    String              @db.Uuid
+  pack       StickerPack         @relation(fields: [pack_id], references: [id], onDelete: Cascade)
+  file_id    String              @unique @db.Uuid
+  file       File                @relation(fields: [file_id], references: [id], onDelete: Restrict)
+  emoji      String              @default("🙂") @db.String(16)
+  position   Int                 @default(0)
+  created_at DateTime            @default(now()) @db.Timestamptz
+  deleted_at DateTime?           @db.Timestamptz
+  messages   Message[]
+  recent     UserRecentSticker[]
+
+  @@index([pack_id, position], map: "stickers_pack_position_idx")
+  @@map("stickers")
+}
+
+model UserStickerPack {
+  user_id      String      @db.Uuid
+  user         User        @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  pack_id      String      @db.Uuid
+  pack         StickerPack @relation(fields: [pack_id], references: [id], onDelete: Cascade)
+  position     Int         @default(0)
+  installed_at DateTime    @default(now()) @db.Timestamptz
+
+  @@id([user_id, pack_id])
+  @@index([pack_id], map: "user_sticker_packs_pack_idx")
+  @@map("user_sticker_packs")
+}
+
+model UserRecentSticker {
+  user_id    String   @db.Uuid
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  sticker_id String   @db.Uuid
+  sticker    Sticker  @relation(fields: [sticker_id], references: [id], onDelete: Cascade)
+  used_at    DateTime @default(now()) @db.Timestamptz
+
+  @@id([user_id, sticker_id])
+  @@index([user_id, used_at(sort: Desc)], map: "user_recent_stickers_used_idx")
+  @@map("user_recent_stickers")
 }

@@ -551,4 +551,24 @@ abstract final class AppIcons {
       IconData(0xe0ee, fontFamily: fillFamily);
   static const IconData workspacePremiumOutlined =
       IconData(0xe616, fontFamily: lightFamily);
+
+  // Owner 2026-10-01: reels and stickers.
+  static const IconData videoCameraOutlined =
+      IconData(0xe4da, fontFamily: lightFamily);
+  static const IconData filmReelOutlined =
+      IconData(0xe8c0, fontFamily: lightFamily);
+  static const IconData filmReelRounded =
+      IconData(0xe8c0, fontFamily: fillFamily);
+  static const IconData speakerHigh =
+      IconData(0xe44a, fontFamily: fillFamily);
+  static const IconData speakerSlash =
+      IconData(0xe45a, fontFamily: fillFamily);
+  static const IconData playCircleRounded =
+      IconData(0xe3d2, fontFamily: fillFamily);
+  static const IconData stickerOutlined =
+      IconData(0xe5ac, fontFamily: lightFamily);
+  static const IconData keyboardRounded =
+      IconData(0xe2d8, fontFamily: lightFamily);
+  static const IconData smileyStickerOutlined =
+      IconData(0xe440, fontFamily: lightFamily);
 }

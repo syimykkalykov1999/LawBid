@@ -1,3 +1,4 @@
+import { PostsModule } from '../modules/posts/posts.module';
 import { DynamicModule, Module } from '@nestjs/common';
 import { DISPOSABLE_DOMAINS_FETCHER, JOBS_OPTIONS } from './jobs.constants';
 import { JobsRunner, type JobsModuleOptions } from './jobs.runner';
@@ -50,6 +51,7 @@ export class JobsModule {
         SubscriptionsModule,
         BidsModule,
         CaseLifecycleModule,
+        PostsModule,
       ],
       providers: [
         { provide: JOBS_OPTIONS, useValue: options },

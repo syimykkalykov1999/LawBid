@@ -83,7 +83,9 @@ class TeamInfo {
   bool get hasFreeSeat => used < seats;
 }
 
-enum AssistantState { none, invited, active }
+/// Audit 2026-10-02: paused = joined, but the attorney's subscription
+/// lapsed.
+enum AssistantState { none, invited, active, paused }
 
 /// `GET /assistants/me` — the assistant's own view of their team.
 @immutable

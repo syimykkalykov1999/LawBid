@@ -1,3 +1,4 @@
+import type { PostVideosService } from '../modules/posts/post-videos.service';
 import type { ConfigService } from '@nestjs/config';
 import type { PinoLogger } from 'nestjs-pino';
 import { Queue, Worker } from 'bullmq';
@@ -137,6 +138,9 @@ function processor() {
       {
         sweepAppeals: jest.fn(() => Promise.resolve(0)),
       } as unknown as ClientReviewsService,
+      {
+        sweep: jest.fn(() => Promise.resolve({})),
+      } as unknown as PostVideosService,
     ),
   };
 }
@@ -161,8 +165,8 @@ describe('JobsRunner', () => {
     const upserts = mocked.__queue.upsertJobScheduler.mock.calls;
     expect(upserts).toHaveLength(CRON_SCHEDULES.length);
     // OQ-041: + calls.sweep every minute; owner 2026-09-30: + the hourly
-    // review-appeal sweep.
-    expect(upserts).toHaveLength(23);
+    // review-appeal sweep; owner 2026-10-01: + videos.sweep every 5 min.
+    expect(upserts).toHaveLength(24);
     const byName = Object.fromEntries(
       upserts.map((c: unknown[]) => [c[0], c[1]]),
     );

@@ -37,7 +37,10 @@ export interface PurposeRule {
   readonly mimes: readonly FileMime[];
   /** app_config key holding the size limit in MB (docs/03 §9). */
   readonly sizeSetting:
-    'files.max_size_mb' | 'files.avatar_max_size_mb' | 'files.chat_max_size_mb';
+    | 'files.max_size_mb'
+    | 'files.avatar_max_size_mb'
+    | 'files.chat_max_size_mb'
+    | 'files.sticker_max_size_mb';
   /** Verification files live in the documents bucket (docs/02 §1.6),
    * avatars and post photos in the media bucket (docs/06 §6). */
   readonly bucket: BucketKind;
@@ -66,6 +69,13 @@ export const PURPOSE_RULES: Record<FilePurpose, PurposeRule> = {
   post_image: {
     mimes: IMAGES,
     sizeSetting: 'files.max_size_mb',
+    bucket: 'media',
+  },
+  // Owner 2026-10-01: sticker images — PNG/WebP with transparency, kept
+  // as uploaded (the app sends ≤512 px), public like post photos.
+  sticker: {
+    mimes: [FILE_MIME.png, FILE_MIME.webp, FILE_MIME.jpeg, FILE_MIME.gif],
+    sizeSetting: 'files.sticker_max_size_mb',
     bucket: 'media',
   },
   // Owner 2026-10-01: photos in reviews — public like post photos.

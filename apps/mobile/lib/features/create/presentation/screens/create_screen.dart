@@ -6,6 +6,8 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/cases/presentation/screens/create_case_screen.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/social/presentation/screens/create_post_screen.dart';
+import 'package:lawbid/features/reels/application/reels_providers.dart';
+import 'package:lawbid/features/reels/presentation/create_reel_screen.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
@@ -23,7 +25,7 @@ class CreateScreen extends ConsumerStatefulWidget {
 
 // OQ-048: [task] — the attorney's own task or an assistant's task for them.
 // Owner 2026-10-01: News is a switch inside the post, not its own entry.
-enum _Kind { caseKind, post, task }
+enum _Kind { caseKind, post, reel, task }
 
 class _CreateScreenState extends ConsumerState<CreateScreen> {
   _Kind? _kind;
@@ -34,6 +36,7 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
     return switch (_kind) {
       _Kind.caseKind => const CreateCaseScreen(),
       _Kind.post => const CreatePostScreen(),
+      _Kind.reel => const CreateReelScreen(),
       _Kind.task => const TaskEditorScreen(),
       null => _Chooser(
           attorney: attorney,
@@ -59,6 +62,8 @@ class _Chooser extends ConsumerWidget {
     final canPost = ref.watch(canDoProvider(AssistantDuty.posts)) ||
         ref.watch(canDoProvider(AssistantDuty.publish));
     final direct = ref.watch(canDoProvider(AssistantDuty.publish));
+    // Owner 2026-10-01: hidden until video_posts + Bunny keys are on.
+    final reels = ref.watch(reelsEnabledProvider);
 
     Widget option(_Kind kind, IconData icon, String title, String sub) =>
         Semantics(
@@ -109,6 +114,12 @@ class _Chooser extends ConsumerWidget {
           ),
         );
 
+    List<Widget> reel() => [
+          const SizedBox(height: AppSpacing.md),
+          option(_Kind.reel, AppIcons.filmReelOutlined, t.t('reels.create'),
+              t.t('reels.create.sub')),
+        ];
+
     return Scaffold(
       backgroundColor: colors.bg,
       appBar: AppTopBar(
@@ -137,12 +148,14 @@ class _Chooser extends ConsumerWidget {
                       t.t(direct
                           ? 'create.post.subAttorney'
                           : 'assistant.plus.post.hint')),
+                  if (reels && direct) ...reel(),
                 ],
               ]
             : attorney
             ? [
                 option(_Kind.post, AppIcons.editNoteRounded, t.t('create.post'),
                     t.t('create.post.subAttorney')),
+                if (reels) ...reel(),
                 const SizedBox(height: AppSpacing.md),
                 option(_Kind.task, AppIcons.eventNoteOutlined,
                     t.t('tasks.forMe'), t.t('assistant.plus.task.hint')),
@@ -153,6 +166,7 @@ class _Chooser extends ConsumerWidget {
                 const SizedBox(height: AppSpacing.md),
                 option(_Kind.post, AppIcons.editNoteRounded, t.t('create.post'),
                     t.t('create.post.sub')),
+                if (reels) ...reel(),
                 const SizedBox(height: AppSpacing.md),
                 // Owner 2026-10-01: clients keep a planner too.
                 option(_Kind.task, AppIcons.eventNoteOutlined,

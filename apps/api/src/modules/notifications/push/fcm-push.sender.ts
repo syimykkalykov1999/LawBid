@@ -90,11 +90,18 @@ export class FcmPushSender implements PushSender {
                 ...(message.call ? { headers: { 'apns-priority': '10' } } : {}),
                 payload: {
                   aps: {
-                    sound: 'default',
+                    // Owner 2026-10-02: a call the user switched off in
+                    // Settings arrives without sound (data.silent = '1').
+                    ...(message.call && message.data?.silent === '1'
+                      ? {}
+                      : { sound: 'default' }),
                     ...(message.call
                       ? {
                           alert: { title: message.title, body: message.body },
-                          'interruption-level': 'time-sensitive',
+                          'interruption-level':
+                            message.data?.silent === '1'
+                              ? 'active'
+                              : 'time-sensitive',
                         }
                       : {}),
                     ...(message.badge !== undefined

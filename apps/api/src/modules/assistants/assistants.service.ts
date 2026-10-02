@@ -87,7 +87,12 @@ export class AssistantsService {
     const active = await this.prisma.assistantMembership.findFirst({
       where: { assistant_user_id: assistantId, status: 'active' },
     });
-    if (active) return this.meOf('active', active);
+    if (active) {
+      return this.meOf(
+        (await this.access.isActive(active.attorney_id)) ? 'active' : 'paused',
+        active,
+      );
+    }
     const invite = await this.inviteFor(assistantId);
     if (invite) return this.meOf('invited', invite);
     return {
@@ -102,7 +107,7 @@ export class AssistantsService {
   }
 
   private async meOf(
-    state: 'invited' | 'active',
+    state: 'invited' | 'active' | 'paused',
     m: AssistantMembership,
   ): Promise<AssistantMeDto> {
     const a = await this.prisma.user.findUnique({

@@ -1,3 +1,6 @@
+import 'package:flutter/services.dart' show HapticFeedback;
+import 'package:lawbid/features/stickers/application/stickers_providers.dart';
+import 'package:lawbid/features/stickers/domain/sticker_models.dart';
 import 'dart:typed_data';
 import 'dart:async';
 
@@ -17,6 +20,8 @@ import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/data/social_local_database.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
+import 'package:lawbid/features/notifications/application/notifications_providers.dart';
+import 'package:lawbid/features/notifications/data/notifications_repository.dart' show NotifCategory;
 
 Duration? _noRetry(int retryCount, Object error) => null;
 
@@ -503,6 +508,54 @@ class ChatThread extends Notifier<ChatThreadState> {
     await _uploadAttachment(local);
   }
 
+  /// Owner 2026-10-01: a sticker — shown at once, sent in the background,
+  /// Retry on failure like a voice note.
+  Future<void> sendSticker(ChatSticker sticker) async {
+    final owner = ref.read(currentUserIdProvider);
+    if (owner == null) return;
+    final cmid = newClientMessageId();
+    final local = ChatMessage(
+      id: 'local:$cmid',
+      conversationId: id,
+      senderId: owner,
+      kind: MessageKind.sticker,
+      body: '',
+      clientMessageId: cmid,
+      createdAt: DateTime.now(),
+      delivery: DeliveryState.sending,
+      sticker: sticker,
+    );
+    state = state.copyWith(voiceOutbox: [...state.voiceOutbox, local]);
+    HapticFeedback.selectionClick();
+    await _sendSticker(local);
+  }
+
+  Future<void> _sendSticker(ChatMessage local) async {
+    try {
+      final sent = await _repo.sendSticker(
+        id,
+        local.clientMessageId!,
+        stickerId: local.sticker!.id,
+      );
+      if (!ref.mounted) return;
+      state = state.copyWith(
+        voiceOutbox: state.voiceOutbox
+            .where((m) => m.clientMessageId != local.clientMessageId)
+            .toList(),
+      );
+      unawaited(ref.read(appSoundsProvider).messageOut());
+      _merge([sent]);
+      ref.invalidate(stickerLibraryProvider);
+    } on ApiException catch (e) {
+      if (e.code == ApiErrorCodes.subscriptionRequired) {
+        ref.read(outboxSenderProvider).subscriptionRequired.value = true;
+      }
+      _markVoice(local, DeliveryState.failed, e.code);
+    } on Object {
+      _markVoice(local, DeliveryState.failed, null);
+    }
+  }
+
   Future<void> _uploadAttachment(ChatMessage local) async {
     final a = local.attachment!;
     try {
@@ -572,6 +625,11 @@ class ChatThread extends Notifier<ChatThreadState> {
   }
 
   Future<void> retry(ChatMessage local) async {
+    if (local.kind == MessageKind.sticker) {
+      _markVoice(local, DeliveryState.sending, null);
+      await _sendSticker(local.copyWith(delivery: DeliveryState.sending));
+      return;
+    }
     if (local.kind == MessageKind.attachment) {
       _markVoice(local, DeliveryState.sending, null);
       await _uploadAttachment(local.copyWith(delivery: DeliveryState.sending));
@@ -596,7 +654,8 @@ class ChatThread extends Notifier<ChatThreadState> {
   }
 
   Future<void> discard(ChatMessage local) async {
-    if (local.kind == MessageKind.attachment) {
+    if (local.kind == MessageKind.attachment ||
+        local.kind == MessageKind.sticker) {
       state = state.copyWith(
         voiceOutbox: state.voiceOutbox
             .where((m) => m.clientMessageId != local.clientMessageId)
@@ -718,7 +777,9 @@ class ChatThread extends Notifier<ChatThreadState> {
           if (!mine &&
               !known &&
               m.kind != MessageKind.call &&
-              !(state.conversation?.muted ?? false)) {
+              !(state.conversation?.muted ?? false) &&
+              // Owner 2026-10-02: "Messages" off in Settings → no chime.
+              !isCategoryMuted(ref, NotifCategory.messages)) {
             unawaited(ref.read(appSoundsProvider).messageIn());
           }
           _merge([m]);

@@ -1,3 +1,5 @@
+import { StickersService } from '../stickers/stickers.service';
+import type { StickerDto } from '../stickers/stickers.dto';
 import {
   BadRequestException,
   ConflictException,
@@ -92,6 +94,7 @@ export class ChatService {
     private readonly badges: BadgesService,
     private readonly blocks: BlocksService,
     private readonly presence: PresenceService,
+    private readonly stickers: StickersService,
   ) {}
 
   /**
@@ -358,7 +361,9 @@ export class ChatService {
   ): Promise<MessageDto> {
     const voice = dto.type === 'voice';
     const attachment = dto.type === 'attachment';
-    const body = voice ? '' : (dto.body ?? '').trim();
+    // Owner 2026-10-01: a sticker carries no text.
+    const sticker = dto.type === 'sticker';
+    const body = voice || sticker ? '' : (dto.body ?? '').trim();
     // OQ-048: an assistant sends documents/photos only with "files".
     if (
       attachment &&
@@ -377,6 +382,14 @@ export class ChatService {
           code: ErrorCode.VALIDATION_ERROR,
           message: 'An attachment needs fileId and fileName.',
           details: { fields: ['fileId', 'fileName'] },
+        });
+      }
+    } else if (sticker) {
+      if (!dto.stickerId) {
+        throw new BadRequestException({
+          code: ErrorCode.VALIDATION_ERROR,
+          message: 'A sticker message needs stickerId.',
+          details: { field: 'stickerId' },
         });
       }
     } else if (voice) {
@@ -420,6 +433,7 @@ export class ChatService {
     // requester may send up to 3 messages until then; a declined request
     // takes no more.
     let requestFirst = false;
+    let acceptRequest = false;
     if (conv.request_status === 'pending') {
       if (conv.requested_by === user.sub) {
         const sent = await this.prisma.message.count({
@@ -433,14 +447,7 @@ export class ChatService {
         }
         requestFirst = sent === 0;
       } else {
-        // Owner 2026-09-30: an accepted request is a full chat —
-        // contacts open, calls allowed (the attorney pays a subscription).
-        await this.prisma.conversation.update({
-          where: { id },
-          data: { request_status: 'accepted', contacts_unlocked: true },
-        });
-        conv.request_status = 'accepted';
-        conv.contacts_unlocked = true;
+        acceptRequest = true;
       }
     } else if (
       conv.request_status === 'declined' &&
@@ -465,6 +472,17 @@ export class ChatService {
         message: 'Renew your subscription to send messages.',
       });
     }
+    // Owner 2026-09-30: replying accepts the request — a full chat, contacts
+    // open, calls allowed. Audit 2026-10-02: only after the block and
+    // subscription checks passed (a refused reply used to unlock contacts).
+    if (acceptRequest) {
+      await this.prisma.conversation.update({
+        where: { id },
+        data: { request_status: 'accepted', contacts_unlocked: true },
+      });
+      conv.request_status = 'accepted';
+      conv.contacts_unlocked = true;
+    }
     // OQ-047: photos and documents once the bid is accepted (contacts
     // unlocked) — in case chats and accepted direct chats alike.
     if (attachment && !conv.contacts_unlocked) {
@@ -488,6 +506,7 @@ export class ChatService {
         });
       }
     }
+    if (sticker) await this.stickers.useForMessage(user.sub, dto.stickerId!);
     if (voice) {
       await this.files.assertAttachable(user.sub, dto.fileId!, ['chat_voice']);
       // One note, one message: a file is never re-sent elsewhere.
@@ -529,7 +548,13 @@ export class ChatService {
             sender_id: user.sub,
             sent_by_membership_id: user.assistant?.membershipId ?? null,
             sent_by_name: user.assistant?.name.slice(0, 80) ?? null,
-            type: voice ? 'voice' : attachment ? 'attachment' : 'text',
+            type: voice
+              ? 'voice'
+              : attachment
+                ? 'attachment'
+                : sticker
+                  ? 'sticker'
+                  : 'text',
             body_original: body,
             body_display: masked.text,
             contact_masked: masked.masked,
@@ -545,7 +570,9 @@ export class ChatService {
                     file_id: dto.fileId,
                     file_name: cleanFileName(dto.fileName!),
                   }
-                : {}),
+                : sticker
+                  ? { sticker_id: dto.stickerId }
+                  : {}),
           },
         });
         await tx.conversation.update({
@@ -766,7 +793,8 @@ export class ChatService {
         ? { request_status: 'accepted', contacts_unlocked: true }
         : { request_status: 'declined' },
     });
-    if (accept && conv.requested_by) {
+    // Audit 2026-10-02: the requester learns about a decline too.
+    if (conv.requested_by) {
       this.realtime.toUsers([conv.requested_by], 'conversation:update', {
         conversationId: id,
       });
@@ -871,11 +899,14 @@ export class ChatService {
   private async mediaLinks(rows: Message[]): Promise<MediaLinks> {
     const ids = (type: Message['type']) =>
       rows.flatMap((m) => (m.type === type && m.file_id ? [m.file_id] : []));
-    const [voice, attachments] = await Promise.all([
+    const [voice, attachments, stickers] = await Promise.all([
       this.files.voiceUrls(ids('voice')),
       this.files.attachmentUrls(ids('attachment')),
+      this.stickers.forMessages(
+        rows.flatMap((m) => (m.sticker_id ? [m.sticker_id] : [])),
+      ),
     ]);
-    return { voice, attachments };
+    return { voice, attachments, stickers };
   }
 
   private findOwn(id: string, senderId: string, clientMessageId: string) {
@@ -924,6 +955,10 @@ export class ChatService {
             }
           : null,
       attachment: m.type === 'attachment' ? this.attachmentOf(m, media) : null,
+      sticker:
+        m.type === 'sticker' && m.sticker_id
+          ? (media?.stickers.get(m.sticker_id) ?? null)
+          : null,
       call:
         m.type === 'call'
           ? {
@@ -1126,6 +1161,7 @@ export class ChatService {
 /** OQ-047: links of a page's voice notes and attachments. */
 interface MediaLinks {
   voice: Map<string, string>;
+  stickers: Map<string, StickerDto>;
   attachments: Awaited<ReturnType<FilesService['attachmentUrls']>>;
 }
 

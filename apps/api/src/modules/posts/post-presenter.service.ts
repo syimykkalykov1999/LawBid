@@ -4,6 +4,7 @@ import { MentionsService } from '../mentions/mentions.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CounterAggregator } from '../counters/counter-aggregator.service';
 import { FilesService } from '../files/files.service';
+import { VideosService } from '../videos/videos.service';
 import type { PostDto } from './dto/posts.dto';
 
 /** Where a viewer may see a post: published, not deleted, author active
@@ -34,6 +35,7 @@ export class PostPresenter {
     private readonly files: FilesService,
     private readonly counters: CounterAggregator,
     private readonly mentions: MentionsService,
+    private readonly videos: VideosService,
   ) {}
 
   async present(posts: Post[], viewerId: string): Promise<PostDto[]> {
@@ -130,6 +132,17 @@ export class PostPresenter {
     }
     const clamp = (n: number) => Math.max(0, n);
     const mentioned = await this.mentions.resolve(posts.map((p) => p.body));
+    // Owner 2026-10-01: reels — signed playback for ready videos.
+    const assetIds = posts
+      .map((p) => p.video_asset_id)
+      .filter((x): x is string => !!x);
+    const videos = await this.videos.present(
+      assetIds.length
+        ? await this.prisma.videoAsset.findMany({
+            where: { id: { in: assetIds } },
+          })
+        : [],
+    );
     // Owner 2026-09-30: each post's qualification.
     const practiceIds = [
       ...new Set(
@@ -195,6 +208,7 @@ export class PostPresenter {
               ]
             : [];
         }),
+        video: p.video_asset_id ? (videos.get(p.video_asset_id) ?? null) : null,
         tags: tagsByPost.get(p.id) ?? [],
         mentions: this.mentions.pick(p.body, mentioned),
         status: p.status,

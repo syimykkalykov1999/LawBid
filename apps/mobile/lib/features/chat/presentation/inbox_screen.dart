@@ -359,6 +359,10 @@ String messagePreview(Translator t, ChatMessage m, {String? me}) {
     return '🎤 ${t.t('chat.voice.label')} '
         '${d.inMinutes}:${(d.inSeconds % 60).toString().padLeft(2, '0')}';
   }
+  // Owner 2026-10-01: "🙂 Sticker".
+  if (m.kind == MessageKind.sticker) {
+    return '${m.sticker?.emoji ?? ''} ${t.t('stickers.label')}'.trim();
+  }
   // OQ-047: "📎 File" / "📷 Photo" (+ caption).
   if (m.kind == MessageKind.attachment) {
     final photo = m.attachment?.isImage ?? false;

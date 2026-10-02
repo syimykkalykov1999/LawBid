@@ -164,6 +164,22 @@ export class RealtimeGateway
           socket.disconnect(true);
         }
       });
+      // Audit 2026-10-02: an assistant removed, stripped of "chats"/"calls"
+      // or whose attorney's subscription lapsed stops hearing the
+      // attorney's chats — the socket reconnects as the assistant alone.
+      const selfId = state(socket).selfId;
+      if (selfId) {
+        void this.assistants
+          .resolve(selfId)
+          .then((ctx) => {
+            const ok =
+              ctx &&
+              ctx.attorneyId === state(socket).user.sub &&
+              (ctx.duties.includes('chats') || ctx.duties.includes('calls'));
+            if (!ok) socket.disconnect(true);
+          })
+          .catch(() => undefined);
+      }
       // Owner 2026-10-01: presence heartbeat (own connections only).
       if (!state(socket).selfId) {
         void this.presence

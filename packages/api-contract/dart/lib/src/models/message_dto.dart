@@ -7,6 +7,7 @@ import 'package:json_annotation/json_annotation.dart';
 import 'call_log_dto.dart';
 import 'chat_attachment_dto.dart';
 import 'message_dto_type.dart';
+import 'sticker_dto.dart';
 import 'voice_note_dto.dart';
 
 part 'message_dto.g.dart';
@@ -22,6 +23,7 @@ class MessageDto {
     required this.createdAt,
     this.senderId,
     this.sentByAssistant,
+    this.sticker,
     this.voice,
     this.attachment,
     this.call,
@@ -38,6 +40,9 @@ class MessageDto {
   /// OQ-048: sent by the attorney's assistant — their name (shown as "Assistant of …").
   final String? sentByAssistant;
   final MessageDtoType type;
+
+  /// Owner 2026-10-01: the sticker of a sticker message.
+  final StickerDto? sticker;
   final VoiceNoteDto? voice;
   final ChatAttachmentDto? attachment;
   final CallLogDto? call;

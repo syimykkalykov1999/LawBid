@@ -145,8 +145,10 @@ export class TeamDto {
 
 /** What the assistant app needs about itself. */
 export class AssistantMeDto {
-  @ApiProperty({ enum: ['none', 'invited', 'active'] })
-  state!: 'none' | 'invited' | 'active';
+  /** Audit 2026-10-02: `paused` = joined, but the attorney's subscription
+   * lapsed (the assistant can't work in the account until it's renewed). */
+  @ApiProperty({ enum: ['none', 'invited', 'active', 'paused'] })
+  state!: 'none' | 'invited' | 'active' | 'paused';
   @ApiPropertyOptional({ type: String, nullable: true, format: 'uuid' })
   membershipId!: string | null;
   @ApiPropertyOptional({

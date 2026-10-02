@@ -18,6 +18,7 @@ import { PushModule } from './modules/notifications/push/push.module';
 import { CountersModule } from './modules/counters/counters.module';
 import { ModerationModule } from './modules/moderation/moderation.module';
 import { PostsModule } from './modules/posts/posts.module';
+import { StickersModule } from './modules/stickers/stickers.module';
 import { FeedModule } from './modules/feed/feed.module';
 import { CommentsModule } from './modules/comments/comments.module';
 import { CaseCommentsModule } from './modules/case-comments/case-comments.module';
@@ -166,6 +167,7 @@ const isDev =
     ModerationModule,
     // docs/05 §3 (stage 5.2).
     PostsModule,
+    StickersModule,
     FeedModule,
     CommentsModule,
     CaseCommentsModule,
