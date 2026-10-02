@@ -137,6 +137,7 @@ export class SearchController {
       q.sort ?? 'top',
       q.cursor,
       q.state,
+      q.videoOnly,
     );
   }
 

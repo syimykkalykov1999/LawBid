@@ -1,4 +1,5 @@
 import {
+  ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
@@ -75,9 +76,15 @@ export class CommentsService {
   ): Promise<CommentDto> {
     const post = await this.prisma.post.findFirst({
       where: { ...VISIBLE_POST_WHERE, id: postId },
-      select: { id: true, author_id: true },
+      select: { id: true, author_id: true, comments_enabled: true },
     });
     if (!post) throw postNotFound();
+    if (!post.comments_enabled) {
+      throw new ForbiddenException({
+        code: ErrorCode.COMMENTS_DISABLED,
+        message: 'Comments are turned off for this post.',
+      });
+    }
     await assertNoBlock(this.prisma, userId, post.author_id);
     await this.limits.consume('comment', userId);
     const verdict = await this.moderation.check(body, {

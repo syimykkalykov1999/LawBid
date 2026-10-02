@@ -27,6 +27,10 @@ PostDto _$PostDtoFromJson(Map<String, dynamic> json) => PostDto(
   savedByMe: json['savedByMe'] as bool,
   isMine: json['isMine'] as bool,
   createdAt: json['createdAt'] as String,
+  commentsEnabled: json['commentsEnabled'] as bool? ?? true,
+  location: json['location'] == null
+      ? null
+      : PostLocationDto.fromJson(json['location'] as Map<String, dynamic>),
   title: json['title'] as String?,
   practice: json['practice'] == null
       ? null
@@ -39,6 +43,8 @@ PostDto _$PostDtoFromJson(Map<String, dynamic> json) => PostDto(
 
 Map<String, dynamic> _$PostDtoToJson(PostDto instance) => <String, dynamic>{
   'id': instance.id,
+  'location': ?instance.location?.toJson(),
+  'commentsEnabled': instance.commentsEnabled,
   'title': ?instance.title,
   'kind': instance.kind.toJson(),
   'practice': ?instance.practice?.toJson(),

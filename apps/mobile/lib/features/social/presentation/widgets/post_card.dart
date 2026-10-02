@@ -732,11 +732,12 @@ class _AuthorRow extends ConsumerWidget {
                             ],
                           ),
                           Text(
-                            a.isClient
-                                ? '@${a.username} · ${t.t('person.client')}'
-                                : a.verified
-                                    ? t.t('post.licensedAttorney')
-                                    : '@${a.username}',
+                            post.locationName ??
+                                (a.isClient
+                                    ? '@${a.username} · ${t.t('person.client')}'
+                                    : a.verified
+                                        ? t.t('post.licensedAttorney')
+                                        : '@${a.username}'),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: type.caption

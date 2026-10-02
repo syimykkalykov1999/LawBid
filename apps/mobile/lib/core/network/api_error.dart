@@ -172,6 +172,7 @@ abstract final class ApiErrorCodes {
   static const videoUnavailable = 'VIDEO_UNAVAILABLE';
   static const videoTooLong = 'VIDEO_TOO_LONG';
   static const videoNotReady = 'VIDEO_NOT_READY';
+  static const commentsDisabled = 'COMMENTS_DISABLED';
   static const stickerLimitReached = 'STICKER_LIMIT_REACHED';
   // Audit 2026-10-02: support, referrals, promotions, promo codes.
   static const supportTicketClosed = 'SUPPORT_TICKET_CLOSED';
@@ -326,6 +327,7 @@ abstract final class ApiErrorCodes {
     videoUnavailable,
     videoTooLong,
     videoNotReady,
+    commentsDisabled,
     stickerLimitReached,
     supportTicketClosed,
     adminCredentialsInvalid,

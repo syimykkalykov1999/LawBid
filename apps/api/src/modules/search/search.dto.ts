@@ -235,6 +235,21 @@ export class TagPostsQueryDto extends CursorQueryDto {
   @IsString()
   @Length(2, 2)
   state?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Owner 2026-10-02: only reels (posts with a video), newest first.',
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === true || value === 'true'
+      ? true
+      : value === false || value === 'false'
+        ? false
+        : value,
+  )
+  @IsBoolean()
+  videoOnly?: boolean;
 }
 
 export class TagDto {

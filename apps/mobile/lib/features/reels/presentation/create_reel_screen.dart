@@ -13,6 +13,7 @@ import 'package:lawbid/features/reels/application/reels_providers.dart';
 import 'package:lawbid/features/reels/presentation/reel_video.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/data/social_repository.dart';
+import 'package:lawbid/features/social/presentation/widgets/mention_suggestions.dart';
 import 'package:video_player/video_player.dart';
 
 /// Owner 2026-10-01 — "+" → Reel: pick or record a vertical video, add a
@@ -36,6 +37,8 @@ const _kDefaultMaxSeconds = 90;
 class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
   final _title = TextEditingController();
   final _text = TextEditingController();
+  final _place = TextEditingController();
+  bool _comments = true;
   File? _file;
   VideoPlayerController? _preview;
   int _seconds = 0;
@@ -45,11 +48,28 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
   String? _assetId;
 
   @override
+  void initState() {
+    super.initState();
+    _title.addListener(_refresh);
+    _text.addListener(_refresh);
+    // A video already chosen in the post's gallery picker: load it now.
+    final first = widget.initialFile;
+    if (first != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _load(first));
+    }
+  }
+
+  void _refresh() {
+    if (mounted) setState(() {});
+  }
+
+  @override
   void dispose() {
     _cancel?.cancel();
     _preview?.dispose();
     _title.dispose();
     _text.dispose();
+    _place.dispose();
     super.dispose();
   }
 
@@ -58,13 +78,16 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
       .configInt('video.max_duration_sec', _kDefaultMaxSeconds);
 
   Future<void> _pick(ImageSource source) async {
-    final t = ref.read(translatorProvider);
     final x = await ImagePicker().pickVideo(
       source: source,
       maxDuration: Duration(seconds: _kMaxSeconds),
     );
     if (x == null) return;
-    final file = File(x.path);
+    await _load(File(x.path));
+  }
+
+  Future<void> _load(File file) async {
+    final t = ref.read(translatorProvider);
     final c = VideoPlayerController.file(file);
     try {
       await c.initialize();
@@ -123,9 +146,18 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
       );
       await ref.read(socialRepositoryProvider).createPost(
             PostDraft(
-              title: _title.text.trim(),
-              body: _text.text.trim(),
+              title: _title.text.trim().isNotEmpty
+                  ? _title.text.trim()
+                  : _text.text.trim().characters.take(60).toString(),
+              // The server needs a non-empty text; a reel without a caption
+              // reuses its title.
+              body: _text.text.trim().isNotEmpty
+                  ? _text.text.trim()
+                  : _title.text.trim(),
               videoAssetId: upload.videoAssetId,
+              locationName:
+                  _place.text.trim().isEmpty ? null : _place.text.trim(),
+              commentsEnabled: _comments,
             ),
           );
       if (!mounted) return;
@@ -284,6 +316,27 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
                     maxLines: 4,
                     textCapitalization: TextCapitalization.sentences,
                   ),
+                  // OQ-042: "@…" suggests people to tag.
+                  MentionSuggestions(controller: _text),
+                  const SizedBox(height: AppSpacing.md),
+                  AppTextField(
+                    controller: _place,
+                    hintText: t.t('reels.location'),
+                    semanticLabel: t.t('reels.locationHint'),
+                    maxLength: 120,
+                    textCapitalization: TextCapitalization.words,
+                  ),
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    value: _comments,
+                    onChanged: _publishing
+                        ? null
+                        : (v) => setState(() => _comments = v),
+                    title: Text(
+                      t.t('reels.commentsOn'),
+                      style: type.body.copyWith(color: colors.text),
+                    ),
+                  ),
                   if (_progress != null) ...[
                     const SizedBox(height: AppSpacing.lg),
                     Text(
@@ -313,7 +366,10 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
                 label: t.t('reels.publish'),
                 icon: AppIcons.sendRounded,
                 isLoading: _publishing,
-                isEnabled: !_publishing && _file != null,
+                isEnabled: !_publishing &&
+                    _file != null &&
+                    (_title.text.trim().isNotEmpty ||
+                        _text.text.trim().isNotEmpty),
                 onPressed: _publish,
               ),
             ),

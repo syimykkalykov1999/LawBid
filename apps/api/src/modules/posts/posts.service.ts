@@ -129,6 +129,10 @@ export class PostsService {
             body: dto.body,
             status,
             video_asset_id: video?.id ?? null,
+            location_name: dto.location?.name ?? null,
+            location_lat: dto.location?.lat ?? null,
+            location_lng: dto.location?.lng ?? null,
+            comments_enabled: dto.commentsEnabled ?? true,
           },
         })
         .catch((e: unknown) => {

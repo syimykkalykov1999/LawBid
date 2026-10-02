@@ -431,6 +431,7 @@ export class SearchService {
     sort: TagSort,
     cursor?: string,
     state?: string,
+    videoOnly?: boolean,
   ): Promise<PostPage> {
     const tagLower = normalizeQuery(rawTag);
     const tag = tagLower
@@ -441,7 +442,7 @@ export class SearchService {
       : null;
     if (!tag) return { items: [], nextCursor: null };
     // Owner 2026-09-30 (OQ-034): a state filter always lists newest first.
-    if (sort === 'new' || state) {
+    if (sort === 'new' || state || videoOnly) {
       const c = cursor ? decodeCursor(cursor) : undefined;
       const rows = await this.prisma.post.findMany({
         where: {
@@ -456,6 +457,7 @@ export class SearchService {
             },
           ],
           tags: { some: { tag_id: tag.id } },
+          ...(videoOnly ? { video_asset_id: { not: null } } : {}),
           ...(c
             ? {
                 OR: [

@@ -274,6 +274,8 @@ enum ErrorCode {
   videoTooLong('VIDEO_TOO_LONG'),
   @JsonValue('VIDEO_NOT_READY')
   videoNotReady('VIDEO_NOT_READY'),
+  @JsonValue('COMMENTS_DISABLED')
+  commentsDisabled('COMMENTS_DISABLED'),
   @JsonValue('STICKER_LIMIT_REACHED')
   stickerLimitReached('STICKER_LIMIT_REACHED'),
   @JsonValue('SUPPORT_TICKET_CLOSED')

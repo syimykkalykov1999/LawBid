@@ -14,12 +14,7 @@ import { ErrorCode } from '../../common/errors/error-code.enum';
 import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
-import {
-  BUNNY_TUS_ENDPOINT,
-  roundedExpiry,
-  signedCdnUrl,
-  tusSignature,
-} from './bunny-signing';
+import { roundedExpiry, signedCdnUrl, tusSignature } from './bunny-signing';
 import { BunnyStreamClient, type BunnyVideo } from './bunny-stream.client';
 import type {
   CreateVideoUploadDto,
@@ -131,7 +126,7 @@ export class VideosService {
     });
     return {
       videoAssetId: asset.id,
-      tusEndpoint: BUNNY_TUS_ENDPOINT,
+      tusEndpoint: this.bunny.tusEndpoint(),
       libraryId: keys.libraryId,
       videoId: guid,
       authorizationSignature: tusSignature(
@@ -262,6 +257,7 @@ export class VideosService {
               a.external_id,
               file,
               expires,
+              this.bunny.cdnScheme(),
             )
           : null;
       out.set(a.id, {

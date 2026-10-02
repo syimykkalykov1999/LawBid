@@ -49,3 +49,6 @@ node_modules
 .unlazy/
 .unlazy-hook-state.json
 .claude/settings.local.json
+
+# Dev stand-in for Bunny (tools/fake-bunny.mjs)
+apps/api/.fake-bunny/

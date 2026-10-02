@@ -3,7 +3,11 @@ import { JWT } from 'google-auth-library';
 import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
-import type { PushMessage, PushSender } from './push.constants';
+import {
+  PUSH_SOUNDS,
+  type PushMessage,
+  type PushSender,
+} from './push.constants';
 import { PushTokensService } from './push-tokens.service';
 
 const SCOPE = 'https://www.googleapis.com/auth/firebase.messaging';
@@ -85,7 +89,17 @@ export class FcmPushSender implements PushSender {
                 : message.data,
               android: message.call
                 ? { priority: 'high', ttl: '45s' }
-                : { priority: 'high' },
+                : {
+                    priority: 'high',
+                    ...(message.sound
+                      ? {
+                          notification: {
+                            channel_id: PUSH_SOUNDS[message.sound].channelId,
+                            sound: PUSH_SOUNDS[message.sound].android,
+                          },
+                        }
+                      : {}),
+                  },
               apns: {
                 ...(message.call ? { headers: { 'apns-priority': '10' } } : {}),
                 payload: {
@@ -94,7 +108,11 @@ export class FcmPushSender implements PushSender {
                     // Settings arrives without sound (data.silent = '1').
                     ...(message.call && message.data?.silent === '1'
                       ? {}
-                      : { sound: 'default' }),
+                      : {
+                          sound: message.sound
+                            ? PUSH_SOUNDS[message.sound].ios
+                            : 'default',
+                        }),
                     ...(message.call
                       ? {
                           alert: { title: message.title, body: message.body },

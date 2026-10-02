@@ -1528,6 +1528,12 @@ model Post {
   video_asset_id   String?                  @unique @db.Uuid
   video_asset      VideoAsset?              @relation(fields: [video_asset_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "posts_video_asset_fkey")
   language         String?
+  /// Owner 2026-10-02: "Added location" (reels/posts, like Instagram).
+  location_name    String?
+  location_lat     Float?
+  location_lng     Float?
+  /// Owner 2026-10-02: the author can turn comments off.
+  comments_enabled Boolean                  @default(true)
   status           ContentStatus            @default(published)
   like_count       Int                      @default(0)
   comment_count    Int                      @default(0)

@@ -32,10 +32,16 @@ class PostDraft {
     this.isNews = false,
     this.mediaFileIds = const [],
     this.videoAssetId,
+    this.locationName,
+    this.commentsEnabled = true,
   });
 
   /// Owner 2026-10-01: a reel — the uploaded video instead of photos.
   final String? videoAssetId;
+
+  /// Owner 2026-10-02: place shown under the author's name.
+  final String? locationName;
+  final bool commentsEnabled;
 
   final String title;
   final String body;
@@ -276,6 +282,7 @@ class ApiSocialRepository implements SocialRepository {
         sort: sort == TagSort.top ? api.Sort3.top : api.Sort3.valueNew,
         cursor: cursor,
         state: state,
+        videoOnly: sort == TagSort.video ? true : null,
       ),
     );
     return CursorPage(
@@ -325,6 +332,10 @@ class ApiSocialRepository implements SocialRepository {
               mediaFileIds:
                   draft.mediaFileIds.isEmpty ? null : draft.mediaFileIds,
               videoAssetId: draft.videoAssetId,
+              location: draft.locationName == null
+                  ? null
+                  : api.PostLocationDto(name: draft.locationName!),
+              commentsEnabled: draft.commentsEnabled,
             ),
             extras: _createsResource,
           ),
@@ -715,6 +726,8 @@ abstract final class SocialMappers {
               height: m.height,
             ),
         ],
+        locationName: d.location?.name,
+        commentsEnabled: d.commentsEnabled,
         tags: d.tags,
         mentions: [for (final m in d.mentions) SocialMappers.mention(m)],
         title: d.title,

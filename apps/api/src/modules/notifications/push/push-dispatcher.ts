@@ -235,7 +235,13 @@ export class PushDispatcher
     }
     const badge = (await this.badges.get(n.user_id)).total;
     await this.sender.send(
-      { userId: n.user_id, ...text, data: deepLink, badge },
+      {
+        userId: n.user_id,
+        ...text,
+        data: deepLink,
+        badge,
+        sound: 'notification',
+      },
       `n:${n.id}`,
     );
     if (
@@ -354,6 +360,7 @@ export class PushDispatcher
           messageId: data.messageId,
         },
         badge,
+        sound: 'message',
       },
       `m:${data.messageId}`,
     );

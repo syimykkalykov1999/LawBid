@@ -72,7 +72,30 @@ export interface PushMessage {
    * message (the app shows the full-screen ringing UI itself); iOS a
    * time-sensitive alert. */
   call?: boolean;
+  /** Owner 2026-10-02: LawBid's own short sounds — `message` for chats,
+   * `notification` for everything else (calls ring on their own). */
+  sound?: PushSoundKind;
 }
+
+export type PushSoundKind = 'message' | 'notification';
+
+/** Android channel ids (created in MainActivity.kt) and the bundled sound
+ * files (res/raw on Android, .caf in the iOS bundle) per kind. */
+export const PUSH_SOUNDS: Record<
+  PushSoundKind,
+  { channelId: string; android: string; ios: string }
+> = {
+  message: {
+    channelId: 'lawbid_chats',
+    android: 'lawbid_message',
+    ios: 'lawbid_message.caf',
+  },
+  notification: {
+    channelId: 'lawbid_notifications',
+    android: 'lawbid_notify',
+    ios: 'lawbid_notify.caf',
+  },
+};
 
 /** Delivery to the user's devices (FCM when configured, else a log).
  * [dedupeKey] names the logical push: a retry never re-sends to a device

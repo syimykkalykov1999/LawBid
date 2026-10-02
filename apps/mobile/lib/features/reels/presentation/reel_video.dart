@@ -36,6 +36,7 @@ class _ReelVideoState extends State<ReelVideo> {
   VideoPlayerController? _c;
   bool _ready = false;
   bool _failed = false;
+  Duration? _resumeAt;
 
   @override
   void initState() {
@@ -46,6 +47,14 @@ class _ReelVideoState extends State<ReelVideo> {
   @override
   void didUpdateWidget(ReelVideo old) {
     super.didUpdateWidget(old);
+    // With sound a reel takes the audio focus (other music pauses, like
+    // Instagram); muted previews mix with it. The mode is fixed when the
+    // player is created, so a mute change re-opens it at the same spot.
+    if (widget.muted != old.muted && _c != null) {
+      final at = _c!.value.position;
+      _close();
+      _resumeAt = at;
+    }
     if (widget.video.playbackUrl != old.video.playbackUrl) _close();
     if (widget.active && _c == null) _open();
     _apply();
@@ -57,13 +66,16 @@ class _ReelVideoState extends State<ReelVideo> {
     final c = VideoPlayerController.networkUrl(
       Uri.parse(url),
       formatHint: VideoFormat.hls,
-      videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
+      videoPlayerOptions: VideoPlayerOptions(mixWithOthers: widget.muted),
     );
     _c = c;
     c.addListener(_tick);
     try {
       await c.initialize();
       await c.setLooping(true);
+      final at = _resumeAt;
+      _resumeAt = null;
+      if (at != null) await c.seekTo(at);
       if (!mounted || _c != c) return;
       setState(() => _ready = true);
       _apply();

@@ -8,6 +8,7 @@ import 'content_status.dart';
 import 'mention_dto.dart';
 import 'post_author_dto.dart';
 import 'post_kind.dart';
+import 'post_location_dto.dart';
 import 'post_media_dto.dart';
 import 'post_practice_dto.dart';
 import 'post_video_dto.dart';
@@ -33,6 +34,8 @@ class PostDto {
     required this.savedByMe,
     required this.isMine,
     required this.createdAt,
+    this.commentsEnabled = true,
+    this.location,
     this.title,
     this.practice,
     this.video,
@@ -43,6 +46,8 @@ class PostDto {
       _$PostDtoFromJson(json);
 
   final String id;
+  final PostLocationDto? location;
+  final bool commentsEnabled;
 
   /// Owner 2026-09-30; null on older posts (the app splits the body).
   final String? title;

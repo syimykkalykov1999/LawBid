@@ -203,6 +203,14 @@ export class PostPresenter {
             }
           : null,
         body: p.body,
+        location: p.location_name
+          ? {
+              name: p.location_name,
+              lat: p.location_lat,
+              lng: p.location_lng,
+            }
+          : null,
+        commentsEnabled: p.comments_enabled,
         media: (mediaByPost.get(p.id) ?? []).flatMap((m) => {
           const u = urls.get(m.file_id);
           return u

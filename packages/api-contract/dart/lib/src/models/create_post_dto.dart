@@ -5,6 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'post_kind.dart';
+import 'post_location_dto.dart';
 
 part 'create_post_dto.g.dart';
 
@@ -14,9 +15,11 @@ class CreatePostDto {
     required this.title,
     required this.body,
     this.kind = PostKind.post,
+    this.commentsEnabled = true,
     this.practiceCode,
     this.mediaFileIds,
     this.videoAssetId,
+    this.location,
   });
 
   factory CreatePostDto.fromJson(Map<String, Object?> json) =>
@@ -39,6 +42,10 @@ class CreatePostDto {
   /// Owner 2026-10-01: a reel — the uploaded video (POST /videos/uploads).
   /// Instead of photos; the post appears once the video is encoded.
   final String? videoAssetId;
+  final PostLocationDto? location;
+
+  /// Default true; false = nobody can comment.
+  final bool commentsEnabled;
 
   Map<String, Object?> toJson() => _$CreatePostDtoToJson(this);
 }

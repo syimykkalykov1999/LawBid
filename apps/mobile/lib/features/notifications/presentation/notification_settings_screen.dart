@@ -8,6 +8,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
+import 'package:lawbid/features/notifications/application/notification_sounds.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
 import 'package:lawbid/features/notifications/data/notifications_repository.dart';
 import 'package:lawbid/features/notifications/presentation/new_case_alerts_section.dart';
@@ -246,6 +247,30 @@ class _NotificationSettingsScreenState
                         ],
                       ),
                     ),
+                const SizedBox(height: AppSpacing.lg),
+                Text(
+                  t.t('notif.sounds.title'),
+                  style: type.titleMedium.copyWith(color: colors.text),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  t.t('notif.sounds.hint'),
+                  style: type.caption.copyWith(color: colors.textSecondary),
+                ),
+                for (final c in NotificationSoundChannel.values)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(t.t('notif.sounds.${c.name}')),
+                    subtitle: Text(
+                      t.t('notif.sounds.default'),
+                      style: type.caption.copyWith(color: colors.textSecondary),
+                    ),
+                    trailing: AppIcon(
+                      AppIcons.chevronRightRounded,
+                      color: colors.textSecondary,
+                    ),
+                    onTap: () => openNotificationSoundSettings(c),
+                  ),
                 const SizedBox(height: AppSpacing.lg),
                 Text(
                   t.t('notif.settings.quiet'),

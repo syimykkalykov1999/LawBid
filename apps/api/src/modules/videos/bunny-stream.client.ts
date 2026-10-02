@@ -1,6 +1,12 @@
-import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import {
+  Injectable,
+  Optional,
+  ServiceUnavailableException,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { SecretsService } from '../../common/secrets/secrets.service';
+import { BUNNY_TUS_ENDPOINT } from './bunny-signing';
 
 export interface BunnyKeys {
   libraryId: string;
@@ -32,9 +38,40 @@ const TIMEOUT_MS = 8000;
  */
 @Injectable()
 export class BunnyStreamClient {
-  constructor(private readonly secrets: SecretsService) {}
+  constructor(
+    private readonly secrets: SecretsService,
+    @Optional() private readonly config?: ConfigService,
+  ) {}
+
+  /** Dev only (never in production, see env.schema): the local stand-in
+   * for Bunny, tools/fake-bunny.mjs on :4010 — reachable as 10.0.2.2 from
+   * the Android emulator. */
+  get devFake(): boolean {
+    return this.config?.get<boolean>('DEV_FAKE_BUNNY') === true;
+  }
+
+  apiBase(): string {
+    return this.devFake ? 'http://localhost:4010' : API;
+  }
+
+  tusEndpoint(): string {
+    return this.devFake ? 'http://10.0.2.2:4010/tusupload' : BUNNY_TUS_ENDPOINT;
+  }
+
+  cdnScheme(): 'https' | 'http' {
+    return this.devFake ? 'http' : 'https';
+  }
 
   async keys(): Promise<BunnyKeys | null> {
+    if (this.devFake) {
+      return {
+        libraryId: 'dev',
+        cdnHostname: '10.0.2.2:4010',
+        apiKey: 'dev-api-key',
+        tokenAuthKey: 'dev-token-key',
+        webhookToken: 'dev-webhook',
+      };
+    }
     const c = await this.secrets.get('bunny_stream');
     const f = c?.fields ?? {};
     if (
@@ -111,7 +148,7 @@ export class BunnyStreamClient {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
     try {
-      const res = await fetch(`${API}${path}`, {
+      const res = await fetch(`${this.apiBase()}${path}`, {
         method,
         headers: {
           AccessKey: k.apiKey,

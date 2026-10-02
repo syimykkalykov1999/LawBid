@@ -279,6 +279,7 @@ class _SearchClient implements SearchClient {
     Sort3? sort = Sort3.top,
     String? cursor,
     String? state,
+    bool? videoOnly,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
@@ -287,6 +288,7 @@ class _SearchClient implements SearchClient {
       r'sort': sort?.toJson(),
       r'cursor': cursor,
       r'state': state,
+      r'videoOnly': videoOnly,
     };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};

@@ -4,6 +4,9 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ContentStatus } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
 import {
+  IsBoolean,
+  IsNumber,
+  ValidateNested,
   ArrayMaxSize,
   ArrayUnique,
   IsArray,
@@ -28,6 +31,30 @@ export const POSTS_PAGE_MAX = 50;
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
+
+/** Owner 2026-10-02: "Added location" under the author's name. */
+export class PostLocationDto {
+  @ApiProperty({ minLength: 1, maxLength: 120 })
+  @Transform(trim)
+  @IsString()
+  @MinLength(1)
+  @MaxLength(120)
+  name!: string;
+
+  @ApiPropertyOptional({ type: Number, nullable: true })
+  @IsOptional()
+  @IsNumber()
+  @Min(-90)
+  @Max(90)
+  lat?: number | null;
+
+  @ApiPropertyOptional({ type: Number, nullable: true })
+  @IsOptional()
+  @IsNumber()
+  @Min(-180)
+  @Max(180)
+  lng?: number | null;
+}
 
 /** POST /posts (docs/05 §3.1). */
 export class CreatePostDto {
@@ -87,6 +114,18 @@ export class CreatePostDto {
   @IsOptional()
   @IsUUID()
   videoAssetId?: string;
+
+  @ApiPropertyOptional({ type: PostLocationDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => PostLocationDto)
+  location?: PostLocationDto;
+
+  /** Default true; false = nobody can comment. */
+  @ApiPropertyOptional({ default: true })
+  @IsOptional()
+  @IsBoolean()
+  commentsEnabled?: boolean;
 }
 
 /** PATCH /posts/:id — the title, the text and the qualification. */
@@ -222,6 +261,12 @@ export class PostPracticeDto {
 export class PostDto {
   @ApiProperty({ format: 'uuid' })
   id!: string;
+
+  @ApiPropertyOptional({ type: PostLocationDto, nullable: true })
+  location!: PostLocationDto | null;
+
+  @ApiProperty({ default: true })
+  commentsEnabled!: boolean;
 
   /** Owner 2026-09-30; null on older posts (the app splits the body). */
   @ApiPropertyOptional({ type: String, nullable: true })

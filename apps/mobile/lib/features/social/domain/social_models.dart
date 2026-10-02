@@ -155,7 +155,15 @@ class Post {
     this.isNews = false,
     this.practice,
     this.video,
+    this.locationName,
+    this.commentsEnabled = true,
   });
+
+  /// Owner 2026-10-02: "Added location" under the author's name.
+  final String? locationName;
+
+  /// Owner 2026-10-02: false = the author turned comments off.
+  final bool commentsEnabled;
 
   /// Owner 2026-10-01: a reel — the post's video instead of photos.
   final PostVideo? video;
@@ -227,6 +235,8 @@ class Post {
         isNews: isNews,
         practice: practice ?? this.practice,
         video: video,
+        locationName: locationName,
+        commentsEnabled: commentsEnabled,
       );
 }
 
@@ -373,7 +383,7 @@ class TagInfo {
   final int? postsCount;
 }
 
-enum TagSort { top, fresh }
+enum TagSort { top, fresh, video }
 
 /// `report_reason` (docs/02); the screen text is `report.reason.<name>`.
 enum ReportReason {

@@ -199,7 +199,6 @@ class _ReelPage extends ConsumerStatefulWidget {
 
 class _ReelPageState extends ConsumerState<_ReelPage> {
   bool _paused = false;
-  bool _expanded = false;
   final _progress = ValueNotifier<double>(0);
 
   @override
@@ -400,18 +399,42 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                       ],
                     ],
                   ),
+                  if (p.locationName != null) ...[
+                    const SizedBox(height: AppSpacing.xs),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const AppIcon(
+                          AppIcons.locationOnOutlined,
+                          size: 14,
+                          color: Colors.white,
+                        ),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(
+                            p.locationName!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: type.caption.copyWith(
+                              color: Colors.white,
+                              shadows: shadow,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                   if (caption.isNotEmpty) ...[
                     const SizedBox(height: AppSpacing.sm),
-                    GestureDetector(
-                      onTap: () => setState(() => _expanded = !_expanded),
-                      child: Text(
-                        caption,
-                        maxLines: _expanded ? 12 : 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: type.body.copyWith(
-                          color: Colors.white,
-                          shadows: shadow,
-                        ),
+                    // Same text as in posts: #hashtags open the tag page,
+                    // @mentions the profile.
+                    PostBodyText(
+                      body: caption,
+                      mentions: p.mentions,
+                      large: true,
+                      style: type.body.copyWith(
+                        color: Colors.white,
+                        shadows: shadow,
                       ),
                     ),
                   ],

@@ -187,6 +187,9 @@ export const envSchema = z
     // anywhere (not even logs) — 'test' carries the same "never a real
     // deployed environment" guarantee as 'development' for this purpose.
     OTP_DEV_FIXED_CODE: envBoolean(false),
+    // Owner 2026-10-02: local stand-in for Bunny Stream (tools/fake-bunny.mjs)
+    // so reels can be tried end to end on the emulator without keys.
+    DEV_FAKE_BUNNY: envBoolean(false),
 
     // --- SMS provider (stage 1.4; auto-selection: provider-selection.ts) ---
     // auto (default): twilio once every TWILIO_* credential below is set,
@@ -584,6 +587,18 @@ export const envSchema = z
         path: ['OTP_DEV_FIXED_CODE'],
         message:
           'OTP_DEV_FIXED_CODE must never be true outside NODE_ENV=development or NODE_ENV=test',
+      });
+    }
+    if (
+      env.DEV_FAKE_BUNNY &&
+      env.NODE_ENV !== 'development' &&
+      env.NODE_ENV !== 'test'
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['DEV_FAKE_BUNNY'],
+        message:
+          'DEV_FAKE_BUNNY must never be true outside NODE_ENV=development or NODE_ENV=test',
       });
     }
     // SMS/email: credential-driven selection; never mock when deployed.

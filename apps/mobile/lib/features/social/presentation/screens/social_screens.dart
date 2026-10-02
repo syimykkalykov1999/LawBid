@@ -327,12 +327,28 @@ class _PostScreenState extends ConsumerState<PostScreen> {
                       ),
                     ),
                   ),
-                  CommentComposer(
-                    postId: widget.postId,
-                    replyTo: _replyTo,
-                    focusNode: _focus,
-                    onClearReply: () => setState(() => _replyTo = null),
-                  ),
+                  if (p.commentsEnabled)
+                    CommentComposer(
+                      postId: widget.postId,
+                      replyTo: _replyTo,
+                      focusNode: _focus,
+                      onClearReply: () => setState(() => _replyTo = null),
+                    )
+                  else
+                    SafeArea(
+                      top: false,
+                      child: Padding(
+                        padding: const EdgeInsets.all(AppSpacing.lg),
+                        child: Text(
+                          t.t('reels.commentsOff'),
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context)
+                              .extension<AppTypographyTokens>()!
+                              .bodySmall
+                              .copyWith(color: colors.textSecondary),
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -487,6 +503,7 @@ class _TagScreenState extends ConsumerState<TagScreen> {
             tabs: [
               (TagSort.top, t.t('tag.top')),
               (TagSort.fresh, t.t('tag.new')),
+              (TagSort.video, t.t('tag.video')),
             ],
             onChanged: (v) => setState(() => _sort = v),
           ),

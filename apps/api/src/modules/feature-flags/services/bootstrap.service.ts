@@ -1,4 +1,5 @@
 import { Inject, Injectable, Optional } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import type { I18nLanguage, LegalDocument } from '@prisma/client';
 import type Redis from 'ioredis';
 import { PrismaService } from '../../../prisma/prisma.service';
@@ -89,6 +90,7 @@ export class BootstrapService {
     private readonly appConfig: AppConfigService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     @Optional() private readonly secrets?: SecretsService,
+    @Optional() private readonly config?: ConfigService,
   ) {}
 
   /** Owner 2026-10-01: reels stay hidden from everyone until the owner
@@ -98,6 +100,8 @@ export class BootstrapService {
     flags: Record<string, boolean>,
   ): Promise<Record<string, boolean>> {
     if (!flags.video_posts) return flags;
+    // Dev only: the local Bunny stand-in needs no keys.
+    if (this.config?.get<boolean>('DEV_FAKE_BUNNY') === true) return flags;
     const f = (await this.secrets?.get('bunny_stream'))?.fields ?? {};
     const ready = [
       'libraryId',

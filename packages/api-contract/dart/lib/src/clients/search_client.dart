@@ -131,12 +131,15 @@ abstract class SearchClient {
   /// [cursor] - meta.nextCursor of the previous page.
   ///
   /// [state] - Only posts of attorneys licensed in this state (newest first).
+  ///
+  /// [videoOnly] - Owner 2026-10-02: only reels (posts with a video), newest first.
   @GET('/tags/{tag}/posts')
   Future<PostListEnvelope> tagPosts({
     @Path('tag') required String tag,
     @Query('sort') Sort3? sort = Sort3.top,
     @Query('cursor') String? cursor,
     @Query('state') String? state,
+    @Query('videoOnly') bool? videoOnly,
     @Extras() Map<String, dynamic>? extras,
   });
 

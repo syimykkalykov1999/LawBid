@@ -36390,6 +36390,15 @@
               "example": "IL",
               "type": "string"
             }
+          },
+          {
+            "name": "videoOnly",
+            "required": false,
+            "in": "query",
+            "description": "Owner 2026-10-02: only reels (posts with a video), newest first.",
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -45020,6 +45029,7 @@
           "VIDEO_UNAVAILABLE",
           "VIDEO_TOO_LONG",
           "VIDEO_NOT_READY",
+          "COMMENTS_DISABLED",
           "STICKER_LIMIT_REACHED",
           "SUPPORT_TICKET_CLOSED",
           "REFERRAL_CODE_INVALID",
@@ -52566,6 +52576,31 @@
           "duties"
         ]
       },
+      "PostLocationDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "lat": {
+            "type": "number",
+            "nullable": true,
+            "minimum": -90,
+            "maximum": 90
+          },
+          "lng": {
+            "type": "number",
+            "nullable": true,
+            "minimum": -180,
+            "maximum": 180
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
       "PostKind": {
         "type": "string",
         "enum": [
@@ -52780,6 +52815,19 @@
             "type": "string",
             "format": "uuid"
           },
+          "location": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PostLocationDto"
+              }
+            ]
+          },
+          "commentsEnabled": {
+            "type": "boolean",
+            "default": true
+          },
           "title": {
             "type": "string",
             "nullable": true,
@@ -52877,6 +52925,7 @@
         },
         "required": [
           "id",
+          "commentsEnabled",
           "kind",
           "author",
           "body",
@@ -52938,6 +52987,14 @@
             "type": "string",
             "description": "Owner 2026-10-01: a reel — the uploaded video (POST /videos/uploads).\nInstead of photos; the post appears once the video is encoded.",
             "format": "uuid"
+          },
+          "location": {
+            "$ref": "#/components/schemas/PostLocationDto"
+          },
+          "commentsEnabled": {
+            "type": "boolean",
+            "description": "Default true; false = nobody can comment.",
+            "default": true
           }
         },
         "required": [

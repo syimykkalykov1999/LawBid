@@ -36,6 +36,7 @@ export function signedCdnUrl(
   guid: string,
   file: string,
   expires: number,
+  scheme: 'https' | 'http' = 'https',
 ): string {
   const dir = `/${guid}/`;
   const parameterData = `token_path=${dir}`;
@@ -47,7 +48,7 @@ export function signedCdnUrl(
     .replace(/\//g, '_')
     .replace(/=/g, '');
   return (
-    `https://${host}/bcdn_token=${token}` +
+    `${scheme}://${host}/bcdn_token=${token}` +
     `&token_path=${encodeURIComponent(dir)}&expires=${expires}${dir}${file}`
   );
 }
