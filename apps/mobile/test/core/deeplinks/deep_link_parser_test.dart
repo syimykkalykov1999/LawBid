@@ -96,6 +96,15 @@ void main() {
         parse('https://lawbid.app/lawyer/@jane.doe'),
         const ContentDeepLink(ContentKind.lawyer, 'jane.doe'),
       );
+      expect(
+        parse('https://lawbid.app/r/ab12cd'),
+        const ReferralDeepLink('AB12CD'),
+      );
+      expect(
+        parse('lawbid://referral/AB12CD'),
+        const ReferralDeepLink('AB12CD'),
+      );
+      expect(parse('https://lawbid.app/r/x!'), isNull);
     });
 
     test('in-app locations', () {

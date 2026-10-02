@@ -302,8 +302,10 @@ GoRouter appRouter(Ref ref) {
       GoRoute(
         path: AppRoutes.referral,
         parentNavigatorKey: _rootNavigatorKey,
-        pageBuilder: (context, state) =>
-            AppPageTransitions.push(state, const ReferralScreen()),
+        pageBuilder: (context, state) => AppPageTransitions.push(
+          state,
+          ReferralScreen(initialCode: state.uri.queryParameters['code']),
+        ),
       ),
       GoRoute(
         path: AppRoutes.about,

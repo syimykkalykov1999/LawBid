@@ -36,6 +36,21 @@ final class EmailCodeDeepLink extends DeepLink {
   String toString() => 'EmailCodeDeepLink(token: <redacted>)';
 }
 
+/// `…/r/<CODE>` or `lawbid://referral/<CODE>` — an invite link: opens
+/// Invite & earn with the code filled in (Owner 2026-10-02).
+final class ReferralDeepLink extends DeepLink {
+  const ReferralDeepLink(this.code);
+
+  final String code;
+
+  @override
+  bool operator ==(Object other) =>
+      other is ReferralDeepLink && other.code == code;
+
+  @override
+  int get hashCode => code.hashCode;
+}
+
 enum ContentKind { caseItem, lawyer, post }
 
 /// `/case/:id`, `/lawyer/:username`, `/post/:id` — content that lives in
@@ -67,6 +82,8 @@ final class ContentDeepLink extends DeepLink {
 
 /// Magic-link token: 32 random bytes, base64url without padding.
 final _tokenPattern = RegExp(r'^[A-Za-z0-9_-]{43}$');
+
+final _referralCodePattern = RegExp(r'^[A-Za-z0-9]{4,24}$');
 
 /// Case / post ids are UUIDs server-side (.cursorrules: UUID only); a
 /// slightly wider safe charset keeps the parser independent of that.
@@ -115,6 +132,9 @@ DeepLink? parseDeepLink(Uri uri, {required String host}) {
   if (parts.length != 2) return null;
   final id = parts[1];
   return switch (parts[0]) {
+    'r' ||
+    'referral' when _referralCodePattern.hasMatch(id) =>
+      ReferralDeepLink(id.toUpperCase()),
     'case' when _idPattern.hasMatch(id) =>
       ContentDeepLink(ContentKind.caseItem, id),
     'post' when _idPattern.hasMatch(id) =>

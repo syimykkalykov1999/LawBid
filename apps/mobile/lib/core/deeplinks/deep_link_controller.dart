@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/deeplinks/deep_link.dart';
 import 'package:lawbid/core/navigation/app_router.dart';
+import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/guards/app_router_guard.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/core/startup/app_startup.dart';
@@ -117,6 +118,14 @@ class DeepLinkController extends Notifier<DeepLink?> {
                       : AuthRoutes.otp,
                 ),
               ),
+        );
+      case ReferralDeepLink(:final code):
+        if (!hasSession) return;
+        final user = ref.read(currentUserControllerProvider).user;
+        if (user == null || AppRouterGuard.requiredStep(user) != null) return;
+        state = null;
+        ref.read(deepLinkNavigatorProvider)(
+          '${AppRoutes.referral}?code=${Uri.encodeQueryComponent(code)}',
         );
       case ContentDeepLink(:final location):
         if (!hasSession) return; // wait for sign-in

@@ -70,6 +70,7 @@
                 <data android:pathPrefix="/case/" />
                 <data android:pathPrefix="/lawyer/" />
                 <data android:pathPrefix="/post/" />
+                <data android:pathPrefix="/r/" />
                 <data android:path="/auth/email-code" />
             </intent-filter>
         </activity>

@@ -28,14 +28,17 @@ String rewardText(Translator t, L10nFormats f, Reward r) => switch (r.type) {
 /// Owner 2026-10-02 — Settings → Invite & earn: my code, share, what each
 /// side gets, who joined; and entering someone else's code once.
 class ReferralScreen extends ConsumerStatefulWidget {
-  const ReferralScreen({super.key});
+  const ReferralScreen({this.initialCode, super.key});
+
+  /// From an invite link: filled into the "have a code" field.
+  final String? initialCode;
 
   @override
   ConsumerState<ReferralScreen> createState() => _ReferralScreenState();
 }
 
 class _ReferralScreenState extends ConsumerState<ReferralScreen> {
-  final _code = TextEditingController();
+  late final _code = TextEditingController(text: widget.initialCode);
   bool _busy = false;
 
   @override
