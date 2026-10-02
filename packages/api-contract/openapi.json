@@ -24097,6 +24097,18 @@
             "schema": {
               "$ref": "#/components/schemas/AdminPostKind"
             }
+          },
+          {
+            "name": "media",
+            "required": false,
+            "in": "query",
+            "description": "Only posts that carry a video (the former \"reels\")",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "video"
+              ]
+            }
           }
         ],
         "responses": {
@@ -57394,6 +57406,10 @@
           "deleted": {
             "type": "boolean"
           },
+          "hasVideo": {
+            "type": "boolean",
+            "description": "The post carries a video"
+          },
           "createdAt": {
             "type": "string"
           }
@@ -57408,6 +57424,7 @@
           "likes",
           "comments",
           "deleted",
+          "hasVideo",
           "createdAt"
         ]
       },

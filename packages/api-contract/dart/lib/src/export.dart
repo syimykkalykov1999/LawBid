@@ -827,6 +827,7 @@ export 'models/type.dart';
 export 'models/sort.dart';
 export 'models/filter2.dart';
 export 'models/filter3.dart';
+export 'models/media.dart';
 export 'models/kind2.dart';
 export 'models/status6.dart';
 export 'models/status7.dart';
