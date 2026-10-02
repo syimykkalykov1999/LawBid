@@ -143,6 +143,10 @@ class RealAuthRepository implements AuthRepository {
       credential = await nativeSignIn();
     } on SocialAuthCancelledException {
       return const SocialLoginResult.cancelled();
+    } on Object {
+      // Not configured on this build (no Google / Apple keys yet) or the
+      // native sheet failed: say so instead of spinning forever.
+      return const SocialLoginResult.providerDisabled();
     }
     try {
       // Owner 2026-10-01: the same "open on another device" question.

@@ -157,6 +157,13 @@ class PlatformSocialAuthNativeClient implements SocialAuthNativeClient {
           '(config/dev.json, docs/KEYS_SETUP.md).',
         );
       }
+      if (defaultTargetPlatform == TargetPlatform.android &&
+          AppConfig.googleServerClientId.isEmpty) {
+        throw StateError(
+          'Google sign-in is not configured: GOOGLE_SERVER_CLIENT_ID is '
+          'empty (config/dev.json, docs/KEYS_SETUP.md).',
+        );
+      }
       await GoogleSignIn.instance.initialize(
         clientId: AppConfig.orNull(AppConfig.googleIosClientId),
         serverClientId: AppConfig.orNull(AppConfig.googleServerClientId),

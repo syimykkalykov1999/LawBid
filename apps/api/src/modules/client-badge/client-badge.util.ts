@@ -28,15 +28,28 @@ export async function activeClientBadgeIds(
 ): Promise<Set<string>> {
   const ids = [...new Set(userIds)];
   if (ids.length === 0) return new Set();
-  const rows = await prisma.clientVerification.findMany({
-    where: { user_id: { in: ids }, status: 'approved' },
-    select: {
-      user_id: true,
-      status: true,
-      sub_status: true,
-      current_period_end: true,
-    },
-  });
+  let rows: {
+    user_id: string;
+    status: string;
+    sub_status: string;
+    current_period_end: Date | null;
+  }[];
+  try {
+    rows = await prisma.clientVerification.findMany({
+      where: { user_id: { in: ids }, status: 'approved' },
+      select: {
+        user_id: true,
+        status: true,
+        sub_status: true,
+        current_period_end: true,
+      },
+    });
+  } catch (e) {
+    // The badge table is not migrated yet (P2021): a feed must never break
+    // over a decoration — nobody wears the badge until it exists.
+    if ((e as { code?: string }).code === 'P2021') return new Set();
+    throw e;
+  }
   const now = new Date();
   return new Set(
     rows.filter((r) => clientBadgeActive(r, now)).map((r) => r.user_id),

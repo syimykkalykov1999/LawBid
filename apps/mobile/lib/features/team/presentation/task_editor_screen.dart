@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -68,9 +70,11 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
   int _uploading = 0;
   bool _saving = false;
   bool _tried = false;
+  final _scroll = ScrollController();
 
   @override
   void dispose() {
+    _scroll.dispose();
     _title.dispose();
     _location.dispose();
     _contactName.dispose();
@@ -184,7 +188,21 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
   Future<void> _save() async {
     final t = ref.read(translatorProvider);
     setState(() => _tried = true);
-    if (_title.text.trim().isEmpty || _uploading > 0) return;
+    // The required field is at the top: bring it into view, or a long form
+    // scrolled down looks like the button does nothing.
+    if (_title.text.trim().isEmpty) {
+      if (_scroll.hasClients) {
+        unawaited(
+          _scroll.animateTo(
+            0,
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOut,
+          ),
+        );
+      }
+      return;
+    }
+    if (_uploading > 0) return;
     final form = TaskKindForm.of(_kind);
     if (form.email &&
         _contactEmail.text.trim().isNotEmpty &&
@@ -375,6 +393,7 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
         ),
       ),
       body: ListView(
+        controller: _scroll,
         padding: const EdgeInsets.fromLTRB(
           AppSpacing.screenSide,
           AppSpacing.md,

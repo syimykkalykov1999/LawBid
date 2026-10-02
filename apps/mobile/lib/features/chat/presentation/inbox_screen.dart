@@ -167,7 +167,10 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                               children: [
                                 // Owner 2026-10-02: ⋮ next to the bell —
                                 // "Select chats" like Instagram.
+                                // Organizing chats is the attorney's own
+                                // (the server refuses an assistant).
                                 if (tab == InboxTab.chats &&
+                                    !ref.watch(isAssistantProvider) &&
                                     _folder != ChatListFolder.requests)
                                   AppIconButton(
                                     key: const ValueKey('chats-menu'),
@@ -715,7 +718,9 @@ class ConversationRow extends ConsumerWidget {
                       ),
                       // Owner 2026-10-01: the chat's menu at the top right —
                       // pin, move to a folder, waiting + a note.
-                      if (!c.awaitingMyAnswer && picking == null)
+                      if (!c.awaitingMyAnswer &&
+                          picking == null &&
+                          !ref.watch(isAssistantProvider))
                         Semantics(
                           button: true,
                           label: t.t('chat.organize.title'),
