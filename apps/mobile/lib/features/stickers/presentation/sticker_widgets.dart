@@ -30,8 +30,8 @@ class StickerImage extends StatelessWidget {
       dimension: size,
       child: url == null
           ? Center(
-              child: Text(sticker.emoji,
-                  style: TextStyle(fontSize: size * 0.55)),
+              child:
+                  Text(sticker.emoji, style: TextStyle(fontSize: size * 0.55)),
             )
           : CachedNetworkImage(
               imageUrl: url,
@@ -78,33 +78,45 @@ class _StickerPanelState extends ConsumerState<StickerPanel> {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    // Owner 2026-10-02: the Emoji · Stickers tabs sit above the system
+    // navigation (gesture bar or Samsung's back/home/recents buttons).
+    final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
     return Material(
-      color: colors.surface,
-      child: SizedBox(
-        height: StickerPanel.height,
-        child: Column(
-          children: [
-            Expanded(child: _stickers ? _stickerView(t, colors, type) : _emojiView()),
-            Container(
-              height: 44,
-              decoration: BoxDecoration(
-                border: Border(top: BorderSide(color: colors.border)),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  _tab(t.t('stickers.tab.emoji'), !_stickers,
-                      () => setState(() => _stickers = false), colors, type),
-                  const SizedBox(width: AppSpacing.md),
-                  _tab(t.t('stickers.tab.stickers'), _stickers,
-                      () => setState(() => _stickers = true), colors, type),
-                ],
-              ),
+        color: colors.surface,
+        child: Padding(
+          padding: EdgeInsets.only(bottom: bottomInset),
+          child: SizedBox(
+            height: StickerPanel.height,
+            child: Column(
+              children: [
+                Expanded(
+                    child: _stickers
+                        ? _stickerView(t, colors, type)
+                        : _emojiView()),
+                Container(
+                  height: 44,
+                  decoration: BoxDecoration(
+                    border: Border(top: BorderSide(color: colors.border)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _tab(
+                          t.t('stickers.tab.emoji'),
+                          !_stickers,
+                          () => setState(() => _stickers = false),
+                          colors,
+                          type),
+                      const SizedBox(width: AppSpacing.md),
+                      _tab(t.t('stickers.tab.stickers'), _stickers,
+                          () => setState(() => _stickers = true), colors, type),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
-    );
+          ),
+        ));
   }
 
   Widget _tab(String label, bool on, VoidCallback tap, AppColorTokens colors,
@@ -275,8 +287,7 @@ class StickerMessageBody extends StatelessWidget {
 }
 
 /// "+" in the panel: my packs (create one), and popular official packs.
-Future<void> showStickerHub(BuildContext context) =>
-    showAppBottomSheet<void>(
+Future<void> showStickerHub(BuildContext context) => showAppBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       builder: (_) => const _StickerHub(),
@@ -352,7 +363,9 @@ Future<void> _createPack(BuildContext context, WidgetRef ref) async {
     context: context,
     isScrollControlled: true,
     builder: (ctx) => Padding(
-      padding: EdgeInsets.fromLTRB(AppSpacing.screenSide, AppSpacing.md,
+      padding: EdgeInsets.fromLTRB(
+          AppSpacing.screenSide,
+          AppSpacing.md,
           AppSpacing.screenSide,
           AppSpacing.lg + MediaQuery.viewInsetsOf(ctx).bottom),
       child: Column(
@@ -474,8 +487,8 @@ class _PackSheetState extends ConsumerState<_PackSheet> {
                           InkWell(
                             onTap: () => Navigator.of(ctx).pop(e),
                             child: Center(
-                              child: Text(e,
-                                  style: const TextStyle(fontSize: 26)),
+                              child:
+                                  Text(e, style: const TextStyle(fontSize: 26)),
                             ),
                           ),
                       ],
@@ -511,8 +524,8 @@ class _PackSheetState extends ConsumerState<_PackSheet> {
         data: (pack) => Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide,
-                  AppSpacing.md, AppSpacing.sm, 0),
+              padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.screenSide, AppSpacing.md, AppSpacing.sm, 0),
               child: Column(
                 children: [
                   const AppSheetHandle(),

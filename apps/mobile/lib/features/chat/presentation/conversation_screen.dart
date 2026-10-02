@@ -1456,6 +1456,8 @@ class _ComposerState extends ConsumerState<_Composer> {
       color: colors.surface,
       child: SafeArea(
         top: false,
+        // The sticker panel below takes the system-nav inset instead.
+        bottom: !widget.stickersOpen,
         child: Padding(
           // Owner 2026-09-30: the paperclip and the field sit close to the
           // left edge.
