@@ -236,6 +236,7 @@ const reelsRu = <String, String>{
       'Документы одобрены. Подключите подписку, и галочка появится',
   'notif.list.cbadge.rejected': 'Заявку на подтверждение отклонили',
   'notif.list.cbadge.off': 'Золотая галочка выключена',
+  'mine.tab.cases': 'Дела',
 };
 
 const reelsEn = <String, String>{
@@ -471,4 +472,5 @@ const reelsEn = <String, String>{
       'Documents approved. Subscribe and the check appears',
   'notif.list.cbadge.rejected': 'Your verification request was rejected',
   'notif.list.cbadge.off': 'Your gold check is off',
+  'mine.tab.cases': 'Cases',
 };

@@ -181,6 +181,21 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                                     semanticLabel: t.t('chat.select.menu'),
                                     onPressed: () => _showChatsMenu(context, t),
                                   ),
+                                // Owner 2026-10-02: the notification filter /
+                                // settings sit up here, left of the bell, in
+                                // the same place as the chats' ⋮.
+                                if (tab == InboxTab.notifications)
+                                  AppIconButton(
+                                    key: const ValueKey('notif-filter'),
+                                    icon: AppIcon(
+                                      AppIcons.tuneRounded,
+                                      color: colors.text,
+                                    ),
+                                    semanticLabel:
+                                        t.t('settings.notifications'),
+                                    onPressed: () => context
+                                        .push(ChatRoutes.notificationSettings),
+                                  ),
                                 // Owner 2026-10-01: in Team the bell gives
                                 // way to the team settings.
                                 if (tab == InboxTab.team)
@@ -241,15 +256,6 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                                   .markRead(),
                               child: Text(t.t('notif.markAllRead')),
                             ),
-                          AppIconButton(
-                            icon: AppIcon(
-                              AppIcons.tuneRounded,
-                              color: colors.text,
-                            ),
-                            semanticLabel: t.t('settings.notifications'),
-                            onPressed: () =>
-                                context.push(ChatRoutes.notificationSettings),
-                          ),
                         ],
                       ),
                     ),

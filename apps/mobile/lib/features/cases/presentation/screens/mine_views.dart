@@ -15,7 +15,11 @@ import 'package:lawbid/features/mine/presentation/widgets/mine_grid.dart';
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart';
 import 'package:lawbid/features/team/presentation/tasks_tab.dart';
 
-enum _ClientTab { planner, open, inProgress, completed, saved }
+// Owner 2026-10-02: three tabs on top — Planner · Cases (Open · In progress ·
+// Completed inside) · Saved.
+enum _ClientTab { planner, cases, saved }
+
+enum _CaseSection { open, inProgress, completed }
 
 // Owner 2026-10-01: two top tabs — My bids (with Active · In progress ·
 // Completed · Saved inside) and the Planner (tasks calendar).
@@ -38,25 +42,25 @@ class ClientMineView extends ConsumerStatefulWidget {
 
 class _ClientMineViewState extends ConsumerState<ClientMineView> {
   _ClientTab _tab = _ClientTab.planner;
+  _CaseSection _section = _CaseSection.open;
   bool _archived = false;
   MineSearch _search = const MineSearch();
 
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
-    final filter = switch (_tab) {
-      _ClientTab.open =>
+    final filter = switch (_section) {
+      _CaseSection.open =>
         _archived ? MyCasesFilter.archived : MyCasesFilter.open,
-      _ClientTab.inProgress => MyCasesFilter.inProgress,
-      _ClientTab.completed => MyCasesFilter.closed,
-      _ClientTab.saved || _ClientTab.planner => MyCasesFilter.active,
+      _CaseSection.inProgress => MyCasesFilter.inProgress,
+      _CaseSection.completed => MyCasesFilter.closed,
     };
     final body = switch (_tab) {
       // Owner 2026-10-01: clients keep a planner too (own tasks + steps).
       _ClientTab.planner => const TasksTab(key: ValueKey('planner')),
       _ClientTab.saved => const SavedPostsList(key: ValueKey('saved')),
-      _ => Column(
-          key: ValueKey('cases-${_tab.name}'),
+      _ClientTab.cases => Column(
+          key: const ValueKey('cases'),
           children: [
             MineSearchBar(
               search: _search,
@@ -66,12 +70,23 @@ class _ClientMineViewState extends ConsumerState<ClientMineView> {
               search: _search,
               onChanged: (v) => setState(() => _search = v),
             ),
-            if (_tab == _ClientTab.open) ...[
+            const SizedBox(height: AppSpacing.sm),
+            FilterChips<_CaseSection>(
+              key: const ValueKey('case-sections'),
+              value: _section,
+              options: [
+                (_CaseSection.open, t.t('mine.tab.open')),
+                (_CaseSection.inProgress, t.t('mine.tab.inWork')),
+                (_CaseSection.completed, t.t('mine.tab.completed')),
+              ],
+              onChanged: (v) => setState(() => _section = v),
+            ),
+            if (_section == _CaseSection.open) ...[
               const SizedBox(height: AppSpacing.sm),
               FilterChips<bool>(
                 value: _archived,
                 options: [
-                  (false, t.t('mine.filter.open')),
+                  (false, t.t('mine.filter.active')),
                   (true, t.t('mine.filter.archived')),
                 ],
                 onChanged: (v) => setState(() => _archived = v),
@@ -88,9 +103,7 @@ class _ClientMineViewState extends ConsumerState<ClientMineView> {
           value: _tab,
           tabs: [
             (_ClientTab.planner, t.t('mine.tab.tasks')),
-            (_ClientTab.open, t.t('mine.tab.open')),
-            (_ClientTab.inProgress, t.t('mine.tab.inWork')),
-            (_ClientTab.completed, t.t('mine.tab.completed')),
+            (_ClientTab.cases, t.t('mine.tab.cases')),
             (_ClientTab.saved, t.t('mine.tab.saved')),
           ],
           onChanged: (v) => setState(() => _tab = v),

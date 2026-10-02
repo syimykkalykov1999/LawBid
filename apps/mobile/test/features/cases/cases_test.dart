@@ -222,7 +222,9 @@ void main() {
       await tester.pumpAndSettle();
       // Owner 2026-10-01: Mine opens on the client's planner first.
       expect(find.text('Planner'), findsOneWidget);
-      await tester.tap(find.text('Open'));
+      // Owner 2026-10-02: three tabs — Planner · Cases · Saved.
+      expect(find.text('Cases'), findsOneWidget);
+      await tester.tap(find.text('Cases'));
       await tester.pumpAndSettle();
       expect(find.text('You have no cases yet'), findsOneWidget);
       expect(find.text('Create a case'), findsOneWidget);
