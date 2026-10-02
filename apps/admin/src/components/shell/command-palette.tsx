@@ -4,6 +4,7 @@ import { ArrowRight, MagnifyingGlass, MoonStars, Sun, User } from '@phosphor-ico
 import { AnimatePresence, motion } from 'motion/react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { Me } from '@/lib/hooks';
 import { can, sectionsFor } from '@/lib/rbac';
 import { useTheme } from '@/lib/theme';
@@ -82,8 +83,11 @@ export function CommandPalette({ me, open, setOpen }: { me: Me | undefined; open
   }, [q, me, resolved, router, setOpen, toggle]);
 
   useEffect(() => setIdx(0), [q]);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  if (!mounted) return null;
 
-  return (
+  return createPortal(
     <AnimatePresence>
       {open ? (
         <motion.div
@@ -153,6 +157,7 @@ export function CommandPalette({ me, open, setOpen }: { me: Me | undefined; open
           </motion.div>
         </motion.div>
       ) : null}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   );
 }

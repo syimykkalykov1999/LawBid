@@ -15,9 +15,9 @@ import '../models/admin_video_stats_envelope.dart';
 import '../models/admin_video_status.dart';
 import '../models/create_official_sticker_pack_dto.dart';
 import '../models/file_envelope.dart';
-import '../models/kind.dart';
+import '../models/kind2.dart';
 import '../models/presigned_file_envelope.dart';
-import '../models/status5.dart';
+import '../models/status6.dart';
 
 part 'admin_media_client.g.dart';
 
@@ -58,8 +58,8 @@ abstract class AdminMediaClient {
   @GET('/admin/media/sticker-packs')
   Future<AdminStickerPackRowListEnvelope> listAdminStickerPacks({
     @Query('cursor') String? cursor,
-    @Query('kind') Kind? kind,
-    @Query('status') Status5? status,
+    @Query('kind') Kind2? kind,
+    @Query('status') Status6? status,
     @Query('q') String? q,
     @Extras() Map<String, dynamic>? extras,
   });

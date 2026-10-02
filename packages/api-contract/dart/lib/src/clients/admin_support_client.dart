@@ -14,7 +14,7 @@ import '../models/admin_support_ticket_row_list_envelope.dart';
 import '../models/admin_update_support_ticket_dto.dart';
 import '../models/category.dart';
 import '../models/priority.dart';
-import '../models/status7.dart';
+import '../models/status8.dart';
 
 part 'admin_support_client.g.dart';
 
@@ -32,7 +32,7 @@ abstract class AdminSupportClient {
   @GET('/admin/support/tickets')
   Future<AdminSupportTicketRowListEnvelope> listAdminSupportTickets({
     @Query('cursor') String? cursor,
-    @Query('status') Status7? status,
+    @Query('status') Status8? status,
     @Query('category') Category? category,
     @Query('priority') Priority? priority,
     @Query('assignee') String? assignee,

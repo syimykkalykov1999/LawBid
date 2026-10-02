@@ -6,14 +6,18 @@ import 'package:json_annotation/json_annotation.dart';
 
 @JsonEnum()
 enum Status7 {
-  @JsonValue('open')
-  open('open'),
-  @JsonValue('waiting_user')
-  waitingUser('waiting_user'),
-  @JsonValue('resolved')
-  resolved('resolved'),
-  @JsonValue('closed')
-  closed('closed'),
+  @JsonValue('incomplete')
+  incomplete('incomplete'),
+  @JsonValue('trialing')
+  trialing('trialing'),
+  @JsonValue('active')
+  active('active'),
+  @JsonValue('past_due')
+  pastDue('past_due'),
+  @JsonValue('canceled')
+  canceled('canceled'),
+  @JsonValue('expired')
+  expired('expired'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

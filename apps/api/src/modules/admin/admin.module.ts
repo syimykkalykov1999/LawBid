@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AdminAccessModule } from '../admin-access/admin-access.module';
+import { AdminRoleTemplatesController } from './admin-role-templates.controller';
+import { AdminRoleTemplatesService } from './admin-role-templates.service';
 import { AdminsController } from './admins.controller';
 import { AdminsService } from './admins.service';
 import { AdminSessionsController } from './admin-sessions.controller';
@@ -16,6 +18,7 @@ import { DashboardService } from './dashboard.service';
   controllers: [
     DashboardController,
     AuditLogController,
+    AdminRoleTemplatesController,
     AdminsController,
     AdminSessionsController,
   ],
@@ -23,6 +26,7 @@ import { DashboardService } from './dashboard.service';
     DashboardService,
     AuditLogQueryService,
     AdminsService,
+    AdminRoleTemplatesService,
     AdminSessionsService,
   ],
 })

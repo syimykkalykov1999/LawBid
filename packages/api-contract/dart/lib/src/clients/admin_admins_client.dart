@@ -7,7 +7,10 @@ import 'package:retrofit/retrofit.dart';
 
 import '../models/admin_account_envelope.dart';
 import '../models/admin_account_list_envelope.dart';
+import '../models/admin_role_template_envelope.dart';
+import '../models/admin_role_template_list_envelope.dart';
 import '../models/create_admin_dto.dart';
+import '../models/save_admin_role_template_dto.dart';
 import '../models/set_admin_credentials_dto.dart';
 import '../models/set_admin_permissions_dto.dart';
 import '../models/set_admin_role_dto.dart';
@@ -17,6 +20,34 @@ part 'admin_admins_client.g.dart';
 @RestApi()
 abstract class AdminAdminsClient {
   factory AdminAdminsClient(Dio dio, {String? baseUrl}) = _AdminAdminsClient;
+
+  /// Saved rights templates
+  @GET('/admin/admins/templates')
+  Future<AdminRoleTemplateListEnvelope> listTemplates({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Save a named set of rights
+  @POST('/admin/admins/templates')
+  Future<AdminRoleTemplateEnvelope> createTemplate({
+    @Body() required SaveAdminRoleTemplateDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Rename or change a template
+  @PATCH('/admin/admins/templates/{id}')
+  Future<AdminRoleTemplateEnvelope> updateTemplate({
+    @Path('id') required String id,
+    @Body() required SaveAdminRoleTemplateDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Delete a template (admins keep their rights)
+  @DELETE('/admin/admins/templates/{id}')
+  Future<void> deleteTemplate({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
 
   /// All administrator accounts
   @GET('/admin/admins')

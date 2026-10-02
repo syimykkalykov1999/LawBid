@@ -118,8 +118,8 @@ class _AdminMediaClient implements AdminMediaClient {
   @override
   Future<AdminStickerPackRowListEnvelope> listAdminStickerPacks({
     String? cursor,
-    Kind? kind,
-    Status5? status,
+    Kind2? kind,
+    Status6? status,
     String? q,
     Map<String, dynamic>? extras,
   }) async {

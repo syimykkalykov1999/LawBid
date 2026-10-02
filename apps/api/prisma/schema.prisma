@@ -2028,6 +2028,39 @@ model AdminProfile {
   @@map("admin_profiles")
 }
 
+/// Owner 2026-10-02: named sets of admin rights ("Verifier", "Support", ...).
+model AdminRoleTemplate {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String   @unique @db.String(60)
+  permissions Json     @default("{}")
+  created_by  String   @db.Uuid
+  created_at  DateTime @default(now()) @db.Timestamptz
+  updated_at  DateTime @updatedAt @db.Timestamptz
+
+  @@map("admin_role_templates")
+}
+
+/// Owner 2026-10-02: sign-in blocks. kind = user | phone | email | device;
+/// value = user id, E.164 phone, lower-cased email or the app's device id.
+/// Active while lifted_at is null and expires_at is empty or in the future.
+model AccountBan {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  kind        String    @db.String(10)
+  value       String
+  user_id     String?   @db.Uuid
+  reason      String
+  expires_at  DateTime? @db.Timestamptz
+  created_by  String    @db.Uuid
+  created_at  DateTime  @default(now()) @db.Timestamptz
+  lifted_at   DateTime? @db.Timestamptz
+  lifted_by   String?   @db.Uuid
+  lift_reason String?
+
+  @@index([kind, value])
+  @@index([created_at])
+  @@map("account_bans")
+}
+
 // Append-only (§6.2).
 model AuditLog {
   id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid

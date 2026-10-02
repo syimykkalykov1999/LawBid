@@ -54,7 +54,7 @@ class _AdminBillingClient implements AdminBillingClient {
   @override
   Future<AdminBillingSubscriptionRowListEnvelope> listBillingSubscriptions({
     String? cursor,
-    Status6? status,
+    Status7? status,
     Plan? plan,
     String? q,
     bool? hasContractGrant,

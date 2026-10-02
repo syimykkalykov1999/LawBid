@@ -307,3 +307,30 @@ export interface AuditLogPage {
   items: AuditLogEntryDto[];
   nextCursor: string | null;
 }
+
+// ---- Шаблоны прав (owner 2026-10-02) ----------------------------------
+
+export class AdminRoleTemplateDto {
+  @ApiProperty({ format: 'uuid' }) id!: string;
+  @ApiProperty() name!: string;
+  @ApiProperty({
+    type: 'object',
+    additionalProperties: { type: 'string', enum: ['view', 'manage'] },
+  })
+  permissions!: Record<string, string>;
+  @ApiProperty() updatedAt!: string;
+}
+
+export class SaveAdminRoleTemplateDto {
+  @ApiProperty({ minLength: 2, maxLength: 60 })
+  @IsString()
+  @MaxLength(60)
+  name!: string;
+
+  @ApiProperty({
+    type: 'object',
+    additionalProperties: { type: 'string', enum: ['view', 'manage'] },
+  })
+  @IsObject()
+  permissions!: Record<string, string>;
+}

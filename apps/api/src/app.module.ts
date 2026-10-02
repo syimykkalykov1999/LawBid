@@ -52,6 +52,7 @@ import { DevModule } from './modules/dev/dev.module';
 import { FilesModule } from './modules/files/files.module';
 import { AdminAuthModule } from './modules/admin-auth/admin-auth.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { AdminSanctionsModule } from './modules/admin-sanctions/admin-sanctions.module';
 import { AdminUsersModule } from './modules/admin-users/admin-users.module';
 import { AdminCasesModule } from './modules/admin-cases/admin-cases.module';
 import { AdminDataRequestsModule } from './modules/admin-data-requests/admin-data-requests.module';
@@ -153,6 +154,7 @@ const isDev =
     AdminAuthModule,
     AdminModule,
     AdminUsersModule,
+    AdminSanctionsModule,
     AdminCasesModule,
     AdminDataRequestsModule,
     AdminConfigModule,

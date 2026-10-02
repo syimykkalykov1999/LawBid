@@ -23,7 +23,7 @@ class _AdminCasesClient implements AdminCasesClient {
   @override
   Future<AdminDisputeListEnvelope> listCaseDisputes({
     int? limit = 20,
-    Status3? status = Status3.open,
+    Status4? status = Status4.open,
     String? cursor,
     Map<String, dynamic>? extras,
   }) async {
@@ -93,7 +93,7 @@ class _AdminCasesClient implements AdminCasesClient {
   @override
   Future<AdminContactIssueListEnvelope> listContactIssues({
     int? limit = 20,
-    Status4? status = Status4.open,
+    Status5? status = Status5.open,
     String? cursor,
     Map<String, dynamic>? extras,
   }) async {

@@ -1,3 +1,4 @@
+import { AccountBansModule } from '../account-bans/account-bans.module';
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
@@ -83,6 +84,7 @@ import { resolveSmsProvider } from '../../config/provider-selection';
   // allow-list (app_config `sms.allowed_country_codes`).
   imports: [
     JwtModule.register({}),
+    AccountBansModule,
     FeatureFlagsModule,
     NotificationsModule,
     SubscriptionsModule,
