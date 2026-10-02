@@ -13,7 +13,7 @@ import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/empty';
 import { api, errorText } from '@/lib/api/client';
 import { useMe } from '@/lib/hooks';
-import { canOpen } from '@/lib/rbac';
+import { can, canOpen } from '@/lib/rbac';
 import { cn, formatDateTime, formatDuration } from '@/lib/utils';
 
 const money = (cents: number) =>
@@ -39,6 +39,7 @@ export default function DashboardPage() {
     queryKey: ['admin-overview'],
     queryFn: async () => (await api.GET('/admin/overview')).data!.data,
     refetchInterval: 60_000,
+    enabled: me ? can(me, 'content') : false,
   });
   const showMoney = me?.role === 'super_admin';
   const bq = useQuery({

@@ -27,7 +27,7 @@ export type Permissions = Partial<Record<string, AccessLevel>>;
 export const GRANTABLE_AREAS: readonly { key: string; label: string; hint: string }[] = [
   { key: 'dashboard', label: 'Дашборд', hint: 'цифры и очереди (без денег)' },
   { key: 'users', label: 'Пользователи', hint: 'поиск, карточки; управление = санкции' },
-  { key: 'verification', label: 'Верификация', hint: 'лицензии адвокатов' },
+  { key: 'verification', label: 'Верификация', hint: 'лицензии адвокатов и галочки клиентов' },
   { key: 'moderation', label: 'Жалобы и обжалования', hint: 'очередь модерации' },
   { key: 'content', label: 'Посты и отзывы', hint: 'публикации, комментарии, отзывы, квалификации' },
   { key: 'media', label: 'Рилсы и стикеры', hint: 'видео и наборы стикеров' },
@@ -113,6 +113,7 @@ export const GROUPS: readonly SectionGroup[] = [
     items: [
       { href: '/users', label: 'Пользователи', icon: 'users', area: 'users', hint: 'поиск, санкции, сессии' },
       { href: '/verification', label: 'Верификация', icon: 'seal-check', area: 'verification', count: 'verification', hint: 'лицензии адвокатов' },
+      { href: '/client-badges', label: 'Галочки клиентов', icon: 'shield-check', area: 'verification', hint: 'платная золотая галочка' },
       { href: '/teams', label: 'Команды адвокатов', icon: 'users-three', area: 'teams', hint: 'помощники и места' },
     ],
   },
