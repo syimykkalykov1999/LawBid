@@ -336,7 +336,7 @@ const reelsEn = <String, String>{
   'stickers.badImage': 'Use a PNG, WebP, JPEG or GIF image',
   'stickers.mineHint': '"+" adds an image, a long press deletes a sticker.',
   'promote.title': 'Promote this case',
-  'promote.sub': 'We show the case higher in attorneys\' feed — more bids.',
+  'promote.sub': "We show the case higher in attorneys' feed — more bids.",
   'promote.pending': 'Waiting for payment. Promotion starts right after.',
   'promote.active': 'Promoted until {date} · views: {views}',
   'promote.cta': 'Promote',
