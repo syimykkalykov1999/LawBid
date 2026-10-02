@@ -40,10 +40,11 @@ export const SUPER_ONLY_AREAS = [
 ] as const;
 export type SuperOnlyArea = (typeof SUPER_ONLY_AREAS)[number];
 
-type RouteArea = AdminArea | SuperOnlyArea | 'auth';
+type RouteArea = AdminArea | SuperOnlyArea | 'auth' | 'unknown';
 
-/** First path segment after `/admin/` → area. Unknown segments are
- * treated as super-only, so a new controller is closed by default. */
+/** First path segment after `/admin/` → area. Unknown segments map to
+ * `unknown`, which only the super admin reaches, so a new controller is
+ * closed by default. */
 const SEGMENT_AREA: Record<string, RouteArea> = {
   auth: 'auth',
   dashboard: 'dashboard',
@@ -83,11 +84,59 @@ const SEGMENT_AREA: Record<string, RouteArea> = {
 export function routeArea(path: string): RouteArea | null {
   const m = /\/admin\/([^/?#]+)/.exec(path);
   if (!m) return null;
-  return SEGMENT_AREA[m[1]] ?? 'admins';
+  return SEGMENT_AREA[m[1]] ?? 'unknown';
 }
 
 export function isSuperOnlyArea(a: RouteArea): a is SuperOnlyArea {
   return (SUPER_ONLY_AREAS as readonly string[]).includes(a);
+}
+
+/** Key inside `admin_profiles.permissions` for the right to manage other
+ * admins (owner 2026-10-02). Only the super admin hands it out, and it is
+ * never grantable by an admin who holds it. */
+export const MANAGE_ADMINS_KEY = 'manage_admins';
+
+export function readManageAdmins(raw: unknown): boolean {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return false;
+  return (raw as Record<string, unknown>)[MANAGE_ADMINS_KEY] === true;
+}
+
+/** The JSON stored in `admin_profiles.permissions`. */
+export function storePermissions(
+  areas: AdminPermissions,
+  manageAdmins: boolean,
+): Record<string, string | boolean> {
+  return manageAdmins ? { ...areas, [MANAGE_ADMINS_KEY]: true } : { ...areas };
+}
+
+const LEVEL_RANK: Record<AccessLevel, number> = { view: 1, manage: 2 };
+
+/** True when `inner` asks for nothing `outer` does not already hold. */
+export function covers(
+  outer: AdminPermissions,
+  inner: AdminPermissions,
+): boolean {
+  return ADMIN_AREAS.every((area) => {
+    const want = inner[area];
+    if (!want) return true;
+    const have = outer[area];
+    return have !== undefined && LEVEL_RANK[have] >= LEVEL_RANK[want];
+  });
+}
+
+/** `inner` limited to what `outer` holds (levels capped). */
+export function intersect(
+  outer: AdminPermissions,
+  inner: AdminPermissions,
+): AdminPermissions {
+  const out: AdminPermissions = {};
+  for (const area of ADMIN_AREAS) {
+    const want = inner[area];
+    const have = outer[area];
+    if (!want || !have) continue;
+    out[area] = LEVEL_RANK[want] <= LEVEL_RANK[have] ? want : have;
+  }
+  return out;
 }
 
 export function levelForMethod(method: string): AccessLevel {
@@ -119,19 +168,23 @@ export function grants(
 /**
  * The one access decision. The super admin passes everywhere. Anyone else
  * needs a toggle for the route's area at the right level; `auth` routes
- * (own session, own password) are open to every admin; the super-only
- * areas are closed.
+ * (own session) are open to every admin; `admins` needs the
+ * manage-admins right; the other super-only areas are closed.
  */
 export function canAccess(
   role: AdminRole,
   perms: AdminPermissions,
   path: string,
   method: string,
+  manageAdmins = false,
 ): boolean {
   if (role === 'super_admin') return true;
   const area = routeArea(path);
-  if (!area) return false;
+  if (!area || area === 'unknown') return false;
   if (area === 'auth') return true;
+  // Admin management: only an admin the super admin gave that right; the
+  // service narrows it further (what they may grant or touch).
+  if (area === 'admins') return manageAdmins;
   if (isSuperOnlyArea(area)) return false;
   return grants(perms, area, levelForMethod(method));
 }

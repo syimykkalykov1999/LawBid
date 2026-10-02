@@ -9,7 +9,8 @@ import {
   MinLength,
 } from 'class-validator';
 
-/** docs/06 §2.1 admin sign-in: email → email code → TOTP (or recovery). */
+/** docs/06 §2.1 admin sign-in: login + password (or an emailed code); the
+ * authenticator only when the admin turned it on. */
 
 export class AdminLoginStartDto {
   @ApiProperty({ format: 'email' })
@@ -149,18 +150,20 @@ export class TotpEnrollmentDto {
 
 export class AdminLoginVerifyResultDto {
   @ApiProperty({
-    description:
-      'Short-lived proof that the email code was accepted; exchange it with the TOTP code (or a recovery code).',
-  })
-  ticket!: string;
-
-  @ApiPropertyOptional({
-    type: TotpEnrollmentDto,
+    type: String,
     nullable: true,
     description:
-      'Present on the first sign-in (or after a 2FA reset): bind the authenticator app, then send its code to /totp.',
+      'Only when this admin turned on two-factor: exchange it with the authenticator code (or a recovery code) at /totp.',
   })
-  totpEnrollment!: TotpEnrollmentDto | null;
+  ticket!: string | null;
+
+  @ApiProperty({
+    type: () => AdminSessionDto,
+    nullable: true,
+    description:
+      'The signed-in session when no second step is needed (two-factor off, the default).',
+  })
+  session!: AdminSessionDto | null;
 }
 
 export class AdminMeDto {
@@ -198,6 +201,12 @@ export class AdminMeDto {
   @ApiProperty({ description: 'Super admin: a security question is set.' })
   hasSecurityQuestion!: boolean;
 
+  @ApiProperty({
+    description:
+      'May create and manage other admins (the super admin always can).',
+  })
+  canManageAdmins!: boolean;
+
   @ApiProperty({ type: String, nullable: true })
   securityQuestion!: string | null;
 }
@@ -215,13 +224,6 @@ export class AdminSessionDto {
 
   @ApiProperty({ type: AdminMeDto })
   admin!: AdminMeDto;
-
-  @ApiPropertyOptional({
-    type: [String],
-    description:
-      'Only right after the authenticator was bound: ten one-time recovery codes, shown once.',
-  })
-  recoveryCodes?: string[];
 }
 
 export class AdminLogoutResultDto {
@@ -229,11 +231,36 @@ export class AdminLogoutResultDto {
   ok!: true;
 }
 
-/** Owner 2026-10-01: a fresh authenticator code before key changes. */
+/** Owner 2026-10-01: a fresh confirmation before key changes: the
+ * authenticator code when two-factor is on, otherwise the own password. */
 export class AdminStepUpDto {
-  @ApiProperty({ description: 'The 6-digit authenticator code.' })
+  @ApiPropertyOptional({ description: 'The 6-digit authenticator code.' })
+  @IsOptional()
   @Matches(/^\d{6}$/)
+  code?: string;
+
+  @ApiPropertyOptional({
+    maxLength: 128,
+    description: 'The admin’s own password (when two-factor is off).',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(128)
+  password?: string;
+}
+
+export class AdminTwoFactorCodeDto {
+  @ApiProperty({ description: 'The 6-digit code from the authenticator app.' })
+  @Matches(/^\d{6}$|^[A-Za-z2-7]{5}-?[A-Za-z2-7]{5}$/)
   code!: string;
+}
+
+export class AdminTwoFactorEnabledDto {
+  @ApiProperty({
+    type: [String],
+    description: 'Ten one-time recovery codes, shown once.',
+  })
+  recoveryCodes!: string[];
 }
 
 export class AdminStepUpResultDto {

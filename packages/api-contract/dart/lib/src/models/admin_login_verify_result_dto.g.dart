@@ -9,17 +9,15 @@ part of 'admin_login_verify_result_dto.dart';
 AdminLoginVerifyResultDto _$AdminLoginVerifyResultDtoFromJson(
   Map<String, dynamic> json,
 ) => AdminLoginVerifyResultDto(
-  ticket: json['ticket'] as String,
-  totpEnrollment: json['totpEnrollment'] == null
+  ticket: json['ticket'] as String?,
+  session: json['session'] == null
       ? null
-      : TotpEnrollmentDto.fromJson(
-          json['totpEnrollment'] as Map<String, dynamic>,
-        ),
+      : AdminSessionDto.fromJson(json['session'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$AdminLoginVerifyResultDtoToJson(
   AdminLoginVerifyResultDto instance,
 ) => <String, dynamic>{
-  'ticket': instance.ticket,
-  'totpEnrollment': ?instance.totpEnrollment?.toJson(),
+  'ticket': ?instance.ticket,
+  'session': ?instance.session?.toJson(),
 };

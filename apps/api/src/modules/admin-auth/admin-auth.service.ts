@@ -26,6 +26,7 @@ import type {
   AdminLoginVerifyResultDto,
   AdminMeDto,
   AdminSessionDto,
+  TotpEnrollmentDto,
 } from './admin-auth.dto';
 import {
   dummyHash,
@@ -36,7 +37,7 @@ import {
   passwordProblem,
   verifySecret,
 } from './admin-password.util';
-import { parsePermissions } from './admin-permissions';
+import { parsePermissions, readManageAdmins } from './admin-permissions';
 import {
   ADMIN_SESSION_TTL_SECONDS,
   AdminSessionService,
@@ -64,6 +65,7 @@ export const ADMIN_AUDIT = {
   login: 'admin.login',
   logout: 'admin.logout',
   totpEnrolled: 'admin.totp_enrolled',
+  totpDisabled: 'admin.totp_disabled',
   recoveryUsed: 'admin.recovery_code_used',
   passwordLogin: 'admin.login_password',
   credentialsChanged: 'admin.credentials_changed',
@@ -78,10 +80,11 @@ interface AdminRow {
 }
 
 /**
- * docs/06 §2.1 admin sign-in: email + emailed code + mandatory TOTP; the
- * first sign-in binds the authenticator and hands out recovery codes
- * (`admin_credentials`). No registration — accounts come from the
- * "Администраторы" section. Every successful step that matters is an
+ * docs/06 §2.1 admin sign-in (owner 2026-10-02): login + password, or an
+ * emailed code, signs in on its own. The authenticator (TOTP) is optional
+ * and off by default: an admin who turns it on in the profile is asked for
+ * its code after the first factor (`admin_credentials`). No registration —
+ * accounts come from the "Администраторы" section. Every successful step that matters is an
  * audit_log row; the mobile session/refresh machinery is not involved
  * (admin JWT + Redis session only, AdminSessionService).
  */
@@ -126,8 +129,10 @@ export class AdminAuthService {
   async loginVerify(
     email: string,
     code: string,
+    ip: string | null = null,
+    userAgent: string | null = null,
   ): Promise<AdminLoginVerifyResultDto> {
-    const cipher = this.assertConfigured();
+    this.assertConfigured();
     const normalized = email.trim().toLowerCase();
     await this.limit(
       ['admin-verify', 'email', this.rateLimit.hashIdentifier(normalized)],
@@ -150,7 +155,7 @@ export class AdminAuthService {
       });
     }
 
-    return this.startSecondFactor(admin, cipher);
+    return this.afterFirstFactor(admin, ip, userAgent, 'email_code');
   }
 
   /** Password first factor → the same 2FA ticket the emailed code gives. */
@@ -158,8 +163,9 @@ export class AdminAuthService {
     login: string,
     password: string,
     ip: string | null,
+    userAgent: string | null = null,
   ): Promise<AdminLoginVerifyResultDto> {
-    const cipher = this.assertConfigured();
+    this.assertConfigured();
     const normalized = normalizeLogin(login);
     await this.limit(
       ['admin-pw', 'login', this.rateLimit.hashIdentifier(normalized)],
@@ -204,45 +210,51 @@ export class AdminAuthService {
         message: 'Wrong login or password.',
       });
     }
-    return this.startSecondFactor(
+    return this.afterFirstFactor(
       { id: u.id, email: u.email, admin_role: u.admin_profile.admin_role },
-      cipher,
+      ip,
+      userAgent,
+      'password',
     );
   }
 
-  /** First sign-in (or after a 2FA reset) binds a fresh authenticator. */
-  private async startSecondFactor(
+  /**
+   * The first factor passed. An admin who turned on the authenticator gets
+   * a 2FA ticket to exchange with a code; everyone else is signed in now.
+   */
+  private async afterFirstFactor(
     admin: AdminRow,
-    cipher: SecretCipher,
+    ip: string | null,
+    userAgent: string | null,
+    method: 'password' | 'email_code',
   ): Promise<AdminLoginVerifyResultDto> {
+    const cipher = this.assertConfigured();
     const cred = await this.prisma.adminCredential.findUnique({
       where: { user_id: admin.id },
+      select: { totp_enabled_at: true },
     });
-    let enrollment: AdminLoginVerifyResultDto['totpEnrollment'] = null;
-    if (!cred?.totp_enabled_at) {
-      const secret = generateTotpSecret();
-      await this.prisma.adminCredential.upsert({
-        where: { user_id: admin.id },
-        create: { user_id: admin.id, totp_secret_enc: cipher.encrypt(secret) },
-        update: { totp_secret_enc: cipher.encrypt(secret) },
-      });
-      enrollment = {
-        secret,
-        otpauthUri: otpauthUri({
-          issuer: TOTP_ISSUER,
-          account: admin.email,
-          secretBase32: secret,
-        }),
-      };
+    if (cred?.totp_enabled_at) {
+      const jti = randomUUID();
+      await this.redis.set(this.ticketKey(jti), '0', 'EX', TICKET_TTL_SECONDS);
+      const ticket = this.tokens.signAdminTicket(
+        { sub: admin.id, jti },
+        TICKET_TTL_SECONDS,
+      );
+      return { ticket, session: null };
     }
-
-    const jti = randomUUID();
-    await this.redis.set(this.ticketKey(jti), '0', 'EX', TICKET_TTL_SECONDS);
-    const ticket = this.tokens.signAdminTicket(
-      { sub: admin.id, jti },
-      TICKET_TTL_SECONDS,
-    );
-    return { ticket, totpEnrollment: enrollment };
+    await this.prisma.adminCredential.upsert({
+      where: { user_id: admin.id },
+      create: {
+        user_id: admin.id,
+        totp_secret_enc: cipher.encrypt(generateTotpSecret()),
+        last_login_at: new Date(),
+      },
+      update: { last_login_at: new Date() },
+    });
+    return {
+      ticket: null,
+      session: await this.issueSession(admin, ip, userAgent, method),
+    };
   }
 
   async totpVerify(
@@ -253,6 +265,7 @@ export class AdminAuthService {
   ): Promise<AdminSessionDto> {
     const cipher = this.assertConfigured();
     const { admin, jti, cred } = await this.openTicket(ticket);
+    if (!cred.totp_enabled_at) throw ticketInvalid();
     const secret = cipher.decrypt(cred.totp_secret_enc);
     if (!verifyTotp(secret, code)) {
       await this.failAttempt(jti, ErrorCode.ADMIN_TOTP_INVALID);
@@ -272,31 +285,11 @@ export class AdminAuthService {
     }
     await this.consumeTicket(jti);
 
-    let recoveryCodes: string[] | undefined;
-    if (!cred.totp_enabled_at) {
-      recoveryCodes = Array.from({ length: RECOVERY_CODES }, newRecoveryCode);
-      await this.prisma.adminCredential.update({
-        where: { user_id: admin.id },
-        data: {
-          totp_enabled_at: new Date(),
-          recovery_codes_hash: recoveryCodes.map(hashRecoveryCode),
-          last_login_at: new Date(),
-        },
-      });
-      await this.audit.record({
-        adminId: admin.id,
-        action: ADMIN_AUDIT.totpEnrolled,
-        targetType: 'admin',
-        targetId: admin.id,
-        ip,
-      });
-    } else {
-      await this.prisma.adminCredential.update({
-        where: { user_id: admin.id },
-        data: { last_login_at: new Date() },
-      });
-    }
-    return this.issueSession(admin, ip, recoveryCodes, userAgent);
+    await this.prisma.adminCredential.update({
+      where: { user_id: admin.id },
+      data: { last_login_at: new Date() },
+    });
+    return this.issueSession(admin, ip, userAgent, 'totp');
   }
 
   async recovery(
@@ -328,7 +321,7 @@ export class AdminAuthService {
       after: { remainingCodes: remaining.length },
       ip,
     });
-    return this.issueSession(admin, ip, undefined, userAgent);
+    return this.issueSession(admin, ip, userAgent, 'recovery_code');
   }
 
   async logout(actor: AdminActor): Promise<void> {
@@ -375,6 +368,9 @@ export class AdminAuthService {
         role === 'super_admin'
           ? {}
           : parsePermissions(user.admin_profile?.permissions),
+      canManageAdmins:
+        role === 'super_admin' ||
+        readManageAdmins(user.admin_profile?.permissions),
       hasSecurityQuestion: Boolean(c?.security_answer_hash),
       securityQuestion:
         role === 'super_admin' ? (c?.security_question ?? null) : null,
@@ -383,12 +379,22 @@ export class AdminAuthService {
 
   // ---- login + password management -------------------------------------
 
-  /** An admin changes their own login and/or password. */
+  /** The super admin changes their own login and/or password. */
   async changeOwnCredentials(
     actor: AdminActor,
     dto: AdminChangeOwnCredentialsDto,
   ): Promise<void> {
     const cipher = this.assertConfigured();
+    // Owner 2026-10-02: only the super admin changes their own login and
+    // password; everyone else gets theirs from the super admin or an admin
+    // manager.
+    if (actor.adminRole !== 'super_admin') {
+      throw new ForbiddenException({
+        code: ErrorCode.FORBIDDEN,
+        message:
+          'Only the super admin can change their own login and password.',
+      });
+    }
     if (!dto.newLogin && !dto.newPassword) {
       throw invalid('Nothing to change.');
     }
@@ -436,8 +442,8 @@ export class AdminAuthService {
   }
 
   /**
-   * Super admin sets another admin's login and/or password (the caller
-   * checks role and step-up). Their sessions end; the authenticator stays.
+   * Super admin or an admin manager sets another admin's login and/or
+   * password (the caller checks who may touch the target, and step-up). Their sessions end; the authenticator stays.
    */
   async setCredentialsFor(
     actor: AdminActor,
@@ -473,7 +479,7 @@ export class AdminAuthService {
       targetType: 'admin',
       targetId,
       after: {
-        by: 'super_admin',
+        by: actor.adminRole === 'super_admin' ? 'super_admin' : 'admin_manager',
         loginChanged: Boolean(login),
         passwordChanged: Boolean(input.password),
       },
@@ -535,6 +541,13 @@ export class AdminAuthService {
         },
       });
     }
+    // The owner signs in with login + password alone; a binding left over
+    // from the old sign-in flow would still ask for a code, so the console
+    // setup clears it (two-factor can be turned on again in the profile).
+    await this.prisma.adminCredential.update({
+      where: { user_id: userId },
+      data: { totp_enabled_at: null, recovery_codes_hash: [] },
+    });
     await this.sessions.revokeAllForUser(userId);
     await this.audit.record({
       adminId: userId,
@@ -594,9 +607,9 @@ export class AdminAuthService {
 
   /**
    * Forgot the password: the super admin answers the security question and
-   * picks a new password. It does NOT sign anyone in (the authenticator
-   * or a recovery code is still required), ends every session and is
-   * audited.
+   * picks a new password. It does NOT sign anyone in (the new password is
+   * used on the next sign-in, with the authenticator when it is on), ends
+   * every session and is audited.
    */
   async recoverPassword(
     login: string,
@@ -616,10 +629,11 @@ export class AdminAuthService {
       normalizeAnswer(answer),
       cred?.security_answer_hash ?? (await dummyHash()),
     );
-    // Without a bound authenticator the answer alone would be the only
-    // factor (the next sign-in would hand out a fresh enrollment), so
-    // recovery is closed until the authenticator is bound.
-    if (!ok || !cred?.security_answer_hash || !cred.totp_enabled_at) {
+    // Owner 2026-10-02: the secret answer is enough to set a new password
+    // (the authenticator is optional now). It is rate limited (5/h per
+    // login, 10/h per IP), the answer has a 4-character minimum, every
+    // session ends and the change is audited.
+    if (!ok || !cred?.security_answer_hash) {
       throw new UnauthorizedException({
         code: ErrorCode.ADMIN_RECOVERY_FAILED,
         message: 'The answer is not right.',
@@ -751,8 +765,8 @@ export class AdminAuthService {
   private async issueSession(
     admin: AdminRow,
     ip: string | null,
-    recoveryCodes?: string[],
-    userAgent: string | null = null,
+    userAgent: string | null,
+    method: 'password' | 'email_code' | 'totp' | 'recovery_code',
   ): Promise<AdminSessionDto> {
     const jti = randomUUID();
     await this.sessions.create(admin.id, jti, { ip, userAgent });
@@ -765,7 +779,7 @@ export class AdminAuthService {
       action: ADMIN_AUDIT.login,
       targetType: 'admin',
       targetId: admin.id,
-      after: { method: recoveryCodes ? 'totp_enrolled' : 'totp' },
+      after: { method },
       ip,
     });
     return {
@@ -774,7 +788,6 @@ export class AdminAuthService {
         Date.now() + ADMIN_SESSION_TTL_SECONDS * 1000,
       ).toISOString(),
       admin: await this.buildMe(admin.id, admin.admin_role),
-      ...(recoveryCodes ? { recoveryCodes } : {}),
     };
   }
 
@@ -861,10 +874,16 @@ export class AdminAuthService {
   }
 
   /**
-   * Owner 2026-10-01: a fresh 2FA code before a sensitive action (API
-   * keys). Valid 5 minutes for this admin session; 5 tries / 15 min.
+   * Owner 2026-10-01: a fresh confirmation before a sensitive action (API
+   * keys, setting someone's password). With the authenticator on it is a
+   * fresh code; without it (2FA is optional) the admin's own password.
+   * Valid 5 minutes for this admin session; 5 tries / 15 min.
    */
-  async stepUp(adminId: string, sessionId: string, code: string) {
+  async stepUp(
+    adminId: string,
+    sessionId: string,
+    proof: { code?: string; password?: string },
+  ) {
     const cipher = this.assertConfigured();
     const r = await this.rateLimit.consumeFixedWindow(
       ['admin-stepup', adminId],
@@ -884,25 +903,30 @@ export class AdminAuthService {
     const cred = await this.prisma.adminCredential.findUnique({
       where: { user_id: adminId },
     });
-    if (!cred?.totp_enabled_at) {
+    let ok = false;
+    if (cred?.totp_enabled_at) {
+      const code = proof.code ?? '';
+      ok =
+        verifyTotp(cipher.decrypt(cred.totp_secret_enc), code) &&
+        (await this.redis.set(
+          `adm:totp:used:${adminId}:${code}`,
+          '1',
+          'EX',
+          TOTP_REPLAY_WINDOW_SECONDS,
+          'NX',
+        )) === 'OK';
+    } else if (cred?.password_hash) {
+      ok = await verifySecret(proof.password ?? '', cred.password_hash);
+    } else {
       throw new ForbiddenException({
-        code: ErrorCode.ADMIN_TOTP_INVALID,
-        message: 'Two-factor authentication is not set up.',
+        code: ErrorCode.ADMIN_STEP_UP_REQUIRED,
+        message: 'Set a password or turn on two-factor first.',
       });
     }
-    const ok =
-      verifyTotp(cipher.decrypt(cred.totp_secret_enc), code) &&
-      (await this.redis.set(
-        `adm:totp:used:${adminId}:${code}`,
-        '1',
-        'EX',
-        TOTP_REPLAY_WINDOW_SECONDS,
-        'NX',
-      )) === 'OK';
     if (!ok) {
       throw new ForbiddenException({
         code: ErrorCode.ADMIN_TOTP_INVALID,
-        message: 'Wrong code.',
+        message: cred?.totp_enabled_at ? 'Wrong code.' : 'Wrong password.',
       });
     }
     const ttl = 300;
@@ -910,12 +934,122 @@ export class AdminAuthService {
     return { validForSeconds: ttl };
   }
 
+  // ---- optional two-factor (authenticator) ---------------------------------
+
+  /** Step 1: a fresh secret to put into the authenticator app. Two-factor
+   * stays off until a code from the app confirms it. */
+  async twoFactorBegin(actor: AdminActor): Promise<TotpEnrollmentDto> {
+    const cipher = this.assertConfigured();
+    await this.limit(['admin-2fa-begin', actor.id], 10);
+    await this.ensureCredential(actor.id, cipher);
+    const cred = await this.prisma.adminCredential.findUniqueOrThrow({
+      where: { user_id: actor.id },
+      select: { totp_enabled_at: true },
+    });
+    if (cred.totp_enabled_at) throw invalid('Two-factor is already on.');
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id: actor.id },
+      select: { email: true },
+    });
+    const secret = generateTotpSecret();
+    await this.prisma.adminCredential.update({
+      where: { user_id: actor.id },
+      data: { totp_secret_enc: cipher.encrypt(secret) },
+    });
+    return {
+      secret,
+      otpauthUri: otpauthUri({
+        issuer: TOTP_ISSUER,
+        account: user.email ?? actor.id,
+        secretBase32: secret,
+      }),
+    };
+  }
+
+  /** Step 2: the app's code turns two-factor on and returns the one-time
+   * recovery codes (shown once). */
+  async twoFactorEnable(actor: AdminActor, code: string): Promise<string[]> {
+    const cipher = this.assertConfigured();
+    await this.limit(['admin-2fa-enable', actor.id], 10);
+    const cred = await this.prisma.adminCredential.findUnique({
+      where: { user_id: actor.id },
+    });
+    if (!cred) throw invalid('Start two-factor setup first.');
+    if (cred.totp_enabled_at) throw invalid('Two-factor is already on.');
+    // Same single-use rule as the sign-in step (RFC 6238 §5.2).
+    const fresh =
+      verifyTotp(cipher.decrypt(cred.totp_secret_enc), code) &&
+      (await this.redis.set(
+        `adm:totp:used:${actor.id}:${code}`,
+        '1',
+        'EX',
+        TOTP_REPLAY_WINDOW_SECONDS,
+        'NX',
+      )) === 'OK';
+    if (!fresh) {
+      throw new ForbiddenException({
+        code: ErrorCode.ADMIN_TOTP_INVALID,
+        message: 'Wrong code.',
+      });
+    }
+    const recoveryCodes = Array.from(
+      { length: RECOVERY_CODES },
+      newRecoveryCode,
+    );
+    await this.prisma.adminCredential.update({
+      where: { user_id: actor.id },
+      data: {
+        totp_enabled_at: new Date(),
+        recovery_codes_hash: recoveryCodes.map(hashRecoveryCode),
+      },
+    });
+    await this.audit.record({
+      adminId: actor.id,
+      action: ADMIN_AUDIT.totpEnrolled,
+      targetType: 'admin',
+      targetId: actor.id,
+      ip: actor.ip,
+    });
+    return recoveryCodes;
+  }
+
+  /** Turns two-factor off again; needs a current code (or a recovery code). */
+  async twoFactorDisable(actor: AdminActor, code: string): Promise<void> {
+    const cipher = this.assertConfigured();
+    await this.limit(['admin-2fa-disable', actor.id], 10);
+    const cred = await this.prisma.adminCredential.findUnique({
+      where: { user_id: actor.id },
+    });
+    if (!cred?.totp_enabled_at) throw invalid('Two-factor is already off.');
+    const viaApp = verifyTotp(cipher.decrypt(cred.totp_secret_enc), code);
+    const viaRecovery = cred.recovery_codes_hash.includes(
+      hashRecoveryCode(code),
+    );
+    if (!viaApp && !viaRecovery) {
+      throw new ForbiddenException({
+        code: ErrorCode.ADMIN_TOTP_INVALID,
+        message: 'Wrong code.',
+      });
+    }
+    await this.prisma.adminCredential.update({
+      where: { user_id: actor.id },
+      data: { totp_enabled_at: null, recovery_codes_hash: [] },
+    });
+    await this.audit.record({
+      adminId: actor.id,
+      action: ADMIN_AUDIT.totpDisabled,
+      targetType: 'admin',
+      targetId: actor.id,
+      ip: actor.ip,
+    });
+  }
+
   /** Throws unless [sessionId] passed a step-up in the last 5 minutes. */
   async assertStepUp(sessionId: string): Promise<void> {
     if (!(await this.redis.exists(`adm:stepup:${sessionId}`))) {
       throw new ForbiddenException({
         code: ErrorCode.ADMIN_STEP_UP_REQUIRED,
-        message: 'Confirm with your 2FA code first.',
+        message: 'Confirm with your 2FA code or password first.',
       });
     }
   }

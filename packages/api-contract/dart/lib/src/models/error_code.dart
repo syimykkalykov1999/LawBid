@@ -170,6 +170,12 @@ enum ErrorCode {
   adminAuthNotConfigured('ADMIN_AUTH_NOT_CONFIGURED'),
   @JsonValue('ADMIN_EMAIL_TAKEN')
   adminEmailTaken('ADMIN_EMAIL_TAKEN'),
+  @JsonValue('ADMIN_CREDENTIALS_INVALID')
+  adminCredentialsInvalid('ADMIN_CREDENTIALS_INVALID'),
+  @JsonValue('ADMIN_LOGIN_TAKEN')
+  adminLoginTaken('ADMIN_LOGIN_TAKEN'),
+  @JsonValue('ADMIN_RECOVERY_FAILED')
+  adminRecoveryFailed('ADMIN_RECOVERY_FAILED'),
   @JsonValue('CONTENT_BLOCKED')
   contentBlocked('CONTENT_BLOCKED'),
   @JsonValue('MODERATION_ACTION_NOT_APPLICABLE')

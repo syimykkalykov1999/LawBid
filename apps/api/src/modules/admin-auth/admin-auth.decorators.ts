@@ -94,6 +94,8 @@ export interface RequestAdmin {
   justification: string | null;
   /** Area toggles (empty for the super admin, who needs none). */
   permissions?: AdminPermissions;
+  /** The super admin gave this admin the right to manage other admins. */
+  manageAdmins?: boolean;
 }
 
 /** The admin resolved by AdminAuthGuard plus the client IP (audit_log). */

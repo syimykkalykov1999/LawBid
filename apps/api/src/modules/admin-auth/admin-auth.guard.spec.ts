@@ -122,6 +122,7 @@ describe('AdminAuthGuard (docs/06 §2.1–2.2, deny by default)', () => {
       sessionId: 's1',
       justification: null,
       permissions: { verification: 'manage' },
+      manageAdmins: false,
     });
   });
 
@@ -245,6 +246,54 @@ describe('AdminAuthGuard (docs/06 §2.1–2.2, deny by default)', () => {
         ForbiddenException,
       );
     }
+  });
+
+  it('admin management opens only for an admin holding the manager right, and nothing else with it', async () => {
+    const manager = (url: string) =>
+      setup({
+        allowed: ['moderator', 'support', 'super_admin'],
+        url,
+        method: 'POST',
+        row: {
+          ...admin('support'),
+          admin_profile: {
+            admin_role: 'support',
+            permissions: { users: 'view', manage_admins: true },
+          },
+        },
+      });
+    const ok = manager('/api/v1/admin/admins');
+    await expect(ok.guard.canActivate(ok.ctx)).resolves.toBe(true);
+    expect(ok.req.admin?.manageAdmins).toBe(true);
+    for (const url of [
+      '/api/v1/admin/billing/refunds',
+      '/api/v1/admin/integrations',
+      '/api/v1/admin/sessions',
+      '/api/v1/admin/audit-log',
+    ]) {
+      const t = manager(url);
+      await expect(t.guard.canActivate(t.ctx)).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+    }
+  });
+
+  it('a route marked super-admin-only stays closed even for a manager', async () => {
+    const t = setup({
+      allowed: ['super_admin'],
+      url: '/api/v1/admin/admins/u2/role',
+      method: 'PATCH',
+      row: {
+        ...admin('support'),
+        admin_profile: {
+          admin_role: 'support',
+          permissions: { manage_admins: true },
+        },
+      },
+    });
+    await expect(t.guard.canActivate(t.ctx)).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
   });
 
   it('a super-admin-only route stays closed to everyone else', async () => {

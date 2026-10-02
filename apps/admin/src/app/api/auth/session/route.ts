@@ -8,10 +8,10 @@ import {
 } from '@/lib/api/server';
 
 /**
- * The last sign-in step runs here, not in the browser: the TOTP (or
- * recovery) exchange is forwarded to the API and the returned admin JWT
- * goes straight into the httpOnly cookie. The response passes the rest
- * (admin, recoveryCodes) through.
+ * The second sign-in step (only for admins who turned two-factor on) runs
+ * here, not in the browser: the TOTP (or recovery) exchange is forwarded to
+ * the API and the returned admin JWT goes straight into the httpOnly
+ * cookie. The response passes the rest (admin) through.
  */
 export async function POST(req: Request): Promise<Response> {
   const body = (await req.json()) as {
@@ -39,7 +39,7 @@ export async function POST(req: Request): Promise<Response> {
   const payload = (await upstream.json().catch(() => ({
     error: { code: 'UPSTREAM_UNAVAILABLE', message: 'The API did not answer.' },
   }))) as {
-    data?: { accessToken: string; admin: unknown; recoveryCodes?: string[] };
+    data?: { accessToken: string; admin: unknown };
   };
   if (!upstream.ok || !payload.data) {
     return NextResponse.json(payload, { status: upstream.status });

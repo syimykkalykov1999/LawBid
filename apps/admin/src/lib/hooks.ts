@@ -13,6 +13,7 @@ export interface Me {
   login: string | null;
   hasPassword: boolean;
   permissions: Permissions;
+  canManageAdmins: boolean;
   hasSecurityQuestion: boolean;
   securityQuestion: string | null;
 }

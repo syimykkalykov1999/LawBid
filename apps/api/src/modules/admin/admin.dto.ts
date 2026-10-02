@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsEmail,
   IsIn,
   IsInt,
@@ -44,6 +45,14 @@ export class CreateAdminDto {
   @IsOptional()
   @IsObject()
   permissions?: Record<string, string>;
+
+  @ApiPropertyOptional({
+    description:
+      'Super admin only: lets this admin create and manage other admins within their own access.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  canManageAdmins?: boolean;
 }
 
 export class SetAdminPermissionsDto {
@@ -55,6 +64,14 @@ export class SetAdminPermissionsDto {
   })
   @IsObject()
   permissions!: Record<string, string>;
+
+  @ApiPropertyOptional({
+    description:
+      'Super admin only: the right to create and manage other admins. Omitted = unchanged.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  canManageAdmins?: boolean;
 }
 
 export class SetAdminCredentialsDto {
@@ -110,6 +127,9 @@ export class AdminAccountDto {
     additionalProperties: { type: 'string', enum: ['view', 'manage'] },
   })
   permissions!: Record<string, 'view' | 'manage'>;
+
+  @ApiProperty({ description: 'May create and manage other admins.' })
+  canManageAdmins!: boolean;
 
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   lastLoginAt!: string | null;

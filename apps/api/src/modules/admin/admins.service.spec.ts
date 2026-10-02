@@ -6,7 +6,20 @@ jest.mock('../../prisma/tx-retry.util', () => ({
   withTxRetry: (prisma: unknown, fn: (tx: unknown) => unknown) => fn(prisma),
 }));
 
-const actor = { id: 'super-1', ip: null } as unknown as AdminActor;
+const actor = {
+  id: 'super-1',
+  ip: null,
+  adminRole: 'super_admin',
+} as unknown as AdminActor;
+/** An admin the super admin gave the right to manage others; holds users
+ * (manage) and support (view) himself. */
+const manager = {
+  id: 'mgr-1',
+  ip: null,
+  adminRole: 'support',
+  manageAdmins: true,
+  permissions: { users: 'manage', support: 'view' },
+} as unknown as AdminActor;
 
 function row(over: Record<string, unknown> = {}) {
   return {
@@ -42,12 +55,16 @@ function build(found = row()) {
       ),
       update: jest.fn().mockImplementation(({ data }) =>
         Promise.resolve(
-          row({
-            admin_profile: {
-              admin_role: 'support',
-              permissions: data.admin_profile.update.permissions,
-            },
-          }),
+          row(
+            data.admin_profile
+              ? {
+                  admin_profile: {
+                    admin_role: 'support',
+                    permissions: data.admin_profile.update.permissions,
+                  },
+                }
+              : {},
+          ),
         ),
       ),
     },
@@ -126,8 +143,154 @@ describe('AdminsService access toggles', () => {
     (prisma.user as unknown as { findMany: jest.Mock }).findMany = jest
       .fn()
       .mockResolvedValue([row()]);
-    const [a] = await svc.list();
+    const [a] = await svc.list(actor);
     expect(a).toMatchObject({ login: 'ann', hasPassword: true });
     expect(JSON.stringify(a)).not.toContain('scrypt');
+  });
+});
+
+describe('AdminsService delegated management', () => {
+  it('the super admin can hand out the manager right; it is kept when toggles change', async () => {
+    const { svc, prisma } = build();
+    await svc.setPermissions(actor, 'u2', { users: 'view' }, true);
+    expect(prisma.user.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: {
+          admin_profile: {
+            update: { permissions: { users: 'view', manage_admins: true } },
+          },
+        },
+      }),
+    );
+    const kept = build(
+      row({
+        admin_profile: {
+          admin_role: 'support',
+          permissions: { users: 'view', manage_admins: true },
+        },
+      }),
+    );
+    await kept.svc.setPermissions(actor, 'u2', { support: 'view' });
+    expect(kept.prisma.user.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: {
+          admin_profile: {
+            update: {
+              permissions: { support: 'view', manage_admins: true },
+            },
+          },
+        },
+      }),
+    );
+  });
+
+  it('a manager grants only what they hold, never more or the manager right', async () => {
+    const { svc, prisma } = build();
+    await svc.setPermissions(manager, 'u2', { users: 'view', support: 'view' });
+    expect(prisma.user.update).toHaveBeenCalledTimes(1);
+    await expect(
+      svc.setPermissions(manager, 'u2', { support: 'manage' }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(
+      svc.setPermissions(manager, 'u2', { verification: 'view' }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(
+      svc.setPermissions(manager, 'u2', { users: 'view' }, true),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.user.update).toHaveBeenCalledTimes(1);
+  });
+
+  it('a manager cannot touch a super admin, another manager or a stronger admin', async () => {
+    const cases = [
+      { admin_role: 'super_admin', permissions: {} },
+      {
+        admin_role: 'support',
+        permissions: { users: 'view', manage_admins: true },
+      },
+      { admin_role: 'moderator', permissions: { moderation: 'manage' } },
+    ];
+    for (const profile of cases) {
+      const { svc, prisma, sessions } = build(row({ admin_profile: profile }));
+      await expect(svc.setEnabled(manager, 'u2', false)).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+      await expect(svc.resetTotp(manager, 'u2')).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+      await expect(svc.remove(manager, 'u2')).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+      await expect(svc.assertCanManage(manager, 'u2')).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+      expect(prisma.user.update).not.toHaveBeenCalled();
+      expect(sessions.revokeAllForUser).not.toHaveBeenCalled();
+    }
+  });
+
+  it('a manager cannot touch their own account', async () => {
+    const { svc } = build();
+    await expect(svc.assertCanManage(manager, 'mgr-1')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    await expect(svc.remove(manager, 'mgr-1')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+  });
+
+  it('a manager creates admins inside their own access, never a super admin or a manager', async () => {
+    const { svc, prisma } = build();
+    // Role defaults are capped at what the manager holds.
+    await svc.create(manager, 'n@x.io', 'moderator');
+    const data = prisma.user.create.mock.calls[0][0].data;
+    expect(data.admin_profile.create.permissions).toEqual({ users: 'view' });
+    await expect(
+      svc.create(manager, 'n2@x.io', 'super_admin'),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(
+      svc.create(manager, 'n3@x.io', 'support', undefined, true),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(
+      svc.create(manager, 'n4@x.io', 'support', { verification: 'view' }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.user.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('a manager can remove an admin within reach: account closed, sessions ended', async () => {
+    const { svc, prisma, sessions, audit } = build();
+    await svc.remove(manager, 'u2');
+    expect(prisma.adminCredential.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { user_id: 'u2' },
+        data: expect.objectContaining({ login: null, password_hash: null }),
+      }),
+    );
+    expect(prisma.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'suspended' }),
+      }),
+    );
+    expect(sessions.revokeAllForUser).toHaveBeenCalledWith('u2');
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'admins.delete' }),
+      expect.anything(),
+    );
+  });
+
+  it('the list hides the login of admins outside a manager’s reach', async () => {
+    const { svc, prisma } = build();
+    (prisma.user as unknown as { findMany: jest.Mock }).findMany = jest
+      .fn()
+      .mockResolvedValue([
+        row(),
+        row({
+          id: 'boss',
+          admin_profile: { admin_role: 'super_admin', permissions: {} },
+          admin_credential: { login: 'thesima', password_hash: 'x' },
+        }),
+      ]);
+    const [mine, boss] = await svc.list(manager);
+    expect(mine.login).toBe('ann');
+    expect(boss.login).toBeNull();
   });
 });

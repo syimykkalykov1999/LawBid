@@ -47,12 +47,15 @@ export const GRANTABLE_AREAS: readonly { key: string; label: string; hint: strin
 export const LOCKED_AREAS: readonly { label: string; hint: string }[] = [
   { label: 'Деньги', hint: 'подписки, платежи, возвраты, промокоды, рефералы, договоры' },
   { label: 'Ключи и сервисы', hint: 'Stripe, Firebase, Bunny, SES, Sentry…' },
-  { label: 'Администраторы и сессии', hint: 'аккаунты, пароли, журнал аудита' },
+  { label: 'Журнал аудита и сессии админов', hint: 'кто что сделал и кто сейчас в админке' },
+  { label: 'Право назначать «управляющих админами»', hint: 'его выдаёт только супер-админ' },
 ];
 
 interface AccessSubject {
   role: AdminRole;
   permissions?: Permissions;
+  /** The super admin gave this admin the right to manage other admins. */
+  canManageAdmins?: boolean;
 }
 
 /** Can this admin open [area] at [level]? Super admin: always. */
@@ -67,10 +70,21 @@ export function can(
   return have === 'manage' || (have === 'view' && level === 'view');
 }
 
+/** True when [inner] asks for nothing [outer] does not already hold. */
+export function covers(outer: Permissions, inner: Permissions): boolean {
+  const rank = { view: 1, manage: 2 } as const;
+  return Object.entries(inner).every(([area, want]) => {
+    if (!want) return true;
+    const have = outer[area];
+    return !!have && rank[have] >= rank[want];
+  });
+}
+
 /** Sidebar badge sources (see shell/use-nav-counts). */
 export type CountKey = 'verification' | 'reports' | 'support' | 'appeals';
 
-/** An area key, or `super` for sections only the super admin ever opens. */
+/** An area key, `super` for sections only the super admin opens, or
+ * `admins` for admin management (super admin or a granted manager). */
 export type SectionArea = string;
 
 export interface Section {
@@ -150,7 +164,7 @@ export const GROUPS: readonly SectionGroup[] = [
       { href: '/exports', label: 'Выгрузки CSV', icon: 'download-simple', area: 'exports' },
       { href: '/audit-log', label: 'Журнал аудита', icon: 'clock-counter-clockwise', area: 'super', hint: 'кто что сделал' },
       { href: '/sessions', label: 'Сессии админов', icon: 'devices', area: 'super', hint: 'кто сейчас в админке' },
-      { href: '/admins', label: 'Администраторы', icon: 'shield-check', area: 'super', hint: 'роли, права, пароли' },
+      { href: '/admins', label: 'Администраторы', icon: 'shield-check', area: 'admins', hint: 'сотрудники, права, пароли' },
     ],
   },
 ];
@@ -158,7 +172,10 @@ export const GROUPS: readonly SectionGroup[] = [
 export const SECTIONS: readonly Section[] = GROUPS.flatMap((g) => g.items);
 
 function opens(me: AccessSubject, s: Section): boolean {
-  return s.area === 'super' ? me.role === 'super_admin' : can(me, s.area);
+  if (s.area === 'super') return me.role === 'super_admin';
+  // Admin management: the super admin, or an admin given that right.
+  if (s.area === 'admins') return me.role === 'super_admin' || me.canManageAdmins === true;
+  return can(me, s.area);
 }
 
 export function groupsFor(me: AccessSubject): SectionGroup[] {

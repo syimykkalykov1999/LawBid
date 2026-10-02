@@ -7,12 +7,14 @@ import { ErrorNote, PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Badge, Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input, Label } from '@/components/ui/input';
+import { TwoFactorCard } from '@/components/two-factor-card';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
 import { useMe } from '@/lib/hooks';
 import { ROLE_LABEL } from '@/lib/rbac';
 
-/** Own sign-in: login, password and (super admin) the recovery question. */
+/** Own sign-in: optional two-factor; the super admin also changes their own
+ * login and password and sets the recovery question. */
 export default function ProfilePage() {
   const { data: me } = useMe();
   if (!me) return null;
@@ -21,7 +23,11 @@ export default function ProfilePage() {
       <PageHeader
         eyebrow="Аккаунт"
         title="Профиль и безопасность"
-        subtitle="Логин и пароль для входа, секретный вопрос для восстановления. Пароль знаете только вы: он хранится в зашифрованном виде и не виден никому, даже супер-админу."
+        subtitle={
+          me.role === 'super_admin'
+            ? 'Ваш логин и пароль, секретный вопрос для восстановления и необязательный двухфакторный вход. Пароль хранится в зашифрованном виде и никому не виден.'
+            : 'Ваши данные для входа. Логин и пароль вам выдаёт супер-админ или тот, кто управляет админами; двухфакторный вход можно включить самому.'
+        }
       />
       <div className="grid max-w-5xl gap-4 lg:grid-cols-2">
         <Card>
@@ -39,12 +45,13 @@ export default function ProfilePage() {
               value={me.hasPassword ? <Badge tone="success">задан</Badge> : <Badge tone="warning">не задан</Badge>}
             />
             <Row
-              label="Аутентификатор"
-              value={me.totpEnabled ? <Badge tone="gold">привязан</Badge> : <Badge>нет</Badge>}
+              label="Двухфакторный вход"
+              value={me.totpEnabled ? <Badge tone="gold">включён</Badge> : <Badge>выключен</Badge>}
             />
           </CardContent>
         </Card>
-        <CredentialsCard hasPassword={me.hasPassword} login={me.login} />
+        {me.role === 'super_admin' ? <CredentialsCard hasPassword={me.hasPassword} login={me.login} /> : null}
+        <TwoFactorCard enabled={me.totpEnabled} />
         {me.role === 'super_admin' ? <QuestionCard question={me.securityQuestion} /> : null}
       </div>
     </>
@@ -191,9 +198,9 @@ function QuestionCard({ question }: { question: string | null }) {
       </CardHeader>
       <CardContent>
         <p className="mb-4 max-w-2xl text-sm text-muted">
-          Работает только для супер-админа. Ответ на экране входа («Забыли пароль?») позволяет задать новый пароль, но
-          войти всё равно нужно с кодом из аутентификатора или recovery-кодом. Ответ хранится только в виде хеша, регистр
-          и лишние пробелы не важны.
+          Работает только для супер-админа. Ответ на экране входа («Забыли пароль?») позволяет задать новый пароль, все
+          сессии при этом завершаются. Если двухфакторный вход включён, он по-прежнему спрашивается при входе. Ответ
+          хранится только в виде хеша, регистр и лишние пробелы не важны; от 4 символов, лучше длинный.
         </p>
         <form
           className="grid gap-3.5 sm:grid-cols-2"

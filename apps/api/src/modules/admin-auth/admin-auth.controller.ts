@@ -44,6 +44,9 @@ import {
   AdminTotpDto,
   AdminStepUpDto,
   AdminStepUpResultDto,
+  AdminTwoFactorCodeDto,
+  AdminTwoFactorEnabledDto,
+  TotpEnrollmentDto,
 } from './admin-auth.dto';
 import { AdminAuthService } from './admin-auth.service';
 
@@ -88,7 +91,7 @@ export class AdminAuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary:
-      'Check the email code; returns the 2FA ticket (and enrollment on first sign-in)',
+      'Check the email code; signs in (or returns the 2FA ticket when the admin turned two-factor on)',
   })
   @ApiEnvelopeResponse(AdminLoginVerifyResultDto)
   @ApiErrors({
@@ -97,8 +100,15 @@ export class AdminAuthController {
   })
   adminLoginVerify(
     @Body() dto: AdminLoginVerifyDto,
+    @Ip() ip: string,
+    @Req() req: Request,
   ): Promise<AdminLoginVerifyResultDto> {
-    return this.auth.loginVerify(dto.email, dto.code);
+    return this.auth.loginVerify(
+      dto.email,
+      dto.code,
+      ip || null,
+      req.headers['user-agent'] ?? null,
+    );
   }
 
   @Public()
@@ -152,18 +162,22 @@ export class AdminAuthController {
     return { ok: true };
   }
 
-  @AdminEndpoint('super_admin')
+  @AdminEndpoint(...ALL_ADMIN_ROLES)
   @Post('step-up')
   @HttpCode(200)
   @ApiOperation({
-    summary: 'Confirm with a 2FA code (5 min) before changing API keys',
+    summary:
+      'Confirm with the 2FA code (or the own password when two-factor is off) for 5 minutes before a sensitive change',
   })
   @ApiEnvelopeResponse(AdminStepUpResultDto)
   stepUp(
     @CurrentAdmin() admin: AdminActor,
     @Body() dto: AdminStepUpDto,
   ): Promise<AdminStepUpResultDto> {
-    return this.auth.stepUp(admin.id, admin.sessionId, dto.code);
+    return this.auth.stepUp(admin.id, admin.sessionId, {
+      code: dto.code,
+      password: dto.password,
+    });
   }
 
   @AdminEndpoint(...ALL_ADMIN_ROLES)
@@ -179,7 +193,7 @@ export class AdminAuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary:
-      'Login + password; returns the same 2FA ticket as the emailed code',
+      'Login + password: signs in (or returns the 2FA ticket when the admin turned two-factor on)',
   })
   @ApiEnvelopeResponse(AdminLoginVerifyResultDto)
   @ApiErrors({
@@ -189,8 +203,14 @@ export class AdminAuthController {
   adminLoginPassword(
     @Body() dto: AdminPasswordLoginDto,
     @Ip() ip: string,
+    @Req() req: Request,
   ): Promise<AdminLoginVerifyResultDto> {
-    return this.auth.loginPassword(dto.login, dto.password, ip || null);
+    return this.auth.loginPassword(
+      dto.login,
+      dto.password,
+      ip || null,
+      req.headers['user-agent'] ?? null,
+    );
   }
 
   @Public()
@@ -228,7 +248,7 @@ export class AdminAuthController {
     return { ok: true };
   }
 
-  @AdminEndpoint(...ALL_ADMIN_ROLES)
+  @AdminEndpoint('super_admin')
   @Put('me/credentials')
   @SkipAutoAudit()
   @ApiOperation({ summary: 'Change my own login and/or password' })
@@ -258,6 +278,52 @@ export class AdminAuthController {
     @Body() dto: AdminSecurityQuestionDto,
   ): Promise<AdminOkDto> {
     await this.auth.setSecurityQuestion(admin, dto.question, dto.answer);
+    return { ok: true };
+  }
+
+  @AdminEndpoint(...ALL_ADMIN_ROLES)
+  @Post('2fa/begin')
+  @HttpCode(HttpStatus.OK)
+  @SkipAutoAudit()
+  @ApiOperation({
+    summary: 'Optional two-factor, step 1: a secret for the authenticator app',
+  })
+  @ApiEnvelopeResponse(TotpEnrollmentDto)
+  twoFactorBegin(
+    @CurrentAdmin() admin: AdminActor,
+  ): Promise<TotpEnrollmentDto> {
+    return this.auth.twoFactorBegin(admin);
+  }
+
+  @AdminEndpoint(...ALL_ADMIN_ROLES)
+  @Post('2fa/enable')
+  @HttpCode(HttpStatus.OK)
+  @SkipAutoAudit()
+  @ApiOperation({
+    summary:
+      'Optional two-factor, step 2: confirm with a code; returns recovery codes once',
+  })
+  @ApiEnvelopeResponse(AdminTwoFactorEnabledDto)
+  @ApiErrors({ ...START_ERRORS, 403: [E.ADMIN_TOTP_INVALID] })
+  async twoFactorEnable(
+    @CurrentAdmin() admin: AdminActor,
+    @Body() dto: AdminTwoFactorCodeDto,
+  ): Promise<AdminTwoFactorEnabledDto> {
+    return { recoveryCodes: await this.auth.twoFactorEnable(admin, dto.code) };
+  }
+
+  @AdminEndpoint(...ALL_ADMIN_ROLES)
+  @Post('2fa/disable')
+  @HttpCode(HttpStatus.OK)
+  @SkipAutoAudit()
+  @ApiOperation({ summary: 'Turn two-factor off (needs a current code)' })
+  @ApiEnvelopeResponse(AdminOkDto)
+  @ApiErrors({ ...START_ERRORS, 403: [E.ADMIN_TOTP_INVALID] })
+  async twoFactorDisable(
+    @CurrentAdmin() admin: AdminActor,
+    @Body() dto: AdminTwoFactorCodeDto,
+  ): Promise<AdminOkDto> {
+    await this.auth.twoFactorDisable(admin, dto.code);
     return { ok: true };
   }
 }

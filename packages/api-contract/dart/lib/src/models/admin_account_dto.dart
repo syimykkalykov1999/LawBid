@@ -6,6 +6,7 @@ import 'package:json_annotation/json_annotation.dart';
 
 import 'admin_account_dto_role.dart';
 import 'admin_account_dto_status.dart';
+import 'permissions_permissions.dart';
 
 part 'admin_account_dto.g.dart';
 
@@ -17,6 +18,10 @@ class AdminAccountDto {
     required this.role,
     required this.status,
     required this.totpEnabled,
+    required this.login,
+    required this.hasPassword,
+    required this.permissions,
+    required this.canManageAdmins,
     required this.lastLoginAt,
     required this.createdAt,
   });
@@ -31,6 +36,14 @@ class AdminAccountDto {
 
   /// Authenticator bound.
   final bool totpEnabled;
+  final String? login;
+
+  /// A password is set.
+  final bool hasPassword;
+  final Map<String, PermissionsPermissions> permissions;
+
+  /// May create and manage other admins.
+  final bool canManageAdmins;
   final DateTime? lastLoginAt;
   final DateTime createdAt;
 

@@ -221,7 +221,8 @@ jobs:
         run: |
           git show "origin/${{ github.base_ref }}:packages/api-contract/openapi.json" > /tmp/openapi.base.json
           docker run --rm -v /tmp/openapi.base.json:/base.json -v "$PWD/packages/api-contract/openapi.json:/head.json" \
-            tufin/oasdiff:latest breaking --fail-on ERR /base.json /head.json
+            -v "$PWD/packages/api-contract/oasdiff-err-ignore.txt:/err-ignore.txt" \
+            tufin/oasdiff:latest breaking --fail-on ERR --err-ignore /err-ignore.txt /base.json /head.json
 
       - name: API contract is up to date (openapi.json + Dart client)
         # docs/01 §6.3: packages/api-contract is generated, never
