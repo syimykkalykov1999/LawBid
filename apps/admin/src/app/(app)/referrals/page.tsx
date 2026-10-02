@@ -207,7 +207,7 @@ export default function ReferralsPage() {
                   </Td>
                   {canWrite ? (
                     <Td className="text-right whitespace-nowrap">
-                      <div className="flex justify-end gap-1.5">
+                      <div className="flex flex-col items-end gap-1.5">
                         {r.status === 'pending' ? (
                           <Button size="sm" variant="soft" disabled={act.isPending} onClick={() => act.mutate({ r, action: 'qualify' })}>
                             <CheckCircle size={14} /> Засчитать

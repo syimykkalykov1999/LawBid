@@ -210,7 +210,7 @@ export default function PromotionsPage() {
                   <Td className="whitespace-nowrap text-xs text-muted">{formatDateTime(p.createdAt)}</Td>
                   {canWrite ? (
                     <Td className="text-right whitespace-nowrap">
-                      <div className="flex justify-end gap-1.5">
+                      <div className="flex flex-col items-end gap-1.5">
                         {p.status === 'active' ? (
                           <Button size="sm" variant="soft" onClick={() => setExtending(p)}>
                             <CalendarPlus size={14} /> Продлить

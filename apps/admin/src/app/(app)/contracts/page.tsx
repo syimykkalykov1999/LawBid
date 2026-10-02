@@ -121,7 +121,7 @@ export default function ContractsPage() {
               <Th>Адвокат</Th>
               <Th>Срок</Th>
               <Th>Помощники</Th>
-              <Th className="min-w-56">Период</Th>
+              <Th className="min-w-48">Период</Th>
               <Th>Договор</Th>
               <Th>Выдал</Th>
               {canWrite ? <Th className="text-right">Действия</Th> : null}
@@ -162,8 +162,8 @@ export default function ContractsPage() {
                         </div>
                       ) : null}
                     </Td>
-                    <Td className="max-w-64">
-                      {g.contractRef ? <div className="font-medium text-ink">{g.contractRef}</div> : null}
+                    <Td className="max-w-48">
+                      {g.contractRef ? <div className="font-medium whitespace-nowrap text-ink">{g.contractRef}</div> : null}
                       {g.note ? <div className="line-clamp-2 text-xs text-muted">{g.note}</div> : null}
                       {!g.contractRef && !g.note ? <span className="text-faint">—</span> : null}
                     </Td>
@@ -176,7 +176,7 @@ export default function ContractsPage() {
                     {canWrite ? (
                       <Td className="text-right whitespace-nowrap">
                         {live ? (
-                          <div className="flex justify-end gap-1.5">
+                          <div className="flex flex-col items-end gap-1.5">
                             <Button size="sm" variant="outline" onClick={() => setExtending(g)}>
                               <CalendarPlus size={14} /> Продлить
                             </Button>
