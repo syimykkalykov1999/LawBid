@@ -724,7 +724,10 @@ class _AuthorRow extends ConsumerWidget {
                               ),
                               if (a.verified) ...[
                                 const SizedBox(width: AppSpacing.xs),
-                                VerifiedCheck(label: t.t('post.verified')),
+                                VerifiedCheck(
+                                  label: t.t('post.verified'),
+                                  gold: a.isClient,
+                                ),
                               ],
                             ],
                           ),
@@ -765,17 +768,30 @@ class _AuthorRow extends ConsumerWidget {
 
 /// docs/05 §2.4 "синяя галочка" next to verified attorneys.
 class VerifiedCheck extends StatelessWidget {
-  const VerifiedCheck({required this.label, this.size = 16, super.key});
+  const VerifiedCheck({
+    required this.label,
+    this.size = 16,
+    this.gold = false,
+    super.key,
+  });
 
   final String label;
   final double size;
+
+  /// Owner 2026-10-02: attorneys wear the blue check, clients the gold one
+  /// (a paid, document-checked client).
+  final bool gold;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     return Semantics(
       label: label,
-      child: AppIcon(AppIcons.verifiedRounded, size: size, color: colors.info),
+      child: AppIcon(
+        AppIcons.verifiedRounded,
+        size: size,
+        color: gold ? colors.gold : colors.info,
+      ),
     );
   }
 }

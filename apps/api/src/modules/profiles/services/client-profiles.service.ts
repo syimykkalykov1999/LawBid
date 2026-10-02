@@ -1,3 +1,4 @@
+import { activeClientBadgeIds } from '../../client-badge/client-badge.util';
 import { CounterAggregator } from '../../counters/counter-aggregator.service';
 import {
   HttpException,
@@ -218,6 +219,7 @@ export class ClientProfilesService {
     const avatars = await this.files.avatarUrlsMany(
       users.map((u) => u.avatar_file_id),
     );
+    const gold = await activeClientBadgeIds(this.prisma, ids);
     const out: ClientListItemDto[] = [];
     for (const id of ids) {
       const u = byId.get(id);
@@ -232,7 +234,7 @@ export class ClientProfilesService {
           ? (avatars.get(u.avatar_file_id)?.url256 ?? null)
           : null,
         stateCode: p.state_code,
-        verifiedBadge: u.phone_verified_at !== null,
+        verifiedBadge: gold.has(id),
       });
     }
     return out;
@@ -297,7 +299,9 @@ export class ClientProfilesService {
       state: { code: row.state.code, name: row.state.name },
       memberSince: row.user.created_at.toISOString().slice(0, 10),
       isSelf: row.user_id === viewerId,
-      verifiedBadge: row.user.phone_verified_at !== null,
+      verifiedBadge: (
+        await activeClientBadgeIds(this.prisma, [row.user_id])
+      ).has(row.user_id),
       ...(await this.blocks.relation(viewerId, row.user_id)),
       postsCount: await this.withPending(
         row.user_id,

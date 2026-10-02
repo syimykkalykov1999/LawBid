@@ -1,3 +1,4 @@
+import { ClientBadgeService } from '../client-badge/client-badge.service';
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import type { Prisma, Subscription, SubscriptionStatus } from '@prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
@@ -41,6 +42,8 @@ export class SubscriptionSyncService {
     // Owner 2026-10-02: referral qualification + paid case promotions.
     @Optional() private readonly referrals?: ReferralsService,
     @Optional() private readonly promotions?: PromotionsService,
+    // Owner 2026-10-02: the client's paid gold badge.
+    @Optional() private readonly clientBadges?: ClientBadgeService,
   ) {}
 
   async handleEvent(event: ProviderEvent): Promise<void> {
@@ -49,6 +52,8 @@ export class SubscriptionSyncService {
       case 'customer.subscription.created':
       case 'customer.subscription.updated':
       case 'customer.subscription.deleted':
+        // A client's badge subscription is not an attorney's one.
+        if (await this.clientBadges?.onSubscriptionEvent(o.id)) return;
         await this.syncById(o.id);
         return;
       case 'invoice.paid':
@@ -64,6 +69,10 @@ export class SubscriptionSyncService {
         // Owner 2026-10-02: a one-time case-promotion payment.
         if (session?.metadata.kind === 'case_promotion') {
           await this.promotions?.applyCheckout(session);
+          return;
+        }
+        if (session?.metadata.kind === 'client_badge') {
+          await this.clientBadges?.applyCheckout(session);
           return;
         }
         if (session?.subscriptionId)

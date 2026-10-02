@@ -295,6 +295,11 @@ export const envSchema = z
       /^price_[A-Za-z0-9]+$/,
       'STRIPE_PRICE_SEAT_ID must start with price_',
     ),
+    // Owner 2026-10-02: the client's gold badge, $10/month.
+    STRIPE_PRICE_VERIFIED_ID: optionalMatching(
+      /^price_/,
+      'STRIPE_PRICE_VERIFIED_ID must start with price_',
+    ),
     STRIPE_PRICE_YEARLY_ID: optionalMatching(
       /^price_[A-Za-z0-9]+$/,
       'STRIPE_PRICE_YEARLY_ID must start with price_',

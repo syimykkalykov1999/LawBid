@@ -691,6 +691,7 @@ class ConversationRow extends ConsumerWidget {
                               VerifiedCheck(
                                 label: t.t('post.verified'),
                                 size: 14,
+                                gold: !c.counterpart.isAttorney,
                               ),
                             ],
                             if (c.muted) ...[

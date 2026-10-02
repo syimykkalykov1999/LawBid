@@ -207,7 +207,10 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
               ),
               if (p.verified) ...[
                 const SizedBox(width: AppSpacing.xs),
-                VerifiedBadge(semanticLabel: t.t('profile.verified.label')),
+                VerifiedBadge(
+                  semanticLabel: t.t('profile.verified.label'),
+                  gold: true,
+                ),
               ],
             ],
           ),

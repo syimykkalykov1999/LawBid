@@ -201,6 +201,41 @@ const reelsRu = <String, String>{
   'chat.select.deleteMessage':
       'Чаты пропадут только из вашего списка. Переписка у собеседника останется, а новое сообщение вернёт чат.',
   'chat.select.deleted': 'Удалено из списка',
+  'cbadge.title': 'Подтвердить аккаунт',
+  'cbadge.hint': 'Золотая галочка рядом с именем',
+  'cbadge.lead':
+      'Золотая галочка показывает, что ваш аккаунт проверен. Отправьте документы, мы проверим их вручную. После одобрения галочка включается по подписке.',
+  'cbadge.docs': 'Документы',
+  'cbadge.docs.hint':
+      'Фото удостоверения личности или другого документа с вашим именем. До 5 файлов.',
+  'cbadge.addPhoto': 'Добавить фото',
+  'cbadge.price':
+      'Подтверждение стоит {price} в месяц по подписке. Платить нужно только после одобрения.',
+  'cbadge.submit': 'Отправить на проверку',
+  'cbadge.uploading': 'Загрузка {n}…',
+  'cbadge.sent': 'Заявка отправлена',
+  'cbadge.fileRejected': 'Файл не прошёл проверку. Выберите другое фото.',
+  'cbadge.rejected': 'Заявку отклонили: {reason}',
+  'cbadge.revoked': 'Подтверждение отозвано: {reason}',
+  'cbadge.pending.title': 'Заявка на проверке',
+  'cbadge.pending.text':
+      'Мы смотрим ваши документы. Когда проверим, пришлём уведомление.',
+  'cbadge.approved.title': 'Документы одобрены',
+  'cbadge.approved.text':
+      'Осталось подключить подписку: {price} в месяц. После оплаты золотая галочка появится рядом с вашим именем.',
+  'cbadge.pay': 'Подключить за {price} в месяц',
+  'cbadge.active.title': 'Ваш аккаунт подтверждён',
+  'cbadge.active.free': 'Золотая галочка включена без оплаты.',
+  'cbadge.active.renews': 'Продлится за {price} {date}.',
+  'cbadge.active.until':
+      'Галочка останется до {date}, дальше подписка не продлится.',
+  'cbadge.cancel': 'Отменить подписку',
+  'cbadge.resume': 'Продолжить подписку',
+  'notif.list.cbadge.on': 'Золотая галочка включена',
+  'notif.list.cbadge.approved':
+      'Документы одобрены. Подключите подписку, и галочка появится',
+  'notif.list.cbadge.rejected': 'Заявку на подтверждение отклонили',
+  'notif.list.cbadge.off': 'Золотая галочка выключена',
 };
 
 const reelsEn = <String, String>{
@@ -401,4 +436,39 @@ const reelsEn = <String, String>{
   'chat.select.deleteMessage':
       'They disappear from your list only. The other side keeps the conversation, and a new message brings the chat back.',
   'chat.select.deleted': 'Removed from your list',
+  'cbadge.title': 'Verify account',
+  'cbadge.hint': 'A gold check next to your name',
+  'cbadge.lead':
+      'The gold check shows your account was verified. Send documents and we review them by hand. After approval the check turns on with a subscription.',
+  'cbadge.docs': 'Documents',
+  'cbadge.docs.hint':
+      'A photo of an ID or another document with your name. Up to 5 files.',
+  'cbadge.addPhoto': 'Add a photo',
+  'cbadge.price':
+      'Verification costs {price} a month as a subscription. You pay only after approval.',
+  'cbadge.submit': 'Send for review',
+  'cbadge.uploading': 'Uploading {n}…',
+  'cbadge.sent': 'Request sent',
+  'cbadge.fileRejected': 'The file did not pass the check. Pick another photo.',
+  'cbadge.rejected': 'Your request was rejected: {reason}',
+  'cbadge.revoked': 'Verification was withdrawn: {reason}',
+  'cbadge.pending.title': 'Under review',
+  'cbadge.pending.text':
+      'We are looking at your documents. You get a notification when we are done.',
+  'cbadge.approved.title': 'Documents approved',
+  'cbadge.approved.text':
+      'One step left: the subscription, {price} a month. After you pay, the gold check appears next to your name.',
+  'cbadge.pay': 'Subscribe for {price} a month',
+  'cbadge.active.title': 'Your account is verified',
+  'cbadge.active.free': 'The gold check is on at no charge.',
+  'cbadge.active.renews': 'Renews for {price} on {date}.',
+  'cbadge.active.until':
+      'The check stays until {date}; the subscription will not renew.',
+  'cbadge.cancel': 'Cancel subscription',
+  'cbadge.resume': 'Keep the subscription',
+  'notif.list.cbadge.on': 'Your gold check is on',
+  'notif.list.cbadge.approved':
+      'Documents approved. Subscribe and the check appears',
+  'notif.list.cbadge.rejected': 'Your verification request was rejected',
+  'notif.list.cbadge.off': 'Your gold check is off',
 };

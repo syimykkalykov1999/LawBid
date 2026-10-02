@@ -1,3 +1,4 @@
+import { activeClientBadgeIds } from '../client-badge/client-badge.util';
 import { Injectable } from '@nestjs/common';
 import type { Post, Prisma } from '@prisma/client';
 import { MentionsService } from '../mentions/mentions.service';
@@ -158,6 +159,13 @@ export class PostPresenter {
         : []
       ).map((a) => [a.id, a]),
     );
+    // Owner 2026-10-02: a client's badge is the paid gold one.
+    const goldClients = await activeClientBadgeIds(
+      this.prisma,
+      posts
+        .filter((p) => authorById.get(p.author_id)?.role === 'client')
+        .map((p) => p.author_id),
+    );
     return posts.map((p) => {
       const area = p.practice_area_id
         ? practices.get(p.practice_area_id)
@@ -176,9 +184,10 @@ export class PostPresenter {
           firstName: a?.first_name ?? null,
           lastName: a?.last_name ?? null,
           avatarUrl: avatars.get(p.author_id) ?? null,
-          // OQ-029 final: the badge follows the verified phone.
+          // Attorneys: verified licence. Clients (owner 2026-10-02): the
+          // paid gold badge only.
           verifiedBadge: isClient
-            ? a?.phone_verified_at != null
+            ? goldClients.has(p.author_id)
             : prof?.verification_status === 'verified' &&
               (prof.licenses.length ?? 0) > 0,
           isFollowing: followed.has(p.author_id),

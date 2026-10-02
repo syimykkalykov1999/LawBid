@@ -94,6 +94,11 @@ export const OWNER_SUPPORT_SETTINGS = {
   'rate_limit.support_message_per_hour': 30,
 } as const;
 
+// Owner 2026-10-02: the paid gold badge of a client (cents per month).
+export const OWNER_BADGE_SETTINGS = {
+  'verification.client_badge_cents': 1000,
+} as const;
+
 /** Every typed app_config tunable with its spec default. */
 export const APP_SETTINGS = {
   ...FILE_03_SETTINGS,
@@ -102,6 +107,7 @@ export const APP_SETTINGS = {
   ...FILE_06_SETTINGS,
   ...OWNER_MEDIA_SETTINGS,
   ...OWNER_SUPPORT_SETTINGS,
+  ...OWNER_BADGE_SETTINGS,
 };
 
 export type AppSettingKey = keyof typeof APP_SETTINGS;

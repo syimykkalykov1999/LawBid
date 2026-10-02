@@ -82,7 +82,10 @@ String? notificationRoute({
       }
       return postId == null ? null : SocialRoutes.post(postId);
     case 'verification_update':
-      return AppRoutes.verification;
+      // Owner 2026-10-02: a client's gold badge request.
+      return s('kind') == 'client_badge'
+          ? AppRoutes.clientBadge
+          : AppRoutes.verification;
     // Admin growth features (2026-10-02).
     case 'admin_broadcast':
       final ticketId = s('ticketId');
@@ -117,6 +120,18 @@ String notificationText(Translator t, AppNotification n) {
   // Owner 2026-09-30: a message from the LawBid team carries its own text.
   if (n.type == 'admin_broadcast' && n.payload['kind'] == 'support_reply') {
     return t.t('notif.list.support_reply');
+  }
+  if (n.type == 'verification_update' && n.payload['kind'] == 'client_badge') {
+    final st = n.payload['status'];
+    return t.t(
+      st == 'badge_on'
+          ? 'notif.list.cbadge.on'
+          : st == 'approved'
+              ? 'notif.list.cbadge.approved'
+              : st == 'rejected'
+                  ? 'notif.list.cbadge.rejected'
+                  : 'notif.list.cbadge.off',
+    );
   }
   if (n.type == 'subscription_status') {
     final k = n.payload['kind'];

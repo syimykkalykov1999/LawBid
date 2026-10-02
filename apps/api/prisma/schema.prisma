@@ -618,6 +618,7 @@ model User {
   video_assets            VideoAsset[]            @relation("VideoAssetOwner")
   sticker_packs           StickerPack[]           @relation("StickerPackOwner")
   installed_sticker_packs UserStickerPack[]
+  client_verification     ClientVerification?
   recent_stickers         UserRecentSticker[]
   /// Owner 2026-10-01: others see "online / last seen" (reciprocal).
   show_activity_status    Boolean                 @default(true)
@@ -2876,4 +2877,35 @@ model UserRecentSticker {
   @@id([user_id, sticker_id])
   @@index([user_id, used_at(sort: Desc)], map: "user_recent_stickers_used_idx")
   @@map("user_recent_stickers")
+}
+
+/// Owner 2026-10-02: the paid verified badge of a client (gold). Documents
+/// → approval in the admin → a $10/month subscription; the badge shows
+/// only while approved AND the subscription is paid (cancel or revoke
+/// removes it). One row per client.
+model ClientVerification {
+  id                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id                String    @unique @db.Uuid
+  user                   User      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "client_verifications_user_fkey")
+  /// pending · approved · rejected · revoked
+  status                 String    @default("pending") @db.String(16)
+  /// File ids (verification_document / verification_selfie), private bucket.
+  document_file_ids      Json      @default("[]")
+  note                   String?   @db.String(500)
+  submitted_at           DateTime  @default(now()) @db.Timestamptz
+  reviewed_at            DateTime? @db.Timestamptz
+  reviewed_by            String?   @db.Uuid
+  reject_reason          String?   @db.String(500)
+  revoke_reason          String?   @db.String(500)
+  stripe_checkout_id     String?   @db.String(255)
+  stripe_subscription_id String?   @unique @db.String(255)
+  /// none · active · past_due · canceled
+  sub_status             String    @default("none") @db.String(16)
+  current_period_end     DateTime? @db.Timestamptz
+  cancel_at_period_end   Boolean   @default(false)
+  created_at             DateTime  @default(now()) @db.Timestamptz
+  updated_at             DateTime  @default(now()) @updatedAt @db.Timestamptz
+
+  @@index([status, submitted_at(sort: Desc)], map: "client_verifications_queue_idx")
+  @@map("client_verifications")
 }

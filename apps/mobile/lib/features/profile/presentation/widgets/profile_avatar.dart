@@ -79,10 +79,14 @@ class VerifiedBadge extends StatelessWidget {
     required this.semanticLabel,
     super.key,
     this.size = AppSizes.iconSm,
+    this.gold = false,
   });
 
   final String semanticLabel;
   final double size;
+
+  /// Gold for a verified client, blue for an attorney (owner 2026-10-02).
+  final bool gold;
 
   @override
   Widget build(BuildContext context) {
@@ -90,7 +94,11 @@ class VerifiedBadge extends StatelessWidget {
     return Semantics(
       label: semanticLabel,
       excludeSemantics: true,
-      child: AppIcon(AppIcons.verifiedRounded, size: size, color: colors.info),
+      child: AppIcon(
+        AppIcons.verifiedRounded,
+        size: size,
+        color: gold ? colors.gold : colors.info,
+      ),
     );
   }
 }

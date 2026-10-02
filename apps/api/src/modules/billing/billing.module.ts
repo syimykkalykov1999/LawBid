@@ -4,6 +4,7 @@ import { AdminAccessModule } from '../admin-access/admin-access.module';
 import { AuthModule } from '../auth/auth.module';
 import { BidsModule } from '../bids/bids.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { ClientBadgeCoreModule } from '../client-badge/client-badge.module';
 import { PromotionsCoreModule } from '../promotions/promotions.module';
 import { ReferralsCoreModule } from '../referrals/referrals.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
@@ -49,6 +50,7 @@ export class BillingModule {
         // paid case promotions (checkout webhook, fake checkout page).
         ReferralsCoreModule,
         PromotionsCoreModule,
+        ClientBadgeCoreModule,
         // Only the controllers need the auth guards and the admin audit log;
         // the worker must stay bootable without AppModule's global modules.
         ...(options.mode === 'api' ? [AdminAccessModule, AuthModule] : []),

@@ -93,6 +93,15 @@ class SettingsScreen extends ConsumerWidget {
               subtitle: t.t('settings.assistants.hint'),
               onTap: () => context.push(TeamRoutes.team),
             ),
+          // Owner 2026-10-02: clients can earn the gold badge (paid).
+          if (ref.watch(currentUserRoleProvider) == UserRole.client)
+            AppListRow(
+              key: const ValueKey('settings-client-badge'),
+              icon: AppIcons.verifiedRounded,
+              label: t.t('cbadge.title'),
+              subtitle: t.t('cbadge.hint'),
+              onTap: () => context.push(AppRoutes.clientBadge),
+            ),
           // Owner 2026-10-02: referrals (shown only when the program is on).
           if (ref.watch(referralMeProvider).value?.enabled ?? false)
             AppListRow(

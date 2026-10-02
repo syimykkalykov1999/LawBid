@@ -21,6 +21,7 @@ import 'package:lawbid/features/cases/presentation/screens/mine_views.dart';
 import 'package:lawbid/features/cases/presentation/screens/owner_case_screen.dart';
 import 'package:lawbid/features/cases/presentation/screens/work_case_screen.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
+import 'package:lawbid/features/client_badge/presentation/client_badge_screen.dart';
 import 'package:lawbid/features/create/presentation/screens/create_screen.dart';
 import 'package:lawbid/features/feed/presentation/screens/feed_screen.dart';
 import 'package:lawbid/features/mine/presentation/screens/mine_screen.dart';
@@ -298,6 +299,12 @@ GoRouter appRouter(Ref ref) {
           state,
           SupportTicketScreen(ticketId: state.pathParameters['id'] ?? ''),
         ),
+      ),
+      GoRoute(
+        path: AppRoutes.clientBadge,
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            AppPageTransitions.push(state, const ClientBadgeScreen()),
       ),
       GoRoute(
         path: AppRoutes.referral,
