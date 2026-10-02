@@ -120,13 +120,20 @@ export class FeedService implements FeedProvider {
     // the followed stream can't fill it.
     const recoNeed =
       following.length > limit ? recoSlotsFor(limit, hasFollows) : limit;
-    const reco = await this.recommendations(
+    let reco = await this.recommendations(
       viewer,
       authorIds,
       first ? 0 : cursor.r,
       first ? null : cursor.v,
       recoNeed,
     );
+    // Owner 2026-10-02: a viewer who has already been shown every
+    // recommendation (a small catalog, or someone who follows nobody) must
+    // not open on "Your feed is empty" — start the rotation over.
+    if (first && following.length === 0 && reco.posts.length === 0) {
+      await this.redis.del(seenKey(viewer.sub));
+      reco = await this.recommendations(viewer, authorIds, 0, null, recoNeed);
+    }
 
     const page = mixPage(
       following.slice(0, limit),
