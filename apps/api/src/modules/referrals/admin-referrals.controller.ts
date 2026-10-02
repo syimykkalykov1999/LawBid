@@ -24,12 +24,15 @@ import {
 } from '../admin-auth/admin-auth.decorators';
 import { AdminReferralsService } from './admin-referrals.service';
 import {
+  AdminReferralCodeRowDto,
+  AdminReferralCodesQueryDto,
   AdminReferralIdParamDto,
   AdminReferralReasonDto,
   AdminReferralRowDto,
   AdminReferralsQueryDto,
   AdminReferralStatsDto,
   ReferralSettingsDto,
+  SetReferralCodeDto,
 } from './referrals.dto';
 import type { ReferralProgramSettings } from './referrals.settings';
 
@@ -66,6 +69,32 @@ export class AdminReferralsController {
   @ApiEnvelopeResponse(ReferralSettingsDto)
   getReferralSettings(): Promise<ReferralProgramSettings> {
     return this.referrals.getSettings();
+  }
+
+  @Get('codes')
+  @ApiOperation({ summary: 'Referral codes (generated and your own words)' })
+  @ApiEnvelopeResponse(AdminReferralCodeRowDto, { isArray: true })
+  listReferralCodes(
+    @Query() q: AdminReferralCodesQueryDto,
+  ): Promise<AdminReferralCodeRowDto[]> {
+    return this.referrals.listCodes(q);
+  }
+
+  @Roles('super_admin', 'finance')
+  @Put('codes')
+  @SkipAutoAudit()
+  @ApiOperation({ summary: 'Give a user your own word as referral code' })
+  @ApiEnvelopeResponse(AdminReferralCodeRowDto)
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    404: [E.NOT_FOUND],
+    409: [E.REFERRAL_INVALID_STATE],
+  })
+  setReferralCode(
+    @CurrentAdmin() admin: AdminActor,
+    @Body() dto: SetReferralCodeDto,
+  ): Promise<AdminReferralCodeRowDto> {
+    return this.referrals.setCode(admin, dto);
   }
 
   @Roles('super_admin')

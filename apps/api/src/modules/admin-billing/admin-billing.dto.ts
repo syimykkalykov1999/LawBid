@@ -573,6 +573,52 @@ export class AdminBillingSubscriptionsQueryDto extends AdminBillingCursorQueryDt
   @Transform(bool)
   @IsBoolean()
   hasContractGrant?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Trial ends within N days (trialing only).',
+    minimum: 1,
+    maximum: 30,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(30)
+  trialEndsWithinDays?: number;
+
+  @ApiPropertyOptional({
+    description: 'Paid assistant seats: none (0), some (1-5), full (6).',
+    enum: ['none', 'some', 'full'],
+  })
+  @IsOptional()
+  @IsIn(['none', 'some', 'full'])
+  seats?: 'none' | 'some' | 'full';
+
+  @ApiPropertyOptional({
+    description: 'Only (not) set to cancel at period end.',
+  })
+  @IsOptional()
+  @Transform(bool)
+  @IsBoolean()
+  cancelAtPeriodEnd?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Current period ends within N days.',
+    minimum: 1,
+    maximum: 60,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(60)
+  renewsWithinDays?: number;
+
+  @ApiPropertyOptional({ description: 'Has (not) ever had a trial.' })
+  @IsOptional()
+  @Transform(bool)
+  @IsBoolean()
+  hadTrial?: boolean;
 }
 
 export class ActiveGrantSummaryDto {

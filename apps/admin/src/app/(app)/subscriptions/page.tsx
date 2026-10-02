@@ -23,6 +23,8 @@ import { formatDateTime } from '@/lib/utils';
 type Status = 'all' | 'active' | 'trialing' | 'past_due' | 'canceled' | 'expired' | 'incomplete';
 type Plan = '' | 'monthly' | 'yearly';
 type GrantFilter = '' | 'yes' | 'no';
+type Seats = '' | 'none' | 'some' | 'full';
+type YesNo = '' | 'yes' | 'no';
 
 /** Subscriptions: KPIs, list by status / plan / search, details with extend and contract grant. */
 export default function SubscriptionsPage() {
@@ -30,6 +32,11 @@ export default function SubscriptionsPage() {
   const [status, setStatus] = useState<Status>('all');
   const [plan, setPlan] = useState<Plan>('');
   const [grant, setGrant] = useState<GrantFilter>('');
+  const [trialEnds, setTrialEnds] = useState('');
+  const [renews, setRenews] = useState('');
+  const [seats, setSeats] = useState<Seats>('');
+  const [cancelling, setCancelling] = useState<YesNo>('');
+  const [hadTrial, setHadTrial] = useState<YesNo>('');
   const [draft, setDraft] = useState('');
   const [q, setQ] = useState('');
   const [selected, setSelected] = useState<SubscriptionRow | null>(null);
@@ -41,7 +48,7 @@ export default function SubscriptionsPage() {
     enabled: !!me,
   });
   const list = useInfiniteQuery({
-    queryKey: ['billing-subscriptions', status, plan, grant, q],
+    queryKey: ['billing-subscriptions', status, plan, grant, q, trialEnds, renews, seats, cancelling, hadTrial],
     initialPageParam: undefined as string | undefined,
     queryFn: async ({ pageParam }) =>
       (
@@ -53,6 +60,11 @@ export default function SubscriptionsPage() {
               plan: plan || undefined,
               q: q || undefined,
               hasContractGrant: grant === '' ? undefined : grant === 'yes',
+              trialEndsWithinDays: trialEnds ? Number(trialEnds) : undefined,
+              renewsWithinDays: renews ? Number(renews) : undefined,
+              seats: seats || undefined,
+              cancelAtPeriodEnd: cancelling === '' ? undefined : cancelling === 'yes',
+              hadTrial: hadTrial === '' ? undefined : hadTrial === 'yes',
             },
           },
         })
@@ -115,6 +127,34 @@ export default function SubscriptionsPage() {
           <option value="">Договор: любой</option>
           <option value="yes">Есть договор</option>
           <option value="no">Без договора</option>
+        </Select>
+        <Select className="w-56" aria-label="Конец пробного периода" value={trialEnds} onChange={(e) => setTrialEnds(e.target.value)}>
+          <option value="">Пробный: любой срок</option>
+          <option value="2">Кончается за 2 дня</option>
+          <option value="7">Кончается за 7 дней</option>
+          <option value="14">Кончается за 14 дней</option>
+        </Select>
+        <Select className="w-56" aria-label="Продление" value={renews} onChange={(e) => setRenews(e.target.value)}>
+          <option value="">Продление: любое</option>
+          <option value="3">Списание за 3 дня</option>
+          <option value="7">Списание за 7 дней</option>
+          <option value="30">Списание за 30 дней</option>
+        </Select>
+        <Select className="w-56" aria-label="Помощники" value={seats} onChange={(e) => setSeats(e.target.value as Seats)}>
+          <option value="">Помощники: любые</option>
+          <option value="none">Без помощников</option>
+          <option value="some">1–5 мест</option>
+          <option value="full">Все 6 мест</option>
+        </Select>
+        <Select className="w-56" aria-label="Отмена" value={cancelling} onChange={(e) => setCancelling(e.target.value as YesNo)}>
+          <option value="">Отмена: любая</option>
+          <option value="yes">Не продлятся (отменены)</option>
+          <option value="no">Продлятся</option>
+        </Select>
+        <Select className="w-56" aria-label="Был пробный" value={hadTrial} onChange={(e) => setHadTrial(e.target.value as YesNo)}>
+          <option value="">Пробный: не важно</option>
+          <option value="yes">Уже был пробный</option>
+          <option value="no">Пробного не было</option>
         </Select>
         <form
           className="relative min-w-60 flex-1"

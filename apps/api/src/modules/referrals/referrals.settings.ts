@@ -35,6 +35,85 @@ export interface ReferralProgramSettings {
   clientRefereeReward: ReferralReward;
   /** Days after sign-up during which a code can still be applied. */
   applyWindowDays: number;
+  /** Most people one user can invite (rejected ones don't count); 0 = no limit. */
+  maxInvitesPerReferrer: number;
+  /** Words the owner writes: shown in the app, per language. */
+  texts: ReferralTextsByLang;
+}
+
+export interface ReferralTexts {
+  title: string;
+  summary: string;
+  terms: string;
+  /** Share sheet text; {{code}} and {{url}} are filled in. */
+  shareMessage: string;
+}
+export const REFERRAL_LANGS = ['en', 'ru'] as const;
+export type ReferralLang = (typeof REFERRAL_LANGS)[number];
+export type ReferralTextsByLang = Record<ReferralLang, ReferralTexts>;
+export const REFERRAL_TEXT_LIMITS = {
+  title: 80,
+  summary: 400,
+  terms: 5000,
+  shareMessage: 400,
+} as const;
+
+export const DEFAULT_REFERRAL_TEXTS: ReferralTextsByLang = {
+  en: {
+    title: 'Invite friends to LawBid',
+    summary:
+      'Share your code. When your friend gets started, you both get a reward.',
+    terms:
+      'The reward is issued after the invited person makes their first paid subscription payment (attorneys) or publishes their first case (clients). One code per person, entered within the first days after sign-up. Self-invites and abuse are rejected.',
+    shareMessage: 'Join me on LawBid! Use my code {{code}}: {{url}}',
+  },
+  ru: {
+    title: 'Пригласите друзей в LawBid',
+    summary:
+      'Поделитесь кодом. Когда друг начнёт пользоваться, вы оба получите награду.',
+    terms:
+      'Награда выдаётся после первой оплаты подписки приглашённым адвокатом или первого опубликованного кейса приглашённым клиентом. Один код на человека, вводится в первые дни после регистрации. Приглашения самого себя и злоупотребления отклоняются.',
+    shareMessage: 'Присоединяйся к LawBid! Мой код {{code}}: {{url}}',
+  },
+};
+
+/** Fills {{code}} / {{url}}; unknown placeholders stay as written. */
+export function renderReferralText(
+  text: string,
+  vars: { code: string; url: string },
+): string {
+  return text.replace(
+    /\{\{\s*(code|url)\s*\}\}/g,
+    (_, k: 'code' | 'url') => vars[k],
+  );
+}
+
+/** Stored texts → full texts, falling back field by field. */
+export function parseReferralTexts(raw: unknown): ReferralTextsByLang {
+  const out = {} as ReferralTextsByLang;
+  const src =
+    raw && typeof raw === 'object' && !Array.isArray(raw)
+      ? (raw as Record<string, unknown>)
+      : {};
+  for (const lang of REFERRAL_LANGS) {
+    const l = src[lang];
+    const o =
+      l && typeof l === 'object' && !Array.isArray(l)
+        ? (l as Record<string, unknown>)
+        : {};
+    const d = DEFAULT_REFERRAL_TEXTS[lang];
+    const pick = (k: keyof ReferralTexts): string => {
+      const v = o[k];
+      return typeof v === 'string' && v.trim() !== '' ? v : d[k];
+    };
+    out[lang] = {
+      title: pick('title'),
+      summary: pick('summary'),
+      terms: pick('terms'),
+      shareMessage: pick('shareMessage'),
+    };
+  }
+  return out;
 }
 
 export const DEFAULT_REFERRAL_SETTINGS: ReferralProgramSettings = {
@@ -46,6 +125,8 @@ export const DEFAULT_REFERRAL_SETTINGS: ReferralProgramSettings = {
   clientReferrerReward: { type: 'promotion_days', value: 1 },
   clientRefereeReward: { type: 'promotion_days', value: 1 },
   applyWindowDays: 14,
+  maxInvitesPerReferrer: 0,
+  texts: DEFAULT_REFERRAL_TEXTS,
 };
 
 /** Qualification rule: attorney referee → first succeeded (non-zero)
@@ -130,6 +211,13 @@ export function parseReferralSettings(raw: unknown): ReferralProgramSettings {
       r.applyWindowDays >= 0
         ? r.applyWindowDays
         : d.applyWindowDays,
+    maxInvitesPerReferrer:
+      typeof r.maxInvitesPerReferrer === 'number' &&
+      Number.isInteger(r.maxInvitesPerReferrer) &&
+      r.maxInvitesPerReferrer >= 0
+        ? r.maxInvitesPerReferrer
+        : d.maxInvitesPerReferrer,
+    texts: parseReferralTexts(r.texts),
   };
 }
 

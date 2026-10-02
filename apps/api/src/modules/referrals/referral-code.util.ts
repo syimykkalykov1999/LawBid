@@ -3,7 +3,9 @@ import { randomInt } from 'node:crypto';
 /** No 0/O, 1/I/L: codes are read aloud and typed from screenshots. */
 export const REFERRAL_CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 export const REFERRAL_CODE_LENGTH = 7;
-export const REFERRAL_CODE_PATTERN = /^[A-HJKMNP-Z2-9]{6,8}$/;
+/** Generated codes are 6-8 of the alphabet above; an admin may set any
+ * 4-24 letters/digits word (a vanity code), so lookups accept both. */
+export const REFERRAL_CODE_PATTERN = /^[A-Z0-9]{4,24}$/;
 
 export function generateReferralCode(
   length = REFERRAL_CODE_LENGTH,

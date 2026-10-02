@@ -37,6 +37,15 @@ export class UserThrottlerGuard extends ThrottlerGuard {
           `u:${this.tokens.verifyAccessToken(auth.slice(7)).sub}`,
         );
       } catch {
+        // Not a user token: maybe an admin one (below).
+      }
+      try {
+        // The admin panel calls the API from its own server, so every
+        // admin would otherwise share that one IP bucket.
+        return Promise.resolve(
+          `a:${this.tokens.verifyAdminToken(auth.slice(7)).sub}`,
+        );
+      } catch {
         // Invalid / expired: fall back to the IP.
       }
     }

@@ -14,12 +14,16 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { AuditLogService } from '../admin-access/audit-log.service';
 import type { AdminActor } from '../admin-auth/admin-auth.decorators';
+import { normalizeReferralCode } from './referral-code.util';
 import type {
+  AdminReferralCodeRowDto,
+  AdminReferralCodesQueryDto,
   AdminReferralRowDto,
   AdminReferralsQueryDto,
   AdminReferralStatsDto,
   ReferralSettingsDto,
   ReferralStatus,
+  SetReferralCodeDto,
 } from './referrals.dto';
 import { ReferralsService } from './referrals.service';
 import {
@@ -33,6 +37,7 @@ const PAGE = 50;
 
 export const REFERRAL_AUDIT = {
   settings: 'referrals.settings',
+  setCode: 'referrals.set_code',
   qualify: 'referrals.qualify',
   reward: 'referrals.reward',
   reject: 'referrals.reject',
@@ -71,6 +76,8 @@ export class AdminReferralsService {
       clientReferrerReward: { ...dto.clientReferrerReward },
       clientRefereeReward: { ...dto.clientRefereeReward },
       applyWindowDays: dto.applyWindowDays,
+      maxInvitesPerReferrer: dto.maxInvitesPerReferrer,
+      texts: { en: { ...dto.texts.en }, ru: { ...dto.texts.ru } },
     };
     const checks: [keyof ReferralProgramSettings, string | null][] = [
       [
@@ -370,5 +377,115 @@ export class AdminReferralsService {
         createdAt: r.created_at.toISOString(),
       };
     });
+  }
+
+  /** Codes (generated and vanity) with their owner, newest first. */
+  async listCodes(
+    q: AdminReferralCodesQueryDto,
+  ): Promise<AdminReferralCodeRowDto[]> {
+    const term = q.q?.trim();
+    const rows = await this.prisma.referralCode.findMany({
+      where: term
+        ? {
+            OR: [
+              { code: { startsWith: normalizeReferralCode(term) } },
+              { user_id: { in: await this.userIdsMatching(term) } },
+            ],
+          }
+        : {},
+      orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+      take: PAGE,
+    });
+    const ids = rows.map((r) => r.user_id);
+    const [users, counts] = await Promise.all([
+      this.prisma.user.findMany({
+        where: { id: { in: ids } },
+        select: { id: true, email: true, first_name: true, last_name: true },
+      }),
+      this.prisma.referral.groupBy({
+        by: ['referrer_id'],
+        where: { referrer_id: { in: ids } },
+        _count: { _all: true },
+      }),
+    ]);
+    const userOf = new Map(users.map((u) => [u.id, u]));
+    const countOf = new Map(counts.map((c) => [c.referrer_id, c._count._all]));
+    return rows.map((r) => ({
+      userId: r.user_id,
+      code: r.code,
+      ownerName:
+        [userOf.get(r.user_id)?.first_name, userOf.get(r.user_id)?.last_name]
+          .filter(Boolean)
+          .join(' ') || null,
+      ownerEmail: userOf.get(r.user_id)?.email ?? null,
+      invited: countOf.get(r.user_id) ?? 0,
+      createdAt: r.created_at.toISOString(),
+    }));
+  }
+
+  private async userIdsMatching(term: string): Promise<string[]> {
+    const users = await this.prisma.user.findMany({
+      where: {
+        OR: [
+          { email: { contains: term, mode: 'insensitive' } },
+          { full_name_lower: { contains: term.toLowerCase() } },
+        ],
+      },
+      select: { id: true },
+      take: 50,
+    });
+    return users.map((u) => u.id);
+  }
+
+  /** Gives a user your own word as their code (replaces the old one). */
+  async setCode(
+    admin: AdminActor,
+    dto: SetReferralCodeDto,
+  ): Promise<AdminReferralCodeRowDto> {
+    const code = normalizeReferralCode(dto.code);
+    const user = await this.prisma.user.findUnique({
+      where: { id: dto.userId },
+      select: { id: true },
+    });
+    if (!user) {
+      throw new NotFoundException({
+        code: ErrorCode.NOT_FOUND,
+        message: 'User not found.',
+      });
+    }
+    const taken = await this.prisma.referralCode.findUnique({
+      where: { code },
+    });
+    if (taken && taken.user_id !== dto.userId) {
+      throw new ConflictException({
+        code: ErrorCode.REFERRAL_INVALID_STATE,
+        message: 'This code already belongs to another user.',
+        details: { reason: 'code_taken' },
+      });
+    }
+    await this.referrals.ensureCode(dto.userId);
+    await withTxRetry(this.prisma, async (tx) => {
+      const before = await tx.referralCode.findUnique({
+        where: { user_id: dto.userId },
+      });
+      await tx.referralCode.update({
+        where: { user_id: dto.userId },
+        data: { code },
+      });
+      await this.audit.record(
+        {
+          adminId: admin.id,
+          action: REFERRAL_AUDIT.setCode,
+          targetType: 'user',
+          targetId: dto.userId,
+          before: before ? { code: before.code } : null,
+          after: { code, reason: dto.reason },
+          ip: admin.ip,
+        },
+        tx,
+      );
+    });
+    const [row] = await this.listCodes({ q: code });
+    return row;
   }
 }
