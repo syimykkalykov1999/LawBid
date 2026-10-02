@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { CasePromotion, Prisma } from '@prisma/client';
+import { NotificationsService } from '../notifications/notifications.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
@@ -93,6 +94,7 @@ export class PromotionsService {
     @Optional()
     @Inject(PAYMENT_PROVIDER)
     private readonly provider?: PaymentProvider,
+    @Optional() private readonly notifications?: NotificationsService,
   ) {}
 
   async settings(db: Db = this.prisma): Promise<PromotionSettings> {
@@ -341,15 +343,15 @@ export class PromotionsService {
     if (session.paymentStatus && session.paymentStatus !== 'paid') return false;
     const id = session.metadata.promotionId;
     if (!id) return false;
-    return withTxRetry(this.prisma, async (tx) => {
+    const started = await withTxRetry(this.prisma, async (tx) => {
       const p = await tx.casePromotion.findUnique({ where: { id } });
-      if (!p || p.stripe_checkout_id !== session.id) return false;
+      if (!p || p.stripe_checkout_id !== session.id) return null;
       const revivable =
         p.status === 'pending_payment' ||
         (p.status === 'canceled' &&
           !p.canceled_by &&
           REVIVABLE_REASONS.includes(p.cancel_reason ?? ''));
-      if (!revivable) return false;
+      if (!revivable) return null;
       const now = new Date();
       const running = await tx.casePromotion.findFirst({
         where: {
@@ -391,8 +393,17 @@ export class PromotionsService {
           Math.max(0, p.days * p.price_cents_per_day - p.total_cents),
         );
       }
-      return true;
+      return { userId: p.user_id, caseId: p.case_id };
     });
+    if (!started) return false;
+    await this.notifications
+      ?.emit({
+        type: 'promotion_started',
+        recipientId: started.userId,
+        payload: { caseId: started.caseId },
+      })
+      .catch(() => undefined);
+    return true;
   }
 
   // ---- expiry ---------------------------------------------------------------
@@ -402,10 +413,24 @@ export class PromotionsService {
   async expire(
     now = new Date(),
   ): Promise<{ finished: number; abandoned: number }> {
-    const finished = await this.prisma.casePromotion.updateMany({
+    const ended = await this.prisma.casePromotion.findMany({
       where: { status: 'active', ends_at: { lt: now } },
+      select: { id: true, user_id: true, case_id: true },
+      take: 500,
+    });
+    const finished = await this.prisma.casePromotion.updateMany({
+      where: { id: { in: ended.map((e) => e.id) }, status: 'active' },
       data: { status: 'finished' },
     });
+    for (const e of ended) {
+      await this.notifications
+        ?.emit({
+          type: 'promotion_ended',
+          recipientId: e.user_id,
+          payload: { caseId: e.case_id },
+        })
+        .catch(() => undefined);
+    }
     const stale = await this.prisma.casePromotion.findMany({
       where: {
         status: 'pending_payment',

@@ -442,12 +442,12 @@ describe('PromotionsService.expire', () => {
     s.prisma.casePromotion.updateMany
       .mockResolvedValueOnce({ count: 4 })
       .mockResolvedValue({ count: 1 });
-    s.prisma.casePromotion.findMany.mockResolvedValue([
-      { id: 'old', user_id: 'owner' },
-    ]);
+    s.prisma.casePromotion.findMany
+      .mockResolvedValueOnce([{ id: 'e1', user_id: 'owner', case_id: 'c1' }])
+      .mockResolvedValue([{ id: 'old', user_id: 'owner' }]);
     expect(await s.service.expire(now)).toEqual({ finished: 4, abandoned: 1 });
     expect(s.prisma.casePromotion.updateMany).toHaveBeenNthCalledWith(1, {
-      where: { status: 'active', ends_at: { lt: now } },
+      where: { id: { in: ['e1'] }, status: 'active' },
       data: { status: 'finished' },
     });
     expect(s.prisma.casePromotion.findMany).toHaveBeenCalledWith(

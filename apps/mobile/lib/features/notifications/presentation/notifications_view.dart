@@ -83,6 +83,15 @@ String? notificationRoute({
       return postId == null ? null : SocialRoutes.post(postId);
     case 'verification_update':
       return AppRoutes.verification;
+    // Admin growth features (2026-10-02).
+    case 'admin_broadcast':
+      final ticketId = s('ticketId');
+      return ticketId == null ? null : AppRoutes.supportTicket(ticketId);
+    case 'referral_reward':
+      return AppRoutes.referral;
+    case 'promotion_started' || 'promotion_ended':
+      if (caseId == null) return null;
+      return AppRoutes.myCase(caseId);
     case 'subscription_trial_ending' ||
           'subscription_payment_failed' ||
           'subscription_status':
@@ -106,6 +115,15 @@ String? notificationRoute({
 /// and, for aggregated rows, "and N more" (§9.4).
 String notificationText(Translator t, AppNotification n) {
   // Owner 2026-09-30: a message from the LawBid team carries its own text.
+  if (n.type == 'admin_broadcast' && n.payload['kind'] == 'support_reply') {
+    return t.t('notif.list.support_reply');
+  }
+  if (n.type == 'subscription_status') {
+    final k = n.payload['kind'];
+    if (k == 'contract' || k == 'contract_revoked') {
+      return t.t('notif.list.subscription_status.$k');
+    }
+  }
   if (n.type == 'admin_broadcast') {
     final title = n.payload['title'];
     final body = n.payload['body'];
@@ -149,6 +167,8 @@ IconData _icon(AppNotification n) => switch (n.type) {
       'moderation_notice' => AppIcons.policyRounded,
       'assistant_request' => AppIcons.factCheckRounded,
       'admin_broadcast' => AppIcons.campaignRounded,
+      'referral_reward' => AppIcons.starRounded,
+      'promotion_started' || 'promotion_ended' => AppIcons.campaignOutlined,
       'assistant_task' => AppIcons.eventNoteRounded,
       'assistant_joined' || 'assistant_result' => AppIcons.supportAgentRounded,
       _ => switch (n.category) {

@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { AdminAccessModule } from '../admin-access/admin-access.module';
 import { ReferralsCoreModule } from '../referrals/referrals.module';
 import { AdminPromotionsController } from './admin-promotions.controller';
@@ -10,7 +11,7 @@ import { PromotionsService } from './promotions.service';
  * the jobs module (`promotions.expire`) and the HTTP module below. Uses
  * the global PAYMENT_PROVIDER when present. */
 @Module({
-  imports: [ReferralsCoreModule],
+  imports: [ReferralsCoreModule, NotificationsModule],
   providers: [PromotionsService],
   exports: [PromotionsService],
 })

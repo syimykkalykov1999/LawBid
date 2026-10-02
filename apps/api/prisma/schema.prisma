@@ -450,6 +450,9 @@ enum NotificationType {
   assistant_joined
   assistant_result
   admin_broadcast
+  referral_reward
+  promotion_started
+  promotion_ended
   // Owner 2026-10-01: an admin changed the phone on the user's request.
   security_phone_changed
 

@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { AdminAccessModule } from '../admin-access/admin-access.module';
 import { AdminReferralsController } from './admin-referrals.controller';
 import { AdminReferralsService } from './admin-referrals.service';
@@ -9,6 +10,7 @@ import { ReferralsService } from './referrals.service';
  * cases (first case), promotions (credit days) and the worker. Uses the
  * global PAYMENT_PROVIDER when present. */
 @Module({
+  imports: [NotificationsModule],
   providers: [ReferralsService],
   exports: [ReferralsService],
 })

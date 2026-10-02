@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma, type Referral } from '@prisma/client';
+import { NotificationsService } from '../notifications/notifications.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
@@ -93,6 +94,7 @@ export class ReferralsService {
     @Optional()
     @Inject(PAYMENT_PROVIDER)
     private readonly provider?: PaymentProvider,
+    @Optional() private readonly notifications?: NotificationsService,
   ) {}
 
   // ---- settings ---------------------------------------------------------
@@ -403,7 +405,7 @@ export class ReferralsService {
       // applied by the checkout before the first invoice.
       issued[side] = true;
     }
-    return withTxRetry(this.prisma, async (tx) => {
+    const updated = await withTxRetry(this.prisma, async (tx) => {
       const fresh = await tx.referral.findUnique({ where: { id: r.id } });
       if (!fresh || fresh.status !== 'qualified') return fresh;
       const mark = (raw: unknown, yes: boolean) => {
@@ -421,6 +423,17 @@ export class ReferralsService {
         },
       });
     });
+    // Tell the inviter once, when their own reward has just been issued.
+    if (issued.referrer && updated) {
+      await this.notifications
+        ?.emit({
+          type: 'referral_reward',
+          recipientId: r.referrer_id,
+          payload: { referralId: r.id },
+        })
+        .catch(() => undefined);
+    }
+    return updated;
   }
 
   private async creditBalance(

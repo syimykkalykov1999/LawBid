@@ -242,6 +242,36 @@ export const NOTIFICATION_TEMPLATES: Partial<
       body: 'Откройте «Результаты», чтобы увидеть решение.',
     },
   },
+  referral_reward: {
+    group: 'system',
+    en: {
+      title: 'Invite bonus',
+      body: 'A friend joined with your invite. Your bonus is added.',
+    },
+    ru: {
+      title: 'Бонус за приглашение',
+      body: 'Друг присоединился по вашему приглашению. Бонус начислен.',
+    },
+  },
+  promotion_started: {
+    group: 'cases',
+    en: {
+      title: 'Promotion started',
+      body: 'Your case is now shown higher in the feed.',
+    },
+    ru: {
+      title: 'Продвижение началось',
+      body: 'Ваше дело теперь выше в ленте.',
+    },
+  },
+  promotion_ended: {
+    group: 'cases',
+    en: { title: 'Promotion ended', body: 'Your case promotion has finished.' },
+    ru: {
+      title: 'Продвижение завершилось',
+      body: 'Продвижение вашего дела завершилось.',
+    },
+  },
   admin_broadcast: {
     group: 'system',
     en: { title: 'LawBid', body: 'A message from the LawBid team.' },

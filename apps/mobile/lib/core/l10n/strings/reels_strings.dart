@@ -174,6 +174,15 @@ const reelsRu = <String, String>{
   'promote.credits': 'Бонусных дней спишем: {days}',
   'promote.free': 'Запустить бесплатно',
   'promote.pay': 'Оплатить {price}',
+  'notif.list.support_reply': 'Поддержка ответила на ваше обращение',
+  'notif.list.subscription_status.contract':
+      'LawBid подключил вам подписку по договору',
+  'notif.list.subscription_status.contract_revoked':
+      'Подписка по договору завершена',
+  'notif.list.referral_reward':
+      'Друг по вашему приглашению зарегистрировался — бонус начислен',
+  'notif.list.promotion_started': 'Продвижение вашего дела началось',
+  'notif.list.promotion_ended': 'Продвижение вашего дела завершилось',
 };
 
 const reelsEn = <String, String>{
@@ -348,4 +357,13 @@ const reelsEn = <String, String>{
   'promote.credits': 'Bonus days applied: {days}',
   'promote.free': 'Start for free',
   'promote.pay': 'Pay {price}',
+  'notif.list.support_reply': 'Support replied to your request',
+  'notif.list.subscription_status.contract':
+      'LawBid set up a contract subscription for you',
+  'notif.list.subscription_status.contract_revoked':
+      'Your contract subscription ended',
+  'notif.list.referral_reward':
+      'A friend joined with your invite — bonus added',
+  'notif.list.promotion_started': 'Promotion of your case has started',
+  'notif.list.promotion_ended': 'Promotion of your case has ended',
 };
