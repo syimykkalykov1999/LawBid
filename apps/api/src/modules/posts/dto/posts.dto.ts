@@ -1,4 +1,5 @@
 import { MentionDto } from '../../mentions/mention.dto';
+import { PostVideoDto } from '../../videos/videos.dto';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ContentStatus } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
@@ -79,6 +80,13 @@ export class CreatePostDto {
   @ArrayUnique()
   @IsUUID('all', { each: true })
   mediaFileIds?: string[];
+
+  /** Owner 2026-10-01: a reel — the uploaded video (POST /videos/uploads).
+   * Instead of photos; the post appears once the video is encoded. */
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID()
+  videoAssetId?: string;
 }
 
 /** PATCH /posts/:id — the title, the text and the qualification. */
@@ -233,6 +241,10 @@ export class PostDto {
 
   @ApiProperty({ type: [PostMediaDto] })
   media!: PostMediaDto[];
+
+  /** Owner 2026-10-01: a reel's video (null for photo/text posts). */
+  @ApiPropertyOptional({ type: PostVideoDto, nullable: true })
+  video!: PostVideoDto | null;
 
   @ApiProperty({
     type: [String],

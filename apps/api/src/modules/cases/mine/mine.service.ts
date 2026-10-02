@@ -1,3 +1,4 @@
+import { assertNoBlockBetween } from '../../blocks/block-check';
 import {
   hasMineFilter,
   mineCaseWhere,
@@ -378,6 +379,14 @@ export class MineService {
         message:
           'An active subscription or trial is required to message a client.',
       });
+    }
+    // Owner 2026-10-02: no chat across a block (either way).
+    const owner = await this.prisma.case.findUnique({
+      where: { id: caseId },
+      select: { client_id: true },
+    });
+    if (owner) {
+      await assertNoBlockBetween(this.prisma, user.sub, owner.client_id);
     }
     const existing = await this.prisma.conversation.findUnique({
       where: {

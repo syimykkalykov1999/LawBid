@@ -1,4 +1,10 @@
-import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import { CounterAggregator } from '../../counters/counter-aggregator.service';
+import {
+  HttpException,
+  HttpStatus,
+  Injectable,
+  Optional,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
@@ -64,7 +70,19 @@ export class ClientProfilesService {
     private readonly settings: AppSettingsService,
     private readonly files: FilesService,
     private readonly blocks: BlocksService,
+    @Optional() private readonly counters?: CounterAggregator,
   ) {}
+
+  /** Audit 2026-10-02: counters shown = DB + deltas not yet flushed
+   * (like the attorney profile), so a follow shows at once. */
+  private async withPending(
+    userId: string,
+    field: 'posts_count' | 'followers_count' | 'following_count',
+    base: number,
+  ): Promise<number> {
+    const m = await this.counters?.pending('client', field, [userId]);
+    return Math.max(0, base + (m?.get(userId) ?? 0));
+  }
 
   async getOwn(userId: string, now = new Date()): Promise<ClientProfileDto> {
     const user = await this.prisma.user.findUnique({
@@ -281,9 +299,21 @@ export class ClientProfilesService {
       isSelf: row.user_id === viewerId,
       verifiedBadge: row.user.phone_verified_at !== null,
       ...(await this.blocks.relation(viewerId, row.user_id)),
-      postsCount: row.posts_count,
-      followersCount: row.followers_count,
-      followingCount: row.following_count,
+      postsCount: await this.withPending(
+        row.user_id,
+        'posts_count',
+        row.posts_count,
+      ),
+      followersCount: await this.withPending(
+        row.user_id,
+        'followers_count',
+        row.followers_count,
+      ),
+      followingCount: await this.withPending(
+        row.user_id,
+        'following_count',
+        row.following_count,
+      ),
       isFollowing:
         (await this.prisma.follow.count({
           where: { follower_id: viewerId, followee_id: row.user_id },

@@ -41,6 +41,11 @@ import type {
   TeamDto,
   UpdateAssistantDto,
 } from './assistants.dto';
+import {
+  effectiveSeats,
+  findActiveGrant,
+  paidSeats,
+} from '../subscriptions/contract-grant.util';
 
 const PAGE = 30;
 
@@ -87,7 +92,12 @@ export class AssistantsService {
     const active = await this.prisma.assistantMembership.findFirst({
       where: { assistant_user_id: assistantId, status: 'active' },
     });
-    if (active) return this.meOf('active', active);
+    if (active) {
+      return this.meOf(
+        (await this.access.isActive(active.attorney_id)) ? 'active' : 'paused',
+        active,
+      );
+    }
     const invite = await this.inviteFor(assistantId);
     if (invite) return this.meOf('invited', invite);
     return {
@@ -102,7 +112,7 @@ export class AssistantsService {
   }
 
   private async meOf(
-    state: 'invited' | 'active',
+    state: 'invited' | 'active' | 'paused',
     m: AssistantMembership,
   ): Promise<AssistantMeDto> {
     const a = await this.prisma.user.findUnique({
@@ -313,7 +323,12 @@ export class AssistantsService {
     const used = await this.prisma.assistantMembership.count({
       where: { attorney_id: attorneyId, status: { not: 'removed' } },
     });
-    const seats = sub ? (sub.plan === 'yearly' ? 6 : sub.assistant_seats) : 0;
+    // Owner 2026-10-02: a contract grant may carry its own seats.
+    const grant = await findActiveGrant(this.prisma, attorneyId);
+    const seats = effectiveSeats(
+      paidSeats(sub),
+      grant?.assistant_seats ?? null,
+    );
     return { seats, used, plan: sub?.plan ?? null };
   }
 

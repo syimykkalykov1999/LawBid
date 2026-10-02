@@ -1,3 +1,4 @@
+import { assertNoBlockBetween } from '../../blocks/block-check';
 import { ConflictException, Injectable } from '@nestjs/common';
 import type { PartyRole, Prisma } from '@prisma/client';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
@@ -129,6 +130,8 @@ export class BidAcceptanceService {
         states: { select: { state_code: true } },
       },
     });
+    // Owner 2026-10-02: no deal across a block (either way).
+    if (kase) await assertNoBlockBetween(tx, kase.client_id, attorneyId);
     if (!kase) throw caseNotFound();
     // §7 step 2 — case `open`, checked before touching the bid so the
     // loser of a race sees CASE_INVALID_STATE, not the auto-rejected

@@ -1,3 +1,4 @@
+import { AttorneyOnly } from '../../auth/assistant/assistant-context';
 import {
   Body,
   Controller,
@@ -62,6 +63,8 @@ export class CaseLifecycleController {
     return this.cases.toFullDto(await this.lifecycle.complete(user, params.id));
   }
 
+  // Audit 2026-10-02: an assistant acts here only with "bids".
+  @AttorneyOnly('bids')
   @Post('cases/:id/confirm-completion')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -78,6 +81,8 @@ export class CaseLifecycleController {
     );
   }
 
+  // Audit 2026-10-02: an assistant acts here only with "bids".
+  @AttorneyOnly('bids')
   @Post('cases/:id/dispute')
   @HttpCode(HttpStatus.OK)
   @UseInterceptors(IdempotencyInterceptor)

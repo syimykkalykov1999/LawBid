@@ -297,4 +297,6 @@ export enum ErrorCode {
   VIDEO_UNAVAILABLE = 'VIDEO_UNAVAILABLE',
   VIDEO_TOO_LONG = 'VIDEO_TOO_LONG',
   VIDEO_NOT_READY = 'VIDEO_NOT_READY',
+  // Owner 2026-10-01: stickers — 409: over a pack/sticker/install limit.
+  STICKER_LIMIT_REACHED = 'STICKER_LIMIT_REACHED',
 }

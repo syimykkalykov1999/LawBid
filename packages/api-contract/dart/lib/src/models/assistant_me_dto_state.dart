@@ -4,6 +4,8 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+/// Audit 2026-10-02: `paused` = joined, but the attorney's subscription.
+/// lapsed (the assistant can't work in the account until it's renewed).
 @JsonEnum()
 enum AssistantMeDtoState {
   @JsonValue('none')
@@ -12,6 +14,8 @@ enum AssistantMeDtoState {
   invited('invited'),
   @JsonValue('active')
   active('active'),
+  @JsonValue('paused')
+  paused('paused'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

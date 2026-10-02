@@ -7,6 +7,7 @@ import 'package:lawbid/features/cases/presentation/screens/attorney_cases_tab.da
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart';
 import 'package:lawbid/features/chat/presentation/chats_icon_button.dart';
+import 'package:lawbid/features/reels/presentation/reels_icon_button.dart';
 import 'package:lawbid/features/feed/application/feed_topics.dart';
 import 'package:lawbid/features/feed/presentation/widgets/topic_filter_bar.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
@@ -62,7 +63,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
               ],
               onChanged: (v) => setState(() => _tab = v),
             ),
-            trailing: const [ChatsIconButton()],
+            trailing: const [ReelsIconButton(), ChatsIconButton()],
           )
         : AppFeedHeader(
             logoSemanticLabel: t.t('brand.name'),
@@ -75,7 +76,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                 semanticLabel: t.t('brand.name'),
               ),
             ),
-            trailing: const [ChatsIconButton()],
+            trailing: const [ReelsIconButton(), ChatsIconButton()],
           );
 
     return Scaffold(

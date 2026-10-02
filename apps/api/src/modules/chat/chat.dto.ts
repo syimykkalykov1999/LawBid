@@ -1,3 +1,4 @@
+import { StickerDto } from '../stickers/stickers.dto';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import {
@@ -146,13 +147,19 @@ export class SendMessageDto {
   clientMessageId!: string;
 
   @ApiPropertyOptional({
-    enum: ['text', 'voice', 'attachment'],
+    enum: ['text', 'voice', 'attachment', 'sticker'],
     enumName: 'SendMessageType',
     default: 'text',
   })
   @IsOptional()
-  @IsIn(['text', 'voice', 'attachment'])
-  type?: 'text' | 'voice' | 'attachment';
+  @IsIn(['text', 'voice', 'attachment', 'sticker'])
+  type?: 'text' | 'voice' | 'attachment' | 'sticker';
+
+  /** Owner 2026-10-01: a sticker message (type=sticker). */
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID('all')
+  stickerId?: string;
 
   /** OQ-047: the attachment's original file name (shown on its card). */
   @ApiPropertyOptional({ maxLength: 200 })
@@ -310,8 +317,14 @@ export class MessageDto {
   })
   sentByAssistant!: string | null;
 
-  @ApiProperty({ enum: ['text', 'system', 'voice', 'call', 'attachment'] })
-  type!: 'text' | 'system' | 'voice' | 'call' | 'attachment';
+  @ApiProperty({
+    enum: ['text', 'system', 'voice', 'call', 'attachment', 'sticker'],
+  })
+  type!: 'text' | 'system' | 'voice' | 'call' | 'attachment' | 'sticker';
+
+  /** Owner 2026-10-01: the sticker of a sticker message. */
+  @ApiPropertyOptional({ type: () => StickerDto, nullable: true })
+  sticker!: StickerDto | null;
 
   @ApiPropertyOptional({ type: () => VoiceNoteDto, nullable: true })
   voice!: VoiceNoteDto | null;

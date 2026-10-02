@@ -40,6 +40,8 @@ Future<void> showLawbidIncoming({
   required String callId,
   required String callerName,
   String? avatarUrl,
+  // Owner 2026-10-02: "Calls" off in Settings → the call shows, silently.
+  bool silent = false,
 }) async {
   try {
     await FlutterCallkitIncoming.showCallkitIncoming(CallKitParams(
@@ -55,10 +57,11 @@ Future<void> showLawbidIncoming({
       missedCallNotification: const NotificationParams(
         showNotification: false,
       ),
-      android: const AndroidParams(
+      android: AndroidParams(
         isCustomNotification: true,
         isShowLogo: false,
-        ringtonePath: 'system_ringtone_default',
+        // res/raw/silence.wav when calls are switched off.
+        ringtonePath: silent ? 'silence' : 'system_ringtone_default',
         backgroundColor: '#0A1A3F',
         actionColor: '#C9A24A',
         textColor: '#ffffff',
@@ -91,6 +94,7 @@ Future<void> lawbidBackgroundMessage(RemoteMessage message) async {
   await showLawbidIncoming(
     callId: callId,
     callerName: '${d['callerName'] ?? d['title'] ?? 'LawBid'}',
+    silent: d['silent'] == '1',
   );
 }
 

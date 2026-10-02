@@ -503,6 +503,19 @@ export class ClientReviewsService {
         await this.recalc(id);
       }
     }
+    // Audit 2026-10-02: the client who appealed learns the decision.
+    const reason =
+      dto.note?.trim() ||
+      (dto.decision === 'accept'
+        ? 'Your appeal was accepted: the review was removed.'
+        : 'Your appeal was rejected: the review stays.');
+    for (const p of pending) {
+      await this.notifications.emit({
+        type: 'moderation_notice',
+        recipientId: p.review.client_id,
+        payload: { reason, reviewId: p.review_id, appeal: dto.decision },
+      });
+    }
     return { decided: pending.length };
   }
 

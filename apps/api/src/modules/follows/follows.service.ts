@@ -307,10 +307,18 @@ export class FollowsService {
           Number.parseInt(Buffer.from(cursor, 'base64url').toString(), 10) || 0,
         )
       : 0;
+    // Audit 2026-10-02: never suggest someone across a block.
+    const hidden = await this.blocks.hiddenIds(user.sub);
     const picked: string[] = [];
     let i = start;
     for (; i < pool.length && picked.length < PAGE; i++) {
-      if (pool[i] !== user.sub && !followed.has(pool[i])) picked.push(pool[i]);
+      if (
+        pool[i] !== user.sub &&
+        !followed.has(pool[i]) &&
+        !hidden.has(pool[i])
+      ) {
+        picked.push(pool[i]);
+      }
     }
     return {
       items: await this.present(picked, user.sub),

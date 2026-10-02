@@ -1,10 +1,11 @@
 # LawBid local dev infrastructure — docs/01_FOUNDATION_AUTH.md §15, stage 1.1.
 # CockroachDB single-node, Redis, MinIO (local S3), Mailhog (local SMTP/email OTP capture).
-name: lawbid-dev
+name: lawbid
 
 services:
   cockroachdb:
-    image: cockroachdb/cockroach:v24.1.5
+    # Owner 2026-10-02: v25.3 — the owner's restored data was written by it.
+    image: cockroachdb/cockroach:v25.3.0
     command: start-single-node --insecure
     ports:
       - "26257:26257" # SQL

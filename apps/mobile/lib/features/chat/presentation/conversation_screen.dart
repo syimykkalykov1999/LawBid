@@ -27,6 +27,7 @@ import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
 import 'package:lawbid/features/chat/presentation/attachment_widgets.dart';
 import 'package:lawbid/features/chat/presentation/voice_widgets.dart';
+import 'package:lawbid/features/stickers/presentation/sticker_widgets.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
@@ -53,6 +54,30 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
     with WidgetsBindingObserver {
   final _text = TextEditingController();
   bool _resumed = true;
+
+  /// Owner 2026-10-01: the Emoji · Stickers panel in place of the keyboard.
+  bool _stickers = false;
+
+  void _toggleStickers() {
+    if (_stickers) {
+      setState(() => _stickers = false);
+      return;
+    }
+    FocusManager.instance.primaryFocus?.unfocus();
+    setState(() => _stickers = true);
+  }
+
+  void _insertEmoji(String e) {
+    final v = _text.value;
+    final start = v.selection.isValid ? v.selection.start : v.text.length;
+    final end = v.selection.isValid ? v.selection.end : v.text.length;
+    final text = v.text.replaceRange(start, end, e);
+    _text.value = TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: start + e.length),
+    );
+    _thread.typing(true);
+  }
 
   @override
   void initState() {
@@ -307,6 +332,13 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                                   _Composer(
                                     controller: _text,
                                     onSend: _send,
+                                    stickersOpen: _stickers,
+                                    onStickers: _toggleStickers,
+                                    onFieldTap: () {
+                                      if (_stickers) {
+                                        setState(() => _stickers = false);
+                                      }
+                                    },
                                     onTyping: _thread.typing,
                                     // OQ-048: assistants need "files".
                                     onAttach: c.contactsUnlocked &&
@@ -320,6 +352,11 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                                       waveform: r.waveform,
                                     ),
                                   ),
+                                  if (_stickers)
+                                    StickerPanel(
+                                      onSticker: _thread.sendSticker,
+                                      onEmoji: _insertEmoji,
+                                    ),
                                 ],
                               ),
                       ),
@@ -649,7 +686,56 @@ class _Bubble extends ConsumerWidget {
       }
     }
 
-    final bubble = Container(
+    // Owner 2026-10-01: a sticker stands alone, like Telegram — the time
+    // and ticks on a small chip under it.
+    final sticker = m.kind == MessageKind.sticker ? m.sticker : null;
+    final bubble = sticker != null
+        ? Column(
+            crossAxisAlignment:
+                mine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              StickerMessageBody(sticker: sticker),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: colors.surface.withValues(alpha: 0.85),
+                  borderRadius: BorderRadius.circular(AppRadii.pill),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      f.time(m.createdAt),
+                      style: type.caption.copyWith(
+                          color: colors.textSecondary, fontSize: 11),
+                    ),
+                    if (mine) ...[
+                      const SizedBox(width: 4),
+                      AppIcon(
+                        switch (m.delivery) {
+                          DeliveryState.sending => AppIcons.scheduleRounded,
+                          DeliveryState.failed =>
+                            AppIcons.errorOutlineRounded,
+                          DeliveryState.sent => seen
+                              ? AppIcons.doneAllRounded
+                              : AppIcons.doneRounded,
+                        },
+                        size: 14,
+                        color: failed
+                            ? colors.danger
+                            : seen
+                                ? colors.gold
+                                : colors.textSecondary,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          )
+        : Container(
       constraints:
           BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * 0.78),
       padding: const EdgeInsets.fromLTRB(
@@ -742,6 +828,8 @@ class _Bubble extends ConsumerWidget {
               label: [
                 if (m.kind == MessageKind.voice)
                   t.t('chat.voice.label')
+                else if (m.kind == MessageKind.sticker)
+                  '${t.t('stickers.label')} ${m.sticker?.emoji ?? ''}'
                 else if (m.kind == MessageKind.attachment)
                   '${t.t('chat.attach.label')}: ${m.attachment?.name ?? ''}'
                 else
@@ -1103,7 +1191,15 @@ class _Composer extends ConsumerStatefulWidget {
     required this.onTyping,
     required this.onVoice,
     this.onAttach,
+    this.onStickers,
+    this.onFieldTap,
+    this.stickersOpen = false,
   });
+
+  /// Owner 2026-10-01: the Emoji · Stickers button in the field.
+  final VoidCallback? onStickers;
+  final VoidCallback? onFieldTap;
+  final bool stickersOpen;
 
   /// OQ-047: photos and documents — only once the bid is accepted.
   final VoidCallback? onAttach;
@@ -1236,9 +1332,24 @@ class _ComposerState extends ConsumerState<_Composer> {
           (_, {required currentLength, required isFocused, maxLength}) => null,
       textCapitalization: TextCapitalization.sentences,
       onChanged: (v) => widget.onTyping(v.isNotEmpty),
+      onTap: widget.onFieldTap,
       style: type.body.copyWith(color: colors.text),
       decoration: InputDecoration(
         hintText: t.t('chat.hint'),
+        suffixIcon: widget.onStickers == null
+            ? null
+            : IconButton(
+                tooltip: t.t('stickers.button'),
+                onPressed: widget.onStickers,
+                icon: AppIcon(
+                  widget.stickersOpen
+                      ? AppIcons.keyboardRounded
+                      : AppIcons.smileyStickerOutlined,
+                  color: widget.stickersOpen
+                      ? colors.goldDark
+                      : colors.textSecondary,
+                ),
+              ),
         filled: true,
         fillColor: colors.bg,
         contentPadding: const EdgeInsets.symmetric(

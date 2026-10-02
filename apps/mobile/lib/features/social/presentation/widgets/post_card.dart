@@ -26,6 +26,8 @@ import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/social/social_routes.dart';
+import 'package:lawbid/features/reels/presentation/reel_video.dart';
+import 'package:lawbid/features/reels/presentation/reels_screen.dart';
 
 /// Owner 2026-09-30: a feed card fills the list viewport down to the nav
 /// bar with no gaps between cards (edge-to-edge list); never
@@ -123,7 +125,11 @@ class PostCard extends ConsumerWidget {
     void open() => context.push(SocialRoutes.post(p.id));
     // Owner 2026-09-30: the author's photos (up to 9) or, when there are
     // none, the default art of the post's practice — full card width.
-    final Widget picture = p.media.isNotEmpty
+    // Owner 2026-10-01: a reel plays muted in the card; a tap opens the
+    // full-screen reels starting with it.
+    final Widget picture = p.video != null
+        ? InlineReel(post: p, onOpen: () => ReelsScreen.open(context, from: p))
+        : p.media.isNotEmpty
         ? PostMediaCarousel(
             media: p.media,
             semanticLabel: t.t('post.media.label'),
@@ -297,6 +303,20 @@ class PostCard extends ConsumerWidget {
                 PostBodyText(body: rest, expanded: true, mentions: p.mentions),
           ),
         const SizedBox(height: AppSpacing.md),
+        if (p.video != null)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(AppRadii.card - 2),
+              child: AspectRatio(
+                aspectRatio: 4 / 5,
+                child: InlineReel(
+                  post: p,
+                  onOpen: () => ReelsScreen.open(context, from: p),
+                ),
+              ),
+            ),
+          ),
         if (p.media.isNotEmpty)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),

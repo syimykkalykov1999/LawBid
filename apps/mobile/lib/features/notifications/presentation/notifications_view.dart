@@ -114,6 +114,14 @@ String notificationText(Translator t, AppNotification n) {
       if (body is String) body,
     ].join(' — ');
   }
+  // Audit 2026-10-02: a moderation notice shows the moderator's reason.
+  if (n.type == 'moderation_notice') {
+    final reason = n.payload['reason'];
+    final base = t.t('notif.list.moderation_notice', {'name': ''});
+    return reason is String && reason.trim().isNotEmpty
+        ? '$base: ${reason.trim()}'
+        : base;
+  }
   final name = n.actor?.displayName ?? '';
   final others = n.aggregateCount - 1;
   if (others > 0) {

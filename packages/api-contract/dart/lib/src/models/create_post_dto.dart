@@ -16,6 +16,7 @@ class CreatePostDto {
     this.kind = PostKind.post,
     this.practiceCode,
     this.mediaFileIds,
+    this.videoAssetId,
   });
 
   factory CreatePostDto.fromJson(Map<String, Object?> json) =>
@@ -34,6 +35,10 @@ class CreatePostDto {
 
   /// Clean post_image file ids, in display order.
   final List<String>? mediaFileIds;
+
+  /// Owner 2026-10-01: a reel — the uploaded video (POST /videos/uploads).
+  /// Instead of photos; the post appears once the video is encoded.
+  final String? videoAssetId;
 
   Map<String, Object?> toJson() => _$CreatePostDtoToJson(this);
 }

@@ -48,6 +48,13 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       description: `Minimum ${platform} app version (semver); older builds get 426 APP_UPDATE_REQUIRED.`,
       pattern: /^\d+\.\d+\.\d+$/,
     };
+    // Audit 2026-10-02: the app reads the soft-update version too.
+    out[`soft_update_version_${platform}`] = {
+      type: 'string',
+      defaultValue: null,
+      description: `Suggested ${platform} app version (semver); older builds see a dismissible "update available".`,
+      pattern: /^\d+\.\d+\.\d+$/,
+    };
   }
   return out;
 }

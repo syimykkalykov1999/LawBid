@@ -37,7 +37,10 @@ import {
   UpsertClientReviewDto,
   type ClientReviewPage,
 } from './client-reviews.dto';
-import { AssistantSelf } from '../auth/assistant/assistant-context';
+import {
+  AssistantSelf,
+  AttorneyOnly,
+} from '../auth/assistant/assistant-context';
 import { ClientReviewsService } from './client-reviews.service';
 
 const E = ErrorCode;
@@ -50,6 +53,8 @@ const E = ErrorCode;
 export class ClientReviewsController {
   constructor(private readonly reviews: ClientReviewsService) {}
 
+  // Audit 2026-10-02: the case review is the attorney's own word.
+  @AttorneyOnly()
   @Put('cases/:id/client-review')
   @ApiOperation({ summary: "Review the case's client (hired attorney)" })
   @ApiEnvelopeResponse(ClientReviewDto)

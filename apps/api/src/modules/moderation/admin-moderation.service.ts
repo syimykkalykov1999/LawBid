@@ -240,7 +240,8 @@ export class AdminModerationService {
           {
             type: 'moderation_notice',
             recipientId: target.authorId,
-            payload: { action, targetType: type, targetId: id },
+            // Audit 2026-10-02: the author sees the moderator's reason.
+            payload: { action, targetType: type, targetId: id, reason },
           },
           tx,
         );

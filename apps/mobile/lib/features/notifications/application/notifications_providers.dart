@@ -66,6 +66,22 @@ class BadgesNotifier extends Notifier<Badges> {
 final badgesProvider =
     NotifierProvider<BadgesNotifier, Badges>(BadgesNotifier.new);
 
+/// Owner 2026-10-02: the categories switched off in Settings → Notifications
+/// (the same screen opens from the bell and from Profile → Settings). Off =
+/// still delivered, but no badge, no chime, calls ring silently.
+final mutedCategoriesProvider = FutureProvider<Set<NotifCategory>>((ref) async {
+  if (ref.watch(currentUserIdProvider) == null) return const {};
+  final s = await ref.watch(notificationsRepositoryProvider).settings();
+  return {
+    for (final c in s.categories)
+      if (!c.locked && !c.push) c.category,
+  };
+});
+
+/// Synchronous read with a safe default (nothing muted until loaded).
+bool isCategoryMuted(Ref ref, NotifCategory c) =>
+    ref.read(mutedCategoriesProvider).value?.contains(c) ?? false;
+
 /// docs/05 §9.1 notifications list.
 class NotificationsNotifier extends PagedNotifier<AppNotification> {
   @override

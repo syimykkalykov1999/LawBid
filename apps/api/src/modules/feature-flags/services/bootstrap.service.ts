@@ -1,10 +1,11 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import type { I18nLanguage, LegalDocument } from '@prisma/client';
 import type Redis from 'ioredis';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
 import { FeatureFlagsService } from './feature-flags.service';
 import { AppConfigService } from './app-config.service';
+import { SecretsService } from '../../../common/secrets/secrets.service';
 
 /** `GET /config/bootstrap`'s response shape (docs/01_FOUNDATION_AUTH.md
  * §15, "Этап 1.8": "эндпоинт GET /config/bootstrap (флаги, min-версия,
@@ -71,6 +72,15 @@ const I18N_BUNDLE_VERSION_KEY_PREFIX = 'i18n:bundle:version:';
  * A Redis error on this service's own cache/overlay reads degrades to
  * the DB-derived values rather than failing the splash screen.
  */
+/** app_config keys the public bootstrap may expose (by prefix). */
+export const PUBLIC_CONFIG_PREFIXES = [
+  'min_app_version_',
+  'soft_update_version_',
+  'files.',
+  'video.max_',
+  'stickers.',
+] as const;
+
 @Injectable()
 export class BootstrapService {
   constructor(
@@ -78,7 +88,26 @@ export class BootstrapService {
     private readonly flags: FeatureFlagsService,
     private readonly appConfig: AppConfigService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    @Optional() private readonly secrets?: SecretsService,
   ) {}
+
+  /** Owner 2026-10-01: reels stay hidden from everyone until the owner
+   * both turns `video_posts` on AND saves every Bunny key in Admin →
+   * Integrations — the app reads only this combined value. */
+  private async withVideoGate(
+    flags: Record<string, boolean>,
+  ): Promise<Record<string, boolean>> {
+    if (!flags.video_posts) return flags;
+    const f = (await this.secrets?.get('bunny_stream'))?.fields ?? {};
+    const ready = [
+      'libraryId',
+      'cdnHostname',
+      'apiKey',
+      'tokenAuthKey',
+      'webhookToken',
+    ].every((k) => !!f[k]);
+    return { ...flags, video_posts: ready };
+  }
 
   async build(): Promise<BootstrapResponse> {
     const [flags, appConfig, content] = await Promise.all([
@@ -93,8 +122,14 @@ export class BootstrapService {
     );
 
     return {
-      flags,
-      app_config: appConfig,
+      flags: await this.withVideoGate(flags),
+      // Audit 2026-10-02: only what the app needs — never the moderation
+      // term lists, budgets or reserved names (this endpoint is public).
+      app_config: Object.fromEntries(
+        Object.entries(appConfig).filter(([k]) =>
+          PUBLIC_CONFIG_PREFIXES.some((p) => k.startsWith(p)),
+        ),
+      ),
       languages: content.languages,
       translations_version: translationsVersion,
       legal_documents: content.legal_documents.map((doc) => ({

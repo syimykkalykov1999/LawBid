@@ -13,7 +13,10 @@ export type LimitedAction =
   | 'follow'
   | 'message'
   | 'search'
-  | 'report';
+  | 'report'
+  | 'video_upload'
+  | 'sticker_pack_create'
+  | 'sticker_add';
 
 const HOUR = 3600;
 const DAY = 24 * HOUR;
@@ -30,6 +33,16 @@ export const USAGE_LIMITS: Record<
   message: { setting: 'rate_limit.message_per_minute', windowSec: 60 },
   search: { setting: 'rate_limit.search_per_minute', windowSec: 60 },
   report: { setting: 'rate_limit.report_per_day', windowSec: DAY },
+  // Owner 2026-10-01: reels and stickers.
+  video_upload: {
+    setting: 'rate_limit.video_upload_per_day',
+    windowSec: DAY,
+  },
+  sticker_pack_create: {
+    setting: 'rate_limit.sticker_pack_create_per_day',
+    windowSec: DAY,
+  },
+  sticker_add: { setting: 'rate_limit.sticker_add_per_hour', windowSec: HOUR },
 };
 
 /**

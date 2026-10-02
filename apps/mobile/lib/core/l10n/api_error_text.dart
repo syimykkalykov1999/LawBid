@@ -82,6 +82,11 @@ const _keys = <String, String>{
   // the transfer broke: "try uploading again".
   ApiErrorCodes.fileTypeNotAllowed: 'error.api.FILE_TYPE_NOT_ALLOWED',
   ApiErrorCodes.fileTooLarge: 'error.api.FILE_TOO_LARGE',
+  // Owner 2026-10-01: reels and stickers.
+  ApiErrorCodes.videoUnavailable: 'error.api.VIDEO_UNAVAILABLE',
+  ApiErrorCodes.videoTooLong: 'error.api.VIDEO_TOO_LONG',
+  ApiErrorCodes.videoNotReady: 'error.api.VIDEO_NOT_READY',
+  ApiErrorCodes.stickerLimitReached: 'error.api.STICKER_LIMIT_REACHED',
   ApiErrorCodes.fileChecksumMismatch: 'error.api.FILE_UPLOAD_FAILED',
   ApiErrorCodes.fileNotUploaded: 'error.api.FILE_UPLOAD_FAILED',
   ApiErrorCodes.fileNotAttachable: 'error.api.FILE_NOT_ATTACHABLE',

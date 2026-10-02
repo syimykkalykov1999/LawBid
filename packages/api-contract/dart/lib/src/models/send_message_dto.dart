@@ -12,6 +12,7 @@ part 'send_message_dto.g.dart';
 class SendMessageDto {
   const SendMessageDto({
     required this.clientMessageId,
+    this.stickerId,
     this.fileName,
     this.body,
     this.fileId,
@@ -26,6 +27,9 @@ class SendMessageDto {
   /// App-generated id (UUID), idempotency key.
   final String clientMessageId;
   final SendMessageType type;
+
+  /// Owner 2026-10-01: a sticker message (type=sticker).
+  final String? stickerId;
 
   /// OQ-047: the attachment's original file name (shown on its card).
   final String? fileName;

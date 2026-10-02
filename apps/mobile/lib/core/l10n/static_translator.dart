@@ -3,6 +3,7 @@ import 'package:lawbid/core/l10n/plural_rules.dart';
 import 'package:lawbid/core/l10n/strings/file05_strings.dart';
 import 'package:lawbid/core/l10n/strings/file06_strings.dart';
 import 'package:lawbid/core/l10n/strings/file07_strings.dart';
+import 'package:lawbid/core/l10n/strings/reels_strings.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 
 /// Stage-1.5-originated stopgap [Translator], now bilingual (owner request,
@@ -856,6 +857,7 @@ class StaticTranslatorRu extends _MapTranslator {
         ...file05Ru,
         ...file06Ru,
         ...file07Ru,
+        ...reelsRu,
       };
 }
 
@@ -1956,5 +1958,6 @@ class StaticTranslatorEn extends _MapTranslator {
         ...file05En,
         ...file06En,
         ...file07En,
+        ...reelsEn,
       };
 }

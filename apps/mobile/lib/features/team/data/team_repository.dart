@@ -115,6 +115,7 @@ class ApiTeamRepository implements TeamRepository {
         state: switch (d.state.json) {
           'active' => AssistantState.active,
           'invited' => AssistantState.invited,
+          'paused' => AssistantState.paused,
           _ => AssistantState.none,
         },
         membershipId: d.membershipId,

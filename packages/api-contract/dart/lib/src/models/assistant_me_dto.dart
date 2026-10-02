@@ -23,6 +23,8 @@ class AssistantMeDto {
   factory AssistantMeDto.fromJson(Map<String, Object?> json) =>
       _$AssistantMeDtoFromJson(json);
 
+  /// Audit 2026-10-02: `paused` = joined, but the attorney's subscription.
+  /// lapsed (the assistant can't work in the account until it's renewed).
   final AssistantMeDtoState state;
   final String? membershipId;
 

@@ -109,7 +109,15 @@ class _AssistantJoinScreenState extends ConsumerState<AssistantJoinScreen> {
             ),
           ),
           const SizedBox(height: AppSpacing.lg),
-          if (me.state == AssistantState.invited) ...[
+          // Audit 2026-10-02: the attorney's subscription lapsed.
+          if (me.state == AssistantState.paused) ...[
+            Text(
+              t.t('assistant.paused', {'name': me.attorneyName ?? ''}),
+              textAlign: TextAlign.center,
+              style: typography.titleMedium.copyWith(color: colors.text),
+            ),
+            const SizedBox(height: AppSpacing.xl),
+          ] else if (me.state == AssistantState.invited) ...[
             Text(
               t.t('assistant.join.invited', {'name': me.attorneyName ?? ''}),
               textAlign: TextAlign.center,

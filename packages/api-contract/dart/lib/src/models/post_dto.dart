@@ -10,6 +10,7 @@ import 'post_author_dto.dart';
 import 'post_kind.dart';
 import 'post_media_dto.dart';
 import 'post_practice_dto.dart';
+import 'post_video_dto.dart';
 
 part 'post_dto.g.dart';
 
@@ -34,6 +35,7 @@ class PostDto {
     required this.createdAt,
     this.title,
     this.practice,
+    this.video,
     this.editedAt,
   });
 
@@ -49,6 +51,9 @@ class PostDto {
   final PostAuthorDto author;
   final String body;
   final List<PostMediaDto> media;
+
+  /// Owner 2026-10-01: a reel's video (null for photo/text posts).
+  final PostVideoDto? video;
 
   /// Hashtags without #, lowercase.
   final List<String> tags;

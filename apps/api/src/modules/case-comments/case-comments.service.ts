@@ -1,3 +1,4 @@
+import { assertNoBlockBetween } from '../blocks/block-check';
 import {
   Inject,
   Injectable,
@@ -77,6 +78,8 @@ export class CaseCommentsService {
   ): Promise<CaseCommentDto> {
     const userId = user.sub;
     const ownerId = await this.caseOwner(user, caseId);
+    // Owner 2026-10-02: no comments across a block with the case owner.
+    await assertNoBlockBetween(this.prisma, userId, ownerId);
     assertNoContactInfo({ body });
     await this.limits.consume('comment', userId);
     const verdict = await this.moderation.check(body, {

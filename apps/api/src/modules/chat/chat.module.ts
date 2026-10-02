@@ -1,3 +1,4 @@
+import { StickersModule } from '../stickers/stickers.module';
 import { Module } from '@nestjs/common';
 import { PresenceModule } from '../presence/presence.module';
 import { UsageLimitsModule } from '../../common/usage-limits/usage-limits.module';
@@ -17,6 +18,7 @@ import { ChatService } from './chat.service';
     SubscriptionsModule,
     NotificationsModule,
     PresenceModule,
+    StickersModule,
   ],
   controllers: [ChatController],
   providers: [ChatService],

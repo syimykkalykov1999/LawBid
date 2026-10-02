@@ -36,6 +36,8 @@ import {
   type PostPage,
 } from './dto/posts.dto';
 import { SubscriptionAlertsService } from '../notifications/subscription-alerts.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { VideosService } from '../videos/videos.service';
 import { extractHashtags } from './hashtags';
 import { PostPresenter, VISIBLE_POST_WHERE } from './post-presenter.service';
 
@@ -61,6 +63,8 @@ export class PostsService {
     private readonly mentions: MentionsService,
     @Inject(CONTENT_MODERATION_HOOK)
     private readonly moderation: ContentModerationHook,
+    private readonly videos: VideosService,
+    private readonly notifications: NotificationsService,
     @Optional() private readonly alerts?: SubscriptionAlertsService,
   ) {}
 
@@ -78,12 +82,20 @@ export class PostsService {
     const practice = dto.practiceCode
       ? await this.practiceByCode(dto.practiceCode)
       : null;
+    const video = dto.videoAssetId
+      ? await this.attachableVideo(user.sub, dto.videoAssetId, dto)
+      : null;
     await this.limits.consume('post_create', user.sub);
-    const status = await this.moderate(
+    const verdict = await this.moderate(
       `${dto.title}\n${dto.body}`,
       user.sub,
       'post',
     );
+    // Owner 2026-10-01: a reel waits for its video; a held one stays hidden.
+    const status: ContentStatus =
+      video && verdict === 'published' && video.status !== 'ready'
+        ? 'processing'
+        : verdict;
     const fileIds = dto.mediaFileIds ?? [];
     const files: File[] = [];
     for (const id of fileIds) {
@@ -107,16 +119,27 @@ export class PostsService {
     }
     const tags = extractHashtags(dto.body);
     const post = await withTxRetry(this.prisma, async (tx) => {
-      const created = await tx.post.create({
-        data: {
-          author_id: user.sub,
-          title: dto.title,
-          practice_area_id: practice?.id ?? null,
-          kind,
-          body: dto.body,
-          status,
-        },
-      });
+      const created = await tx.post
+        .create({
+          data: {
+            author_id: user.sub,
+            title: dto.title,
+            practice_area_id: practice?.id ?? null,
+            kind,
+            body: dto.body,
+            status,
+            video_asset_id: video?.id ?? null,
+          },
+        })
+        .catch((e: unknown) => {
+          if ((e as { code?: string }).code === 'P2002') {
+            throw new ConflictException({
+              code: ErrorCode.FILE_NOT_ATTACHABLE,
+              message: 'This video is already used in another post.',
+            });
+          }
+          throw e;
+        });
       if (files.length > 0) {
         await tx.postMedia.createMany({
           data: files.map((f, i) => ({
@@ -132,24 +155,83 @@ export class PostsService {
       await this.writeTags(tx, created.id, tags);
       return created;
     });
-    if (status === 'published') {
-      await this.counters.bump(
-        profileEntity(user.role),
-        user.sub,
-        'posts_count',
-        1,
-      );
-      // OQ-042: tell the people @mentioned in the caption.
-      await this.mentions.notify({
-        actorId: user.sub,
-        text: post.body,
-        postId: post.id,
-      });
-      // Owner 2026-09-30: followers who turned "Following" alerts on.
-      const alerts = this.alerts;
-      alerts?.later(() => alerts.followersOfPost(user.sub, post.id));
-    }
+    if (status === 'published') await this.afterPublish(post.id);
     return (await this.presenter.present([post], user.sub))[0];
+  }
+
+  /** Counters, @mentions and follower alerts — once, when a post goes
+   * public (at create, or when its video is ready). */
+  async afterPublish(postId: string): Promise<void> {
+    const post = await this.prisma.post.findUnique({
+      where: { id: postId },
+      select: {
+        id: true,
+        body: true,
+        author_id: true,
+        author: { select: { role: true } },
+      },
+    });
+    if (!post) return;
+    await this.counters.bump(
+      profileEntity(post.author.role === 'client' ? 'client' : 'attorney'),
+      post.author_id,
+      'posts_count',
+      1,
+    );
+    // OQ-042: tell the people @mentioned in the caption.
+    await this.mentions.notify({
+      actorId: post.author_id,
+      text: post.body,
+      postId: post.id,
+    });
+    // Owner 2026-09-30: followers who turned "Following" alerts on.
+    const alerts = this.alerts;
+    alerts?.later(() => alerts.followersOfPost(post.author_id, post.id));
+  }
+
+  /** Owner 2026-10-01: the reel's video could not be used. */
+  async notifyVideoFailed(
+    post: { id: string; author_id: string },
+    reason: string | null,
+  ): Promise<void> {
+    await this.notifications.emit({
+      type: 'moderation_notice',
+      recipientId: post.author_id,
+      payload: { reason: `video_${reason ?? 'failed'}`, postId: post.id },
+    });
+  }
+
+  /** Own, unused, still usable — else a clear error. */
+  private async attachableVideo(
+    userId: string,
+    assetId: string,
+    dto: CreatePostDto,
+  ) {
+    await this.videos.assertAvailable();
+    if ((dto.mediaFileIds ?? []).length > 0) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message: 'A post has either photos or a video.',
+        details: { field: 'videoAssetId' },
+      });
+    }
+    const asset = await this.prisma.videoAsset.findFirst({
+      where: { id: assetId, owner_user_id: userId, deleted_at: null },
+    });
+    if (!asset) {
+      throw new ConflictException({
+        code: ErrorCode.FILE_NOT_ATTACHABLE,
+        message: 'Upload the video first.',
+      });
+    }
+    if (!VideosService.attachable(asset.status)) {
+      throw new ConflictException({
+        code: ErrorCode.VIDEO_NOT_READY,
+        message: 'This video could not be processed.',
+        details: { status: asset.status },
+      });
+    }
+    return asset;
   }
 
   /** PATCH /posts/:id — title, text and qualification; hashtags
@@ -218,8 +300,16 @@ export class PostsService {
     if (count !== 1) throw postNotFound();
     const post = await this.prisma.post.findFirst({
       where: { id },
-      select: { status: true },
+      select: { status: true, video_asset_id: true },
     });
+    // Owner 2026-10-01: the reel's video goes with the post.
+    if (post?.video_asset_id) {
+      await this.videos.markDeleted([post.video_asset_id]);
+      const asset = await this.prisma.videoAsset.findUnique({
+        where: { id: post.video_asset_id },
+      });
+      if (asset) await this.videos.purgeNow(asset);
+    }
     if (post?.status === 'published') {
       await this.counters.bump(
         profileEntity(user.role),
@@ -280,6 +370,56 @@ export class PostsService {
           ? encodeCursor({ createdAt: last.created_at, id: last.id })
           : null,
     };
+  }
+
+  /** Owner 2026-10-01: GET /reels — ready video posts, newest first,
+   * nobody blocked either way. */
+  async listReels(
+    user: RequestUser,
+    query: { cursor?: string; limit?: number },
+  ): Promise<PostPage> {
+    const limit = Math.min(query.limit ?? 10, 20);
+    const c = query.cursor ? decodeCursor(query.cursor) : undefined;
+    const blocks = await this.prisma.userBlock.findMany({
+      where: { OR: [{ blocker_id: user.sub }, { blocked_id: user.sub }] },
+      select: { blocker_id: true, blocked_id: true },
+    });
+    const hidden = blocks.map((b) =>
+      b.blocker_id === user.sub ? b.blocked_id : b.blocker_id,
+    );
+    const rows = await this.prisma.post.findMany({
+      where: {
+        AND: [
+          VISIBLE_POST_WHERE,
+          { video_asset: { status: 'ready', deleted_at: null } },
+          hidden.length ? { author_id: { notIn: hidden } } : {},
+          c
+            ? {
+                OR: [
+                  { created_at: { lt: c.createdAt } },
+                  { created_at: c.createdAt, id: { lt: c.id } },
+                ],
+              }
+            : {},
+        ],
+      },
+      orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+      take: limit + 1,
+    });
+    const page = rows.slice(0, limit);
+    const last = page[page.length - 1];
+    return {
+      items: await this.presenter.present(page, user.sub),
+      nextCursor:
+        rows.length > limit && last
+          ? encodeCursor({ createdAt: last.created_at, id: last.id })
+          : null,
+    };
+  }
+
+  /** Owner 2026-10-01: the same gate as POST /posts (reel uploads). */
+  async assertCanPublish(user: RequestUser): Promise<void> {
+    await this.assertCanPost(user);
   }
 
   /** An active practice category or subcategory (owner 2026-09-30). */

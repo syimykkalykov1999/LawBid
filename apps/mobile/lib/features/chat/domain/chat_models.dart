@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
+import 'package:lawbid/features/stickers/domain/sticker_models.dart';
 
 enum ConversationStatus { preAcceptance, active, closed }
 
@@ -125,7 +126,7 @@ enum ChatFolder { primary, general }
 enum ChatListFolder { all, primary, general, waiting, requests }
 
 // OQ-047: `attachment` — a photo or a document after acceptance.
-enum MessageKind { text, system, voice, call, attachment }
+enum MessageKind { text, system, voice, call, attachment, sticker }
 
 /// OQ-041: a call in the chat log (the sender placed it).
 @immutable
@@ -249,7 +250,11 @@ class ChatMessage {
     this.callLog,
     this.attachment,
     this.sentByAssistant,
+    this.sticker,
   });
+
+  /// Owner 2026-10-01: set for [MessageKind.sticker].
+  final ChatSticker? sticker;
 
   /// OQ-048: sent by the attorney's assistant — their name.
   final String? sentByAssistant;
@@ -300,6 +305,7 @@ class ChatMessage {
         callLog: callLog,
         attachment: attachment ?? this.attachment,
         sentByAssistant: sentByAssistant,
+        sticker: sticker,
       );
 }
 

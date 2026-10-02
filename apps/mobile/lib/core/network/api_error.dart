@@ -164,6 +164,14 @@ abstract final class ApiErrorCodes {
       'MODERATION_ACTION_NOT_APPLICABLE';
   static const flagProviderKeysMissing = 'FLAG_PROVIDER_KEYS_MISSING';
   static const legalDocumentInvalidState = 'LEGAL_DOCUMENT_INVALID_STATE';
+  // Owner 2026-10-01: integrations (admin), reels, stickers.
+  static const integrationsNotConfigured = 'INTEGRATIONS_NOT_CONFIGURED';
+  static const integrationConflict = 'INTEGRATION_CONFLICT';
+  static const adminStepUpRequired = 'ADMIN_STEP_UP_REQUIRED';
+  static const videoUnavailable = 'VIDEO_UNAVAILABLE';
+  static const videoTooLong = 'VIDEO_TOO_LONG';
+  static const videoNotReady = 'VIDEO_NOT_READY';
+  static const stickerLimitReached = 'STICKER_LIMIT_REACHED';
 
   /// Every server code, in enum order.
   static const all = <String>[
@@ -291,6 +299,13 @@ abstract final class ApiErrorCodes {
     moderationActionNotApplicable,
     flagProviderKeysMissing,
     legalDocumentInvalidState,
+    integrationsNotConfigured,
+    integrationConflict,
+    adminStepUpRequired,
+    videoUnavailable,
+    videoTooLong,
+    videoNotReady,
+    stickerLimitReached,
   ];
 }
 

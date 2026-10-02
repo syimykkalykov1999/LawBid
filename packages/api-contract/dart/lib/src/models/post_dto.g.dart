@@ -31,6 +31,9 @@ PostDto _$PostDtoFromJson(Map<String, dynamic> json) => PostDto(
   practice: json['practice'] == null
       ? null
       : PostPracticeDto.fromJson(json['practice'] as Map<String, dynamic>),
+  video: json['video'] == null
+      ? null
+      : PostVideoDto.fromJson(json['video'] as Map<String, dynamic>),
   editedAt: json['editedAt'] as String?,
 );
 
@@ -42,6 +45,7 @@ Map<String, dynamic> _$PostDtoToJson(PostDto instance) => <String, dynamic>{
   'author': instance.author.toJson(),
   'body': instance.body,
   'media': instance.media.map((e) => e.toJson()).toList(),
+  'video': ?instance.video?.toJson(),
   'tags': instance.tags,
   'mentions': instance.mentions.map((e) => e.toJson()).toList(),
   'status': instance.status.toJson(),

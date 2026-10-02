@@ -268,6 +268,8 @@ enum ErrorCode {
   videoTooLong('VIDEO_TOO_LONG'),
   @JsonValue('VIDEO_NOT_READY')
   videoNotReady('VIDEO_NOT_READY'),
+  @JsonValue('STICKER_LIMIT_REACHED')
+  stickerLimitReached('STICKER_LIMIT_REACHED'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

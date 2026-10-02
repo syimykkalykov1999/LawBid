@@ -8,6 +8,7 @@ import 'package:lawbid/core/network/request_flags.dart';
 import 'package:lawbid/features/profile/data/avatar_upload_repository.dart'
     show sha256Hex;
 import 'package:lawbid/features/chat/domain/chat_models.dart';
+import 'package:lawbid/features/stickers/data/stickers_repository.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 
 /// docs/05 §8 chats for the app. Throws [ApiException].
@@ -71,6 +72,13 @@ abstract interface class ChatRepository {
     required String fileId,
     required String fileName,
     String? caption,
+  });
+
+  /// Owner 2026-10-01: a sticker message.
+  Future<ChatMessage> sendSticker(
+    String id,
+    String clientMessageId, {
+    required String stickerId,
   });
 
   /// OQ-047: only the chat's photos and documents (its "Files" screen).
@@ -253,6 +261,22 @@ class ApiChatRepository implements ChatRepository {
                   fileId: fileId,
                   fileName: fileName,
                   body: caption,
+                ),
+              )))
+          .data);
+
+  @override
+  Future<ChatMessage> sendSticker(
+    String id,
+    String clientMessageId, {
+    required String stickerId,
+  }) async =>
+      ChatMappers.message((await guardApiCall(() => _chat.sendMessage(
+                id: id,
+                body: api.SendMessageDto(
+                  clientMessageId: clientMessageId,
+                  type: api.SendMessageType.sticker,
+                  stickerId: stickerId,
                 ),
               )))
           .data);
@@ -472,8 +496,12 @@ abstract final class ChatMappers {
           api.MessageDtoType.voice => MessageKind.voice,
           api.MessageDtoType.call => MessageKind.call,
           api.MessageDtoType.attachment => MessageKind.attachment,
+          api.MessageDtoType.sticker => MessageKind.sticker,
           _ => MessageKind.text,
         },
+        sticker: d.sticker == null
+            ? null
+            : StickersRepository.sticker(d.sticker!),
         body: d.body,
         contactMasked: d.contactMasked,
         clientMessageId: d.clientMessageId,

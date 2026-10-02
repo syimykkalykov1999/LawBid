@@ -23,6 +23,7 @@ import 'clients/admin_subscriptions_client.dart';
 import 'clients/assistants_client.dart';
 import 'clients/admin_teams_client.dart';
 import 'clients/posts_client.dart';
+import 'clients/videos_client.dart';
 import 'clients/comments_client.dart';
 import 'clients/case_comments_client.dart';
 import 'clients/cases_client.dart';
@@ -40,6 +41,7 @@ import 'clients/i18n_client.dart';
 import 'clients/admin_i18n_client.dart';
 import 'clients/case_history_client.dart';
 import 'clients/admin_moderation_client.dart';
+import 'clients/stickers_client.dart';
 import 'clients/feed_client.dart';
 import 'clients/client_reviews_client.dart';
 import 'clients/admin_review_appeals_client.dart';
@@ -83,6 +85,7 @@ class LawbidApi {
   AssistantsClient? _assistants;
   AdminTeamsClient? _adminTeams;
   PostsClient? _posts;
+  VideosClient? _videos;
   CommentsClient? _comments;
   CaseCommentsClient? _caseComments;
   CasesClient? _cases;
@@ -100,6 +103,7 @@ class LawbidApi {
   AdminI18nClient? _adminI18n;
   CaseHistoryClient? _caseHistory;
   AdminModerationClient? _adminModeration;
+  StickersClient? _stickers;
   FeedClient? _feed;
   ClientReviewsClient? _clientReviews;
   AdminReviewAppealsClient? _adminReviewAppeals;
@@ -165,6 +169,8 @@ class LawbidApi {
 
   PostsClient get posts => _posts ??= PostsClient(_dio, baseUrl: _baseUrl);
 
+  VideosClient get videos => _videos ??= VideosClient(_dio, baseUrl: _baseUrl);
+
   CommentsClient get comments =>
       _comments ??= CommentsClient(_dio, baseUrl: _baseUrl);
 
@@ -210,6 +216,9 @@ class LawbidApi {
 
   AdminModerationClient get adminModeration =>
       _adminModeration ??= AdminModerationClient(_dio, baseUrl: _baseUrl);
+
+  StickersClient get stickers =>
+      _stickers ??= StickersClient(_dio, baseUrl: _baseUrl);
 
   FeedClient get feed => _feed ??= FeedClient(_dio, baseUrl: _baseUrl);
 

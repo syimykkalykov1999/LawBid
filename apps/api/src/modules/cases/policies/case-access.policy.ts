@@ -94,7 +94,12 @@ export class CaseAccessPolicy {
          AND EXISTS (SELECT 1 FROM case_states cs
                      JOIN attorney_licenses l ON l.state_code = cs.state_code
                      WHERE cs.case_id = c.id AND l.attorney_id = ${a}::UUID
-                       AND l.license_status = 'verified'))
+                       AND l.license_status = 'verified')
+         -- Owner 2026-10-02: a block either way hides the case (no bids,
+         -- no comments) — the block screen promises no contact at all.
+         AND NOT EXISTS (SELECT 1 FROM user_blocks ub
+                         WHERE (ub.blocker_id = ${a}::UUID AND ub.blocked_id = c.client_id)
+                            OR (ub.blocker_id = c.client_id AND ub.blocked_id = ${a}::UUID)))
           AS visible,
         EXISTS (SELECT 1 FROM attorney_practice_areas ap
                 WHERE ap.attorney_id = ${a}::UUID

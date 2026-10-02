@@ -70,12 +70,31 @@ export const FILE_06_SETTINGS = {
   'moderation.duplicate_window_hours': 24,
 } as const;
 
+// Owner 2026-10-01: video reels (Bunny Stream) and stickers — tunables the
+// owner changes from the admin panel without a release.
+export const OWNER_MEDIA_SETTINGS = {
+  'video.max_duration_sec': 90,
+  'video.max_size_mb': 500,
+  'video.upload_ttl_min': 60,
+  'video.playback_ttl_sec': 21600,
+  'video.max_pending_per_user': 3,
+  'rate_limit.video_upload_per_day': 10,
+  'stickers.max_own_packs': 20,
+  'stickers.max_per_pack': 120,
+  'stickers.max_installed': 200,
+  'stickers.recent_max': 30,
+  'rate_limit.sticker_pack_create_per_day': 5,
+  'rate_limit.sticker_add_per_hour': 60,
+  'files.sticker_max_size_mb': 1,
+} as const;
+
 /** Every typed app_config tunable with its spec default. */
 export const APP_SETTINGS = {
   ...FILE_03_SETTINGS,
   ...FILE_04_SETTINGS,
   ...FILE_05_SETTINGS,
   ...FILE_06_SETTINGS,
+  ...OWNER_MEDIA_SETTINGS,
 };
 
 export type AppSettingKey = keyof typeof APP_SETTINGS;

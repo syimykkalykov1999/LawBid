@@ -509,7 +509,7 @@ export class AdminUsersService {
         {
           type: 'moderation_notice',
           recipientId: id,
-          payload: { moderationActionId: action.id },
+          payload: { moderationActionId: action.id, reason },
         },
         tx,
       );
