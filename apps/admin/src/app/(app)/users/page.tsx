@@ -116,7 +116,7 @@ export default function UsersPage() {
                     className="font-medium text-heading hover:underline"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    {[u.firstName, u.lastName].filter(Boolean).join(' ') || '—'}
+                    {[u.firstName, u.lastName].filter(Boolean).join(' ') || u.email || '—'}
                   </Link>
                   <div className="text-xs text-faint">
                     {u.username ? `@${u.username} · ` : ''}

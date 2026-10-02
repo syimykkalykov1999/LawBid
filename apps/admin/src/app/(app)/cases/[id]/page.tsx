@@ -196,16 +196,16 @@ export default function CaseDetailPage() {
                 <Row k="Область права">{c.practiceAreaName}</Row>
                 <Row k="Штаты">
                   <span className="flex flex-wrap justify-end gap-1">
-                    {c.states.map((s) => (
+                    {(c.states.length ? c.states : [{ code: c.stateCode, isPrimary: true }]).map((s) => (
                       <Badge key={s.code} tone={s.isPrimary ? 'gold' : 'neutral'}>
                         {s.code}
                       </Badge>
                     ))}
-                    {c.city ? <span className="text-muted">{c.city}</span> : null}
+                    {c.city ? <span className="text-muted">· {c.city}</span> : null}
                   </span>
                 </Row>
-                <Row k="Ставки / комментарии / просмотры">
-                  <span className="tabular-nums">
+                <Row k="Ставки / комм. / просмотры">
+                  <span className="whitespace-nowrap tabular-nums">
                     {c.bidsCount} / {c.commentCount} / {c.viewCount}
                   </span>
                 </Row>

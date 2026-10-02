@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
 import { PAYMENT_STATUS, PLAN, StatusPill, SUBSCRIPTION_STATUS, usd } from '@/lib/labels';
+import { Reason } from '@/lib/reasons';
 import { formatDateTime } from '@/lib/utils';
 
 /** docs/06 §1.6 / §2.2: support views; finance and super_admin extend and grant by contract. */
@@ -153,7 +154,7 @@ export function SubscriptionCard({ userId }: { userId: string }) {
                 <li key={p.id} className="flex items-center justify-between gap-2">
                   <span className="text-muted">{formatDateTime(p.paidAt ?? p.createdAt)}</span>
                   <span className="flex items-center gap-2">
-                    {p.failureCode ? <span className="font-mono text-[10px] text-danger">{p.failureCode}</span> : null}
+                    {p.failureCode ? <Reason code={p.failureCode} className="text-[10px] text-danger" /> : null}
                     <span className="tabular-nums">{usd(p.amountCents, 2)}</span>
                     <StatusPill map={PAYMENT_STATUS} value={p.status} />
                   </span>

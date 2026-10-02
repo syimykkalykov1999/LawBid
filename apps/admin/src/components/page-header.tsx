@@ -2,6 +2,7 @@
 
 import { WarningCircle } from '@phosphor-icons/react';
 import { motion } from 'motion/react';
+import { errorDetail } from '@/lib/api/client';
 
 export function PageHeader({
   title,
@@ -43,7 +44,7 @@ export function ErrorNote({ text }: { text: string | null | undefined }) {
       className="my-3 flex items-start gap-2 rounded-xl border border-transparent bg-danger-soft px-3.5 py-2.5 text-sm text-danger"
     >
       <WarningCircle size={18} className="mt-px shrink-0" />
-      <span>{text}</span>
+      <span title={errorDetail(text)}>{text}</span>
     </motion.p>
   );
 }

@@ -17,6 +17,7 @@ import { useToast } from '@/components/ui/toast';
 import { growthError } from '@/components/growth/errors';
 import { api, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
+import { Reason } from '@/lib/reasons';
 import { useMe } from '@/lib/hooks';
 import { CONTENT_STATUS, label, StatusPill, VIDEO_STATUS } from '@/lib/labels';
 import { formatDateTime } from '@/lib/utils';
@@ -169,7 +170,7 @@ export function VideosPanel() {
                   <Td className="text-right whitespace-nowrap tabular-nums text-muted">{v.sizeBytes != null ? formatBytes(v.sizeBytes) : '—'}</Td>
                   <Td>
                     <StatusPill map={VIDEO_LABEL} value={v.status} />
-                    {v.failureReason ? <div className="mt-1 max-w-[220px] text-xs text-danger">{v.failureReason}</div> : null}
+                    {v.failureReason ? <Reason code={v.failureReason} className="mt-1 block max-w-[220px] text-xs text-danger" /> : null}
                   </Td>
                   <Td className="text-xs text-muted">{v.postId ? label(CONTENT_STATUS, v.postStatus) : '—'}</Td>
                   <Td className="whitespace-nowrap text-xs text-muted">{formatDateTime(v.createdAt)}</Td>

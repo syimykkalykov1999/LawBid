@@ -15,7 +15,7 @@ export default function MediaPage() {
     <>
       <PageHeader
         eyebrow="Модерация"
-        title="Медиа"
+        title="Рилсы и стикеры"
         subtitle="Видео из рилсов и наборы стикеров. Отсюда можно снять видео, скрыть набор или собрать официальный набор стикеров."
       />
       <div className="mb-5">

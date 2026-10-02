@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/toast';
 import { api, ApiError, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
+import { fieldHint, fieldLabel, providerDescription, providerLabel, providerWarning } from '@/lib/integration-labels';
 import { formatDateTime } from '@/lib/utils';
 
 type Integration = components['schemas']['IntegrationDto'];
@@ -27,6 +28,21 @@ type Guarded = (
   fn: () => Promise<unknown>,
   opts: { success: string; onError?: (e: unknown) => boolean | Promise<boolean> },
 ) => void;
+
+/** Russian service / field texts (keys stay as the server sends them). */
+function localize(it: Integration): Integration {
+  return {
+    ...it,
+    label: providerLabel(it.provider, it.label),
+    description: providerDescription(it.provider, it.description),
+    warning: providerWarning(it.provider, it.warning),
+    fields: it.fields.map((f) => ({
+      ...f,
+      label: fieldLabel(it.provider, f.name, f.label),
+      hint: fieldHint(f.hint) ?? f.hint,
+    })),
+  };
+}
 
 const VERSION_STATUS: Record<string, string> = { active: 'активна', pending: 'ждёт включения', archived: 'архив' };
 
@@ -92,7 +108,7 @@ export default function IntegrationsPage() {
   };
 
   const data = q.data;
-  const items = data?.items ?? [];
+  const items = (data?.items ?? []).map(localize);
   return (
     <>
       {confirmDialog}

@@ -174,7 +174,7 @@ export default function ReferralsPage() {
               <Th>Статус</Th>
               <Th>Награды</Th>
               <Th>Создано</Th>
-              <Th>Условие / награда</Th>
+              <Th>Итог</Th>
               {canWrite ? <Th /> : null}
             </tr>
           </thead>
@@ -199,14 +199,14 @@ export default function ReferralsPage() {
                     <RewardLine who="пригласившему" r={r.referrerReward} issued={r.referrerRewardIssued} />
                     <RewardLine who="приглашённому" r={r.refereeReward} issued={r.refereeRewardIssued} />
                   </Td>
-                  <Td className="whitespace-nowrap text-xs text-muted">{formatDateTime(r.createdAt)}</Td>
-                  <Td className="whitespace-nowrap text-xs text-muted">
+                  <Td className="min-w-24 text-xs text-muted">{formatDateTime(r.createdAt)}</Td>
+                  <Td className="text-xs text-muted">
                     {formatDateTime(r.qualifiedAt)}
                     <br />
                     {formatDateTime(r.rewardedAt)}
                   </Td>
                   {canWrite ? (
-                    <Td className="text-right whitespace-nowrap">
+                    <Td className="text-right">
                       <div className="flex flex-col items-end gap-1.5">
                         {r.status === 'pending' ? (
                           <Button size="sm" variant="soft" disabled={act.isPending} onClick={() => act.mutate({ r, action: 'qualify' })}>
@@ -251,7 +251,7 @@ function Person({ u, role, link }: { u: Referral['referrer']; role: string; link
       ) : (
         <span className="font-medium text-ink">{name}</span>
       )}
-      <div className="truncate text-xs text-faint">
+      <div className="max-w-[150px] truncate text-xs text-faint" title={u.email ?? undefined}>
         {label(ROLE_TEXT, role)}
         {u.email && u.email !== name ? ` · ${u.email}` : ''}
       </div>
@@ -261,7 +261,7 @@ function Person({ u, role, link }: { u: Referral['referrer']; role: string; link
 
 function RewardLine({ who, r, issued }: { who: string; r: Reward; issued: boolean }) {
   return (
-    <div className="flex items-center gap-1.5 whitespace-nowrap">
+    <div className="flex flex-wrap items-center gap-x-1.5">
       {issued ? <CheckCircle size={13} weight="fill" className="text-success" /> : <span className="inline-block h-[13px] w-[13px] rounded-full border border-line-strong" />}
       <span className="text-muted">{who}:</span>
       <span className="text-ink">{rewardText(r)}</span>

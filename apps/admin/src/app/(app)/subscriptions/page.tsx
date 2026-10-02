@@ -17,6 +17,7 @@ import { Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
 import { PAYMENT_STATUS, PLAN, StatusPill, SUBSCRIPTION_STATUS, usd } from '@/lib/labels';
+import { Reason } from '@/lib/reasons';
 import { formatDateTime } from '@/lib/utils';
 
 type Status = 'all' | 'active' | 'trialing' | 'past_due' | 'canceled' | 'expired' | 'incomplete';
@@ -105,13 +106,13 @@ export default function SubscriptionsPage() {
             { value: 'incomplete', label: 'Не подтверждены' },
           ]}
         />
-        <Select className="w-40" aria-label="Тариф" value={plan} onChange={(e) => setPlan(e.target.value as Plan)}>
+        <Select className="w-44" aria-label="Тариф" value={plan} onChange={(e) => setPlan(e.target.value as Plan)}>
           <option value="">Все тарифы</option>
           <option value="monthly">Месячный</option>
           <option value="yearly">Годовой</option>
         </Select>
-        <Select className="w-44" aria-label="Договор" value={grant} onChange={(e) => setGrant(e.target.value as GrantFilter)}>
-          <option value="">С договором и без</option>
+        <Select className="w-52" aria-label="Договор" value={grant} onChange={(e) => setGrant(e.target.value as GrantFilter)}>
+          <option value="">Договор: любой</option>
           <option value="yes">Есть договор</option>
           <option value="no">Без договора</option>
         </Select>
@@ -323,7 +324,7 @@ function SubscriptionDetails({
                   <li key={p.id} className="flex items-center justify-between gap-3 px-3 py-2">
                     <span className="text-muted">{formatDateTime(p.paidAt ?? p.createdAt)}</span>
                     <span className="flex items-center gap-2">
-                      {p.failureCode ? <span className="font-mono text-[11px] text-danger">{p.failureCode}</span> : null}
+                      {p.failureCode ? <Reason code={p.failureCode} className="text-[11px] text-danger" /> : null}
                       <span className="tabular-nums">{usd(p.amountCents, 2)}</span>
                       <StatusPill map={PAYMENT_STATUS} value={p.status} />
                     </span>

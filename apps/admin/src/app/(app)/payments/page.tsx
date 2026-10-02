@@ -14,13 +14,15 @@ import {
   useBillingRole,
 } from '@/components/billing/shared';
 import { ErrorNote, PageHeader } from '@/components/page-header';
+import { DateField } from '@/components/date-field';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty';
-import { Input, Label, Select } from '@/components/ui/input';
+import { Label, Select } from '@/components/ui/input';
 import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { Tabs } from '@/components/ui/tabs';
 import { api, errorText } from '@/lib/api/client';
 import { PAYMENT_STATUS, StatusPill, usd } from '@/lib/labels';
+import { Reason } from '@/lib/reasons';
 import { formatDateTime } from '@/lib/utils';
 
 type Tab = 'payments' | 'refunds';
@@ -95,11 +97,11 @@ function Payments() {
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="pay-from">С</Label>
-          <Input id="pay-from" type="date" className="w-44" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} />
+          <DateField id="pay-from" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="pay-to">По</Label>
-          <Input id="pay-to" type="date" className="w-44" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} />
+          <DateField id="pay-to" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} />
         </div>
         {filtered ? (
           <Button
@@ -143,13 +145,13 @@ function Payments() {
                   <Td>
                     <StatusPill map={PAYMENT_STATUS} value={p.status} />
                   </Td>
-                  <Td className="whitespace-nowrap text-muted">{formatDateTime(p.paidAt ?? p.createdAt)}</Td>
+                  <Td className="whitespace-nowrap text-muted">{p.paidAt ? formatDateTime(p.paidAt) : <span className="text-faint">—</span>}</Td>
                   <Td className="text-right whitespace-nowrap tabular-nums">
                     <span className={p.refundedCents ? 'text-danger' : 'text-faint'}>{usd(p.refundedCents, 2)}</span>
                     <span className="text-faint"> / </span>
                     <span className="text-ink">{usd(p.refundableCents, 2)}</span>
                   </Td>
-                  <Td>{p.failureCode ? <span className="font-mono text-xs text-danger">{p.failureCode}</span> : <span className="text-faint">—</span>}</Td>
+                  <Td>{p.failureCode ? <Reason code={p.failureCode} className="text-xs text-danger" /> : <span className="text-faint">—</span>}</Td>
                   {canWrite ? (
                     <Td className="text-right">
                       {p.status === 'succeeded' && p.refundableCents > 0 ? (
@@ -209,7 +211,7 @@ function Refunds() {
                   <Td className="text-right font-medium whitespace-nowrap tabular-nums">{usd(r.amountCents, 2)}</Td>
                   <Td>
                     <StatusPill map={REFUND_STATUS} value={r.status} />
-                    {r.failureReason ? <div className="mt-1 text-xs text-danger">{r.failureReason}</div> : null}
+                    {r.failureReason ? <Reason code={r.failureReason} className="mt-1 block text-xs text-danger" /> : null}
                   </Td>
                   <Td className="max-w-80 text-muted">{r.reason}</Td>
                   <Td className="font-mono text-xs text-faint" title={r.adminId}>

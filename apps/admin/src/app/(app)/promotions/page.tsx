@@ -23,6 +23,7 @@ import { api, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
 import { useMe } from '@/lib/hooks';
 import { CASE_STATUS, label, PROMOTION_STATUS, StatusPill, usd } from '@/lib/labels';
+import { Reason } from '@/lib/reasons';
 import { formatDateTime } from '@/lib/utils';
 
 type Promotion = components['schemas']['AdminPromotionRowDto'];
@@ -175,7 +176,7 @@ export default function PromotionsPage() {
                     <Link href={`/users/${p.ownerId}`} className="font-medium text-ink underline-offset-2 hover:text-gold-600 hover:underline">
                       {p.ownerName || p.ownerEmail || p.ownerId.slice(0, 8)}
                     </Link>
-                    {p.ownerEmail && p.ownerName ? <div className="truncate text-xs text-faint">{p.ownerEmail}</div> : null}
+                    {p.ownerEmail && p.ownerName ? <div className="max-w-[170px] truncate text-xs text-faint" title={p.ownerEmail}>{p.ownerEmail}</div> : null}
                   </Td>
                   <Td className="text-right tabular-nums">{p.days}</Td>
                   <Td className="whitespace-nowrap text-xs text-muted">
@@ -199,17 +200,19 @@ export default function PromotionsPage() {
                       <Badge tone="gold">подарок</Badge>
                     ) : p.totalCents === 0 ? (
                       <span className="text-faint">бесплатно</span>
+                    ) : p.status === 'pending_payment' || (p.status === 'canceled' && !p.paymentId) ? (
+                      <span className="text-faint">не оплачено</span>
                     ) : (
                       usd(p.totalCents, 2)
                     )}
                   </Td>
                   <Td>
                     <StatusPill map={PROMOTION_STATUS} value={p.status} />
-                    {p.cancelReason ? <div className="mt-1 max-w-[200px] text-xs text-faint">{p.cancelReason}</div> : null}
+                    {p.cancelReason ? <Reason code={p.cancelReason} className="mt-1 block max-w-[200px] text-xs text-faint" /> : null}
                   </Td>
-                  <Td className="whitespace-nowrap text-xs text-muted">{formatDateTime(p.createdAt)}</Td>
+                  <Td className="min-w-24 text-xs text-muted">{formatDateTime(p.createdAt)}</Td>
                   {canWrite ? (
-                    <Td className="text-right whitespace-nowrap">
+                    <Td className="text-right">
                       <div className="flex flex-col items-end gap-1.5">
                         {p.status === 'active' ? (
                           <Button size="sm" variant="soft" onClick={() => setExtending(p)}>

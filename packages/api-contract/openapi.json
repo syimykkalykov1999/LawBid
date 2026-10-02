@@ -42740,6 +42740,10 @@
             "type": "string",
             "nullable": true
           },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
           "username": {
             "type": "string",
             "nullable": true,
@@ -42764,6 +42768,7 @@
           "status",
           "firstName",
           "lastName",
+          "email",
           "username",
           "verificationStatus",
           "avatarUrl",

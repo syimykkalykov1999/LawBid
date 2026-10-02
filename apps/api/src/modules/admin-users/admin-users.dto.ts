@@ -104,6 +104,7 @@ export class AdminUserListItemDto {
   status!: string;
   @ApiProperty({ type: String, nullable: true }) firstName!: string | null;
   @ApiProperty({ type: String, nullable: true }) lastName!: string | null;
+  @ApiProperty({ type: String, nullable: true }) email!: string | null;
   @ApiProperty({ type: String, nullable: true, description: 'Attorneys only.' })
   username!: string | null;
   @ApiProperty({ type: String, nullable: true })

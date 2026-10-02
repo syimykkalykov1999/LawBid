@@ -121,7 +121,7 @@ export default function ContractsPage() {
               <Th>Адвокат</Th>
               <Th>Срок</Th>
               <Th>Помощники</Th>
-              <Th className="min-w-48">Период</Th>
+              <Th className="min-w-44">Период</Th>
               <Th>Договор</Th>
               <Th>Выдал</Th>
               {canWrite ? <Th className="text-right">Действия</Th> : null}
@@ -145,7 +145,7 @@ export default function ContractsPage() {
                     <Td className="whitespace-nowrap">{monthsText(g.months)}</Td>
                     <Td className="tabular-nums">{g.assistantSeats}</Td>
                     <Td>
-                      <div className="flex items-center justify-between gap-2 text-xs whitespace-nowrap text-muted">
+                      <div className="flex flex-wrap items-center justify-between gap-x-2 text-xs text-muted">
                         <span>
                           {formatDate(g.startsAt)} → {formatDate(g.endsAt)}
                         </span>
@@ -167,14 +167,14 @@ export default function ContractsPage() {
                       {g.note ? <div className="line-clamp-2 text-xs text-muted">{g.note}</div> : null}
                       {!g.contractRef && !g.note ? <span className="text-faint">—</span> : null}
                     </Td>
-                    <Td className="whitespace-nowrap text-xs text-muted">
+                    <Td className="text-xs text-muted">
                       <div className="font-mono text-faint" title={g.createdBy}>
                         {g.createdBy.slice(0, 8)}
                       </div>
                       {formatDateTime(g.createdAt)}
                     </Td>
                     {canWrite ? (
-                      <Td className="text-right whitespace-nowrap">
+                      <Td className="text-right">
                         {live ? (
                           <div className="flex flex-col items-end gap-1.5">
                             <Button size="sm" variant="outline" onClick={() => setExtending(g)}>
