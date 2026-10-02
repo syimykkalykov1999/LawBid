@@ -24,6 +24,10 @@ ReferralMeDto _$ReferralMeDtoFromJson(Map<String, dynamic> json) =>
       inviterReward: ReferralRewardDto.fromJson(
         json['inviterReward'] as Map<String, dynamic>,
       ),
+      texts: ReferralTextsDto.fromJson(json['texts'] as Map<String, dynamic>),
+      textsLanguage: ReferralMeDtoTextsLanguage.fromJson(
+        json['textsLanguage'] as String,
+      ),
       referredBy: json['referredBy'] == null
           ? null
           : ReferredByDto.fromJson(json['referredBy'] as Map<String, dynamic>),
@@ -44,4 +48,6 @@ Map<String, dynamic> _$ReferralMeDtoToJson(ReferralMeDto instance) =>
       'applyWindowDays': instance.applyWindowDays,
       'canApply': instance.canApply,
       'inviterReward': instance.inviterReward.toJson(),
+      'texts': instance.texts.toJson(),
+      'textsLanguage': instance.textsLanguage.toJson(),
     };

@@ -33,6 +33,10 @@ class ReferralsRepository {
       applyWindowDays: d.applyWindowDays,
       canApply: d.canApply,
       inviterReward: _reward(d.inviterReward),
+      title: d.texts.title.trim(),
+      summary: d.texts.summary.trim(),
+      terms: d.texts.terms.trim(),
+      shareMessage: d.texts.shareMessage.trim(),
       referredByStatus: d.referredBy?.status.json,
       referredByReward:
           d.referredBy == null ? null : _reward(d.referredBy!.reward),

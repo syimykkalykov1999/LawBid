@@ -58,6 +58,11 @@ class _AdminBillingClient implements AdminBillingClient {
     Plan? plan,
     String? q,
     bool? hasContractGrant,
+    num? trialEndsWithinDays,
+    Seats? seats,
+    bool? cancelAtPeriodEnd,
+    num? renewsWithinDays,
+    bool? hadTrial,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
@@ -68,6 +73,11 @@ class _AdminBillingClient implements AdminBillingClient {
       r'plan': plan?.toJson(),
       r'q': q,
       r'hasContractGrant': hasContractGrant,
+      r'trialEndsWithinDays': trialEndsWithinDays,
+      r'seats': seats?.toJson(),
+      r'cancelAtPeriodEnd': cancelAtPeriodEnd,
+      r'renewsWithinDays': renewsWithinDays,
+      r'hadTrial': hadTrial,
     };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};

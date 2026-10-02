@@ -24,6 +24,7 @@ import '../models/promo_code_list_envelope.dart';
 import '../models/promo_redemption_list_envelope.dart';
 import '../models/refund_envelope.dart';
 import '../models/refund_list_envelope.dart';
+import '../models/seats.dart';
 import '../models/status6.dart';
 import '../models/update_promo_code_dto.dart';
 
@@ -46,6 +47,16 @@ abstract class AdminBillingClient {
   /// [q] - Name or email.
   ///
   /// [hasContractGrant] - Only with / without an active grant.
+  ///
+  /// [trialEndsWithinDays] - Trial ends within N days (trialing only).
+  ///
+  /// [seats] - Paid assistant seats: none (0), some (1-5), full (6).
+  ///
+  /// [cancelAtPeriodEnd] - Only (not) set to cancel at period end.
+  ///
+  /// [renewsWithinDays] - Current period ends within N days.
+  ///
+  /// [hadTrial] - Has (not) ever had a trial.
   @GET('/admin/billing/subscriptions')
   Future<AdminBillingSubscriptionRowListEnvelope> listBillingSubscriptions({
     @Query('cursor') String? cursor,
@@ -53,6 +64,11 @@ abstract class AdminBillingClient {
     @Query('plan') Plan? plan,
     @Query('q') String? q,
     @Query('hasContractGrant') bool? hasContractGrant,
+    @Query('trialEndsWithinDays') num? trialEndsWithinDays,
+    @Query('seats') Seats? seats,
+    @Query('cancelAtPeriodEnd') bool? cancelAtPeriodEnd,
+    @Query('renewsWithinDays') num? renewsWithinDays,
+    @Query('hadTrial') bool? hadTrial,
     @Extras() Map<String, dynamic>? extras,
   });
 

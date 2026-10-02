@@ -61,7 +61,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen> {
   }
 
   Future<void> _apply() async {
-    final code = _code.text.trim().toUpperCase();
+    final code = _code.text.toUpperCase().replaceAll(RegExp('[^A-Z0-9]'), '');
     if (code.isEmpty || _busy) return;
     final t = ref.read(translatorProvider);
     final f = ref.read(l10nFormatsProvider);
@@ -135,10 +135,19 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen> {
             return ListView(
               padding: const EdgeInsets.all(AppSpacing.screenSide),
               children: [
+                if (me.title.isNotEmpty) ...[
+                  Text(
+                    me.title,
+                    style: type.titleMedium.copyWith(color: colors.text),
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                ],
                 Text(
-                  t.t('referral.lead', {
-                    'reward': rewardText(t, f, me.inviterReward),
-                  }),
+                  me.summary.isNotEmpty
+                      ? me.summary
+                      : t.t('referral.lead', {
+                          'reward': rewardText(t, f, me.inviterReward),
+                        }),
                   style: type.body.copyWith(color: colors.text, height: 1.4),
                 ),
                 const SizedBox(height: AppSpacing.lg),
@@ -195,9 +204,15 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen> {
                                 context,
                                 t: t,
                                 link: me.shareUrl,
-                                text: t.t('referral.shareText', {
-                                  'code': me.code,
-                                }),
+                                // The admin's message already holds the
+                                // link; the sheet appends it, so drop it.
+                                text: me.shareMessage.isEmpty
+                                    ? t.t('referral.shareText', {
+                                        'code': me.code,
+                                      })
+                                    : me.shareMessage
+                                        .replaceAll(me.shareUrl, '')
+                                        .trim(),
                               ),
                             ),
                           ),
@@ -243,6 +258,13 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen> {
                           ),
                       ],
                     ),
+                  ),
+                ],
+                if (me.terms.isNotEmpty) ...[
+                  const SizedBox(height: AppSpacing.md),
+                  Text(
+                    me.terms,
+                    style: type.caption.copyWith(color: colors.textSecondary),
                   ),
                 ],
                 if (me.invites.isNotEmpty) ...[
@@ -297,6 +319,11 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen> {
                           semanticLabel: t.t('referral.codeHint'),
                           textCapitalization: TextCapitalization.characters,
                           maxLength: 24,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.allow(
+                              RegExp('[A-Za-z0-9]'),
+                            ),
+                          ],
                           onSubmitted: (_) => _apply(),
                         ),
                       ),

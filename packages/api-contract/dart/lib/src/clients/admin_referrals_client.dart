@@ -5,6 +5,8 @@
 import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
+import '../models/admin_referral_code_row_envelope.dart';
+import '../models/admin_referral_code_row_list_envelope.dart';
 import '../models/admin_referral_reason_dto.dart';
 import '../models/admin_referral_row_envelope.dart';
 import '../models/admin_referral_row_list_envelope.dart';
@@ -13,6 +15,7 @@ import '../models/referral_settings_dto.dart';
 import '../models/referral_settings_envelope.dart';
 import '../models/referral_status.dart';
 import '../models/role2.dart';
+import '../models/set_referral_code_dto.dart';
 
 part 'admin_referrals_client.g.dart';
 
@@ -50,6 +53,22 @@ abstract class AdminReferralsClient {
   @PUT('/admin/referrals/settings')
   Future<ReferralSettingsEnvelope> updateReferralSettings({
     @Body() required ReferralSettingsDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Referral codes (generated and your own words).
+  ///
+  /// [q] - Code prefix, or owner name / email.
+  @GET('/admin/referrals/codes')
+  Future<AdminReferralCodeRowListEnvelope> listReferralCodes({
+    @Query('q') String? q,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Give a user your own word as referral code
+  @PUT('/admin/referrals/codes')
+  Future<AdminReferralCodeRowEnvelope> setReferralCode({
+    @Body() required SetReferralCodeDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

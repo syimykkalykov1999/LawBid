@@ -184,6 +184,8 @@ const reelsRu = <String, String>{
   'notif.list.promotion_started': 'Продвижение вашего дела началось',
   'notif.list.promotion_ended': 'Продвижение вашего дела завершилось',
   'stickers.reportPack': 'Пожаловаться на набор',
+  'referral.apply.notAllowed.limit_reached':
+      'У этого кода не осталось приглашений',
 };
 
 const reelsEn = <String, String>{
@@ -368,4 +370,5 @@ const reelsEn = <String, String>{
   'notif.list.promotion_started': 'Promotion of your case has started',
   'notif.list.promotion_ended': 'Promotion of your case has ended',
   'stickers.reportPack': 'Report this pack',
+  'referral.apply.notAllowed.limit_reached': 'This code has no invites left',
 };

@@ -5,7 +5,9 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'referral_invite_dto.dart';
+import 'referral_me_dto_texts_language.dart';
 import 'referral_reward_dto.dart';
+import 'referral_texts_dto.dart';
 import 'referred_by_dto.dart';
 
 part 'referral_me_dto.g.dart';
@@ -25,6 +27,8 @@ class ReferralMeDto {
     required this.applyWindowDays,
     required this.canApply,
     required this.inviterReward,
+    required this.texts,
+    required this.textsLanguage,
     this.referredBy,
   });
 
@@ -57,6 +61,12 @@ class ReferralMeDto {
   /// This user can still enter a code.
   final bool canApply;
   final ReferralRewardDto inviterReward;
+
+  /// Words written in the admin, in the user language (en or ru); shareMessage is ready to send.
+  final ReferralTextsDto texts;
+
+  /// Language of `texts`.
+  final ReferralMeDtoTextsLanguage textsLanguage;
 
   Map<String, Object?> toJson() => _$ReferralMeDtoToJson(this);
 }

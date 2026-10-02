@@ -56,6 +56,10 @@ class ReferralMe {
     required this.applyWindowDays,
     required this.canApply,
     required this.inviterReward,
+    this.title = '',
+    this.summary = '',
+    this.terms = '',
+    this.shareMessage = '',
     this.referredByStatus,
     this.referredByReward,
   });
@@ -73,6 +77,14 @@ class ReferralMe {
   final int applyWindowDays;
   final bool canApply;
   final Reward inviterReward;
+
+  /// Words written in the admin (user's language); empty = use app texts.
+  final String title;
+  final String summary;
+  final String terms;
+
+  /// Ready to send: the server already put the code and link in.
+  final String shareMessage;
   final String? referredByStatus;
   final Reward? referredByReward;
 }
