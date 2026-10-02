@@ -21,6 +21,11 @@ import {
   JUSTIFICATION_KEY,
   type RequestAdmin,
 } from './admin-auth.decorators';
+import {
+  canAccess,
+  parsePermissions,
+  readManageAdmins,
+} from './admin-permissions';
 import { AdminSessionService } from './admin-session.service';
 
 export const JUSTIFICATION_MIN = 10;
@@ -28,7 +33,7 @@ export const JUSTIFICATION_MAX = 500;
 
 /**
  * docs/06 §2.1–2.2: the admin JWT (`aud = lawbid-admin`, issued only
- * after email code + TOTP) plus its Redis session (8 h absolute, 30 min
+ * after login + password, plus the authenticator when that admin turned it on) plus its Redis session (8 h absolute, 30 min
  * idle), then the RBAC matrix — deny by default:
  *  - a route without @Roles(...) is refused;
  *  - the account must still be an active, non-deleted `users.role =
@@ -93,7 +98,7 @@ export class AdminAuthGuard implements CanActivate {
         role: true,
         status: true,
         deleted_at: true,
-        admin_profile: { select: { admin_role: true } },
+        admin_profile: { select: { admin_role: true, permissions: true } },
       },
     });
     if (
@@ -106,7 +111,31 @@ export class AdminAuthGuard implements CanActivate {
       throw forbidden();
     }
     const adminRole = user.admin_profile.admin_role;
-    if (!allowed.includes(adminRole)) throw forbidden();
+    const permissions = parsePermissions(user.admin_profile.permissions);
+    const manageAdmins =
+      adminRole !== 'super_admin' &&
+      readManageAdmins(user.admin_profile.permissions);
+    if (adminRole === 'super_admin') {
+      if (!allowed.includes(adminRole)) throw forbidden();
+    } else {
+      // Owner 2026-10-02: everyone but the super admin works by the area
+      // toggles; money and keys are closed for them in the API itself (not
+      // only hidden in the panel). Admin management needs the right the
+      // super admin gives one by one.
+      const superOnly = allowed.length === 1 && allowed[0] === 'super_admin';
+      if (
+        superOnly ||
+        !canAccess(
+          adminRole,
+          permissions,
+          req.originalUrl || req.url,
+          req.method,
+          manageAdmins,
+        )
+      ) {
+        throw forbidden();
+      }
+    }
 
     const needsJustification = this.reflector.getAllAndOverride<boolean>(
       JUSTIFICATION_KEY,
@@ -122,7 +151,14 @@ export class AdminAuthGuard implements CanActivate {
       adminRole,
       sessionId: claims.jti,
       justification,
+      permissions,
+      manageAdmins,
     };
+    // Last action shown in the sessions overview (fire and forget).
+    void this.sessions.noteActivity(
+      claims.jti,
+      `${req.method} ${(req.originalUrl || req.url).split('?')[0]}`,
+    );
     return true;
   }
 }

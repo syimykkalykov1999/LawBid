@@ -15,6 +15,7 @@ import { ErrorCode } from '../../common/errors/error-code.enum';
 import { Public } from '../auth/decorators/public.decorator';
 import { AdminAuditInterceptor } from './admin-audit.interceptor';
 import { AdminAuthGuard } from './admin-auth.guard';
+import type { AdminPermissions } from './admin-permissions';
 
 export const ADMIN_ROLES_KEY = 'lawbid:admin-roles';
 export const JUSTIFICATION_KEY = 'lawbid:admin-justification';
@@ -91,6 +92,10 @@ export interface RequestAdmin {
   adminRole: AdminRole;
   sessionId: string;
   justification: string | null;
+  /** Area toggles (empty for the super admin, who needs none). */
+  permissions?: AdminPermissions;
+  /** The super admin gave this admin the right to manage other admins. */
+  manageAdmins?: boolean;
 }
 
 /** The admin resolved by AdminAuthGuard plus the client IP (audit_log). */

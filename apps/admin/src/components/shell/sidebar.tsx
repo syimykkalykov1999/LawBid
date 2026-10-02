@@ -25,9 +25,9 @@ export function Sidebar({
   mobile?: boolean;
 }) {
   const pathname = usePathname();
-  const counts = useNavCounts(me?.role);
+  const counts = useNavCounts(me);
   const active = sectionFor(pathname)?.href;
-  const groups = me ? groupsFor(me.role) : [];
+  const groups = me ? groupsFor(me) : [];
   const narrow = collapsed && !mobile;
 
   return (

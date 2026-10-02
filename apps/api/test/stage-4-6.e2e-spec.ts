@@ -8,7 +8,7 @@ import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import { TokenService } from '../src/modules/auth/services/token.service';
-import { adminSession } from './support/admin-login';
+import { adminSession, OPS_RIGHTS } from './support/admin-login';
 import {
   CaseAutoArchiveJob,
   CaseAutoCloseJob,
@@ -334,7 +334,9 @@ describe('Case lifecycle and jobs (e2e, docs/04 §10, stage 4.6)', () => {
       where: { case_id: caseId },
     });
 
-    const adminAuth = (await adminSession(baseUrl, prisma, 'support')).auth;
+    const adminAuth = (
+      await adminSession(baseUrl, prisma, 'support', undefined, OPS_RIGHTS)
+    ).auth;
     // A client can't use the admin route (mobile tokens are refused on
     // /admin/*: docs/06 stage 6.2).
     expect(

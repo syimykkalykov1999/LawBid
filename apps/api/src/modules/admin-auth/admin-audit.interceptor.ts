@@ -20,7 +20,7 @@ import {
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const BODY_MAX_CHARS = 4000;
-const SECRET_KEYS = /token|code|secret|password|recovery/i;
+const SECRET_KEYS = /token|code|secret|password|recovery|answer|question/i;
 
 /**
  * docs/06 §2.1 "Все действия администраторов пишутся в audit_log": a

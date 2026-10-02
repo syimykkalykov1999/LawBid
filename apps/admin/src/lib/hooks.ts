@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
-import type { AdminRole } from '@/lib/rbac';
+import type { AdminRole, Permissions } from '@/lib/rbac';
 
 export interface Me {
   id: string;
@@ -10,6 +10,12 @@ export interface Me {
   role: AdminRole;
   totpEnabled: boolean;
   lastLoginAt: string | null;
+  login: string | null;
+  hasPassword: boolean;
+  permissions: Permissions;
+  canManageAdmins: boolean;
+  hasSecurityQuestion: boolean;
+  securityQuestion: string | null;
 }
 
 export function useMe() {

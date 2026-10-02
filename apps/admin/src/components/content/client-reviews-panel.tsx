@@ -18,6 +18,7 @@ import { growthError } from '@/components/growth/errors';
 import { api, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
 import { useMe } from '@/lib/hooks';
+import { can } from '@/lib/rbac';
 import { CONTENT_STATUS, label, ROLE_TEXT, StatusPill } from '@/lib/labels';
 import { formatDateTime } from '@/lib/utils';
 
@@ -35,7 +36,7 @@ const APPEAL_STATUS: Record<string, string> = {
 
 function useCanModerate() {
   const { data: me } = useMe();
-  return me?.role === 'super_admin' || me?.role === 'moderator';
+  return can(me, 'content', 'manage');
 }
 
 /** Reviews about clients / assistants (left by attorneys or clients): search, hide, restore. */

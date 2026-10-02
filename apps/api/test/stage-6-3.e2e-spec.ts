@@ -7,7 +7,7 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/app.setup';
 import { PrismaService } from '../src/prisma/prisma.service';
-import { adminSession } from './support/admin-login';
+import { adminSession, OPS_RIGHTS } from './support/admin-login';
 
 jest.setTimeout(90_000);
 
@@ -171,7 +171,16 @@ describe('stage 6.3 — admin users and sanctions (e2e)', () => {
 
   it('searches by name, email, phone, @username and id; filters; matrix', async () => {
     const support = await adminSession(baseUrl, prisma, 'support');
-    const verifier = await adminSession(baseUrl, prisma, 'verifier');
+    // No users toggle at all: the area is closed.
+    const verifier = await adminSession(
+      baseUrl,
+      prisma,
+      'verifier',
+      undefined,
+      {
+        verification: 'manage',
+      },
+    );
     const c = await client({ first: 'Zelda', last: 'Searchable' });
     const a = await attorney('zelda_esq');
 
@@ -293,14 +302,24 @@ describe('stage 6.3 — admin users and sanctions (e2e)', () => {
       .expect(404);
   });
 
-  it('support revokes sessions; only moderators warn (moderation_notice)', async () => {
-    const support = await adminSession(baseUrl, prisma, 'support');
-    const moderator = await adminSession(baseUrl, prisma, 'moderator');
+  it('only an admin with users:manage revokes sessions and warns (moderation_notice)', async () => {
+    const support = await adminSession(baseUrl, prisma, 'support'); // users: view
+    const moderator = await adminSession(
+      baseUrl,
+      prisma,
+      'moderator',
+      undefined,
+      OPS_RIGHTS,
+    );
     const c = await client();
     await api().get('/api/v1/users/me').set(c.auth).expect(200);
-    const r = await api()
+    await api()
       .post(`/api/v1/admin/users/${c.id}/sessions/revoke`)
       .set(support.auth)
+      .expect(403);
+    const r = await api()
+      .post(`/api/v1/admin/users/${c.id}/sessions/revoke`)
+      .set(moderator.auth)
       .expect(200);
     expect((r.body as Body).data).toMatchObject({ revokedSessions: 1 });
     const dead = await api().get('/api/v1/users/me').set(c.auth).expect(401);
@@ -395,7 +414,13 @@ describe('stage 6.3 — admin users and sanctions (e2e)', () => {
   });
 
   it('suspends a client per §3.4: sessions revoked, login blocked, open cases archived + bids rejected, in_progress kept; restore keeps the archive', async () => {
-    const moderator = await adminSession(baseUrl, prisma, 'moderator');
+    const moderator = await adminSession(
+      baseUrl,
+      prisma,
+      'moderator',
+      undefined,
+      OPS_RIGHTS,
+    );
     const c = await client();
     const a = await attorney();
     const open1 = await kase(c.id);

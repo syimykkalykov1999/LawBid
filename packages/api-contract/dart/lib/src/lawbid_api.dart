@@ -10,6 +10,7 @@ import 'clients/admin_auth_client.dart';
 import 'clients/admin_dashboard_client.dart';
 import 'clients/admin_audit_log_client.dart';
 import 'clients/admin_admins_client.dart';
+import 'clients/admin_sessions_client.dart';
 import 'clients/admin_users_client.dart';
 import 'clients/verification_client.dart';
 import 'clients/admin_verification_client.dart';
@@ -84,6 +85,7 @@ class LawbidApi {
   AdminDashboardClient? _adminDashboard;
   AdminAuditLogClient? _adminAuditLog;
   AdminAdminsClient? _adminAdmins;
+  AdminSessionsClient? _adminSessions;
   AdminUsersClient? _adminUsers;
   VerificationClient? _verification;
   AdminVerificationClient? _adminVerification;
@@ -156,6 +158,9 @@ class LawbidApi {
 
   AdminAdminsClient get adminAdmins =>
       _adminAdmins ??= AdminAdminsClient(_dio, baseUrl: _baseUrl);
+
+  AdminSessionsClient get adminSessions =>
+      _adminSessions ??= AdminSessionsClient(_dio, baseUrl: _baseUrl);
 
   AdminUsersClient get adminUsers =>
       _adminUsers ??= AdminUsersClient(_dio, baseUrl: _baseUrl);

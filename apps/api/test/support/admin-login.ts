@@ -2,7 +2,21 @@ import type { AdminRole } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import request from 'supertest';
 import type { PrismaService } from '../../src/prisma/prisma.service';
+import { defaultPermissionsForRole } from '../../src/modules/admin-auth/admin-permissions';
 import { totpCode } from '../../src/modules/admin-auth/totp.util';
+
+/** Toggles of a hands-on support / moderation admin for suites that
+ * exercise user, case and ticket actions (roles are only labels now). */
+export const OPS_RIGHTS: Record<string, string> = {
+  dashboard: 'view',
+  users: 'manage',
+  moderation: 'manage',
+  content: 'manage',
+  media: 'manage',
+  cases: 'manage',
+  support: 'manage',
+  data_requests: 'manage',
+};
 
 export interface AdminSession {
   auth: Record<string, string>;
@@ -15,15 +29,19 @@ export interface AdminSession {
 
 /**
  * docs/06 §2.1 admin sign-in for e2e suites: creates an active admin with
- * [role] (or reuses [existing]), then runs email code (OTP_DEV_FIXED_CODE)
- * → first-time TOTP enrollment → session. Returns the Bearer header the
- * `/admin/*` routes accept (mobile tokens are refused there).
+ * [role] (or reuses [existing]; [permissions] default to the role's
+ * starting toggles), signs in with the emailed code (OTP_DEV_FIXED_CODE;
+ * two-factor is off by default, so that is a session), then turns
+ * two-factor on so suites get a known TOTP secret and recovery codes.
+ * Returns the Bearer header the `/admin/*` routes accept (mobile tokens are
+ * refused there).
  */
 export async function adminSession(
   baseUrl: string,
   prisma: PrismaService,
   role: AdminRole | null,
   existing?: { userId: string; email: string },
+  permissions?: Record<string, string | boolean>,
 ): Promise<AdminSession> {
   let userId = existing?.userId;
   let email = existing?.email;
@@ -35,7 +53,16 @@ export async function adminSession(
         status: 'active',
         email,
         email_verified_at: new Date(),
-        ...(role ? { admin_profile: { create: { admin_role: role } } } : {}),
+        ...(role
+          ? {
+              admin_profile: {
+                create: {
+                  admin_role: role,
+                  permissions: permissions ?? defaultPermissionsForRole(role),
+                },
+              },
+            }
+          : {}),
       },
     });
     userId = user.id;
@@ -60,39 +87,40 @@ export async function adminSession(
     .post('/api/v1/admin/auth/login/verify')
     .send({ email, code: '000000' })
     .expect(200);
-  const { ticket, totpEnrollment } = (
+  const login = (
     verify.body as {
-      data: {
-        ticket: string;
-        totpEnrollment: { secret: string } | null;
-      };
+      data: { ticket: string | null; session: { accessToken: string } | null };
     }
   ).data;
-  const secret = totpEnrollment?.secret;
-  if (!secret) {
+  if (!login.session) {
     throw new Error(
       'adminSession(): this admin already has TOTP bound; sign in with adminSignIn()',
     );
   }
-  const session = await api()
-    .post('/api/v1/admin/auth/totp')
-    .send({ ticket, code: totpCode(secret) });
-  if (session.status !== 200) {
+  const accessToken = login.session.accessToken;
+  const auth = { Authorization: `Bearer ${accessToken}` };
+  const begin = await api()
+    .post('/api/v1/admin/auth/2fa/begin')
+    .set(auth)
+    .expect(200);
+  const secret = (begin.body as { data: { secret: string } }).data.secret;
+  const enabled = await api()
+    .post('/api/v1/admin/auth/2fa/enable')
+    .set(auth)
+    .send({ code: totpCode(secret) });
+  if (enabled.status !== 200) {
     throw new Error(
-      `admin totp step ${session.status}: ${JSON.stringify(session.body)}`,
+      `admin 2fa enable ${enabled.status}: ${JSON.stringify(enabled.body)}`,
     );
   }
-  const data = (
-    session.body as {
-      data: { accessToken: string; recoveryCodes?: string[] };
-    }
-  ).data;
+  const recoveryCodes = (enabled.body as { data: { recoveryCodes: string[] } })
+    .data.recoveryCodes;
   return {
-    auth: { Authorization: `Bearer ${data.accessToken}` },
+    auth,
     userId,
     email,
-    accessToken: data.accessToken,
-    recoveryCodes: data.recoveryCodes ?? [],
+    accessToken,
+    recoveryCodes,
     totpSecret: secret,
   };
 }
@@ -113,6 +141,7 @@ export async function adminSignIn(
     .send({ email, code: '000000' })
     .expect(200);
   const { ticket } = (verify.body as { data: { ticket: string } }).data;
+  if (!ticket) throw new Error('adminSignIn(): this admin has no TOTP bound');
   // The next 30-second step: a code is single-use inside its window
   // (replay guard), and this sign-in usually follows the enrollment one
   // within seconds.

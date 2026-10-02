@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-87 tables.
+97 tables.
 
 ```mermaid
 erDiagram
@@ -516,6 +516,7 @@ erDiagram
     DateTime waiting_since "nullable"
     String note "nullable"
     DateTime pinned_at "nullable"
+    DateTime hidden_at "nullable"
     DateTime created_at
     DateTime updated_at
   }
@@ -657,6 +658,7 @@ erDiagram
   admin_profiles {
     String user_id PK,FK
     enum_AdminRole admin_role
+    Json permissions
     DateTime created_at
     DateTime updated_at
   }
@@ -700,6 +702,11 @@ erDiagram
     String totp_secret_enc
     DateTime totp_enabled_at "nullable"
     DateTime last_login_at "nullable"
+    String login UK "nullable"
+    String password_hash "nullable"
+    DateTime password_changed_at "nullable"
+    String security_question "nullable"
+    String security_answer_hash "nullable"
     DateTime created_at
     DateTime updated_at
   }
@@ -917,6 +924,140 @@ erDiagram
     DateTime ready_at "nullable"
     DateTime deleted_at "nullable"
     DateTime purged_at "nullable"
+  }
+  contract_grants {
+    String id PK
+    String user_id
+    Int months
+    Int assistant_seats
+    DateTime starts_at
+    DateTime ends_at
+    String contract_ref "nullable"
+    String note "nullable"
+    String created_by
+    DateTime revoked_at "nullable"
+    String revoked_by "nullable"
+    String revoke_reason "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  promo_codes {
+    String id PK
+    String code UK
+    String description "nullable"
+    String discount_type
+    Int percent_off "nullable"
+    Int amount_off_cents "nullable"
+    Int free_days "nullable"
+    String audience
+    String applies_to
+    Int max_redemptions "nullable"
+    Int redeemed_count
+    DateTime starts_at "nullable"
+    DateTime expires_at "nullable"
+    Boolean active
+    String stripe_coupon_id "nullable"
+    String created_by
+    DateTime created_at
+    DateTime updated_at
+  }
+  promo_redemptions {
+    String id PK
+    String promo_id
+    String user_id
+    Int amount_off_cents "nullable"
+    String payment_id "nullable"
+    DateTime created_at
+  }
+  refunds {
+    String id PK
+    String payment_id
+    String user_id
+    Int amount_cents
+    String reason
+    String status
+    String stripe_refund_id UK "nullable"
+    String failure_reason "nullable"
+    String admin_id
+    DateTime created_at
+    DateTime updated_at
+  }
+  referral_codes {
+    String id PK
+    String user_id UK
+    String code UK
+    DateTime created_at
+  }
+  referrals {
+    String id PK
+    String referrer_id
+    String referee_id UK
+    String code
+    String status
+    String referrer_role
+    String referee_role
+    Json referrer_reward
+    Json referee_reward
+    DateTime qualified_at "nullable"
+    DateTime rewarded_at "nullable"
+    String rejected_reason "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  case_promotions {
+    String id PK
+    String case_id
+    String user_id
+    Int days
+    Int price_cents_per_day
+    Int total_cents
+    String status
+    DateTime starts_at "nullable"
+    DateTime ends_at "nullable"
+    String stripe_checkout_id UK "nullable"
+    String payment_id "nullable"
+    String promo_code_id "nullable"
+    String granted_by "nullable"
+    String canceled_by "nullable"
+    String cancel_reason "nullable"
+    Int impressions
+    DateTime created_at
+    DateTime updated_at
+  }
+  support_tickets {
+    String id PK
+    String user_id
+    String subject
+    String category
+    String status
+    String priority
+    String assignee_id "nullable"
+    Boolean unread_by_admin
+    Boolean unread_by_user
+    DateTime last_message_at
+    DateTime resolved_at "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  support_messages {
+    String id PK
+    String ticket_id
+    String author_user_id "nullable"
+    String author_admin_id "nullable"
+    Boolean internal
+    String body
+    DateTime created_at
+  }
+  email_templates {
+    String key PK
+    String locale PK
+    String subject
+    String text_body
+    String html_body "nullable"
+    Boolean enabled
+    String updated_by "nullable"
+    DateTime created_at
+    DateTime updated_at
   }
   sticker_packs {
     String id PK

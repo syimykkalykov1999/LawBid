@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Me } from '@/lib/hooks';
-import { sectionsFor } from '@/lib/rbac';
+import { can, sectionsFor } from '@/lib/rbac';
 import { useTheme } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 import { ICONS } from './icons';
@@ -51,14 +51,14 @@ export function CommandPalette({ me, open, setOpen }: { me: Me | undefined; open
       router.push(href);
     };
     const s = q.trim().toLowerCase();
-    const sections: Item[] = (me ? sectionsFor(me.role) : [])
+    const sections: Item[] = (me ? sectionsFor(me) : [])
       .filter((x) => !s || x.label.toLowerCase().includes(s) || x.hint?.toLowerCase().includes(s))
       .map((x) => {
         const I = ICONS[x.icon];
         return { id: x.href, label: x.label, hint: x.hint, icon: I ? <I size={18} weight="light" /> : null, run: go(x.href) };
       });
     const extra: Item[] = [];
-    if (s && me && ['super_admin', 'moderator', 'support', 'finance'].includes(me.role)) {
+    if (s && me && can(me, 'users')) {
       extra.push({
         id: 'find-user',
         label: `Найти пользователя «${q.trim()}»`,

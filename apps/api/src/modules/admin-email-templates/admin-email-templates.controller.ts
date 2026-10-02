@@ -20,6 +20,7 @@ import {
   CurrentAdmin,
   SkipAutoAudit,
   type AdminActor,
+  ALL_ADMIN_ROLES,
 } from '../admin-auth/admin-auth.decorators';
 import {
   EmailTemplateContentDto,
@@ -37,7 +38,7 @@ const E = ErrorCode;
 
 /** Owner 2026-10-02: editor of the transactional emails (super_admin). */
 @ApiTags('admin-email-templates')
-@AdminEndpoint('super_admin')
+@AdminEndpoint(...ALL_ADMIN_ROLES)
 @Controller('admin/email-templates')
 export class AdminEmailTemplatesController {
   constructor(private readonly templates: AdminEmailTemplatesService) {}

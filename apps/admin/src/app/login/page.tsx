@@ -23,7 +23,7 @@ export default function LoginPage() {
             <div className="mb-8">
               <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gold-600">Панель управления</div>
               <h1 className="mt-2 font-serif text-3xl font-semibold tracking-tight text-heading">Вход администратора</h1>
-              <p className="mt-2 text-sm text-muted">Код на почту и код из приложения-аутентификатора.</p>
+              <p className="mt-2 text-sm text-muted">Логин, пароль и код из приложения-аутентификатора.</p>
             </div>
             <Suspense>
               <LoginForm />

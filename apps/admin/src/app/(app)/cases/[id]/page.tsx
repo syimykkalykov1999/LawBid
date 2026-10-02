@@ -17,6 +17,7 @@ import { growthError } from '@/components/growth/errors';
 import { api, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
 import { useMe } from '@/lib/hooks';
+import { can } from '@/lib/rbac';
 import { BID_STATUS, CASE_STATUS, FEE_TYPE, JOURNAL_EVENT, label, PARTY_ROLE, partyName, StatusPill, usd } from '@/lib/labels';
 import { formatDateTime } from '@/lib/utils';
 
@@ -61,8 +62,8 @@ export default function CaseDetailPage() {
   const toast = useToast();
   const { ask, dialog } = useReason();
   const { data: me } = useMe();
-  const canWrite = me?.role === 'super_admin' || me?.role === 'support';
-  const canOpenUsers = me?.role === 'super_admin' || me?.role === 'support' || me?.role === 'moderator' || me?.role === 'finance';
+  const canWrite = can(me, 'cases', 'manage');
+  const canOpenUsers = can(me, 'users');
 
   const q = useQuery({
     queryKey: ['admin-case', id],

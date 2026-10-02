@@ -18,6 +18,7 @@ import { growthError } from '@/components/growth/errors';
 import { api, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
 import { useMe } from '@/lib/hooks';
+import { can } from '@/lib/rbac';
 import { formatDateTime } from '@/lib/utils';
 import { StickerUploader } from './sticker-uploader';
 
@@ -29,7 +30,7 @@ const PACK_STATUS: Record<string, string> = { active: 'виден', hidden: 'с�
 
 export function StickersPanel() {
   const { data: me } = useMe();
-  const canWrite = me?.role === 'super_admin' || me?.role === 'moderator';
+  const canWrite = can(me, 'media', 'manage');
   const [kind, setKind] = useState<Kind>('official');
   const [status, setStatus] = useState<PackStatus>('all');
   const [draft, setDraft] = useState('');
