@@ -63,7 +63,7 @@ class JustAudioAppSounds implements AppSounds {
   @override
   Future<void> startRingback() async {
     try {
-      final p = _loop ??= AudioPlayer(handleInterruptions: false);
+      final p = _loop ??= AudioPlayer(handleInterruptions: false, androidApplyAudioAttributes: false);
       // Audit 2026-10-02: the call's audio mode (WebRTC) silenced media
       // playback — ringback now plays on the call's own signalling path,
       // so the caller hears it in the earpiece or the speaker.
@@ -94,7 +94,7 @@ class JustAudioAppSounds implements AppSounds {
   @override
   Future<void> startRingtone() async {
     try {
-      final p = _ring ??= AudioPlayer(handleInterruptions: false);
+      final p = _ring ??= AudioPlayer(handleInterruptions: false, androidApplyAudioAttributes: false);
       await p.setAndroidAudioAttributes(
         const AndroidAudioAttributes(
           contentType: AndroidAudioContentType.sonification,
