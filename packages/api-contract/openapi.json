@@ -25573,6 +25573,60 @@
             "schema": {
               "type": "boolean"
             }
+          },
+          {
+            "name": "trialEndsWithinDays",
+            "required": false,
+            "in": "query",
+            "description": "Trial ends within N days (trialing only).",
+            "schema": {
+              "minimum": 1,
+              "maximum": 30,
+              "type": "number"
+            }
+          },
+          {
+            "name": "seats",
+            "required": false,
+            "in": "query",
+            "description": "Paid assistant seats: none (0), some (1-5), full (6).",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "none",
+                "some",
+                "full"
+              ]
+            }
+          },
+          {
+            "name": "cancelAtPeriodEnd",
+            "required": false,
+            "in": "query",
+            "description": "Only (not) set to cancel at period end.",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "renewsWithinDays",
+            "required": false,
+            "in": "query",
+            "description": "Current period ends within N days.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 60,
+              "type": "number"
+            }
+          },
+          {
+            "name": "hadTrial",
+            "required": false,
+            "in": "query",
+            "description": "Has (not) ever had a trial.",
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {

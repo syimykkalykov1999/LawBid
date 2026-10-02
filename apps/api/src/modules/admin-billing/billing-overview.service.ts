@@ -146,6 +146,36 @@ export class BillingOverviewService {
         AND: [
           q.status ? { status: q.status } : {},
           q.plan ? { plan: q.plan } : {},
+          q.trialEndsWithinDays
+            ? {
+                status: 'trialing' as const,
+                trial_ends_at: {
+                  gte: now,
+                  lte: new Date(
+                    now.getTime() + q.trialEndsWithinDays * 86_400_000,
+                  ),
+                },
+              }
+            : {},
+          q.renewsWithinDays
+            ? {
+                current_period_end: {
+                  gte: now,
+                  lte: new Date(
+                    now.getTime() + q.renewsWithinDays * 86_400_000,
+                  ),
+                },
+              }
+            : {},
+          q.seats === 'none' ? { assistant_seats: 0 } : {},
+          q.seats === 'some' ? { assistant_seats: { gte: 1, lte: 5 } } : {},
+          q.seats === 'full' ? { assistant_seats: { gte: 6 } } : {},
+          q.cancelAtPeriodEnd !== undefined
+            ? { cancel_at_period_end: q.cancelAtPeriodEnd }
+            : {},
+          q.hadTrial !== undefined
+            ? { trial_started_at: q.hadTrial ? { not: null } : null }
+            : {},
           grantUsers
             ? q.hasContractGrant
               ? { user_id: { in: grantUsers } }
