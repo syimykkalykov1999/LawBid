@@ -83,6 +83,7 @@ export default function ModerationCardPage() {
       toast.success('Готово, действие записано в журнал');
       void qc.invalidateQueries({ queryKey: ['moderation-card', type, id] });
       void qc.invalidateQueries({ queryKey: ['moderation-queue'] });
+      void qc.invalidateQueries({ queryKey: ['dashboard'] });
       if ((r.data?.data.reportsHandled ?? 0) > 0) router.push('/moderation');
     },
     onError: (e) => toast.error(e),

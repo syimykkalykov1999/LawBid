@@ -14,6 +14,7 @@ import { EmptyState } from '@/components/ui/empty';
 import { Label, Select } from '@/components/ui/input';
 import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { useToast } from '@/components/ui/toast';
+import { growthError } from '@/components/growth/errors';
 import { api, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
 import { useMe } from '@/lib/hooks';
@@ -77,7 +78,7 @@ export function VideosPanel() {
       void qc.invalidateQueries({ queryKey: ['media-videos'] });
       void qc.invalidateQueries({ queryKey: ['media-video-stats'] });
     },
-    onError: (e) => toast.error(e),
+    onError: (e) => toast.error(growthError(e)),
   });
 
   const cols = canWrite ? 8 : 7;

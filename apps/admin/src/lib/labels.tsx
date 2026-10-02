@@ -469,6 +469,12 @@ export const AUDIT_ACTION: Record<string, string> = {
   'review.hide': 'Отзыв скрыт',
   'review.restore': 'Отзыв показан',
   'review.remove': 'Отзыв удалён',
+  'integration.create_version': 'Новая версия ключей',
+  'integration.test': 'Проверка ключей',
+  'integration.activate': 'Ключи включены',
+  'integration.rollback': 'Откат ключей',
+  'integration.delete': 'Ключи удалены',
+  'integration.reencrypt': 'Ключи перешифрованы',
 };
 
 /** audit_log.target_type values (service rows + the auto-audit route segment). */

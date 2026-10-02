@@ -18,6 +18,7 @@ import { Switch } from '@/components/ui/switch';
 import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
+import { growthError } from '@/components/growth/errors';
 import { api, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
 import { useMe } from '@/lib/hooks';
@@ -91,7 +92,7 @@ export default function PromotionsPage() {
       );
       refresh();
     },
-    onError: (e) => toast.error(e),
+    onError: (e) => toast.error(growthError(e)),
   });
 
   const cols = canWrite ? 9 : 8;
@@ -298,7 +299,7 @@ function DaysDialog({
       setReason('');
       onDone();
     },
-    onError: (e) => toast.error(e),
+    onError: (e) => toast.error(growthError(e)),
   });
 
   return (
@@ -382,7 +383,7 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
       toast.success('Настройки продвижения сохранены');
       qc.setQueryData(['promotions-settings'], data);
     },
-    onError: (e) => toast.error(e),
+    onError: (e) => toast.error(growthError(e)),
   });
 
   return (

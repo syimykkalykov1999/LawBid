@@ -17,6 +17,7 @@ import { Switch } from '@/components/ui/switch';
 import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
+import { growthError } from '@/components/growth/errors';
 import { api, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
 import { useMe } from '@/lib/hooks';
@@ -101,7 +102,7 @@ export default function ReferralsPage() {
       void qc.invalidateQueries({ queryKey: ['referrals-stats'] });
     },
     onError: (e) => {
-      toast.error(e);
+      toast.error(growthError(e));
       // A failed reward still records the attempt; refresh the row.
       void qc.invalidateQueries({ queryKey: ['referrals'] });
     },
@@ -320,7 +321,7 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
       toast.success('Настройки программы сохранены');
       qc.setQueryData(['referrals-settings'], data);
     },
-    onError: (e) => toast.error(e),
+    onError: (e) => toast.error(growthError(e)),
   });
 
   return (
