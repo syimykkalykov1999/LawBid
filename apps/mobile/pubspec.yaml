@@ -129,7 +129,7 @@ dev_dependencies:
   # riverpod 3.x) are now compatible with this pubspec — no longer blocked. Not re-added here
   # anyway, to keep this pass scoped to "unblock the build"; re-adding IDE-lint-only tooling
   # is a separate, deliberate decision, not a version-conflict problem anymore. See CHANGELOG.
-  very_good_analysis: ^6.0.0
+  very_good_analysis: ^11.0.0
   golden_toolkit: ^0.15.0
 
 flutter:
