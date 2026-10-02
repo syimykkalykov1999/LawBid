@@ -101,11 +101,6 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
-      mailhog:
-        image: mailhog/mailhog:latest
-        ports:
-          - 1025:1025
-          - 8025:8025
 
     steps:
       - uses: actions/checkout@v4
@@ -206,6 +201,9 @@ jobs:
           name: api-coverage
           path: apps/api/coverage
           retention-days: 14
+
+      - name: Start MailHog (no container log dump, keeps the job log readable)
+        run: docker run -d --name mailhog --log-driver none -p 1025:1025 -p 8025:8025 mailhog/mailhog:latest
 
       - name: e2e tests (real CockroachDB + Redis)
         run: npm run test:e2e --workspace apps/api
