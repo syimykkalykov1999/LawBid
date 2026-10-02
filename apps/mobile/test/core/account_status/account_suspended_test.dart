@@ -19,7 +19,7 @@ void main() {
         disableAnimations: true,
         overrides: uxOverrides(
           extra: [
-            suspensionProvider.overrideWith(() => _Suspended()),
+            suspensionProvider.overrideWith(_Suspended.new),
           ],
         ),
       ),
@@ -51,6 +51,6 @@ class _Suspended extends SuspensionController {
   @override
   SuspensionInfo? build() => SuspensionInfo(
         reason: 'Spam in comments',
-        until: DateTime.utc(2026, 11, 1),
+        until: DateTime.utc(2026, 11),
       );
 }
