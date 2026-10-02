@@ -13,7 +13,12 @@ RUN npx --workspace apps/api prisma generate \
 
 FROM node:22-alpine AS runtime
 ENV NODE_ENV=production
-RUN addgroup -S app && adduser -S app -G app
+RUN addgroup -S app && adduser -S app -G app \
+ # npm (kept: the migrate task runs `npx prisma migrate deploy`) ships
+ # bundled packages (brace-expansion, picomatch, pacote…) that lag behind;
+ # take the latest npm so the image scan stays clean.
+ && npm install -g npm@latest \
+ && npm cache clean --force
 WORKDIR /repo
 COPY --from=build /repo/node_modules ./node_modules
 COPY --from=build /repo/apps/api/node_modules ./apps/api/node_modules
