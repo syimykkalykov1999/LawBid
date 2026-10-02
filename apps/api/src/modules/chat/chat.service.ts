@@ -106,6 +106,21 @@ export class ChatService {
     me: string,
     folder: ConversationFolderName,
   ): Prisma.ConversationWhereInput[] {
+    // Owner 2026-10-02: chats I removed from my list stay out of every folder.
+    return [
+      ...this.folderWhereInner(me, folder),
+      {
+        NOT: {
+          participants: { some: { user_id: me, hidden_at: { not: null } } },
+        },
+      },
+    ];
+  }
+
+  private folderWhereInner(
+    me: string,
+    folder: ConversationFolderName,
+  ): Prisma.ConversationWhereInput[] {
     // OQ-043: requests sent to me wait in "Requests".
     if (folder === 'requests') {
       return [{ request_status: 'pending', requested_by: { not: me } }];
@@ -248,6 +263,9 @@ export class ChatService {
           }
         : {}),
       ...(dto.note !== undefined ? { note: dto.note ? dto.note : null } : {}),
+      ...(dto.hidden !== undefined
+        ? { hidden_at: dto.hidden ? new Date() : null }
+        : {}),
       ...(dto.pinned !== undefined
         ? {
             pinned_at: dto.pinned ? (current?.pinned_at ?? new Date()) : null,
@@ -579,6 +597,11 @@ export class ChatService {
           where: { id },
           data: { last_message_at: m.created_at, last_message_id: m.id },
         });
+        // A new message brings a removed chat back for both sides.
+        await tx.conversationParticipant.updateMany({
+          where: { conversation_id: id, hidden_at: { not: null } },
+          data: { hidden_at: null },
+        });
         // Your own message is read by you.
         await tx.conversationParticipant.update({
           where: {
@@ -678,6 +701,10 @@ export class ChatService {
       where: { id: m.conversation_id },
     });
     if (!conv) return;
+    await this.prisma.conversationParticipant.updateMany({
+      where: { conversation_id: m.conversation_id, hidden_at: { not: null } },
+      data: { hidden_at: null },
+    });
     for (const uid of [conv.client_id, conv.attorney_id]) {
       this.realtime.toUsers([uid], 'message:new', {
         message: this.toMessage(m, uid, conv),

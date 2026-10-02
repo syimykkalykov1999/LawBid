@@ -186,6 +186,21 @@ const reelsRu = <String, String>{
   'stickers.reportPack': 'Пожаловаться на набор',
   'referral.apply.notAllowed.limit_reached':
       'У этого кода не осталось приглашений',
+  'chat.select.menu': 'Меню чатов',
+  'chat.select.start': 'Выбрать чаты',
+  'chat.select.count': 'Выбрано: {count}',
+  'chat.select.all': 'Все',
+  'chat.select.none': 'Снять',
+  'chat.select.pin': 'Закрепить',
+  'chat.select.move': 'Переместить',
+  'chat.select.mute': 'Звук',
+  'chat.select.delete': 'Удалить',
+  'chat.select.muted': 'Уведомления отключены',
+  'chat.select.unmuted': 'Уведомления включены',
+  'chat.select.deleteTitle': 'Удалить чатов: {count}?',
+  'chat.select.deleteMessage':
+      'Чаты пропадут только из вашего списка. Переписка у собеседника останется, а новое сообщение вернёт чат.',
+  'chat.select.deleted': 'Удалено из списка',
 };
 
 const reelsEn = <String, String>{
@@ -371,4 +386,19 @@ const reelsEn = <String, String>{
   'notif.list.promotion_ended': 'Promotion of your case has ended',
   'stickers.reportPack': 'Report this pack',
   'referral.apply.notAllowed.limit_reached': 'This code has no invites left',
+  'chat.select.menu': 'Chats menu',
+  'chat.select.start': 'Select chats',
+  'chat.select.count': '{count} selected',
+  'chat.select.all': 'All',
+  'chat.select.none': 'Clear',
+  'chat.select.pin': 'Pin',
+  'chat.select.move': 'Move',
+  'chat.select.mute': 'Mute',
+  'chat.select.delete': 'Delete',
+  'chat.select.muted': 'Notifications muted',
+  'chat.select.unmuted': 'Notifications on',
+  'chat.select.deleteTitle': 'Delete {count} chats?',
+  'chat.select.deleteMessage':
+      'They disappear from your list only. The other side keeps the conversation, and a new message brings the chat back.',
+  'chat.select.deleted': 'Removed from your list',
 };

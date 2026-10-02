@@ -28,6 +28,7 @@ abstract interface class ChatRepository {
     bool? waiting,
     String? note,
     bool? pinned,
+    bool? hidden,
   });
 
   /// Badges of the Waiting and Requests folders.
@@ -386,6 +387,7 @@ class ApiChatRepository implements ChatRepository {
     bool? waiting,
     String? note,
     bool? pinned,
+    bool? hidden,
   }) async =>
       ChatMappers.conversation(
         (await guardApiCall(
@@ -402,6 +404,7 @@ class ApiChatRepository implements ChatRepository {
               waiting: waiting,
               note: note,
               pinned: pinned,
+              hidden: hidden,
             ),
           ),
         ))

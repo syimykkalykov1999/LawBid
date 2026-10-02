@@ -109,6 +109,13 @@ export class OrganizeConversationDto {
   @IsOptional()
   @IsBoolean()
   pinned?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Remove the chat from my list only; a new message revives it.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  hidden?: boolean;
 }
 
 export class ChatFolderCountsDto {

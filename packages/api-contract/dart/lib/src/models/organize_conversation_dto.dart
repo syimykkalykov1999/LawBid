@@ -15,6 +15,7 @@ class OrganizeConversationDto {
     this.waiting,
     this.note,
     this.pinned,
+    this.hidden,
   });
 
   factory OrganizeConversationDto.fromJson(Map<String, Object?> json) =>
@@ -31,6 +32,9 @@ class OrganizeConversationDto {
 
   /// Pinned to the top of my list.
   final bool? pinned;
+
+  /// Remove the chat from my list only; a new message revives it.
+  final bool? hidden;
 
   Map<String, Object?> toJson() => _$OrganizeConversationDtoToJson(this);
 }

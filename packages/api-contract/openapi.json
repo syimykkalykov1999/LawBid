@@ -60821,6 +60821,10 @@
           "pinned": {
             "type": "boolean",
             "description": "Pinned to the top of my list."
+          },
+          "hidden": {
+            "type": "boolean",
+            "description": "Remove the chat from my list only; a new message revives it."
           }
         }
       },

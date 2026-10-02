@@ -11,10 +11,12 @@ import 'package:lawbid/features/calls/presentation/call_log_entry.dart'
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
+import 'package:lawbid/features/chat/application/chat_selection.dart';
 import 'package:lawbid/features/chat/application/presence_providers.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/presentation/chat_folders.dart';
+import 'package:lawbid/features/chat/presentation/chat_selection_bar.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
 import 'package:lawbid/features/notifications/presentation/notifications_view.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
@@ -50,11 +52,23 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
       ? ChatListFolder.requests
       : ChatListFolder.all;
 
+  /// The chats of the folder on screen (Select all, the bulk bar).
+  List<Conversation> _visibleChats() {
+    if (_folder == ChatListFolder.requests) return const [];
+    final provider = _folder == ChatListFolder.all
+        ? conversationsProvider
+        : folderConversationsProvider(_folder);
+    return ref.watch(provider).value?.items ?? const [];
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final badges = ref.watch(badgesProvider);
+    final selection = ref.watch(chatSelectionProvider);
+    final selecting = selection != null;
+    final chats = selecting ? _visibleChats() : const <Conversation>[];
     final requests = ref.watch(messageRequestsCountProvider).value ?? 0;
     final showTeam = ref.watch(currentUserRoleProvider) == UserRole.attorney;
     final teamPending =
@@ -75,56 +89,120 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                     alignment: Alignment.centerLeft,
                     child: Padding(
                       padding: const EdgeInsets.only(left: AppSpacing.xs),
-                      child: AppBackButton(
-                        semanticLabel: t.t('common.back'),
-                        onPressed: () => Navigator.of(context).maybePop(),
-                      ),
+                      child: selecting
+                          ? AppIconButton(
+                              key: const ValueKey('select-cancel'),
+                              icon: AppIcon(
+                                AppIcons.closeRounded,
+                                color: colors.text,
+                              ),
+                              semanticLabel: t.t('common.cancel'),
+                              onPressed:
+                                  ref.read(chatSelectionProvider.notifier).stop,
+                            )
+                          : AppBackButton(
+                              semanticLabel: t.t('common.back'),
+                              onPressed: () => Navigator.of(context).maybePop(),
+                            ),
                     ),
                   ),
                   // Owner 2026-10-01: Chats · Requests · Team as segments,
                   // notifications as a bell at the right edge.
-                  _InboxTabs(
-                    value: tab,
-                    tabs: [
-                      (
-                        InboxTab.chats,
-                        t.t('inbox.tab.chats'),
-                        badges.chats + requests,
+                  if (selecting)
+                    Text(
+                      t.t(
+                        'chat.select.count',
+                        {'count': '${selection.length}'},
                       ),
-                      if (showTeam)
-                        (InboxTab.team, t.t('inbox.tab.team'), teamPending),
-                    ],
-                    onChanged: (v) => setState(() => _tab = v),
-                  ),
+                      style: Theme.of(context)
+                          .extension<AppTypographyTokens>()!
+                          .titleMedium
+                          .copyWith(color: colors.text),
+                    )
+                  else
+                    _InboxTabs(
+                      value: tab,
+                      tabs: [
+                        (
+                          InboxTab.chats,
+                          t.t('inbox.tab.chats'),
+                          badges.chats + requests,
+                        ),
+                        if (showTeam)
+                          (InboxTab.team, t.t('inbox.tab.team'), teamPending),
+                      ],
+                      onChanged: (v) => setState(() => _tab = v),
+                    ),
                   Align(
                     alignment: Alignment.centerRight,
                     child: Padding(
                       padding: const EdgeInsets.only(right: AppSpacing.xs),
-                      // Owner 2026-10-01: in Team the bell gives way to
-                      // the team settings (seats, access).
-                      child: tab == InboxTab.team
-                          ? SizedBox.square(
-                              dimension: AppSizes.touchTarget,
-                              child: AppIconButton(
-                                key: const ValueKey('team-settings'),
-                                icon: AppIcon(
-                                  AppIcons.manageAccountsOutlined,
-                                  size: 28,
-                                  color: colors.text,
-                                ),
-                                semanticLabel: t.t('team.title'),
-                                onPressed: () => context.push(TeamRoutes.team),
+                      child: selecting
+                          ? TextButton(
+                              key: const ValueKey('select-all'),
+                              onPressed: () {
+                                final n =
+                                    ref.read(chatSelectionProvider.notifier);
+                                chats.every(
+                                  (c) => selection.contains(c.id),
+                                )
+                                    ? n.clear()
+                                    : n.setAll(chats.map((c) => c.id));
+                              },
+                              child: Text(
+                                chats.isNotEmpty &&
+                                        chats.every(
+                                          (c) => selection.contains(c.id),
+                                        )
+                                    ? t.t('chat.select.none')
+                                    : t.t('chat.select.all'),
                               ),
                             )
-                          : _Bell(
-                              count: badges.notifications,
-                              selected: tab == InboxTab.notifications,
-                              label: t.t('inbox.tab.notifications'),
-                              onTap: () => setState(
-                                () => _tab = tab == InboxTab.notifications
-                                    ? InboxTab.chats
-                                    : InboxTab.notifications,
-                              ),
+                          : Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                // Owner 2026-10-02: ⋮ next to the bell —
+                                // "Select chats" like Instagram.
+                                if (tab == InboxTab.chats &&
+                                    _folder != ChatListFolder.requests)
+                                  AppIconButton(
+                                    key: const ValueKey('chats-menu'),
+                                    icon: AppIcon(
+                                      AppIcons.moreVertRounded,
+                                      color: colors.text,
+                                    ),
+                                    semanticLabel: t.t('chat.select.menu'),
+                                    onPressed: () => _showChatsMenu(context, t),
+                                  ),
+                                // Owner 2026-10-01: in Team the bell gives
+                                // way to the team settings.
+                                if (tab == InboxTab.team)
+                                  SizedBox.square(
+                                    dimension: AppSizes.touchTarget,
+                                    child: AppIconButton(
+                                      key: const ValueKey('team-settings'),
+                                      icon: AppIcon(
+                                        AppIcons.manageAccountsOutlined,
+                                        size: 28,
+                                        color: colors.text,
+                                      ),
+                                      semanticLabel: t.t('team.title'),
+                                      onPressed: () =>
+                                          context.push(TeamRoutes.team),
+                                    ),
+                                  )
+                                else
+                                  _Bell(
+                                    count: badges.notifications,
+                                    selected: tab == InboxTab.notifications,
+                                    label: t.t('inbox.tab.notifications'),
+                                    onTap: () => setState(
+                                      () => _tab = tab == InboxTab.notifications
+                                          ? InboxTab.chats
+                                          : InboxTab.notifications,
+                                    ),
+                                  ),
+                              ],
                             ),
                     ),
                   ),
@@ -175,10 +253,36 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                 ),
               ),
             ),
+            if (selecting) ChatSelectionBar(chats: chats),
           ],
         ),
       ),
     );
+  }
+
+  /// The vertical ⋮ menu of the chats list: "Select chats".
+  Future<void> _showChatsMenu(BuildContext context, Translator t) async {
+    final pick = await showAppBottomSheet<bool>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: AppSpacing.sm),
+            const AppSheetHandle(),
+            AppListRow(
+              key: const ValueKey('chats-menu-select'),
+              icon: AppIcons.checkCircleOutlineRounded,
+              label: t.t('chat.select.start'),
+              showChevron: false,
+              onTap: () => Navigator.of(ctx).pop(true),
+            ),
+            const SizedBox(height: AppSpacing.md),
+          ],
+        ),
+      ),
+    );
+    if (pick ?? false) ref.read(chatSelectionProvider.notifier).start();
   }
 }
 
@@ -514,17 +618,43 @@ class ConversationRow extends ConsumerWidget {
     final who = counterpartName(t, c);
     final last = c.lastMessage;
     final unread = c.unreadCount > 0;
+    // Owner 2026-10-02: in "Select chats" a tap picks the chat.
+    final picking = ref.watch(chatSelectionProvider);
+    final picked = picking?.contains(c.id) ?? false;
     return AppPressable(
-      onTap: () => context.push(ChatRoutes.conversation(c.id)),
+      onTap: picking != null
+          ? () => ref.read(chatSelectionProvider.notifier).toggle(c.id)
+          : () => context.push(ChatRoutes.conversation(c.id)),
       child: Container(
         padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(
           color: colors.surface,
           borderRadius: BorderRadius.circular(AppRadii.card),
-          border: Border.all(color: unread ? colors.goldStroke : colors.border),
+          border: Border.all(
+            color: picked
+                ? colors.gold
+                : unread
+                    ? colors.goldStroke
+                    : colors.border,
+          ),
         ),
         child: Row(
           children: [
+            if (picking != null) ...[
+              Semantics(
+                checked: picked,
+                label: who,
+                excludeSemantics: true,
+                child: AppIcon(
+                  picked
+                      ? AppIcons.checkCircleRounded
+                      : AppIcons.radioButtonUncheckedRounded,
+                  key: ValueKey('chat-pick-${c.id}'),
+                  color: picked ? colors.gold : colors.textSecondary,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+            ],
             CounterpartAvatar(counterpart: c.counterpart, size: 52),
             const SizedBox(width: AppSpacing.md),
             Expanded(
@@ -580,7 +710,7 @@ class ConversationRow extends ConsumerWidget {
                       ),
                       // Owner 2026-10-01: the chat's menu at the top right —
                       // pin, move to a folder, waiting + a note.
-                      if (!c.awaitingMyAnswer)
+                      if (!c.awaitingMyAnswer && picking == null)
                         Semantics(
                           button: true,
                           label: t.t('chat.organize.title'),

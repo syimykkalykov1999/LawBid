@@ -54,6 +54,7 @@ Conversation _conv(
 
 class _Chats implements ChatRepository {
   final organized = <String>[];
+  final hiddenIds = <String>[];
   final folders = <ChatListFolder>[];
 
   @override
@@ -102,7 +103,9 @@ class _Chats implements ChatRepository {
     bool? waiting,
     String? note,
     bool? pinned,
+    bool? hidden,
   }) async {
+    if (hidden ?? false) hiddenIds.add(id);
     organized.add('$id:${folder?.name}:$waiting:$note:$pinned');
     return _conv(id);
   }
@@ -178,5 +181,42 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('organize-move')));
     await tester.pumpAndSettle();
     expect(repo.organized.last, 'w:primary:null:null:null');
+  });
+
+  testWidgets('⋮ → Select chats → pick all → delete hides them',
+      (tester) async {
+    final repo = _Chats();
+    tester.view.physicalSize = const Size(1000, 2000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      uxApp(
+        const InboxScreen(),
+        size: const Size(1000, 2000),
+        theme: AppTheme.light(),
+        disableAnimations: true,
+        overrides: uxOverrides(
+          extra: [
+            chatRepositoryProvider.overrideWithValue(repo),
+            currentUserIdProvider.overrideWithValue('me'),
+            realtimeClientProvider.overrideWithValue(null),
+          ],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('chats-menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('chats-menu-select')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('select-all')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('select-delete')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete').last);
+    await tester.pumpAndSettle();
+    expect(repo.hiddenIds, isNotEmpty);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(minutes: 5));
   });
 }

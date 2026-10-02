@@ -1767,6 +1767,9 @@ model ConversationParticipant {
   /// My note pinned on the chat ("send him the documents").
   note                 String?      @db.String(280)
   pinned_at            DateTime?    @db.Timestamptz
+  /// Owner 2026-10-02: "deleted" from my list (only for me); a new message
+  /// brings the chat back. The history itself is never erased.
+  hidden_at            DateTime?    @db.Timestamptz
   created_at           DateTime     @default(now()) @db.Timestamptz
   updated_at           DateTime     @updatedAt @db.Timestamptz
 
