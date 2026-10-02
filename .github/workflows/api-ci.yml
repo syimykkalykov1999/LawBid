@@ -206,10 +206,13 @@ jobs:
         run: docker run -d --name mailhog --log-driver none -p 1025:1025 -p 8025:8025 mailhog/mailhog:latest
 
       - name: Start MinIO (S3 for the file / voice e2e suites)
+        # Container registries refuse the image on the runner, so run the
+        # official static binary.
         run: |
-          docker run -d --name minio --log-driver none -p 9000:9000 \
-            -e MINIO_ROOT_USER=lawbid -e MINIO_ROOT_PASSWORD=lawbid_dev_only \
-            minio/minio:latest server /data
+          curl -fsSL https://dl.min.io/server/minio/release/linux-amd64/minio -o /tmp/minio
+          chmod +x /tmp/minio
+          MINIO_ROOT_USER=lawbid MINIO_ROOT_PASSWORD=lawbid_dev_only \
+            nohup /tmp/minio server /tmp/minio-data --address :9000 > /tmp/minio.log 2>&1 &
           for i in $(seq 1 30); do curl -fs http://localhost:9000/minio/health/live && break; sleep 2; done
 
       - name: e2e tests (real CockroachDB + Redis + MinIO)
