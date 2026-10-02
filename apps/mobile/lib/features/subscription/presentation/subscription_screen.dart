@@ -297,7 +297,9 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
     required bool verified,
   }) {
     final s = o.subscription;
-    final showCta = !o.isActive &&
+    // Free under contract: nothing to buy while it runs.
+    final showCta = o.contractGrant == null &&
+        !o.isActive &&
         s?.status != SubscriptionStatus.pastDue &&
         !(s?.pendingConfirmation ?? false);
     var index = 0;
@@ -325,7 +327,13 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
             onRefresh: _refresh,
           ),
         );
+    final grant = o.contractGrant;
     return [
+      // Owner 2026-10-02: free under contract — active until the date.
+      if (grant != null)
+        section(
+          ContractCard(t: t, formats: formats, grant: grant),
+        ),
       if (s != null && s.paymentFailed)
         section(
           PaymentFailedCard(
@@ -380,6 +388,66 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
         ),
       ),
     ];
+  }
+}
+
+/// Owner 2026-10-02: "Free under contract until …" (blogger attorneys,
+/// partners) — the grant's end and the assistant seats it includes.
+class ContractCard extends StatelessWidget {
+  const ContractCard({
+    required this.t,
+    required this.formats,
+    required this.grant,
+    super.key,
+  });
+
+  final Translator t;
+  final L10nFormats formats;
+  final ContractGrant grant;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: colors.goldTint,
+        borderRadius: BorderRadius.circular(AppRadii.card),
+        border: Border.all(color: colors.goldStroke),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AppIcon(AppIcons.giftOutlined, color: colors.goldDark, size: 28),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  t.t('contract.title', {'date': formats.date(grant.endsAt)}),
+                  style: type.titleMedium.copyWith(
+                    color: colors.text,
+                    fontFamily: type.body.fontFamily,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  grant.assistantSeats > 0
+                      ? t.t('contract.withSeats', {
+                          'seats': '${grant.assistantSeats}',
+                        })
+                      : t.t('contract.noSeats'),
+                  style: type.bodySmall.copyWith(color: colors.textSecondary),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

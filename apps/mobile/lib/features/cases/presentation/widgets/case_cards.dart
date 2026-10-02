@@ -215,6 +215,7 @@ class FeedCaseCard extends StatelessWidget {
 
     final semantics = [
       category,
+      if (item.promoted) t.t('cases.card.promoted'),
       if (item.isNew) t.t('cases.card.new'),
       item.title,
       place,
@@ -291,10 +292,15 @@ class FeedCaseCard extends StatelessWidget {
                               ],
                             ),
                           ),
-                          if (item.isNew) ...[
+                          if (item.promoted || item.isNew) ...[
                             const SizedBox(width: AppSpacing.sm),
                             Text(
-                              t.t('cases.card.new'),
+                              // Owner 2026-10-02: a paid promotion leads.
+                              t.t(
+                                item.promoted
+                                    ? 'cases.card.promoted'
+                                    : 'cases.card.new',
+                              ),
                               style: typography.caption.copyWith(
                                 color: colors.goldDark,
                                 fontWeight: FontWeight.w700,
@@ -460,9 +466,13 @@ class FeedCaseCard extends StatelessWidget {
                             label: place,
                           ),
                           const Spacer(),
-                          if (item.isNew)
+                          if (item.promoted || item.isNew)
                             Text(
-                              t.t('cases.card.new'),
+                              t.t(
+                                item.promoted
+                                    ? 'cases.card.promoted'
+                                    : 'cases.card.new',
+                              ),
                               style: typography.caption.copyWith(
                                 color: colors.goldDark,
                                 fontWeight: FontWeight.w700,

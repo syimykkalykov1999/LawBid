@@ -151,6 +151,7 @@ abstract final class CasesMappers {
         isSaved: c.isSaved,
         commentCount: c.commentCount,
         shareCount: c.shareCount,
+        promoted: c.promoted,
       );
 
   static FeedCase attorneyCase(api.CaseDetailForAttorneyDto c) => FeedCase(

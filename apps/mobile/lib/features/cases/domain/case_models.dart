@@ -314,7 +314,11 @@ class FeedCase {
     this.commentCount = 0,
     this.shareCount = 0,
     this.inMyPractice = true,
+    this.promoted = false,
   });
+
+  /// Owner 2026-10-02: a paid promotion keeps this case near the top.
+  final bool promoted;
 
   /// Owner 2026-09-30: the case's practice is one of this attorney's
   /// (detail only; a bid from outside them warns the client).

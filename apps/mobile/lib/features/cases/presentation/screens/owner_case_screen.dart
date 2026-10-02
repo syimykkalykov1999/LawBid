@@ -18,6 +18,7 @@ import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_wizard_steps.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
+import 'package:lawbid/features/promotions/presentation/promote_case_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 
 /// docs/04 §11.1 — the client's case: description, status actions, the
@@ -292,6 +293,8 @@ class _OwnerCaseBody extends ConsumerWidget {
               message: t.t('cases.owner.archivedNotice'),
             ),
           ],
+          // Owner 2026-10-02: paid promotion of an open case.
+          if (c.status == CaseStatus.open) PromoteCaseCard(caseId: c.id),
           if (c.acceptedBid != null)
             DetailSection(
               title: t.t('cases.owner.attorneyAtWork'),
