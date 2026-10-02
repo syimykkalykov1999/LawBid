@@ -218,8 +218,15 @@ class _FlipSearchBarState extends State<FlipSearchBar> {
                         cursorColor: colors.goldDark,
                         // The whole 48 px row is the tap target
                         // (docs/01 §8.4).
+                        // Transparent: the pill behind draws the fill (the
+                        // theme's own input fill showed as a taller
+                        // rectangle inside it).
                         decoration: const InputDecoration(
+                          filled: false,
+                          fillColor: Colors.transparent,
                           border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
                           contentPadding: EdgeInsets.symmetric(vertical: 14),
                         ),
                       ),
