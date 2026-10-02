@@ -30,6 +30,7 @@ class CaseDetailForAttorneyDto {
     required this.commentCount,
     required this.shareCount,
     required this.isSaved,
+    required this.promoted,
     required this.description,
     required this.photos,
     required this.photosCount,
@@ -70,6 +71,9 @@ class CaseDetailForAttorneyDto {
 
   /// In the viewer's saved items.
   final bool isSaved;
+
+  /// Promoted by its client right now.
+  final bool promoted;
   final String description;
 
   /// The attorney's own bid on this case (§4.3: shown instead of "Сделать бид").

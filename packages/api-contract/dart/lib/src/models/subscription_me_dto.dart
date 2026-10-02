@@ -4,6 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'contract_grant_info_dto.dart';
 import 'plan_prices_dto.dart';
 import 'subscription_dto.dart';
 
@@ -13,6 +14,7 @@ part 'subscription_me_dto.g.dart';
 class SubscriptionMeDto {
   const SubscriptionMeDto({
     required this.subscription,
+    required this.contractGrant,
     required this.prices,
     required this.isActive,
     required this.canStart,
@@ -24,6 +26,9 @@ class SubscriptionMeDto {
       _$SubscriptionMeDtoFromJson(json);
 
   final SubscriptionDto? subscription;
+
+  /// An active free subscription under a contract (isActive is true while it runs).
+  final ContractGrantInfoDto? contractGrant;
   final PlanPricesDto prices;
   final bool isActive;
 

@@ -29,6 +29,7 @@ class CaseFeedItemDto {
     required this.commentCount,
     required this.shareCount,
     required this.isSaved,
+    required this.promoted,
     this.city,
   });
 
@@ -64,6 +65,9 @@ class CaseFeedItemDto {
 
   /// In the viewer's saved items.
   final bool isSaved;
+
+  /// Promoted by its client right now.
+  final bool promoted;
 
   Map<String, Object?> toJson() => _$CaseFeedItemDtoToJson(this);
 }

@@ -12,6 +12,8 @@ class DashboardSubscriptionsDto {
     required this.trialing,
     required this.active,
     required this.pastDue,
+    required this.live,
+    required this.revenueEstimateCents,
     required this.revenueEstimateUsd,
   });
 
@@ -22,7 +24,13 @@ class DashboardSubscriptionsDto {
   final int active;
   final int pastDue;
 
-  /// active × price (USD).
+  /// Live subscriptions (same rule as the gate and /admin/overview): trialing + active + past_due still in grace.
+  final int live;
+
+  /// Monthly recurring revenue, cents: active + past_due in grace; monthly price_cents (incl. seats) + yearly price_cents / 12.
+  final int revenueEstimateCents;
+
+  /// revenueEstimateCents rounded to whole USD.
   final int revenueEstimateUsd;
 
   Map<String, Object?> toJson() => _$DashboardSubscriptionsDtoToJson(this);

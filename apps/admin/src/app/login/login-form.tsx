@@ -35,7 +35,9 @@ export function LoginForm() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const go = () => router.replace(params.get('next') || '/');
+  // Only same-site paths: `//evil.com` would be an open redirect.
+  const next = params.get('next');
+  const go = () => router.replace(next && next.startsWith('/') && !next.startsWith('//') ? next : '/');
 
   const run = async (fn: () => Promise<void>) => {
     setBusy(true);

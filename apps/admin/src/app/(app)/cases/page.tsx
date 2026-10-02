@@ -2,49 +2,74 @@
 
 import { useInfiniteQuery } from '@tanstack/react-query';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { CaseList } from '@/components/cases/case-list';
+import { MotionRow } from '@/components/legacy/fade-in';
+import { MoreButton } from '@/components/legacy/more-button';
 import { ErrorNote, PageHeader } from '@/components/page-header';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/card';
-import { Table, Td, Th } from '@/components/ui/table';
+import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { Tabs } from '@/components/ui/tabs';
 import { api, errorText } from '@/lib/api/client';
-import { CASE_STATUS, ISSUE_TYPE, partyName } from '@/lib/labels';
-import { cn, formatDateTime } from '@/lib/utils';
+import { CASE_STATUS, CONTACT_ISSUE_STATUS, ISSUE_TYPE, label, PARTY_ROLE, partyName, StatusPill } from '@/lib/labels';
+import { formatDateTime } from '@/lib/utils';
 
-type Tab = 'disputes' | 'contact-issues';
+type Tab = 'cases' | 'disputes' | 'contact-issues';
+type DisputeStatus = 'open' | 'resolved';
+type IssueStatus = 'open' | 'confirmed' | 'rejected';
+
+const DISPUTE_STATUS: Record<string, string> = { open: 'открыт', resolved: 'решён' };
 
 /** docs/06 §2.3 item 5: the two support queues. */
 export default function CasesQueuesPage() {
-  const [tab, setTab] = useState<Tab>('disputes');
-  const [resolved, setResolved] = useState(false);
+  const [tab, setTab] = useState<Tab>('cases');
+  const [disputeStatus, setDisputeStatus] = useState<DisputeStatus>('open');
+  const [issueStatus, setIssueStatus] = useState<IssueStatus>('open');
   return (
     <>
-      <PageHeader title="Кейсы" subtitle="Споры и обращения «Не могу связаться»; старые сверху." />
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        {(['disputes', 'contact-issues'] as Tab[]).map((t) => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => setTab(t)}
-            className={cn(
-              'rounded-full border px-4 py-1.5 text-sm',
-              tab === t ? 'border-navy bg-navy text-white' : 'border-line bg-surface hover:bg-canvas',
-            )}
-          >
-            {t === 'disputes' ? 'Споры' : '«Не могу связаться»'}
-          </button>
-        ))}
-        <label className="ml-auto flex items-center gap-2 text-sm text-muted">
-          <input type="checkbox" checked={resolved} onChange={(e) => setResolved(e.target.checked)} />
-          показать решённые
-        </label>
+      <PageHeader eyebrow="Кейсы" title="Кейсы" subtitle="Все кейсы с модерацией, споры и обращения «Не могу связаться»." />
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <Tabs<Tab>
+          value={tab}
+          onChange={setTab}
+          items={[
+            { value: 'cases', label: 'Все кейсы' },
+            { value: 'disputes', label: 'Споры' },
+            { value: 'contact-issues', label: '«Не могу связаться»' },
+          ]}
+        />
+        {tab === 'cases' ? null : tab === 'disputes' ? (
+          <Tabs<DisputeStatus>
+            size="sm"
+            value={disputeStatus}
+            onChange={setDisputeStatus}
+            items={[
+              { value: 'open', label: 'Открытые' },
+              { value: 'resolved', label: 'Решённые' },
+            ]}
+          />
+        ) : (
+          <Tabs<IssueStatus>
+            size="sm"
+            value={issueStatus}
+            onChange={setIssueStatus}
+            items={[
+              { value: 'open', label: 'Открытые' },
+              { value: 'confirmed', label: 'Подтверждённые' },
+              { value: 'rejected', label: 'Отклонённые' },
+            ]}
+          />
+        )}
       </div>
-      {tab === 'disputes' ? <Disputes resolved={resolved} /> : <ContactIssues resolved={resolved} />}
+      {tab === 'cases' ? <CaseList /> : tab === 'disputes' ? <Disputes status={disputeStatus} /> : <ContactIssues status={issueStatus} />}
     </>
   );
 }
 
-function Disputes({ resolved }: { resolved: boolean }) {
+function Disputes({ status }: { status: DisputeStatus }) {
+  const router = useRouter();
+  const resolved = status === 'resolved';
   const q = useInfiniteQuery({
     queryKey: ['disputes', resolved],
     initialPageParam: undefined as string | undefined,
@@ -72,31 +97,34 @@ function Disputes({ resolved }: { resolved: boolean }) {
           </tr>
         </thead>
         <tbody>
-          {rows.map((d) => (
-            <tr key={d.id} className="hover:bg-canvas">
+          {q.isPending ? <TableEmpty colSpan={6} loading /> : null}
+          {rows.map((d, i) => (
+            <MotionRow key={d.id} i={i} className="cursor-pointer" onClick={() => router.push(`/cases/disputes/${d.id}`)}>
               <Td>
-                <Link href={`/cases/disputes/${d.id}`} className="font-medium text-navy hover:underline">
+                <Link
+                  href={`/cases/disputes/${d.id}`}
+                  className="font-medium text-heading hover:underline"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   {d.case.title}
                 </Link>
-                <div className="text-xs text-muted">{CASE_STATUS[d.case.status] ?? d.case.status} · {d.case.stateCode}</div>
+                <div className="text-xs text-muted">
+                  {label(CASE_STATUS, d.case.status)} · {d.case.stateCode}
+                </div>
               </Td>
-              <Td>{d.openedByRole === 'client' ? 'клиент' : d.openedByRole === 'attorney' ? 'адвокат' : '—'}</Td>
+              <Td>{label(PARTY_ROLE, d.openedByRole)}</Td>
               <Td className="max-w-md text-xs">{d.reason}</Td>
               <Td className="text-xs">
                 {partyName(d.case.client)} · {partyName(d.case.attorney)}
               </Td>
-              <Td className="whitespace-nowrap">{formatDateTime(d.createdAt)}</Td>
+              <Td className="whitespace-nowrap text-muted">{formatDateTime(d.createdAt)}</Td>
               <Td>
-                <Badge tone={d.status === 'open' ? 'gold' : 'neutral'}>{d.status === 'open' ? 'открыт' : 'решён'}</Badge>
+                <StatusPill map={DISPUTE_STATUS} value={d.status} />
               </Td>
-            </tr>
+            </MotionRow>
           ))}
           {!q.isPending && rows.length === 0 ? (
-            <tr>
-              <Td colSpan={6} className="py-8 text-center text-muted">
-                Пусто
-              </Td>
-            </tr>
+            <TableEmpty colSpan={6}>{resolved ? 'Решённых споров нет' : 'Открытых споров нет'}</TableEmpty>
           ) : null}
         </tbody>
       </Table>
@@ -105,14 +133,15 @@ function Disputes({ resolved }: { resolved: boolean }) {
   );
 }
 
-function ContactIssues({ resolved }: { resolved: boolean }) {
+function ContactIssues({ status }: { status: IssueStatus }) {
+  const router = useRouter();
   const q = useInfiniteQuery({
-    queryKey: ['contact-issues', resolved],
+    queryKey: ['contact-issues', status],
     initialPageParam: undefined as string | undefined,
     queryFn: async ({ pageParam }) =>
       (
         await api.GET('/admin/contact-issues', {
-          params: { query: { status: resolved ? 'confirmed' : 'open', cursor: pageParam, limit: 30 } },
+          params: { query: { status, cursor: pageParam, limit: 30 } },
         })
       ).data!,
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
@@ -129,22 +158,32 @@ function ContactIssues({ resolved }: { resolved: boolean }) {
             <Th>Клиент</Th>
             <Th>Причина</Th>
             <Th>Подтверждено</Th>
+            <Th>Статус</Th>
             <Th>Создано</Th>
           </tr>
         </thead>
         <tbody>
-          {rows.map((r) => (
-            <tr key={r.id} className="hover:bg-canvas">
+          {q.isPending ? <TableEmpty colSpan={7} loading /> : null}
+          {rows.map((r, i) => (
+            <MotionRow key={r.id} i={i} className="cursor-pointer" onClick={() => router.push(`/cases/contact-issues/${r.id}`)}>
               <Td>
-                <Link href={`/cases/contact-issues/${r.id}`} className="font-medium text-navy hover:underline">
+                <Link
+                  href={`/cases/contact-issues/${r.id}`}
+                  className="font-medium text-heading hover:underline"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   {r.case.title}
                 </Link>
-                <div className="text-xs text-muted">{CASE_STATUS[r.case.status] ?? r.case.status}</div>
+                <div className="text-xs text-muted">{label(CASE_STATUS, r.case.status)}</div>
               </Td>
               <Td className="text-xs">{partyName(r.attorney)}</Td>
               <Td className="text-xs">
                 {r.case.client ? (
-                  <Link href={`/users/${r.case.client.id}`} className="text-navy underline">
+                  <Link
+                    href={`/users/${r.case.client.id}`}
+                    className="text-gold-600 hover:underline"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     {partyName(r.case.client)}
                   </Link>
                 ) : '—'}
@@ -158,15 +197,16 @@ function ContactIssues({ resolved }: { resolved: boolean }) {
                   {r.clientConfirmedReports} / {r.suspendThreshold}
                 </Badge>
               </Td>
-              <Td className="whitespace-nowrap">{formatDateTime(r.createdAt)}</Td>
-            </tr>
+              <Td>
+                <StatusPill map={CONTACT_ISSUE_STATUS} value={r.status} />
+              </Td>
+              <Td className="whitespace-nowrap text-muted">{formatDateTime(r.createdAt)}</Td>
+            </MotionRow>
           ))}
           {!q.isPending && rows.length === 0 ? (
-            <tr>
-              <Td colSpan={6} className="py-8 text-center text-muted">
-                Пусто
-              </Td>
-            </tr>
+            <TableEmpty colSpan={7}>
+              {status === 'open' ? 'Открытых обращений нет' : `Нет обращений со статусом «${CONTACT_ISSUE_STATUS[status]}»`}
+            </TableEmpty>
           ) : null}
         </tbody>
       </Table>
@@ -176,12 +216,5 @@ function ContactIssues({ resolved }: { resolved: boolean }) {
 }
 
 function More({ q }: { q: { hasNextPage: boolean; isFetchingNextPage: boolean; fetchNextPage: () => unknown } }) {
-  if (!q.hasNextPage) return null;
-  return (
-    <div className="mt-4 flex justify-center">
-      <Button variant="outline" disabled={q.isFetchingNextPage} onClick={() => void q.fetchNextPage()}>
-        Показать ещё
-      </Button>
-    </div>
-  );
+  return <MoreButton show={q.hasNextPage} loading={q.isFetchingNextPage} onClick={() => void q.fetchNextPage()} />;
 }

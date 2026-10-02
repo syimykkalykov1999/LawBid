@@ -8,6 +8,8 @@
 #   AWS_REGION, ECR_REGISTRY (123456789012.dkr.ecr.<region>.amazonaws.com)
 #   STAGING_API_URL / PROD_API_URL, STAGING_ADMIN_URL / PROD_ADMIN_URL
 # The `production` environment must require reviewers (the manual gate).
+# Deploys run only when the repository variable DEPLOY_ENABLED is 'true',
+# so a repo without the AWS secrets stays green.
 name: Deploy
 
 on:
@@ -43,7 +45,7 @@ jobs:
   build:
     name: Build & push images
     runs-on: ubuntu-latest
-    if: ${{ !inputs.image_tag }}
+    if: ${{ vars.DEPLOY_ENABLED == 'true' && !inputs.image_tag }}
     steps:
       - uses: actions/checkout@v4
       - uses: aws-actions/configure-aws-credentials@v4
@@ -77,11 +79,10 @@ jobs:
   deploy-staging:
     name: Deploy staging
     needs: [build]
-    if: ${{ always() && (needs.build.result == 'success' || needs.build.result == 'skipped') }}
+    if: ${{ vars.DEPLOY_ENABLED == 'true' && always() && (needs.build.result == 'success' || needs.build.result == 'skipped') }}
     runs-on: ubuntu-latest
     environment:
       name: staging
-      url: ${{ secrets.STAGING_API_URL }}
     steps:
       - uses: actions/checkout@v4
       - uses: aws-actions/configure-aws-credentials@v4
@@ -103,7 +104,6 @@ jobs:
     # docs/06 §7.3 "ручное подтверждение".
     environment:
       name: production
-      url: ${{ secrets.PROD_API_URL }}
     steps:
       - uses: actions/checkout@v4
       - uses: aws-actions/configure-aws-credentials@v4

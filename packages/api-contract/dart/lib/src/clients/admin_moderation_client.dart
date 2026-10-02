@@ -9,7 +9,7 @@ import '../models/moderation_action_dto.dart';
 import '../models/moderation_action_result_envelope.dart';
 import '../models/moderation_card_envelope.dart';
 import '../models/moderation_queue_item_list_envelope.dart';
-import '../models/status5.dart';
+import '../models/status8.dart';
 import '../models/target_type.dart';
 import '../models/type2.dart';
 
@@ -27,7 +27,7 @@ abstract class AdminModerationClient {
   Future<ModerationQueueItemListEnvelope> moderationQueue({
     @Query('targetType') TargetType? targetType,
     @Query('cursor') String? cursor,
-    @Query('status') Status5? status = Status5.open,
+    @Query('status') Status8? status = Status8.open,
     @Query('limit') int? limit = 20,
     @Extras() Map<String, dynamic>? extras,
   });

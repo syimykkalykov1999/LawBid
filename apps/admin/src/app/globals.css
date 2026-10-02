@@ -1,40 +1,245 @@
 @import 'tailwindcss';
 
-/* LawBid brand: navy + gold (docs/01 design system), light UI for an
-   internal tool — long reading sessions, dense tables. */
-@theme {
-  --color-navy: #0a1a3f;
-  --color-navy-600: #12285e;
+/*
+ * LawBid admin — the brand of the website and the app (bg #0B0B0D,
+ * surface #16161B, ivory #F3EFE3, gold #C9A24A, navy #0A1A3F; Inter +
+ * Source Serif 4), in two themes. Colors are CSS variables so every
+ * utility (bg-surface, text-ink, border-line…) follows the theme:
+ * `html.dark` = night, default = day.
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme inline {
+  --color-canvas: var(--c-canvas);
+  --color-surface: var(--c-surface);
+  --color-surface-2: var(--c-surface-2);
+  --color-elevated: var(--c-elevated);
+  --color-ink: var(--c-ink);
+  --color-muted: var(--c-muted);
+  --color-faint: var(--c-faint);
+  --color-line: var(--c-line);
+  --color-line-strong: var(--c-line-strong);
+  /* Headings and links: navy by day, ivory by night. */
+  --color-navy: var(--c-heading);
+  --color-heading: var(--c-heading);
+  --color-primary: var(--c-primary);
+  --color-primary-fg: var(--c-primary-fg);
   --color-gold: #c9a24a;
-  --color-gold-600: #a9852f;
-  --color-ink: #111827;
-  --color-muted: #6b7280;
-  --color-line: #e5e7eb;
-  --color-surface: #ffffff;
-  --color-canvas: #f6f7fa;
-  --color-danger: #b42318;
-  --color-success: #067647;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --color-gold-200: #f1e3b8;
+  --color-gold-300: #e3c877;
+  --color-gold-500: #b08a2e;
+  /* Gold that reads as text on the current background. */
+  --color-gold-600: var(--c-gold-text);
+  --color-accent-soft: var(--c-accent-soft);
+  --color-brand-navy: #0a1a3f;
+  --color-ivory: #f3efe3;
+  --color-danger: var(--c-danger);
+  --color-danger-soft: var(--c-danger-soft);
+  --color-success: var(--c-success);
+  --color-success-soft: var(--c-success-soft);
+  --color-warning: var(--c-warning);
+  --color-warning-soft: var(--c-warning-soft);
+  --color-info: var(--c-info);
+  --color-info-soft: var(--c-info-soft);
+
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-xl: 24px;
+  --font-sans: 'Inter Variable', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-serif: 'Source Serif 4 Variable', ui-serif, Georgia, serif;
+
+  --shadow-card: var(--s-card);
+  --shadow-pop: var(--s-pop);
 }
 
 :root {
   color-scheme: light;
+  --c-canvas: #f6f5f1;
+  --c-surface: #ffffff;
+  --c-surface-2: #f9f8f5;
+  --c-elevated: #ffffff;
+  --c-ink: #0b1330;
+  --c-muted: #5d6478;
+  --c-faint: #9196a5;
+  --c-line: #e8e6df;
+  --c-line-strong: #d8d5cb;
+  --c-heading: #0a1a3f;
+  --c-primary: #0a1a3f;
+  --c-primary-fg: #f3efe3;
+  --c-gold-text: #8e6f26;
+  --c-accent-soft: #f6efdc;
+  --c-danger: #c2362f;
+  --c-danger-soft: #fdecea;
+  --c-success: #157a52;
+  --c-success-soft: #e5f5ed;
+  --c-warning: #a3650a;
+  --c-warning-soft: #fdf2df;
+  --c-info: #3355c8;
+  --c-info-soft: #eaf0ff;
+  --s-card: 0 1px 2px rgb(10 26 63 / 0.04), 0 8px 24px -16px rgb(10 26 63 / 0.12);
+  --s-pop: 0 24px 64px -24px rgb(10 26 63 / 0.35);
+  --spot: rgb(201 162 74 / 0.1);
+  --spot-edge: rgb(176 138 46 / 0.55);
+  --grid-line: rgb(10 26 63 / 0.05);
+}
+
+.dark {
+  color-scheme: dark;
+  --c-canvas: #0b0b0d;
+  --c-surface: #16161b;
+  --c-surface-2: #121216;
+  --c-elevated: #1c1c22;
+  --c-ink: #f3efe3;
+  --c-muted: #9a9aa6;
+  --c-faint: #6b6b76;
+  --c-line: #25252c;
+  --c-line-strong: #33333c;
+  --c-heading: #f3efe3;
+  --c-primary: #f3efe3;
+  --c-primary-fg: #0b0b0d;
+  --c-gold-text: #e3c877;
+  --c-accent-soft: rgb(201 162 74 / 0.12);
+  --c-danger: #f07167;
+  --c-danger-soft: rgb(214 69 69 / 0.14);
+  --c-success: #4fd1a1;
+  --c-success-soft: rgb(52 195 138 / 0.13);
+  --c-warning: #f2b45a;
+  --c-warning-soft: rgb(242 180 90 / 0.13);
+  --c-info: #8ea6ff;
+  --c-info-soft: rgb(111 140 255 / 0.14);
+  --s-card: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 12px 32px -20px rgb(0 0 0 / 0.7);
+  --s-pop: 0 30px 80px -24px rgb(0 0 0 / 0.85);
+  --spot: rgb(201 162 74 / 0.08);
+  --spot-edge: rgb(227 200 119 / 0.6);
+  --grid-line: rgb(255 255 255 / 0.035);
 }
 
 html,
 body {
-  background: var(--color-canvas);
-  color: var(--color-ink);
+  background: var(--c-canvas);
+  color: var(--c-ink);
   font-family: var(--font-sans);
+  font-feature-settings: 'cv11', 'ss01';
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
-a:focus-visible,
-button:focus-visible,
-input:focus-visible,
-select:focus-visible {
-  outline: 2px solid var(--color-gold);
+/* Smooth theme switch without animating every hover. */
+html.theme-switching,
+html.theme-switching * {
+  transition:
+    background-color 0.35s ease,
+    border-color 0.35s ease,
+    color 0.25s ease,
+    fill 0.25s ease !important;
+}
+
+::selection {
+  background: color-mix(in oklab, #c9a24a 40%, transparent);
+}
+
+:focus-visible {
+  outline: 2px solid #c9a24a;
   outline-offset: 2px;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--c-line-strong) transparent;
+}
+
+.text-gold-gradient {
+  background: linear-gradient(100deg, #f1e3b8 0%, #e3c877 30%, #b08a2e 55%, #f1e3b8 80%, #e3c877 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer 6s linear infinite;
+}
+:root:not(.dark) .text-gold-gradient {
+  background-image: linear-gradient(100deg, #8e6f26 0%, #b08a2e 35%, #c9a24a 55%, #8e6f26 100%);
+}
+
+/* The site's spotlight card: a soft gold glow that follows the pointer. */
+.spotlight {
+  --x: 50%;
+  --y: 50%;
+  position: relative;
+  isolation: isolate;
+}
+.spotlight::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(380px circle at var(--x) var(--y), var(--spot), transparent 45%);
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  pointer-events: none;
+  z-index: -1;
+}
+.spotlight::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: radial-gradient(260px circle at var(--x) var(--y), var(--spot-edge), transparent 60%);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  pointer-events: none;
+}
+.spotlight:hover::before,
+.spotlight:hover::after {
+  opacity: 1;
+}
+
+.grid-lines {
+  background-image:
+    linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+.skeleton {
+  background: linear-gradient(90deg, var(--c-surface-2) 0%, var(--c-line) 50%, var(--c-surface-2) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.6);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+.pulse-ring {
+  animation: pulse-ring 2.4s cubic-bezier(0.2, 0.6, 0.3, 1) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

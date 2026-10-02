@@ -37,6 +37,12 @@ import 'clients/profiles_client.dart';
 import 'clients/clients_client.dart';
 import 'clients/blocks_client.dart';
 import 'clients/admin_content_client.dart';
+import 'clients/admin_media_client.dart';
+import 'clients/admin_billing_client.dart';
+import 'clients/billing_client.dart';
+import 'clients/support_client.dart';
+import 'clients/admin_support_client.dart';
+import 'clients/admin_email_templates_client.dart';
 import 'clients/i18n_client.dart';
 import 'clients/admin_i18n_client.dart';
 import 'clients/case_history_client.dart';
@@ -50,6 +56,10 @@ import 'clients/follows_client.dart';
 import 'clients/search_client.dart';
 import 'clients/presence_client.dart';
 import 'clients/admin_integrations_client.dart';
+import 'clients/referrals_client.dart';
+import 'clients/admin_referrals_client.dart';
+import 'clients/promotions_client.dart';
+import 'clients/admin_promotions_client.dart';
 import 'clients/chat_client.dart';
 import 'clients/calls_client.dart';
 import 'clients/notifications_client.dart';
@@ -99,6 +109,12 @@ class LawbidApi {
   ClientsClient? _clients;
   BlocksClient? _blocks;
   AdminContentClient? _adminContent;
+  AdminMediaClient? _adminMedia;
+  AdminBillingClient? _adminBilling;
+  BillingClient? _billing;
+  SupportClient? _support;
+  AdminSupportClient? _adminSupport;
+  AdminEmailTemplatesClient? _adminEmailTemplates;
   I18nClient? _i18n;
   AdminI18nClient? _adminI18n;
   CaseHistoryClient? _caseHistory;
@@ -112,6 +128,10 @@ class LawbidApi {
   SearchClient? _search;
   PresenceClient? _presence;
   AdminIntegrationsClient? _adminIntegrations;
+  ReferralsClient? _referrals;
+  AdminReferralsClient? _adminReferrals;
+  PromotionsClient? _promotions;
+  AdminPromotionsClient? _adminPromotions;
   ChatClient? _chat;
   CallsClient? _calls;
   NotificationsClient? _notifications;
@@ -206,6 +226,24 @@ class LawbidApi {
   AdminContentClient get adminContent =>
       _adminContent ??= AdminContentClient(_dio, baseUrl: _baseUrl);
 
+  AdminMediaClient get adminMedia =>
+      _adminMedia ??= AdminMediaClient(_dio, baseUrl: _baseUrl);
+
+  AdminBillingClient get adminBilling =>
+      _adminBilling ??= AdminBillingClient(_dio, baseUrl: _baseUrl);
+
+  BillingClient get billing =>
+      _billing ??= BillingClient(_dio, baseUrl: _baseUrl);
+
+  SupportClient get support =>
+      _support ??= SupportClient(_dio, baseUrl: _baseUrl);
+
+  AdminSupportClient get adminSupport =>
+      _adminSupport ??= AdminSupportClient(_dio, baseUrl: _baseUrl);
+
+  AdminEmailTemplatesClient get adminEmailTemplates => _adminEmailTemplates ??=
+      AdminEmailTemplatesClient(_dio, baseUrl: _baseUrl);
+
   I18nClient get i18n => _i18n ??= I18nClient(_dio, baseUrl: _baseUrl);
 
   AdminI18nClient get adminI18n =>
@@ -241,6 +279,18 @@ class LawbidApi {
 
   AdminIntegrationsClient get adminIntegrations =>
       _adminIntegrations ??= AdminIntegrationsClient(_dio, baseUrl: _baseUrl);
+
+  ReferralsClient get referrals =>
+      _referrals ??= ReferralsClient(_dio, baseUrl: _baseUrl);
+
+  AdminReferralsClient get adminReferrals =>
+      _adminReferrals ??= AdminReferralsClient(_dio, baseUrl: _baseUrl);
+
+  PromotionsClient get promotions =>
+      _promotions ??= PromotionsClient(_dio, baseUrl: _baseUrl);
+
+  AdminPromotionsClient get adminPromotions =>
+      _adminPromotions ??= AdminPromotionsClient(_dio, baseUrl: _baseUrl);
 
   ChatClient get chat => _chat ??= ChatClient(_dio, baseUrl: _baseUrl);
 

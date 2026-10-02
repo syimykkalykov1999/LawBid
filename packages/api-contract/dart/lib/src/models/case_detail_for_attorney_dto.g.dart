@@ -29,6 +29,7 @@ CaseDetailForAttorneyDto _$CaseDetailForAttorneyDtoFromJson(
   commentCount: (json['commentCount'] as num).toInt(),
   shareCount: (json['shareCount'] as num).toInt(),
   isSaved: json['isSaved'] as bool,
+  promoted: json['promoted'] as bool,
   description: json['description'] as String,
   photos: (json['photos'] as List<dynamic>)
       .map((e) => CasePhotoDto.fromJson(e as Map<String, dynamic>))
@@ -59,6 +60,7 @@ Map<String, dynamic> _$CaseDetailForAttorneyDtoToJson(
   'commentCount': instance.commentCount,
   'shareCount': instance.shareCount,
   'isSaved': instance.isSaved,
+  'promoted': instance.promoted,
   'description': instance.description,
   'ownBidId': ?instance.ownBidId,
   'photos': instance.photos.map((e) => e.toJson()).toList(),

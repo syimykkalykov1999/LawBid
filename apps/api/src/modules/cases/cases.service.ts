@@ -32,6 +32,7 @@ import {
   type ChatChange,
 } from '../chat/chat-system.service';
 import { CaseJournalService } from '../journal/case-journal.service';
+import { ReferralsService } from '../referrals/referrals.service';
 import {
   MY_CASES_PAGE_DEFAULT,
   type CreateCaseDto,
@@ -202,6 +203,8 @@ export class CasesService {
     private readonly chat: ChatSystemMessages,
     private readonly photos: CasePhotosService,
     @Optional() private readonly alerts?: SubscriptionAlertsService,
+    // Owner 2026-10-02: a published case qualifies a client referral.
+    @Optional() private readonly referrals?: ReferralsService,
   ) {}
 
   /** POST /cases (§3.1–§3.4). */
@@ -296,6 +299,11 @@ export class CasesService {
     // Owner 2026-09-30: attorneys who turned "New cases" alerts on.
     const alerts = this.alerts;
     alerts?.later(() => alerts.attorneysForCase(created.id));
+    try {
+      await this.referrals?.onQualifyingEvent(user.sub, 'case_published');
+    } catch {
+      // Referral bookkeeping never breaks case creation.
+    }
 
     return toCaseDto({
       ...created,

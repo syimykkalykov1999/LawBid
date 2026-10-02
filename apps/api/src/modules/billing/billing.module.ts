@@ -4,6 +4,8 @@ import { AdminAccessModule } from '../admin-access/admin-access.module';
 import { AuthModule } from '../auth/auth.module';
 import { BidsModule } from '../bids/bids.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { PromotionsCoreModule } from '../promotions/promotions.module';
+import { ReferralsCoreModule } from '../referrals/referrals.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { AdminSubscriptionsController } from './admin-subscriptions.controller';
 import {
@@ -43,6 +45,10 @@ export class BillingModule {
         SubscriptionsModule,
         BidsModule,
         NotificationsModule,
+        // Owner 2026-10-02: referral qualification on a paid invoice and
+        // paid case promotions (checkout webhook, fake checkout page).
+        ReferralsCoreModule,
+        PromotionsCoreModule,
         // Only the controllers need the auth guards and the admin audit log;
         // the worker must stay bootable without AppModule's global modules.
         ...(options.mode === 'api' ? [AdminAccessModule, AuthModule] : []),

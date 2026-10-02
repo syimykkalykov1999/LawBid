@@ -12,6 +12,7 @@ import { PinoLogger } from 'nestjs-pino';
 import { CostGuardService } from '../../../common/cost-guard/cost-guard.service';
 import { PrismaService } from '../../../prisma/prisma.service';
 import type { EmailProvider } from '../../auth/providers/email/email-provider.interface';
+import { buildNotificationEmail } from '../../auth/notifications/email-templates';
 import { RealtimePublisher } from '../../realtime/realtime-publisher.service';
 import { BadgesService } from '../badges.service';
 import {
@@ -227,6 +228,8 @@ export class PushDispatcher
       'postId',
       'commentId',
       'reviewId',
+      // Owner 2026-10-02: a support reply opens the ticket.
+      'ticketId',
     ]) {
       if (typeof payload[k] === 'string') deepLink[k] = payload[k];
     }
@@ -241,7 +244,13 @@ export class PushDispatcher
       n.user.email_verified_at &&
       (await this.emailAllowed(n.user_id, n.category))
     ) {
-      await this.sendEmailOnce(n.id, n.user.email, n.type, text);
+      await this.sendEmailOnce(
+        n.id,
+        n.user.email,
+        n.type,
+        text,
+        n.user.ui_language,
+      );
     }
     return 'sent';
   }
@@ -388,6 +397,7 @@ export class PushDispatcher
     to: string,
     type: NotificationType,
     text: { title: string; body: string },
+    locale?: string,
   ): Promise<void> {
     const claimed = await this.prisma.$executeRaw`
       UPDATE notifications SET payload = payload || '{"emailed":true}'::JSONB
@@ -402,11 +412,10 @@ export class PushDispatcher
       return;
     }
     try {
-      await this.email.sendEmail({
-        to,
-        subject: text.title,
-        text: text.body,
-      });
+      // Owner 2026-10-02: `notification` template (admin-editable).
+      await this.email.sendEmail(
+        buildNotificationEmail({ email: to, ...text, locale }),
+      );
     } catch (error) {
       this.logger.warn(
         {

@@ -8,6 +8,7 @@ import { FilesModule } from '../files/files.module';
 import { JournalModule } from '../journal/journal.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { PostsModule } from '../posts/posts.module';
+import { ReferralsCoreModule } from '../referrals/referrals.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { UsersModule } from '../users/users.module';
 import { CaseBidsController } from './case-bids/case-bids.controller';
@@ -53,6 +54,8 @@ import { CasesFeedService } from './services/cases-feed.service';
     AuthModule,
     // docs/05 §4: /saved-items also saves posts.
     PostsModule,
+    // Owner 2026-10-02: referral qualification on the first case.
+    ReferralsCoreModule,
   ],
   controllers: [
     CasesController,

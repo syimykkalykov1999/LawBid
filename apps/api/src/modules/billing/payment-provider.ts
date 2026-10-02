@@ -73,6 +73,11 @@ export interface ProviderCheckoutSession {
   customerId: string | null;
   subscriptionId: string | null;
   metadata: Record<string, string>;
+  /** One-time (mode=payment) sessions only (owner 2026-10-02). */
+  paymentIntentId?: string | null;
+  amountTotalCents?: number | null;
+  /** paid | unpaid | no_payment_required. */
+  paymentStatus?: string | null;
 }
 
 export class WebhookSignatureError extends Error {}
@@ -119,6 +124,9 @@ export interface PaymentProvider {
     successUrl: string;
     cancelUrl: string;
     metadata: Record<string, string>;
+    /** Owner 2026-10-02: a promo code's coupon applied to the session
+     * (then the page's own promotion-code box is off). */
+    couponId?: string | null;
   }): Promise<ProviderCheckoutSession>;
   retrieveCheckoutSession(id: string): Promise<ProviderCheckoutSession | null>;
   /** OQ-048: set the assistant-seat quantity of a monthly subscription
@@ -143,4 +151,60 @@ export interface PaymentProvider {
   ): ProviderEvent;
   /** Stripe Dashboard link for the admin panel (null for the fake). */
   dashboardUrl(subscriptionId: string): string | null;
+  /** Owner 2026-10-02 (admin promo codes): a coupon plus a customer-facing
+   * promotion code with the same code. */
+  createCoupon?(input: ProviderCouponInput): Promise<ProviderCoupon>;
+  /** Stops new redemptions of the coupon (and its promotion codes). */
+  deleteCoupon?(couponId: string): Promise<void>;
+  /** Owner 2026-10-02 (admin refunds): refund part or all of a payment. */
+  refund?(input: {
+    paymentIntentId: string;
+    amountCents: number;
+    idempotencyKey: string;
+    metadata: Record<string, string>;
+  }): Promise<ProviderRefund>;
+  /** Owner 2026-10-02 (referrals): credit applied to the customer's next
+   * invoice(s) (Stripe customer balance, negative = credit). */
+  creditCustomerBalance?(
+    customerId: string,
+    cents: number,
+    description: string,
+    idempotencyKey?: string,
+  ): Promise<void>;
+  /** Owner 2026-10-02 (case promotion): a hosted one-time payment page. */
+  createOneTimeCheckout?(
+    input: ProviderOneTimeCheckoutInput,
+  ): Promise<{ id: string; url: string }>;
+}
+
+export interface ProviderOneTimeCheckoutInput {
+  customerEmail?: string | null;
+  amountCents: number;
+  description: string;
+  metadata: Record<string, string>;
+  successUrl: string;
+  cancelUrl: string;
+  idempotencyKey?: string;
+}
+
+export interface ProviderCouponInput {
+  code: string;
+  percentOff: number | null;
+  amountOffCents: number | null;
+  currency: string;
+  maxRedemptions: number | null;
+  /** Unix seconds. */
+  redeemBy: number | null;
+  metadata: Record<string, string>;
+}
+
+export interface ProviderCoupon {
+  couponId: string;
+  promotionCodeId: string | null;
+}
+
+export interface ProviderRefund {
+  id: string;
+  status: 'pending' | 'succeeded' | 'failed';
+  failureReason: string | null;
 }

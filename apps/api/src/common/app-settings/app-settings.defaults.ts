@@ -88,6 +88,12 @@ export const OWNER_MEDIA_SETTINGS = {
   'files.sticker_max_size_mb': 1,
 } as const;
 
+// Owner 2026-10-02: support tickets — per-user limits (429 RATE_LIMITED).
+export const OWNER_SUPPORT_SETTINGS = {
+  'rate_limit.support_ticket_per_hour': 5,
+  'rate_limit.support_message_per_hour': 30,
+} as const;
+
 /** Every typed app_config tunable with its spec default. */
 export const APP_SETTINGS = {
   ...FILE_03_SETTINGS,
@@ -95,6 +101,7 @@ export const APP_SETTINGS = {
   ...FILE_05_SETTINGS,
   ...FILE_06_SETTINGS,
   ...OWNER_MEDIA_SETTINGS,
+  ...OWNER_SUPPORT_SETTINGS,
 };
 
 export type AppSettingKey = keyof typeof APP_SETTINGS;

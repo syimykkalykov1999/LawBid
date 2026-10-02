@@ -3,8 +3,12 @@ import {
   type PaymentProvider,
   type ProviderCharge,
   type ProviderCheckoutSession,
+  type ProviderCoupon,
+  type ProviderCouponInput,
   type ProviderEvent,
+  type ProviderRefund,
   type ProviderInvoice,
+  type ProviderOneTimeCheckoutInput,
   type ProviderSetupIntent,
   type ProviderSubscription,
   WebhookSignatureError,
@@ -210,6 +214,7 @@ export class StripePaymentProvider implements PaymentProvider {
     successUrl: string;
     cancelUrl: string;
     metadata: Record<string, string>;
+    couponId?: string | null;
   }): Promise<ProviderCheckoutSession> {
     const s = await this.stripe.checkout.sessions.create({
       mode: 'subscription',
@@ -227,7 +232,11 @@ export class StripePaymentProvider implements PaymentProvider {
       client_reference_id: input.metadata.userId,
       success_url: input.successUrl,
       cancel_url: input.cancelUrl,
-      allow_promotion_codes: true,
+      // Owner 2026-10-02: Stripe takes either a fixed discount or the
+      // page's promotion-code box, not both.
+      ...(input.couponId
+        ? { discounts: [{ coupon: input.couponId }] }
+        : { allow_promotion_codes: true }),
       // Our words under the button (logo and colours: Stripe Dashboard →
       // Settings → Branding).
       custom_text: {
@@ -248,6 +257,52 @@ export class StripePaymentProvider implements PaymentProvider {
     } catch {
       return null;
     }
+  }
+
+  /** Owner 2026-10-02 (referrals): negative balance = credit on the next
+   * invoice. */
+  async creditCustomerBalance(
+    customerId: string,
+    cents: number,
+    description: string,
+    idempotencyKey?: string,
+  ): Promise<void> {
+    await this.stripe.customers.createBalanceTransaction(
+      customerId,
+      { amount: -Math.abs(cents), currency: 'usd', description },
+      idempotencyKey ? { idempotencyKey } : undefined,
+    );
+  }
+
+  /** Owner 2026-10-02 (case promotion): one-time hosted payment. */
+  async createOneTimeCheckout(
+    input: ProviderOneTimeCheckoutInput,
+  ): Promise<{ id: string; url: string }> {
+    const s = await this.stripe.checkout.sessions.create(
+      {
+        mode: 'payment',
+        line_items: [
+          {
+            quantity: 1,
+            price_data: {
+              currency: 'usd',
+              unit_amount: input.amountCents,
+              product_data: { name: input.description },
+            },
+          },
+        ],
+        ...(input.customerEmail ? { customer_email: input.customerEmail } : {}),
+        metadata: input.metadata,
+        payment_intent_data: { metadata: input.metadata },
+        client_reference_id: input.metadata.userId,
+        success_url: input.successUrl,
+        cancel_url: input.cancelUrl,
+      },
+      input.idempotencyKey
+        ? { idempotencyKey: input.idempotencyKey }
+        : undefined,
+    );
+    return { id: s.id, url: s.url ?? '' };
   }
 
   async retrieveInvoice(id: string): Promise<ProviderInvoice | null> {
@@ -276,6 +331,76 @@ export class StripePaymentProvider implements PaymentProvider {
       if (isNotFound(e)) return null;
       throw e;
     }
+  }
+
+  async createCoupon(input: ProviderCouponInput): Promise<ProviderCoupon> {
+    // No idempotency key: a code whose limits changed gets a new coupon.
+    const coupon = await this.stripe.coupons.create({
+      name: input.code,
+      duration: 'once',
+      ...(input.percentOff
+        ? { percent_off: input.percentOff }
+        : {
+            amount_off: input.amountOffCents ?? 0,
+            currency: input.currency,
+          }),
+      ...(input.maxRedemptions
+        ? { max_redemptions: input.maxRedemptions }
+        : {}),
+      ...(input.redeemBy ? { redeem_by: input.redeemBy } : {}),
+      metadata: input.metadata,
+    });
+    let promotionCodeId: string | null = null;
+    try {
+      const pc = await this.stripe.promotionCodes.create({
+        promotion: { type: 'coupon', coupon: coupon.id },
+        code: input.code,
+        ...(input.maxRedemptions
+          ? { max_redemptions: input.maxRedemptions }
+          : {}),
+        ...(input.redeemBy ? { expires_at: input.redeemBy } : {}),
+        metadata: input.metadata,
+      });
+      promotionCodeId = pc.id;
+    } catch {
+      // The code may already exist in Stripe (created by hand): the
+      // coupon alone is enough for the API's checkout.
+    }
+    return { couponId: coupon.id, promotionCodeId };
+  }
+
+  async deleteCoupon(couponId: string): Promise<void> {
+    try {
+      await this.stripe.coupons.del(couponId);
+    } catch (e) {
+      if (!isNotFound(e)) throw e;
+    }
+  }
+
+  async refund(input: {
+    paymentIntentId: string;
+    amountCents: number;
+    idempotencyKey: string;
+    metadata: Record<string, string>;
+  }): Promise<ProviderRefund> {
+    const r = await this.stripe.refunds.create(
+      {
+        payment_intent: input.paymentIntentId,
+        amount: input.amountCents,
+        metadata: input.metadata,
+      },
+      { idempotencyKey: input.idempotencyKey },
+    );
+    return {
+      id: r.id,
+      status:
+        r.status === 'succeeded'
+          ? 'succeeded'
+          : r.status === 'failed' || r.status === 'canceled'
+            ? 'failed'
+            : 'pending',
+      failureReason: r.failure_reason ?? null,
+    };
   }
 
   constructWebhookEvent(
@@ -381,5 +506,8 @@ function mapCheckout(s: Stripe.Checkout.Session): ProviderCheckoutSession {
     customerId: ref(s.customer),
     subscriptionId: ref(s.subscription),
     metadata: s.metadata ?? {},
+    paymentIntentId: ref(s.payment_intent),
+    amountTotalCents: s.amount_total ?? null,
+    paymentStatus: s.payment_status ?? null,
   };
 }

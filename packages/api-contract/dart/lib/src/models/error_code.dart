@@ -270,6 +270,36 @@ enum ErrorCode {
   videoNotReady('VIDEO_NOT_READY'),
   @JsonValue('STICKER_LIMIT_REACHED')
   stickerLimitReached('STICKER_LIMIT_REACHED'),
+  @JsonValue('SUPPORT_TICKET_CLOSED')
+  supportTicketClosed('SUPPORT_TICKET_CLOSED'),
+  @JsonValue('REFERRAL_CODE_INVALID')
+  referralCodeInvalid('REFERRAL_CODE_INVALID'),
+  @JsonValue('REFERRAL_NOT_ALLOWED')
+  referralNotAllowed('REFERRAL_NOT_ALLOWED'),
+  @JsonValue('REFERRAL_INVALID_STATE')
+  referralInvalidState('REFERRAL_INVALID_STATE'),
+  @JsonValue('PROMOTION_ALREADY_ACTIVE')
+  promotionAlreadyActive('PROMOTION_ALREADY_ACTIVE'),
+  @JsonValue('PROMOTION_INVALID_STATE')
+  promotionInvalidState('PROMOTION_INVALID_STATE'),
+  @JsonValue('PROMO_CODE_INVALID')
+  promoCodeInvalid('PROMO_CODE_INVALID'),
+  @JsonValue('PROMO_CODE_EXISTS')
+  promoCodeExists('PROMO_CODE_EXISTS'),
+  @JsonValue('CONTRACT_GRANT_NOT_ATTORNEY')
+  contractGrantNotAttorney('CONTRACT_GRANT_NOT_ATTORNEY'),
+  @JsonValue('CONTRACT_GRANT_REVOKED')
+  contractGrantRevoked('CONTRACT_GRANT_REVOKED'),
+  @JsonValue('REFUND_AMOUNT_EXCEEDED')
+  refundAmountExceeded('REFUND_AMOUNT_EXCEEDED'),
+  @JsonValue('REFUND_NOT_ALLOWED')
+  refundNotAllowed('REFUND_NOT_ALLOWED'),
+  @JsonValue('REFUND_PROVIDER_FAILED')
+  refundProviderFailed('REFUND_PROVIDER_FAILED'),
+  @JsonValue('CONTENT_INVALID_STATE')
+  contentInvalidState('CONTENT_INVALID_STATE'),
+  @JsonValue('STICKER_PACK_NAME_TAKEN')
+  stickerPackNameTaken('STICKER_PACK_NAME_TAKEN'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

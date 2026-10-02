@@ -28,6 +28,7 @@ CaseFeedItemDto _$CaseFeedItemDtoFromJson(Map<String, dynamic> json) =>
       commentCount: (json['commentCount'] as num).toInt(),
       shareCount: (json['shareCount'] as num).toInt(),
       isSaved: json['isSaved'] as bool,
+      promoted: json['promoted'] as bool,
       city: json['city'] as String?,
     );
 
@@ -50,4 +51,5 @@ Map<String, dynamic> _$CaseFeedItemDtoToJson(CaseFeedItemDto instance) =>
       'commentCount': instance.commentCount,
       'shareCount': instance.shareCount,
       'isSaved': instance.isSaved,
+      'promoted': instance.promoted,
     };

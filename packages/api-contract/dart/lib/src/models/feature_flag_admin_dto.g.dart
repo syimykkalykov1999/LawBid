@@ -19,6 +19,7 @@ FeatureFlagAdminDto _$FeatureFlagAdminDtoFromJson(Map<String, dynamic> json) =>
       missingKeys: (json['missingKeys'] as List<dynamic>)
           .map((e) => e as String)
           .toList(),
+      notBuilt: json['notBuilt'] as bool,
       updatedBy: json['updatedBy'] as String?,
       updatedAt: DateTime.parse(json['updatedAt'] as String),
     );
@@ -33,6 +34,7 @@ Map<String, dynamic> _$FeatureFlagAdminDtoToJson(
   'paid': instance.paid,
   'requiredKeys': instance.requiredKeys,
   'missingKeys': instance.missingKeys,
+  'notBuilt': instance.notBuilt,
   'updatedBy': ?instance.updatedBy,
   'updatedAt': instance.updatedAt.toIso8601String(),
 };

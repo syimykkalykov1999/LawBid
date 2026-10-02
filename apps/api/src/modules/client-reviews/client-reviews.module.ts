@@ -4,6 +4,8 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { AdminReviewAppealsController } from './admin-review-appeals.controller';
 import { ClientReviewsController } from './client-reviews.controller';
 import { ClientReviewsService } from './client-reviews.service';
+import { AdminAccessModule } from '../admin-access/admin-access.module';
+import { ReviewAppealsAuditService } from './review-appeals-audit.service';
 
 /** The reviews-of-clients service alone — what the worker's hourly
  * appeal sweep needs (no HTTP controllers, no admin guard). */
@@ -17,7 +19,8 @@ export class ClientReviewsCoreModule {}
 /** Owner 2026-09-30 (OQ-038, OQ-046): reviews of clients — the app's
  * endpoints and the admin appeal queue. */
 @Module({
-  imports: [ClientReviewsCoreModule],
+  imports: [ClientReviewsCoreModule, AdminAccessModule],
   controllers: [ClientReviewsController, AdminReviewAppealsController],
+  providers: [ReviewAppealsAuditService],
 })
 export class ClientReviewsModule {}

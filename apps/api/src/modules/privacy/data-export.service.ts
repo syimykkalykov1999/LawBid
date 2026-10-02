@@ -172,7 +172,12 @@ export class DataExportService {
       where: { id: exportId },
       include: {
         user: {
-          select: { email: true, email_verified_at: true, status: true },
+          select: {
+            email: true,
+            email_verified_at: true,
+            status: true,
+            ui_language: true,
+          },
         },
       },
     });
@@ -230,6 +235,7 @@ export class DataExportService {
             url,
             expiresAt,
             appLinkBaseUrl: this.config.get<string>('APP_LINK_BASE_URL'),
+            locale: job.user.ui_language,
           }),
         );
       } catch (error) {

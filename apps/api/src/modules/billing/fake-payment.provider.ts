@@ -3,8 +3,12 @@ import {
   type PaymentProvider,
   type ProviderCharge,
   type ProviderCheckoutSession,
+  type ProviderCoupon,
+  type ProviderCouponInput,
   type ProviderEvent,
+  type ProviderRefund,
   type ProviderInvoice,
+  type ProviderOneTimeCheckoutInput,
   type ProviderSetupIntent,
   type ProviderSubscription,
   WebhookSignatureError,
@@ -41,8 +45,85 @@ export class FakePaymentProvider implements PaymentProvider {
       lineItems: { priceId: string; quantity: number }[];
       trialDays: number | null;
       successUrl: string;
+      couponId: string | null;
     }
   >();
+  /** Owner 2026-10-02: coupons (admin promo codes) and refunds. */
+  readonly coupons = new Map<string, ProviderCouponInput>();
+  readonly refunds = new Map<
+    string,
+    { paymentIntentId: string; amountCents: number }
+  >();
+  /** Owner 2026-10-02: one-time checkouts (case promotion) and customer
+   * balance credits (referral rewards). */
+  readonly oneTimeCheckouts = new Map<
+    string,
+    ProviderCheckoutSession & { successUrl: string }
+  >();
+  readonly balanceCredits = new Map<
+    string,
+    { customerId: string; cents: number; description: string }
+  >();
+
+  createOneTimeCheckout(
+    input: ProviderOneTimeCheckoutInput,
+  ): Promise<{ id: string; url: string }> {
+    const id = `cs_fake_${randomUUID().slice(0, 12)}`;
+    const url = `${this.checkoutBaseUrl}/${id}`;
+    this.oneTimeCheckouts.set(id, {
+      id,
+      url,
+      status: 'open',
+      customerId: null,
+      subscriptionId: null,
+      metadata: input.metadata,
+      paymentIntentId: null,
+      amountTotalCents: input.amountCents,
+      paymentStatus: 'unpaid',
+      successUrl: input.successUrl,
+    });
+    return Promise.resolve({ id, url });
+  }
+
+  creditCustomerBalance(
+    customerId: string,
+    cents: number,
+    description: string,
+    idempotencyKey?: string,
+  ): Promise<void> {
+    this.balanceCredits.set(idempotencyKey ?? randomUUID(), {
+      customerId,
+      cents,
+      description,
+    });
+    return Promise.resolve();
+  }
+
+  createCoupon(input: ProviderCouponInput): Promise<ProviderCoupon> {
+    const couponId = `coupon_fake_${randomUUID().slice(0, 12)}`;
+    this.coupons.set(couponId, input);
+    return Promise.resolve({
+      couponId,
+      promotionCodeId: `promo_fake_${randomUUID().slice(0, 12)}`,
+    });
+  }
+
+  deleteCoupon(couponId: string): Promise<void> {
+    this.coupons.delete(couponId);
+    return Promise.resolve();
+  }
+
+  refund(input: {
+    paymentIntentId: string;
+    amountCents: number;
+  }): Promise<ProviderRefund> {
+    const id = `re_fake_${randomUUID().slice(0, 12)}`;
+    this.refunds.set(id, {
+      paymentIntentId: input.paymentIntentId,
+      amountCents: input.amountCents,
+    });
+    return Promise.resolve({ id, status: 'succeeded', failureReason: null });
+  }
   /** Seat quantities set on fake subscriptions (OQ-048). */
   readonly seats = new Map<string, number>();
 
@@ -96,6 +177,7 @@ export class FakePaymentProvider implements PaymentProvider {
     successUrl: string;
     cancelUrl: string;
     metadata: Record<string, string>;
+    couponId?: string | null;
   }): Promise<ProviderCheckoutSession> {
     const id = `cs_fake_${randomUUID().slice(0, 12)}`;
     const s = {
@@ -108,6 +190,7 @@ export class FakePaymentProvider implements PaymentProvider {
       lineItems: input.lineItems,
       trialDays: input.trialDays,
       successUrl: input.successUrl,
+      couponId: input.couponId ?? null,
     };
     this.checkouts.set(id, s);
     return Promise.resolve(stripCheckout(s));
@@ -115,12 +198,25 @@ export class FakePaymentProvider implements PaymentProvider {
 
   retrieveCheckoutSession(id: string): Promise<ProviderCheckoutSession | null> {
     const s = this.checkouts.get(id);
+    if (!s) {
+      const one = this.oneTimeCheckouts.get(id);
+      if (one) {
+        const { successUrl: _u, ...session } = one;
+        void _u;
+        return Promise.resolve(session);
+      }
+    }
     return Promise.resolve(s ? stripCheckout(s) : null);
   }
 
   /** What paying on the hosted page does: a card, a subscription, the
    * session complete. Returns the success URL. */
   async payCheckout(id: string, card?: FakeCard): Promise<string> {
+    const one = this.oneTimeCheckouts.get(id);
+    if (one) {
+      this.completeOneTime(id);
+      return one.successUrl;
+    }
     const s = this.checkouts.get(id);
     if (!s) throw new Error('no such checkout session');
     if (s.status === 'complete') return s.successUrl;
@@ -377,6 +473,11 @@ export class FakePaymentProvider implements PaymentProvider {
         failureCode: (object.failure_code as string | null) ?? null,
         _version: version,
       });
+    } else if (
+      object.object === 'checkout.session' &&
+      object.status === 'complete'
+    ) {
+      this.completeOneTime(id);
     } else if (object.object === 'charge') {
       this.charges.set(id, {
         id,
@@ -385,6 +486,18 @@ export class FakePaymentProvider implements PaymentProvider {
         amountRefundedCents: (object.amount_refunded as number) ?? 0,
       });
     }
+  }
+
+  /** A one-time session paid (owner 2026-10-02, case promotion). */
+  private completeOneTime(id: string): void {
+    const one = this.oneTimeCheckouts.get(id);
+    if (!one || one.status === 'complete') return;
+    this.oneTimeCheckouts.set(id, {
+      ...one,
+      status: 'complete',
+      paymentStatus: 'paid',
+      paymentIntentId: `pi_fake_${randomUUID().slice(0, 12)}`,
+    });
   }
 
   private must(id: string) {

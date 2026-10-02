@@ -26,6 +26,7 @@ import { MockSmsProvider } from './providers/sms/mock-sms.provider';
 import { DynamicSmsProvider } from './providers/sms/twilio-sms.provider';
 import { SecretsService } from '../../common/secrets/secrets.service';
 import { createEmailProvider } from './providers/email/email-provider.factory';
+import { PrismaService } from '../../prisma/prisma.service';
 import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { LoginMethodPolicy } from './services/login-method-policy.service';
@@ -161,7 +162,7 @@ import { resolveSmsProvider } from '../../config/provider-selection';
     {
       provide: EMAIL_PROVIDER,
       useFactory: createEmailProvider,
-      inject: [ConfigService, PinoLogger, SecretsService],
+      inject: [ConfigService, PinoLogger, SecretsService, PrismaService],
     },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
   ],

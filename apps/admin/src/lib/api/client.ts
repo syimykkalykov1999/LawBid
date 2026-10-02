@@ -103,13 +103,27 @@ export const ERROR_TEXT: Record<string, string> = {
   UNAUTHORIZED: 'Сессия завершена. Войдите снова.',
 };
 
+const SERVER_DOWN = 'Сервер не ответил, попробуйте ещё раз.';
+
+/** Raw server code/message behind a friendly text, for tooltips (see ErrorNote). */
+const DETAILS = new Map<string, string>();
+export function errorDetail(text: string | null | undefined): string | undefined {
+  return text ? DETAILS.get(text) : undefined;
+}
+
 export function errorText(e: unknown): string {
   if (e instanceof ApiError) {
-    const base = ERROR_TEXT[e.code] ?? e.message;
+    const known = ERROR_TEXT[e.code];
+    const generic = !known && (e.status >= 500 || e.code === 'INTERNAL_ERROR');
+    const base = known ?? (generic ? SERVER_DOWN : e.message);
     const left = e.details?.remainingAttempts;
-    return typeof left === 'number'
-      ? `${base} Осталось попыток: ${left}.`
-      : base;
+    const text = typeof left === 'number' ? `${base} Осталось попыток: ${left}.` : base;
+    if (generic) DETAILS.set(text, `${e.status} ${e.code}: ${e.message}`);
+    return text;
+  }
+  if (e instanceof TypeError) {
+    DETAILS.set(SERVER_DOWN, e.message);
+    return SERVER_DOWN;
   }
   return 'Что-то пошло не так. Попробуйте ещё раз.';
 }

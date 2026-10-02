@@ -17,6 +17,7 @@ class AdminUserListItemDto {
     required this.status,
     required this.firstName,
     required this.lastName,
+    required this.email,
     required this.username,
     required this.verificationStatus,
     required this.avatarUrl,
@@ -31,6 +32,7 @@ class AdminUserListItemDto {
   final AdminUserListItemDtoStatus status;
   final String? firstName;
   final String? lastName;
+  final String? email;
 
   /// Attorneys only.
   final String? username;

@@ -11,6 +11,7 @@ CheckoutRequestDto _$CheckoutRequestDtoFromJson(Map<String, dynamic> json) =>
       assistantPhones: (json['assistantPhones'] as List<dynamic>?)
           ?.map((e) => e as String)
           .toList(),
+      promoCode: json['promoCode'] as String?,
       plan: json['plan'] == null
           ? SubscriptionPlan.monthly
           : SubscriptionPlan.fromJson(json['plan'] as String),
@@ -22,4 +23,5 @@ Map<String, dynamic> _$CheckoutRequestDtoToJson(CheckoutRequestDto instance) =>
       'plan': instance.plan.toJson(),
       'assistantSeats': instance.assistantSeats,
       'assistantPhones': ?instance.assistantPhones,
+      'promoCode': ?instance.promoCode,
     };

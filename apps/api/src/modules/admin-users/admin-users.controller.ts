@@ -55,7 +55,10 @@ const TARGET_ERRORS = {
 export class AdminUsersController {
   constructor(private readonly users: AdminUsersService) {}
 
+  // Audit 2026-10-02: finance reads user basics for subscriptions
+  // (contacts stay restricted to the class roles).
   @Get()
+  @Roles('super_admin', 'moderator', 'support', 'finance')
   @ApiOperation({
     summary: 'Search users (name, email, phone, @username, id)',
   })
@@ -65,7 +68,10 @@ export class AdminUsersController {
     return this.users.search(query);
   }
 
+  // Audit 2026-10-02: read-only for finance (subscriptions) and verifiers
+  // (the verification card links here).
   @Get(':id')
+  @Roles('super_admin', 'moderator', 'support', 'finance', 'verifier')
   @ApiOperation({ summary: 'User card (no contacts)' })
   @ApiEnvelopeResponse(AdminUserCardDto)
   @ApiErrors(TARGET_ERRORS)

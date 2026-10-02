@@ -12,6 +12,7 @@ part 'checkout_request_dto.g.dart';
 class CheckoutRequestDto {
   const CheckoutRequestDto({
     this.assistantPhones,
+    this.promoCode,
     this.plan = SubscriptionPlan.monthly,
     this.assistantSeats = 0,
   });
@@ -22,6 +23,9 @@ class CheckoutRequestDto {
   final SubscriptionPlan plan;
   final int assistantSeats;
   final List<String>? assistantPhones;
+
+  /// Owner 2026-10-02: a promo code (case-insensitive). 400 PROMO_CODE_INVALID with details.reason when it cannot be used.
+  final String? promoCode;
 
   Map<String, Object?> toJson() => _$CheckoutRequestDtoToJson(this);
 }
