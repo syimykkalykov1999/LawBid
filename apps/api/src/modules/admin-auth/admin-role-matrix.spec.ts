@@ -29,7 +29,7 @@ const PROBES: [string, string, string][] = [
     '/api/v1/admin/media/videos',
     '/api/v1/admin/media/videos/x/remove',
   ],
-  ['cases', '/api/v1/admin/cases', '/api/v1/admin/contact-issues/x/resolve'],
+  ['cases', '/api/v1/admin/cases', '/api/v1/admin/case-disputes/x/resolve'],
   [
     'support',
     '/api/v1/admin/support/tickets',

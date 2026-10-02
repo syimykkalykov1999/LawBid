@@ -62,7 +62,7 @@ const SEGMENT_AREA: Record<string, RouteArea> = {
   cases: 'cases',
   'case-disputes': 'cases',
   support: 'support',
-  'contact-issues': 'cases',
+  'contact-issues': 'support',
   'email-templates': 'email_templates',
   broadcasts: 'broadcasts',
   i18n: 'localization',
