@@ -177,21 +177,21 @@ abstract class CasesClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Client "Done": in_progress → pending_completion (docs/04 §10.1)
+  /// Either side "Done": in_progress → pending_completion (docs/04 §10.1)
   @POST('/cases/{id}/complete')
   Future<CaseEnvelope> completeCase({
     @Path('id') required String id,
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Attorney confirms completion: → closed (docs/04 §10.1)
+  /// The other side confirms completion: → closed (docs/04 §10.1)
   @POST('/cases/{id}/confirm-completion')
   Future<CaseEnvelope> confirmCaseCompletion({
     @Path('id') required String id,
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Attorney disputes completion: → disputed (docs/04 §10.1)
+  /// The other side disputes completion: → disputed (docs/04 §10.1)
   @POST('/cases/{id}/dispute')
   Future<CaseEnvelope> disputeCase({
     @Path('id') required String id,

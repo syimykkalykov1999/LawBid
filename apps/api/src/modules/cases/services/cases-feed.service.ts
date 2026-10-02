@@ -187,7 +187,12 @@ export class CasesFeedService {
     const [row, saved, ownBid] = await Promise.all([
       this.prisma.case.findUniqueOrThrow({
         where: { id: caseId },
-        select: { description: true },
+        select: {
+          description: true,
+          status: true,
+          client_completed_at: true,
+          attorney_confirmed_at: true,
+        },
       }),
       this.prisma.savedItem.findFirst({
         where: { user_id: attorneyId, item_type: 'case', item_id: caseId },
@@ -208,6 +213,14 @@ export class CasesFeedService {
       description: row.description,
       isSaved: !!saved,
       ownBidId: ownBid?.id ?? null,
+      completionRequestedBy:
+        row.status !== 'pending_completion'
+          ? null
+          : row.client_completed_at && !row.attorney_confirmed_at
+            ? 'client'
+            : row.attorney_confirmed_at && !row.client_completed_at
+              ? 'attorney'
+              : null,
       ...media,
       inMyPractice: access.inPractice,
     };

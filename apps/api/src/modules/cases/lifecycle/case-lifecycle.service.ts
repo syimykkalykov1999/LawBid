@@ -63,32 +63,64 @@ export class CaseLifecycleService {
     private readonly chat: ChatSystemMessages,
   ) {}
 
-  /** POST /cases/:id/complete — client "Выполнено" (§10.1):
-   * in_progress → pending_completion, auto_close_at = now + 7 days, the
-   * accepted attorney gets `completion_requested`. */
+  /** Which side marked "Выполнено" first (the case is pending_completion):
+   * the client leaves client_completed_at, the attorney attorney_confirmed_at
+   * — the other mark is the one still missing. */
+  private async requestedBy(
+    tx: Prisma.TransactionClient,
+    caseId: string,
+  ): Promise<'client' | 'attorney' | null> {
+    const row = await tx.case.findUnique({
+      where: { id: caseId },
+      select: { client_completed_at: true, attorney_confirmed_at: true },
+    });
+    if (!row) return null;
+    if (row.client_completed_at && !row.attorney_confirmed_at) return 'client';
+    if (row.attorney_confirmed_at && !row.client_completed_at) {
+      return 'attorney';
+    }
+    return null;
+  }
+
+  private invalidForYou(caseId: string): ConflictException {
+    return new ConflictException({
+      code: ErrorCode.CASE_INVALID_STATE,
+      message: 'The other side has to answer this one.',
+      details: { caseId },
+    });
+  }
+
+  /** POST /cases/:id/complete — "Выполнено" (§10.1), owner 2026-10-02: from
+   * either side. in_progress → pending_completion, auto_close_at = now + 7
+   * days; the other side gets `completion_requested` and confirms with its
+   * own "Выполнено" (or disputes). */
   async complete(user: RequestUser, caseId: string): Promise<Case> {
-    if (user.role !== 'client') throw caseNotFound();
+    if (user.role !== 'client' && user.role !== 'attorney') {
+      throw caseNotFound();
+    }
     return withTxRetry(this.prisma, async (tx) => {
       const { clientId, attorneyId } = await this.parties(tx, caseId);
-      if (clientId !== user.sub) throw caseNotFound();
+      const byClient = user.role === 'client';
+      if ((byClient ? clientId : attorneyId) !== user.sub) throw caseNotFound();
       const { case: after, plan } = await this.caseMachine.apply(tx, {
         caseId,
-        action: 'client_complete',
+        action: byClient ? 'client_complete' : 'attorney_complete',
       });
       const autoCloseAt = after.auto_close_at?.toISOString() ?? null;
+      const by = byClient ? 'client' : 'attorney';
       await this.journal.append(tx, {
         caseId,
         clientId,
         attorneyId,
-        actor: { userId: user.sub, role: 'client' },
+        actor: { userId: user.sub, role: by },
         event: plan.event,
-        payload: { autoCloseAt },
+        payload: { autoCloseAt, by },
       });
       await this.notifications.emit(
         {
           type: 'completion_requested',
-          recipientId: attorneyId,
-          payload: { caseId, autoCloseAt },
+          recipientId: byClient ? attorneyId : clientId,
+          payload: { caseId, autoCloseAt, by },
         },
         tx,
       );
@@ -96,20 +128,30 @@ export class CaseLifecycleService {
     });
   }
 
-  /** POST /cases/:id/confirm-completion — attorney "Подтвердить" (§10.1). */
+  /** POST /cases/:id/confirm-completion — the side that did NOT mark first
+   * confirms (§10.1): attorney "Подтвердить" after the client's mark, or the
+   * client after the attorney's. → closed. */
   async confirmCompletion(user: RequestUser, caseId: string): Promise<Case> {
-    if (user.role !== 'attorney') throw caseNotFound();
+    if (user.role !== 'client' && user.role !== 'attorney') {
+      throw caseNotFound();
+    }
     const chat: ChatChange[] = [];
     const after = await withTxRetry(this.prisma, async (tx) => {
       chat.length = 0;
       const { clientId, attorneyId } = await this.parties(tx, caseId);
-      if (attorneyId !== user.sub) throw caseNotFound();
+      const byClient = user.role === 'client';
+      if ((byClient ? clientId : attorneyId) !== user.sub) throw caseNotFound();
+      const requested = await this.requestedBy(tx, caseId);
+      // You answer the other side's mark, never your own.
+      if (requested !== (byClient ? 'attorney' : 'client')) {
+        throw this.invalidForYou(caseId);
+      }
       return this.closeInTx(tx, {
         caseId,
         clientId,
         attorneyId,
-        action: 'attorney_confirm',
-        actor: { userId: user.sub, role: 'attorney' },
+        action: byClient ? 'client_confirm' : 'attorney_confirm',
+        actor: { userId: user.sub, role: byClient ? 'client' : 'attorney' },
         payload: {},
         chat,
       });
@@ -118,20 +160,28 @@ export class CaseLifecycleService {
     return after;
   }
 
-  /** POST /cases/:id/dispute — attorney "Оспорить" with a mandatory reason
-   * (§10.1): pending_completion → disputed + a case_disputes row. */
+  /** POST /cases/:id/dispute — the side that did not mark first disputes
+   * with a mandatory reason (§10.1): pending_completion → disputed + a
+   * case_disputes row. */
   async dispute(
     user: RequestUser,
     caseId: string,
     reason: string,
   ): Promise<Case> {
-    if (user.role !== 'attorney') throw caseNotFound();
+    if (user.role !== 'client' && user.role !== 'attorney') {
+      throw caseNotFound();
+    }
     return withTxRetry(this.prisma, async (tx) => {
       const { clientId, attorneyId } = await this.parties(tx, caseId);
-      if (attorneyId !== user.sub) throw caseNotFound();
+      const byClient = user.role === 'client';
+      if ((byClient ? clientId : attorneyId) !== user.sub) throw caseNotFound();
+      const requested = await this.requestedBy(tx, caseId);
+      if (requested !== (byClient ? 'attorney' : 'client')) {
+        throw this.invalidForYou(caseId);
+      }
       const { case: after, plan } = await this.caseMachine.apply(tx, {
         caseId,
-        action: 'attorney_dispute',
+        action: byClient ? 'client_dispute' : 'attorney_dispute',
       });
       const dispute = await tx.caseDispute.create({
         data: { case_id: caseId, opened_by: user.sub, reason },
@@ -141,7 +191,7 @@ export class CaseLifecycleService {
         caseId,
         clientId,
         attorneyId,
-        actor: { userId: user.sub, role: 'attorney' },
+        actor: { userId: user.sub, role: byClient ? 'client' : 'attorney' },
         event: plan.event,
         payload: { disputeId: dispute.id, reason },
       });
@@ -455,6 +505,7 @@ export class CaseLifecycleService {
       action: Extract<
         CaseAction,
         | 'attorney_confirm'
+        | 'client_confirm'
         | 'auto_close'
         | 'admin_resolve_close'
         | 'account_deleted_close'

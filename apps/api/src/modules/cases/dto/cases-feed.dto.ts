@@ -266,6 +266,14 @@ export class CaseDetailForAttorneyDto extends CaseFeedItemDto {
   })
   ownBidId!: string | null;
 
+  @ApiPropertyOptional({
+    enum: ['client', 'attorney'],
+    nullable: true,
+    description:
+      'Owner 2026-10-02: who marked "Done" first while the case waits for the other side (null otherwise).',
+  })
+  completionRequestedBy!: 'client' | 'attorney' | null;
+
   /** OQ-031: photos — only when THIS attorney's bid was accepted. */
   @ApiProperty({ type: [CasePhotoDto] })
   photos!: CasePhotoDto[];

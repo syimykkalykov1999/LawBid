@@ -880,6 +880,7 @@ export 'models/admin_team_dto_plan.dart';
 export 'models/admin_member_duties_dto_duties.dart';
 export 'models/post_author_dto_role.dart';
 export 'models/comment_author_dto_kind.dart';
+export 'models/case_detail_for_attorney_dto_completion_requested_by.dart';
 export 'models/resolve_contact_issue_dto_decision.dart';
 export 'models/resolve_case_dispute_dto_decision.dart';
 export 'models/update_profile_dto_theme.dart';

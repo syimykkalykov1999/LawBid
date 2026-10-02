@@ -419,14 +419,25 @@ class CaseActions {
       ..invalidate(mineSavedProvider);
   }
 
+  /// Owner 2026-10-02: completion is symmetric — the attorney marks
+  /// "Done" first, then the client confirms (see confirmCompletion).
+  Future<void> completeAsAttorney(String caseId) async {
+    await _repo.completeCase(caseId);
+    _ref.invalidate(attorneyCaseProvider(caseId));
+    _attorneyLists();
+  }
+
   Future<void> confirmCompletion(String caseId) async {
     await _repo.confirmCompletion(caseId);
     _ref.invalidate(attorneyCaseProvider(caseId));
+    _clientCase(caseId);
     _attorneyLists();
   }
 
   Future<void> dispute(String caseId, String reason) async {
     await _repo.dispute(caseId, reason);
+    _ref.invalidate(attorneyCaseProvider(caseId));
+    _clientCase(caseId);
     _attorneyLists();
   }
 

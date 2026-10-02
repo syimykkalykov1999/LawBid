@@ -32,6 +32,14 @@ const ALLOWED: [CaseStatus, CaseAction, CaseStatus, string][] = [
     'completion_requested',
   ],
   ['pending_completion', 'attorney_confirm', 'closed', 'completion_confirmed'],
+  [
+    'in_progress',
+    'attorney_complete',
+    'pending_completion',
+    'completion_requested',
+  ],
+  ['pending_completion', 'client_confirm', 'closed', 'completion_confirmed'],
+  ['pending_completion', 'client_dispute', 'disputed', 'disputed'],
   ['pending_completion', 'auto_close', 'closed', 'auto_closed'],
   ['pending_completion', 'attorney_dispute', 'disputed', 'disputed'],
   ['disputed', 'admin_resolve_close', 'closed', 'dispute_resolved'],
@@ -73,9 +81,9 @@ describe('CaseStateMachine (docs/04 §10.1)', () => {
     CASE_ACTIONS.map((a) => [s, a] as const),
   );
 
-  it('covers every status × action pair (6 × 18)', () => {
-    expect(CASE_ACTIONS).toHaveLength(18);
-    expect(pairs).toHaveLength(108);
+  it('covers every status × action pair (6 × 21)', () => {
+    expect(CASE_ACTIONS).toHaveLength(21);
+    expect(pairs).toHaveLength(126);
   });
 
   it.each(pairs)('%s + %s', (from, action) => {
@@ -139,6 +147,23 @@ describe('CaseStateMachine (docs/04 §10.1)', () => {
       client_completed_at: now,
       auto_close_at: new Date(now.getTime() + AUTO_CLOSE_AFTER_MS),
       last_activity_at: now,
+    });
+    // Owner 2026-10-02: symmetric completion — the attorney may mark first,
+    // then the client confirms.
+    expect(
+      planCaseTransition('in_progress', 'attorney_complete', ctx).data,
+    ).toEqual({
+      status: 'pending_completion',
+      attorney_confirmed_at: now,
+      auto_close_at: new Date(now.getTime() + AUTO_CLOSE_AFTER_MS),
+      last_activity_at: now,
+    });
+    expect(
+      planCaseTransition('pending_completion', 'client_confirm', ctx).data,
+    ).toEqual({
+      status: 'closed',
+      client_completed_at: now,
+      closed_at: now,
     });
     expect(AUTO_CLOSE_AFTER_MS).toBe(7 * 24 * 3600 * 1000);
     expect(planCaseTransition('archived', 'client_restore', ctx).data).toEqual({

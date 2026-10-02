@@ -75,6 +75,51 @@ class _OwnerCaseScreenState extends ConsumerState<OwnerCaseScreen> {
     if (popAfter && mounted && context.canPop()) context.pop();
   }
 
+  Future<void> _dispute(OwnerCase c) async {
+    final t = ref.read(translatorProvider);
+    final controller = TextEditingController();
+    final reason = await showAppBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.fromLTRB(
+          AppSpacing.screenSide,
+          AppSpacing.md,
+          AppSpacing.screenSide,
+          MediaQuery.viewInsetsOf(ctx).bottom + AppSpacing.lg,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const AppSheetHandle(),
+            const SizedBox(height: AppSpacing.md),
+            AppTextField(
+              controller: controller,
+              label: t.t('cases.work.disputeReason'),
+              maxLength: 500,
+              maxLines: 4,
+            ),
+            const SizedBox(height: AppSpacing.md),
+            AppButton(
+              label: t.t('cases.work.dispute'),
+              onPressed: () {
+                final v = controller.text.trim();
+                if (v.isNotEmpty) Navigator.of(ctx).pop(v);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+    controller.dispose();
+    if (reason == null) return;
+    await _run(
+      () => ref.read(caseActionsProvider).dispute(c.id, reason),
+      doneKey: 'cases.work.disputed',
+    );
+  }
+
   Future<void> _refresh() async {
     ref
       ..invalidate(ownerCaseProvider(widget.caseId))
@@ -192,6 +237,27 @@ class _OwnerCaseScreenState extends ConsumerState<OwnerCaseScreen> {
             doneKey: 'cases.owner.completed',
           ),
         ),
+      // Owner 2026-10-02: the attorney marked "Done" first — confirm it
+      // with your own "Done", or dispute.
+      if (c.attorneyMarkedDone) ...[
+        AppButton(
+          label: t.t('cases.owner.complete'),
+          icon: AppIcons.taskAltRounded,
+          isLoading: _busy,
+          onPressed: () => _confirm(
+            title: 'cases.owner.confirmTitle',
+            message: 'cases.owner.confirmMessage',
+            confirm: 'cases.owner.complete',
+            action: () => actions.confirmCompletion(c.id),
+            doneKey: 'cases.owner.confirmed',
+          ),
+        ),
+        AppButton(
+          label: t.t('cases.work.dispute'),
+          variant: AppButtonVariant.secondary,
+          onPressed: _busy ? null : () => _dispute(c),
+        ),
+      ],
       if (c.status == CaseStatus.archived)
         AppButton(
           label: t.t('cases.owner.restore'),
@@ -272,10 +338,15 @@ class _OwnerCaseBody extends ConsumerWidget {
             const SizedBox(height: AppSpacing.lg),
             NoticeCard(
               icon: AppIcons.hourglassTopRounded,
-              message: t.t('cases.owner.pendingNotice', {
-                'date':
-                    c.autoCloseAt == null ? '' : formats.date(c.autoCloseAt!),
-              }),
+              message: t.t(
+                c.attorneyMarkedDone
+                    ? 'cases.owner.attorneyMarkedNotice'
+                    : 'cases.owner.pendingNotice',
+                {
+                  'date':
+                      c.autoCloseAt == null ? '' : formats.date(c.autoCloseAt!),
+                },
+              ),
             ),
           ],
           if (c.status == CaseStatus.disputed) ...[

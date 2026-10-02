@@ -70,6 +70,22 @@ class _WorkCaseScreenState extends ConsumerState<WorkCaseScreen> {
     }
   }
 
+  Future<void> _complete() async {
+    final t = ref.read(translatorProvider);
+    final ok = await showConfirmSheet(
+      context,
+      t: t,
+      title: t.t('cases.work.completeTitle'),
+      message: t.t('cases.work.completeMessage'),
+      confirmLabel: t.t('cases.work.complete'),
+    );
+    if (!ok) return;
+    await _run(
+      () => ref.read(caseActionsProvider).completeAsAttorney(widget.caseId),
+      'cases.work.completed',
+    );
+  }
+
   Future<void> _confirm() async {
     final t = ref.read(translatorProvider);
     final ok = await showConfirmSheet(
@@ -207,7 +223,11 @@ class _WorkCaseScreenState extends ConsumerState<WorkCaseScreen> {
                 const SizedBox(height: AppSpacing.lg),
                 NoticeCard(
                   icon: AppIcons.hourglassTopRounded,
-                  message: t.t('cases.work.pendingNotice'),
+                  message: t.t(
+                    c.completionRequestedBy == 'attorney'
+                        ? 'cases.work.waitingClientNotice'
+                        : 'cases.work.pendingNotice',
+                  ),
                 ),
               ],
               if (c.status == CaseStatus.disputed) ...[
@@ -264,14 +284,27 @@ class _WorkCaseScreenState extends ConsumerState<WorkCaseScreen> {
           : BottomActionBar(
               children: [
                 // Audit 2026-10-02: an assistant confirms or disputes only with \"bids\".
-                if (pending && ref.watch(canDoProvider(AssistantDuty.bids)))
+                // Owner 2026-10-02: either side may mark "Done" first.
+                if (c.status == CaseStatus.inProgress &&
+                    ref.watch(canDoProvider(AssistantDuty.bids)))
+                  AppButton(
+                    label: t.t('cases.work.complete'),
+                    icon: AppIcons.taskAltRounded,
+                    isLoading: _busy,
+                    onPressed: _complete,
+                  ),
+                if (pending &&
+                    c.completionRequestedBy == 'client' &&
+                    ref.watch(canDoProvider(AssistantDuty.bids)))
                   AppButton(
                     label: t.t('cases.work.confirm'),
                     icon: AppIcons.taskAltRounded,
                     isLoading: _busy,
                     onPressed: _confirm,
                   ),
-                if (pending && ref.watch(canDoProvider(AssistantDuty.bids)))
+                if (pending &&
+                    c.completionRequestedBy == 'client' &&
+                    ref.watch(canDoProvider(AssistantDuty.bids)))
                   AppButton(
                     label: t.t('cases.work.dispute'),
                     variant: AppButtonVariant.secondary,

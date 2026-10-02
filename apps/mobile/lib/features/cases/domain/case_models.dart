@@ -144,6 +144,7 @@ class OwnerCase {
     required this.lastActivityAt,
     this.archivedAt,
     this.clientCompletedAt,
+    this.attorneyConfirmedAt,
     this.autoCloseAt,
     this.closedAt,
     this.acceptedBid,
@@ -169,7 +170,19 @@ class OwnerCase {
   final DateTime lastActivityAt;
   final DateTime? archivedAt;
   final DateTime? clientCompletedAt;
+  final DateTime? attorneyConfirmedAt;
   final DateTime? autoCloseAt;
+
+  /// Owner 2026-10-02: who marked "Done" first while the case waits for
+  /// the other side — the client's mark or the attorney's.
+  bool get attorneyMarkedDone =>
+      status == CaseStatus.pendingCompletion &&
+      attorneyConfirmedAt != null &&
+      clientCompletedAt == null;
+  bool get clientMarkedDone =>
+      status == CaseStatus.pendingCompletion &&
+      clientCompletedAt != null &&
+      attorneyConfirmedAt == null;
   final DateTime? closedAt;
   final CaseBid? acceptedBid;
   final String? conversationId;
@@ -315,10 +328,14 @@ class FeedCase {
     this.shareCount = 0,
     this.inMyPractice = true,
     this.promoted = false,
+    this.completionRequestedBy,
   });
 
   /// Owner 2026-10-02: a paid promotion keeps this case near the top.
   final bool promoted;
+
+  /// `client` / `attorney`: who marked "Done" first (waiting for the other).
+  final String? completionRequestedBy;
 
   /// Owner 2026-09-30: the case's practice is one of this attorney's
   /// (detail only; a bid from outside them warns the client).

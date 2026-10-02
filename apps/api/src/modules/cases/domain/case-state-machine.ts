@@ -38,6 +38,11 @@ export type CaseAction =
   | 'client_complete'
   // §10.1 attorney "Подтвердить".
   | 'attorney_confirm'
+  // Owner 2026-10-02: completion is symmetric — the attorney may mark
+  // "Выполнено" first, then the client confirms (or disputes).
+  | 'attorney_complete'
+  | 'client_confirm'
+  | 'client_dispute'
   // §10.2 auto-close job: auto_close_at reached.
   | 'auto_close'
   // §10.1 attorney "Оспорить".
@@ -85,6 +90,21 @@ export const CASE_TRANSITIONS: Readonly<
     from: ['pending_completion'],
     to: 'closed',
     event: 'completion_confirmed',
+  },
+  attorney_complete: {
+    from: ['in_progress'],
+    to: 'pending_completion',
+    event: 'completion_requested',
+  },
+  client_confirm: {
+    from: ['pending_completion'],
+    to: 'closed',
+    event: 'completion_confirmed',
+  },
+  client_dispute: {
+    from: ['pending_completion'],
+    to: 'disputed',
+    event: 'disputed',
   },
   auto_close: {
     from: ['pending_completion'],
@@ -209,17 +229,34 @@ export function planCaseTransition(
     case 'attorney_confirm':
       data = { attorney_confirmed_at: now, closed_at: now };
       break;
+    case 'attorney_complete':
+      // The attorney marks first: attorney_confirmed_at is set, the
+      // client's mark (client_completed_at) is what is still missing.
+      data = {
+        attorney_confirmed_at: now,
+        auto_close_at: new Date(now.getTime() + AUTO_CLOSE_AFTER_MS),
+        last_activity_at: now,
+      };
+      break;
+    case 'client_confirm':
+      data = { client_completed_at: now, closed_at: now };
+      break;
     case 'auto_close':
     case 'admin_resolve_close':
     case 'account_deleted_close':
       data = { closed_at: now };
       break;
     case 'attorney_dispute':
+    case 'client_dispute':
       data = {};
       break;
     case 'admin_resolve_reopen':
       // Back to work: the completion request is void.
-      data = { client_completed_at: null, auto_close_at: null };
+      data = {
+        client_completed_at: null,
+        attorney_confirmed_at: null,
+        auto_close_at: null,
+      };
       break;
     case 'client_edit':
       data = { last_activity_at: now };

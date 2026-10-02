@@ -237,6 +237,18 @@ const reelsRu = <String, String>{
   'notif.list.cbadge.rejected': 'Заявку на подтверждение отклонили',
   'notif.list.cbadge.off': 'Золотая галочка выключена',
   'mine.tab.cases': 'Дела',
+  'cases.owner.attorneyMarkedNotice':
+      'Адвокат отметил дело выполненным. Подтвердите своим «Выполнено» или оспорьте. Если не ответить, дело закроется само {date}.',
+  'cases.owner.confirmTitle': 'Подтвердить выполнение?',
+  'cases.owner.confirmMessage': 'Дело закроется, и вы сможете оставить отзыв.',
+  'cases.owner.confirmed': 'Дело закрыто',
+  'cases.work.complete': 'Выполнено',
+  'cases.work.completeTitle': 'Отметить дело выполненным?',
+  'cases.work.completeMessage':
+      'Клиент подтвердит в течение 7 дней, иначе дело закроется само.',
+  'cases.work.completed': 'Отправлено клиенту на подтверждение',
+  'cases.work.waitingClientNotice':
+      'Вы отметили дело выполненным. Ждём подтверждения клиента, иначе оно закроется само через 7 дней.',
 };
 
 const reelsEn = <String, String>{
@@ -473,4 +485,17 @@ const reelsEn = <String, String>{
   'notif.list.cbadge.rejected': 'Your verification request was rejected',
   'notif.list.cbadge.off': 'Your gold check is off',
   'mine.tab.cases': 'Cases',
+  'cases.owner.attorneyMarkedNotice':
+      'The attorney marked the case as done. Confirm with your own "Done" or dispute it. Without an answer the case closes automatically on {date}.',
+  'cases.owner.confirmTitle': 'Confirm completion?',
+  'cases.owner.confirmMessage':
+      'The case will close and you can leave a review.',
+  'cases.owner.confirmed': 'Case closed',
+  'cases.work.complete': 'Done',
+  'cases.work.completeTitle': 'Mark the case as done?',
+  'cases.work.completeMessage':
+      'The client confirms within 7 days, otherwise the case closes automatically.',
+  'cases.work.completed': 'Sent to the client for confirmation',
+  'cases.work.waitingClientNotice':
+      'You marked the case as done. Waiting for the client to confirm; otherwise it closes automatically in 7 days.',
 };

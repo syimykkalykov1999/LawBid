@@ -38,6 +38,11 @@ CaseDetailForAttorneyDto _$CaseDetailForAttorneyDtoFromJson(
   inMyPractice: json['inMyPractice'] as bool,
   city: json['city'] as String?,
   ownBidId: json['ownBidId'] as String?,
+  completionRequestedBy: json['completionRequestedBy'] == null
+      ? null
+      : CaseDetailForAttorneyDtoCompletionRequestedBy.fromJson(
+          json['completionRequestedBy'] as String,
+        ),
 );
 
 Map<String, dynamic> _$CaseDetailForAttorneyDtoToJson(
@@ -63,6 +68,7 @@ Map<String, dynamic> _$CaseDetailForAttorneyDtoToJson(
   'promoted': instance.promoted,
   'description': instance.description,
   'ownBidId': ?instance.ownBidId,
+  'completionRequestedBy': ?instance.completionRequestedBy?.toJson(),
   'photos': instance.photos.map((e) => e.toJson()).toList(),
   'photosCount': instance.photosCount,
   'inMyPractice': instance.inMyPractice,

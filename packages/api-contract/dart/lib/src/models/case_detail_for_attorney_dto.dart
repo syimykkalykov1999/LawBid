@@ -5,6 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'case_budget_dto.dart';
+import 'case_detail_for_attorney_dto_completion_requested_by.dart';
 import 'case_photo_dto.dart';
 import 'case_practice_area_dto.dart';
 import 'case_status.dart';
@@ -37,6 +38,7 @@ class CaseDetailForAttorneyDto {
     required this.inMyPractice,
     this.city,
     this.ownBidId,
+    this.completionRequestedBy,
   });
 
   factory CaseDetailForAttorneyDto.fromJson(Map<String, Object?> json) =>
@@ -78,6 +80,9 @@ class CaseDetailForAttorneyDto {
 
   /// The attorney's own bid on this case (§4.3: shown instead of "Сделать бид").
   final String? ownBidId;
+
+  /// Owner 2026-10-02: who marked "Done" first while the case waits for the other side (null otherwise).
+  final CaseDetailForAttorneyDtoCompletionRequestedBy? completionRequestedBy;
 
   /// OQ-031: photos — only when THIS attorney's bid was accepted.
   final List<CasePhotoDto> photos;

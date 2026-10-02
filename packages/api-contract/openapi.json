@@ -20090,7 +20090,7 @@
             "bearer": []
           }
         ],
-        "summary": "Client \"Done\": in_progress → pending_completion (docs/04 §10.1)",
+        "summary": "Either side \"Done\": in_progress → pending_completion (docs/04 §10.1)",
         "tags": [
           "cases"
         ]
@@ -20197,7 +20197,7 @@
             "bearer": []
           }
         ],
-        "summary": "Attorney confirms completion: → closed (docs/04 §10.1)",
+        "summary": "The other side confirms completion: → closed (docs/04 §10.1)",
         "tags": [
           "cases"
         ]
@@ -20322,7 +20322,7 @@
             "bearer": []
           }
         ],
-        "summary": "Attorney disputes completion: → disputed (docs/04 §10.1)",
+        "summary": "The other side disputes completion: → disputed (docs/04 §10.1)",
         "tags": [
           "cases"
         ]
@@ -53034,6 +53034,15 @@
             "type": "string",
             "nullable": true,
             "description": "The attorney's own bid on this case (§4.3: shown instead of \"Сделать бид\")."
+          },
+          "completionRequestedBy": {
+            "nullable": true,
+            "enum": [
+              "client",
+              "attorney"
+            ],
+            "type": "string",
+            "description": "Owner 2026-10-02: who marked \"Done\" first while the case waits for the other side (null otherwise)."
           },
           "photos": {
             "description": "OQ-031: photos — only when THIS attorney's bid was accepted.",
