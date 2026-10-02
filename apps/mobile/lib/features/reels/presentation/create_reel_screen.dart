@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:video_player/video_player.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/reels/application/reels_providers.dart';
@@ -26,9 +27,9 @@ class CreateReelScreen extends ConsumerStatefulWidget {
   ConsumerState<CreateReelScreen> createState() => _CreateReelScreenState();
 }
 
-/// Matches the server's `video.max_duration_sec` default; the server has
-/// the final word (it answers with its own limit).
-const _kMaxSeconds = 90;
+/// The server's `video.max_duration_sec` default; the live value comes
+/// from the admin panel (bootstrap app_config).
+const _kDefaultMaxSeconds = 90;
 
 class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
   final _title = TextEditingController();
@@ -50,11 +51,15 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
     super.dispose();
   }
 
+  int get _kMaxSeconds => ref
+      .read(featureFlagsControllerProvider)
+      .configInt('video.max_duration_sec', _kDefaultMaxSeconds);
+
   Future<void> _pick(ImageSource source) async {
     final t = ref.read(translatorProvider);
     final x = await ImagePicker().pickVideo(
       source: source,
-      maxDuration: const Duration(seconds: _kMaxSeconds),
+      maxDuration: Duration(seconds: _kMaxSeconds),
       preferredCameraDevice: CameraDevice.rear,
     );
     if (x == null) return;

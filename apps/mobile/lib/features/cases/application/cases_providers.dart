@@ -330,14 +330,19 @@ class CaseActions {
     _ref
       ..invalidate(ownerCaseProvider(caseId))
       ..invalidate(myCasesProvider)
-      ..invalidate(caseBidsProvider);
+      ..invalidate(caseBidsProvider)
+      // Audit 2026-10-02: the "Mine" tab lists follow every change.
+      ..invalidate(mineCasesProvider)
+      ..invalidate(mineWorkProvider);
   }
 
   void _attorneyLists() {
     _ref
       ..invalidate(myBidsProvider)
       ..invalidate(myWorkProvider)
-      ..invalidate(caseFeedProvider);
+      ..invalidate(caseFeedProvider)
+      ..invalidate(mineBidsProvider)
+      ..invalidate(mineWorkProvider);
   }
 
   Future<void> closeCase(String id) async {
@@ -410,11 +415,13 @@ class CaseActions {
     await _repo.setSaved(caseId, saved: saved);
     _ref
       ..invalidate(attorneyCaseProvider(caseId))
-      ..invalidate(savedCasesProvider);
+      ..invalidate(savedCasesProvider)
+      ..invalidate(mineSavedProvider);
   }
 
   Future<void> confirmCompletion(String caseId) async {
     await _repo.confirmCompletion(caseId);
+    _ref.invalidate(attorneyCaseProvider(caseId));
     _attorneyLists();
   }
 

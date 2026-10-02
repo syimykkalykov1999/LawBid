@@ -9,6 +9,7 @@ import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/chat/data/realtime_client.dart';
+import 'package:lawbid/features/chat/application/chat_providers.dart';
 
 /// A chat partner's activity: online now, or when last seen.
 class PresenceView {
@@ -104,6 +105,9 @@ class ActivityStatusNotifier extends AsyncNotifier<bool> {
       await guardApiCall(() => _api.setActivityStatus(
             body: api.ActivityStatusDto(showActivityStatus: show),
           ));
+      // Audit 2026-10-02: the chat list's online dots follow the rule
+      // (it's reciprocal: off = you don't see others either).
+      ref.invalidate(conversationsProvider);
     } on Object {
       state = AsyncData(before ?? !show);
       rethrow;

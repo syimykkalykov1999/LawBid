@@ -52,7 +52,14 @@ class FeatureFlagsBootstrapResult {
     final appConfig = <String, String>{};
     if (rawConfig is Map<String, dynamic>) {
       for (final entry in rawConfig.entries) {
-        if (entry.value is String) appConfig[entry.key] = entry.value as String;
+        // Audit 2026-10-02: numeric limits too (files, video, stickers),
+        // kept as text — read them with FeatureFlagsState.configInt.
+        final v = entry.value;
+        if (v is String) {
+          appConfig[entry.key] = v;
+        } else if (v is num || v is bool) {
+          appConfig[entry.key] = '$v';
+        }
       }
     }
 

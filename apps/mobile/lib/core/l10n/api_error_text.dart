@@ -127,6 +127,9 @@ const _keys = <String, String>{
   ApiErrorCodes.featureDisabled: 'error.api.FEATURE_DISABLED',
   ApiErrorCodes.searchQueryTooShort: 'error.api.SEARCH_QUERY_TOO_SHORT',
   ApiErrorCodes.userBlocked: 'error.api.USER_BLOCKED',
+  // Audit 2026-10-02: calls answered elsewhere / already gone.
+  ApiErrorCodes.callStateConflict: 'error.api.CALL_STATE_CONFLICT',
+  ApiErrorCodes.callNotFound: 'error.api.CALL_NOT_FOUND',
   ApiErrorCodes.directChatNotAllowed: 'error.api.DIRECT_CHAT_NOT_ALLOWED',
   ApiErrorCodes.messageRequestDeclined: 'error.api.MESSAGE_REQUEST_DECLINED',
   ApiErrorCodes.messageRequestLimit: 'error.api.MESSAGE_REQUEST_LIMIT',

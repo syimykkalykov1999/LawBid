@@ -9,6 +9,7 @@ import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/chat/data/realtime_client.dart';
 import 'package:lawbid/features/notifications/data/notifications_repository.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
+import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 
 Duration? _noRetry(int retryCount, Object error) => null;
@@ -27,11 +28,24 @@ class BadgesNotifier extends Notifier<Badges> {
       unawaited(_appIcon(0));
       return const Badges();
     }
+    // Audit 2026-10-02: the "category off" switches are loaded with the
+    // badges (so the first chime/ring after a cold start honours them).
+    ref.listen(mutedCategoriesProvider, (_, __) {});
     final sub = ref.watch(realtimeEventsProvider).listen((e) {
       if (e.name == 'badge:update') {
+        // An assistant's socket also sits in the attorney's room: its
+        // badges come from GET /badges (attorney's chats + own bell).
+        if (ref.read(isAssistantProvider)) {
+          unawaited(refresh());
+          return;
+        }
         final b = Badges.fromEvent(e.data);
         if (b != null) _set(b);
+      } else if (e.name == 'notification:new') {
+        // The open bell list shows the new row live.
+        ref.invalidate(notificationsProvider);
       } else if (e.name == RealtimeEvent.reconnected) {
+        ref.invalidate(mutedCategoriesProvider);
         unawaited(refresh());
       }
     });

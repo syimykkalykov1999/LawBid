@@ -256,11 +256,16 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
           // OQ-041: an in-app audio call (after acceptance).
           // OQ-043: a direct chat gets calls once the request is accepted.
           // Owner 2026-09-30: no call button until a request is accepted.
+          // Audit 2026-10-02: no call button across a block or for an
+          // assistant without the "calls" duty (the server refuses both).
           if (c != null &&
               !c.closed &&
               !c.myRequestPending &&
               !c.awaitingMyAnswer &&
-              !c.myRequestDeclined)
+              !c.myRequestDeclined &&
+              ref.watch(canDoProvider(AssistantDuty.calls)) &&
+              !(ref.watch(blockedIdsProvider).value?.contains(c.counterpart.id) ??
+                  false))
             AppIconButton(
               plain: true,
               icon: AppIcon(

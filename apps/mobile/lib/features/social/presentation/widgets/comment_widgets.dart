@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lawbid/core/network/api_error.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -87,7 +88,8 @@ class _CommentTileState extends ConsumerState<CommentTile> {
           mainAxisSize: MainAxisSize.min,
           children: [
             const AppSheetHandle(),
-            if (_c.canDelete)
+            // Audit 2026-10-02: assistants never delete in the attorney's name.
+            if (_c.canDelete && !ref.read(isAssistantProvider))
               AppListRow(
                 icon: AppIcons.deleteOutlineRounded,
                 label: t.t('comment.delete'),
@@ -112,6 +114,11 @@ class _CommentTileState extends ConsumerState<CommentTile> {
                     ref.invalidate(commentsProvider(_c.postId));
                     if (_c.parentId != null) {
                       ref.invalidate(repliesProvider(_c.parentId!));
+                    }
+                    // Audit 2026-10-02: the post's count drops too (the
+                    // server removes the comment with its replies).
+                    if (!isCaseRef(_c.postId)) {
+                      await syncPostCounts(ref, _c.postId);
                     }
                   } on Object catch (e) {
                     if (mounted) showAppSnackBar(context, errorText(t, e));
@@ -373,6 +380,26 @@ class _CommentComposerState extends ConsumerState<CommentComposer> {
     final t = ref.read(translatorProvider);
     setState(() => _sending = true);
     final reply = widget.replyTo;
+    // Audit 2026-10-02: the approval request needs "posts" (or "cases" in a
+    // case thread) — say so before the text is lost to a 403.
+    if (ref.read(isAssistantProvider) &&
+        !ref.read(canDoProvider(AssistantDuty.publish)) &&
+        !ref.read(canDoProvider(isCaseRef(widget.postId)
+            ? AssistantDuty.cases
+            : AssistantDuty.posts))) {
+      setState(() => _sending = false);
+      showAppSnackBar(
+        context,
+        errorText(
+          t,
+          const ApiException(
+            code: ApiErrorCodes.assistantNotAllowed,
+            message: 'duty',
+          ),
+        ),
+      );
+      return;
+    }
     // OQ-048: an assistant's comment waits for the attorney's approval.
     if (ref.read(isAssistantProvider) &&
         !ref.read(canDoProvider(AssistantDuty.publish))) {
@@ -414,15 +441,11 @@ class _CommentComposerState extends ConsumerState<CommentComposer> {
         ref.invalidate(repliesProvider(reply.parentId));
         ref.invalidate(commentsProvider(widget.postId));
       }
-      // Case threads (OQ-034) have no post to bump.
-      final post = isCaseRef(widget.postId)
-          ? null
-          : ref.read(postOverridesProvider)[widget.postId] ??
-              ref.read(postProvider(widget.postId)).value;
-      if (post != null) {
-        ref
-            .read(postOverridesProvider.notifier)
-            .put(post.copyWith(commentCount: post.commentCount + 1));
+      // Case threads (OQ-034) have no post to bump. Audit 2026-10-02: the
+      // count also updates when the post isn't cached (commenting from the
+      // feed) — re-read it from the server.
+      if (!isCaseRef(widget.postId)) {
+        await syncPostCounts(ref, widget.postId);
       }
       widget.onClearReply();
     } on Object catch (e) {
@@ -537,5 +560,24 @@ class _CommentComposerState extends ConsumerState<CommentComposer> {
         ),
       ),
     ));
+  }
+}
+
+/// Audit 2026-10-02: re-reads a post after a comment change so every card
+/// shows the server's comment count (keeps the viewer's like/save state).
+Future<void> syncPostCounts(WidgetRef ref, String postId) async {
+  try {
+    final fresh = await ref.read(socialRepositoryProvider).post(postId);
+    final known = ref.read(postOverridesProvider)[postId];
+    ref.read(postOverridesProvider.notifier).put(
+          known == null
+              ? fresh
+              : fresh.copyWith(
+                  likedByMe: known.likedByMe,
+                  savedByMe: known.savedByMe,
+                ),
+        );
+  } on Object {
+    // Offline: the next refresh corrects it.
   }
 }
