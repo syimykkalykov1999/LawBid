@@ -205,7 +205,18 @@ jobs:
       - name: Start MailHog (no container log dump, keeps the job log readable)
         run: docker run -d --name mailhog --log-driver none -p 1025:1025 -p 8025:8025 mailhog/mailhog:latest
 
-      - name: e2e tests (real CockroachDB + Redis)
+      - name: Start MinIO (S3 for the file / voice e2e suites)
+        run: |
+          docker run -d --name minio --log-driver none -p 9000:9000 \
+            -e MINIO_ROOT_USER=lawbid -e MINIO_ROOT_PASSWORD=lawbid_dev_only \
+            quay.io/minio/minio:latest server /data
+          for i in $(seq 1 30); do curl -fs http://localhost:9000/minio/health/live && break; sleep 2; done
+
+      - name: e2e tests (real CockroachDB + Redis + MinIO)
+        # One jest process runs every suite in turn and its heap grows past
+        # node's default limit (~2 GB) around the 60th suite.
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
         run: npm run test:e2e --workspace apps/api
 
       - uses: dart-lang/setup-dart@v1
