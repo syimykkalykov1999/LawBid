@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-97 tables.
+100 tables.
 
 ```mermaid
 erDiagram
@@ -662,6 +662,27 @@ erDiagram
     DateTime created_at
     DateTime updated_at
   }
+  admin_role_templates {
+    String id PK
+    String name UK
+    Json permissions
+    String created_by
+    DateTime created_at
+    DateTime updated_at
+  }
+  account_bans {
+    String id PK
+    String kind
+    String value
+    String user_id "nullable"
+    String reason
+    DateTime expires_at "nullable"
+    String created_by
+    DateTime created_at
+    DateTime lifted_at "nullable"
+    String lifted_by "nullable"
+    String lift_reason "nullable"
+  }
   audit_log {
     String id PK
     String admin_id FK
@@ -1092,6 +1113,25 @@ erDiagram
     String sticker_id PK,FK
     DateTime used_at
   }
+  client_verifications {
+    String id PK
+    String user_id FK,UK
+    String status
+    Json document_file_ids
+    String note "nullable"
+    DateTime submitted_at
+    DateTime reviewed_at "nullable"
+    String reviewed_by "nullable"
+    String reject_reason "nullable"
+    String revoke_reason "nullable"
+    String stripe_checkout_id "nullable"
+    String stripe_subscription_id UK "nullable"
+    String sub_status
+    DateTime current_period_end "nullable"
+    Boolean cancel_at_period_end
+    DateTime created_at
+    DateTime updated_at
+  }
   users }o--o| files : "avatar_file_id"
   files }o--|| users : "owner_user_id"
   user_identifiers }o--|| users : "user_id"
@@ -1243,4 +1283,5 @@ erDiagram
   user_sticker_packs }o--|| sticker_packs : "pack_id"
   user_recent_stickers }o--|| users : "user_id"
   user_recent_stickers }o--|| stickers : "sticker_id"
+  client_verifications |o--|| users : "user_id"
 ```

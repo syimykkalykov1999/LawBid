@@ -23,6 +23,7 @@ export const ADMIN_AREAS = [
   'data_requests',
   'teams',
   'exports',
+  'sanctions',
 ] as const;
 export type AdminArea = (typeof ADMIN_AREAS)[number];
 
@@ -79,6 +80,7 @@ const SEGMENT_AREA: Record<string, RouteArea> = {
   admins: 'admins',
   'audit-log': 'audit',
   sessions: 'sessions',
+  sanctions: 'sanctions',
 };
 
 /** `/api/v1/admin/users/123?x=1` → `users`; null when not an admin route. */

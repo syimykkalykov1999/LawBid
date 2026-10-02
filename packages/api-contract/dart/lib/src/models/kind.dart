@@ -6,10 +6,14 @@ import 'package:json_annotation/json_annotation.dart';
 
 @JsonEnum()
 enum Kind {
-  @JsonValue('official')
-  official('official'),
   @JsonValue('user')
   user('user'),
+  @JsonValue('phone')
+  phone('phone'),
+  @JsonValue('email')
+  email('email'),
+  @JsonValue('device')
+  device('device'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

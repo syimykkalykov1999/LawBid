@@ -23,7 +23,7 @@ class _AdminSupportClient implements AdminSupportClient {
   @override
   Future<AdminSupportTicketRowListEnvelope> listAdminSupportTickets({
     String? cursor,
-    Status7? status,
+    Status8? status,
     Category? category,
     Priority? priority,
     String? assignee,

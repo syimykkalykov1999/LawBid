@@ -41,6 +41,7 @@ export const GRANTABLE_AREAS: readonly { key: string; label: string; hint: strin
   { key: 'legal', label: 'Юр. документы', hint: 'версии документов' },
   { key: 'data_requests', label: 'Запросы госорганов', hint: 'обращения и ответы' },
   { key: 'exports', label: 'Выгрузки CSV', hint: 'кроме платежей' },
+  { key: 'sanctions', label: 'Санкции', hint: 'блокировки и баны по телефону, e-mail, устройству' },
 ];
 
 /** Never grantable — shown locked so nobody wonders where they are. */
@@ -121,6 +122,7 @@ export const GROUPS: readonly SectionGroup[] = [
     label: 'Модерация',
     items: [
       { href: '/moderation', label: 'Жалобы', icon: 'flag', area: 'moderation', count: 'reports', hint: 'очередь модерации' },
+      { href: '/sanctions', label: 'Санкции', icon: 'prohibit', area: 'sanctions', hint: 'блокировки и баны' },
       { href: '/review-appeals', label: 'Обжалования отзывов', icon: 'scales', area: 'moderation', count: 'appeals' },
       { href: '/content', label: 'Посты и отзывы', icon: 'article', area: 'content', hint: 'посты, комментарии, отзывы' },
       { href: '/media', label: 'Рилсы и стикеры', icon: 'film-strip', area: 'media', hint: 'видео, наборы стикеров' },

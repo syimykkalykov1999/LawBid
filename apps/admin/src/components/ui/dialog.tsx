@@ -2,7 +2,8 @@
 
 import { X } from '@phosphor-icons/react';
 import { AnimatePresence, motion } from 'motion/react';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
 
 /** Animated modal: blurred backdrop, spring panel, Esc / backdrop closes. */
@@ -39,7 +40,14 @@ export function Dialog({
     };
   }, [open, onClose]);
 
-  return (
+  // Rendered in <body>: a dialog opened from inside the page header or a
+  // transformed card would otherwise sit in that parent's stacking context
+  // and show other sections (cases, bids…) on top of it.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  if (!mounted) return null;
+
+  return createPortal(
     <AnimatePresence>
       {open ? (
         <motion.div
@@ -80,6 +88,7 @@ export function Dialog({
           </motion.div>
         </motion.div>
       ) : null}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   );
 }
