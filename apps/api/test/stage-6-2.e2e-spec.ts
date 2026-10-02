@@ -725,7 +725,8 @@ describe('stage 6.2 — admin auth, RBAC, audit, admins, dashboard (e2e)', () =>
   it('idle timeout: a session whose Redis key expired is refused', async () => {
     const s = await adminSession(baseUrl, prisma, 'support');
     const keys = await redis.keys('adm:sess:*');
-    for (const k of keys.filter((k) => !k.startsWith('adm:sess:user:'))) {
+    for (const k of keys) {
+      if ((await redis.type(k)) !== 'string') continue;
       if ((await redis.get(k)) === s.userId) await redis.del(k);
     }
     const r = await api().get('/api/v1/admin/auth/me').set(s.auth).expect(401);

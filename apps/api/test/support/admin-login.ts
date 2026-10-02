@@ -5,6 +5,19 @@ import type { PrismaService } from '../../src/prisma/prisma.service';
 import { defaultPermissionsForRole } from '../../src/modules/admin-auth/admin-permissions';
 import { totpCode } from '../../src/modules/admin-auth/totp.util';
 
+/** Toggles of a hands-on support / moderation admin for suites that
+ * exercise user, case and ticket actions (roles are only labels now). */
+export const OPS_RIGHTS: Record<string, string> = {
+  dashboard: 'view',
+  users: 'manage',
+  moderation: 'manage',
+  content: 'manage',
+  media: 'manage',
+  cases: 'manage',
+  support: 'manage',
+  data_requests: 'manage',
+};
+
 export interface AdminSession {
   auth: Record<string, string>;
   userId: string;

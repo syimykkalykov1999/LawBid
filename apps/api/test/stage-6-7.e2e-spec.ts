@@ -515,16 +515,22 @@ describe('stage 6.7 — Stripe subscriptions (e2e, fake provider)', () => {
   it('admin: support views, finance extends by N days with a reason (audited), moderator is 403', async () => {
     const a = await attorney();
     const { row } = await subscribe(a, `fp_${randomUUID().slice(0, 8)}`);
+    // Money is closed to every admin but the super admin, whatever the
+    // role label or toggles say (owner 2026-10-02).
     const support = await adminSession(baseUrl, prisma, 'support');
-    const finance = await adminSession(baseUrl, prisma, 'finance');
+    const finance = await adminSession(baseUrl, prisma, 'super_admin');
     const moderator = await adminSession(baseUrl, prisma, 'moderator');
     await api()
       .get(`/api/v1/admin/subscriptions/${a.id}`)
       .set(moderator.auth)
       .expect(403);
-    const view = await api()
+    await api()
       .get(`/api/v1/admin/subscriptions/${a.id}`)
       .set(support.auth)
+      .expect(403);
+    const view = await api()
+      .get(`/api/v1/admin/subscriptions/${a.id}`)
+      .set(finance.auth)
       .expect(200);
     expect((view.body as Body).data).toMatchObject({
       stripeSubscriptionId: row!.stripe_subscription_id,
