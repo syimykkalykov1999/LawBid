@@ -34,7 +34,7 @@ dependencies:
   # for the refresh token only (see core/session/token_secure_store.dart's
   # doc comment for why it's not in LocalKvStore/SharedPreferences).
   dio: ^5.9.0
-  flutter_secure_storage: ^9.2.4
+  flutter_secure_storage: ^10.3.4
 
   # Social login (Phase 3 of the auth networking work, docs/CHANGELOG.md):
   # native Apple/Google sign-in SDKs, exchanged against the already-live
