@@ -35981,6 +35981,209 @@
         ]
       }
     },
+    "/admin/referrals/codes": {
+      "get": {
+        "operationId": "listReferralCodes",
+        "parameters": [
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "Code prefix, or owner name / email.",
+            "schema": {
+              "maxLength": 100,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminReferralCodeRowListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Referral codes (generated and your own words)",
+        "tags": [
+          "admin-referrals"
+        ]
+      },
+      "put": {
+        "operationId": "setReferralCode",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetReferralCodeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminReferralCodeRowEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: REFERRAL_INVALID_STATE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Give a user your own word as referral code",
+        "tags": [
+          "admin-referrals"
+        ]
+      }
+    },
     "/admin/referrals/{id}/qualify": {
       "post": {
         "operationId": "qualifyAdminReferral",
@@ -58812,6 +59015,39 @@
           "reward"
         ]
       },
+      "ReferralTextsDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 400
+          },
+          "terms": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 5000,
+            "description": "Terms and conditions."
+          },
+          "shareMessage": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 400,
+            "description": "Share sheet text; {{code}} and {{url}} are filled in."
+          }
+        },
+        "required": [
+          "title",
+          "summary",
+          "terms",
+          "shareMessage"
+        ]
+      },
       "ReferralMeDto": {
         "type": "object",
         "properties": {
@@ -58871,6 +59107,22 @@
           },
           "inviterReward": {
             "$ref": "#/components/schemas/ReferralRewardDto"
+          },
+          "texts": {
+            "description": "Words written in the admin, in the user language (en or ru); shareMessage is ready to send.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReferralTextsDto"
+              }
+            ]
+          },
+          "textsLanguage": {
+            "enum": [
+              "en",
+              "ru"
+            ],
+            "type": "string",
+            "description": "Language of `texts`."
           }
         },
         "required": [
@@ -58885,7 +59137,9 @@
           "pendingDiscountPercent",
           "applyWindowDays",
           "canApply",
-          "inviterReward"
+          "inviterReward",
+          "texts",
+          "textsLanguage"
         ]
       },
       "ReferralMeEnvelope": {
@@ -59143,6 +59397,21 @@
           "data"
         ]
       },
+      "ReferralTextsByLangDto": {
+        "type": "object",
+        "properties": {
+          "en": {
+            "$ref": "#/components/schemas/ReferralTextsDto"
+          },
+          "ru": {
+            "$ref": "#/components/schemas/ReferralTextsDto"
+          }
+        },
+        "required": [
+          "en",
+          "ru"
+        ]
+      },
       "ReferralSettingsDto": {
         "type": "object",
         "properties": {
@@ -59186,6 +59455,16 @@
             "minimum": 1,
             "maximum": 90,
             "default": 14
+          },
+          "maxInvitesPerReferrer": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100000,
+            "default": 0,
+            "description": "Most people one user can invite; 0 = no limit."
+          },
+          "texts": {
+            "$ref": "#/components/schemas/ReferralTextsByLangDto"
           }
         },
         "required": [
@@ -59194,7 +59473,9 @@
           "attorneyRefereeReward",
           "clientReferrerReward",
           "clientRefereeReward",
-          "applyWindowDays"
+          "applyWindowDays",
+          "maxInvitesPerReferrer",
+          "texts"
         ]
       },
       "ReferralSettingsEnvelope": {
@@ -59202,6 +59483,97 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/ReferralSettingsDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AdminReferralCodeRowDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "ownerName": {
+            "type": "string",
+            "nullable": true
+          },
+          "ownerEmail": {
+            "type": "string",
+            "nullable": true
+          },
+          "invited": {
+            "type": "integer"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "userId",
+          "code",
+          "ownerName",
+          "ownerEmail",
+          "invited",
+          "createdAt"
+        ]
+      },
+      "AdminReferralCodeRowListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminReferralCodeRowDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "SetReferralCodeDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9]{4,24}$",
+            "description": "Your own word: 4-24 letters or digits (case does not matter).",
+            "example": "SIMA2026"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 300
+          }
+        },
+        "required": [
+          "userId",
+          "code",
+          "reason"
+        ]
+      },
+      "AdminReferralCodeRowEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminReferralCodeRowDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"

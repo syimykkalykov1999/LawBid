@@ -29,9 +29,11 @@ import {
   QUALIFYING_EVENT_FOR_ROLE,
   REFERRAL_SETTINGS_KEY,
   remainingDays,
+  renderReferralText,
   rewardFor,
   snapshotOf,
   type QualifyingEventKind,
+  type ReferralLang,
   type ReferralProgramSettings,
   type ReferralRewardSnapshot,
   type ReferralRole,
@@ -149,7 +151,7 @@ export class ReferralsService {
     const [user, invited, qualified, rewarded, rows, own] = await Promise.all([
       this.prisma.user.findUnique({
         where: { id: userId },
-        select: { role: true, created_at: true },
+        select: { role: true, created_at: true, ui_language: true },
       }),
       this.prisma.referral.count({ where: { referrer_id: userId } }),
       this.prisma.referral.count({
@@ -173,10 +175,22 @@ export class ReferralsService {
       !!user &&
       Date.now() - user.created_at.getTime() <=
         settings.applyWindowDays * DAY_MS;
+    const textsLanguage: ReferralLang =
+      user?.ui_language === 'ru' ? 'ru' : 'en';
+    const shareUrl = this.shareUrl(code);
+    const lang = settings.texts[textsLanguage];
     return {
       enabled: settings.enabled,
       code,
-      shareUrl: this.shareUrl(code),
+      shareUrl,
+      texts: {
+        ...lang,
+        shareMessage: renderReferralText(lang.shareMessage, {
+          code,
+          url: shareUrl,
+        }),
+      },
+      textsLanguage,
       invited,
       qualified,
       rewarded,
@@ -271,6 +285,17 @@ export class ReferralsService {
       referrer.deleted_at
     ) {
       throw invalid;
+    }
+    if (settings.maxInvitesPerReferrer > 0) {
+      const taken = await this.prisma.referral.count({
+        where: { referrer_id: owner.user_id, status: { not: 'rejected' } },
+      });
+      if (taken >= settings.maxInvitesPerReferrer) {
+        throw notAllowed(
+          'limit_reached',
+          'This code has reached its limit of invitations.',
+        );
+      }
     }
     if (mutual) {
       throw notAllowed('mutual', 'You invited this person yourself.');

@@ -7,13 +7,18 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
   Max,
   MaxLength,
   Min,
   MinLength,
   ValidateNested,
 } from 'class-validator';
-import { REWARD_TYPES, type RewardType } from './referrals.settings';
+import {
+  REFERRAL_TEXT_LIMITS,
+  REWARD_TYPES,
+  type RewardType,
+} from './referrals.settings';
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
@@ -86,6 +91,54 @@ export class ReferredByDto {
   reward!: ReferralRewardDto;
 }
 
+export class ReferralTextsDto {
+  @ApiProperty({ maxLength: REFERRAL_TEXT_LIMITS.title })
+  @Transform(trim)
+  @IsString()
+  @MinLength(1)
+  @MaxLength(REFERRAL_TEXT_LIMITS.title)
+  title!: string;
+
+  @ApiProperty({ maxLength: REFERRAL_TEXT_LIMITS.summary })
+  @Transform(trim)
+  @IsString()
+  @MinLength(1)
+  @MaxLength(REFERRAL_TEXT_LIMITS.summary)
+  summary!: string;
+
+  @ApiProperty({
+    maxLength: REFERRAL_TEXT_LIMITS.terms,
+    description: 'Terms and conditions.',
+  })
+  @Transform(trim)
+  @IsString()
+  @MinLength(1)
+  @MaxLength(REFERRAL_TEXT_LIMITS.terms)
+  terms!: string;
+
+  @ApiProperty({
+    maxLength: REFERRAL_TEXT_LIMITS.shareMessage,
+    description: 'Share sheet text; {{code}} and {{url}} are filled in.',
+  })
+  @Transform(trim)
+  @IsString()
+  @MinLength(1)
+  @MaxLength(REFERRAL_TEXT_LIMITS.shareMessage)
+  shareMessage!: string;
+}
+
+export class ReferralTextsByLangDto {
+  @ApiProperty({ type: ReferralTextsDto })
+  @ValidateNested()
+  @Type(() => ReferralTextsDto)
+  en!: ReferralTextsDto;
+
+  @ApiProperty({ type: ReferralTextsDto })
+  @ValidateNested()
+  @Type(() => ReferralTextsDto)
+  ru!: ReferralTextsDto;
+}
+
 export class ReferralMeDto {
   @ApiProperty({ description: 'Program switched on in the admin.' })
   enabled!: boolean;
@@ -128,6 +181,16 @@ export class ReferralMeDto {
 
   @ApiProperty({ type: ReferralRewardDto })
   inviterReward!: ReferralRewardDto;
+
+  @ApiProperty({
+    type: ReferralTextsDto,
+    description:
+      'Words written in the admin, in the user language (en or ru); shareMessage is ready to send.',
+  })
+  texts!: ReferralTextsDto;
+
+  @ApiProperty({ enum: ['en', 'ru'], description: 'Language of `texts`.' })
+  textsLanguage!: 'en' | 'ru';
 }
 
 export class ApplyReferralResultDto {
@@ -319,4 +382,67 @@ export class ReferralSettingsDto {
   @Min(1)
   @Max(90)
   applyWindowDays!: number;
+
+  @ApiProperty({
+    type: 'integer',
+    minimum: 0,
+    maximum: 100000,
+    default: 0,
+    description: 'Most people one user can invite; 0 = no limit.',
+  })
+  @IsInt()
+  @Min(0)
+  @Max(100000)
+  maxInvitesPerReferrer!: number;
+
+  @ApiProperty({ type: ReferralTextsByLangDto })
+  @ValidateNested()
+  @Type(() => ReferralTextsByLangDto)
+  texts!: ReferralTextsByLangDto;
+}
+
+export class AdminReferralCodeRowDto {
+  @ApiProperty({ format: 'uuid' }) userId!: string;
+  @ApiProperty() code!: string;
+  @ApiProperty({ type: String, nullable: true }) ownerName!: string | null;
+  @ApiProperty({ type: String, nullable: true }) ownerEmail!: string | null;
+  @ApiProperty({ type: 'integer' }) invited!: number;
+  @ApiProperty({ format: 'date-time' }) createdAt!: string;
+}
+
+export class AdminReferralCodesQueryDto {
+  @ApiPropertyOptional({
+    description: 'Code prefix, or owner name / email.',
+    maxLength: 100,
+  })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(100)
+  q?: string;
+}
+
+export class SetReferralCodeDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  userId!: string;
+
+  @ApiProperty({
+    description:
+      'Your own word: 4-24 letters or digits (case does not matter).',
+    example: 'SIMA2026',
+  })
+  @Transform(trim)
+  @IsString()
+  @Matches(/^[A-Za-z0-9]{4,24}$/, {
+    message: 'code must be 4-24 letters or digits',
+  })
+  code!: string;
+
+  @ApiProperty({ minLength: 10, maxLength: 300 })
+  @Transform(trim)
+  @IsString()
+  @MinLength(10)
+  @MaxLength(300)
+  reason!: string;
 }
