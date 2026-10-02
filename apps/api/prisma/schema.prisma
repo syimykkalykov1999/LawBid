@@ -1154,9 +1154,9 @@ model AttorneyPracticeArea {
 /// A category covers its subcategories.
 model NewCaseAlertPractice {
   attorney_id      String          @db.Uuid
-  attorney         AttorneyProfile @relation(fields: [attorney_id], references: [user_id], onDelete: Cascade, map: "new_case_alert_practices_attorney_fkey")
+  attorney         AttorneyProfile @relation(fields: [attorney_id], references: [user_id], onDelete: Cascade, map: "new_case_alert_practices_attorney_fkey", onUpdate: NoAction)
   practice_area_id String          @db.Uuid
-  practice_area    PracticeArea    @relation(fields: [practice_area_id], references: [id], onDelete: Cascade, map: "new_case_alert_practices_area_fkey")
+  practice_area    PracticeArea    @relation(fields: [practice_area_id], references: [id], onDelete: Cascade, map: "new_case_alert_practices_area_fkey", onUpdate: NoAction)
   created_at       DateTime        @default(now()) @db.Timestamptz
 
   @@id([attorney_id, practice_area_id])
@@ -1520,7 +1520,7 @@ model Post {
   kind             PostKind                 @default(post)
   /// Owner 2026-10-01: the post's video (Bunny Stream), one per post.
   video_asset_id   String?                  @unique @db.Uuid
-  video_asset      VideoAsset?              @relation(fields: [video_asset_id], references: [id], onDelete: SetNull)
+  video_asset      VideoAsset?              @relation(fields: [video_asset_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "posts_video_asset_fkey")
   language         String?
   status           ContentStatus            @default(published)
   like_count       Int                      @default(0)
@@ -1560,9 +1560,9 @@ model Post {
 model CasePhoto {
   id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   case_id    String   @db.Uuid
-  case       Case     @relation(fields: [case_id], references: [id], onDelete: Cascade)
+  case       Case     @relation(fields: [case_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   file_id    String   @db.Uuid
-  file       File     @relation(fields: [file_id], references: [id], onDelete: Restrict)
+  file       File     @relation(fields: [file_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
   position   Int      @db.Int2
   created_at DateTime @default(now()) @db.Timestamptz
 
@@ -1680,9 +1680,9 @@ model Follow {
 /// flags. Cases/bids already in progress are untouched.
 model UserBlock {
   blocker_id String   @db.Uuid
-  blocker    User     @relation("Blocker", fields: [blocker_id], references: [id], onDelete: Cascade)
+  blocker    User     @relation("Blocker", fields: [blocker_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   blocked_id String   @db.Uuid
-  blocked    User     @relation("Blocked", fields: [blocked_id], references: [id], onDelete: Cascade)
+  blocked    User     @relation("Blocked", fields: [blocked_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   created_at DateTime @default(now()) @db.Timestamptz
 
   @@id([blocker_id, blocked_id])
@@ -1721,7 +1721,7 @@ model Conversation {
   // OQ-043: direct chats (case_id NULL) start as a request of `requested_by`.
   request_status    MessageRequestStatus @default(none)
   requested_by      String?              @db.Uuid
-  requester         User?                @relation("ConversationRequester", fields: [requested_by], references: [id], onDelete: Restrict)
+  requester         User?                @relation("ConversationRequester", fields: [requested_by], references: [id], onDelete: Restrict, onUpdate: NoAction)
   last_message_at   DateTime?            @db.Timestamptz
   // Bare uuid: an FK here would make conversations <-> messages a cycle
   // on every insert; it's a denormalized pointer for the chat list.
@@ -1775,11 +1775,11 @@ model ConversationParticipant {
 model Call {
   id              String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   conversation_id String       @db.Uuid
-  conversation    Conversation @relation(fields: [conversation_id], references: [id], onDelete: Restrict)
+  conversation    Conversation @relation(fields: [conversation_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
   caller_id       String       @db.Uuid
-  caller          User         @relation("CallCaller", fields: [caller_id], references: [id], onDelete: Restrict)
+  caller          User         @relation("CallCaller", fields: [caller_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
   callee_id       String       @db.Uuid
-  callee          User         @relation("CallCallee", fields: [callee_id], references: [id], onDelete: Restrict)
+  callee          User         @relation("CallCallee", fields: [callee_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
   status          CallStatus   @default(ringing)
   answered_at     DateTime?    @db.Timestamptz
   ended_at        DateTime?    @db.Timestamptz
@@ -1812,7 +1812,7 @@ model Message {
   // OQ-040 voice messages: the audio file, its length, 0–100 bars for the
   // bubble and when the recipient first played it (Telegram's blue dot).
   file_id               String?      @db.Uuid
-  file                  File?        @relation("MessageVoice", fields: [file_id], references: [id], onDelete: Restrict)
+  file                  File?        @relation("MessageVoice", fields: [file_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
   duration_ms           Int?
   waveform              Int[]        @default([])
   // OQ-047: the original name of an attached document (≤200, CHECK).
@@ -1823,7 +1823,7 @@ model Message {
   listened_at           DateTime?    @db.Timestamptz
   // Owner 2026-10-01: a sticker message.
   sticker_id            String?      @db.Uuid
-  sticker               Sticker?     @relation(fields: [sticker_id], references: [id], onDelete: SetNull)
+  sticker               Sticker?     @relation(fields: [sticker_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "messages_sticker_fkey")
   deleted_at            DateTime?    @db.Timestamptz
   created_at            DateTime     @default(now()) @db.Timestamptz
   updated_at            DateTime     @updatedAt @db.Timestamptz
@@ -1852,6 +1852,8 @@ model Notification {
   aggregate_count Int                  @default(1)
 
   @@index([user_id, created_at(sort: Desc)])
+  // Kept (migration 20260928140000): the retention job scans by age.
+  @@index([created_at], map: "notifications_created_at_idx")
   @@map("notifications")
 }
 
@@ -2081,7 +2083,7 @@ model AdminCredential {
   user                User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
   totp_secret_enc     String
   totp_enabled_at     DateTime? @db.Timestamptz
-  recovery_codes_hash String[]
+  recovery_codes_hash String[] @default([])
   last_login_at       DateTime? @db.Timestamptz
   created_at          DateTime  @default(now()) @db.Timestamptz
   updated_at          DateTime  @updatedAt @db.Timestamptz
@@ -2131,11 +2133,11 @@ model DataExportJob {
 model CaseComment {
   id                String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   case_id           String        @db.Uuid
-  case              Case          @relation(fields: [case_id], references: [id], onDelete: Restrict)
+  case              Case          @relation(fields: [case_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
   author_id         String        @db.Uuid
-  author            User          @relation("CaseCommentAuthor", fields: [author_id], references: [id], onDelete: Restrict)
+  author            User          @relation("CaseCommentAuthor", fields: [author_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
   parent_comment_id String?       @db.Uuid
-  parent            CaseComment?  @relation("CaseCommentReplies", fields: [parent_comment_id], references: [id], onDelete: Restrict)
+  parent            CaseComment?  @relation("CaseCommentReplies", fields: [parent_comment_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
   replies           CaseComment[] @relation("CaseCommentReplies")
   // ≤1000 chars, CHECK in the migration.
   body              String
@@ -2155,9 +2157,9 @@ model CaseComment {
 
 model CaseCommentLike {
   comment_id String      @db.Uuid
-  comment    CaseComment @relation(fields: [comment_id], references: [id], onDelete: Cascade)
+  comment    CaseComment @relation(fields: [comment_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   user_id    String      @db.Uuid
-  user       User        @relation("CaseCommentLiker", fields: [user_id], references: [id], onDelete: Cascade)
+  user       User        @relation("CaseCommentLiker", fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   created_at DateTime    @default(now()) @db.Timestamptz
 
   @@id([comment_id, user_id])
@@ -2169,9 +2171,9 @@ model CaseCommentLike {
 model PostShare {
   id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   post_id    String   @db.Uuid
-  post       Post     @relation(fields: [post_id], references: [id], onDelete: Cascade)
+  post       Post     @relation(fields: [post_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   user_id    String   @db.Uuid
-  user       User     @relation("PostSharer", fields: [user_id], references: [id], onDelete: Cascade)
+  user       User     @relation("PostSharer", fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   created_at DateTime @default(now()) @db.Timestamptz
 
   @@index([post_id])
@@ -2181,9 +2183,9 @@ model PostShare {
 model CaseShare {
   id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   case_id    String   @db.Uuid
-  case       Case     @relation(fields: [case_id], references: [id], onDelete: Cascade)
+  case       Case     @relation(fields: [case_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   user_id    String   @db.Uuid
-  user       User     @relation("CaseSharer", fields: [user_id], references: [id], onDelete: Cascade)
+  user       User     @relation("CaseSharer", fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   created_at DateTime @default(now()) @db.Timestamptz
 
   @@index([case_id])
@@ -2197,13 +2199,13 @@ model ClientReview {
   id            String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   // Owner 2026-09-30: null for a review written without a shared case.
   case_id       String?      @db.Uuid
-  case          Case?        @relation(fields: [case_id], references: [id], onDelete: Restrict)
+  case          Case?        @relation(fields: [case_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
   // The author (owner 2026-09-30: any attorney or client, not only the
   // hired attorney; the column keeps its original name).
   attorney_id   String       @db.Uuid
-  attorney      User         @relation("ClientReviewAttorney", fields: [attorney_id], references: [id], onDelete: Restrict)
+  attorney      User         @relation("ClientReviewAttorney", fields: [attorney_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
   client_id     String       @db.Uuid
-  client        User         @relation("ClientReviewClient", fields: [client_id], references: [id], onDelete: Restrict)
+  client        User         @relation("ClientReviewClient", fields: [client_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
   rating        Int          @db.Int2
   body          String?
   status        ReviewStatus @default(published)
@@ -2231,9 +2233,9 @@ model ClientReview {
 /// Owner 2026-10-01: "Helpful" on reviews (Google-style).
 model ReviewHelpfulVote {
   review_id  String   @db.Uuid
-  review     Review   @relation(fields: [review_id], references: [id], onDelete: Cascade, map: "review_helpful_votes_review_fkey")
+  review     Review   @relation(fields: [review_id], references: [id], onDelete: Cascade, map: "review_helpful_votes_review_fkey", onUpdate: NoAction)
   user_id    String   @db.Uuid
-  user       User     @relation("ReviewHelpfulVoter", fields: [user_id], references: [id], onDelete: Cascade, map: "review_helpful_votes_user_fkey")
+  user       User     @relation("ReviewHelpfulVoter", fields: [user_id], references: [id], onDelete: Cascade, map: "review_helpful_votes_user_fkey", onUpdate: NoAction)
   created_at DateTime @default(now()) @db.Timestamptz
 
   @@id([review_id, user_id])
@@ -2242,9 +2244,9 @@ model ReviewHelpfulVote {
 
 model ClientReviewHelpfulVote {
   review_id  String       @db.Uuid
-  review     ClientReview @relation(fields: [review_id], references: [id], onDelete: Cascade, map: "client_review_helpful_votes_review_fkey")
+  review     ClientReview @relation(fields: [review_id], references: [id], onDelete: Cascade, map: "client_review_helpful_votes_review_fkey", onUpdate: NoAction)
   user_id    String       @db.Uuid
-  user       User         @relation("ClientReviewHelpfulVoter", fields: [user_id], references: [id], onDelete: Cascade, map: "client_review_helpful_votes_user_fkey")
+  user       User         @relation("ClientReviewHelpfulVoter", fields: [user_id], references: [id], onDelete: Cascade, map: "client_review_helpful_votes_user_fkey", onUpdate: NoAction)
   created_at DateTime     @default(now()) @db.Timestamptz
 
   @@id([review_id, user_id])
@@ -2422,7 +2424,7 @@ model AttorneyTask {
   attorney_id              String               @db.Uuid
   attorney                 User                 @relation("AttorneyTasks", fields: [attorney_id], references: [id], onDelete: Cascade)
   created_by_membership_id String?              @db.Uuid
-  created_by               AssistantMembership? @relation(fields: [created_by_membership_id], references: [id], onDelete: SetNull)
+  created_by               AssistantMembership? @relation(fields: [created_by_membership_id], references: [id], onDelete: SetNull, map: "attorney_tasks_membership_fkey")
   kind                     AttorneyTaskKind
   title                    String
   notes                    String?
@@ -2451,7 +2453,7 @@ model AttorneyTask {
 model AttorneyTaskStep {
   id              String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   task_id         String             @db.Uuid
-  task            AttorneyTask       @relation(fields: [task_id], references: [id], onDelete: Cascade, map: "attorney_task_steps_task_fkey")
+  task            AttorneyTask       @relation(fields: [task_id], references: [id], onDelete: Cascade, map: "attorney_task_steps_task_fkey", onUpdate: NoAction)
   position        Int                @default(0)
   kind            AttorneyTaskKind?
   title           String             @db.String(160)
@@ -2475,9 +2477,9 @@ model AttorneyTaskStep {
 model BidDraft {
   id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   attorney_id      String   @db.Uuid
-  attorney         User     @relation("BidDrafts", fields: [attorney_id], references: [id], onDelete: Cascade)
+  attorney         User     @relation("BidDrafts", fields: [attorney_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   case_id          String   @db.Uuid
-  case             Case     @relation(fields: [case_id], references: [id], onDelete: Cascade)
+  case             Case     @relation(fields: [case_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   payload          Json
   prepared_by_name String?  @db.String(80)
   created_at       DateTime @default(now()) @db.Timestamptz
@@ -2506,9 +2508,9 @@ model AdminBroadcast {
 model AssistantLiabilityAcceptance {
   id            String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   attorney_id   String              @db.Uuid
-  attorney      User                @relation("AssistantLiability", fields: [attorney_id], references: [id], onDelete: Cascade)
+  attorney      User                @relation("AssistantLiability", fields: [attorney_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   membership_id String              @db.Uuid
-  membership    AssistantMembership @relation(fields: [membership_id], references: [id], onDelete: Cascade)
+  membership    AssistantMembership @relation(fields: [membership_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   duties        String[]
   granted       Boolean
   terms_version String              @db.String(20)
@@ -2541,7 +2543,7 @@ model IntegrationCredential {
   masked          Json                        @default("{}")
   fingerprint     String
   created_by      String?                     @db.Uuid
-  created_by_user User?                       @relation("IntegrationCredentialCreator", fields: [created_by], references: [id], onDelete: SetNull)
+  created_by_user User?                       @relation("IntegrationCredentialCreator", fields: [created_by], references: [id], onDelete: SetNull, onUpdate: NoAction)
   created_at      DateTime                    @default(now()) @db.Timestamptz
   activated_at    DateTime?                   @db.Timestamptz
   retired_at      DateTime?                   @db.Timestamptz
@@ -2568,7 +2570,7 @@ enum VideoAssetStatus {
 model VideoAsset {
   id                String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   owner_user_id     String           @db.Uuid
-  owner             User             @relation("VideoAssetOwner", fields: [owner_user_id], references: [id], onDelete: Cascade)
+  owner             User             @relation("VideoAssetOwner", fields: [owner_user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "video_assets_owner_fkey")
   provider          String           @default("bunny")
   library_id        String
   external_id       String           @unique
@@ -2585,8 +2587,8 @@ model VideoAsset {
   purged_at         DateTime?        @db.Timestamptz
   post              Post?
 
-  @@index([status, created_at])
-  @@index([owner_user_id, created_at(sort: Desc)])
+  @@index([status, created_at], map: "video_assets_status_created_idx")
+  @@index([owner_user_id, created_at(sort: Desc)], map: "video_assets_owner_created_idx")
   @@map("video_assets")
 }
 
@@ -2595,7 +2597,7 @@ model VideoAsset {
 model StickerPack {
   id            String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   owner_user_id String?           @db.Uuid
-  owner         User?             @relation("StickerPackOwner", fields: [owner_user_id], references: [id], onDelete: Cascade)
+  owner         User?             @relation("StickerPackOwner", fields: [owner_user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "sticker_packs_owner_fkey")
   title         String            @db.String(64)
   short_name    String            @unique @db.String(40)
   is_official   Boolean           @default(false)
@@ -2616,9 +2618,9 @@ model StickerPack {
 model Sticker {
   id         String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   pack_id    String              @db.Uuid
-  pack       StickerPack         @relation(fields: [pack_id], references: [id], onDelete: Cascade)
+  pack       StickerPack         @relation(fields: [pack_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "stickers_pack_fkey")
   file_id    String              @unique @db.Uuid
-  file       File                @relation(fields: [file_id], references: [id], onDelete: Restrict)
+  file       File                @relation(fields: [file_id], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "stickers_file_fkey")
   emoji      String              @default("🙂") @db.String(16)
   position   Int                 @default(0)
   created_at DateTime            @default(now()) @db.Timestamptz
@@ -2632,9 +2634,9 @@ model Sticker {
 
 model UserStickerPack {
   user_id      String      @db.Uuid
-  user         User        @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user         User        @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "user_sticker_packs_user_fkey")
   pack_id      String      @db.Uuid
-  pack         StickerPack @relation(fields: [pack_id], references: [id], onDelete: Cascade)
+  pack         StickerPack @relation(fields: [pack_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "user_sticker_packs_pack_fkey")
   position     Int         @default(0)
   installed_at DateTime    @default(now()) @db.Timestamptz
 
@@ -2645,9 +2647,9 @@ model UserStickerPack {
 
 model UserRecentSticker {
   user_id    String   @db.Uuid
-  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "user_recent_stickers_user_fkey")
   sticker_id String   @db.Uuid
-  sticker    Sticker  @relation(fields: [sticker_id], references: [id], onDelete: Cascade)
+  sticker    Sticker  @relation(fields: [sticker_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "user_recent_stickers_sticker_fkey")
   used_at    DateTime @default(now()) @db.Timestamptz
 
   @@id([user_id, sticker_id])

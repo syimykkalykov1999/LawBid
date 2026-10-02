@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-59 tables.
+87 tables.
 
 ```mermaid
 erDiagram
@@ -25,6 +25,7 @@ erDiagram
     enum_ThemePref theme
     String suspended_reason "nullable"
     DateTime last_active_at "nullable"
+    Boolean show_activity_status
     DateTime deletion_requested_at "nullable"
     DateTime deleted_at "nullable"
     DateTime anonymized_at "nullable"
@@ -182,6 +183,14 @@ erDiagram
     String state_code FK
     enum_ContactMethod preferred_contact_method "nullable"
     String preferred_contact_note "nullable"
+    String username "nullable"
+    String username_lower UK "nullable"
+    DateTime username_changed_at "nullable"
+    Int posts_count
+    Int followers_count
+    Int following_count
+    Decimal rating_avg
+    Int rating_count
     DateTime created_at
     DateTime updated_at
   }
@@ -193,6 +202,9 @@ erDiagram
     String firm_name "nullable"
     enum_VerificationStatus verification_status
     DateTime verified_at "nullable"
+    String verified_first_name "nullable"
+    String verified_last_name "nullable"
+    Boolean name_mismatch
     DateTime username_changed_at "nullable"
     Decimal rating_avg
     Int rating_count
@@ -201,6 +213,7 @@ erDiagram
     Int following_count
     DateTime created_at
     DateTime updated_at
+    Boolean new_case_alerts_custom
   }
   attorney_licenses {
     String id PK
@@ -218,6 +231,11 @@ erDiagram
     DateTime updated_at
   }
   attorney_practice_areas {
+    String attorney_id PK,FK
+    String practice_area_id PK,FK
+    DateTime created_at
+  }
+  new_case_alert_practices {
     String attorney_id PK,FK
     String practice_area_id PK,FK
     DateTime created_at
@@ -274,6 +292,8 @@ erDiagram
     String accepted_bid_id FK,UK "nullable"
     Int view_count
     Int bids_count
+    Int comment_count
+    Int share_count
     DateTime last_activity_at
     DateTime stale_prompt_sent_at "nullable"
     DateTime archived_at "nullable"
@@ -304,6 +324,7 @@ erDiagram
     Int estimated_duration_days "nullable"
     Int round_count
     enum_PartyRole turn
+    Boolean outside_practice
     DateTime decided_at "nullable"
     DateTime created_at
     DateTime updated_at
@@ -372,13 +393,16 @@ erDiagram
   }
   reviews {
     String id PK
-    String case_id FK,UK
+    String case_id FK,UK "nullable"
     String client_id FK
     String attorney_id FK
     Int rating
     String body "nullable"
     enum_ReviewStatus status
     DateTime edited_at "nullable"
+    String reply "nullable"
+    DateTime reply_at "nullable"
+    Int helpful_count
     DateTime created_at
     DateTime updated_at
   }
@@ -386,17 +410,29 @@ erDiagram
     String id PK
     String author_id FK
     String body
+    String title "nullable"
+    String practice_area_id FK "nullable"
+    enum_PostKind kind
+    String video_asset_id FK,UK "nullable"
     String language "nullable"
     enum_ContentStatus status
     Int like_count
     Int comment_count
     Int save_count
+    Int share_count
     DateTime edited_at "nullable"
     DateTime deleted_at "nullable"
     tsvector search_tsv "nullable"
     DateTime created_at
     Int created_shard
     DateTime updated_at
+  }
+  case_photos {
+    String id PK
+    String case_id FK
+    String file_id FK
+    Int position
+    DateTime created_at
   }
   post_media {
     String id PK
@@ -445,6 +481,11 @@ erDiagram
     String followee_id PK,FK
     DateTime created_at
   }
+  user_blocks {
+    String blocker_id PK,FK
+    String blocked_id PK,FK
+    DateTime created_at
+  }
   saved_items {
     String user_id PK,FK
     enum_SavedItemType item_type PK
@@ -453,12 +494,14 @@ erDiagram
   }
   conversations {
     String id PK
-    String case_id FK
+    String case_id FK "nullable"
     String attorney_id FK
     String client_id FK
     String bid_id FK "nullable"
     enum_ConversationStatus status
     Boolean contacts_unlocked
+    enum_MessageRequestStatus request_status
+    String requested_by FK "nullable"
     DateTime last_message_at "nullable"
     String last_message_id "nullable"
     DateTime created_at
@@ -469,6 +512,23 @@ erDiagram
     String user_id PK,FK
     String last_read_message_id "nullable"
     DateTime muted_until "nullable"
+    enum_ChatFolder folder "nullable"
+    DateTime waiting_since "nullable"
+    String note "nullable"
+    DateTime pinned_at "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  calls {
+    String id PK
+    String conversation_id FK
+    String caller_id FK
+    String callee_id FK
+    enum_CallStatus status
+    DateTime answered_at "nullable"
+    DateTime ended_at "nullable"
+    Int duration_sec "nullable"
+    String end_reason "nullable"
     DateTime created_at
     DateTime updated_at
   }
@@ -481,6 +541,13 @@ erDiagram
     String body_display
     Boolean contact_masked
     String client_message_id
+    String file_id FK "nullable"
+    Int duration_ms "nullable"
+    String file_name "nullable"
+    String sent_by_membership_id "nullable"
+    String sent_by_name "nullable"
+    DateTime listened_at "nullable"
+    String sticker_id FK "nullable"
     DateTime deleted_at "nullable"
     DateTime created_at
     DateTime updated_at
@@ -536,7 +603,10 @@ erDiagram
     DateTime current_period_end "nullable"
     Boolean cancel_at_period_end
     DateTime canceled_at "nullable"
+    DateTime grace_ends_at "nullable"
     String card_fingerprint "nullable"
+    enum_SubscriptionPlan plan
+    Int assistant_seats
     DateTime created_at
     DateTime updated_at
   }
@@ -596,6 +666,7 @@ erDiagram
     String action
     String target_type
     String target_id "nullable"
+    String justification "nullable"
     Json before "nullable"
     Json after "nullable"
     String ip "nullable"
@@ -624,6 +695,262 @@ erDiagram
     String entity_id
     DateTime accessed_at
   }
+  admin_credentials {
+    String user_id PK,FK
+    String totp_secret_enc
+    DateTime totp_enabled_at "nullable"
+    DateTime last_login_at "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  data_export_jobs {
+    String id PK
+    String user_id FK
+    enum_DataExportType type
+    enum_DataExportStatus status
+    String file_id FK "nullable"
+    DateTime expires_at "nullable"
+    String error "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  case_comments {
+    String id PK
+    String case_id FK
+    String author_id FK
+    String parent_comment_id FK "nullable"
+    String body
+    enum_ContentStatus status
+    Int like_count
+    Int reply_count
+    DateTime deleted_at "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  case_comment_likes {
+    String comment_id PK,FK
+    String user_id PK,FK
+    DateTime created_at
+  }
+  post_shares {
+    String id PK
+    String post_id FK
+    String user_id FK
+    DateTime created_at
+  }
+  case_shares {
+    String id PK
+    String case_id FK
+    String user_id FK
+    DateTime created_at
+  }
+  client_reviews {
+    String id PK
+    String case_id FK "nullable"
+    String attorney_id FK
+    String client_id FK
+    Int rating
+    String body "nullable"
+    enum_ReviewStatus status
+    String reply "nullable"
+    DateTime reply_at "nullable"
+    Int helpful_count
+    DateTime edited_at "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  review_helpful_votes {
+    String review_id PK,FK
+    String user_id PK,FK
+    DateTime created_at
+  }
+  client_review_helpful_votes {
+    String review_id PK,FK
+    String user_id PK,FK
+    DateTime created_at
+  }
+  client_review_appeals {
+    String id PK
+    String review_id FK,UK
+    String appellant_id FK
+    String reason
+    enum_ReviewAppealStatus status
+    DateTime auto_remove_at
+    DateTime decided_at "nullable"
+    String decided_by "nullable"
+    String admin_note "nullable"
+    DateTime created_at
+  }
+  assistant_memberships {
+    String id PK
+    String attorney_id FK
+    String assistant_user_id FK "nullable"
+    String phone_e164
+    String display_name "nullable"
+    enum_AssistantStatus status
+    enum_AssistantApproval approval
+    DateTime created_at
+    DateTime joined_at "nullable"
+    DateTime removed_at "nullable"
+  }
+  assistant_activity {
+    String id PK
+    String attorney_id
+    String membership_id FK
+    String action
+    String target_type "nullable"
+    String target_id "nullable"
+    String summary "nullable"
+    DateTime created_at
+  }
+  assistant_requests {
+    String id PK
+    String attorney_id
+    String membership_id FK
+    enum_AssistantRequestKind kind
+    Json payload
+    enum_AssistantRequestStatus status
+    String result_id "nullable"
+    String note "nullable"
+    DateTime created_at
+    DateTime decided_at "nullable"
+  }
+  attorney_tasks {
+    String id PK
+    String attorney_id FK
+    String created_by_membership_id FK "nullable"
+    enum_AttorneyTaskKind kind
+    String title
+    String notes "nullable"
+    DateTime due_at "nullable"
+    String location "nullable"
+    String case_id FK "nullable"
+    String contact_name "nullable"
+    String contact_phone "nullable"
+    String contact_email "nullable"
+    enum_AttorneyTaskStatus status
+    String outcome_note "nullable"
+    DateTime rescheduled_to "nullable"
+    DateTime done_at "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  attorney_task_steps {
+    String id PK
+    String task_id FK
+    Int position
+    enum_AttorneyTaskKind kind "nullable"
+    String title
+    DateTime due_at "nullable"
+    String location "nullable"
+    String contact_name "nullable"
+    String contact_phone "nullable"
+    String contact_email "nullable"
+    enum_AttorneyTaskStatus status
+    String note "nullable"
+    DateTime done_at "nullable"
+    String created_by_name "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  bid_drafts {
+    String id PK
+    String attorney_id FK
+    String case_id FK
+    Json payload
+    String prepared_by_name "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  admin_broadcasts {
+    String id PK
+    String admin_id
+    String title
+    String body
+    String audience
+    String state_code "nullable"
+    BigInt recipients
+    DateTime created_at
+  }
+  assistant_liability_acceptances {
+    String id PK
+    String attorney_id FK
+    String membership_id FK
+    Boolean granted
+    String terms_version
+    String ip "nullable"
+    String user_agent "nullable"
+    DateTime created_at
+  }
+  integration_credentials {
+    String id PK
+    String provider
+    Int version
+    enum_IntegrationCredentialStatus status
+    String secret_enc
+    String kid
+    Json public_config
+    Json masked
+    String fingerprint
+    String created_by FK "nullable"
+    DateTime created_at
+    DateTime activated_at "nullable"
+    DateTime retired_at "nullable"
+    DateTime last_test_at "nullable"
+    Boolean last_test_ok "nullable"
+    String last_test_error "nullable"
+  }
+  video_assets {
+    String id PK
+    String owner_user_id FK
+    String provider
+    String library_id
+    String external_id UK
+    enum_VideoAssetStatus status
+    Int duration_sec "nullable"
+    Int width "nullable"
+    Int height "nullable"
+    BigInt storage_bytes "nullable"
+    String failure_reason "nullable"
+    DateTime upload_expires_at
+    DateTime created_at
+    DateTime ready_at "nullable"
+    DateTime deleted_at "nullable"
+    DateTime purged_at "nullable"
+  }
+  sticker_packs {
+    String id PK
+    String owner_user_id FK "nullable"
+    String title
+    String short_name UK
+    Boolean is_official
+    String status
+    Int sticker_count
+    Int install_count
+    DateTime created_at
+    DateTime updated_at
+    DateTime deleted_at "nullable"
+  }
+  stickers {
+    String id PK
+    String pack_id FK
+    String file_id FK,UK
+    String emoji
+    Int position
+    DateTime created_at
+    DateTime deleted_at "nullable"
+  }
+  user_sticker_packs {
+    String user_id PK,FK
+    String pack_id PK,FK
+    Int position
+    DateTime installed_at
+  }
+  user_recent_stickers {
+    String user_id PK,FK
+    String sticker_id PK,FK
+    DateTime used_at
+  }
   users }o--o| files : "avatar_file_id"
   files }o--|| users : "owner_user_id"
   user_identifiers }o--|| users : "user_id"
@@ -645,6 +972,8 @@ erDiagram
   attorney_licenses }o--o| users : "verified_by"
   attorney_practice_areas }o--|| attorney_profiles : "attorney_id"
   attorney_practice_areas }o--|| practice_areas : "practice_area_id"
+  new_case_alert_practices }o--|| attorney_profiles : "attorney_id"
+  new_case_alert_practices }o--|| practice_areas : "practice_area_id"
   verification_requests }o--|| attorney_profiles : "attorney_id"
   verification_requests }o--o| users : "reviewed_by"
   verification_documents }o--|| verification_requests : "request_id"
@@ -676,10 +1005,14 @@ erDiagram
   case_disputes }o--|| cases : "case_id"
   case_disputes }o--|| users : "opened_by"
   case_disputes }o--o| users : "resolved_by"
-  reviews |o--|| cases : "case_id"
+  reviews |o--o| cases : "case_id"
   reviews }o--|| users : "client_id"
   reviews }o--|| users : "attorney_id"
   posts }o--|| users : "author_id"
+  posts }o--o| practice_areas : "practice_area_id"
+  posts |o--o| video_assets : "video_asset_id"
+  case_photos }o--|| cases : "case_id"
+  case_photos }o--|| files : "file_id"
   post_media }o--|| posts : "post_id"
   post_media }o--|| files : "file_id"
   post_tags }o--|| posts : "post_id"
@@ -693,15 +1026,23 @@ erDiagram
   comment_likes }o--|| users : "user_id"
   follows }o--|| users : "follower_id"
   follows }o--|| users : "followee_id"
+  user_blocks }o--|| users : "blocker_id"
+  user_blocks }o--|| users : "blocked_id"
   saved_items }o--|| users : "user_id"
-  conversations }o--|| cases : "case_id"
+  conversations }o--o| cases : "case_id"
   conversations }o--|| users : "attorney_id"
   conversations }o--|| users : "client_id"
   conversations }o--o| bids : "bid_id"
+  conversations }o--o| users : "requested_by"
   conversation_participants }o--|| conversations : "conversation_id"
   conversation_participants }o--|| users : "user_id"
+  calls }o--|| conversations : "conversation_id"
+  calls }o--|| users : "caller_id"
+  calls }o--|| users : "callee_id"
   messages }o--|| conversations : "conversation_id"
   messages }o--o| users : "sender_id"
+  messages }o--o| files : "file_id"
+  messages }o--o| stickers : "sticker_id"
   notifications }o--|| users : "user_id"
   notification_settings }o--|| users : "user_id"
   notification_quiet_hours |o--|| users : "user_id"
@@ -719,4 +1060,46 @@ erDiagram
   data_access_requests }o--|| users : "handled_by"
   data_access_log }o--|| data_access_requests : "request_id"
   data_access_log }o--|| users : "admin_id"
+  admin_credentials |o--|| users : "user_id"
+  data_export_jobs }o--|| users : "user_id"
+  data_export_jobs }o--o| files : "file_id"
+  case_comments }o--|| cases : "case_id"
+  case_comments }o--|| users : "author_id"
+  case_comments }o--o| case_comments : "parent_comment_id"
+  case_comment_likes }o--|| case_comments : "comment_id"
+  case_comment_likes }o--|| users : "user_id"
+  post_shares }o--|| posts : "post_id"
+  post_shares }o--|| users : "user_id"
+  case_shares }o--|| cases : "case_id"
+  case_shares }o--|| users : "user_id"
+  client_reviews }o--o| cases : "case_id"
+  client_reviews }o--|| users : "attorney_id"
+  client_reviews }o--|| users : "client_id"
+  review_helpful_votes }o--|| reviews : "review_id"
+  review_helpful_votes }o--|| users : "user_id"
+  client_review_helpful_votes }o--|| client_reviews : "review_id"
+  client_review_helpful_votes }o--|| users : "user_id"
+  client_review_appeals |o--|| client_reviews : "review_id"
+  client_review_appeals }o--|| users : "appellant_id"
+  assistant_memberships }o--|| users : "attorney_id"
+  assistant_memberships }o--o| users : "assistant_user_id"
+  assistant_activity }o--|| assistant_memberships : "membership_id"
+  assistant_requests }o--|| assistant_memberships : "membership_id"
+  attorney_tasks }o--|| users : "attorney_id"
+  attorney_tasks }o--o| assistant_memberships : "created_by_membership_id"
+  attorney_tasks }o--o| cases : "case_id"
+  attorney_task_steps }o--|| attorney_tasks : "task_id"
+  bid_drafts }o--|| users : "attorney_id"
+  bid_drafts }o--|| cases : "case_id"
+  assistant_liability_acceptances }o--|| users : "attorney_id"
+  assistant_liability_acceptances }o--|| assistant_memberships : "membership_id"
+  integration_credentials }o--o| users : "created_by"
+  video_assets }o--|| users : "owner_user_id"
+  sticker_packs }o--o| users : "owner_user_id"
+  stickers }o--|| sticker_packs : "pack_id"
+  stickers |o--|| files : "file_id"
+  user_sticker_packs }o--|| users : "user_id"
+  user_sticker_packs }o--|| sticker_packs : "pack_id"
+  user_recent_stickers }o--|| users : "user_id"
+  user_recent_stickers }o--|| stickers : "sticker_id"
 ```
