@@ -213,6 +213,29 @@ export class ModerationService {
             }
           : null;
       }
+      case 'sticker_pack': {
+        const pk = await db.stickerPack.findUnique({
+          where: { id },
+          select: {
+            owner_user_id: true,
+            title: true,
+            short_name: true,
+            status: true,
+            created_at: true,
+          },
+        });
+        return pk && pk.owner_user_id
+          ? {
+              type,
+              id,
+              authorId: pk.owner_user_id,
+              status: pk.status === 'active' ? 'published' : pk.status,
+              text: `${pk.title} (${pk.short_name})`,
+              context: {},
+              createdAt: pk.created_at,
+            }
+          : null;
+      }
       case 'client_review': {
         const r = await db.clientReview.findUnique({
           where: { id },
@@ -399,6 +422,14 @@ export class ModerationService {
         });
         const attorneyId = target.context.attorneyId;
         if (attorneyId) await recalcAttorneyRating(tx, attorneyId);
+        return target.status;
+      }
+      case 'sticker_pack': {
+        // A hidden pack can't be installed or sent; remove hides it too.
+        await tx.stickerPack.update({
+          where: { id: target.id },
+          data: { status: next === 'published' ? 'active' : 'hidden' },
+        });
         return target.status;
       }
       case 'client_review': {

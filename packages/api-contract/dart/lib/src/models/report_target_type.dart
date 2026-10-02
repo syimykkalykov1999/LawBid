@@ -16,6 +16,8 @@ enum ReportTargetType {
   message('message'),
   @JsonValue('user')
   user('user'),
+  @JsonValue('sticker_pack')
+  stickerPack('sticker_pack'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

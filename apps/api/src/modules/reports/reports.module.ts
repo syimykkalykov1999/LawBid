@@ -48,6 +48,7 @@ const REPORTABLE: ReportTargetType[] = [
   'case_comment',
   'message',
   'user',
+  'sticker_pack',
 ];
 
 export class CreateReportDto {

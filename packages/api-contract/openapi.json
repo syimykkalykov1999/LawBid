@@ -30078,7 +30078,8 @@
                 "user",
                 "case",
                 "review",
-                "client_review"
+                "client_review",
+                "sticker_pack"
               ]
             }
           },
@@ -30205,7 +30206,8 @@
                 "user",
                 "case",
                 "review",
-                "client_review"
+                "client_review",
+                "sticker_pack"
               ]
             }
           },
@@ -30330,7 +30332,8 @@
                 "user",
                 "case",
                 "review",
-                "client_review"
+                "client_review",
+                "sticker_pack"
               ]
             }
           },
@@ -57026,7 +57029,8 @@
               "user",
               "case",
               "review",
-              "client_review"
+              "client_review",
+              "sticker_pack"
             ],
             "type": "string"
           },
@@ -57192,7 +57196,8 @@
               "user",
               "case",
               "review",
-              "client_review"
+              "client_review",
+              "sticker_pack"
             ],
             "type": "string"
           },
@@ -57296,7 +57301,8 @@
               "user",
               "case",
               "review",
-              "client_review"
+              "client_review",
+              "sticker_pack"
             ],
             "type": "string"
           },
@@ -58116,7 +58122,8 @@
           "comment",
           "case_comment",
           "message",
-          "user"
+          "user",
+          "sticker_pack"
         ]
       },
       "CreateReportDto": {

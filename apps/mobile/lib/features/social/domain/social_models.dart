@@ -385,7 +385,7 @@ enum ReportReason {
   other,
 }
 
-enum ReportTarget { post, comment, message, user }
+enum ReportTarget { post, comment, message, user, stickerPack }
 
 /// A client in People search / followers (OQ-026): name, handle, avatar,
 /// state — never contacts.

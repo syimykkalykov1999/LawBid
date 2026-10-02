@@ -515,6 +515,8 @@ enum ReportTargetType {
   case_comment
   // Owner 2026-10-01: reviews of clients and assistants.
   client_review
+  // Owner 2026-10-02: user sticker packs can be reported.
+  sticker_pack
 
   @@map("report_target_type")
 }

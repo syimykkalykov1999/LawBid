@@ -3,13 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/profile/data/avatar_upload_repository.dart'
     show sniffImageMime;
+import 'package:lawbid/features/social/domain/social_models.dart';
+import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
 import 'package:lawbid/features/stickers/application/stickers_providers.dart';
 import 'package:lawbid/features/stickers/domain/sticker_models.dart';
 import 'package:lawbid/features/stickers/presentation/emoji_data.dart';
@@ -600,6 +601,25 @@ class _PackSheetState extends ConsumerState<_PackSheet> {
                           ],
                         ),
                       ),
+                      if (!pack.isMine && !pack.isOfficial)
+                        PopupMenuButton<String>(
+                          icon: AppIcon(
+                            AppIcons.moreHorizRounded,
+                            color: colors.text,
+                          ),
+                          onSelected: (_) => showReportSheet(
+                            context,
+                            ref,
+                            ReportTarget.stickerPack,
+                            pack.id,
+                          ),
+                          itemBuilder: (_) => [
+                            PopupMenuItem(
+                              value: 'report',
+                              child: Text(t.t('stickers.reportPack')),
+                            ),
+                          ],
+                        ),
                       if (pack.isMine)
                         PopupMenuButton<String>(
                           icon: AppIcon(

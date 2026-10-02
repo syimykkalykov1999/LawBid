@@ -25,6 +25,8 @@ export const REPORT_TARGET_TYPES = [
   'review',
   // Owner 2026-10-01: reviews of clients and assistants.
   'client_review',
+  // Owner 2026-10-02: user sticker packs.
+  'sticker_pack',
 ] as const;
 export type ReportTargetName = (typeof REPORT_TARGET_TYPES)[number];
 

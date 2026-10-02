@@ -24,6 +24,8 @@ enum ModerationQueueItemDtoTargetType {
   review('review'),
   @JsonValue('client_review')
   clientReview('client_review'),
+  @JsonValue('sticker_pack')
+  stickerPack('sticker_pack'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

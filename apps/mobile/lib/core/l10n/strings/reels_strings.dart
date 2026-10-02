@@ -183,6 +183,7 @@ const reelsRu = <String, String>{
       'Друг по вашему приглашению зарегистрировался — бонус начислен',
   'notif.list.promotion_started': 'Продвижение вашего дела началось',
   'notif.list.promotion_ended': 'Продвижение вашего дела завершилось',
+  'stickers.reportPack': 'Пожаловаться на набор',
 };
 
 const reelsEn = <String, String>{
@@ -366,4 +367,5 @@ const reelsEn = <String, String>{
       'A friend joined with your invite — bonus added',
   'notif.list.promotion_started': 'Promotion of your case has started',
   'notif.list.promotion_ended': 'Promotion of your case has ended',
+  'stickers.reportPack': 'Report this pack',
 };

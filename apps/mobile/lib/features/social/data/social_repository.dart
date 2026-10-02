@@ -574,6 +574,7 @@ class ApiSocialRepository implements SocialRepository {
               ReportTarget.comment => api.ReportTargetType.comment,
               ReportTarget.message => api.ReportTargetType.message,
               ReportTarget.user => api.ReportTargetType.user,
+              ReportTarget.stickerPack => api.ReportTargetType.stickerPack,
             },
             targetId: _raw(id),
             reason: api.ReportReason.values.byName(reason.name),
