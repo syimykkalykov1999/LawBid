@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:lawbid/core/audio/app_sounds.dart';
@@ -195,6 +196,7 @@ class CallController extends Notifier<CallSession> {
   Future<void> accept() async {
     final call = state.call;
     if (call == null || state.phase != CallPhase.incoming) return;
+    unawaited(ref.read(appSoundsProvider).stopRingtone());
     state = state.copyWith(phase: CallPhase.connecting);
     unawaited(ref.read(systemCallUiProvider).dismiss(call.id));
     try {
@@ -284,7 +286,15 @@ class CallController extends Notifier<CallSession> {
     // (the in-app screen), but without the ringing system UI or a buzz.
     if (isCategoryMuted(ref, NotifCategory.calls)) return;
     unawaited(HapticFeedback.heavyImpact());
-    if (showSystemUi) {
+    // Audit 2026-10-02: with the app open the phone's call screen needs
+    // the notifications permission to ring (often not granted) — the app
+    // rings itself and shows its own incoming screen. In the background
+    // the system call screen rings (push / callkit).
+    final foreground = WidgetsBinding.instance.lifecycleState ==
+        AppLifecycleState.resumed;
+    if (foreground) {
+      unawaited(ref.read(appSoundsProvider).startRingtone());
+    } else if (showSystemUi) {
       unawaited(ref.read(systemCallUiProvider).showIncoming(call));
     }
   }
@@ -447,6 +457,8 @@ class CallController extends Notifier<CallSession> {
 
   void _reset() {
     _clearTimers();
+    // Audit 2026-10-02: the incoming melody stops with any change.
+    unawaited(ref.read(appSoundsProvider).stopRingtone());
     unawaited(_media?.close());
     _media = null;
     _mediaOpen = false;

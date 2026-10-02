@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import type { Prisma, PrismaClient, User } from '@prisma/client';
+import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { withDeleted } from '../../../prisma/soft-delete.extension';
 
@@ -66,6 +67,29 @@ export class IdentityService {
     });
     if (existing) {
       return { user: existing.user, isNewUser: false };
+    }
+
+    // Audit 2026-10-02: the phone/email already belongs to an account that
+    // signs in another way (e.g. Google/Apple, or set on the profile) —
+    // linking happens only while signed in (class doc), so say which way
+    // to sign in instead of a 500 from the unique index.
+    const owner = await client.user.findFirst({
+      where:
+        channel === 'phone'
+          ? { phone_e164: normalizedIdentifier }
+          : { email: normalizedIdentifier },
+      select: { id: true, identifiers: { select: { provider: true } } },
+    });
+    if (owner) {
+      throw new ConflictException({
+        code: ErrorCode.ACCOUNT_EXISTS_USE_OTHER_METHOD,
+        message: 'This account signs in another way.',
+        details: {
+          availableMethods: [
+            ...new Set(owner.identifiers.map((i) => i.provider)),
+          ],
+        },
+      });
     }
 
     const now = new Date();

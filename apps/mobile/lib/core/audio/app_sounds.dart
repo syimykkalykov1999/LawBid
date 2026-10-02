@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:audio_session/audio_session.dart';
 import 'package:just_audio/just_audio.dart';
 
 /// OQ-044 (owner 2026-09-30): the app's own sounds — ringback tones while
@@ -11,6 +12,11 @@ import 'package:just_audio/just_audio.dart';
 abstract interface class AppSounds {
   Future<void> startRingback();
   Future<void> stopRingback();
+
+  /// Audit 2026-10-02: the incoming-call melody while the app is open
+  /// (the system call screen rings only in the background).
+  Future<void> startRingtone();
+  Future<void> stopRingtone();
   Future<void> busy();
   Future<void> callEnded();
   Future<void> messageIn();
@@ -24,6 +30,10 @@ class NoAppSounds implements AppSounds {
   @override
   Future<void> stopRingback() async {}
   @override
+  Future<void> startRingtone() async {}
+  @override
+  Future<void> stopRingtone() async {}
+  @override
   Future<void> busy() async {}
   @override
   Future<void> callEnded() async {}
@@ -36,6 +46,7 @@ class NoAppSounds implements AppSounds {
 class JustAudioAppSounds implements AppSounds {
   AudioPlayer? _loop;
   AudioPlayer? _fx;
+  AudioPlayer? _ring;
 
   Future<void> _play(String asset, {double volume = 0.6}) async {
     try {
@@ -52,7 +63,16 @@ class JustAudioAppSounds implements AppSounds {
   @override
   Future<void> startRingback() async {
     try {
-      final p = _loop ??= AudioPlayer();
+      final p = _loop ??= AudioPlayer(handleInterruptions: false);
+      // Audit 2026-10-02: the call's audio mode (WebRTC) silenced media
+      // playback — ringback now plays on the call's own signalling path,
+      // so the caller hears it in the earpiece or the speaker.
+      await p.setAndroidAudioAttributes(
+        const AndroidAudioAttributes(
+          contentType: AndroidAudioContentType.sonification,
+          usage: AndroidAudioUsage.voiceCommunicationSignalling,
+        ),
+      );
       await p.setAsset('assets/sounds/ringback.wav');
       await p.setLoopMode(LoopMode.one);
       await p.setVolume(0.5);
@@ -66,6 +86,34 @@ class JustAudioAppSounds implements AppSounds {
   Future<void> stopRingback() async {
     try {
       await _loop?.stop();
+    } on Object {
+      // Nothing playing.
+    }
+  }
+
+  @override
+  Future<void> startRingtone() async {
+    try {
+      final p = _ring ??= AudioPlayer(handleInterruptions: false);
+      await p.setAndroidAudioAttributes(
+        const AndroidAudioAttributes(
+          contentType: AndroidAudioContentType.sonification,
+          usage: AndroidAudioUsage.notificationRingtone,
+        ),
+      );
+      await p.setAsset('assets/sounds/ringtone.wav');
+      await p.setLoopMode(LoopMode.one);
+      await p.setVolume(1);
+      unawaited(p.play());
+    } on Object catch (e) {
+      debugPrint('ringtone: $e');
+    }
+  }
+
+  @override
+  Future<void> stopRingtone() async {
+    try {
+      await _ring?.stop();
     } on Object {
       // Nothing playing.
     }

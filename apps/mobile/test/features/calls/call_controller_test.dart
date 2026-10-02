@@ -140,6 +140,11 @@ class _Sounds implements AppSounds {
   Future<void> startRingback() async => played.add('ringback');
   @override
   Future<void> stopRingback() async => played.add('stop');
+  final rings = <String>[];
+  @override
+  Future<void> startRingtone() async => rings.add('ring');
+  @override
+  Future<void> stopRingtone() async => rings.add('stop');
   @override
   Future<void> busy() async => played.add('busy');
   @override

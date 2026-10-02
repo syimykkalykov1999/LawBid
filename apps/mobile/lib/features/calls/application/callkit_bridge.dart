@@ -6,6 +6,7 @@ import 'package:flutter_callkit_incoming/entities/entities.dart';
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/data/calls_repository.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
@@ -61,7 +62,9 @@ Future<void> showLawbidIncoming({
         isCustomNotification: true,
         isShowLogo: false,
         // res/raw/silence.wav when calls are switched off.
-        ringtonePath: silent ? 'silence' : 'system_ringtone_default',
+        // Audit 2026-10-02: our own melody (res/raw/ringtone.wav), so it
+        // rings even on phones with no default ringtone set.
+        ringtonePath: silent ? 'silence' : 'ringtone',
         backgroundColor: '#0A1A3F',
         actionColor: '#C9A24A',
         textColor: '#ffffff',
@@ -84,6 +87,8 @@ Future<void> showLawbidIncoming({
   }
 }
 
+const _kAskedCallPermission = 'calls.asked_notification_permission';
+
 /// FCM in the background / killed app (Android data-only push): ring.
 @pragma('vm:entry-point')
 Future<void> lawbidBackgroundMessage(RemoteMessage message) async {
@@ -101,6 +106,26 @@ Future<void> lawbidBackgroundMessage(RemoteMessage message) async {
 /// Answers / declines made on the system UI reach the call controller.
 /// Kept alive by `CallHost`.
 final callkitEventsProvider = Provider<void>((ref) {
+  // Audit 2026-10-02: Android 13+ shows (and rings) the incoming-call
+  // screen only with the notifications permission — ask for it once.
+  final prefs = ref.read(sharedPreferencesProvider);
+  if (defaultTargetPlatform == TargetPlatform.android &&
+      !(prefs.getBool(_kAskedCallPermission) ?? false)) {
+    unawaited(() async {
+      await prefs.setBool(_kAskedCallPermission, true);
+      try {
+        await FlutterCallkitIncoming.requestNotificationPermission({
+          'title': 'LawBid',
+          'rationaleMessagePermission':
+              'Allow notifications so incoming calls can ring.',
+          'postNotificationMessageRequired':
+              'Allow notifications in Settings so incoming calls can ring.',
+        });
+      } on Object {
+        // No plugin (tests) / denied: the in-app ringtone still works.
+      }
+    }());
+  }
   StreamSubscription<CallEvent?>? sub;
   try {
     sub = FlutterCallkitIncoming.onEvent.listen((event) async {

@@ -109,6 +109,7 @@ dependencies:
   font_awesome_flutter: ^11.0.0
   video_player: ^2.14.0
   visibility_detector: ^0.4.0+2
+  audio_session: ^0.2.4
 dev_dependencies:
   flutter_test:
     sdk: flutter
