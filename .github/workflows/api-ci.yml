@@ -209,7 +209,7 @@ jobs:
         run: |
           docker run -d --name minio --log-driver none -p 9000:9000 \
             -e MINIO_ROOT_USER=lawbid -e MINIO_ROOT_PASSWORD=lawbid_dev_only \
-            quay.io/minio/minio:latest server /data
+            minio/minio:latest server /data
           for i in $(seq 1 30); do curl -fs http://localhost:9000/minio/health/live && break; sleep 2; done
 
       - name: e2e tests (real CockroachDB + Redis + MinIO)
