@@ -11,6 +11,8 @@ import 'package:lawbid/features/chat/application/presence_providers.dart';
 import 'package:lawbid/features/profile/presentation/screens/settings_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../helpers/referral_overrides.dart';
+
 /// Golden + reduce-motion coverage for the settings screen redesign (UI
 /// modernization pass, 2026-09-27, docs/CHANGELOG.md).
 void main() {
@@ -25,6 +27,7 @@ void main() {
     return (Widget child) => ProviderScope(
           overrides: [
             sharedPreferencesProvider.overrideWithValue(prefs),
+            referralOffOverride,
             l10nDatabaseProvider.overrideWithValue(l10nDb),
             activityStatusProvider.overrideWith(_ActivityOn.new),
           ],

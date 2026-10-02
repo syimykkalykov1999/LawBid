@@ -173,6 +173,22 @@ abstract final class ApiErrorCodes {
   static const videoTooLong = 'VIDEO_TOO_LONG';
   static const videoNotReady = 'VIDEO_NOT_READY';
   static const stickerLimitReached = 'STICKER_LIMIT_REACHED';
+  // Audit 2026-10-02: support, referrals, promotions, promo codes.
+  static const supportTicketClosed = 'SUPPORT_TICKET_CLOSED';
+  static const referralCodeInvalid = 'REFERRAL_CODE_INVALID';
+  static const referralNotAllowed = 'REFERRAL_NOT_ALLOWED';
+  static const referralInvalidState = 'REFERRAL_INVALID_STATE';
+  static const promotionAlreadyActive = 'PROMOTION_ALREADY_ACTIVE';
+  static const promotionInvalidState = 'PROMOTION_INVALID_STATE';
+  static const promoCodeInvalid = 'PROMO_CODE_INVALID';
+  static const promoCodeExists = 'PROMO_CODE_EXISTS';
+  static const contractGrantNotAttorney = 'CONTRACT_GRANT_NOT_ATTORNEY';
+  static const contractGrantRevoked = 'CONTRACT_GRANT_REVOKED';
+  static const refundAmountExceeded = 'REFUND_AMOUNT_EXCEEDED';
+  static const refundNotAllowed = 'REFUND_NOT_ALLOWED';
+  static const refundProviderFailed = 'REFUND_PROVIDER_FAILED';
+  static const contentInvalidState = 'CONTENT_INVALID_STATE';
+  static const stickerPackNameTaken = 'STICKER_PACK_NAME_TAKEN';
 
   /// Every server code, in enum order.
   static const all = <String>[
@@ -307,6 +323,21 @@ abstract final class ApiErrorCodes {
     videoTooLong,
     videoNotReady,
     stickerLimitReached,
+    supportTicketClosed,
+    referralCodeInvalid,
+    referralNotAllowed,
+    referralInvalidState,
+    promotionAlreadyActive,
+    promotionInvalidState,
+    promoCodeInvalid,
+    promoCodeExists,
+    contractGrantNotAttorney,
+    contractGrantRevoked,
+    refundAmountExceeded,
+    refundNotAllowed,
+    refundProviderFailed,
+    contentInvalidState,
+    stickerPackNameTaken,
   ];
 }
 
@@ -324,6 +355,7 @@ class ApiException implements Exception {
     this.requestId,
     this.statusCode,
   });
+
   /// Always succeeds — falls back to [networkErrorCode] for anything that
   /// isn't the backend's JSON error envelope, since a thrown [ApiException]
   /// is the one contract every interceptor/repository relies on.

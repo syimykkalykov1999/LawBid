@@ -14,7 +14,11 @@ abstract interface class SubscriptionRepository {
     SubscriptionPlan plan = SubscriptionPlan.monthly,
     int assistantSeats = 0,
     List<String> assistantPhones = const [],
+    String? promoCode,
   });
+
+  /// Owner 2026-10-02: is [code] usable for [plan]?
+  Future<PromoCheck> validatePromo(String code, SubscriptionPlan plan);
 
   /// OQ-048: monthly plan — change the number of assistant seats.
   Future<SubscriptionOverview> setSeats(int seats);

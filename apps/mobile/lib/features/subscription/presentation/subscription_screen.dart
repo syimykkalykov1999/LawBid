@@ -137,6 +137,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
               plan: c.plan,
               assistantSeats: c.seats,
               assistantPhones: c.phones,
+              promoCode: c.promoCode,
             );
     if (!mounted) return;
     switch (outcome) {
@@ -359,6 +360,9 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
             verified: verified,
             state: subscribing,
             onPay: _subscribeWeb,
+            onValidatePromo: (code, plan) => ref
+                .read(subscriptionRepositoryProvider)
+                .validatePromo(code, plan),
             onStopWaiting: () =>
                 ref.read(subscribeControllerProvider.notifier).stopWaiting(),
             onGoVerify: () => context.push(AppRoutes.verification),

@@ -54,6 +54,37 @@ class PlanPrices {
   int get yearlySavingsCents => 12 * monthlyTotal(maxSeats) - yearlyCents;
 }
 
+/// Owner 2026-10-02: a free subscription granted by contract (blogger
+/// attorneys etc.) — access without payment until [endsAt].
+@immutable
+class ContractGrant {
+  const ContractGrant({required this.endsAt, required this.assistantSeats});
+
+  final DateTime endsAt;
+  final int assistantSeats;
+}
+
+/// Owner 2026-10-02: the answer to "can I use this promo code here?".
+@immutable
+class PromoCheck {
+  const PromoCheck({
+    required this.valid,
+    this.percentOff,
+    this.amountOffCents,
+    this.freeDays,
+    this.reason,
+  });
+
+  final bool valid;
+  final int? percentOff;
+  final int? amountOffCents;
+  final int? freeDays;
+
+  /// not_found · inactive · not_started · expired · exhausted ·
+  /// wrong_audience · wrong_plan · already_used.
+  final String? reason;
+}
+
 /// The attorney's subscription row as `GET /subscriptions/me` presents it.
 @immutable
 class SubscriptionInfo {
@@ -116,7 +147,11 @@ class SubscriptionOverview {
     required this.priceCents,
     this.prices = const PlanPrices(),
     this.subscription,
+    this.contractGrant,
   });
+
+  /// Owner 2026-10-02: free under contract (isActive is true then).
+  final ContractGrant? contractGrant;
 
   final SubscriptionInfo? subscription;
   final PlanPrices prices;

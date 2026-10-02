@@ -539,4 +539,12 @@ abstract final class AppIcons {
       IconData(0xe2d8, fontFamily: lightFamily);
   static const IconData smileyStickerOutlined =
       IconData(0xe440, fontFamily: lightFamily);
+  static const IconData sellOutlined =
+      IconData(0xe478, fontFamily: lightFamily);
+  static const IconData giftOutlined =
+      IconData(0xe276, fontFamily: lightFamily);
+  static const IconData groupAddOutlined =
+      IconData(0xe68e, fontFamily: lightFamily);
+  static const IconData shareNetworkOutlined =
+      IconData(0xe408, fontFamily: lightFamily);
 }

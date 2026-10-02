@@ -126,6 +126,13 @@ abstract final class AppRoutes {
   static const dataExport = '/profile/settings/data-export';
   // Owner 2026-10-02: About LawBid + the website link.
   static const about = '/profile/settings/about';
+  static const referral = '/profile/settings/referral';
+  // Owner 2026-10-02: Help & support (tickets to the LawBid team).
+  static const support = '/profile/settings/support';
+  static const supportNew = '/profile/settings/support/new';
+  static const supportTicketPattern = '/profile/settings/support/:id';
+  static String supportTicket(String id) =>
+      '/profile/settings/support/${Uri.encodeComponent(id)}';
   static const caseHistoryItemPattern = '/profile/settings/case-history/:id';
   static String caseHistoryItem(String id) =>
       '/profile/settings/case-history/${Uri.encodeComponent(id)}';

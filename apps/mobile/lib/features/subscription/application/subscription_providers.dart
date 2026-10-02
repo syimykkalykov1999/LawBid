@@ -244,6 +244,7 @@ class SubscribeController extends Notifier<SubscribeState> {
     required SubscriptionPlan plan,
     int assistantSeats = 0,
     List<String> assistantPhones = const [],
+    String? promoCode,
   }) async {
     if (state.busy) return SubscribeOutcome.cancelled;
     final repo = ref.read(subscriptionRepositoryProvider);
@@ -253,6 +254,7 @@ class SubscribeController extends Notifier<SubscribeState> {
         plan: plan,
         assistantSeats: assistantSeats,
         assistantPhones: assistantPhones,
+        promoCode: promoCode,
       );
       _sessionId = checkout.sessionId;
       _stopWaiting = false;

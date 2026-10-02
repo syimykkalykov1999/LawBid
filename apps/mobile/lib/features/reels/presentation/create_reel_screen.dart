@@ -20,7 +20,10 @@ import 'package:video_player/video_player.dart';
 /// progress bar, resumable); the reel appears in the feeds once Bunny has
 /// encoded it — the author gets a notification.
 class CreateReelScreen extends ConsumerStatefulWidget {
-  const CreateReelScreen({super.key});
+  const CreateReelScreen({this.initialFile, super.key});
+
+  /// A video already chosen in the post's gallery picker.
+  final File? initialFile;
 
   @override
   ConsumerState<CreateReelScreen> createState() => _CreateReelScreenState();

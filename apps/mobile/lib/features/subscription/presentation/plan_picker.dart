@@ -6,6 +6,7 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/subscription/application/subscription_providers.dart';
 import 'package:lawbid/features/subscription/domain/subscription_models.dart';
 import 'package:lawbid/features/subscription/presentation/plan_tier_card.dart';
+import 'package:lawbid/features/subscription/presentation/promo_code_field.dart';
 import 'package:lawbid/features/subscription/presentation/subscription_screen.dart';
 
 final phoneE164 = RegExp(r'^\+[1-9][0-9]{7,14}$');
@@ -34,6 +35,7 @@ typedef PlanChoice = ({
   SubscriptionPlan plan,
   int seats,
   List<String> phones,
+  String? promoCode,
 });
 
 /// OQ-048 (owner 2026-09-30): two plans — monthly ($399 + $100 per
@@ -48,6 +50,7 @@ class PlanPicker extends StatefulWidget {
     required this.verified,
     required this.state,
     required this.onPay,
+    required this.onValidatePromo,
     required this.onStopWaiting,
     required this.onGoVerify,
     super.key,
@@ -59,6 +62,10 @@ class PlanPicker extends StatefulWidget {
   final bool verified;
   final SubscribeState state;
   final ValueChanged<PlanChoice> onPay;
+
+  /// Owner 2026-10-02: checks a promo code for the chosen plan.
+  final Future<PromoCheck> Function(String code, SubscriptionPlan plan)
+      onValidatePromo;
   final VoidCallback onStopWaiting;
   final VoidCallback onGoVerify;
 
@@ -71,6 +78,9 @@ class _PlanPickerState extends State<PlanPicker> {
   int _seats = 0;
   final List<TextEditingController> _phones = [];
   bool _tried = false;
+
+  /// Owner 2026-10-02: a validated promo code (null = none).
+  String? _promo;
 
   PlanPrices get _p => widget.overview.prices;
   int get _seatLimit => _plan == SubscriptionPlan.yearly ? _p.maxSeats : _seats;
@@ -129,6 +139,7 @@ class _PlanPickerState extends State<PlanPicker> {
         plan: _plan,
         seats: _plan == SubscriptionPlan.yearly ? _p.maxSeats : _seats,
         phones: phones.toSet().toList(),
+        promoCode: _promo,
       ),
     );
   }
@@ -209,6 +220,14 @@ class _PlanPickerState extends State<PlanPicker> {
                   ),
                 )
               : const SizedBox(width: double.infinity),
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        PromoCodeField(
+          t: t,
+          formats: widget.formats,
+          plan: _plan,
+          validate: widget.onValidatePromo,
+          onChanged: (code) => _promo = code,
         ),
         const SizedBox(height: AppSpacing.lg),
         AppButton(

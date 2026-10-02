@@ -122,12 +122,17 @@ class FakeSubscriptionRepository implements SubscriptionRepository {
     SubscriptionPlan plan = SubscriptionPlan.monthly,
     int assistantSeats = 0,
     List<String> assistantPhones = const [],
+    String? promoCode,
   }) async {
     calls.add(
       'checkout:${plan.name}:$assistantSeats:${assistantPhones.join(',')}',
     );
     return checkoutResult;
   }
+
+  @override
+  Future<PromoCheck> validatePromo(String code, SubscriptionPlan plan) async =>
+      const PromoCheck(valid: false, reason: 'not_found');
 
   @override
   Future<SubscriptionOverview> completeCheckout(String sessionId) async {

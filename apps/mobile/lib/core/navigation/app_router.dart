@@ -37,6 +37,7 @@ import 'package:lawbid/features/profile/presentation/screens/profile_screen.dart
 import 'package:lawbid/features/profile/presentation/screens/review_form_screen.dart';
 import 'package:lawbid/features/profile/presentation/screens/settings_screen.dart';
 import 'package:lawbid/features/profile/presentation/screens/verification_required_screen.dart';
+import 'package:lawbid/features/referrals/presentation/referral_screen.dart';
 import 'package:lawbid/features/search/presentation/screens/search_screen.dart';
 import 'package:lawbid/features/settings/about/about_screen.dart';
 import 'package:lawbid/features/settings/account/account_routes.dart';
@@ -44,6 +45,9 @@ import 'package:lawbid/features/settings/active_devices/presentation/active_devi
 import 'package:lawbid/features/settings/data_export/presentation/data_export_screen.dart';
 import 'package:lawbid/features/social/social_routes.dart';
 import 'package:lawbid/features/subscription/subscription_routes.dart';
+import 'package:lawbid/features/support/presentation/support_list_screen.dart';
+import 'package:lawbid/features/support/presentation/support_new_screen.dart';
+import 'package:lawbid/features/support/presentation/support_ticket_screen.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/team_routes.dart';
 import 'package:lawbid/features/verification/presentation/screens/verification_status_screen.dart';
@@ -274,6 +278,32 @@ GoRouter appRouter(Ref ref) {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) =>
             AppPageTransitions.push(state, const CaseHistoryScreen()),
+      ),
+      GoRoute(
+        path: AppRoutes.support,
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            AppPageTransitions.push(state, const SupportListScreen()),
+      ),
+      GoRoute(
+        path: AppRoutes.supportNew,
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            AppPageTransitions.push(state, const SupportNewScreen()),
+      ),
+      GoRoute(
+        path: AppRoutes.supportTicketPattern,
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => AppPageTransitions.push(
+          state,
+          SupportTicketScreen(ticketId: state.pathParameters['id'] ?? ''),
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.referral,
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            AppPageTransitions.push(state, const ReferralScreen()),
       ),
       GoRoute(
         path: AppRoutes.about,

@@ -17,6 +17,7 @@ import 'package:lawbid/features/settings/active_devices/presentation/active_devi
 import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../helpers/referral_overrides.dart';
 import '../helpers/ux_harness.dart';
 
 /// Accessibility guidelines (docs/01 §8.4: WCAG AA contrast, 44x44 touch
@@ -82,7 +83,10 @@ void main() {
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
-    baseOverrides = [sharedPreferencesProvider.overrideWithValue(prefs)];
+    baseOverrides = [
+      sharedPreferencesProvider.overrideWithValue(prefs),
+      referralOffOverride,
+    ];
   });
 
   final themes = {'light': AppTheme.light(), 'dark': AppTheme.dark()};

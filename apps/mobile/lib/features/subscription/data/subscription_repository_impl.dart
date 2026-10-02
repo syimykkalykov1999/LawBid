@@ -7,9 +7,12 @@ import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// `SubscriptionsClient` of the generated contract → domain models.
 class ApiSubscriptionRepository implements SubscriptionRepository {
-  ApiSubscriptionRepository(Dio dio) : _api = api.SubscriptionsClient(dio);
+  ApiSubscriptionRepository(Dio dio)
+      : _api = api.SubscriptionsClient(dio),
+        _billing = api.BillingClient(dio);
 
   final api.SubscriptionsClient _api;
+  final api.BillingClient _billing;
 
   static SubscriptionInfo _info(api.SubscriptionDto d) => SubscriptionInfo(
         id: d.id,
@@ -29,6 +32,12 @@ class ApiSubscriptionRepository implements SubscriptionRepository {
   static SubscriptionOverview _overview(api.SubscriptionMeDto d) =>
       SubscriptionOverview(
         subscription: d.subscription == null ? null : _info(d.subscription!),
+        contractGrant: d.contractGrant == null
+            ? null
+            : ContractGrant(
+                endsAt: d.contractGrant!.endsAt,
+                assistantSeats: d.contractGrant!.assistantSeats,
+              ),
         isActive: d.isActive,
         canStart: d.canStart,
         trialEligible: d.trialEligible,
@@ -52,6 +61,28 @@ class ApiSubscriptionRepository implements SubscriptionRepository {
       );
 
   @override
+  Future<PromoCheck> validatePromo(String code, SubscriptionPlan plan) async {
+    final d = (await guardApiCall(
+      () => _billing.validatePromoCode(
+        body: api.ValidatePromoDto(
+          code: code,
+          appliesTo: plan == SubscriptionPlan.yearly
+              ? api.PromoPurchase.yearly
+              : api.PromoPurchase.monthly,
+        ),
+      ),
+    ))
+        .data;
+    return PromoCheck(
+      valid: d.valid,
+      percentOff: d.percentOff,
+      amountOffCents: d.amountOffCents,
+      freeDays: d.freeDays,
+      reason: d.reason?.json,
+    );
+  }
+
+  @override
   Future<SubscriptionOverview> overview() async =>
       _overview((await guardApiCall(_api.mySubscription)).data);
 
@@ -60,10 +91,12 @@ class ApiSubscriptionRepository implements SubscriptionRepository {
     SubscriptionPlan plan = SubscriptionPlan.monthly,
     int assistantSeats = 0,
     List<String> assistantPhones = const [],
+    String? promoCode,
   }) async {
     final d = (await guardApiCall(
       () => _api.createCheckout(
         body: api.CheckoutRequestDto(
+          promoCode: promoCode,
           plan: plan == SubscriptionPlan.yearly
               ? api.SubscriptionPlan.yearly
               : api.SubscriptionPlan.monthly,

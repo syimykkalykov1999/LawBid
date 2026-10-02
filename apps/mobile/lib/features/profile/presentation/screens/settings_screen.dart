@@ -10,6 +10,7 @@ import 'package:lawbid/features/auth/application/sign_out.dart';
 import 'package:lawbid/features/chat/application/presence_providers.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
+import 'package:lawbid/features/referrals/application/referrals_providers.dart';
 import 'package:lawbid/features/settings/account/account_routes.dart';
 import 'package:lawbid/features/subscription/subscription_routes.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
@@ -44,9 +45,6 @@ class SettingsScreen extends ConsumerWidget {
     final t = ref.watch(translatorProvider);
     final themeMode =
         ref.watch(themeModeControllerProvider).value ?? ThemeMode.system;
-
-    void showNotBuiltYet() =>
-        showAppSnackBar(context, t.t('auth.welcome.notBuiltYet'));
 
     String themeLabel(ThemeMode mode) => switch (mode) {
           ThemeMode.system => t.t('settings.theme.system'),
@@ -95,6 +93,14 @@ class SettingsScreen extends ConsumerWidget {
               subtitle: t.t('settings.assistants.hint'),
               onTap: () => context.push(TeamRoutes.team),
             ),
+          // Owner 2026-10-02: referrals (shown only when the program is on).
+          if (ref.watch(referralMeProvider).value?.enabled ?? false)
+            AppListRow(
+              icon: AppIcons.giftOutlined,
+              label: t.t('referral.title'),
+              subtitle: t.t('referral.hint'),
+              onTap: () => context.push(AppRoutes.referral),
+            ),
           AppListRow(
             icon: AppIcons.historyRounded,
             label: t.t('settings.caseHistory'),
@@ -130,8 +136,9 @@ class SettingsScreen extends ConsumerWidget {
         children: [
           AppListRow(
             icon: AppIcons.helpOutlineRounded,
-            label: t.t('settings.help'),
-            onTap: showNotBuiltYet,
+            label: t.t('support.title'),
+            subtitle: t.t('support.hint.short'),
+            onTap: () => context.push(AppRoutes.support),
           ),
           AppListRow(
             icon: AppIcons.balanceRounded,

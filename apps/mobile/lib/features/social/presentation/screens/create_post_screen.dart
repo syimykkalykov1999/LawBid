@@ -1,14 +1,17 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
+import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/onboarding/presentation/widgets/option_picker_sheet.dart';
 import 'package:lawbid/features/practice/practice_options.dart';
+import 'package:lawbid/features/reels/application/reels_providers.dart';
+import 'package:lawbid/features/reels/presentation/create_reel_screen.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/data/social_repository.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
@@ -17,6 +20,7 @@ import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
+import 'package:lawbid/shared/domain/user_role.dart';
 
 /// One photo in the composer: uploaded right after it is picked, so
 /// "Опубликовать" only waits for what is still in flight.
@@ -76,15 +80,55 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
     super.dispose();
   }
 
+  /// Owner 2026-10-02: Instagram-style — one gallery for photos AND videos,
+  /// but videos only exist while the owner has video switched on (flag +
+  /// Bunny keys) and for people who publish as the attorney.
+  bool get _videoAllowed =>
+      ref.read(reelsEnabledProvider) &&
+      ref.read(currentUserRoleProvider) != UserRole.client &&
+      ref.read(canDoProvider(AssistantDuty.publish));
+
+  static bool _isVideo(XFile f) {
+    final mime = f.mimeType ?? '';
+    if (mime.startsWith('video/')) return true;
+    final n = f.path.toLowerCase();
+    return n.endsWith('.mp4') ||
+        n.endsWith('.mov') ||
+        n.endsWith('.m4v') ||
+        n.endsWith('.3gp') ||
+        n.endsWith('.webm');
+  }
+
   Future<void> _pick() async {
     final left = kPostMaxPhotos - _photos.length;
     if (left <= 0) return;
-    final picked = await ImagePicker().pickMultiImage(
-      maxWidth: 2048,
-      maxHeight: 2048,
-      imageQuality: 90,
-      limit: left,
-    );
+    final List<XFile> picked;
+    if (_videoAllowed) {
+      picked = await ImagePicker().pickMultipleMedia(
+        maxWidth: 2048,
+        maxHeight: 2048,
+        imageQuality: 90,
+        limit: left,
+      );
+      final video = picked.where(_isVideo).firstOrNull;
+      if (video != null) {
+        if (!mounted) return;
+        // A video makes it a reel: the reel screen takes it from here.
+        await Navigator.of(context).pushReplacement(
+          MaterialPageRoute<void>(
+            builder: (_) => CreateReelScreen(initialFile: File(video.path)),
+          ),
+        );
+        return;
+      }
+    } else {
+      picked = await ImagePicker().pickMultiImage(
+        maxWidth: 2048,
+        maxHeight: 2048,
+        imageQuality: 90,
+        limit: left,
+      );
+    }
     for (final file in picked.take(left)) {
       final photo = _Photo(await file.readAsBytes());
       if (!mounted) return;
@@ -331,7 +375,11 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                         }),
                         footer: _photos.length < kPostMaxPhotos
                             ? _AddPhotoTile(
-                                label: t.t('post.create.addPhoto'),
+                                label: t.t(
+                                  _videoAllowed
+                                      ? 'post.create.addMedia'
+                                      : 'post.create.addPhoto',
+                                ),
                                 onTap: _pick,
                               )
                             : null,

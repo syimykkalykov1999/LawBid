@@ -29,6 +29,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../helpers/fixtures.dart';
 import '../../helpers/onboarding_harness.dart';
+import '../../helpers/referral_overrides.dart';
 
 /// Settings → Account (docs/01 §10.3, §11 3A): identifier list with all
 /// screen states, linking Apple/Google/phone/email, and changing the
@@ -493,6 +494,7 @@ void main() {
       ProviderScope(
         overrides: [
           sharedPreferencesProvider.overrideWithValue(prefs),
+          referralOffOverride,
           l10nDatabaseProvider.overrideWithValue(l10nDb),
           currentUserControllerProvider.overrideWith(
             () => FixedUserController(CurrentUserState.ready(_client)),

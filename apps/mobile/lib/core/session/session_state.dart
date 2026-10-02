@@ -15,7 +15,6 @@ part 'session_state.freezed.dart';
 /// rather than a bare null check.
 @freezed
 abstract class SessionState with _$SessionState {
-
   const factory SessionState({
     required String accessToken,
     required String sub,
