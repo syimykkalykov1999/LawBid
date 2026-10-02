@@ -1,6 +1,7 @@
 'use client';
 
-import { CaretDown, List, MagnifyingGlass, SignOut } from '@phosphor-icons/react';
+import { CaretDown, List, MagnifyingGlass, ShieldCheck, SignOut } from '@phosphor-icons/react';
+import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
 import { usePathname, useRouter } from 'next/navigation';
@@ -99,6 +100,13 @@ export function Topbar({ me, onMenu, onSearch }: { me: Me | undefined; onMenu: (
                 <div className="mb-1.5 px-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-faint">Тема</div>
                 <ThemeChoice />
               </div>
+              <Link
+                href="/profile"
+                onClick={() => setMenu(false)}
+                className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm text-ink transition-colors hover:bg-surface-2"
+              >
+                <ShieldCheck size={16} /> Профиль и безопасность
+              </Link>
               <button
                 type="button"
                 onClick={() => void signOut()}

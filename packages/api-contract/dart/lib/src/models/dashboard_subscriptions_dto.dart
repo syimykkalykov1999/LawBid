@@ -27,11 +27,11 @@ class DashboardSubscriptionsDto {
   /// Live subscriptions (same rule as the gate and /admin/overview): trialing + active + past_due still in grace.
   final int live;
 
-  /// Monthly recurring revenue, cents: active + past_due in grace; monthly price_cents (incl. seats) + yearly price_cents / 12.
-  final int revenueEstimateCents;
+  /// Monthly recurring revenue, cents: active + past_due in grace; monthly price_cents (incl. seats) + yearly price_cents / 12. null for everyone but the super admin (money is closed).
+  final int? revenueEstimateCents;
 
-  /// revenueEstimateCents rounded to whole USD.
-  final int revenueEstimateUsd;
+  /// revenueEstimateCents rounded to whole USD; null like it.
+  final int? revenueEstimateUsd;
 
   Map<String, Object?> toJson() => _$DashboardSubscriptionsDtoToJson(this);
 }

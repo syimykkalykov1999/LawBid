@@ -31,7 +31,7 @@ type QStatus = "open" | "actioned" | "dismissed";
 export default function ModerationQueuePage() {
   const router = useRouter();
   const { data: me } = useMe();
-  const canSeeUsers = canOpen(me?.role, "/users");
+  const canSeeUsers = canOpen(me, "/users");
   const [status, setStatus] = useState<QStatus>("open");
   const [targetType, setTargetType] = useState<ModerationTargetType | "">("");
   const filters = { status, targetType };

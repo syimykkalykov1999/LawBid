@@ -8,7 +8,7 @@ import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/app.setup';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
-import { adminSession } from './support/admin-login';
+import { adminSession, OPS_RIGHTS } from './support/admin-login';
 
 jest.setTimeout(120_000);
 
@@ -181,7 +181,13 @@ describe('stage 6.5 — disputes, contact issues, data requests (e2e)', () => {
   }
 
   it('dispute queue + decision: closed with journal event and notifications; back to in_progress', async () => {
-    const support = await adminSession(baseUrl, prisma, 'support');
+    const support = await adminSession(
+      baseUrl,
+      prisma,
+      'support',
+      undefined,
+      OPS_RIGHTS,
+    );
     const verifier = await adminSession(baseUrl, prisma, 'verifier');
     const c = await client();
     const a = await attorney();

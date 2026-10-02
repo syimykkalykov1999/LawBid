@@ -203,7 +203,7 @@ export default function VerificationCardPage() {
   const name = [r.attorney.firstName, r.attorney.lastName].filter(Boolean).join(' ') || `@${r.attorney.username}`;
   const active = r.status === 'in_review' || r.status === 'submitted' || r.status === 'needs_more_info';
   const busy = take.isPending || approve.isPending || requestInfo.isPending || reject.isPending;
-  const canSeeUser = canOpen(me?.role, '/users');
+  const canSeeUser = canOpen(me, '/users');
 
   return (
     <>

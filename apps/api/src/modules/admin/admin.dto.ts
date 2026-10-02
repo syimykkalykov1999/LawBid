@@ -1,9 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsEmail,
   IsIn,
   IsInt,
+  IsObject,
   IsISO8601,
   IsOptional,
   IsString,
@@ -33,6 +35,57 @@ export class CreateAdminDto {
   @ApiProperty({ enum: ADMIN_ROLES })
   @IsIn(ADMIN_ROLES)
   role!: AdminRoleName;
+
+  @ApiPropertyOptional({
+    description:
+      'Starting toggles; omitted = the defaults of the role. Money, keys and admin sections are never grantable.',
+    type: 'object',
+    additionalProperties: { type: 'string', enum: ['view', 'manage'] },
+  })
+  @IsOptional()
+  @IsObject()
+  permissions?: Record<string, string>;
+
+  @ApiPropertyOptional({
+    description:
+      'Super admin only: lets this admin create and manage other admins within their own access.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  canManageAdmins?: boolean;
+}
+
+export class SetAdminPermissionsDto {
+  @ApiProperty({
+    description:
+      'Area → "view" | "manage". Areas left out are closed. Applies at once.',
+    type: 'object',
+    additionalProperties: { type: 'string', enum: ['view', 'manage'] },
+  })
+  @IsObject()
+  permissions!: Record<string, string>;
+
+  @ApiPropertyOptional({
+    description:
+      'Super admin only: the right to create and manage other admins. Omitted = unchanged.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  canManageAdmins?: boolean;
+}
+
+export class SetAdminCredentialsDto {
+  @ApiPropertyOptional({ maxLength: 40 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  login?: string;
+
+  @ApiPropertyOptional({ minLength: 10, maxLength: 128 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(128)
+  password?: string;
 }
 
 export class SetAdminRoleDto {
@@ -63,11 +116,48 @@ export class AdminAccountDto {
   @ApiProperty({ description: 'Authenticator bound.' })
   totpEnabled!: boolean;
 
+  @ApiProperty({ type: String, nullable: true })
+  login!: string | null;
+
+  @ApiProperty({ description: 'A password is set.' })
+  hasPassword!: boolean;
+
+  @ApiProperty({
+    type: 'object',
+    additionalProperties: { type: 'string', enum: ['view', 'manage'] },
+  })
+  permissions!: Record<string, 'view' | 'manage'>;
+
+  @ApiProperty({ description: 'May create and manage other admins.' })
+  canManageAdmins!: boolean;
+
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   lastLoginAt!: string | null;
 
   @ApiProperty({ format: 'date-time' })
   createdAt!: string;
+}
+
+export class AdminSessionIdParamDto {
+  @ApiProperty({ maxLength: 64 })
+  @IsString()
+  @MaxLength(64)
+  sessionId!: string;
+}
+
+export class AdminSessionRowDto {
+  @ApiProperty() sessionId!: string;
+  @ApiProperty({ format: 'uuid' }) adminId!: string;
+  @ApiProperty() email!: string;
+  @ApiProperty({ type: String, nullable: true }) login!: string | null;
+  @ApiProperty({ enum: ADMIN_ROLES }) role!: AdminRoleName;
+  @ApiProperty({ type: String, nullable: true }) ip!: string | null;
+  @ApiProperty({ type: String, nullable: true }) device!: string | null;
+  @ApiProperty({ format: 'date-time' }) createdAt!: string;
+  @ApiProperty({ format: 'date-time' }) lastSeenAt!: string;
+  @ApiProperty({ type: String, nullable: true }) lastAction!: string | null;
+  @ApiProperty({ description: 'This is the session asking.' })
+  current!: boolean;
 }
 
 // ---- Дашборд (docs/06 §2.3 item 1) -----------------------------------------
@@ -104,14 +194,16 @@ export class DashboardSubscriptionsDto {
   @ApiProperty({
     type: 'integer',
     description:
-      'Monthly recurring revenue, cents: active + past_due in grace; monthly price_cents (incl. seats) + yearly price_cents / 12.',
+      'Monthly recurring revenue, cents: active + past_due in grace; monthly price_cents (incl. seats) + yearly price_cents / 12. null for everyone but the super admin (money is closed).',
+    nullable: true,
   })
-  revenueEstimateCents!: number;
+  revenueEstimateCents!: number | null;
   @ApiProperty({
     type: 'integer',
-    description: 'revenueEstimateCents rounded to whole USD.',
+    description: 'revenueEstimateCents rounded to whole USD; null like it.',
+    nullable: true,
   })
-  revenueEstimateUsd!: number;
+  revenueEstimateUsd!: number | null;
 }
 
 export class DashboardDto {

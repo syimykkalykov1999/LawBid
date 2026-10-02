@@ -31,7 +31,7 @@ export default function SupportTicketPage() {
   const qc = useQueryClient();
   const toast = useToast();
   const { data: me } = useMe();
-  const canWrite = canWriteSupport(me?.role);
+  const canWrite = canWriteSupport(me);
   const isSuper = me?.role === 'super_admin';
 
   const tq = useQuery({
@@ -181,7 +181,7 @@ export default function SupportTicketPage() {
 
         {/* Side column */}
         <div className="space-y-4">
-          <UserSummaryCard u={t.userSummary} canOpenUser={!!me && canOpen(me.role, '/users')} />
+          <UserSummaryCard u={t.userSummary} canOpenUser={!!me && canOpen(me, '/users')} />
           <Card className="p-5">
             <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-faint">Обращение</h2>
             <div className="space-y-3.5">

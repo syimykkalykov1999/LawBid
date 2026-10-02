@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge, type Tone } from '@/components/ui/card';
 import type { components } from '@/lib/api/schema';
 import { useMe } from '@/lib/hooks';
+import { can } from '@/lib/rbac';
 import { usd } from '@/lib/labels';
 import { cn } from '@/lib/utils';
 
@@ -20,14 +21,14 @@ export type Refund = components['schemas']['RefundDto'];
 /** Prices (billing.constants on the server). */
 export const PRICES = { monthlyCents: 39_900, seatCents: 10_000, yearlyCents: 959_000, maxSeats: 6 } as const;
 
-/** Billing roles: super_admin + finance write, support reads. */
+/** Money pages open to the super admin only; others get 403 from the API. */
 export function useBillingRole() {
   const { data: me } = useMe();
-  const role = me?.role;
   return {
     me,
-    canWrite: role === 'super_admin' || role === 'finance',
-    canOpenUsers: role === 'super_admin' || role === 'support' || role === 'finance' || role === 'moderator',
+    // Money is the super admin's alone (owner 2026-10-02).
+    canWrite: me?.role === 'super_admin',
+    canOpenUsers: can(me, 'users'),
   };
 }
 

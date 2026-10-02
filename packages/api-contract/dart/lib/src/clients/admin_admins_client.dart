@@ -8,6 +8,8 @@ import 'package:retrofit/retrofit.dart';
 import '../models/admin_account_envelope.dart';
 import '../models/admin_account_list_envelope.dart';
 import '../models/create_admin_dto.dart';
+import '../models/set_admin_credentials_dto.dart';
+import '../models/set_admin_permissions_dto.dart';
 import '../models/set_admin_role_dto.dart';
 
 part 'admin_admins_client.g.dart';
@@ -37,6 +39,22 @@ abstract class AdminAdminsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
+  /// Toggle areas for an admin (view / manage), within what the caller holds. Money and keys cannot be granted.
+  @PATCH('/admin/admins/{id}/permissions')
+  Future<AdminAccountEnvelope> setAdminPermissions({
+    @Path('id') required String id,
+    @Body() required SetAdminPermissionsDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Set an admin’s login and/or password (needs a fresh step-up; their sessions end)
+  @PUT('/admin/admins/{id}/credentials')
+  Future<AdminAccountEnvelope> setAdminCredentials({
+    @Path('id') required String id,
+    @Body() required SetAdminCredentialsDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
   /// Disable an administrator (sessions revoked)
   @POST('/admin/admins/{id}/disable')
   Future<AdminAccountEnvelope> disableAdmin({
@@ -47,6 +65,13 @@ abstract class AdminAdminsClient {
   /// Re-enable a disabled administrator
   @POST('/admin/admins/{id}/enable')
   Future<AdminAccountEnvelope> enableAdmin({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Remove an administrator: account closed, login and password wiped, sessions revoked
+  @DELETE('/admin/admins/{id}')
+  Future<void> removeAdmin({
     @Path('id') required String id,
     @Extras() Map<String, dynamic>? extras,
   });

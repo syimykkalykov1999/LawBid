@@ -6,10 +6,9 @@ import { useReason } from '@/components/reason-dialog';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
 import { useMe } from '@/lib/hooks';
-import type { AdminRole } from '@/lib/rbac';
+import { can } from '@/lib/rbac';
 
 /** Roles the server lets call `GET /admin/export/:entity`. */
-const EXPORT_ROLES: readonly AdminRole[] = ['super_admin', 'finance', 'support'];
 /** Entities whose export carries personal contacts — the server wants X-Justification. */
 const NEEDS_REASON = new Set(['users']);
 
@@ -50,7 +49,7 @@ export function CsvButton({
   const { ask, dialog } = useReason();
   const [busy, setBusy] = useState(false);
 
-  if (!me || !EXPORT_ROLES.includes(me.role)) return null;
+  if (!me || !can(me, 'exports')) return null;
 
   const download = async () => {
     const headers: Record<string, string> = {};

@@ -172,6 +172,12 @@ export enum ErrorCode {
   ADMIN_AUTH_NOT_CONFIGURED = 'ADMIN_AUTH_NOT_CONFIGURED',
   // 409: an account with this email already exists.
   ADMIN_EMAIL_TAKEN = 'ADMIN_EMAIL_TAKEN',
+  // 401: wrong login or password (never says which).
+  ADMIN_CREDENTIALS_INVALID = 'ADMIN_CREDENTIALS_INVALID',
+  // 409: this login belongs to another admin.
+  ADMIN_LOGIN_TAKEN = 'ADMIN_LOGIN_TAKEN',
+  // 401: password recovery by the security question did not work.
+  ADMIN_RECOVERY_FAILED = 'ADMIN_RECOVERY_FAILED',
   // Moderation (docs/06 §3, stage 6.4)
   // 422: the rule-based check (blocked terms) refused the publication.
   CONTENT_BLOCKED = 'CONTENT_BLOCKED',

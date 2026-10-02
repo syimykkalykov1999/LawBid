@@ -10,6 +10,7 @@ import { Badge, Card } from '@/components/ui/card';
 import { EmptyState, Skeleton } from '@/components/ui/empty';
 import { api, errorText } from '@/lib/api/client';
 import { useMe } from '@/lib/hooks';
+import { can } from '@/lib/rbac';
 import { formatDateTime } from '@/lib/utils';
 
 /** Transactional emails: catalog with which locales carry our own text. */
@@ -28,7 +29,7 @@ export default function EmailTemplatesPage() {
         title="Шаблоны писем"
         subtitle="Тексты служебных писем: коды входа, новое устройство, выгрузка данных, уведомления. Свой текст заменяет стандартный для выбранного языка."
       />
-      {me && me.role !== 'super_admin' ? <ErrorNote text="Шаблоны писем доступны только супер-админу." /> : null}
+      {me && !can(me, 'email_templates') ? <ErrorNote text="Шаблоны писем недоступны: нужен доступ от супер-админа." /> : null}
       <ErrorNote text={q.error ? errorText(q.error) : null} />
       {q.isPending ? (
         <div className="grid gap-4 md:grid-cols-2">

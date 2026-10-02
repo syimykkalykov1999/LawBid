@@ -1,5 +1,5 @@
 import {
-  Article, Bank, Books, Briefcase, ClockCounterClockwise, CrownSimple, DownloadSimple, EnvelopeSimple,
+  Article, Bank, Devices, Books, Briefcase, ClockCounterClockwise, CrownSimple, DownloadSimple, EnvelopeSimple,
   FileText, FilmStrip, Flag, Gauge, Gavel, Handshake, Key, Lifebuoy, Megaphone, Receipt, RocketLaunch,
   Scales, SealCheck, ShareNetwork, ShieldCheck, SlidersHorizontal, Ticket, ToggleRight, Translate,
   Users, UsersThree, type Icon,
@@ -11,5 +11,5 @@ export const ICONS: Record<string, Icon> = {
   'crown-simple': CrownSimple, handshake: Handshake, receipt: Receipt, ticket: Ticket, 'share-network': ShareNetwork,
   lifebuoy: Lifebuoy, megaphone: Megaphone, 'envelope-simple': EnvelopeSimple, 'toggle-right': ToggleRight, key: Key,
   'sliders-horizontal': SlidersHorizontal, books: Books, translate: Translate, 'file-text': FileText, bank: Bank,
-  'download-simple': DownloadSimple, 'clock-counter-clockwise': ClockCounterClockwise, 'shield-check': ShieldCheck,
+  'download-simple': DownloadSimple, 'clock-counter-clockwise': ClockCounterClockwise, 'shield-check': ShieldCheck, devices: Devices,
 };

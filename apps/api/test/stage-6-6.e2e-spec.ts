@@ -156,7 +156,8 @@ describe('stage 6.6 — flags, config, localization, legal documents (e2e)', () 
       .expect(409);
     expect((denied.body as Body).error).toMatchObject({
       code: 'FLAG_PROVIDER_KEYS_MISSING',
-      details: { missingKeys: ['PERSONA_API_KEY'] },
+      // persona_verification is not built yet (UNBUILT_FLAGS).
+      details: { missingKeys: [], notBuilt: true },
     });
     // Rollout percent alone is fine even for a paid flag.
     await api()

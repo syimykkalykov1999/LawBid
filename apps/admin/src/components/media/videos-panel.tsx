@@ -19,6 +19,7 @@ import { api, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
 import { Reason } from '@/lib/reasons';
 import { useMe } from '@/lib/hooks';
+import { can } from '@/lib/rbac';
 import { CONTENT_STATUS, label, StatusPill, VIDEO_STATUS } from '@/lib/labels';
 import { formatDateTime } from '@/lib/utils';
 import { formatBytes } from './media-utils';
@@ -40,7 +41,7 @@ export function VideosPanel() {
   const qc = useQueryClient();
   const toast = useToast();
   const { data: me } = useMe();
-  const canWrite = me?.role === 'super_admin' || me?.role === 'moderator';
+  const canWrite = can(me, 'media', 'manage');
   const { ask, dialog } = useReason();
   const [status, setStatus] = useState<'' | VideoStatus>('');
   const [playing, setPlaying] = useState<Video | null>(null);

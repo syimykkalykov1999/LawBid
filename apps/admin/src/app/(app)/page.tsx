@@ -40,7 +40,7 @@ export default function DashboardPage() {
     queryFn: async () => (await api.GET('/admin/overview')).data!.data,
     refetchInterval: 60_000,
   });
-  const showMoney = me?.role === 'super_admin' || me?.role === 'finance' || me?.role === 'support';
+  const showMoney = me?.role === 'super_admin';
   const bq = useQuery({
     queryKey: ['billing-overview'],
     queryFn: async () => (await api.GET('/admin/billing/overview')).data!.data,
@@ -51,7 +51,7 @@ export default function DashboardPage() {
     queryKey: ['support-stats'],
     queryFn: async () => (await api.GET('/admin/support/stats')).data!.data,
     refetchInterval: 60_000,
-    enabled: me ? canOpen(me.role, '/support') : false,
+    enabled: me ? canOpen(me, '/support') : false,
   });
   const d = dq.data;
   const o = oq.data;
@@ -64,7 +64,7 @@ export default function DashboardPage() {
         { href: '/cases?tab=disputes', label: 'Споры по кейсам', value: d.openDisputes, icon: Gavel },
         { href: '/cases?tab=contact', label: '«Не могу связаться»', value: d.openContactIssues, icon: Phone },
         ...(sq.data ? [{ href: '/support', label: 'Обращения в поддержку', value: sq.data.attention ?? sq.data.unreadByAdmin, hint: sq.data.openUnassigned ? `без ответственного: ${sq.data.openUnassigned}` : undefined, icon: Lifebuoy }] : []),
-      ].filter((x) => !me || canOpen(me.role, x.href.split('?')[0]))
+      ].filter((x) => !me || canOpen(me, x.href.split('?')[0]))
     : [];
 
   return (
@@ -89,7 +89,7 @@ export default function DashboardPage() {
                 icon={Wallet}
                 gold
                 title="Выручка в месяц (MRR)"
-                value={b ? b.mrrCents / 100 : d.subscriptions.revenueEstimateUsd}
+                value={b ? b.mrrCents / 100 : (d.subscriptions.revenueEstimateUsd ?? 0)}
                 format={(n) => money(n * 100)}
                 hint={b ? `за 30 дней получено ${money(b.revenue30dCents)}` : 'оценка по активным подпискам'}
               />

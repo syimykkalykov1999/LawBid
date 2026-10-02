@@ -4,6 +4,8 @@ import { ApiEnvelopeResponse } from '../../common/dto/api-docs.decorators';
 import {
   ALL_ADMIN_ROLES,
   AdminEndpoint,
+  CurrentAdmin,
+  type AdminActor,
 } from '../admin-auth/admin-auth.decorators';
 import { DashboardDto } from './admin.dto';
 import { DashboardService } from './dashboard.service';
@@ -18,7 +20,17 @@ export class DashboardController {
   @Get()
   @ApiOperation({ summary: 'Operational numbers (cached ≤ 60 s)' })
   @ApiEnvelopeResponse(DashboardDto)
-  getDashboard(): Promise<DashboardDto> {
-    return this.dashboard.get();
+  async getDashboard(@CurrentAdmin() admin: AdminActor): Promise<DashboardDto> {
+    const d = await this.dashboard.get();
+    // Money is closed to everyone but the super admin (owner 2026-10-02).
+    if (admin.adminRole === 'super_admin') return d;
+    return {
+      ...d,
+      subscriptions: {
+        ...d.subscriptions,
+        revenueEstimateCents: null,
+        revenueEstimateUsd: null,
+      },
+    };
   }
 }

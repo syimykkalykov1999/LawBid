@@ -163,6 +163,7 @@ describe('Admin content (e2e)', () => {
       .set(verifier.auth)
       .send({ title: 'x', body: 'y', audience: 'all' })
       .expect(403);
-    await api().get('/api/v1/admin/overview').set(verifier.auth).expect(200);
+    // The overview belongs to the content area, which a verifier lacks.
+    await api().get('/api/v1/admin/overview').set(verifier.auth).expect(403);
   });
 });
