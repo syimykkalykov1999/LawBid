@@ -53,7 +53,7 @@ dependencies:
   # `POST /auth/reauth` token server-side — see
   # core/session/biometric_auth_service.dart's doc comment for why the
   # server-side trust boundary is still OTP-only this stage.
-  local_auth: ^2.3.0
+  local_auth: ^3.0.2
 
   # Local SQLite cache for the real, backend-driven L10n layer (file 01
   # §9.4, stage 1.6 — see core/l10n/l10n_database.dart). `drift_flutter`
