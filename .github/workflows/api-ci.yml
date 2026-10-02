@@ -218,7 +218,7 @@ jobs:
         # node's default limit (~2 GB) around the 60th suite.
         env:
           NODE_OPTIONS: --max-old-space-size=6144
-        run: npm run test:e2e --workspace apps/api
+        run: npm run test:e2e --workspace apps/api -- --forceExit
 
       - uses: dart-lang/setup-dart@v1
         with:
