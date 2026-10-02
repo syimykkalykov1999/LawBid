@@ -90,15 +90,19 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                     child: Padding(
                       padding: const EdgeInsets.only(left: AppSpacing.xs),
                       child: selecting
-                          ? AppIconButton(
-                              key: const ValueKey('select-cancel'),
-                              icon: AppIcon(
-                                AppIcons.closeRounded,
-                                color: colors.text,
+                          ? SizedBox.square(
+                              dimension: AppSizes.touchTarget,
+                              child: AppIconButton(
+                                key: const ValueKey('select-cancel'),
+                                icon: AppIcon(
+                                  AppIcons.closeRounded,
+                                  color: colors.text,
+                                ),
+                                semanticLabel: t.t('common.cancel'),
+                                onPressed: ref
+                                    .read(chatSelectionProvider.notifier)
+                                    .stop,
                               ),
-                              semanticLabel: t.t('common.cancel'),
-                              onPressed:
-                                  ref.read(chatSelectionProvider.notifier).stop,
                             )
                           : AppBackButton(
                               semanticLabel: t.t('common.back'),
