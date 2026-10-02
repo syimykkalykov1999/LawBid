@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/account_status/account_suspended.dart';
 import 'package:lawbid/core/app_update/app_update_gate.dart';
 import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/connectivity/offline_banner_host.dart';
@@ -42,14 +43,17 @@ class LawBidApp extends ConsumerWidget {
       builder: (context, child) => GestureDetector(
         behavior: HitTestBehavior.translucent,
         onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
-        child: AppUpdateGate(
-          child: child == null
-              ? null
-              // OQ-041: the call screen pops over any route.
-              : CallHost(
-                  router: router,
-                  child: RouterOfflineBannerHost(router: router, child: child),
-                ),
+        child: AccountSuspendedGate(
+          child: AppUpdateGate(
+            child: child == null
+                ? null
+                // OQ-041: the call screen pops over any route.
+                : CallHost(
+                    router: router,
+                    child:
+                        RouterOfflineBannerHost(router: router, child: child),
+                  ),
+          ),
         ),
       ),
     );

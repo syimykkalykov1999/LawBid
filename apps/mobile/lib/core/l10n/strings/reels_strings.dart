@@ -249,6 +249,13 @@ const reelsRu = <String, String>{
   'cases.work.completed': 'Отправлено клиенту на подтверждение',
   'cases.work.waitingClientNotice':
       'Вы отметили дело выполненным. Ждём подтверждения клиента, иначе оно закроется само через 7 дней.',
+  'account.suspended.title': 'Аккаунт заблокирован',
+  'account.suspended.until': 'Блокировка действует до {date}.',
+  'account.suspended.noEnd':
+      'Блокировка действует, пока её не снимет поддержка.',
+  'account.suspended.reason': 'Причина: {reason}',
+  'account.suspended.contact': 'Написать в поддержку',
+  'account.suspended.leave': 'Выйти из аккаунта',
 };
 
 const reelsEn = <String, String>{
@@ -498,4 +505,10 @@ const reelsEn = <String, String>{
   'cases.work.completed': 'Sent to the client for confirmation',
   'cases.work.waitingClientNotice':
       'You marked the case as done. Waiting for the client to confirm; otherwise it closes automatically in 7 days.',
+  'account.suspended.title': 'Account blocked',
+  'account.suspended.until': 'The block lasts until {date}.',
+  'account.suspended.noEnd': 'The block stays until support lifts it.',
+  'account.suspended.reason': 'Reason: {reason}',
+  'account.suspended.contact': 'Contact support',
+  'account.suspended.leave': 'Sign out',
 };
