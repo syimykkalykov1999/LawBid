@@ -23,7 +23,7 @@
     "admin:set-credentials": "node dist/src/cli/set-admin-credentials.js"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1141.0",
+    "@aws-sdk/client-s3": "^3.1142.0",
     "@aws-sdk/client-ses": "^3.1137.0",
     "@aws-sdk/s3-presigned-post": "^3.1141.0",
     "@aws-sdk/s3-request-presigner": "^3.1141.0",
