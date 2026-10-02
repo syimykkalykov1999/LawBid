@@ -1,3 +1,7 @@
+import {
+  OTP_LOCKOUT_MEMORY_SECONDS,
+  OTP_LOCKOUT_SCHEDULE_SECONDS,
+} from '../otp-limits';
 import { HttpException, HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type Redis from 'ioredis';
@@ -35,8 +39,10 @@ export type OtpVerifyResult = 'ok' | 'invalid' | 'expired' | 'locked';
 // Single atomic round trip for verify — see docs/CHANGELOG.md stage 1.4
 // for the race this avoids (a naive get-then-check-then-incr has a TOCTOU
 // window where concurrent requests can both pass with 4 prior attempts).
-// KEYS: 1=code hash key, 2=attempts key, 3=lock key
-// ARGV: 1=candidateHash, 2=maxAttempts, 3=lockoutSeconds
+// KEYS: 1=code hash key, 2=attempts key, 3=lock key, 4=strikes key (how
+//       many times this identifier was locked — the ladder step)
+// ARGV: 1=candidateHash, 2=maxAttempts, 3=strikes memory seconds,
+//       4..n=lock seconds per step (the last one repeats)
 const VERIFY_LUA = `
 if redis.call('EXISTS', KEYS[3]) == 1 then
   return {'locked', redis.call('TTL', KEYS[3])}
@@ -51,17 +57,22 @@ end
 -- guessing the 6-digit code itself, which the attempt counter below
 -- already bounds at 5 tries.
 if stored == ARGV[1] then
-  redis.call('DEL', KEYS[1], KEYS[2])
+  redis.call('DEL', KEYS[1], KEYS[2], KEYS[4])
   return {'ok', 0}
 end
 local attempts = redis.call('INCR', KEYS[2])
 if attempts == 1 then
-  redis.call('EXPIRE', KEYS[2], ARGV[3])
+  redis.call('EXPIRE', KEYS[2], tonumber(ARGV[3]))
 end
 if attempts >= tonumber(ARGV[2]) then
-  redis.call('SET', KEYS[3], '1', 'EX', ARGV[3])
-  redis.call('DEL', KEYS[1])
-  return {'locked', tonumber(ARGV[3])}
+  local strikes = redis.call('INCR', KEYS[4])
+  redis.call('EXPIRE', KEYS[4], tonumber(ARGV[3]))
+  local step = 3 + strikes
+  if step > #ARGV then step = #ARGV end
+  local lock = tonumber(ARGV[step])
+  redis.call('SET', KEYS[3], '1', 'EX', lock)
+  redis.call('DEL', KEYS[1], KEYS[2])
+  return {'locked', lock}
 end
 return {'invalid', tonumber(ARGV[2]) - attempts}
 `;
@@ -88,7 +99,6 @@ return {'invalid', tonumber(ARGV[2]) - attempts}
 export class OtpService {
   private readonly codeTtlSeconds: number;
   private readonly maxAttempts: number;
-  private readonly lockoutSeconds: number;
   private readonly devFixedCode: boolean;
   private readonly codeSecret: string;
   private readonly keyPepper: string;
@@ -106,7 +116,6 @@ export class OtpService {
       'OTP_CODE_TTL_SECONDS',
     );
     this.maxAttempts = this.config.getOrThrow<number>('OTP_MAX_ATTEMPTS');
-    this.lockoutSeconds = this.config.getOrThrow<number>('OTP_LOCKOUT_SECONDS');
     this.devFixedCode = this.config.getOrThrow<boolean>('OTP_DEV_FIXED_CODE');
     this.codeSecret = this.config.getOrThrow<string>('OTP_CODE_SECRET');
     this.keyPepper = this.config.getOrThrow<string>('OTP_KEY_PEPPER');
@@ -187,13 +196,15 @@ export class OtpService {
 
     const result = (await this.redis.eval(
       VERIFY_LUA,
-      3,
+      4,
       this.codeKey(idHash),
       this.attemptsKey(idHash),
       this.lockKey(idHash),
+      this.strikesKey(idHash),
       candidateHash,
       this.maxAttempts,
-      this.lockoutSeconds,
+      OTP_LOCKOUT_MEMORY_SECONDS,
+      ...OTP_LOCKOUT_SCHEDULE_SECONDS,
     )) as [OtpVerifyResult, number];
 
     return result[0];
@@ -329,6 +340,10 @@ export class OtpService {
   private attemptsKey(idHash: string): string {
     return `otp:att:${idHash}`;
   }
+  private strikesKey(idHash: string): string {
+    return `otp:strikes:${idHash}`;
+  }
+
   private lockKey(idHash: string): string {
     return `otp:lock:${idHash}`;
   }

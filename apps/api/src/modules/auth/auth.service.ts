@@ -1,3 +1,4 @@
+import { OTP_LIMIT_WINDOW_SECONDS } from './otp-limits';
 import {
   ForbiddenException,
   HttpException,
@@ -103,13 +104,13 @@ export class AuthService {
     const perIdentifier = await this.rateLimit.consumeSlidingWindow(
       ['otp-req', 'id', this.rateLimit.hashIdentifier(identifier)],
       this.limit(ENV.otpPerIdentifierPerHour),
-      3600,
+      OTP_LIMIT_WINDOW_SECONDS,
     );
     const perIp = meta.ip
       ? await this.rateLimit.consumeFixedWindow(
           ['otp-req', 'ip', meta.ip],
           this.limit(ENV.otpPerIpPerHour),
-          3600,
+          OTP_LIMIT_WINDOW_SECONDS,
         )
       : { allowed: true, retryAfterSeconds: 0, remaining: 0 };
     // docs/01_FOUNDATION_AUTH.md §10.2: "10/час на IP/устройство". The
@@ -121,7 +122,7 @@ export class AuthService {
       ? await this.rateLimit.consumeFixedWindow(
           ['otp-req', 'dev', this.rateLimit.hashIdentifier(meta.deviceId)],
           this.limit(ENV.otpPerDevicePerHour),
-          3600,
+          OTP_LIMIT_WINDOW_SECONDS,
         )
       : { allowed: true, retryAfterSeconds: 0, remaining: 0 };
 
@@ -179,13 +180,13 @@ export class AuthService {
       ? await this.rateLimit.consumeSlidingWindow(
           ['otp-verify', 'ip', meta.ip],
           this.limit(ENV.otpVerifyPerIpPerHour),
-          3600,
+          OTP_LIMIT_WINDOW_SECONDS,
         )
       : { allowed: true, retryAfterSeconds: 0 };
     const idLimit = await this.rateLimit.consumeSlidingWindow(
       ['otp-verify', this.rateLimit.hashIdentifier(identifier)],
       this.limit(ENV.otpVerifyPerHour),
-      3600,
+      OTP_LIMIT_WINDOW_SECONDS,
     );
     const verifyLimit = !ipLimit.allowed ? ipLimit : idLimit;
     if (!verifyLimit.allowed) {
@@ -257,7 +258,7 @@ export class AuthService {
       ? await this.rateLimit.consumeFixedWindow(
           ['otp-link', 'ip', meta.ip],
           this.limit(ENV.otpVerifyPerHour),
-          3600,
+          OTP_LIMIT_WINDOW_SECONDS,
         )
       : { allowed: true, retryAfterSeconds: 0, remaining: 0 };
     if (!perIp.allowed) {

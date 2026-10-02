@@ -1,3 +1,4 @@
+import { OTP_LIMIT_WINDOW_SECONDS } from '../../auth/otp-limits';
 import {
   ConflictException,
   ForbiddenException,
@@ -83,6 +84,20 @@ export class ContactsService {
     }
 
     await this.enforceRequestLimits(userId, normalized);
+    // Tell the user now, not after they typed the code: a contact that
+    // belongs to another account can never be linked here.
+    const taken = await this.prisma.userIdentifier.findUnique({
+      where: {
+        provider_provider_uid: { provider: type, provider_uid: normalized },
+      },
+      select: { user_id: true },
+    });
+    if (taken && taken.user_id !== userId) {
+      throw new ConflictException({
+        code: ErrorCode.CONTACT_ALREADY_EXISTS,
+        message: 'This contact is already in use on another account.',
+      });
+    }
     await this.otp.requestOtp(type, normalized, 'contact');
     await this.authEvents.record({
       userId,
@@ -109,7 +124,7 @@ export class ContactsService {
     const perHour = await this.rateLimit.consumeFixedWindow(
       ['contact-otp', 'user', userId, 'h'],
       this.config.getOrThrow<number>('CONTACT_OTP_LIMIT_PER_USER_PER_HOUR'),
-      3600,
+      OTP_LIMIT_WINDOW_SECONDS,
     );
     const perDay = await this.rateLimit.consumeFixedWindow(
       ['contact-otp', 'user', userId, 'd'],
@@ -119,7 +134,7 @@ export class ContactsService {
     const perIdentifier = await this.rateLimit.consumeSlidingWindow(
       ['otp-req', 'id', this.rateLimit.hashIdentifier(normalized)],
       this.config.getOrThrow<number>('OTP_RATE_LIMIT_PER_IDENTIFIER_PER_HOUR'),
-      3600,
+      OTP_LIMIT_WINDOW_SECONDS,
     );
     const blocked = [perHour, perDay, perIdentifier].filter((r) => !r.allowed);
     if (blocked.length > 0) {
