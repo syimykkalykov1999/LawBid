@@ -58,7 +58,7 @@
     "ioredis": "^6.0.0",
     "jose": "^6.2.12",
     "libphonenumber-js": "^1.13.13",
-    "nestjs-pino": "^5.2.0",
+    "nestjs-pino": "^5.2.1",
     "nodemailer": "^10.0.10",
     "pdfkit": "^0.20.2",
     "pino-http": "^11.0.0",
