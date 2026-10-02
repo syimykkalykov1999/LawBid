@@ -210,8 +210,10 @@ jobs:
         # the suites only need a plain S3 API on :9000.
         run: |
           python3 -m pip install --quiet 'moto[server]'
-          nohup python3 -m moto.server -H 127.0.0.1 -p 9000 > /tmp/moto.log 2>&1 &
-          for i in $(seq 1 30); do curl -s -o /dev/null http://localhost:9000/ && break; sleep 1; done
+          # setsid: own session, so the runner's step cleanup cannot take it down.
+          setsid nohup python3 -m moto.server -H 0.0.0.0 -p 9000 > /tmp/moto.log 2>&1 < /dev/null &
+          for i in $(seq 1 30); do curl -s -o /dev/null http://127.0.0.1:9000/ && exit 0; sleep 1; done
+          echo "moto did not start"; cat /tmp/moto.log; exit 1
 
       - name: e2e tests (real CockroachDB + Redis + local S3)
         # One jest process runs every suite in turn and its heap grows past
@@ -219,6 +221,10 @@ jobs:
         env:
           NODE_OPTIONS: --max-old-space-size=6144
         run: npm run test:e2e --workspace apps/api -- --forceExit
+
+      - name: Local S3 log (only when e2e failed)
+        if: failure()
+        run: tail -n 60 /tmp/moto.log || true; curl -s -o /dev/null -w "moto http %{http_code}\n" http://127.0.0.1:9000/ || echo "moto is down"
 
       - uses: dart-lang/setup-dart@v1
         with:
