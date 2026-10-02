@@ -18,7 +18,7 @@ dependencies:
   # Navigation — StatefulShellRoute.indexedStack (file 01 §5.1 names "go_router с ShellRoute";
   # this is the modern variant that preserves each tab's own Navigator stack, chosen per
   # stage 1.5 architecture review — see docs/CHANGELOG.md stage 1.5 entry)
-  go_router: ^14.6.2
+  go_router: ^18.0.2
 
   # Models (stage 1.5 doesn't define any yet; locked in now so stage 1.7+ doesn't fight
   # version skew across the monorepo)
