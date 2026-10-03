@@ -79,7 +79,7 @@ export default function SubscriptionsPage() {
       <PageHeader
         eyebrow="Деньги"
         title="Подписки"
-        subtitle="Тарифы адвокатов: $399 в месяц + $100 за место помощника или $9 590 в год с 6 местами. Клиенты пользуются бесплатно."
+        subtitle="Тарифы адвокатов: месячный + плата за место помощника или годовой Prime с 6 местами. Суммы меняются в разделе «Цены». Клиенты пользуются бесплатно."
       />
       <ErrorNote text={ov.error ? errorText(ov.error) : null} />
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
