@@ -24,6 +24,8 @@ import { StripeWebhookIntakeService } from './stripe-webhook.intake';
 import { SubscriptionSyncService } from './subscription-sync.service';
 import { SubscriptionsController } from './subscriptions.controller';
 import { SubscriptionsService } from './subscriptions.service';
+import { PricingService } from './pricing.service';
+import { PricingController } from './pricing.controller';
 
 /**
  * docs/06 §1 (stage 6.7): Stripe subscriptions behind PaymentProvider.
@@ -61,6 +63,8 @@ export class BillingModule {
               SubscriptionsController,
               StripeWebhookController,
               AdminSubscriptionsController,
+              // Owner 2026-10-03: public price list (app, website).
+              PricingController,
               // Dev / e2e stand-in for Stripe's hosted page (404 with Stripe).
               FakeCheckoutController,
             ]
@@ -82,12 +86,14 @@ export class BillingModule {
             ).asProvider(),
         },
         SubscriptionSyncService,
+        PricingService,
         SubscriptionsService,
         StripeWebhookIntakeService,
         BillingRunner,
       ],
       exports: [
         PAYMENT_PROVIDER,
+        PricingService,
         SubscriptionsService,
         SubscriptionSyncService,
         BillingRunner,

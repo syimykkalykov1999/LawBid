@@ -4,6 +4,7 @@ import type { PrismaService } from '../../prisma/prisma.service';
 import type { SubscriptionAccessService } from '../subscriptions/subscription-access.service';
 import type { PaymentProvider } from './payment-provider';
 import type { SubscriptionSyncService } from './subscription-sync.service';
+import { PricingService } from './pricing.service';
 import { SubscriptionsService } from './subscriptions.service';
 
 type PriceAccess = {
@@ -14,12 +15,16 @@ type PriceAccess = {
 function make(name: string, env: Record<string, string>): PriceAccess {
   const config = { get: (k: string) => env[k] } as unknown as ConfigService;
   const provider = { name } as unknown as PaymentProvider;
+  const prisma = {
+    planPrice: { findMany: () => Promise.resolve([]) },
+  } as unknown as PrismaService;
   return new SubscriptionsService(
-    {} as PrismaService,
+    prisma,
     provider,
     {} as SubscriptionAccessService,
     {} as SubscriptionSyncService,
     config,
+    new PricingService(prisma, provider, config),
   ) as unknown as PriceAccess;
 }
 

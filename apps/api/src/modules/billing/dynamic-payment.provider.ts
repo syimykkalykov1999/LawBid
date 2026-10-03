@@ -100,6 +100,8 @@ const ASYNC_METHODS = new Set([
   'refund',
   'creditCustomerBalance',
   'createOneTimeCheckout',
+  'createPrice',
+  'replaceItemPrice',
 ]);
 
 /** Refreshes a dynamic provider (no-op for a plain one). */

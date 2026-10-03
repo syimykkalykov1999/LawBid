@@ -133,9 +133,11 @@ export const PROVIDERS: ProviderDefinition[] = [
       },
       {
         name: 'priceId',
-        label: 'Monthly price ID',
+        // Owner 2026-10-03: optional — Billing → Prices creates the Stripe
+        // prices itself; these ids are only the fallback.
+        label: 'Monthly price ID (optional)',
         secret: false,
-        required: true,
+        required: false,
         pattern: /^price_[A-Za-z0-9]+$/,
         env: 'STRIPE_PRICE_ID',
       },

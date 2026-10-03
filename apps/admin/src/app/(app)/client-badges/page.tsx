@@ -103,7 +103,7 @@ export default function ClientBadgesPage() {
       } else {
         const free = kind === 'approve-free';
         const msg = free
-          ? `Выдать галочку бесплатно (${ids.length})? Без подписки $10 в месяц.`
+          ? `Выдать галочку бесплатно (${ids.length})? Без платной подписки.`
           : `Одобрить заявки (${ids.length})? Клиенты получат ссылку на оплату.`;
         if (!window.confirm(msg)) return;
         const { data } = await api.POST('/admin/client-badges/bulk-approve', { body: { ids, free } });
@@ -126,7 +126,7 @@ export default function ClientBadgesPage() {
       <PageHeader
         eyebrow="Люди"
         title="Галочки клиентов"
-        subtitle="Золотая галочка за $10 в месяц: клиент присылает документы, вы одобряете, он оплачивает. Цена — в Настройках (verification.client_badge_cents)."
+        subtitle="Золотая галочка по месячной подписке: клиент присылает документы, вы одобряете, он оплачивает. Цена — в разделе «Цены»."
       />
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <Tabs<Status>

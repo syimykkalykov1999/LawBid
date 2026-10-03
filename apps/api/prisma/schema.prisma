@@ -2952,3 +2952,27 @@ model ClientVerification {
   @@index([status, submitted_at(sort: Desc)], map: "client_verifications_queue_idx")
   @@map("client_verifications")
 }
+
+/// Owner 2026-10-03: plan prices set in the admin (Billing → Prices).
+/// One active row per kind; a change inserts a new row (history). Stripe
+/// prices are immutable, so each row has its own Stripe price per mode
+/// (test / live / fake), created when first needed. Existing subscribers
+/// keep the price they bought unless the admin moves them.
+model PlanPrice {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// monthly · seat · yearly · client_badge
+  kind               String   @db.String(16)
+  amount_cents       Int
+  currency           String   @default("usd") @db.String(3)
+  active             Boolean  @default(true)
+  /// {"test": "price_…", "live": "price_…", "fake": "price_fake_…"}
+  stripe_price_ids   Json     @default("{}")
+  /// {"test": "prod_…", "live": "prod_…"}
+  stripe_product_ids Json     @default("{}")
+  note               String?  @db.String(300)
+  created_by         String?  @db.Uuid
+  created_at         DateTime @default(now()) @db.Timestamptz
+
+  @@index([kind, active, created_at(sort: Desc)], map: "plan_prices_kind_idx")
+  @@map("plan_prices")
+}

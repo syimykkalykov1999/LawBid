@@ -25,14 +25,12 @@ import {
   PAYMENT_PROVIDER,
   SUBSCRIPTION_CURRENCY,
   SUBSCRIPTION_JOBS_QUEUE,
-  SUBSCRIPTION_PRICE_CENTS,
   TRIAL_DAYS,
   TRIAL_REMINDER_DAYS_BEFORE,
   TRIAL_REMINDER_JOB,
-  ASSISTANT_SEAT_PRICE_CENTS,
   MAX_ASSISTANT_SEATS,
-  YEARLY_PRICE_CENTS,
 } from './billing.constants';
+import { type PlanAmounts, PricingService } from './pricing.service';
 import { DEFAULT_DUTIES } from '../assistants/assistant-duties';
 import {
   checkPromo,
@@ -61,8 +59,6 @@ const PAYMENTS_PAGE = 20;
  * and per card fingerprint), me, payments, portal, cancel. Everything
  * after creation is driven by webhooks (SubscriptionSyncService).
  */
-import { SecretsService } from '../../common/secrets/secrets.service';
-import { refreshProvider } from './dynamic-payment.provider';
 import { ReferralsService } from '../referrals/referrals.service';
 @Injectable()
 export class SubscriptionsService {
@@ -78,8 +74,8 @@ export class SubscriptionsService {
     @Inject(PAYMENT_PROVIDER) private readonly provider: PaymentProvider,
     private readonly access: SubscriptionAccessService,
     private readonly sync: SubscriptionSyncService,
-    private readonly config: ConfigService,
-    @Optional() private readonly secrets?: SecretsService,
+    config: ConfigService,
+    private readonly pricing: PricingService,
     @Optional() private readonly referrals?: ReferralsService,
   ) {
     this.portalReturnUrl =
@@ -111,7 +107,7 @@ export class SubscriptionsService {
       setupIntentId: si.id,
       customerId,
       trialEligible: await this.attorneyTrialEligible(user.sub),
-      priceCents: SUBSCRIPTION_PRICE_CENTS,
+      priceCents: await this.pricing.amount('monthly'),
       trialDays: TRIAL_DAYS,
     };
   }
@@ -158,21 +154,19 @@ export class SubscriptionsService {
       });
     }
     const customerId = await this.customerId(user.sub, attorney.email);
+    const amounts = await this.pricing.amounts();
     // A row keyed to the customer, so the provider's webhooks find it.
     if (!existing) {
       await this.prisma.subscription.create({
         data: {
           user_id: user.sub,
           status: 'incomplete',
-          price_cents: SUBSCRIPTION_PRICE_CENTS,
+          price_cents: amounts.monthly,
         },
       });
     }
     const eligible = await this.attorneyTrialEligible(user.sub);
-    const priceCents =
-      plan === 'yearly'
-        ? YEARLY_PRICE_CENTS
-        : SUBSCRIPTION_PRICE_CENTS + seats * ASSISTANT_SEAT_PRICE_CENTS;
+    const priceCents = planCents(amounts, plan, seats);
     // Owner 2026-10-02: an optional promo code — a coupon on the session,
     // or free days added to the trial. Redeemed when the checkout is paid.
     const promo = req.promoCode
@@ -200,6 +194,9 @@ export class SubscriptionsService {
         userId: user.sub,
         plan,
         seats: String(seats),
+        // Owner 2026-10-03: the amount the attorney saw, so the row keeps
+        // it even if the admin changes the price before the webhook.
+        priceCents: String(priceCents),
         phones: phones.join(','),
         ...(promo
           ? {
@@ -313,10 +310,11 @@ export class SubscriptionsService {
       MAX_ASSISTANT_SEATS,
       Math.max(0, Number(session.metadata.seats ?? 0) || 0),
     );
+    const quoted = Number(session.metadata.priceCents);
     const priceCents =
-      plan === 'yearly'
-        ? YEARLY_PRICE_CENTS
-        : SUBSCRIPTION_PRICE_CENTS + seats * ASSISTANT_SEAT_PRICE_CENTS;
+      Number.isFinite(quoted) && quoted > 0
+        ? quoted
+        : planCents(await this.pricing.amounts(), plan, seats);
     await this.prisma.subscription.upsert({
       where: { user_id: owner },
       create: {
@@ -466,7 +464,7 @@ export class SubscriptionsService {
       data: {
         plan: 'yearly',
         assistant_seats: MAX_ASSISTANT_SEATS,
-        price_cents: YEARLY_PRICE_CENTS,
+        price_cents: await this.pricing.amount('yearly'),
       },
     });
     await this.access.invalidate(user.sub);
@@ -508,13 +506,17 @@ export class SubscriptionsService {
       row.stripe_subscription_id,
       await this.requirePrice('seat'),
       seats,
+      await this.pricing.knownPriceIds('seat'),
     );
+    // Owner 2026-10-03: seats added or removed at today's seat price; the
+    // attorney's own plan amount stays what they bought.
+    const seatCents = await this.pricing.amount('seat');
+    const base = Math.max(0, row.price_cents - row.assistant_seats * seatCents);
     await this.prisma.subscription.update({
       where: { id: row.id },
       data: {
         assistant_seats: seats,
-        price_cents:
-          SUBSCRIPTION_PRICE_CENTS + seats * ASSISTANT_SEAT_PRICE_CENTS,
+        price_cents: base + seats * seatCents,
       },
     });
     return this.me(user);
@@ -555,14 +557,15 @@ export class SubscriptionsService {
     const eligible =
       (await this.attorneyTrialEligible(user.sub)) &&
       (await this.cardTrialEligible(fingerprint, user.sub));
+    const monthlyCents = await this.pricing.amount('monthly');
     if (!eligible && !chargeNow) {
       // §1.1: the app shows "Пробный период недоступен, будет списано $399
       // сейчас" and repeats with chargeNow after an explicit confirmation.
       throw new ConflictException({
         code: ErrorCode.SUBSCRIPTION_TRIAL_UNAVAILABLE,
         message:
-          'No trial is available for this account or card; $399 will be charged now.',
-        details: { chargeNowCents: SUBSCRIPTION_PRICE_CENTS },
+          'No trial is available for this account or card; the price will be charged now.',
+        details: { chargeNowCents: monthlyCents },
       });
     }
     const remote = await this.provider.createSubscription({
@@ -577,7 +580,7 @@ export class SubscriptionsService {
       const data = {
         stripe_subscription_id: remote.id,
         status: 'incomplete' as const,
-        price_cents: SUBSCRIPTION_PRICE_CENTS,
+        price_cents: monthlyCents,
         // The trial mark survives a re-subscription: it is what makes the
         // attorney ineligible for a second trial (§1.1).
         trial_started_at: eligible ? now : (existing?.trial_started_at ?? null),
@@ -621,6 +624,7 @@ export class SubscriptionsService {
     ]);
     // Owner 2026-10-02: a free subscription under a contract counts.
     const isActive = SubscriptionAccessService.rowIsActive(row) || !!grant;
+    const amounts = await this.pricing.amounts();
     return {
       subscription: row ? presentSubscription(row) : null,
       contractGrant: grant
@@ -632,11 +636,11 @@ export class SubscriptionsService {
       isActive,
       canStart: profile?.verification_status === 'verified' && !isActive,
       trialEligible: await this.attorneyTrialEligible(user.sub),
-      priceCents: SUBSCRIPTION_PRICE_CENTS,
+      priceCents: amounts.monthly,
       prices: {
-        monthlyCents: SUBSCRIPTION_PRICE_CENTS,
-        seatCents: ASSISTANT_SEAT_PRICE_CENTS,
-        yearlyCents: YEARLY_PRICE_CENTS,
+        monthlyCents: amounts.monthly,
+        seatCents: amounts.seat,
+        yearlyCents: amounts.yearly,
         maxSeats: MAX_ASSISTANT_SEATS,
       },
     };
@@ -817,37 +821,10 @@ export class SubscriptionsService {
     return { email: u.email };
   }
 
-  /**
-   * Owner 2026-10-01: price ids from the admin (Integrations → Stripe) or
-   * the env, read per call; fake ids while on the fake provider.
-   */
-  private async prices(): Promise<{
-    monthly: string | undefined;
-    seat: string | undefined;
-    yearly: string | undefined;
-  }> {
-    await refreshProvider(this.provider);
-    const f = (await this.secrets?.get('stripe'))?.fields ?? {};
-    const fake = this.provider.name === 'fake';
-    return {
-      monthly:
-        f.priceId ??
-        this.config.get<string>('STRIPE_PRICE_ID') ??
-        (fake ? 'price_fake_399' : undefined),
-      seat:
-        f.priceSeatId ??
-        this.config.get<string>('STRIPE_PRICE_SEAT_ID') ??
-        (fake ? 'price_fake_seat_100' : undefined),
-      yearly:
-        f.priceYearlyId ??
-        this.config.get<string>('STRIPE_PRICE_YEARLY_ID') ??
-        (fake ? 'price_fake_yearly_9590' : undefined),
-    };
-  }
-
-  /** Seat / yearly price id, or 503 when a live Stripe has none set. */
+  /** Seat / yearly price id (Billing → Prices in the admin, else the key
+   * store / env, else fake ids), or 503 when a live Stripe has none. */
   private async requirePrice(kind: 'seat' | 'yearly'): Promise<string> {
-    const priceId = (await this.prices())[kind];
+    const priceId = await this.pricing.priceId(kind);
     if (!priceId) {
       throw new ServiceUnavailableException({
         code: ErrorCode.PAYMENTS_NOT_CONFIGURED,
@@ -862,7 +839,7 @@ export class SubscriptionsService {
   }
 
   private async assertConfigured(): Promise<string> {
-    const priceId = (await this.prices()).monthly;
+    const priceId = await this.pricing.priceId('monthly');
     if (!priceId) {
       throw new ServiceUnavailableException({
         code: ErrorCode.PAYMENTS_NOT_CONFIGURED,
@@ -871,6 +848,17 @@ export class SubscriptionsService {
     }
     return priceId;
   }
+}
+
+/** What a plan costs per period at [amounts]. */
+export function planCents(
+  amounts: PlanAmounts,
+  plan: 'monthly' | 'yearly',
+  seats: number,
+): number {
+  return plan === 'yearly'
+    ? amounts.yearly
+    : amounts.monthly + seats * amounts.seat;
 }
 
 export function presentSubscription(s: Subscription): SubscriptionDto {

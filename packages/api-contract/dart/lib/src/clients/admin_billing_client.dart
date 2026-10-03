@@ -8,6 +8,8 @@ import 'package:retrofit/retrofit.dart';
 import '../models/admin_billing_reason_dto.dart';
 import '../models/admin_billing_subscription_row_list_envelope.dart';
 import '../models/admin_payment_list_envelope.dart';
+import '../models/admin_plan_prices_envelope.dart';
+import '../models/admin_set_plan_price_result_envelope.dart';
 import '../models/billing_overview_envelope.dart';
 import '../models/contract_grant_envelope.dart';
 import '../models/contract_grant_list_envelope.dart';
@@ -16,8 +18,11 @@ import '../models/create_contract_grant_dto.dart';
 import '../models/create_promo_code_dto.dart';
 import '../models/create_refund_dto.dart';
 import '../models/extend_contract_grant_dto.dart';
+import '../models/move_plan_subscribers_dto.dart';
+import '../models/move_plan_subscribers_result_envelope.dart';
 import '../models/payment_status.dart';
 import '../models/plan.dart';
+import '../models/plan_kind.dart';
 import '../models/promo_code_envelope.dart';
 import '../models/promo_code_filter.dart';
 import '../models/promo_code_list_envelope.dart';
@@ -25,6 +30,7 @@ import '../models/promo_redemption_list_envelope.dart';
 import '../models/refund_envelope.dart';
 import '../models/refund_list_envelope.dart';
 import '../models/seats.dart';
+import '../models/set_plan_price_dto.dart';
 import '../models/status7.dart';
 import '../models/update_promo_code_dto.dart';
 
@@ -190,6 +196,28 @@ abstract class AdminBillingClient {
   @POST('/admin/billing/refunds')
   Future<RefundEnvelope> createRefund({
     @Body() required CreateRefundDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Plan prices, subscribers and change history
+  @GET('/admin/billing/prices')
+  Future<AdminPlanPricesEnvelope> listPlanPrices({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Set a plan price: new purchases pay it, current subscribers keep theirs
+  @PUT('/admin/billing/prices/{kind}')
+  Future<AdminSetPlanPriceResultEnvelope> setPlanPrice({
+    @Path('kind') required PlanKind kind,
+    @Body() required SetPlanPriceDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Move current subscribers to today's price from their next renewal
+  @POST('/admin/billing/prices/{kind}/move-subscribers')
+  Future<MovePlanSubscribersResultEnvelope> movePlanSubscribers({
+    @Path('kind') required PlanKind kind,
+    @Body() required MovePlanSubscribersDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 }

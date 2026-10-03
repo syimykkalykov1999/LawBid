@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-100 tables.
+101 tables.
 
 ```mermaid
 erDiagram
@@ -1131,6 +1131,18 @@ erDiagram
     Boolean cancel_at_period_end
     DateTime created_at
     DateTime updated_at
+  }
+  plan_prices {
+    String id PK
+    String kind
+    Int amount_cents
+    String currency
+    Boolean active
+    Json stripe_price_ids
+    Json stripe_product_ids
+    String note "nullable"
+    String created_by "nullable"
+    DateTime created_at
   }
   users }o--o| files : "avatar_file_id"
   files }o--|| users : "owner_user_id"
