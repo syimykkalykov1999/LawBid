@@ -28,6 +28,23 @@ import {
 import { cn, formatDateTime } from '@/lib/utils';
 
 type Account = components['schemas']['AdminAccountDto'];
+type Template = components['schemas']['AdminRoleTemplateDto'];
+
+/** A template, cut down to what this admin may hand out (the API caps it too). */
+function fitTemplate(
+  t: Template,
+  me: { role: AdminRole; permissions: Permissions } | undefined,
+): Record<string, AccessLevel> {
+  const own = me?.permissions ?? {};
+  const out: Record<string, AccessLevel> = {};
+  for (const [k, v] of Object.entries(t.permissions)) {
+    if (!GRANTABLE_AREAS.some((a) => a.key === k)) continue;
+    if (me?.role === 'super_admin') out[k] = v as AccessLevel;
+    else if (own[k] === 'manage') out[k] = v as AccessLevel;
+    else if (own[k] === 'view') out[k] = 'view';
+  }
+  return out;
+}
 
 const ROLES = Object.keys(ROLE_LABEL) as AdminRole[];
 type What = 'disable' | 'enable' | 'reset-2fa' | 'delete';
@@ -56,6 +73,12 @@ export default function AdminsPage() {
   const [rights, setRights] = useState<Account | null>(null);
   const [creds, setCreds] = useState<Account | null>(null);
   const [manager, setManager] = useState(false);
+  const [tplId, setTplId] = useState('');
+  const [editTpl, setEditTpl] = useState<Template | 'new' | null>(null);
+  const templates = useQuery({
+    queryKey: ['admin-templates'],
+    queryFn: async () => (await api.GET('/admin/admins/templates')).data!.data,
+  });
   const isSuper = me?.role === 'super_admin';
   // Mirrors the API: a manager only reaches non-super, non-manager admins
   // whose access fits inside their own.
@@ -63,17 +86,24 @@ export default function AdminsPage() {
     isSuper || (a.role !== 'super_admin' && !a.canManageAdmins && covers(me?.permissions ?? {}, a.permissions));
   const roles = isSuper ? ROLES : ROLES.filter((r) => r !== 'super_admin');
 
+  const tpl = (templates.data ?? []).find((t) => t.id === tplId);
   const refresh = () => qc.invalidateQueries({ queryKey: ['admins'] });
 
   const create = useMutation({
     mutationFn: () =>
       api.POST('/admin/admins', {
-        body: { email: email.trim(), role, ...(isSuper && manager ? { canManageAdmins: true } : {}) },
+        body: {
+          email: email.trim(),
+          role,
+          ...(tplId && tpl ? { permissions: fitTemplate(tpl, me) } : {}),
+          ...(isSuper && manager ? { canManageAdmins: true } : {}),
+        },
       }),
     onSuccess: () => {
       toast.success(`Аккаунт ${email.trim()} создан. Теперь задайте ему логин и пароль.`);
       setEmail('');
       setManager(false);
+      setTplId('');
       void refresh();
     },
     onError: (e) => toast.error(e),
@@ -175,6 +205,17 @@ export default function AdminsPage() {
             ))}
           </Select>
         </div>
+        <div className="w-56 space-y-1.5">
+          <Label htmlFor="new-tpl">Шаблон прав</Label>
+          <Select id="new-tpl" value={tplId} onChange={(e) => setTplId(e.target.value)}>
+            <option value="">По роли (стандартные)</option>
+            {(templates.data ?? []).map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </Select>
+        </div>
         {isSuper ? (
           <label className="flex h-10 items-center gap-2 text-sm text-ink">
             <input
@@ -191,6 +232,20 @@ export default function AdminsPage() {
           Создать
         </Button>
       </form>
+      <TemplatesCard
+        templates={templates.data ?? []}
+        loading={templates.isPending}
+        onNew={() => setEditTpl('new')}
+        onEdit={(t) => setEditTpl(t)}
+        onChanged={() => void qc.invalidateQueries({ queryKey: ['admin-templates'] })}
+      />
+      <TemplateDialog
+        key={editTpl === null ? 'none' : editTpl === 'new' ? 'new' : editTpl.id}
+        target={editTpl}
+        me={me}
+        onClose={() => setEditTpl(null)}
+        onSaved={() => void qc.invalidateQueries({ queryKey: ['admin-templates'] })}
+      />
       <ErrorNote text={list.error ? errorText(list.error) : null} />
       <Table>
         <thead>
@@ -383,61 +438,22 @@ function RightsDialog({
   );
 }
 
-function RightsForm({
-  account,
-  me,
-  onCancel,
-  onSaved,
-  onError,
-}: {
-  account: Account;
-  me: { role: AdminRole; permissions: Permissions } | undefined;
-  onCancel: () => void;
-  onSaved: () => void;
-  onError: (e: unknown) => void;
-}) {
-  const isSuper = me?.role === 'super_admin';
-  // A manager hands out only what they hold themselves (the API checks too).
-  const own = me?.permissions ?? {};
-  const areas = isSuper ? GRANTABLE_AREAS : GRANTABLE_AREAS.filter((a) => own[a.key]);
-  const cap = (key: string): AccessLevel[] => (isSuper || own[key] === 'manage' ? ['view', 'manage'] : ['view']);
-  const [perms, setPerms] = useState<Record<string, AccessLevel>>({ ...account.permissions });
-  const [manager, setManager] = useState(account.canManageAdmins);
-  const save = useMutation({
-    mutationFn: () =>
-      api.PATCH('/admin/admins/{id}/permissions', {
-        params: { path: { id: account.id } },
-        body: { permissions: perms, ...(isSuper ? { canManageAdmins: manager } : {}) },
-      }),
-    onSuccess: onSaved,
-    onError,
-  });
-  const set = (key: string, v: AccessLevel | 'none') =>
-    setPerms((p) => {
-      const next = { ...p };
-      if (v === 'none') delete next[key];
-      else next[key] = v;
-      return next;
-    });
-  const preset = (level: AccessLevel | 'none') =>
-    setPerms(
-      level === 'none' ? {} : Object.fromEntries(areas.map((a) => [a.key, cap(a.key).includes(level) ? level : 'view'])),
-    );
 
+type AreaDef = { key: string; label: string; hint: string };
+
+function AreaToggles({
+  areas,
+  cap,
+  perms,
+  set,
+}: {
+  areas: readonly AreaDef[];
+  cap: (key: string) => AccessLevel[];
+  perms: Record<string, AccessLevel>;
+  set: (key: string, v: AccessLevel | 'none') => void;
+}) {
   return (
-    <div>
-      <div className="mb-3 flex flex-wrap gap-2">
-        <Button type="button" size="sm" variant="outline" onClick={() => preset('view')}>
-          Всё: смотреть
-        </Button>
-        <Button type="button" size="sm" variant="outline" onClick={() => preset('manage')}>
-          Всё: управлять
-        </Button>
-        <Button type="button" size="sm" variant="ghost" onClick={() => preset('none')}>
-          Снять всё
-        </Button>
-      </div>
-      <ul className="divide-y divide-line rounded-[var(--radius-md)] border border-line">
+    <ul className="divide-y divide-line rounded-[var(--radius-md)] border border-line">
         {areas.map((a) => {
           const cur = perms[a.key] ?? 'none';
           return (
@@ -470,7 +486,93 @@ function RightsForm({
             </li>
           );
         })}
-      </ul>
+    </ul>
+  );
+}
+
+function RightsForm({
+  account,
+  me,
+  onCancel,
+  onSaved,
+  onError,
+}: {
+  account: Account;
+  me: { role: AdminRole; permissions: Permissions } | undefined;
+  onCancel: () => void;
+  onSaved: () => void;
+  onError: (e: unknown) => void;
+}) {
+  const isSuper = me?.role === 'super_admin';
+  // A manager hands out only what they hold themselves (the API checks too).
+  const own = me?.permissions ?? {};
+  const areas = isSuper ? GRANTABLE_AREAS : GRANTABLE_AREAS.filter((a) => own[a.key]);
+  const cap = (key: string): AccessLevel[] => (isSuper || own[key] === 'manage' ? ['view', 'manage'] : ['view']);
+  const [perms, setPerms] = useState<Record<string, AccessLevel>>({ ...account.permissions });
+  const [manager, setManager] = useState(account.canManageAdmins);
+  const templates = useQuery({
+    queryKey: ['admin-templates'],
+    queryFn: async () => (await api.GET('/admin/admins/templates')).data!.data,
+  });
+  const save = useMutation({
+    mutationFn: () =>
+      api.PATCH('/admin/admins/{id}/permissions', {
+        params: { path: { id: account.id } },
+        body: { permissions: perms, ...(isSuper ? { canManageAdmins: manager } : {}) },
+      }),
+    onSuccess: onSaved,
+    onError,
+  });
+  const set = (key: string, v: AccessLevel | 'none') =>
+    setPerms((p) => {
+      const next = { ...p };
+      if (v === 'none') delete next[key];
+      else next[key] = v;
+      return next;
+    });
+  const preset = (level: AccessLevel | 'none') =>
+    setPerms(
+      level === 'none' ? {} : Object.fromEntries(areas.map((a) => [a.key, cap(a.key).includes(level) ? level : 'view'])),
+    );
+
+  return (
+    <div>
+      {(templates.data ?? []).length > 0 ? (
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <Label htmlFor="rights-tpl" className="mb-0">
+            Шаблон
+          </Label>
+          <Select
+            id="rights-tpl"
+            className="h-9 w-64"
+            value=""
+            onChange={(e) => {
+              const t = (templates.data ?? []).find((x) => x.id === e.target.value);
+              if (t) setPerms(fitTemplate(t, me));
+            }}
+          >
+            <option value="">Подставить шаблон…</option>
+            {(templates.data ?? []).map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </Select>
+          <span className="text-xs text-faint">Потом можно поправить вручную.</span>
+        </div>
+      ) : null}
+      <div className="mb-3 flex flex-wrap gap-2">
+        <Button type="button" size="sm" variant="outline" onClick={() => preset('view')}>
+          Всё: смотреть
+        </Button>
+        <Button type="button" size="sm" variant="outline" onClick={() => preset('manage')}>
+          Всё: управлять
+        </Button>
+        <Button type="button" size="sm" variant="ghost" onClick={() => preset('none')}>
+          Снять всё
+        </Button>
+      </div>
+      <AreaToggles areas={areas} cap={cap} perms={perms} set={set} />
       {isSuper ? (
         <label className="mt-3 flex items-start gap-2.5 rounded-[var(--radius-md)] border border-line px-3.5 py-3 text-sm">
           <input
@@ -619,5 +721,155 @@ function CredentialsDialog({
         }}
       />
     </>
+  );
+}
+
+/** Saved named sets of rights. */
+function TemplatesCard({
+  templates,
+  loading,
+  onNew,
+  onEdit,
+  onChanged,
+}: {
+  templates: Template[];
+  loading: boolean;
+  onNew: () => void;
+  onEdit: (t: Template) => void;
+  onChanged: () => void;
+}) {
+  const toast = useToast();
+  const { confirm, dialog } = useConfirm();
+  const remove = useMutation({
+    mutationFn: async (t: Template) => {
+      const ok = await confirm({
+        title: `Удалить шаблон «${t.name}»?`,
+        description: 'Админы, которым он уже применён, сохраняют свои права.',
+        confirm: 'Удалить',
+        danger: true,
+      });
+      if (!ok) return null;
+      await api.DELETE('/admin/admins/templates/{id}', { params: { path: { id: t.id } } });
+      return t;
+    },
+    onSuccess: (t) => {
+      if (!t) return;
+      toast.success('Шаблон удалён');
+      onChanged();
+    },
+    onError: (e) => toast.error(e),
+  });
+  const label = (k: string) => GRANTABLE_AREAS.find((a) => a.key === k)?.label ?? k;
+  return (
+    <section className="mb-6 rounded-[var(--radius-lg)] border border-line bg-surface p-4 shadow-card">
+      {dialog}
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h2 className="text-sm font-medium text-heading">Шаблоны прав</h2>
+          <p className="text-xs text-faint">
+            Готовые наборы («Верификатор», «Поддержка»…): выбираете при создании админа или в его правах и при желании
+            правите вручную. Шаблон не может дать больше, чем есть у вас.
+          </p>
+        </div>
+        <Button size="sm" variant="outline" onClick={onNew}>
+          Новый шаблон
+        </Button>
+      </div>
+      {loading ? (
+        <p className="text-sm text-muted">Загрузка…</p>
+      ) : templates.length === 0 ? (
+        <p className="text-sm text-muted">Шаблонов пока нет.</p>
+      ) : (
+        <ul className="divide-y divide-line">
+          {templates.map((t) => (
+            <li key={t.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+              <div className="min-w-0">
+                <div className="text-sm text-ink">{t.name}</div>
+                <div className="truncate text-xs text-faint">
+                  {Object.entries(t.permissions)
+                    .map(([k, v]) => `${label(k)}${v === 'manage' ? '' : ' (смотреть)'}`)
+                    .join(' · ') || 'без доступа'}
+                </div>
+              </div>
+              <div className="flex gap-1.5">
+                <Button size="sm" variant="ghost" onClick={() => onEdit(t)}>
+                  Изменить
+                </Button>
+                <Button size="sm" variant="danger-soft" loading={remove.isPending} onClick={() => remove.mutate(t)}>
+                  <Trash size={14} />
+                </Button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function TemplateDialog({
+  target,
+  me,
+  onClose,
+  onSaved,
+}: {
+  target: Template | 'new' | null;
+  me: { role: AdminRole; permissions: Permissions } | undefined;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const toast = useToast();
+  const isSuper = me?.role === 'super_admin';
+  const own = me?.permissions ?? {};
+  const areas = isSuper ? GRANTABLE_AREAS : GRANTABLE_AREAS.filter((a) => own[a.key]);
+  const cap = (key: string): AccessLevel[] => (isSuper || own[key] === 'manage' ? ['view', 'manage'] : ['view']);
+  const existing = target && target !== 'new' ? target : null;
+  const [name, setName] = useState(existing?.name ?? '');
+  const [perms, setPerms] = useState<Record<string, AccessLevel>>({ ...(existing?.permissions ?? {}) } as Record<
+    string,
+    AccessLevel
+  >);
+  const set = (key: string, v: AccessLevel | 'none') =>
+    setPerms((p) => {
+      const next = { ...p };
+      if (v === 'none') delete next[key];
+      else next[key] = v;
+      return next;
+    });
+  const save = useMutation({
+    mutationFn: async () => {
+      const body = { name: name.trim(), permissions: perms };
+      if (existing) await api.PATCH('/admin/admins/templates/{id}', { params: { path: { id: existing.id } }, body });
+      else await api.POST('/admin/admins/templates', { body });
+    },
+    onSuccess: () => {
+      toast.success('Шаблон сохранён');
+      onSaved();
+      onClose();
+    },
+    onError: (e) => toast.error(e),
+  });
+  return (
+    <Dialog
+      open={target !== null}
+      onClose={onClose}
+      wide
+      eyebrow="Шаблон прав"
+      title={existing ? `Шаблон «${existing.name}»` : 'Новый шаблон'}
+    >
+      <div className="mb-3 space-y-1.5">
+        <Label htmlFor="tpl-name">Название</Label>
+        <Input id="tpl-name" maxLength={60} value={name} onChange={(e) => setName(e.target.value)} />
+      </div>
+      <AreaToggles areas={areas} cap={cap} perms={perms} set={set} />
+      <div className="mt-5 flex justify-end gap-2">
+        <Button type="button" variant="ghost" onClick={onClose}>
+          Отмена
+        </Button>
+        <Button type="button" loading={save.isPending} disabled={name.trim().length < 2} onClick={() => save.mutate()}>
+          Сохранить шаблон
+        </Button>
+      </div>
+    </Dialog>
   );
 }

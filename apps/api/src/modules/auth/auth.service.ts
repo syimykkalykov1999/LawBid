@@ -1,3 +1,4 @@
+import { AccountBansService } from '../account-bans/account-bans.service';
 import { OTP_LIMIT_WINDOW_SECONDS } from './otp-limits';
 import {
   ForbiddenException,
@@ -90,6 +91,7 @@ export class AuthService {
     private readonly loginMethods: LoginMethodPolicy,
     private readonly newDevice: NewDeviceNotifier,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    private readonly bans: AccountBansService,
   ) {}
 
   // ---------------------------------------------------------------------
@@ -100,6 +102,12 @@ export class AuthService {
     // phone_login / email_login).
     await this.loginMethods.assertEnabled(dto.channel);
     const identifier = this.normalize(dto.channel, dto.identifier);
+    // Owner 2026-10-02: a blocked phone, e-mail or device gets no code.
+    await this.bans.assertAllowed({
+      phone: dto.channel === 'phone' ? identifier : null,
+      email: dto.channel === 'email' ? identifier : null,
+      deviceId: meta.deviceId,
+    });
 
     const perIdentifier = await this.rateLimit.consumeSlidingWindow(
       ['otp-req', 'id', this.rateLimit.hashIdentifier(identifier)],
@@ -297,6 +305,11 @@ export class AuthService {
     deviceInfo: DeviceInfo,
     meta: RequestMeta,
   ): Promise<AuthTokensResult> {
+    await this.bans.assertAllowed({
+      phone: channel === 'phone' ? identifier : null,
+      email: channel === 'email' ? identifier : null,
+      deviceId: deviceInfo.deviceId,
+    });
     // Identity resolution + the suspended/deleted/deletion-pending checks
     // happen in one transaction; session issuance is a separate step (see
     // docs/CHANGELOG.md stage 1.4: the OTP was already single-use-consumed
@@ -443,6 +456,12 @@ export class AuthService {
     deviceInfo: DeviceInfo,
     meta: RequestMeta,
   ): Promise<AuthTokensResult> {
+    await this.bans.assertAllowed({
+      userId: user.id,
+      phone: user.phone_e164,
+      email: user.email,
+      deviceId: deviceInfo.deviceId,
+    });
     const isNewDevice = await this.sessions.isNewDevice(
       user.id,
       deviceInfo.deviceId,

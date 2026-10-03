@@ -132,8 +132,10 @@ export default function IntegrationsPage() {
           <div className="flex items-start gap-3 rounded-xl bg-warning-soft p-4 text-sm text-warning">
             <LockKey size={20} weight="light" className="mt-0.5 shrink-0" />
             <span>
-              Хранение ключей в админке выключено: на сервере не задан мастер-ключ шифрования (SECRETS_MASTER_KEYS,
-              SECRETS_ACTIVE_KID). Сейчас ключи берутся только из настроек сервера.
+              <b className="block text-base">Кнопки «Добавить ключи» неактивны: хранение ключей выключено</b>
+              На сервере не задан мастер-ключ шифрования: переменные SECRETS_MASTER_KEYS и SECRETS_ACTIVE_KID в
+              настройках API. Задайте их и перезапустите API, кнопки включатся. Пока ключи берутся только из настроек
+              сервера.
             </span>
           </div>
         </FadeIn>
@@ -409,7 +411,7 @@ function IntegrationCard({
           <Button
             size="sm"
             disabled={!editable}
-            title={editable ? undefined : 'Хранение ключей выключено'}
+            title={editable ? undefined : 'Хранение ключей выключено: не заданы SECRETS_MASTER_KEYS и SECRETS_ACTIVE_KID на сервере'}
             onClick={() => setEditing(true)}
           >
             {it.configured ? 'Изменить ключи' : 'Добавить ключи'}

@@ -243,6 +243,14 @@ export default function UserCardPage() {
                   )}
                 </>
               ) : null}
+              {can(me, 'sanctions', 'manage') ? (
+                <Link
+                  href={`/sanctions?user=${u.id}`}
+                  className="inline-flex h-8 items-center rounded-[10px] border border-line-strong bg-surface px-3 text-xs font-medium text-ink hover:border-gold/60"
+                >
+                  Блок и баны…
+                </Link>
+              ) : null}
             </>
           ) : null
         }

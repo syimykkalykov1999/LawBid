@@ -17,6 +17,7 @@ AdminPostRowDto _$AdminPostRowDtoFromJson(Map<String, dynamic> json) =>
       likes: (json['likes'] as num).toInt(),
       comments: (json['comments'] as num).toInt(),
       deleted: json['deleted'] as bool,
+      hasVideo: json['hasVideo'] as bool,
       createdAt: json['createdAt'] as String,
       title: json['title'] as String?,
       practice: json['practice'] as String?,
@@ -35,5 +36,6 @@ Map<String, dynamic> _$AdminPostRowDtoToJson(AdminPostRowDto instance) =>
       'likes': instance.likes,
       'comments': instance.comments,
       'deleted': instance.deleted,
+      'hasVideo': instance.hasVideo,
       'createdAt': instance.createdAt,
     };

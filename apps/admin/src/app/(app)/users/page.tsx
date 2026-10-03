@@ -11,6 +11,7 @@ import { useDebounced } from '@/components/legacy/use-debounced';
 import { ErrorNote, PageHeader } from '@/components/page-header';
 import { Input, Label, Select } from '@/components/ui/input';
 import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { VerifiedBadge } from '@/components/verified-badge';
 import { api, errorText } from '@/lib/api/client';
 import { ROLE_TEXT, STATUS_LABEL, StatusBadge, StatusPill, VERIFICATION_STATUS } from '@/lib/labels';
 import { formatDateTime } from '@/lib/utils';
@@ -118,6 +119,9 @@ export default function UsersPage() {
                   >
                     {[u.firstName, u.lastName].filter(Boolean).join(' ') || u.email || '—'}
                   </Link>
+                  {u.verificationStatus === 'verified' ? (
+                    <VerifiedBadge kind="attorney" className="ml-1.5" />
+                  ) : null}
                   <div className="text-xs text-faint">
                     {u.username ? `@${u.username} · ` : ''}
                     <span className="font-mono">{u.id}</span>

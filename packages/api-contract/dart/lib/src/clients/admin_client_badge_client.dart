@@ -12,7 +12,7 @@ import '../models/admin_client_badge_bulk_result_envelope.dart';
 import '../models/admin_client_badge_envelope.dart';
 import '../models/admin_client_badge_reason_dto.dart';
 import '../models/admin_client_badge_row_list_envelope.dart';
-import '../models/status9.dart';
+import '../models/status10.dart';
 import '../models/sub_status.dart';
 
 part 'admin_client_badge_client.g.dart';
@@ -29,7 +29,7 @@ abstract class AdminClientBadgeClient {
   /// [cursor] - meta.nextCursor of the previous page.
   @GET('/admin/client-badges')
   Future<AdminClientBadgeRowListEnvelope> listAdminClientBadges({
-    @Query('status') Status9? status,
+    @Query('status') Status10? status,
     @Query('subStatus') SubStatus? subStatus,
     @Query('q') String? q,
     @Query('cursor') String? cursor,

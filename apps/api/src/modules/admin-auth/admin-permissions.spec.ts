@@ -10,6 +10,10 @@ import {
 
 describe('admin permissions', () => {
   it('maps routes to areas and closes unknown ones', () => {
+    expect(routeArea('/api/v1/admin/client-badges/bulk-approve')).toBe(
+      'verification',
+    );
+    expect(routeArea('/api/v1/admin/contact-issues')).toBe('support');
     expect(routeArea('/api/v1/admin/users/abc/warn')).toBe('users');
     expect(routeArea('/api/v1/admin/billing/payments?x=1')).toBe('money');
     expect(routeArea('/api/v1/admin/integrations')).toBe('keys');

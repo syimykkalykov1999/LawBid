@@ -44,6 +44,14 @@ export class AdminPostsQueryDto extends AdminListQueryDto {
   @IsOptional()
   @IsIn(['post', 'news'])
   kind?: 'post' | 'news';
+
+  @ApiPropertyOptional({
+    enum: ['video'],
+    description: 'Only posts that carry a video (the former "reels")',
+  })
+  @IsOptional()
+  @IsIn(['video'])
+  media?: 'video';
 }
 
 export class AdminCommentsQueryDto extends AdminListQueryDto {
@@ -109,6 +117,7 @@ export class AdminPostRowDto {
   @ApiProperty({ type: 'integer' }) likes!: number;
   @ApiProperty({ type: 'integer' }) comments!: number;
   @ApiProperty() deleted!: boolean;
+  @ApiProperty({ description: 'The post carries a video' }) hasVideo!: boolean;
   @ApiProperty() createdAt!: string;
 }
 
