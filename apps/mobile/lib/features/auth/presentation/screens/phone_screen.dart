@@ -166,6 +166,16 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
                                   onPressed: () => _submit(context, ref, t),
                                 ),
                                 const SizedBox(height: AppSpacing.sm),
+                                // Twilio A2P 10DLC: the opt-in wording the
+                                // campaign was registered with.
+                                Text(
+                                  t.t('auth.phone.smsConsent'),
+                                  textAlign: TextAlign.center,
+                                  style: typography.caption.copyWith(
+                                    color: colors.textSecondary,
+                                  ),
+                                ),
+                                const SizedBox(height: AppSpacing.xs),
                                 LegalText(
                                   text: t.t('auth.phone.terms'),
                                   links: {

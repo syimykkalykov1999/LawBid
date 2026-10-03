@@ -196,8 +196,7 @@ class _TourPage extends StatelessWidget {
             alignment: Alignment.center,
             children: [
               const ExcludeSemantics(
-                child:
-                    Opacity(opacity: 0.6, child: WatermarkScales()),
+                child: Opacity(opacity: 0.6, child: WatermarkScales()),
               ),
               AppIconMedallion(
                 icon: icon,

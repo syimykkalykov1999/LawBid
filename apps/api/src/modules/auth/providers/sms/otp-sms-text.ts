@@ -5,6 +5,6 @@
  * autofill (oneTimeCode) reads the code from the same text.
  */
 export function otpSmsText(code: string, androidAppHash?: string): string {
-  const text = `LawBid code: ${code}. Expires in 10 minutes.`;
+  const text = `Your LawBid verification code is ${code}. It expires in 10 minutes. Do not share this code.`;
   return androidAppHash ? `<#> ${text}\n${androidAppHash}` : text;
 }
