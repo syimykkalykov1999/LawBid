@@ -42,6 +42,7 @@ apps/mobile/config/*.json
 apps/mobile/ios/Flutter/Secrets.xcconfig
 apps/mobile/ios/Runner/GoogleService-Info.plist
 apps/mobile/android/app/google-services.json
+apps/mobile/android/app/src/*/google-services.json
 # Symlinked node_modules (git worktrees)
 node_modules
 

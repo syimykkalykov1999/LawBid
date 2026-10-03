@@ -2,6 +2,15 @@ plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+    id("com.google.gms.google-services")
+}
+
+// Only the prod flavor (com.lawbid.lawbid) is registered in Firebase; its
+// config sits in app/src/prod/google-services.json (git-ignored). dev and
+// staging build without one and simply have push switched off.
+extensions.configure<com.google.gms.googleservices.GoogleServicesPlugin.GoogleServicesPluginConfig>("googleServices") {
+    missingGoogleServicesStrategy =
+        com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy.WARN
 }
 
 android {
