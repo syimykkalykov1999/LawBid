@@ -11,6 +11,7 @@ import '../models/complete_checkout_dto.dart';
 import '../models/confirm_subscription_dto.dart';
 import '../models/payment_list_envelope.dart';
 import '../models/portal_session_envelope.dart';
+import '../models/public_pricing_envelope.dart';
 import '../models/set_seats_dto.dart';
 import '../models/start_subscription_result_envelope.dart';
 import '../models/subscription_me_envelope.dart';
@@ -92,6 +93,12 @@ abstract class SubscriptionsClient {
   /// Keep the subscription (undo a cancel)
   @POST('/subscriptions/resume')
   Future<SubscriptionMeEnvelope> resumeSubscription({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Current plan prices (set in the admin)
+  @GET('/pricing')
+  Future<PublicPricingEnvelope> getPricing({
     @Extras() Map<String, dynamic>? extras,
   });
 }
