@@ -17,7 +17,6 @@ import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
   AdminEndpoint,
   CurrentAdmin,
-  Roles,
   SkipAutoAudit,
   type AdminActor,
 } from '../admin-auth/admin-auth.decorators';
@@ -35,11 +34,12 @@ const E = ErrorCode;
 
 /**
  * Owner 2026-10-03: Billing → Prices — the attorney plans and the
- * client badge. super_admin and finance change, support reads. Every
- * change writes its own audit_log row.
+ * client badge. The super admin alone sees and changes prices (owner:
+ * "только супер админ"); no area toggle opens it. Every change writes
+ * its own audit_log row.
  */
 @ApiTags('admin-billing')
-@AdminEndpoint('super_admin', 'finance', 'support')
+@AdminEndpoint('super_admin')
 @SkipAutoAudit()
 @Controller('admin/billing/prices')
 export class AdminPricingController {
@@ -53,7 +53,6 @@ export class AdminPricingController {
   }
 
   @Put(':kind')
-  @Roles('super_admin', 'finance')
   @ApiOperation({
     summary:
       'Set a plan price: new purchases pay it, current subscribers keep theirs',
@@ -69,7 +68,6 @@ export class AdminPricingController {
   }
 
   @Post(':kind/move-subscribers')
-  @Roles('super_admin', 'finance')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary:
