@@ -24,6 +24,8 @@ const reelsRu = <String, String>{
   'reels.badFile': 'Не удалось открыть это видео',
   'reels.open': 'Открыть рилсы',
   'tag.video': 'Видео',
+  'onboarding.verification.choosePractices': 'Выбрать практики',
+  'onboarding.verification.continue': 'Продолжить',
   'auth.phone.smsConsent':
       'Нажимая «Получить код», вы соглашаетесь получить одноразовое SMS с кодом от LawBid. Может взиматься плата за сообщения и передачу данных. Ответьте STOP, чтобы отказаться, HELP — для помощи.',
   'notif.sounds.title': 'Звуки',
@@ -300,6 +302,8 @@ const reelsEn = <String, String>{
   'reels.badFile': "Couldn't open this video",
   'reels.open': 'Open reels',
   'tag.video': 'Video',
+  'onboarding.verification.choosePractices': 'Choose practice areas',
+  'onboarding.verification.continue': 'Continue',
   'auth.phone.smsConsent':
       'By tapping Get code you agree to receive a one-time verification SMS from LawBid. Msg & data rates may apply. Reply STOP to opt out, HELP for help.',
   'notif.sounds.title': 'Sounds',

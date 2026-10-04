@@ -5,10 +5,13 @@ import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/features/cases/presentation/screens/attorney_cases_tab.dart'
+    show myPracticesProvider;
 import 'package:lawbid/features/onboarding/application/onboarding_actions.dart';
 import 'package:lawbid/features/onboarding/domain/onboarding_step_id.dart';
 import 'package:lawbid/features/onboarding/onboarding_routes.dart';
 import 'package:lawbid/features/onboarding/presentation/widgets/onboarding_scaffold.dart';
+import 'package:lawbid/features/verification/application/verification_overview_controller.dart';
 
 enum ChecklistStatus { done, next, locked }
 
@@ -26,6 +29,26 @@ class AttorneyVerificationStepScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translatorProvider);
     final action = ref.watch(onboardingActionsProvider);
+    // Owner 2026-10-04: once the licence is confirmed this screen moves on
+    // by itself: pick practice areas (the case feed matches by them), then
+    // continue to the tour and the feed — no "go back and tap Later".
+    final overview = ref.watch(verificationOverviewProvider).value;
+    final verified =
+        overview != null && viewOf(overview) == VerificationView.verified;
+    final practices = ref.watch(myPracticesProvider).value;
+    final needsPractices = verified && (practices?.isEmpty ?? false);
+
+    Future<void> openVerification() async {
+      await context.push(AppRoutes.verification);
+      ref
+        ..invalidate(verificationOverviewProvider)
+        ..invalidate(myPracticesProvider);
+    }
+
+    Future<void> openPractices() async {
+      await context.push(AppRoutes.practices);
+      ref.invalidate(myPracticesProvider);
+    }
 
     return OnboardingScaffold(
       step: OnboardingStepId.verification,
@@ -33,16 +56,28 @@ class AttorneyVerificationStepScreen extends ConsumerWidget {
       subtitle: t.t('onboarding.verification.subtitle'),
       onBack: () => context.go(OnboardingRoutes.forStep(OnboardingStepId.push)),
       error: action.error,
-      primaryLabel: t.t('onboarding.verification.verifyNow'),
-      onPrimary: () => context.push(AppRoutes.verification),
-      secondary: AppButton(
-        label: t.t('onboarding.verification.later'),
-        variant: AppButtonVariant.secondary,
-        isLoading: action.busy,
-        onPressed: () => ref
-            .read(onboardingActionsProvider.notifier)
-            .advance(OnboardingStepId.verification),
-      ),
+      primaryLabel: !verified
+          ? t.t('onboarding.verification.verifyNow')
+          : needsPractices
+              ? t.t('onboarding.verification.choosePractices')
+              : t.t('onboarding.verification.continue'),
+      onPrimary: !verified
+          ? openVerification
+          : needsPractices
+              ? openPractices
+              : () => ref
+                  .read(onboardingActionsProvider.notifier)
+                  .advance(OnboardingStepId.verification),
+      secondary: verified
+          ? null
+          : AppButton(
+              label: t.t('onboarding.verification.later'),
+              variant: AppButtonVariant.secondary,
+              isLoading: action.busy,
+              onPressed: () => ref
+                  .read(onboardingActionsProvider.notifier)
+                  .advance(OnboardingStepId.verification),
+            ),
       children: [
         VerificationChecklist(
           items: [
@@ -54,12 +89,12 @@ class AttorneyVerificationStepScreen extends ConsumerWidget {
             (
               t.t('onboarding.verification.item.license'),
               t.t('onboarding.verification.item.license.desc'),
-              ChecklistStatus.next,
+              verified ? ChecklistStatus.done : ChecklistStatus.next,
             ),
             (
               t.t('onboarding.verification.item.subscription'),
               t.t('onboarding.verification.item.subscription.desc'),
-              ChecklistStatus.locked,
+              verified ? ChecklistStatus.next : ChecklistStatus.locked,
             ),
           ],
           statusLabels: {

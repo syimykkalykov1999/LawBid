@@ -280,6 +280,15 @@ class _StatusBody extends StatelessWidget {
             icon: AppIcons.workOutlineRounded,
             onPressed: () => context.push(AppRoutes.practices),
           ),
+          // Owner 2026-10-04: a way forward, back to where it started
+          // (the onboarding checklist, which then moves on by itself).
+          AppButton(
+            label: t.t('onboarding.verification.continue'),
+            variant: AppButtonVariant.secondary,
+            onPressed: () => context.canPop()
+                ? context.pop()
+                : context.go(AppRoutes.feed),
+          ),
         ]);
       case VerificationView.suspended:
         children.add(
