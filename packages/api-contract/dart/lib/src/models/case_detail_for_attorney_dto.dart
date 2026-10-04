@@ -36,6 +36,7 @@ class CaseDetailForAttorneyDto {
     required this.photos,
     required this.photosCount,
     required this.inMyPractice,
+    required this.bidAllowed,
     this.city,
     this.ownBidId,
     this.completionRequestedBy,
@@ -93,6 +94,9 @@ class CaseDetailForAttorneyDto {
   /// Owner 2026-09-30: the case's practice is one of this attorney's —.
   /// otherwise "Bid" warns that the client will be told.
   final bool inMyPractice;
+
+  /// Owner 2026-10-04: false when the attorney may only view the case (no verified licence in its states): no offer button.
+  final bool bidAllowed;
 
   Map<String, Object?> toJson() => _$CaseDetailForAttorneyDtoToJson(this);
 }

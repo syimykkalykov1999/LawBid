@@ -71,6 +71,16 @@ export class ListCasesFeedQueryDto {
   state?: string;
 
   @ApiPropertyOptional({
+    enum: ['licensed', 'all'],
+    default: 'licensed',
+    description:
+      'Owner 2026-10-04: "licensed" = cases in states with a verified licence (default); "all" = browse open cases of own practices in every state (view only).',
+  })
+  @IsOptional()
+  @IsIn(['licensed', 'all'])
+  scope?: 'licensed' | 'all';
+
+  @ApiPropertyOptional({
     example: 'family_law',
     description:
       'Practice category code: cases of any of its leaves (owner 2026-09-30, OQ-034 topic slider).',
@@ -286,6 +296,12 @@ export class CaseDetailForAttorneyDto extends CaseFeedItemDto {
    * otherwise "Bid" warns that the client will be told. */
   @ApiProperty()
   inMyPractice!: boolean;
+
+  @ApiProperty({
+    description:
+      'Owner 2026-10-04: false when the attorney may only view the case (no verified licence in its states): no offer button.',
+  })
+  bidAllowed!: boolean;
 }
 
 export interface CaseFeedPage {

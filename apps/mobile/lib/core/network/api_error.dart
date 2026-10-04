@@ -174,6 +174,7 @@ abstract final class ApiErrorCodes {
   static const videoTooLong = 'VIDEO_TOO_LONG';
   static const videoNotReady = 'VIDEO_NOT_READY';
   static const commentsDisabled = 'COMMENTS_DISABLED';
+  static const licenseStateRequired = 'LICENSE_STATE_REQUIRED';
   static const stickerLimitReached = 'STICKER_LIMIT_REACHED';
   // Audit 2026-10-02: support, referrals, promotions, promo codes.
   static const supportTicketClosed = 'SUPPORT_TICKET_CLOSED';
@@ -330,6 +331,7 @@ abstract final class ApiErrorCodes {
     videoTooLong,
     videoNotReady,
     commentsDisabled,
+    licenseStateRequired,
     stickerLimitReached,
     supportTicketClosed,
     adminCredentialsInvalid,

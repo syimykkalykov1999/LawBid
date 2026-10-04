@@ -20,6 +20,9 @@ export interface VisibleCasesQueryInput {
   practiceCategory?: string;
   /** OQ-036: more `AND c.…` conditions (Search filters), both branches. */
   extra?: Prisma.Sql;
+  /** Owner 2026-10-04: browse mode — every open case: any state, any
+   * practice (view only; bidding still needs a verified licence there). */
+  browseAll?: boolean;
   state?: string;
   cursor?: FeedCursor;
   limit: number;
@@ -72,6 +75,7 @@ export function buildVisibleCasesSql(
     text,
     since,
     extra,
+    browseAll,
   } = input;
   const extraFilter = extra ?? Prisma.empty;
   // Narrows (never widens) the per-branch practice match to the leaves of
@@ -104,6 +108,25 @@ export function buildVisibleCasesSql(
     ? Prisma.sql`AND (created_at < ${cursor.createdAt}
         OR (created_at = ${cursor.createdAt} AND id < ${cursor.id}::UUID))`
     : Prisma.empty;
+
+  if (browseAll) {
+    const anyState = state
+      ? Prisma.sql`AND (c.primary_state_code = ${state}
+          OR EXISTS (SELECT 1 FROM case_states s2
+                     WHERE s2.case_id = c.id AND s2.state_code = ${state}))`
+      : Prisma.empty;
+    return Prisma.sql`
+      SELECT c.id, c.created_at FROM cases c
+      WHERE c.status = 'open' AND c.deleted_at IS NULL
+        ${anyState}
+        ${primaryPracticeFilter}
+        ${categoryFilter}
+        ${extraFilter}
+        ${text || since ? searchFilter : Prisma.empty}
+        ${cursor ? Prisma.sql`AND (c.created_at < ${cursor.createdAt} OR (c.created_at = ${cursor.createdAt} AND c.id < ${cursor.id}::UUID))` : Prisma.empty}
+      ORDER BY c.created_at DESC, c.id DESC
+      LIMIT ${limit}`;
+  }
 
   return Prisma.sql`
     SELECT id, created_at FROM (
@@ -170,6 +193,7 @@ export interface PracticeCasesQueryInput {
   text?: string;
   since?: Date;
   extra?: Prisma.Sql;
+  browseAll?: boolean;
 }
 
 /**
@@ -182,8 +206,17 @@ export interface PracticeCasesQueryInput {
 export function buildPracticeCasesSql(
   input: PracticeCasesQueryInput,
 ): Prisma.Sql {
-  const { attorneyId, practice, state, cursor, limit, text, since, extra } =
-    input;
+  const {
+    attorneyId,
+    practice,
+    state,
+    cursor,
+    limit,
+    text,
+    since,
+    extra,
+    browseAll,
+  } = input;
   const searchFilter = Prisma.sql`${
     text
       ? Prisma.sql`AND c.search_tsv @@ plainto_tsquery('english', ${text})`
@@ -206,11 +239,15 @@ export function buildPracticeCasesSql(
       AND c.practice_area_id IN (
         SELECT pa.id FROM practice_areas pa
         WHERE pa.code = ${practice} OR pa.code LIKE ${`${practice}.%`})
-      AND EXISTS (
+      ${
+        browseAll
+          ? Prisma.empty
+          : Prisma.sql`AND EXISTS (
         SELECT 1 FROM case_states cs
         JOIN attorney_licenses l ON l.state_code = cs.state_code
         WHERE cs.case_id = c.id AND l.attorney_id = ${attorneyId}::UUID
-          AND l.license_status = 'verified')
+          AND l.license_status = 'verified')`
+      }
       ${stateFilter}
       ${searchFilter}
       ${cursorFilter}

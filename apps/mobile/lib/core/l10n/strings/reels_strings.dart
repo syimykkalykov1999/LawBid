@@ -24,6 +24,11 @@ const reelsRu = <String, String>{
   'reels.badFile': 'Не удалось открыть это видео',
   'reels.open': 'Открыть рилсы',
   'tag.video': 'Видео',
+  'error.api.LICENSE_STATE_REQUIRED':
+      'Отклик возможен только в штате с подтверждённой лицензией',
+  'cases.detail.viewOnlyTitle': 'Только просмотр',
+  'cases.detail.viewOnlyMessage':
+      'Отклик можно отправить только в штатах, где у вас подтверждена лицензия.',
   'onboarding.verification.choosePractices': 'Выбрать практики',
   'onboarding.verification.continue': 'Продолжить',
   'auth.phone.smsConsent':
@@ -302,6 +307,11 @@ const reelsEn = <String, String>{
   'reels.badFile': "Couldn't open this video",
   'reels.open': 'Open reels',
   'tag.video': 'Video',
+  'error.api.LICENSE_STATE_REQUIRED':
+      'You can send an offer only in a state where you hold a verified licence',
+  'cases.detail.viewOnlyTitle': 'View only',
+  'cases.detail.viewOnlyMessage':
+      'You can send an offer only in states where you hold a verified licence.',
   'onboarding.verification.choosePractices': 'Choose practice areas',
   'onboarding.verification.continue': 'Continue',
   'auth.phone.smsConsent':

@@ -180,6 +180,7 @@ abstract final class CasesMappers {
         commentCount: c.commentCount,
         shareCount: c.shareCount,
         inMyPractice: c.inMyPractice,
+        bidAllowed: c.bidAllowed,
       );
 
   static MyBid myBid(api.MyBidItemDto b) => MyBid(

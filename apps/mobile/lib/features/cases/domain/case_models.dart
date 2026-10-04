@@ -327,6 +327,7 @@ class FeedCase {
     this.commentCount = 0,
     this.shareCount = 0,
     this.inMyPractice = true,
+    this.bidAllowed = true,
     this.promoted = false,
     this.completionRequestedBy,
   });
@@ -340,6 +341,10 @@ class FeedCase {
   /// Owner 2026-09-30: the case's practice is one of this attorney's
   /// (detail only; a bid from outside them warns the client).
   final bool inMyPractice;
+
+  /// Owner 2026-10-04: false = view only (no verified licence in the case's
+  /// states), no offer button.
+  final bool bidAllowed;
 
   /// OQ-034: comments under the case.
   final int commentCount;

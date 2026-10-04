@@ -19,6 +19,7 @@ import '../models/dispute_case_dto.dart';
 import '../models/filter.dart';
 import '../models/period.dart';
 import '../models/saved_item_dto.dart';
+import '../models/scope.dart';
 import '../models/sort.dart';
 import '../models/update_case_dto.dart';
 
@@ -43,6 +44,8 @@ abstract class CasesClient {
   ///
   /// [state] - Two-letter state code.
   ///
+  /// [scope] - Owner 2026-10-04: "licensed" = cases in states with a verified licence (default); "all" = browse open cases of own practices in every state (view only).
+  ///
   /// [practiceCategory] - Practice category code: cases of any of its leaves (owner 2026-09-30, OQ-034 topic slider).
   ///
   /// [practice] - Owner 2026-09-30: any qualification (category with its subcategories, or one subcategory) — every open case of it in the attorney's licensed states, own practices or not.
@@ -57,6 +60,7 @@ abstract class CasesClient {
   @GET('/cases')
   Future<CaseFeedItemListEnvelope> listCaseFeed({
     @Query('limit') int? limit = 20,
+    @Query('scope') Scope? scope = Scope.licensed,
     @Query('period') Period? period = Period.all,
     @Query('cursor') String? cursor,
     @Query('practiceAreaId') String? practiceAreaId,

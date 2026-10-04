@@ -22,6 +22,7 @@ import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
+import 'package:lawbid/features/verification/presentation/widgets/inline_notice.dart';
 
 /// Opens the subscription call-to-action when the server answers
 /// SUBSCRIPTION_REQUIRED (docs/04 §2); true when it handled [e].
@@ -149,7 +150,8 @@ class _AttorneyCaseScreenState extends ConsumerState<AttorneyCaseScreen> {
               children: [
                 // Audit 2026-10-02: an assistant bids with "bids" or
                 // drafts with "bid drafts", chats with "chats".
-                if (c.ownBidId == null &&
+                if (c.bidAllowed &&
+                    c.ownBidId == null &&
                     (ref.watch(canDoProvider(AssistantDuty.bids)) ||
                         ref.watch(canDoProvider(AssistantDuty.bidDrafts))))
                   AppButton(
@@ -157,7 +159,8 @@ class _AttorneyCaseScreenState extends ConsumerState<AttorneyCaseScreen> {
                     icon: AppIcons.gavelRounded,
                     onPressed: () => context.push(AppRoutes.placeBid(c.id)),
                   ),
-                if (ref.watch(canDoProvider(AssistantDuty.chats)))
+                if (c.bidAllowed &&
+                    ref.watch(canDoProvider(AssistantDuty.chats)))
                   AppButton(
                     label: t.t('cases.detail.messageClient'),
                     icon: AppIcons.chatBubbleOutlineRounded,
@@ -207,6 +210,18 @@ class _Body extends ConsumerWidget {
               ? StatusPill(label: t.t('cases.card.new'), tone: StatusTone.gold)
               : null,
         ),
+        // Owner 2026-10-04: any open case can be viewed; an offer needs a
+        // verified licence in one of its states.
+        if (!c.bidAllowed)
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.md),
+            child: InlineNotice(
+              tone: NoticeTone.info,
+              icon: AppIcons.workspacePremiumOutlined,
+              title: t.t('cases.detail.viewOnlyTitle'),
+              message: t.t('cases.detail.viewOnlyMessage'),
+            ),
+          ),
         // Owner 2026-09-30: another practice — bidding is allowed and the
         // client is told.
         if (!c.inMyPractice && c.ownBidId == null)

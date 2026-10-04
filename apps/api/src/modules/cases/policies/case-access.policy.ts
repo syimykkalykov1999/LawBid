@@ -20,6 +20,9 @@ export interface CaseViewer {
  *   whether it is one of the attorney's own (the client is warned on a
  *   bid from outside them).
  *
+ * - attorney_browser (owner 2026-10-04): any other open case, viewable by a
+ *   verified attorney but NOT biddable — no verified licence in its states.
+ *
  * `clientIdentityVisible` is false for every attorney access: the client's
  * name, photo and contacts are never part of a case view for an attorney.
  * They are released only by GET /cases/:id/contacts after acceptance with
@@ -28,7 +31,7 @@ export interface CaseViewer {
 export type CaseAccess =
   | { kind: 'owner'; clientIdentityVisible: true }
   | {
-      kind: 'attorney_participant' | 'attorney_prospect';
+      kind: 'attorney_participant' | 'attorney_prospect' | 'attorney_browser';
       clientIdentityVisible: false;
       /** The case's practice is one of the attorney's own (or the §4.1
        * General Practice exception). */
@@ -79,7 +82,12 @@ export class CaseAccessPolicy {
     // 4.3) uses the index-friendly list shape (visibleQuery in
     // test/db-roles-indexes.e2e-spec.ts).
     const rows = await db.$queryRaw<
-      { participant: boolean; visible: boolean; in_practice: boolean }[]
+      {
+        participant: boolean;
+        visible: boolean;
+        browsable: boolean;
+        in_practice: boolean;
+      }[]
     >`
       SELECT
         (EXISTS (SELECT 1 FROM bids b
@@ -101,6 +109,14 @@ export class CaseAccessPolicy {
                          WHERE (ub.blocker_id = ${a}::UUID AND ub.blocked_id = c.client_id)
                             OR (ub.blocker_id = c.client_id AND ub.blocked_id = ${a}::UUID)))
           AS visible,
+        (c.status = 'open'
+         AND EXISTS (SELECT 1 FROM attorney_profiles p
+                     WHERE p.user_id = ${a}::UUID
+                       AND p.verification_status = 'verified')
+         AND NOT EXISTS (SELECT 1 FROM user_blocks ub
+                         WHERE (ub.blocker_id = ${a}::UUID AND ub.blocked_id = c.client_id)
+                            OR (ub.blocker_id = c.client_id AND ub.blocked_id = ${a}::UUID)))
+          AS browsable,
         EXISTS (SELECT 1 FROM attorney_practice_areas ap
                 WHERE ap.attorney_id = ${a}::UUID
                   AND (ap.practice_area_id = c.practice_area_id
@@ -126,6 +142,13 @@ export class CaseAccessPolicy {
     if (row.visible) {
       return {
         kind: 'attorney_prospect',
+        clientIdentityVisible: false,
+        inPractice,
+      };
+    }
+    if (row.browsable) {
+      return {
+        kind: 'attorney_browser',
         clientIdentityVisible: false,
         inPractice,
       };
@@ -190,7 +213,12 @@ export class CaseAccessPolicy {
     caseId: string,
     db: Db = this.prisma,
   ): Promise<
-    Extract<CaseAccess, { kind: 'attorney_participant' | 'attorney_prospect' }>
+    Extract<
+      CaseAccess,
+      {
+        kind: 'attorney_participant' | 'attorney_prospect' | 'attorney_browser';
+      }
+    >
   > {
     const access = await this.decide(
       { userId: attorneyId, role: 'attorney' },
@@ -202,7 +230,9 @@ export class CaseAccessPolicy {
     // the union (see the `if (viewer.role === 'client')` guard above it).
     return access as Extract<
       CaseAccess,
-      { kind: 'attorney_participant' | 'attorney_prospect' }
+      {
+        kind: 'attorney_participant' | 'attorney_prospect' | 'attorney_browser';
+      }
     >;
   }
 }

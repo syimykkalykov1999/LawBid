@@ -18981,6 +18981,20 @@
             }
           },
           {
+            "name": "scope",
+            "required": false,
+            "in": "query",
+            "description": "Owner 2026-10-04: \"licensed\" = cases in states with a verified licence (default); \"all\" = browse open cases of own practices in every state (view only).",
+            "schema": {
+              "default": "licensed",
+              "type": "string",
+              "enum": [
+                "licensed",
+                "all"
+              ]
+            }
+          },
+          {
             "name": "practiceCategory",
             "required": false,
             "in": "query",
@@ -45499,6 +45513,7 @@
           "VIDEO_TOO_LONG",
           "VIDEO_NOT_READY",
           "COMMENTS_DISABLED",
+          "LICENSE_STATE_REQUIRED",
           "TRANSLATION_UNAVAILABLE",
           "STICKER_LIMIT_REACHED",
           "SUPPORT_TICKET_CLOSED",
@@ -54795,6 +54810,10 @@
           "inMyPractice": {
             "type": "boolean",
             "description": "Owner 2026-09-30: the case's practice is one of this attorney's —\notherwise \"Bid\" warns that the client will be told."
+          },
+          "bidAllowed": {
+            "type": "boolean",
+            "description": "Owner 2026-10-04: false when the attorney may only view the case (no verified licence in its states): no offer button."
           }
         },
         "required": [
@@ -54818,7 +54837,8 @@
           "description",
           "photos",
           "photosCount",
-          "inMyPractice"
+          "inMyPractice",
+          "bidAllowed"
         ]
       },
       "CaseDetailForAttorneyEnvelope": {
@@ -56162,7 +56182,7 @@
           },
           "uiLanguage": {
             "type": "string",
-            "pattern": "^[a-z]{2}$"
+            "pattern": "^[a-z]{2}(-[a-z]{2,4})?$"
           },
           "theme": {
             "type": "string",

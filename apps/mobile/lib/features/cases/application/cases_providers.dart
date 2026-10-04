@@ -102,7 +102,11 @@ final bidProvider = FutureProvider.autoDispose.family<CaseBid, String>(
 
 /// Owner 2026-09-30 (OQ-034): the case feed is filtered like the post feed
 /// — a practice category from the topic slider and a state.
-typedef FeedFilter = ({String? practiceCategory, String? state});
+typedef FeedFilter = ({
+  String? practiceCategory,
+  String? state,
+  bool mineOnly,
+});
 
 class FeedNotifier extends PagedNotifier<FeedCase> {
   FeedNotifier(this.filter);
@@ -115,6 +119,7 @@ class FeedNotifier extends PagedNotifier<FeedCase> {
             cursor: cursor,
             practiceCategory: filter.practiceCategory,
             state: filter.state,
+            mineOnly: filter.mineOnly,
           );
 
   @override

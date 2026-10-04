@@ -71,6 +71,15 @@ export class BidsService {
       { userId: user.sub, role: 'attorney' },
       caseId,
     );
+    // Owner 2026-10-04: any open case can be viewed, but an offer needs a
+    // verified licence in one of its states.
+    if (access.kind === 'attorney_browser') {
+      throw new ForbiddenException({
+        code: ErrorCode.LICENSE_STATE_REQUIRED,
+        message:
+          'You can send an offer only in states where you hold a verified licence.',
+      });
+    }
     // Owner 2026-09-30: bids outside the attorney's practices are allowed
     // and marked (the client is warned).
     const outsidePractice = access.kind !== 'owner' && !access.inPractice;

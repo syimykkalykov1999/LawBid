@@ -93,6 +93,7 @@ const _keys = <String, String>{
   ApiErrorCodes.videoTooLong: 'error.api.VIDEO_TOO_LONG',
   ApiErrorCodes.videoNotReady: 'error.api.VIDEO_NOT_READY',
   ApiErrorCodes.commentsDisabled: 'error.api.COMMENTS_DISABLED',
+  ApiErrorCodes.licenseStateRequired: 'error.api.LICENSE_STATE_REQUIRED',
   ApiErrorCodes.stickerLimitReached: 'error.api.STICKER_LIMIT_REACHED',
   ApiErrorCodes.fileChecksumMismatch: 'error.api.FILE_UPLOAD_FAILED',
   ApiErrorCodes.fileNotUploaded: 'error.api.FILE_UPLOAD_FAILED',

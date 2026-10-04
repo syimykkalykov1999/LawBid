@@ -112,6 +112,7 @@ abstract interface class CasesRepository {
     String? practiceCategory,
     String? state,
     CaseFeedExtras extras = const CaseFeedExtras(),
+    bool mineOnly = true,
   });
   Future<FeedCase> attorneyCase(String caseId);
   Future<void> recordView(String caseId);
@@ -361,9 +362,11 @@ class ApiCasesRepository implements CasesRepository {
     String? practiceCategory,
     String? state,
     CaseFeedExtras extras = const CaseFeedExtras(),
+    bool mineOnly = true,
   }) async {
     final env = await guardApiCall(
       () => _cases.listCaseFeed(
+        scope: mineOnly ? api.Scope.licensed : api.Scope.all,
         cursor: cursor,
         practiceAreaId: practiceAreaId,
         // Owner 2026-09-30: any qualification picked in the topic filter

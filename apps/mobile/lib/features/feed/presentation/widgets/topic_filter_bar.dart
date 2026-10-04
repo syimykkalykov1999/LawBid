@@ -12,6 +12,9 @@ import 'package:lawbid/features/practice/practice_options.dart';
 /// A qualification's display name (category or subcategory).
 String topicName(WidgetRef ref, String code) => practiceLabel(ref, code);
 
+/// Owner 2026-10-04: the state picker value for "all my licensed states".
+const kMyLicensedStates = '*licensed';
+
 /// Owner 2026-09-30 (OQ-034): the topic slider above the post feed and
 /// the attorney's case feed. The filter button on the left opens "Topics"
 /// (which practices the slider shows, several at once, kept on the device)
@@ -79,17 +82,16 @@ class TopicFilterBar extends ConsumerWidget {
       title: t.t('feed.state.pick'),
       initial: {if (stateCode != null) stateCode!},
       options: [
-        PickerOption(
-          value: '',
-          label: t.t(
-            allowedStates == null
-                ? 'cases.feed.allStates'
-                : 'cases.feed.allLicensedStates',
+        PickerOption(value: '', label: t.t('cases.feed.allStates')),
+        // Owner 2026-10-04: the attorney's own licensed states as a group,
+        // then every state (viewing is open, offers need a licence).
+        if (allowedStates != null)
+          PickerOption(
+            value: kMyLicensedStates,
+            label: t.t('cases.feed.allLicensedStates'),
           ),
-        ),
         for (final s in kUsStates)
-          if (allowedStates == null || allowedStates!.contains(s.code))
-            PickerOption(value: s.code, label: s.name, sublabel: s.code),
+          PickerOption(value: s.code, label: s.name, sublabel: s.code),
       ],
     );
     if (picked == null) return;
@@ -116,7 +118,9 @@ class TopicFilterBar extends ConsumerWidget {
             AppListRow(
               icon: AppIcons.mapOutlined,
               label: t.t('feed.state.pick'),
-              trailingText: stateCode ?? t.t('cases.feed.allStates'),
+              trailingText: stateCode == kMyLicensedStates
+                  ? t.t('cases.feed.allLicensedStates')
+                  : stateCode ?? t.t('cases.feed.allStates'),
               onTap: () => Navigator.of(sheet).pop('state'),
             ),
             const SizedBox(height: AppSpacing.md),
@@ -228,7 +232,9 @@ class TopicFilterBar extends ConsumerWidget {
           if (stateCode != null) ...[
             const SizedBox(width: AppSpacing.sm),
             pill(
-              label: usStateByCode(stateCode)?.name ?? stateCode!,
+              label: stateCode == kMyLicensedStates
+                  ? t.t('cases.feed.allLicensedStates')
+                  : usStateByCode(stateCode)?.name ?? stateCode!,
               icon: AppIcons.placeOutlined,
               selected: true,
               onTap: () => onState(null),

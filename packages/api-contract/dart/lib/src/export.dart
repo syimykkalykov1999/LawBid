@@ -838,6 +838,7 @@ export 'models/status3.dart';
 export 'models/kind.dart';
 export 'models/status4.dart';
 export 'models/status5.dart';
+export 'models/scope.dart';
 export 'models/period.dart';
 export 'models/filter.dart';
 export 'models/type.dart';

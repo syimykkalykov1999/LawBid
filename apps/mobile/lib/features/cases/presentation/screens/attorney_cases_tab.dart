@@ -96,7 +96,12 @@ class _AttorneyCasesTabState extends ConsumerState<AttorneyCasesTab> {
       );
     }
 
-    final filter = (practiceCategory: _category, state: _state);
+    final mine = _state == kMyLicensedStates;
+    final filter = (
+      practiceCategory: _category,
+      state: mine ? null : _state,
+      mineOnly: mine,
+    );
     final value = ref.watch(caseFeedProvider(filter));
     final n = ref.read(caseFeedProvider(filter).notifier);
 

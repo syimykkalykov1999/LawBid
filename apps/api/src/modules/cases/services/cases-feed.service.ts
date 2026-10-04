@@ -114,6 +114,7 @@ export class CasesFeedService {
           ? buildPracticeCasesSql({
               attorneyId: viewer.userId,
               practice: query.practice,
+              browseAll: query.scope === 'all',
               state: query.state,
               cursor: pageCursor,
               limit: take,
@@ -124,6 +125,7 @@ export class CasesFeedService {
               attorneyId: viewer.userId,
               practiceAreaId: query.practiceAreaId,
               practiceCategory: query.practiceCategory,
+              browseAll: query.scope === 'all',
               state: query.state,
               cursor: pageCursor,
               limit: take,
@@ -223,6 +225,7 @@ export class CasesFeedService {
               : null,
       ...media,
       inMyPractice: access.inPractice,
+      bidAllowed: access.kind !== 'attorney_browser',
     };
   }
 

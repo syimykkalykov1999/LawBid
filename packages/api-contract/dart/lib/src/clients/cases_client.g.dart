@@ -56,6 +56,7 @@ class _CasesClient implements CasesClient {
   @override
   Future<CaseFeedItemListEnvelope> listCaseFeed({
     int? limit = 20,
+    Scope? scope = Scope.licensed,
     Period? period = Period.all,
     String? cursor,
     String? practiceAreaId,
@@ -72,6 +73,7 @@ class _CasesClient implements CasesClient {
     _extra.addAll(extras ?? <String, dynamic>{});
     final queryParameters = <String, dynamic>{
       r'limit': limit,
+      r'scope': scope?.toJson(),
       r'period': period?.toJson(),
       r'cursor': cursor,
       r'practiceAreaId': practiceAreaId,

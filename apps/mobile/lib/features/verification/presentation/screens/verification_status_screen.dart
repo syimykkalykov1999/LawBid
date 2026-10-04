@@ -285,9 +285,8 @@ class _StatusBody extends StatelessWidget {
           AppButton(
             label: t.t('onboarding.verification.continue'),
             variant: AppButtonVariant.secondary,
-            onPressed: () => context.canPop()
-                ? context.pop()
-                : context.go(AppRoutes.feed),
+            onPressed: () =>
+                context.canPop() ? context.pop() : context.go(AppRoutes.feed),
           ),
         ]);
       case VerificationView.suspended:
