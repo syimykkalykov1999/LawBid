@@ -35,8 +35,12 @@ AppLanguage detectSystemLanguage(
   Set<String> selectable,
 ) {
   for (final locale in systemLocales) {
-    final code = AppLanguage.normalizeCode(locale.languageCode);
+    // toLanguageTag keeps the script/region, so a zh-Hant-TW device picks
+    // Traditional Chinese (`zh-tw`) and falls back to `zh` if it's absent.
+    final code = AppLanguage.normalizeCode(locale.toLanguageTag());
     if (selectable.contains(code)) return AppLanguage.fromCode(code);
+    final base = code.split('-').first;
+    if (selectable.contains(base)) return AppLanguage.fromCode(base);
   }
   return AppLanguage.fallback;
 }

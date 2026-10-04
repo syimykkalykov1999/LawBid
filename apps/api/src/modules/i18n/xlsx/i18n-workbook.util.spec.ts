@@ -89,6 +89,15 @@ describe('buildParsedWorkbook — §9.3 validation rules', () => {
     ).toBe(true);
   });
 
+  it('accepts a language column with a region subtag (zh-tw)', () => {
+    const { workbook, errors } = buildParsedWorkbook([
+      ['key', 'en', 'zh', 'zh-TW'],
+      ['a', 'Video', '视频', '影片'],
+    ]);
+    expect(errors).toEqual([]);
+    expect(workbook.languageCodes).toEqual(['en', 'zh', 'zh-tw']);
+  });
+
   it('rejects duplicate keys within the file', () => {
     const { errors } = buildParsedWorkbook([
       ['key', 'en'],

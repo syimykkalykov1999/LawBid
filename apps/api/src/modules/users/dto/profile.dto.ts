@@ -34,7 +34,7 @@ export class UpdateProfileDto {
   lastName?: string;
 
   @IsOptional()
-  @Matches(/^[a-z]{2}$/)
+  @Matches(/^[a-z]{2}(-[a-z]{2,4})?$/)
   uiLanguage?: string;
 
   @IsOptional()

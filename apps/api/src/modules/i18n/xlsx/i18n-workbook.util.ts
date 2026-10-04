@@ -207,7 +207,7 @@ export function buildParsedWorkbook(grid: string[][]): {
       errors.push({
         row: 1,
         lang: raw,
-        message: `Unknown language column "${raw}" — expected a 2-letter ISO 639-1 code.`,
+        message: `Unknown language column "${raw}" — expected a 2-letter ISO 639-1 code, optionally with a region such as zh-tw.`,
       });
       continue;
     }
