@@ -53,7 +53,12 @@ class AppFeedHeader extends StatelessWidget implements PreferredSizeWidget {
     return Container(
       height: AppSizes.feedHeader + topInset,
       // Owner 2026-09-30: logo and chats closer to the screen edges.
-      padding: EdgeInsets.fromLTRB(AppSpacing.sm, topInset, AppSpacing.xs, 0),
+      padding: EdgeInsetsDirectional.fromSTEB(
+        AppSpacing.sm,
+        topInset,
+        AppSpacing.xs,
+        0,
+      ),
       decoration: BoxDecoration(
         color: colors.bg,
         border: Border(bottom: BorderSide(color: colors.border)),

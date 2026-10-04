@@ -1066,8 +1066,10 @@ class _QuietButton extends StatelessWidget {
       excludeSemantics: true,
       child: AppPressable(
         onTap: onTap,
+        // minHeight (not height): a long translation wraps to a 2nd line
+        // instead of being scaled down to an unreadable size.
         child: Container(
-          height: height,
+          constraints: const BoxConstraints(minHeight: height),
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: colors.surface,
@@ -1083,16 +1085,17 @@ class _QuietButton extends StatelessWidget {
                   ),
                 )
               : Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      label,
-                      maxLines: 1,
-                      style: typography.button
-                          .copyWith(fontSize: 14, color: colors.text),
-                    ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm,
+                    vertical: AppSpacing.xs,
+                  ),
+                  child: Text(
+                    label,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: typography.button
+                        .copyWith(fontSize: 14, color: colors.text),
                   ),
                 ),
         ),
@@ -1167,9 +1170,10 @@ class _Tabs extends ConsumerWidget {
           Positioned.fill(
             child: AnimatedAlign(
               alignment: switch (selected) {
-                AttorneyProfileTab.posts => Alignment.bottomLeft,
-                AttorneyProfileTab.news => Alignment.bottomCenter,
-                AttorneyProfileTab.reviews => Alignment.bottomRight,
+                // Directional: the tab Row flips in RTL, so must the bar.
+                AttorneyProfileTab.posts => AlignmentDirectional.bottomStart,
+                AttorneyProfileTab.news => AlignmentDirectional.bottomCenter,
+                AttorneyProfileTab.reviews => AlignmentDirectional.bottomEnd,
               },
               duration: reduce ? Duration.zero : AppMotion.stateChange,
               curve: AppMotion.enterCurve,

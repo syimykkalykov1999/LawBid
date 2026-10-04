@@ -348,11 +348,13 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                   if (!_editing) ...[
                     Row(
                       children: [
-                        Text(
-                          t.t('post.create.photos'),
-                          style: type.titleMedium,
+                        Expanded(
+                          child: Text(
+                            t.t('post.create.photos'),
+                            style: type.titleMedium,
+                          ),
                         ),
-                        const Spacer(),
+                        const SizedBox(width: AppSpacing.sm),
                         Text(
                           '${_photos.length} / $kPostMaxPhotos',
                           style: type.caption
@@ -514,11 +516,15 @@ class _KindToggle extends StatelessWidget {
                       color: selected ? colors.goldLight : colors.text,
                     ),
                     const SizedBox(width: AppSpacing.xs),
-                    Text(
-                      label,
-                      style: type.bodySmall.copyWith(
-                        color: selected ? Colors.white : colors.text,
-                        fontWeight: FontWeight.w600,
+                    Flexible(
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: type.bodySmall.copyWith(
+                          color: selected ? Colors.white : colors.text,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ],
@@ -643,7 +649,7 @@ class _AddPhotoTile extends StatelessWidget {
         onTap: onTap,
         child: Container(
           width: 104,
-          margin: const EdgeInsets.only(right: AppSpacing.sm),
+          margin: const EdgeInsetsDirectional.only(end: AppSpacing.sm),
           decoration: BoxDecoration(
             color: colors.goldTint,
             borderRadius: BorderRadius.circular(AppRadii.card),
@@ -683,7 +689,7 @@ class _PhotoTile extends StatelessWidget {
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     return Container(
       width: 104,
-      margin: const EdgeInsets.only(right: AppSpacing.sm),
+      margin: const EdgeInsetsDirectional.only(end: AppSpacing.sm),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(AppRadii.card),
         child: Stack(

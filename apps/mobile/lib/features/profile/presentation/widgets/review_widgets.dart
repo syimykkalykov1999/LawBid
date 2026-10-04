@@ -222,8 +222,10 @@ class RatingCard extends ConsumerWidget {
           ),
           const SizedBox(width: AppSpacing.md),
           Container(
+            // maxWidth: a long "out of 5" can't squeeze the name column.
             constraints: const BoxConstraints(
               minWidth: AppSizes.stateMedallion - AppSpacing.lg,
+              maxWidth: AppSizes.stateMedallion + AppSpacing.xl,
             ),
             padding: const EdgeInsets.all(AppSpacing.md),
             decoration: BoxDecoration(
@@ -235,11 +237,16 @@ class RatingCard extends ConsumerWidget {
               children: [
                 Text(
                   number,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style:
                       typography.titleLarge.copyWith(color: colors.goldLight),
                 ),
                 Text(
                   t.t('profile.rating.outOf'),
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: typography.caption.copyWith(color: colors.goldLight),
                 ),
               ],
@@ -302,66 +309,75 @@ class ReviewSummaryPanel extends ConsumerWidget {
         // under it, part of the left column (owner request).
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Column(
-            children: [
-              Semantics(
-                label: summary.isNew
-                    ? t.t('profile.rating.new')
-                    : t.t(
-                        'reviews.average.label',
-                        {'rating': ratingNumber(formats, t, summary.average)},
-                      ),
-                excludeSemantics: true,
-                child: Column(
-                  children: [
-                    Text(
-                      ratingNumber(formats, t, summary.average),
-                      style: typography.titleLarge
-                          .copyWith(color: colors.text, height: 1),
-                    ),
-                    StarRatingDisplay(
-                      value: summary.average ?? 0,
-                      size: AppSpacing.md + 2,
-                    ),
-                    const SizedBox(height: AppSpacing.xs),
-                    Text(
-                      summary.isNew
-                          ? t.t('profile.rating.new')
-                          : SocialFormat.plural(
-                              t,
-                              formats,
-                              'profile.rating.count',
-                              total,
-                            ),
-                      style: typography.caption
-                          .copyWith(color: colors.textSecondary),
-                    ),
-                  ],
-                ),
-              ),
-              if (onSort != null)
+          ConstrainedBox(
+            // A long "New — no reviews" wraps instead of eating the bars.
+            constraints: const BoxConstraints(
+              maxWidth: AppSizes.stateMedallion + AppSpacing.xl,
+            ),
+            child: Column(
+              children: [
                 Semantics(
-                  button: true,
-                  label: t.t('reviews.sort.label'),
+                  label: summary.isNew
+                      ? t.t('profile.rating.new')
+                      : t.t(
+                          'reviews.average.label',
+                          {'rating': ratingNumber(formats, t, summary.average)},
+                        ),
                   excludeSemantics: true,
-                  child: AppTapTarget(
-                    child: AppPressable(
-                      onTap: () => _pickSort(context, t),
-                      child: SizedBox(
-                        height: AppSizes.touchTarget - AppSpacing.sm,
-                        width: AppSizes.touchTarget,
-                        child: AppIcon(
-                          AppIcons.tuneRounded,
-                          size: AppSizes.iconSm,
-                          color: sort == ReviewsSort.newest
-                              ? colors.textSecondary
-                              : colors.goldDark,
+                  child: Column(
+                    children: [
+                      Text(
+                        ratingNumber(formats, t, summary.average),
+                        style: typography.titleLarge
+                            .copyWith(color: colors.text, height: 1),
+                      ),
+                      StarRatingDisplay(
+                        value: summary.average ?? 0,
+                        size: AppSpacing.md + 2,
+                      ),
+                      const SizedBox(height: AppSpacing.xs),
+                      Text(
+                        summary.isNew
+                            ? t.t('profile.rating.new')
+                            : SocialFormat.plural(
+                                t,
+                                formats,
+                                'profile.rating.count',
+                                total,
+                              ),
+                        textAlign: TextAlign.center,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: typography.caption
+                            .copyWith(color: colors.textSecondary),
+                      ),
+                    ],
+                  ),
+                ),
+                if (onSort != null)
+                  Semantics(
+                    button: true,
+                    label: t.t('reviews.sort.label'),
+                    excludeSemantics: true,
+                    child: AppTapTarget(
+                      child: AppPressable(
+                        onTap: () => _pickSort(context, t),
+                        child: SizedBox(
+                          height: AppSizes.touchTarget - AppSpacing.sm,
+                          width: AppSizes.touchTarget,
+                          child: AppIcon(
+                            AppIcons.tuneRounded,
+                            size: AppSizes.iconSm,
+                            color: sort == ReviewsSort.newest
+                                ? colors.textSecondary
+                                : colors.goldDark,
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
           const SizedBox(width: AppSpacing.lg),
           Expanded(
@@ -617,11 +633,15 @@ class ReviewHelpfulButton extends ConsumerWidget {
             color: color,
           ),
           const SizedBox(width: 6),
-          Text(
-            label,
-            style: type.caption.copyWith(
-              color: color,
-              fontWeight: FontWeight.w600,
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: type.caption.copyWith(
+                color: color,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],
@@ -676,7 +696,7 @@ class ReviewReplyBlock extends ConsumerWidget {
       key: const ValueKey('review-reply'),
       width: double.infinity,
       margin: const EdgeInsets.only(top: AppSpacing.md),
-      padding: const EdgeInsets.fromLTRB(
+      padding: const EdgeInsetsDirectional.fromSTEB(
         AppSpacing.md,
         AppSpacing.sm,
         AppSpacing.sm,
@@ -856,7 +876,14 @@ class ReviewBadge extends StatelessWidget {
             AppIcon(icon, size: 12, color: colors.goldDark),
             const SizedBox(width: 3),
           ],
-          Text(label, style: type.badge.copyWith(color: colors.goldDark)),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: type.badge.copyWith(color: colors.goldDark),
+            ),
+          ),
         ],
       ),
     );
@@ -971,7 +998,7 @@ class _MapsReviewTileState extends ConsumerState<MapsReviewTile> {
           }).join();
     return Container(
       key: ValueKey('maps-review-${w.id}'),
-      padding: const EdgeInsets.fromLTRB(
+      padding: const EdgeInsetsDirectional.fromSTEB(
         AppSpacing.lg,
         AppSpacing.md,
         AppSpacing.sm,
@@ -1038,6 +1065,8 @@ class _MapsReviewTileState extends ConsumerState<MapsReviewTile> {
                             'reviews.authorCount',
                             w.authorReviewCount,
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: type.caption
                               .copyWith(color: colors.textSecondary),
                         ),
@@ -1079,7 +1108,7 @@ class _MapsReviewTileState extends ConsumerState<MapsReviewTile> {
           if (body.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.sm),
             Padding(
-              padding: const EdgeInsets.only(right: AppSpacing.sm),
+              padding: const EdgeInsetsDirectional.only(end: AppSpacing.sm),
               child: Text(
                 body,
                 maxLines: _expanded ? null : 5,
@@ -1134,7 +1163,7 @@ class _MapsReviewTileState extends ConsumerState<MapsReviewTile> {
             ),
           ],
           Align(
-            alignment: Alignment.centerLeft,
+            alignment: AlignmentDirectional.centerStart,
             child: ReviewHelpfulButton(
               key: ValueKey('review-helpful-${w.id}'),
               count: w.helpfulCount,
@@ -1144,7 +1173,7 @@ class _MapsReviewTileState extends ConsumerState<MapsReviewTile> {
           ),
           if (w.reply != null)
             Padding(
-              padding: const EdgeInsets.only(right: AppSpacing.sm),
+              padding: const EdgeInsetsDirectional.only(end: AppSpacing.sm),
               child: ReviewReplyBlock(
                 reply: w.reply!,
                 replyAt: w.replyAt,

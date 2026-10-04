@@ -107,75 +107,81 @@ class _SuspendedScreen extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(
                 horizontal: AppSpacing.screenSide,
               ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Center(
-                    child: AppIcon(
-                      AppIcons.shieldRounded,
-                      size: 56,
-                      color: colors.dangerText,
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-                  Semantics(
-                    header: true,
-                    child: Text(
-                      t.t('account.suspended.title'),
-                      textAlign: TextAlign.center,
-                      style: type.titleLarge.copyWith(color: colors.text),
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  Text(
-                    until == null
-                        ? t.t('account.suspended.noEnd')
-                        : t.t(
-                            'account.suspended.until',
-                            {'date': f.date(until)},
+              // Scrollable so a long reason / translation on a small
+              // screen never overflows the column.
+              child: Center(
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Center(
+                        child: AppIcon(
+                          AppIcons.shieldRounded,
+                          size: 56,
+                          color: colors.dangerText,
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.lg),
+                      Semantics(
+                        header: true,
+                        child: Text(
+                          t.t('account.suspended.title'),
+                          textAlign: TextAlign.center,
+                          style: type.titleLarge.copyWith(color: colors.text),
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      Text(
+                        until == null
+                            ? t.t('account.suspended.noEnd')
+                            : t.t(
+                                'account.suspended.until',
+                                {'date': f.date(until)},
+                              ),
+                        textAlign: TextAlign.center,
+                        style: type.body.copyWith(color: colors.textSecondary),
+                      ),
+                      if (info.reason != null) ...[
+                        const SizedBox(height: AppSpacing.md),
+                        Container(
+                          padding: const EdgeInsets.all(AppSpacing.md),
+                          decoration: BoxDecoration(
+                            color: colors.surface,
+                            borderRadius: BorderRadius.circular(AppRadii.card),
+                            border: Border.all(color: colors.border),
                           ),
-                    textAlign: TextAlign.center,
-                    style: type.body.copyWith(color: colors.textSecondary),
-                  ),
-                  if (info.reason != null) ...[
-                    const SizedBox(height: AppSpacing.md),
-                    Container(
-                      padding: const EdgeInsets.all(AppSpacing.md),
-                      decoration: BoxDecoration(
-                        color: colors.surface,
-                        borderRadius: BorderRadius.circular(AppRadii.card),
-                        border: Border.all(color: colors.border),
+                          child: Text(
+                            t.t('account.suspended.reason', {
+                              'reason': info.reason!,
+                            }),
+                            style: type.body.copyWith(color: colors.text),
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: AppSpacing.xl),
+                      AppButton(
+                        label: t.t('account.suspended.contact'),
+                        icon: AppIcons.supportAgentRounded,
+                        onPressed: () => launchUrl(
+                          Uri.parse(kWebsiteUrl),
+                          mode: LaunchMode.externalApplication,
+                        ),
                       ),
-                      child: Text(
-                        t.t('account.suspended.reason', {
-                          'reason': info.reason!,
-                        }),
-                        style: type.body.copyWith(color: colors.text),
+                      const SizedBox(height: AppSpacing.sm),
+                      AppButton(
+                        label: t.t('account.suspended.leave'),
+                        variant: AppButtonVariant.secondary,
+                        onPressed: () async {
+                          await ref
+                              .read(sessionControllerProvider.notifier)
+                              .clear();
+                          ref.read(suspensionProvider.notifier).clear();
+                        },
                       ),
-                    ),
-                  ],
-                  const SizedBox(height: AppSpacing.xl),
-                  AppButton(
-                    label: t.t('account.suspended.contact'),
-                    icon: AppIcons.supportAgentRounded,
-                    onPressed: () => launchUrl(
-                      Uri.parse(kWebsiteUrl),
-                      mode: LaunchMode.externalApplication,
-                    ),
+                    ],
                   ),
-                  const SizedBox(height: AppSpacing.sm),
-                  AppButton(
-                    label: t.t('account.suspended.leave'),
-                    variant: AppButtonVariant.secondary,
-                    onPressed: () async {
-                      await ref
-                          .read(sessionControllerProvider.notifier)
-                          .clear();
-                      ref.read(suspensionProvider.notifier).clear();
-                    },
-                  ),
-                ],
+                ),
               ),
             ),
           ),

@@ -58,8 +58,13 @@ class ClientCasesGrid extends ConsumerWidget {
                               size: AppSpacing.md + 2,
                               color: colors.goldDark,
                             ),
-                            const Spacer(),
-                            CaseStatusPill(status: c.status, t: t),
+                            const SizedBox(width: AppSpacing.xs),
+                            Expanded(
+                              child: Align(
+                                alignment: AlignmentDirectional.centerEnd,
+                                child: CaseStatusPill(status: c.status, t: t),
+                              ),
+                            ),
                           ],
                         ),
                         const SizedBox(height: AppSpacing.sm),

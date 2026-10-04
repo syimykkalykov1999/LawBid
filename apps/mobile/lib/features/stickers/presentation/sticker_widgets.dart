@@ -105,20 +105,24 @@ class _StickerPanelState extends ConsumerState<StickerPanel> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    _tab(
-                      t.t('stickers.tab.emoji'),
-                      !_stickers,
-                      () => setState(() => _stickers = false),
-                      colors,
-                      type,
+                    Flexible(
+                      child: _tab(
+                        t.t('stickers.tab.emoji'),
+                        !_stickers,
+                        () => setState(() => _stickers = false),
+                        colors,
+                        type,
+                      ),
                     ),
                     const SizedBox(width: AppSpacing.md),
-                    _tab(
-                      t.t('stickers.tab.stickers'),
-                      _stickers,
-                      () => setState(() => _stickers = true),
-                      colors,
-                      type,
+                    Flexible(
+                      child: _tab(
+                        t.t('stickers.tab.stickers'),
+                        _stickers,
+                        () => setState(() => _stickers = true),
+                        colors,
+                        type,
+                      ),
                     ),
                   ],
                 ),
@@ -150,6 +154,8 @@ class _StickerPanelState extends ConsumerState<StickerPanel> {
           ),
           child: Text(
             label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: type.bodySmall.copyWith(
               color: on ? colors.goldDark : colors.textSecondary,
               fontWeight: on ? FontWeight.w700 : FontWeight.w500,
@@ -255,7 +261,8 @@ class _StickerPanelState extends ConsumerState<StickerPanel> {
         Expanded(
           child: items.isEmpty
               ? Center(
-                  child: Padding(
+                  // Scrolls: the panel is short (keyboard height).
+                  child: SingleChildScrollView(
                     padding: const EdgeInsets.all(AppSpacing.lg),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
@@ -340,7 +347,12 @@ class _StickerHub extends ConsumerWidget {
           leading: p.cover == null
               ? AppIcon(AppIcons.stickerOutlined, color: colors.textSecondary)
               : StickerImage(sticker: p.cover!, size: 44),
-          title: Text(p.title, style: type.body.copyWith(color: colors.text)),
+          title: Text(
+            p.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: type.body.copyWith(color: colors.text),
+          ),
           subtitle: Text(
             t.t('stickers.count', {'count': '${p.stickers.length}'}),
             style: type.caption.copyWith(color: colors.textSecondary),
@@ -569,7 +581,7 @@ class _PackSheetState extends ConsumerState<_PackSheet> {
         data: (pack) => Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(
+              padding: const EdgeInsetsDirectional.fromSTEB(
                 AppSpacing.screenSide,
                 AppSpacing.md,
                 AppSpacing.sm,
@@ -586,6 +598,8 @@ class _PackSheetState extends ConsumerState<_PackSheet> {
                           children: [
                             Text(
                               pack.title,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                               style:
                                   type.titleMedium.copyWith(color: colors.text),
                             ),

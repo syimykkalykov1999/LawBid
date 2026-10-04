@@ -33,6 +33,9 @@ class StatusPill extends StatelessWidget {
     return AnimatedContainer(
       duration: context.reduceMotion ? Duration.zero : AppMotion.stateChange,
       curve: AppMotion.enterCurve,
+      // Capped so a long status (de, uk, …) at the end of a row ellipsizes
+      // instead of pushing the row's title aside.
+      constraints: const BoxConstraints(maxWidth: 180),
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.sm + AppSpacing.xs / 2,
         vertical: AppSpacing.xs,
@@ -154,9 +157,13 @@ class RoundCounter extends StatelessWidget {
             ),
           ],
           const SizedBox(width: AppSpacing.sm),
-          Text(
-            label,
-            style: typography.caption.copyWith(color: colors.textSecondary),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: typography.caption.copyWith(color: colors.textSecondary),
+            ),
           ),
         ],
       ),

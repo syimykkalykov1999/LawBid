@@ -286,7 +286,7 @@ class _ShareSheet extends StatelessWidget {
             const SizedBox(height: AppSpacing.md),
             // The link itself with a copy button.
             Container(
-              padding: const EdgeInsets.only(left: AppSpacing.md),
+              padding: const EdgeInsetsDirectional.only(start: AppSpacing.md),
               decoration: BoxDecoration(
                 color: colors.bg,
                 borderRadius: BorderRadius.circular(AppRadii.field),
@@ -309,14 +309,19 @@ class _ShareSheet extends StatelessWidget {
                           .copyWith(color: colors.textSecondary),
                     ),
                   ),
-                  TextButton(
-                    key: const ValueKey('share-copy'),
-                    onPressed: () => Navigator.of(context).pop('copy'),
-                    child: Text(
-                      t.t('share.copy'),
-                      style: TextStyle(
-                        color: colors.goldDark,
-                        fontWeight: FontWeight.w700,
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 140),
+                    child: TextButton(
+                      key: const ValueKey('share-copy'),
+                      onPressed: () => Navigator.of(context).pop('copy'),
+                      child: Text(
+                        t.t('share.copy'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: colors.goldDark,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                   ),

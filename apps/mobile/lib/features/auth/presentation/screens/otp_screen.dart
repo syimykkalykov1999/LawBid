@@ -247,7 +247,7 @@ class _ChangeIdentifierLink extends StatelessWidget {
               minWidth: AppSizes.touchTarget,
             ),
             child: Align(
-              alignment: Alignment.centerLeft,
+              alignment: AlignmentDirectional.centerStart,
               widthFactor: 1,
               child: Text(
                 label,
