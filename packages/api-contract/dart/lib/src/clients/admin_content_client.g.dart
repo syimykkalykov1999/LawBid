@@ -56,6 +56,7 @@ class _AdminContentClient implements AdminContentClient {
     String? q,
     String? cursor,
     AdminPostKind? kind,
+    Media? media,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
@@ -64,6 +65,7 @@ class _AdminContentClient implements AdminContentClient {
       r'q': q,
       r'cursor': cursor,
       r'kind': kind?.toJson(),
+      r'media': media?.toJson(),
     };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};

@@ -9,6 +9,8 @@ import {
   type ProviderRefund,
   type ProviderInvoice,
   type ProviderOneTimeCheckoutInput,
+  type ProviderPrice,
+  type ProviderPriceInput,
   type ProviderSetupIntent,
   type ProviderSubscription,
   WebhookSignatureError,
@@ -23,6 +25,10 @@ export class StripePaymentProvider implements PaymentProvider {
   readonly name = 'stripe' as const;
   private readonly stripe: Stripe;
   private readonly live: boolean;
+
+  get mode(): 'test' | 'live' {
+    return this.live ? 'live' : 'test';
+  }
 
   constructor(
     secretKey: string,
@@ -166,9 +172,11 @@ export class StripePaymentProvider implements PaymentProvider {
     subscriptionId: string,
     seatPriceId: string,
     quantity: number,
+    knownSeatPriceIds: string[] = [],
   ): Promise<ProviderSubscription> {
     const sub = await this.stripe.subscriptions.retrieve(subscriptionId);
-    const item = sub.items.data.find((i) => i.price.id === seatPriceId);
+    const ids = new Set([seatPriceId, ...knownSeatPriceIds]);
+    const item = sub.items.data.find((i) => ids.has(i.price.id));
     const items: Stripe.SubscriptionUpdateParams.Item[] = item
       ? quantity > 0
         ? [{ id: item.id, quantity }]
@@ -197,6 +205,60 @@ export class StripePaymentProvider implements PaymentProvider {
       await this.stripe.subscriptions.update(subscriptionId, {
         items,
         proration_behavior: 'always_invoice',
+      }),
+    );
+  }
+
+  async createPrice(input: ProviderPriceInput): Promise<ProviderPrice> {
+    let productId = input.productId;
+    if (!productId && input.productFromPriceId) {
+      try {
+        const old = await this.stripe.prices.retrieve(input.productFromPriceId);
+        productId =
+          typeof old.product === 'string' ? old.product : old.product.id;
+      } catch (e) {
+        if (!isNotFound(e)) throw e;
+      }
+    }
+    const price = await this.stripe.prices.create(
+      {
+        currency: input.currency,
+        unit_amount: input.amountCents,
+        recurring: { interval: input.interval },
+        metadata: input.metadata,
+        ...(productId
+          ? { product: productId }
+          : {
+              product_data: {
+                name: input.productName,
+                metadata: input.metadata,
+              },
+            }),
+      },
+      { idempotencyKey: input.idempotencyKey },
+    );
+    return {
+      priceId: price.id,
+      productId:
+        typeof price.product === 'string' ? price.product : price.product.id,
+    };
+  }
+
+  async replaceItemPrice(
+    subscriptionId: string,
+    fromPriceIds: string[],
+    toPriceId: string,
+  ): Promise<ProviderSubscription | null> {
+    const sub = await this.stripe.subscriptions.retrieve(subscriptionId);
+    const from = new Set(fromPriceIds);
+    const items = sub.items.data
+      .filter((i) => from.has(i.price.id) && i.price.id !== toPriceId)
+      .map((i) => ({ id: i.id, price: toPriceId, quantity: i.quantity }));
+    if (items.length === 0) return null;
+    return mapSubscription(
+      await this.stripe.subscriptions.update(subscriptionId, {
+        items,
+        proration_behavior: 'none',
       }),
     );
   }

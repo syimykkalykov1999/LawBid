@@ -13,7 +13,7 @@ describe('admin permissions', () => {
     expect(routeArea('/api/v1/admin/client-badges/bulk-approve')).toBe(
       'verification',
     );
-    expect(routeArea('/api/v1/admin/contact-issues')).toBe('cases');
+    expect(routeArea('/api/v1/admin/contact-issues')).toBe('support');
     expect(routeArea('/api/v1/admin/users/abc/warn')).toBe('users');
     expect(routeArea('/api/v1/admin/billing/payments?x=1')).toBe('money');
     expect(routeArea('/api/v1/admin/integrations')).toBe('keys');
@@ -132,5 +132,34 @@ describe('admin permissions', () => {
         parsePermissions({ users: 'manage', support: 'manage', cases: 'view' }),
       ),
     ).toEqual({ users: 'manage', support: 'view' });
+  });
+});
+
+describe('plan prices (owner 2026-10-03: super admin only)', () => {
+  it('no other admin reaches /admin/billing/prices, whatever its toggles', () => {
+    const all = { money: 'manage' } as unknown as Parameters<
+      typeof canAccess
+    >[1];
+    for (const role of [
+      'finance',
+      'support',
+      'moderator',
+      'verifier',
+    ] as const) {
+      expect(canAccess(role, all, '/api/v1/admin/billing/prices', 'GET')).toBe(
+        false,
+      );
+      expect(
+        canAccess(role, all, '/api/v1/admin/billing/prices/monthly', 'PUT'),
+      ).toBe(false);
+    }
+    expect(
+      canAccess(
+        'super_admin',
+        {},
+        '/api/v1/admin/billing/prices/monthly',
+        'PUT',
+      ),
+    ).toBe(true);
   });
 });

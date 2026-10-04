@@ -89,13 +89,14 @@ function Posts({ ask }: { ask: Ask }) {
   const [input, setInput] = useState('');
   const text = useDebounced(input.trim(), 300);
   const [kind, setKind] = useState<'' | 'post' | 'news'>('');
+  const [onlyVideo, setOnlyVideo] = useState(false);
   const q = useInfiniteQuery({
-    queryKey: ['admin-posts', text, kind],
+    queryKey: ['admin-posts', text, kind, onlyVideo],
     initialPageParam: undefined as string | undefined,
     queryFn: async ({ pageParam }) =>
       (
         await api.GET('/admin/content/posts', {
-          params: { query: { q: text || undefined, kind: kind || undefined, cursor: pageParam } },
+          params: { query: { q: text || undefined, kind: kind || undefined, media: onlyVideo ? 'video' : undefined, cursor: pageParam } },
         })
       ).data!,
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
@@ -127,6 +128,13 @@ function Posts({ ask }: { ask: Ask }) {
             <option value="news">новости</option>
           </Select>
         </div>
+        <div className="w-48 space-y-1">
+          <Label htmlFor="pm">Вложение</Label>
+          <Select id="pm" value={onlyVideo ? 'video' : ''} onChange={(e) => setOnlyVideo(e.target.value === 'video')}>
+            <option value="">любые</option>
+            <option value="video">с видео (бывшие рилсы)</option>
+          </Select>
+        </div>
         <CsvButton entity="posts" />
       </div>
       <ErrorNote text={q.error ? errorText(q.error) : null} />
@@ -147,6 +155,7 @@ function Posts({ ask }: { ask: Ask }) {
             <MotionRow key={p.id} i={i}>
               <Td className="max-w-md">
                 {p.kind === 'news' ? <Badge tone="gold">новость</Badge> : null}
+                {p.hasVideo ? <Badge tone="info">видео</Badge> : null}
                 <div className="font-medium text-heading">{p.title ?? '—'}</div>
                 <div className="line-clamp-2 text-xs text-muted">{p.body}</div>
               </Td>

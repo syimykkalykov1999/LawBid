@@ -21,6 +21,7 @@ class AdminPostRowDto {
     required this.likes,
     required this.comments,
     required this.deleted,
+    required this.hasVideo,
     required this.createdAt,
     this.title,
     this.practice,
@@ -40,6 +41,9 @@ class AdminPostRowDto {
   final int likes;
   final int comments;
   final bool deleted;
+
+  /// The post carries a video
+  final bool hasVideo;
   final String createdAt;
 
   Map<String, Object?> toJson() => _$AdminPostRowDtoToJson(this);

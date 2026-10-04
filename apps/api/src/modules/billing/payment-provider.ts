@@ -84,6 +84,9 @@ export class WebhookSignatureError extends Error {}
 
 export interface PaymentProvider {
   readonly name: 'stripe' | 'fake';
+  /** Owner 2026-10-03: which Stripe account mode the keys belong to
+   * (plan prices keep one Stripe price id per mode). */
+  readonly mode?: PriceMode;
   createCustomer(input: {
     userId: string;
     email: string | null;
@@ -135,6 +138,9 @@ export interface PaymentProvider {
     subscriptionId: string,
     seatPriceId: string,
     quantity: number,
+    /** Owner 2026-10-03: older seat prices — an existing seat item on one
+     * of them keeps its price and only changes quantity. */
+    knownSeatPriceIds?: string[],
   ): Promise<ProviderSubscription>;
   /** Owner 2026-10-01: monthly → yearly ("Prime"): every item replaced by
    * the yearly price; the difference is invoiced now. */
@@ -171,6 +177,17 @@ export interface PaymentProvider {
     description: string,
     idempotencyKey?: string,
   ): Promise<void>;
+  /** Owner 2026-10-03 (admin prices): a new recurring Stripe price on the
+   * plan's product (created when none is given). */
+  createPrice?(input: ProviderPriceInput): Promise<ProviderPrice>;
+  /** Owner 2026-10-03: move a subscription's items that are on one of
+   * [fromPriceIds] to [toPriceId], same quantity, no proration — the new
+   * amount applies from the next renewal. null when no item matched. */
+  replaceItemPrice?(
+    subscriptionId: string,
+    fromPriceIds: string[],
+    toPriceId: string,
+  ): Promise<ProviderSubscription | null>;
   /** Owner 2026-10-02 (case promotion): a hosted one-time payment page. */
   createOneTimeCheckout?(
     input: ProviderOneTimeCheckoutInput,
@@ -207,4 +224,24 @@ export interface ProviderRefund {
   id: string;
   status: 'pending' | 'succeeded' | 'failed';
   failureReason: string | null;
+}
+
+export type PriceMode = 'test' | 'live' | 'fake';
+
+export interface ProviderPriceInput {
+  /** Reused when set; otherwise taken from [productFromPriceId] or created. */
+  productId: string | null;
+  /** An existing price whose product the new price should join. */
+  productFromPriceId: string | null;
+  productName: string;
+  amountCents: number;
+  currency: string;
+  interval: 'month' | 'year';
+  idempotencyKey: string;
+  metadata: Record<string, string>;
+}
+
+export interface ProviderPrice {
+  priceId: string;
+  productId: string;
 }

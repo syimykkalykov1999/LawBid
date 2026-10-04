@@ -9,6 +9,8 @@ import {
   type ProviderRefund,
   type ProviderInvoice,
   type ProviderOneTimeCheckoutInput,
+  type ProviderPrice,
+  type ProviderPriceInput,
   type ProviderSetupIntent,
   type ProviderSubscription,
   WebhookSignatureError,
@@ -30,6 +32,7 @@ export interface FakeCard {
  */
 export class FakePaymentProvider implements PaymentProvider {
   readonly name = 'fake' as const;
+  readonly mode = 'fake' as const;
   readonly customers = new Map<string, { id: string; userId: string }>();
   readonly setupIntents = new Map<string, ProviderSetupIntent>();
   readonly cards = new Map<string, FakeCard>();
@@ -137,6 +140,32 @@ export class FakePaymentProvider implements PaymentProvider {
     this.seats.set(subscriptionId, quantity);
     return Promise.resolve(strip(cur));
   }
+  /** Owner 2026-10-03: prices created from the admin, and the item
+   * moves (subscription → new price id) done by "move subscribers". */
+  readonly prices = new Map<string, ProviderPriceInput>();
+  readonly priceMoves = new Map<string, string>();
+
+  createPrice(input: ProviderPriceInput): Promise<ProviderPrice> {
+    const priceId = `price_fake_${input.metadata.kind ?? 'plan'}_${input.amountCents}_${randomUUID().slice(0, 6)}`;
+    this.prices.set(priceId, input);
+    return Promise.resolve({
+      priceId,
+      productId:
+        input.productId ?? `prod_fake_${input.metadata.kind ?? 'plan'}`,
+    });
+  }
+
+  replaceItemPrice(
+    subscriptionId: string,
+    _fromPriceIds: string[],
+    toPriceId: string,
+  ): Promise<ProviderSubscription | null> {
+    const cur = this.subscriptions.get(subscriptionId);
+    if (!cur) return Promise.resolve(null);
+    this.priceMoves.set(subscriptionId, toPriceId);
+    return Promise.resolve(strip(cur));
+  }
+
   /** Fake subscriptions moved to the yearly plan → its price id. */
   readonly yearly = new Map<string, string>();
 

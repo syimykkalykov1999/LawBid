@@ -24,6 +24,7 @@ import '../models/broadcast_list_envelope.dart';
 import '../models/create_broadcast_dto.dart';
 import '../models/create_practice_area_dto.dart';
 import '../models/export_entity.dart';
+import '../models/media.dart';
 import '../models/update_practice_area_dto.dart';
 
 part 'admin_content_client.g.dart';
@@ -41,11 +42,14 @@ abstract class AdminContentClient {
   /// Posts and news, newest first.
   ///
   /// [q] - Search text.
+  ///
+  /// [media] - Only posts that carry a video (the former "reels").
   @GET('/admin/content/posts')
   Future<AdminPostRowListEnvelope> listAdminPosts({
     @Query('q') String? q,
     @Query('cursor') String? cursor,
     @Query('kind') AdminPostKind? kind,
+    @Query('media') Media? media,
     @Extras() Map<String, dynamic>? extras,
   });
 

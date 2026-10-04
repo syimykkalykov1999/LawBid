@@ -85,7 +85,7 @@ export class AdminContentController {
   listAdminPosts(
     @Query() q: AdminPostsQueryDto,
   ): Promise<Page<AdminPostRowDto>> {
-    return this.content.posts(q.q, q.kind, q.cursor);
+    return this.content.posts(q.q, q.kind, q.cursor, q.media === 'video');
   }
 
   @Roles('super_admin', 'moderator')

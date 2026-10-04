@@ -14,6 +14,7 @@ import { AppSettingsService } from '../../common/app-settings/app-settings.servi
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PAYMENT_PROVIDER } from '../billing/billing.constants';
+import { PricingService } from '../billing/pricing.service';
 import type {
   PaymentProvider,
   ProviderCheckoutSession,
@@ -51,6 +52,7 @@ export class ClientBadgeService {
     @Optional()
     @Inject(PAYMENT_PROVIDER)
     private readonly provider?: PaymentProvider,
+    @Optional() private readonly pricing?: PricingService,
   ) {}
 
   // ---- the client's own state ------------------------------------------------
@@ -142,9 +144,11 @@ export class ClientBadgeService {
       });
     }
     const provider = this.provider;
-    const priceId =
-      this.config.get<string>('STRIPE_PRICE_VERIFIED_ID') ??
-      (provider?.name === 'fake' ? 'price_fake_badge' : undefined);
+    // Owner 2026-10-03: the price set in the admin (Billing → Prices).
+    const priceId = this.pricing
+      ? await this.pricing.priceId('client_badge')
+      : (this.config.get<string>('STRIPE_PRICE_VERIFIED_ID') ??
+        (provider?.name === 'fake' ? 'price_fake_badge' : undefined));
     if (!provider || !priceId) {
       throw new ServiceUnavailableException({
         code: ErrorCode.PAYMENTS_NOT_CONFIGURED,
@@ -300,6 +304,7 @@ export class ClientBadgeService {
   }
 
   async priceCents(): Promise<number> {
+    if (this.pricing) return this.pricing.amount('client_badge');
     return this.settings.number('verification.client_badge_cents');
   }
 

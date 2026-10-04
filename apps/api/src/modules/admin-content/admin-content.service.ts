@@ -126,10 +126,12 @@ export class AdminContentService {
     q?: string,
     kind?: 'post' | 'news',
     cursor?: string,
+    onlyVideo = false,
   ): Promise<Page<AdminPostRowDto>> {
     const rows = await this.prisma.post.findMany({
       where: {
         ...(kind ? { kind } : {}),
+        ...(onlyVideo ? { video_asset_id: { not: null } } : {}),
         ...(q
           ? {
               OR: [
@@ -159,6 +161,7 @@ export class AdminContentService {
       likes: p.like_count,
       comments: p.comment_count,
       deleted: p.deleted_at !== null,
+      hasVideo: p.video_asset_id !== null,
       createdAt: p.created_at.toISOString(),
     }));
   }

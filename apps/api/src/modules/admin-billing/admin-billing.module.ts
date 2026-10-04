@@ -3,6 +3,8 @@ import { AdminAccessModule } from '../admin-access/admin-access.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { AdminBillingController } from './admin-billing.controller';
+import { AdminPricingController } from './admin-pricing.controller';
+import { AdminPricingService } from './admin-pricing.service';
 import { BillingOverviewService } from './billing-overview.service';
 import { BillingPromoController } from './billing-promo.controller';
 import { ContractGrantsService } from './contract-grants.service';
@@ -16,12 +18,17 @@ import { RefundsService } from './refunds.service';
  */
 @Module({
   imports: [AdminAccessModule, NotificationsModule, SubscriptionsModule],
-  controllers: [AdminBillingController, BillingPromoController],
+  controllers: [
+    AdminBillingController,
+    BillingPromoController,
+    AdminPricingController,
+  ],
   providers: [
     ContractGrantsService,
     PromoCodesService,
     RefundsService,
     BillingOverviewService,
+    AdminPricingService,
   ],
 })
 export class AdminBillingModule {}
