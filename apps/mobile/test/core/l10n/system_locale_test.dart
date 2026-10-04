@@ -16,8 +16,7 @@ void main() {
     const compiled = {'en', 'ru'};
 
     test('a Traditional Chinese device picks zh-tw, else zh', () {
-      const hant =
-          Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hant');
+      const hant = Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hant');
       expect(
         detectSystemLanguage(const [hant], {...compiled, 'zh', 'zh-tw'}),
         AppLanguage.fromCode('zh-tw'),
@@ -27,7 +26,8 @@ void main() {
         AppLanguage.fromCode('zh'),
       );
       expect(
-        detectSystemLanguage(const [Locale('zh', 'CN')], {...compiled, 'zh-tw'}),
+        detectSystemLanguage(
+            const [Locale('zh', 'CN')], {...compiled, 'zh-tw'}),
         AppLanguage.fallback,
       );
     });

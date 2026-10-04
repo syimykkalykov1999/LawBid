@@ -361,6 +361,18 @@ void main() {
         null,
       ),
       _Case(
+        'practices open from the verification step (no loop back)',
+        '/profile/practices',
+        _signedIn(_readyAttorney(step: OnboardingStepId.verification)),
+        null,
+      ),
+      _Case(
+        '…but not from the push step',
+        '/profile/practices',
+        _signedIn(_readyAttorney(step: OnboardingStepId.push)),
+        '/onboarding/push',
+      ),
+      _Case(
         '…but not from other steps',
         '/verification',
         _signedIn(_readyClient(step: OnboardingStepId.push)),

@@ -163,14 +163,18 @@ export class SecretsService implements OnModuleInit, OnModuleDestroy {
   ): Promise<IntegrationCredential | null> {
     if (Date.now() < this.storeDownUntil) return null;
     try {
-      return await Promise.race([
-        this.prisma.integrationCredential.findFirst({
-          where: { provider, status: 'active' },
-        }),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('key store timeout')), 3000),
-        ),
-      ]);
+      // The database cancels the query itself after 2 s (statement_timeout),
+      // so a damaged table frees its connection instead of piling up hung
+      // queries until the pool is exhausted.
+      return await this.prisma.$transaction(
+        async (tx) => {
+          await tx.$executeRawUnsafe(`SET LOCAL statement_timeout = '2000ms'`);
+          return tx.integrationCredential.findFirst({
+            where: { provider, status: 'active' },
+          });
+        },
+        { timeout: 5000, maxWait: 3000 },
+      );
     } catch (e) {
       this.storeDownUntil = Date.now() + 60_000;
       this.logger.error(`key store unavailable, using env keys: ${String(e)}`);

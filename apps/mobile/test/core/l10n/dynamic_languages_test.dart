@@ -98,8 +98,7 @@ void main() {
     expect(AppLanguage.isValidCode('xyz'), isFalse);
   });
 
-  test('Traditional Chinese keeps its own code; RTL languages are flagged',
-      () {
+  test('Traditional Chinese keeps its own code; RTL languages are flagged', () {
     expect(AppLanguage.fromCode('zh-TW').code, 'zh-tw');
     expect(AppLanguage.fromCode('zh_Hant_HK').code, 'zh-tw');
     expect(AppLanguage.fromCode('zh-MO').code, 'zh-tw');
