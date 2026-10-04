@@ -8,6 +8,10 @@ export const PROVIDER_RU: Record<string, { label: string; description: string; w
     label: 'Bunny Stream (видео)',
     description: 'Видео в постах: загрузка прямо с телефона, обработка, CDN.',
   },
+  google_translate: {
+    label: 'Google Translate (перевод в чате)',
+    description: 'Кнопка «Перевести» под сообщениями в чате. Включите также флаг «Перевод в чате».',
+  },
   stripe: { label: 'Stripe (платежи)', description: 'Подписки, оплата, личный кабинет клиента.' },
   twilio: { label: 'Twilio (SMS-коды)', description: 'Коды для входа и подтверждения по SMS.' },
   ses: {
@@ -74,6 +78,7 @@ const FIELD_BY_NAME: Record<string, string> = {
 
 const FIELD_BY_PROVIDER: Record<string, string> = {
   'bunny_stream.apiKey': 'API-ключ библиотеки',
+  'google_translate.apiKey': 'API-ключ (Cloud Translation API)',
   'ses.accessKeyId': 'ID ключа доступа AWS (только без роли сервера)',
   'storage.accessKeyId': 'ID ключа доступа (пусто = роль сервера)',
   'storage.secretAccessKey': 'Секретный ключ доступа',

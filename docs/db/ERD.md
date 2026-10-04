@@ -415,6 +415,10 @@ erDiagram
     enum_PostKind kind
     String video_asset_id FK,UK "nullable"
     String language "nullable"
+    String location_name "nullable"
+    Float location_lat "nullable"
+    Float location_lng "nullable"
+    Boolean comments_enabled
     enum_ContentStatus status
     Int like_count
     Int comment_count

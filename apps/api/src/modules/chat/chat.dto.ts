@@ -10,6 +10,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
   Max,
   MaxLength,
   Min,
@@ -38,6 +39,31 @@ export class MessageIdParamDto {
   @ApiProperty({ format: 'uuid' })
   @IsUUID('all')
   messageId!: string;
+}
+
+/** Owner 2026-10-04: the language to translate a chat message into. */
+export class TranslateMessageDto {
+  @ApiProperty({
+    description: 'Target language, ISO 639-1 (or zh-CN / zh-TW), e.g. "ru".',
+    example: 'ru',
+  })
+  @Matches(/^[a-z]{2,3}(-[A-Z]{2})?$/)
+  target!: string;
+}
+
+export class MessageTranslationDto {
+  @ApiProperty({ description: 'The translated text.' })
+  text!: string;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'Detected language of the original.',
+  })
+  sourceLanguage!: string | null;
+
+  @ApiProperty()
+  targetLanguage!: string;
 }
 
 export const CONVERSATION_FOLDERS = [

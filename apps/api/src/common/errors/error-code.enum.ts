@@ -304,6 +304,8 @@ export enum ErrorCode {
   VIDEO_TOO_LONG = 'VIDEO_TOO_LONG',
   VIDEO_NOT_READY = 'VIDEO_NOT_READY',
   COMMENTS_DISABLED = 'COMMENTS_DISABLED',
+  // Owner 2026-10-04: 503 — chat translation is off, has no key or failed.
+  TRANSLATION_UNAVAILABLE = 'TRANSLATION_UNAVAILABLE',
   // Owner 2026-10-01: stickers — 409: over a pack/sticker/install limit.
   STICKER_LIMIT_REACHED = 'STICKER_LIMIT_REACHED',
   // Owner 2026-10-02: 409 — a closed support ticket can't get replies.

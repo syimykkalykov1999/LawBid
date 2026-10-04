@@ -42263,6 +42263,132 @@
         ]
       }
     },
+    "/conversations/{id}/messages/{messageId}/translate": {
+      "post": {
+        "operationId": "translateMessage",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "messageId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TranslateMessageDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageTranslationEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CONVERSATION_NOT_FOUND, NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable: TRANSLATION_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Translate one message into a language (owner 2026-10-04)",
+        "tags": [
+          "chat"
+        ]
+      }
+    },
     "/conversations/{id}/read": {
       "post": {
         "operationId": "readConversation",
@@ -45373,6 +45499,7 @@
           "VIDEO_TOO_LONG",
           "VIDEO_NOT_READY",
           "COMMENTS_DISABLED",
+          "TRANSLATION_UNAVAILABLE",
           "STICKER_LIMIT_REACHED",
           "SUPPORT_TICKET_CLOSED",
           "REFERRAL_CODE_INVALID",
@@ -65984,6 +66111,56 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/MessageDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "MessageTranslationDto": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "The translated text."
+          },
+          "sourceLanguage": {
+            "type": "string",
+            "nullable": true,
+            "description": "Detected language of the original."
+          },
+          "targetLanguage": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "sourceLanguage",
+          "targetLanguage"
+        ]
+      },
+      "TranslateMessageDto": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "type": "string",
+            "pattern": "^[a-z]{2,3}(-[A-Z]{2})?$",
+            "description": "Target language, ISO 639-1 (or zh-CN / zh-TW), e.g. \"ru\".",
+            "example": "ru"
+          }
+        },
+        "required": [
+          "target"
+        ]
+      },
+      "MessageTranslationEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/MessageTranslationDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"

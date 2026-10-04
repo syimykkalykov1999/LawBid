@@ -6,9 +6,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
+import 'package:lawbid/core/l10n/app_language.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/l10n/language_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
@@ -808,9 +811,18 @@ class _Bubble extends ConsumerWidget {
                     m.attachment != null)
                   AttachmentMessageBody(message: m, mine: mine)
                 else
-                  Text.rich(
-                    TextSpan(children: spans),
+                  _MessageText(
+                    message: m,
+                    spans: spans,
                     style: type.body.copyWith(color: fg, height: 1.35),
+                    // Owner 2026-10-04: only other people's text messages.
+                    translatable: !mine &&
+                        m.kind == MessageKind.text &&
+                        m.body.trim().isNotEmpty &&
+                        ref
+                            .watch(featureFlagsControllerProvider)
+                            .isEnabled('chat_translate'),
+                    threadId: threadId,
                   ),
                 const SizedBox(height: 2),
                 Row(
@@ -939,6 +951,104 @@ class _Bubble extends ConsumerWidget {
 }
 
 /// Three dots bouncing in turn (§8.2 "печатает…").
+/// Owner 2026-10-04: a message's text with "Translate" under it (chats
+/// only). The translation is into the app language and replaces the text
+/// in place until "Show original"; the original is never lost.
+class _MessageText extends ConsumerStatefulWidget {
+  const _MessageText({
+    required this.message,
+    required this.spans,
+    required this.style,
+    required this.translatable,
+    required this.threadId,
+  });
+
+  final ChatMessage message;
+  final List<InlineSpan> spans;
+  final TextStyle style;
+  final bool translatable;
+  final String threadId;
+
+  @override
+  ConsumerState<_MessageText> createState() => _MessageTextState();
+}
+
+class _MessageTextState extends ConsumerState<_MessageText> {
+  String? _translated;
+  bool _showTranslation = false;
+  bool _loading = false;
+
+  Future<void> _toggle() async {
+    if (_translated != null) {
+      setState(() => _showTranslation = !_showTranslation);
+      return;
+    }
+    final t = ref.read(translatorProvider);
+    final target =
+        (ref.read(languageControllerProvider).value ?? AppLanguage.fallback)
+            .code;
+    setState(() => _loading = true);
+    try {
+      final text = await ref
+          .read(chatRepositoryProvider)
+          .translate(widget.threadId, widget.message.id, target);
+      if (!mounted) return;
+      setState(() {
+        _translated = text;
+        _showTranslation = true;
+      });
+    } on Object catch (e) {
+      if (mounted) showAppSnackBar(context, errorText(t, e));
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ref.watch(translatorProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final showing = _showTranslation && _translated != null;
+    final text = showing
+        ? Text(_translated!, style: widget.style)
+        : Text.rich(TextSpan(children: widget.spans), style: widget.style);
+    if (!widget.translatable) return text;
+    final link = type.caption.copyWith(
+      color: colors.goldDark,
+      fontSize: 12,
+      fontWeight: FontWeight.w600,
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        text,
+        const SizedBox(height: 4),
+        Semantics(
+          button: true,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: _loading ? null : _toggle,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Text(
+                _loading
+                    ? t.t('chat.translate.loading')
+                    : showing
+                        ? '${t.t('chat.translate.note')} · '
+                            '${t.t('chat.translate.original')}'
+                        : t.t('chat.translate'),
+                style: link,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _TypingDots extends StatefulWidget {
   const _TypingDots();
 

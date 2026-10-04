@@ -213,6 +213,18 @@ resource "aws_s3_bucket_lifecycle_configuration" "media" {
     noncurrent_version_expiration { noncurrent_days = 30 }
     abort_incomplete_multipart_upload { days_after_initiation = 7 }
   }
+  # Old photos are rarely opened: Intelligent-Tiering moves each file to a
+  # cheaper tier after 30 / 90 days without reads and back on the next read
+  # (no retrieval fee, same URL). Files under 128 KB stay in Standard.
+  rule {
+    id     = "intelligent-tiering"
+    status = "Enabled"
+    filter { object_size_greater_than = 131072 }
+    transition {
+      days          = 0
+      storage_class = "INTELLIGENT_TIERING"
+    }
+  }
 }
 
 resource "aws_cloudfront_origin_access_control" "media" {

@@ -69,6 +69,10 @@ export const PAID_FLAGS: Record<
     ],
   },
   auto_bar_check: { integration: 'bar_lookup', keys: ['BAR_LOOKUP_API_KEY'] },
+  chat_translate: {
+    integration: 'google_translate',
+    keys: ['GOOGLE_TRANSLATE_API_KEY'],
+  },
 };
 
 /**
