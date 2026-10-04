@@ -178,6 +178,10 @@ class MoneyText extends StatelessWidget {
   }
 }
 
+/// Compact case card looks: 1 art on the right, 2 cover banner on top,
+/// 3 frosted glass over the whole cover.
+enum CaseCardStyle { classic, banner, glass }
+
 /// Attorney "Кейсы" card (docs/04 §4.2): category band + NEW, title,
 /// "city, state +N", Open, views, bids, budget, "Вы сделали бид".
 class FeedCaseCard extends StatelessWidget {
@@ -187,10 +191,14 @@ class FeedCaseCard extends StatelessWidget {
     required this.formats,
     required this.onTap,
     this.feedHeight,
+    this.style = CaseCardStyle.classic,
     super.key,
   });
 
   final FeedCase item;
+
+  /// The compact card's look (owner 2026-10-04: three to choose from).
+  final CaseCardStyle style;
   final Translator t;
   final L10nFormats formats;
   final VoidCallback onTap;
@@ -404,6 +412,122 @@ class FeedCaseCard extends StatelessWidget {
       );
     }
 
+    final light = Theme.of(context).brightness == Brightness.light;
+    final champagneLo = Color.lerp(colors.surface, colors.gold, 0.12)!;
+    final champagneHi = Color.lerp(colors.surface, colors.gold, 0.28)!;
+    Widget cover() => CaseCover(
+          categoryCode: item.practice.artCode,
+          practiceCode: item.practice.code,
+          coverKey: item.coverKey,
+          seed: item.id,
+        );
+    Widget art() => PracticeArt(
+          categoryCode: item.practice.artCode,
+          practiceCode: item.practice.code,
+          cover: cover(),
+        );
+    final badge = item.promoted || item.isNew
+        ? t.t(item.promoted ? 'cases.card.promoted' : 'cases.card.new')
+        : null;
+    Widget header({bool onDark = false, bool newBelow = false}) {
+      final chip = _GoldChip(
+        icon: practiceGlyph(item.practice.artCode),
+        label: category,
+        onDark: onDark,
+      );
+      final mark = badge == null
+          ? null
+          : Text(
+              badge,
+              style: typography.caption.copyWith(
+                color: onDark ? colors.goldLight : colors.goldDark,
+                fontWeight: FontWeight.w700,
+              ),
+            );
+      if (newBelow) {
+        return Row(
+          children: [
+            Flexible(child: chip),
+            if (mark != null) ...[
+              const SizedBox(width: AppSpacing.sm),
+              mark,
+            ],
+          ],
+        );
+      }
+      return Row(
+        children: [
+          Flexible(child: chip),
+          const Spacer(),
+          if (mark != null) mark,
+        ],
+      );
+    }
+
+    List<Widget> story({
+      required double titleRight,
+      required double excerptRight,
+    }) =>
+        [
+          Padding(
+            padding: EdgeInsets.only(right: titleRight),
+            child: Text(
+              item.title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              // Owner 2026-10-04: smaller type, more of the story.
+              style: typography.titleMedium.copyWith(
+                fontFamily: typography.body.fontFamily,
+                color: colors.text,
+                fontWeight: FontWeight.w700,
+                fontSize: 18,
+                height: 1.25,
+              ),
+            ),
+          ),
+          if (item.excerpt.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.xs),
+            Padding(
+              padding: EdgeInsets.only(right: excerptRight),
+              child: Text(
+                item.excerpt,
+                maxLines: 4,
+                overflow: TextOverflow.ellipsis,
+                style: typography.bodySmall.copyWith(
+                  color: colors.textSecondary,
+                  height: 1.35,
+                ),
+              ),
+            ),
+          ],
+        ];
+
+    List<Widget> footer() => [
+          const SizedBox(height: AppSpacing.md),
+          facts,
+          const SizedBox(height: AppSpacing.sm),
+          Row(
+            children: [
+              Expanded(
+                child: Wrap(
+                  spacing: AppSpacing.sm,
+                  runSpacing: AppSpacing.sm,
+                  children: [
+                    if (item.status != CaseStatus.open)
+                      CaseStatusPill(status: item.status, t: t),
+                    if (item.hasOwnBid)
+                      StatusPill(
+                        label: t.t('cases.card.youBid'),
+                        tone: StatusTone.gold,
+                      ),
+                  ],
+                ),
+              ),
+              stats(),
+            ],
+          ),
+        ];
+
     // Owner 2026-09-30 design: chips, bold title and a short excerpt on the
     // left, the practice artwork dissolving into the card on the right.
     return Semantics(
@@ -425,7 +549,7 @@ class FeedCaseCard extends StatelessWidget {
           decoration: BoxDecoration(
             color: colors.surface,
             // Light theme: champagne gold across the whole card.
-            gradient: Theme.of(context).brightness == Brightness.light
+            gradient: light && style != CaseCardStyle.glass
                 ? LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
@@ -451,116 +575,153 @@ class FeedCaseCard extends StatelessWidget {
           ),
           child: ClipRRect(
             borderRadius: radius,
-            child: Stack(
-              children: [
-                Positioned(
-                  top: 0,
-                  bottom: 0,
-                  right: 0,
-                  width: 190,
-                  child: _FrostedInLight(
-                    glyph: practiceGlyph(item.practice.artCode),
-                    child: PracticeArt(
-                      categoryCode: item.practice.artCode,
-                      practiceCode: item.practice.code,
-                      cover: CaseCover(
-                        categoryCode: item.practice.artCode,
-                        practiceCode: item.practice.code,
-                        coverKey: item.coverKey,
-                        seed: item.id,
+            child: switch (style) {
+              CaseCardStyle.classic => Stack(
+                  children: [
+                    Positioned(
+                      top: 0,
+                      bottom: 0,
+                      right: 0,
+                      width: 190,
+                      child: _FrostedInLight(
+                        glyph: practiceGlyph(item.practice.artCode),
+                        child: art(),
                       ),
                     ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(AppSpacing.lg),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
+                    Padding(
+                      padding: const EdgeInsets.all(AppSpacing.lg),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Flexible(
-                            child: _GoldChip(
-                              icon: practiceGlyph(item.practice.artCode),
-                              label: category,
-                            ),
-                          ),
-                          const Spacer(),
-                          if (item.promoted || item.isNew)
-                            Text(
-                              t.t(
-                                item.promoted
-                                    ? 'cases.card.promoted'
-                                    : 'cases.card.new',
-                              ),
-                              style: typography.caption.copyWith(
-                                color: colors.goldDark,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
+                          header(),
+                          const SizedBox(height: AppSpacing.md),
+                          ...story(titleRight: 56, excerptRight: 40),
+                          ...footer(),
                         ],
                       ),
-                      const SizedBox(height: AppSpacing.md),
-                      Padding(
-                        padding: const EdgeInsets.only(right: 56),
-                        child: Text(
-                          item.title,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          // Owner 2026-10-04: smaller type, more of the
-                          // story on the card.
-                          style: typography.titleMedium.copyWith(
-                            fontFamily: typography.body.fontFamily,
-                            color: colors.text,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 18,
-                            height: 1.25,
+                    ),
+                  ],
+                ),
+              // 2: the cover as a banner on top, text on a calm surface.
+              CaseCardStyle.banner => Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SizedBox(
+                      height: 104,
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          cover(),
+                          DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  Colors.black.withValues(alpha: 0.25),
+                                  Colors.black.withValues(alpha: 0),
+                                ],
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            left: AppSpacing.lg,
+                            right: AppSpacing.lg,
+                            top: AppSpacing.md,
+                            child: header(onDark: true),
+                          ),
+                          Positioned(
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            height: 2,
+                            child: ColoredBox(
+                              color: colors.gold.withValues(alpha: 0.8),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(AppSpacing.lg),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          ...story(titleRight: 0, excerptRight: 0),
+                          ...footer(),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              // 3: frosted glass over the whole cover, a gold medallion.
+              CaseCardStyle.glass => Stack(
+                  children: [
+                    Positioned.fill(
+                      child: ImageFiltered(
+                        imageFilter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                        child: art(),
+                      ),
+                    ),
+                    Positioned.fill(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: light
+                                ? [
+                                    champagneLo.withValues(alpha: 0.9),
+                                    champagneHi.withValues(alpha: 0.8),
+                                  ]
+                                : [
+                                    colors.navy.withValues(alpha: 0.72),
+                                    Color.lerp(colors.navy, Colors.black, 0.7)!
+                                        .withValues(alpha: 0.86),
+                                  ],
                           ),
                         ),
                       ),
-                      if (item.excerpt.isNotEmpty) ...[
-                        const SizedBox(height: AppSpacing.xs),
-                        Padding(
-                          padding: const EdgeInsets.only(right: 40),
-                          child: Text(
-                            item.excerpt,
-                            maxLines: 4,
-                            overflow: TextOverflow.ellipsis,
-                            style: typography.bodySmall.copyWith(
-                              color: colors.textSecondary,
-                              height: 1.35,
-                            ),
+                    ),
+                    Positioned(
+                      top: AppSpacing.lg,
+                      right: AppSpacing.lg,
+                      child: Container(
+                        width: 52,
+                        height: 52,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: colors.gold.withValues(alpha: 0.12),
+                          border: Border.all(
+                            color: colors.gold.withValues(alpha: 0.8),
+                            width: 1.5,
                           ),
                         ),
-                      ],
-                      const SizedBox(height: AppSpacing.md),
-                      facts,
-                      const SizedBox(height: AppSpacing.sm),
-                      Row(
+                        child: AppIcon(
+                          practiceGlyph(item.practice.artCode),
+                          size: 26,
+                          color: light ? colors.goldDark : colors.goldLight,
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(AppSpacing.lg),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            child: Wrap(
-                              spacing: AppSpacing.sm,
-                              runSpacing: AppSpacing.sm,
-                              children: [
-                                if (item.status != CaseStatus.open)
-                                  CaseStatusPill(status: item.status, t: t),
-                                if (item.hasOwnBid)
-                                  StatusPill(
-                                    label: t.t('cases.card.youBid'),
-                                    tone: StatusTone.gold,
-                                  ),
-                              ],
-                            ),
+                          Padding(
+                            padding: const EdgeInsets.only(right: 64),
+                            child: header(newBelow: true),
                           ),
-                          stats(),
+                          const SizedBox(height: AppSpacing.md),
+                          ...story(titleRight: 48, excerptRight: 0),
+                          ...footer(),
                         ],
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+            },
           ),
         ),
       ),
@@ -570,10 +731,17 @@ class FeedCaseCard extends StatelessWidget {
 
 /// Gold-outlined chip with an icon (practice area).
 class _GoldChip extends StatelessWidget {
-  const _GoldChip({required this.icon, required this.label});
+  const _GoldChip({
+    required this.icon,
+    required this.label,
+    this.onDark = false,
+  });
 
   final IconData icon;
   final String label;
+
+  /// Over a dark cover, in either theme.
+  final bool onDark;
 
   @override
   Widget build(BuildContext context) {
@@ -585,14 +753,18 @@ class _GoldChip extends StatelessWidget {
         vertical: AppSpacing.xs + 1,
       ),
       decoration: BoxDecoration(
-        color: colors.goldTint,
+        color: onDark ? colors.navy.withValues(alpha: 0.7) : colors.goldTint,
         borderRadius: BorderRadius.circular(AppRadii.pill),
         border: Border.all(color: colors.gold.withValues(alpha: 0.7)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          AppIcon(icon, size: 15, color: colors.goldDark),
+          AppIcon(
+            icon,
+            size: 15,
+            color: onDark ? colors.goldLight : colors.goldDark,
+          ),
           const SizedBox(width: AppSpacing.xs),
           Flexible(
             child: Text(
@@ -600,7 +772,7 @@ class _GoldChip extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: typography.caption.copyWith(
-                color: colors.text,
+                color: onDark ? Colors.white : colors.text,
                 fontWeight: FontWeight.w600,
               ),
             ),
