@@ -68,7 +68,10 @@ export const PAID_FLAGS: Record<
       'BUNNY_WEBHOOK_TOKEN',
     ],
   },
-  auto_bar_check: { integration: 'bar_lookup', keys: ['BAR_LOOKUP_API_KEY'] },
+  chat_translate: {
+    integration: 'google_translate',
+    keys: ['GOOGLE_TRANSLATE_API_KEY'],
+  },
 };
 
 /**
@@ -80,7 +83,6 @@ export const UNBUILT_FLAGS: ReadonlySet<string> = new Set([
   'device_attestation',
   'stripe_identity',
   'persona_verification',
-  'auto_bar_check',
   'profile_promotion',
 ]);
 

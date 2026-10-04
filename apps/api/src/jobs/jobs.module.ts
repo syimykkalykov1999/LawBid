@@ -12,6 +12,8 @@ import { ReviewReminderJob } from './handlers/review-reminder.job';
 import { RatingReconcileJob } from './handlers/rating-reconcile.job';
 import { NotificationsModule } from '../modules/notifications/notifications.module';
 import { LicenseExpiryJob } from './handlers/license-expiry.job';
+import { LicenseRegistryRecheckJob } from './handlers/license-registry-recheck.job';
+import { VerificationModule } from '../modules/verification/verification.module';
 import { BidSubscriptionLapseJob } from './handlers/bid-subscription-lapse.job';
 import {
   CaseAutoArchiveJob,
@@ -55,6 +57,8 @@ export class JobsModule {
         PostsModule,
         // Owner 2026-10-02: `promotions.expire`.
         PromotionsCoreModule,
+        // Owner 2026-10-04: `licenses.registry-recheck`.
+        VerificationModule,
       ],
       providers: [
         { provide: JOBS_OPTIONS, useValue: options },
@@ -68,6 +72,7 @@ export class JobsModule {
         ReviewReminderJob,
         RatingReconcileJob,
         LicenseExpiryJob,
+        LicenseRegistryRecheckJob,
         BidSubscriptionLapseJob,
         CaseStalePromptJob,
         CaseAutoArchiveJob,

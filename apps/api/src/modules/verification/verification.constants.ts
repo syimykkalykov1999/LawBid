@@ -80,6 +80,11 @@ export const VERIFICATION_NOTIFICATION_KIND = {
   restored: 'restored',
 } as const;
 
+/** Owner 2026-10-04: version of the sworn statement the attorney accepts
+ * on submit (app text `verification.attest.text`). Bump it whenever the
+ * wording changes; each request stores the version it was accepted in. */
+export const ATTESTATION_VERSION = '2026-10-04';
+
 /** admin_note prefix of a request created by a verifier's license
  * re-check (§2.5 recheck → manual review queue). */
 export const LICENSE_RECHECK_NOTE_PREFIX = 'license_recheck';

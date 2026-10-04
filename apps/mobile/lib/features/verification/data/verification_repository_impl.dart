@@ -127,11 +127,18 @@ class VerificationRepositoryImpl implements VerificationRepository {
       );
 
   @override
-  Future<VerificationRequest> submit(String requestId, {String? comment}) =>
+  Future<VerificationRequest> submit(
+    String requestId, {
+    String? comment,
+    bool attestation = false,
+  }) =>
       _req(
         () => _client.submitVerificationRequest(
           id: requestId,
-          body: api.SubmitVerificationRequestDto(applicantComment: comment),
+          body: api.SubmitVerificationRequestDto(
+            attestation: attestation ? true : null,
+            applicantComment: comment,
+          ),
           // Not retried blindly: a replay after a lost response would hit
           // VERIFICATION_INVALID_STATUS; the user sees the result instead.
           extras: const {RequestFlags.noRetry: true},

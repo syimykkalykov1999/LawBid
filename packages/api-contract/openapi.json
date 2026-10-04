@@ -42263,6 +42263,132 @@
         ]
       }
     },
+    "/conversations/{id}/messages/{messageId}/translate": {
+      "post": {
+        "operationId": "translateMessage",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "messageId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TranslateMessageDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageTranslationEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CONVERSATION_NOT_FOUND, NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable: TRANSLATION_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Translate one message into a language (owner 2026-10-04)",
+        "tags": [
+          "chat"
+        ]
+      }
+    },
     "/conversations/{id}/read": {
       "post": {
         "operationId": "readConversation",
@@ -45373,6 +45499,7 @@
           "VIDEO_TOO_LONG",
           "VIDEO_NOT_READY",
           "COMMENTS_DISABLED",
+          "TRANSLATION_UNAVAILABLE",
           "STICKER_LIMIT_REACHED",
           "SUPPORT_TICKET_CLOSED",
           "REFERRAL_CODE_INVALID",
@@ -47984,7 +48111,11 @@
           },
           "identityRequired": {
             "type": "boolean",
-            "description": "Identity document and selfie are required (false for an already verified attorney adding a state, §2.1)."
+            "description": "Identity document and selfie are required: off by default (owner 2026-10-04, setting verification.require_identity); always on for a verified attorney confirming a new name."
+          },
+          "barDocumentRequired": {
+            "type": "boolean",
+            "description": "A photo of the bar card is required per license (setting verification.require_bar_document, off by default)."
           },
           "submissionsLast30Days": {
             "type": "integer"
@@ -47996,6 +48127,7 @@
         "required": [
           "verificationStatus",
           "identityRequired",
+          "barDocumentRequired",
           "submissionsLast30Days",
           "maxSubmissions30Days"
         ]
@@ -48107,6 +48239,10 @@
       "SubmitVerificationRequestDto": {
         "type": "object",
         "properties": {
+          "attestation": {
+            "type": "boolean",
+            "description": "Owner 2026-10-04: the attorney confirms under penalty of perjury that they hold the entered licenses (sworn statement, version ATTESTATION_VERSION). Required for a new submission."
+          },
           "applicantComment": {
             "type": "string",
             "maxLength": 500
@@ -48258,6 +48394,11 @@
             "nullable": true,
             "description": "Latest automatic bar lookup (§2.4), null if none ran."
           },
+          "lookupUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "The state bar's public lookup page for this license (profile page when the state has one per number)."
+          },
           "rejectionCode": {
             "type": "string",
             "nullable": true
@@ -48285,6 +48426,7 @@
           "status",
           "expiresAt",
           "autoCheckResult",
+          "lookupUrl",
           "rejectionCode",
           "rejectionNote",
           "verifiedAt",
@@ -48495,6 +48637,21 @@
             "nullable": true,
             "format": "uuid"
           },
+          "attestedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time",
+            "description": "Owner 2026-10-04: when the attorney confirmed the licenses under the sworn statement"
+          },
+          "attestationIp": {
+            "type": "string",
+            "nullable": true
+          },
+          "attestationVersion": {
+            "type": "string",
+            "nullable": true,
+            "description": "Version of the sworn-statement text the attorney accepted"
+          },
           "applicantComment": {
             "type": "string",
             "nullable": true
@@ -48555,6 +48712,9 @@
           "submittedAt",
           "reviewedAt",
           "reviewerId",
+          "attestedAt",
+          "attestationIp",
+          "attestationVersion",
           "applicantComment",
           "infoRequestMessage",
           "rejectionCode",
@@ -65984,6 +66144,56 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/MessageDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "MessageTranslationDto": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "The translated text."
+          },
+          "sourceLanguage": {
+            "type": "string",
+            "nullable": true,
+            "description": "Detected language of the original."
+          },
+          "targetLanguage": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "sourceLanguage",
+          "targetLanguage"
+        ]
+      },
+      "TranslateMessageDto": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "type": "string",
+            "pattern": "^[a-z]{2,3}(-[A-Z]{2})?$",
+            "description": "Target language, ISO 639-1 (or zh-CN / zh-TW), e.g. \"ru\".",
+            "example": "ru"
+          }
+        },
+        "required": [
+          "target"
+        ]
+      },
+      "MessageTranslationEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/MessageTranslationDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"

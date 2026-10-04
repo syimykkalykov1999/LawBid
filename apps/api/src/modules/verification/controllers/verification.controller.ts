@@ -5,6 +5,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Ip,
   Param,
   Patch,
   Post,
@@ -226,7 +227,8 @@ export class VerificationController {
     @CurrentUser() user: RequestUser,
     @Param() params: RequestIdParamDto,
     @Body() dto: SubmitVerificationRequestDto,
+    @Ip() ip: string,
   ): Promise<VerificationRequestDto> {
-    return this.requests.submit(user.sub, params.id, dto);
+    return this.requests.submit(user.sub, params.id, dto, ip);
   }
 }

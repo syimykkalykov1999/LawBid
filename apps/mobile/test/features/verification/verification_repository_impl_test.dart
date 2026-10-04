@@ -66,6 +66,7 @@ void main() {
             ],
           ),
           'identityRequired': true,
+          'barDocumentRequired': false,
           'submissionsLast30Days': 2,
           'maxSubmissions30Days': 5,
         });
@@ -76,6 +77,7 @@ void main() {
     expect(o.request!.documents.single.kind, DocKind.driversLicense);
     expect(o.request!.documents.single.side, DocSide.back);
     expect(o.submissionsLast30Days, 2);
+    expect(o.barDocumentRequired, isFalse);
     expect(adapter.requests.single.path, '/verification/me');
   });
 
@@ -108,6 +110,21 @@ void main() {
     expect(r.path, '/verification/requests/req/documents');
     expect(r.data, {'fileId': 'f1', 'docType': 'state_id', 'side': 'back'});
     expect(r.headers['Idempotency-Key'], 'key-1');
+  });
+
+  test('submit sends the sworn statement only when ticked', () async {
+    final repo = VerificationRepositoryImpl(dio);
+    await repo.submit('req', comment: 'hi', attestation: true);
+    expect(adapter.requests.last.path, '/verification/requests/req/submit');
+    expect(adapter.requests.last.data, {
+      'attestation': true,
+      'applicantComment': 'hi',
+    });
+    await repo.submit('req');
+    expect(
+      (adapter.requests.last.data as Map).containsKey('attestation'),
+      isFalse,
+    );
   });
 
   test('submit error keeps the API code and details', () async {

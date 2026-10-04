@@ -9,9 +9,13 @@ part of 'submit_verification_request_dto.dart';
 SubmitVerificationRequestDto _$SubmitVerificationRequestDtoFromJson(
   Map<String, dynamic> json,
 ) => SubmitVerificationRequestDto(
+  attestation: json['attestation'] as bool?,
   applicantComment: json['applicantComment'] as String?,
 );
 
 Map<String, dynamic> _$SubmitVerificationRequestDtoToJson(
   SubmitVerificationRequestDto instance,
-) => <String, dynamic>{'applicantComment': ?instance.applicantComment};
+) => <String, dynamic>{
+  'attestation': ?instance.attestation,
+  'applicantComment': ?instance.applicantComment,
+};

@@ -14,6 +14,7 @@ abstract final class VerificationMapper {
         },
         request: dto.request == null ? null : request(dto.request!),
         identityRequired: dto.identityRequired,
+        barDocumentRequired: dto.barDocumentRequired,
         submissionsLast30Days: dto.submissionsLast30Days,
         maxSubmissions30Days: dto.maxSubmissions30Days,
       );

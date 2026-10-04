@@ -68,10 +68,15 @@ class WizardState {
     required this.idType,
     this.uploads = const [],
     this.missing = const [],
+    this.barDocumentRequired = true,
   });
 
   final VerificationRequest request;
   final bool identityRequired;
+
+  /// Owner 2026-10-04 ("только номер"): a bar card photo only when the API
+  /// asks for it; otherwise state + bar number are enough.
+  final bool barDocumentRequired;
   final WizardStep step;
   final IdDocumentType idType;
   final List<UploadTask> uploads;
@@ -119,9 +124,11 @@ class WizardState {
     final out = <MissingItem>[];
     final pending = request.pendingLicenses;
     if (pending.isEmpty) out.add(const MissingLicense());
-    for (final l in pending) {
-      if (request.docsFor(DocSlot.barLicense(l.stateCode)).isEmpty) {
-        out.add(MissingBarDocument(l.stateCode));
+    if (barDocumentRequired) {
+      for (final l in pending) {
+        if (request.docsFor(DocSlot.barLicense(l.stateCode)).isEmpty) {
+          out.add(MissingBarDocument(l.stateCode));
+        }
       }
     }
     if (identityRequired) {
@@ -145,6 +152,7 @@ class WizardState {
       WizardState(
         request: request ?? this.request,
         identityRequired: identityRequired,
+        barDocumentRequired: barDocumentRequired,
         step: step ?? this.step,
         idType: idType ?? this.idType,
         uploads: uploads ?? this.uploads,
@@ -155,10 +163,16 @@ class WizardState {
 /// Where to reopen a saved draft (docs/03 §8: the draft lives on the
 /// server, so closing the app at any step resumes at the first step that
 /// is not complete yet).
-WizardStep resumeStep(VerificationRequest r, {required bool identityRequired}) {
+WizardStep resumeStep(
+  VerificationRequest r, {
+  required bool identityRequired,
+  bool barDocumentRequired = true,
+}) {
   if (r.status == RequestStatus.needsMoreInfo) return WizardStep.review;
   if (r.pendingLicenses.isEmpty && r.documents.isEmpty) return WizardStep.intro;
-  if (!r.licensesComplete) return WizardStep.licenses;
+  if (!r.licensesReady(barDocumentRequired: barDocumentRequired)) {
+    return WizardStep.licenses;
+  }
   if (identityRequired && !r.identityComplete) return WizardStep.identity;
   if (identityRequired && !r.selfieComplete) return WizardStep.selfie;
   return WizardStep.review;
@@ -197,7 +211,12 @@ class VerificationWizardController extends AsyncNotifier<WizardState> {
     return WizardState(
       request: request,
       identityRequired: overview.identityRequired,
-      step: resumeStep(request, identityRequired: overview.identityRequired),
+      barDocumentRequired: overview.barDocumentRequired,
+      step: resumeStep(
+        request,
+        identityRequired: overview.identityRequired,
+        barDocumentRequired: overview.barDocumentRequired,
+      ),
       idType: request.identityType ?? IdDocumentType.driversLicense,
     );
   }
@@ -326,11 +345,18 @@ class VerificationWizardController extends AsyncNotifier<WizardState> {
   }
 
   /// Null when the wizard has no loaded request (nothing was sent).
-  Future<VerificationRequest?> submit(String comment) async {
+  Future<VerificationRequest?> submit(
+    String comment, {
+    bool attestation = false,
+  }) async {
     final s = _s;
     if (s == null) return null;
     try {
-      final r = await _repo.submit(s.request.id, comment: comment);
+      final r = await _repo.submit(
+        s.request.id,
+        comment: comment,
+        attestation: attestation,
+      );
       _setRequest(r);
       return r;
     } on ApiException catch (e) {

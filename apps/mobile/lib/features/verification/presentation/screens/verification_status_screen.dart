@@ -134,14 +134,18 @@ class _StatusBody extends StatelessWidget {
             title: t.t('verification.status.start.title'),
             body: t.t('verification.status.start.body'),
           ),
-          _NeedList(t: t, identity: overview.identityRequired),
+          _NeedList(
+            t: t,
+            identity: overview.identityRequired,
+            barDocument: overview.barDocumentRequired,
+          ),
           primary(
             t.t('verification.status.start.cta'),
             icon: AppIcons.arrowForwardRounded,
           ),
         ]);
       case VerificationView.draft:
-        final parts = _draftParts(r!, overview.identityRequired);
+        final parts = _draftParts(r!, overview);
         children.addAll([
           _Hero(
             badge: const _HeroBadge.gold(AppIcons.editNoteRounded),
@@ -304,10 +308,16 @@ class _StatusBody extends StatelessWidget {
     );
   }
 
-  static (int, int) _draftParts(VerificationRequest r, bool identity) {
+  static (int, int) _draftParts(
+    VerificationRequest r,
+    VerificationOverview overview,
+  ) {
     final parts = [
-      r.licensesComplete,
-      if (identity) ...[r.identityComplete, r.selfieComplete],
+      r.licensesReady(barDocumentRequired: overview.barDocumentRequired),
+      if (overview.identityRequired) ...[
+        r.identityComplete,
+        r.selfieComplete,
+      ],
     ];
     return (parts.where((p) => p).length, parts.length);
   }
@@ -426,17 +436,27 @@ class _Hero extends StatelessWidget {
 }
 
 class _NeedList extends StatelessWidget {
-  const _NeedList({required this.t, required this.identity});
+  const _NeedList({
+    required this.t,
+    required this.identity,
+    required this.barDocument,
+  });
 
   final Translator t;
   final bool identity;
+  final bool barDocument;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final items = [
-      (AppIcons.balanceRounded, 'verification.intro.item.license'),
+      (
+        AppIcons.balanceRounded,
+        barDocument
+            ? 'verification.intro.item.license'
+            : 'verification.intro.item.licenseNumber'
+      ),
       if (identity) ...[
         (AppIcons.badgeOutlined, 'verification.intro.item.id'),
         (

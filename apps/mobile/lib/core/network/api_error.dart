@@ -170,6 +170,7 @@ abstract final class ApiErrorCodes {
   static const integrationConflict = 'INTEGRATION_CONFLICT';
   static const adminStepUpRequired = 'ADMIN_STEP_UP_REQUIRED';
   static const videoUnavailable = 'VIDEO_UNAVAILABLE';
+  static const translationUnavailable = 'TRANSLATION_UNAVAILABLE';
   static const videoTooLong = 'VIDEO_TOO_LONG';
   static const videoNotReady = 'VIDEO_NOT_READY';
   static const commentsDisabled = 'COMMENTS_DISABLED';
@@ -325,6 +326,7 @@ abstract final class ApiErrorCodes {
     integrationConflict,
     adminStepUpRequired,
     videoUnavailable,
+    translationUnavailable,
     videoTooLong,
     videoNotReady,
     commentsDisabled,

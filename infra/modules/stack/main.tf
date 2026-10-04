@@ -145,7 +145,7 @@ locals {
     "FCM_PRIVATE_KEY",
     "SENTRY_DSN",
     "PERSONA_API_KEY",
-    "BAR_LOOKUP_API_KEY",
+    "NY_OPEN_DATA_APP_TOKEN",
     "MUX_TOKEN_ID",
     "MUX_TOKEN_SECRET",
   ]

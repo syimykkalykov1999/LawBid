@@ -17,6 +17,7 @@ AdminLicenseDto _$AdminLicenseDtoFromJson(Map<String, dynamic> json) =>
           ? null
           : DateTime.parse(json['expiresAt'] as String),
       autoCheckResult: json['autoCheckResult'],
+      lookupUrl: json['lookupUrl'] as String?,
       rejectionCode: json['rejectionCode'] as String?,
       rejectionNote: json['rejectionNote'] as String?,
       verifiedAt: json['verifiedAt'] == null
@@ -34,6 +35,7 @@ Map<String, dynamic> _$AdminLicenseDtoToJson(AdminLicenseDto instance) =>
       'status': instance.status.toJson(),
       'expiresAt': ?instance.expiresAt?.toIso8601String(),
       'autoCheckResult': ?instance.autoCheckResult,
+      'lookupUrl': ?instance.lookupUrl,
       'rejectionCode': ?instance.rejectionCode,
       'rejectionNote': ?instance.rejectionNote,
       'verifiedAt': ?instance.verifiedAt?.toIso8601String(),

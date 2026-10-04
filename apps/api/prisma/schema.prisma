@@ -1188,6 +1188,10 @@ model VerificationRequest {
   // ≤500 chars, CHECK in the migration
   applicant_comment    String?
   rejection_code       String?
+  // Owner 2026-10-04: sworn self-attestation of the license.
+  attested_at          DateTime?                 @db.Timestamptz
+  attestation_ip       String?
+  attestation_version  String?
   created_at           DateTime                  @default(now()) @db.Timestamptz
   updated_at           DateTime                  @updatedAt @db.Timestamptz
 

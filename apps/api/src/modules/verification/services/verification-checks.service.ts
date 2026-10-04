@@ -8,7 +8,13 @@ import type {
 import { PinoLogger } from 'nestjs-pino';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { PrismaService } from '../../../prisma/prisma.service';
-import { IDENTITY_DOC_TYPES } from '../verification.constants';
+import { withTxRetry } from '../../../prisma/tx-retry.util';
+import { NotificationsService } from '../../notifications/notifications.service';
+import {
+  IDENTITY_DOC_TYPES,
+  VERIFICATION_NOTIFICATION_KIND as KIND,
+} from '../verification.constants';
+import { syncProfileStatus } from '../verification.helpers';
 import { VerificationProviderSelector } from '../providers/verification-provider.selector';
 import type {
   BarLookupProvider,
@@ -16,18 +22,32 @@ import type {
 } from '../providers/verification-providers';
 
 /**
- * Automatic checks of docs/03 §2.4. They only HELP the verifier: every
- * outcome is stored in `verification_checks` (+ `attorney_licenses.
- * auto_check_result` for bar lookups) and nothing here changes a status.
- * With the flags off (default) no check runs and the request goes
- * straight to manual review. Provider errors and an exhausted CostGuard
- * budget are recorded as `manual_review` and never block the attorney.
+ * Automatic checks of docs/03 §2.4. Every outcome is stored in
+ * `verification_checks` (+ `attorney_licenses.auto_check_result` for bar
+ * lookups). Owner 2026-10-04 ("только номер"): when every license of the
+ * request passed its state registry lookup (today: New York) and any ID
+ * check that ran passed too, the request is approved without a verifier;
+ * anything else — another state, a name that differs, an error — stays in
+ * the manual queue. With the flags off no check runs. Provider errors and
+ * an exhausted CostGuard budget are recorded as `manual_review` and never
+ * block the attorney.
  */
+/** `verification_requests.admin_note` of a request approved by the
+ * registry check, without a verifier. */
+export const AUTO_APPROVED_NOTE =
+  'Одобрено автоматически: номер и имя совпали с реестром штата';
+
+/** `admin_note` of a request approved on the attorney's sworn statement
+ * (owner 2026-10-04, self-attestation). */
+export const SELF_ATTESTED_NOTE =
+  'Самоподтверждение: адвокат под присягой подтвердил лицензию, внешняя проверка не проводилась';
+
 @Injectable()
 export class VerificationChecksService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly selector: VerificationProviderSelector,
+    private readonly notifications: NotificationsService,
     private readonly logger: PinoLogger,
   ) {
     this.logger.setContext(VerificationChecksService.name);
@@ -63,20 +83,27 @@ export class VerificationChecksService {
     if (!request) return;
 
     const bar = await this.selector.barLookup();
+    const barResults: CheckOutcome['result'][] = [];
     if (bar.name !== 'manual') {
       for (const license of request.attorney.licenses) {
-        await this.barLookup(bar, license, request.id, {
+        const outcome = await this.barLookup(bar, license, request.id, {
           firstName: request.attorney.user.first_name ?? '',
           lastName: request.attorney.user.last_name ?? '',
         });
+        barResults.push(outcome.result);
       }
     }
+    const barPassed =
+      barResults.length > 0 && barResults.every((r) => r === 'pass');
 
     const types = new Set(request.documents.map((d) => d.doc_type));
     const hasIdentity =
       IDENTITY_DOC_TYPES.some((t) => types.has(t)) && types.has('selfie');
     const { provider, impl } = await this.selector.idVerification();
-    if (!hasIdentity || provider === 'manual') return;
+    if (!hasIdentity || provider === 'manual') {
+      if (barPassed && !hasIdentity) await this.approve(request.id);
+      return;
+    }
 
     const input = { requestId: request.id, attorneyId: request.attorney_id };
     const idCheck = await this.safe(() => impl.verify(input), provider);
@@ -91,6 +118,57 @@ export class VerificationChecksService {
       where: { id: request.id },
       data: { provider },
     });
+    if (barPassed && idCheck.result === 'pass' && faceMatch.result === 'pass') {
+      await this.approve(request.id);
+    }
+  }
+
+  /**
+   * Approves a still-`submitted` request whose checks all passed: its
+   * pending licenses become verified (no verifier: `verified_by` null),
+   * the profile turns verified and the attorney is notified exactly as
+   * after a verifier's approval. `admin_note` marks it for the panel.
+   * Also used for self-attested submissions (SELF_ATTESTED_NOTE).
+   */
+  async approve(
+    requestId: string,
+    note: string = AUTO_APPROVED_NOTE,
+    now = new Date(),
+  ): Promise<void> {
+    await withTxRetry(this.prisma, async (tx) => {
+      const req = await tx.verificationRequest.findUnique({
+        where: { id: requestId },
+        select: { id: true, status: true, attorney_id: true },
+      });
+      if (!req || req.status !== 'submitted') return;
+      await tx.attorneyLicense.updateMany({
+        where: { attorney_id: req.attorney_id, license_status: 'pending' },
+        data: {
+          license_status: 'verified',
+          verified_at: now,
+          rejection_code: null,
+          rejection_note: null,
+        },
+      });
+      await tx.verificationRequest.update({
+        where: { id: req.id },
+        data: {
+          status: 'approved',
+          reviewed_at: now,
+          admin_note: note,
+        },
+      });
+      await syncProfileStatus(tx, req.attorney_id, 'approved', now);
+      await this.notifications.emit(
+        {
+          type: 'verification_update',
+          recipientId: req.attorney_id,
+          payload: { kind: KIND.approved, requestId: req.id, partial: false },
+        },
+        tx,
+      );
+    });
+    this.logger.info({ requestId, note }, 'Verification request auto-approved');
   }
 
   /**

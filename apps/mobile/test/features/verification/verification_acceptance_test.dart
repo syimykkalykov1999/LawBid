@@ -42,6 +42,14 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  Future<void> tickAttestation(WidgetTester tester) async {
+    final box = find.byKey(const ValueKey('verification-attestation'));
+    await tester.ensureVisible(box);
+    await tester.pumpAndSettle();
+    await tester.tap(box);
+    await tester.pumpAndSettle();
+  }
+
   Future<void> addLicense(
     WidgetTester tester,
     String buttonLabel,
@@ -106,9 +114,15 @@ void main() {
     expect(find.text('Check and submit'), findsOneWidget);
     expect(find.text('Alabama, Alaska'), findsOneWidget);
     await tester.enterText(find.byType(TextField).last, 'Maiden name on ID');
+    // Owner 2026-10-04: no submission without the sworn statement.
+    await tapText(tester, 'Submit for review');
+    expect(find.text('Tick the sworn statement to submit.'), findsOneWidget);
+    expect(backend.submitCalls, 0);
+    await tickAttestation(tester);
     await tapText(tester, 'Submit for review');
 
     expect(backend.submitCalls, 1);
+    expect(backend.lastAttestation, isTrue);
     expect(backend.lastComment, 'Maiden name on ID');
     // Back on the status screen, now pending.
     expect(find.text('Under review'), findsWidgets);
@@ -303,6 +317,7 @@ void main() {
     for (var i = 0; i < 3; i++) {
       await tapText(tester, 'Continue');
     }
+    await tickAttestation(tester);
     await tapText(tester, 'Submit for review');
     expect(backend.submitCalls, 1);
   });

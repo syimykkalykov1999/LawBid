@@ -254,6 +254,9 @@ erDiagram
     String info_request_message "nullable"
     String applicant_comment "nullable"
     String rejection_code "nullable"
+    DateTime attested_at "nullable"
+    String attestation_ip "nullable"
+    String attestation_version "nullable"
     DateTime created_at
     DateTime updated_at
   }

@@ -113,6 +113,16 @@ export class BootstrapService {
     return { ...flags, video_posts: ready };
   }
 
+  /** Owner 2026-10-04: the chat "Translate" button shows only while
+   * `chat_translate` is on AND the Google key is saved. */
+  private async withTranslateGate(
+    flags: Record<string, boolean>,
+  ): Promise<Record<string, boolean>> {
+    if (!flags.chat_translate) return flags;
+    const f = (await this.secrets?.get('google_translate'))?.fields ?? {};
+    return { ...flags, chat_translate: !!f.apiKey };
+  }
+
   async build(): Promise<BootstrapResponse> {
     const [flags, appConfig, content] = await Promise.all([
       this.flags.getFlags(),
@@ -126,7 +136,7 @@ export class BootstrapService {
     );
 
     return {
-      flags: await this.withVideoGate(flags),
+      flags: await this.withTranslateGate(await this.withVideoGate(flags)),
       // Audit 2026-10-02: only what the app needs — never the moderation
       // term lists, budgets or reserved names (this endpoint is public).
       app_config: Object.fromEntries(

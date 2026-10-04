@@ -13,6 +13,7 @@ import type { DisposableDomainsRefreshJob } from './disposable-domains/disposabl
 import type { ReviewReminderJob } from './handlers/review-reminder.job';
 import type { RatingReconcileJob } from './handlers/rating-reconcile.job';
 import type { LicenseExpiryJob } from './handlers/license-expiry.job';
+import type { LicenseRegistryRecheckJob } from './handlers/license-registry-recheck.job';
 import type { BidSubscriptionLapseJob } from './handlers/bid-subscription-lapse.job';
 import {
   CaseAutoArchiveJob,
@@ -83,6 +84,9 @@ function processor() {
     run: jest.fn(() => Promise.resolve({ scanned: 4, fixed: 1 })),
   };
   const licenses = { run: jest.fn(() => Promise.resolve({ expired: 3 })) };
+  const registryRecheck = {
+    run: jest.fn(() => Promise.resolve({ checked: 2, queued: 0 })),
+  };
   const bidLapse = {
     run: jest.fn(() =>
       Promise.resolve({ attorneysChecked: 5, bidsWithdrawn: 1 }),
@@ -118,6 +122,7 @@ function processor() {
       reminder as unknown as ReviewReminderJob,
       reconcile as unknown as RatingReconcileJob,
       licenses as unknown as LicenseExpiryJob,
+      registryRecheck as unknown as LicenseRegistryRecheckJob,
       bidLapse as unknown as BidSubscriptionLapseJob,
       stale as unknown as CaseStalePromptJob,
       archive as unknown as CaseAutoArchiveJob,
@@ -170,8 +175,9 @@ describe('JobsRunner', () => {
     expect(upserts).toHaveLength(CRON_SCHEDULES.length);
     // OQ-041: + calls.sweep every minute; owner 2026-09-30: + the hourly
     // review-appeal sweep; owner 2026-10-01: + videos.sweep every 5 min;
-    // owner 2026-10-02: + promotions.expire every 5 min.
-    expect(upserts).toHaveLength(25);
+    // owner 2026-10-02: + promotions.expire every 5 min; owner 2026-10-04:
+    // + monthly licenses.registry-recheck.
+    expect(upserts).toHaveLength(26);
     const byName = Object.fromEntries(
       upserts.map((c: unknown[]) => [c[0], c[1]]),
     );

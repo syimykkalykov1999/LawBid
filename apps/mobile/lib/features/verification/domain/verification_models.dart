@@ -184,6 +184,11 @@ class VerificationRequest {
         );
   }
 
+  /// Owner 2026-10-04 ("только номер"): the bar card photo is optional
+  /// unless the API asks for it ([VerificationOverview.barDocumentRequired]).
+  bool licensesReady({required bool barDocumentRequired}) =>
+      barDocumentRequired ? licensesComplete : pendingLicenses.isNotEmpty;
+
   /// Same rule as the API's identityCompleteness: some identity type has
   /// its front, plus back where needed.
   bool get identityComplete {
@@ -206,13 +211,18 @@ class VerificationOverview {
     required this.submissionsLast30Days,
     required this.maxSubmissions30Days,
     this.request,
+    this.barDocumentRequired = true,
   });
 
   final VerificationStatus status;
   final VerificationRequest? request;
 
-  /// false for an already verified attorney adding a state (§2.1).
+  /// Off by default (owner 2026-10-04); on for a verified attorney
+  /// confirming a new name.
   final bool identityRequired;
+
+  /// A bar card photo per license (off by default, owner 2026-10-04).
+  final bool barDocumentRequired;
   final int submissionsLast30Days;
   final int maxSubmissions30Days;
 
@@ -259,6 +269,7 @@ sealed class MissingItem {
 
   static MissingItem? parse(String raw) {
     if (raw == 'license') return const MissingLicense();
+    if (raw == 'attestation') return const MissingAttestation();
     if (raw == 'identity_document') return const MissingIdentity(back: false);
     if (raw == 'identity_document_back') {
       return const MissingIdentity(back: true);
@@ -274,6 +285,11 @@ sealed class MissingItem {
 
 class MissingLicense extends MissingItem {
   const MissingLicense();
+}
+
+/// Owner 2026-10-04: the sworn statement was not ticked.
+class MissingAttestation extends MissingItem {
+  const MissingAttestation();
 }
 
 class MissingIdentity extends MissingItem {

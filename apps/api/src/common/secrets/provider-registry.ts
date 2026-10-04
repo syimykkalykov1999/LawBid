@@ -110,6 +110,28 @@ export const PROVIDERS: ProviderDefinition[] = [
       ),
   },
   {
+    id: 'google_translate',
+    label: 'Google Translate (chat translation)',
+    description:
+      'The "Translate" button under chat messages. Also turn on the chat_translate flag.',
+    fields: [
+      {
+        name: 'apiKey',
+        label: 'API key (Cloud Translation API)',
+        secret: true,
+        required: true,
+        pattern: /^[\w-]{30,}$/,
+        patternHint: 'AIza…',
+        env: 'GOOGLE_TRANSLATE_API_KEY',
+      },
+    ],
+    test: (f) =>
+      probe(
+        `https://translation.googleapis.com/language/translate/v2/languages?key=${encodeURIComponent(f.apiKey)}`,
+        { method: 'GET' },
+      ),
+  },
+  {
     id: 'stripe',
     label: 'Stripe (payments)',
     description: 'Subscriptions, checkout, the customer portal.',
@@ -386,19 +408,28 @@ export const PROVIDERS: ProviderDefinition[] = [
     ],
   },
   {
-    id: 'bar_lookup',
-    label: 'Bar license lookup',
-    description: 'Automatic check of attorney licenses in the state bars.',
+    // Owner 2026-10-04: lawyers verify with state + bar number only. New
+    // York's attorney registry is a free open dataset; the token is
+    // optional (it only raises the anonymous rate limit). Other states
+    // have no API: the verifier opens the state bar profile link.
+    id: 'ny_registry',
+    label: 'NY attorney registry (data.ny.gov)',
+    description:
+      'Automatic check of New York bar numbers. Works without a key; an app token from data.ny.gov raises the rate limit.',
     fields: [
       {
-        name: 'apiKey',
-        label: 'API key',
+        name: 'appToken',
+        label: 'App token (optional)',
         secret: true,
-        required: true,
-        pattern: /^.{16,}$/,
-        env: 'BAR_LOOKUP_API_KEY',
+        required: false,
+        pattern: /^[A-Za-z0-9]{10,}$/,
+        env: 'NY_OPEN_DATA_APP_TOKEN',
       },
     ],
+    test: (f) =>
+      probe('https://data.ny.gov/resource/eqw2-r5nb.json?$limit=1', {
+        headers: f.appToken ? { 'X-App-Token': f.appToken } : {},
+      }),
   },
   {
     id: 'storage',

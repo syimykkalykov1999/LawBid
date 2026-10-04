@@ -31,6 +31,8 @@ import {
   ReadResultDto,
   RequestsCountDto,
   SendMessageDto,
+  TranslateMessageDto,
+  MessageTranslationDto,
   StartDirectChatDto,
   type ConversationPage,
   type MessagePage,
@@ -38,6 +40,7 @@ import {
   OrganizeConversationDto,
 } from './chat.dto';
 import { ChatService } from './chat.service';
+import { ChatTranslationService } from './chat-translation.service';
 import {
   RequiresDuty,
   AttorneyOnly,
@@ -51,7 +54,10 @@ import {
 @RequiresDuty('chats')
 @Controller('conversations')
 export class ChatController {
-  constructor(private readonly chat: ChatService) {}
+  constructor(
+    private readonly chat: ChatService,
+    private readonly translation: ChatTranslationService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'My conversations, newest first (§8.1)' })
@@ -178,6 +184,27 @@ export class ChatController {
     @Param() p: MessageIdParamDto,
   ): Promise<MessageDto> {
     return this.chat.listened(user, p.id, p.messageId);
+  }
+
+  @Post(':id/messages/:messageId/translate')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Translate one message into a language (owner 2026-10-04)',
+  })
+  @ApiEnvelopeResponse(MessageTranslationDto)
+  @ApiErrors({
+    400: [ErrorCode.VALIDATION_ERROR],
+    404: [ErrorCode.CONVERSATION_NOT_FOUND, ErrorCode.NOT_FOUND],
+    429: [ErrorCode.RATE_LIMITED],
+    503: [ErrorCode.TRANSLATION_UNAVAILABLE],
+  })
+  async translateMessage(
+    @CurrentUser() user: RequestUser,
+    @Param() p: MessageIdParamDto,
+    @Body() dto: TranslateMessageDto,
+  ): Promise<MessageTranslationDto> {
+    await this.chat.ensureMember(user, p.id);
+    return this.translation.translate(user, p.id, p.messageId, dto.target);
   }
 
   @Post(':id/read')

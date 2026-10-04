@@ -536,6 +536,11 @@ export const envSchema = z
     BUNNY_LIBRARY_ID: z.preprocess(blankToUndefined, z.string().optional()),
     BUNNY_CDN_HOSTNAME: z.preprocess(blankToUndefined, z.string().optional()),
     BUNNY_API_KEY: z.preprocess(blankToUndefined, z.string().optional()),
+    // Owner 2026-10-04: chat translation; normally saved in the admin.
+    GOOGLE_TRANSLATE_API_KEY: z.preprocess(
+      blankToUndefined,
+      z.string().optional(),
+    ),
     BUNNY_TOKEN_AUTH_KEY: z.preprocess(blankToUndefined, z.string().optional()),
     BUNNY_WEBHOOK_TOKEN: z.preprocess(blankToUndefined, z.string().optional()),
     // OQ-041: STUN / TURN for in-app calls (TURN can also be set in the
@@ -562,7 +567,8 @@ export const envSchema = z
       blankToUndefined,
       z.string().min(8).optional(),
     ),
-    BAR_LOOKUP_API_KEY: z.preprocess(
+    // Optional Socrata app token of the NY attorney registry (data.ny.gov).
+    NY_OPEN_DATA_APP_TOKEN: z.preprocess(
       blankToUndefined,
       z.string().min(8).optional(),
     ),

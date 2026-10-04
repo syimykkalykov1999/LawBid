@@ -7,6 +7,7 @@ import { DisposableDomainsRefreshJob } from './disposable-domains/disposable-dom
 import { ReviewReminderJob } from './handlers/review-reminder.job';
 import { RatingReconcileJob } from './handlers/rating-reconcile.job';
 import { LicenseExpiryJob } from './handlers/license-expiry.job';
+import { LicenseRegistryRecheckJob } from './handlers/license-registry-recheck.job';
 import { BidSubscriptionLapseJob } from './handlers/bid-subscription-lapse.job';
 import {
   CaseAutoArchiveJob,
@@ -38,6 +39,7 @@ export class CronProcessor {
     private readonly reviewReminder: ReviewReminderJob,
     private readonly ratingReconcile: RatingReconcileJob,
     private readonly licenseExpiry: LicenseExpiryJob,
+    private readonly licenseRegistryRecheck: LicenseRegistryRecheckJob,
     private readonly bidSubscriptionLapse: BidSubscriptionLapseJob,
     private readonly caseStalePrompt: CaseStalePromptJob,
     private readonly caseAutoArchive: CaseAutoArchiveJob,
@@ -72,6 +74,8 @@ export class CronProcessor {
         return this.ratingReconcile.run();
       case CRON_JOBS.licenseExpiry:
         return this.licenseExpiry.run();
+      case CRON_JOBS.licenseRegistryRecheck:
+        return this.licenseRegistryRecheck.run();
       case CRON_JOBS.bidSubscriptionLapse:
         return this.bidSubscriptionLapse.run();
       case CRON_JOBS.caseStalePrompt:
