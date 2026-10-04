@@ -14,6 +14,7 @@ import 'package:lawbid/features/cases/presentation/widgets/case_cards.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_cover.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_cover_picker.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_wizard_steps.dart';
+import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 
 import '../../../helpers/ux_harness.dart';
 
@@ -350,6 +351,15 @@ void main() {
     expect(coverIconOf('icon:car'), isNotNull);
     expect(coverIconOf('icon:nope'), isNull);
     expect(coverIconOf('art:1'), isNull);
+  });
+
+  test('practice photo rotates by case id, stable per case', () {
+    expect(practicePhotoVariant('c-1'), practicePhotoVariant('c-1'));
+    final seen = {
+      for (var i = 0; i < 40; i++)
+        practicePhotoVariant('00000000-0000-4000-8000-0000000000$i'),
+    };
+    expect(seen, {0, 1, 2});
   });
 
   test('draft keeps cover and urgency across a save', () {

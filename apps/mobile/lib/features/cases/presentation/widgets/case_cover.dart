@@ -10,7 +10,7 @@ import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 /// set of on-brand covers instead, and the client may pick one, or an
 /// icon avatar, when posting. Keys match apps/api domain/case-cover.ts:
 /// `art:0..3` = a variant of the practice's set, `icon:<name>` = an icon
-/// avatar, null = a variant picked from the case id (stable per case).
+/// avatar, null = one of the practice's photos picked by the case id.
 ///
 /// Variant 0 is the practice photo (`assets/practice_art/`); 1–3 are
 /// drawn here (no assets, any size): pinstripes, rings and a seal, each
@@ -94,6 +94,15 @@ class CaseCover extends StatelessWidget {
     if (icon != null) {
       return ExcludeSemantics(
         child: _IconAvatarCover(icon: icon, colors: colors),
+      );
+    }
+    // Owner 2026-10-04: without a choice, one of the practice's photos
+    // (rotated by the case id); a drawn variant only when picked.
+    if (coverKey == null || !coverKey!.startsWith('art:')) {
+      return PracticePhoto(
+        categoryCode: categoryCode,
+        practiceCode: practiceCode,
+        seed: seed,
       );
     }
     final variant = coverVariantOf(coverKey, seed);
