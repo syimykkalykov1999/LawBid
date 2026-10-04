@@ -261,7 +261,11 @@ class _ContactVerificationCardState
                 ),
               ),
               const SizedBox(width: AppSpacing.sm),
-              status,
+              // Long translations: the pill never squeezes the title.
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 140),
+                child: status,
+              ),
             ],
           ),
           if (!verified && state.stage == ContactVerificationStage.editing) ...[
@@ -323,7 +327,14 @@ class _StatusPill extends StatelessWidget {
             AppIcon(icon, size: AppSpacing.lg, color: color),
             const SizedBox(width: AppSpacing.xs),
           ],
-          Text(label, style: typography.caption.copyWith(color: color)),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: typography.caption.copyWith(color: color),
+            ),
+          ),
         ],
       ),
     );

@@ -373,7 +373,7 @@ class _PhonesSection extends StatelessWidget {
         if (controllers.length < limit) ...[
           const SizedBox(height: AppSpacing.xs),
           Align(
-            alignment: Alignment.centerLeft,
+            alignment: AlignmentDirectional.centerStart,
             child: TextButton.icon(
               key: const ValueKey('plan-phone-add'),
               onPressed: onAdd,

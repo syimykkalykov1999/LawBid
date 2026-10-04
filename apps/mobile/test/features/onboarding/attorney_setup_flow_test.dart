@@ -4,6 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_router.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/onboarding/domain/attorney_setup.dart';
@@ -22,6 +24,7 @@ import 'package:lawbid/features/verification/domain/verification_models.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 
 import '../../helpers/fixtures.dart';
+import '../../helpers/long_locale.dart';
 import '../../helpers/onboarding_harness.dart';
 import '../subscription/subscription_fakes.dart';
 
@@ -196,10 +199,18 @@ void main() {
     launched = [];
   });
 
-  Future<GoRouter> pumpFlow(WidgetTester tester) async {
-    tester.view.physicalSize = const Size(390, 1200);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
+  Future<GoRouter> pumpFlow(
+    WidgetTester tester, {
+    Translator? translator,
+    TextDirection direction = TextDirection.ltr,
+  }) async {
+    if (translator == null) {
+      tester.view.physicalSize = const Size(390, 1200);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+    } else {
+      useNarrowPhone(tester);
+    }
     final router = _router(server);
     addTearDown(router.dispose);
     final wrap = await onboardingWrapper(
@@ -218,9 +229,18 @@ void main() {
           launched.add(url);
           return true;
         }),
+        if (translator != null)
+          translatorProvider.overrideWithValue(translator),
       ],
     );
-    await tester.pumpWidget(wrap(Router.withConfig(config: router)));
+    await tester.pumpWidget(
+      wrap(
+        Directionality(
+          textDirection: direction,
+          child: Router.withConfig(config: router),
+        ),
+      ),
+    );
     await tester.pumpAndSettle();
     return router;
   }
@@ -376,4 +396,38 @@ void main() {
       AttorneySetupStage.done,
     );
   });
+
+  // PR #37 follow-up: every stage on a 360 dp phone with the longest
+  // translation of each key (all shipped languages), also right-to-left.
+  for (final (name, direction) in [
+    ('longest', TextDirection.ltr),
+    ('longest, right-to-left', TextDirection.rtl),
+  ]) {
+    testWidgets('no overflow at 360 dp on every stage ($name)', (tester) async {
+      final t = LongestTranslator();
+      await pumpFlow(tester, translator: t, direction: direction);
+      expect(stage('license'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      server.verification = VerificationStatus.suspended;
+      await tearDownTree(tester);
+      await pumpFlow(tester, translator: t, direction: direction);
+      expect(stage('pending'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      server.verification = VerificationStatus.verified;
+      await tearDownTree(tester);
+      await pumpFlow(tester, translator: t, direction: direction);
+      expect(stage('practices'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      server.practiceIds = ['leaf-1'];
+      await tearDownTree(tester);
+      await pumpFlow(tester, translator: t, direction: direction);
+      expect(stage('subscription'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.tap(find.byKey(const ValueKey('offer-later')));
+      await tester.pumpAndSettle();
+      expect(find.byType(TourStepScreen), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tearDownTree(tester);
+    });
+  }
 }
