@@ -19,6 +19,11 @@ AdminVerificationRequestDto _$AdminVerificationRequestDtoFromJson(
       ? null
       : DateTime.parse(json['reviewedAt'] as String),
   reviewerId: json['reviewerId'] as String?,
+  attestedAt: json['attestedAt'] == null
+      ? null
+      : DateTime.parse(json['attestedAt'] as String),
+  attestationIp: json['attestationIp'] as String?,
+  attestationVersion: json['attestationVersion'] as String?,
   applicantComment: json['applicantComment'] as String?,
   infoRequestMessage: json['infoRequestMessage'] as String?,
   rejectionCode: json['rejectionCode'] as String?,
@@ -53,6 +58,9 @@ Map<String, dynamic> _$AdminVerificationRequestDtoToJson(
   'submittedAt': ?instance.submittedAt?.toIso8601String(),
   'reviewedAt': ?instance.reviewedAt?.toIso8601String(),
   'reviewerId': ?instance.reviewerId,
+  'attestedAt': ?instance.attestedAt?.toIso8601String(),
+  'attestationIp': ?instance.attestationIp,
+  'attestationVersion': ?instance.attestationVersion,
   'applicantComment': ?instance.applicantComment,
   'infoRequestMessage': ?instance.infoRequestMessage,
   'rejectionCode': ?instance.rejectionCode,

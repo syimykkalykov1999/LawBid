@@ -22,6 +22,7 @@ import {
   ManualIdVerificationProvider,
 } from './providers/manual.providers';
 import { VerificationProviderSelector } from './providers/verification-provider.selector';
+import { NyOpenDataAdapter } from './providers/bar-lookup/ny-open-data.adapter';
 import {
   BAR_LOOKUP_PROVIDER,
   ID_VERIFICATION_PROVIDER,
@@ -29,11 +30,6 @@ import {
 import { VerificationAdminService } from './services/verification-admin.service';
 import { VerificationChecksService } from './services/verification-checks.service';
 import { VerificationRequestsService } from './services/verification-requests.service';
-
-/** State bar adapters in production. Empty until a state's public
- * database is integrated (see StubStateBarAdapter for the template):
- * with `auto_bar_check` on, every state falls back to manual review. */
-const STATE_BAR_ADAPTER_LIST: StateBarAdapter[] = [];
 
 /**
  * docs/03_VERIFICATION_PROFILES.md §2: attorney verification requests
@@ -58,7 +54,15 @@ const STATE_BAR_ADAPTER_LIST: StateBarAdapter[] = [];
     ManualIdVerificationProvider,
     StripeIdentityProvider,
     PersonaIdVerificationProvider,
-    { provide: STATE_BAR_ADAPTERS, useValue: STATE_BAR_ADAPTER_LIST },
+    // State registries with an API (owner 2026-10-04: today only New
+    // York's open data). Other states fall back to manual review, where
+    // the verifier opens the state bar's profile link.
+    NyOpenDataAdapter,
+    {
+      provide: STATE_BAR_ADAPTERS,
+      useFactory: (ny: NyOpenDataAdapter): StateBarAdapter[] => [ny],
+      inject: [NyOpenDataAdapter],
+    },
     AutoBarLookupProvider,
     VerificationProviderSelector,
     // Default (flag-off) implementations, kept for direct injection.
@@ -77,6 +81,8 @@ const STATE_BAR_ADAPTER_LIST: StateBarAdapter[] = [];
     BAR_LOOKUP_PROVIDER,
     ID_VERIFICATION_PROVIDER,
     VerificationProviderSelector,
+    // Owner 2026-10-04: the monthly registry re-check job reads the states.
+    STATE_BAR_ADAPTERS,
   ],
 })
 export class VerificationModule {}

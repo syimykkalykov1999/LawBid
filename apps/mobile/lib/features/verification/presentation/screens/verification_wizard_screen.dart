@@ -37,6 +37,7 @@ class _VerificationWizardScreenState
   Timer? _commentSave;
   String? _stepError;
   String? _blockMessage;
+  bool _attested = false;
   bool _submitting = false;
 
   VerificationWizardController get _c =>
@@ -148,7 +149,9 @@ class _VerificationWizardScreenState
         if (r.pendingLicenses.isEmpty) {
           return _t.t('verification.missing.license');
         }
-        if (!r.licensesComplete) return _t.t('verification.licenses.needDocs');
+        if (!r.licensesReady(barDocumentRequired: s.barDocumentRequired)) {
+          return _t.t('verification.licenses.needDocs');
+        }
       case WizardStep.identity:
         final front =
             r.docsFor(DocSlot.identity(s.idType, DocSide.front)).isNotEmpty;
@@ -191,13 +194,21 @@ class _VerificationWizardScreenState
       );
       return;
     }
+    final attestationNeeded = s.request.isDraft;
+    if (attestationNeeded && !_attested) {
+      setState(() => _blockMessage = _t.t('verification.attest.required'));
+      return;
+    }
     setState(() {
       _blockMessage = null;
       _submitting = true;
     });
     _commentSave?.cancel();
     try {
-      final sent = await _c.submit(_comment.text.trim());
+      final sent = await _c.submit(
+        _comment.text.trim(),
+        attestation: attestationNeeded && _attested,
+      );
       if (sent == null || !mounted) return;
       ref.invalidate(verificationOverviewProvider);
       showAppSnackBar(context, _t.t('verification.submit.success'));
@@ -315,7 +326,11 @@ class _VerificationWizardScreenState
       },
     );
     final body = switch (s.step) {
-      WizardStep.intro => IntroStep(t: t, identityRequired: s.identityRequired),
+      WizardStep.intro => IntroStep(
+          t: t,
+          identityRequired: s.identityRequired,
+          barDocumentRequired: s.barDocumentRequired,
+        ),
       WizardStep.licenses => LicensesStep(t: t, state: s, actions: actions),
       WizardStep.identity => IdentityStep(t: t, state: s, actions: actions),
       WizardStep.selfie => SelfieStep(t: t, state: s, actions: actions),
@@ -326,6 +341,11 @@ class _VerificationWizardScreenState
           comment: _comment,
           onCommentChanged: _onCommentChanged,
           blockMessage: _blockMessage,
+          attested: _attested,
+          onAttestedChanged: (v) => setState(() {
+            _attested = v;
+            if (v) _blockMessage = null;
+          }),
         ),
     };
     final isReview = s.step == WizardStep.review;

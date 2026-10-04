@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { VerificationDocType } from '@prisma/client';
 import { Transform } from 'class-transformer';
 import {
+  IsBoolean,
   IsDateString,
   IsEnum,
   IsIn,
@@ -53,6 +54,14 @@ export class UpdateVerificationRequestDto {
 }
 
 export class SubmitVerificationRequestDto {
+  @ApiPropertyOptional({
+    description:
+      'Owner 2026-10-04: the attorney confirms under penalty of perjury that they hold the entered licenses (sworn statement, version ATTESTATION_VERSION). Required for a new submission.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  attestation?: boolean;
+
   @ApiPropertyOptional({ type: String, maxLength: APPLICANT_COMMENT_MAX })
   @IsOptional()
   @Transform(trim)

@@ -45,6 +45,7 @@ class FakeVerificationBackend
   int createCalls = 0;
   int submitCalls = 0;
   String? lastComment;
+  bool lastAttestation = false;
   final List<DocSlot> attached = [];
   final Map<String, ScanState> _files = {};
   int _seq = 0;
@@ -187,9 +188,11 @@ class FakeVerificationBackend
   Future<VerificationRequest> submit(
     String requestId, {
     String? comment,
+    bool attestation = false,
   }) async {
     submitCalls++;
     lastComment = comment;
+    lastAttestation = attestation;
     request = _copy(
       status: RequestStatus.submitted,
       submittedAt: DateTime.utc(2026, 9, 27),

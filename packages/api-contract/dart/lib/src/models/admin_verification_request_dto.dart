@@ -23,6 +23,9 @@ class AdminVerificationRequestDto {
     required this.submittedAt,
     required this.reviewedAt,
     required this.reviewerId,
+    required this.attestedAt,
+    required this.attestationIp,
+    required this.attestationVersion,
     required this.applicantComment,
     required this.infoRequestMessage,
     required this.rejectionCode,
@@ -45,6 +48,13 @@ class AdminVerificationRequestDto {
   final DateTime? submittedAt;
   final DateTime? reviewedAt;
   final String? reviewerId;
+
+  /// Owner 2026-10-04: when the attorney confirmed the licenses under the sworn statement
+  final DateTime? attestedAt;
+  final String? attestationIp;
+
+  /// Version of the sworn-statement text the attorney accepted
+  final String? attestationVersion;
   final String? applicantComment;
   final String? infoRequestMessage;
   final String? rejectionCode;

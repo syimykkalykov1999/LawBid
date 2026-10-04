@@ -252,6 +252,14 @@ export class AdminLicenseDto {
   })
   autoCheckResult!: Record<string, unknown> | null;
 
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description:
+      "The state bar's public lookup page for this license (profile page when the state has one per number).",
+  })
+  lookupUrl!: string | null;
+
   @ApiProperty({ type: String, nullable: true })
   rejectionCode!: string | null;
 
@@ -366,6 +374,25 @@ export class AdminVerificationRequestDto {
 
   @ApiProperty({ type: String, format: 'uuid', nullable: true })
   reviewerId!: string | null;
+
+  @ApiProperty({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    description:
+      'Owner 2026-10-04: when the attorney confirmed the licenses under the sworn statement',
+  })
+  attestedAt!: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  attestationIp!: string | null;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'Version of the sworn-statement text the attorney accepted',
+  })
+  attestationVersion!: string | null;
 
   @ApiProperty({ type: String, nullable: true })
   applicantComment!: string | null;

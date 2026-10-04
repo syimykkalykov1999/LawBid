@@ -35,7 +35,13 @@ abstract interface class VerificationRepository {
 
   /// Submit a draft or answer `needs_more_info` (400 VERIFICATION_INCOMPLETE
   /// with `details.missing`).
-  Future<VerificationRequest> submit(String requestId, {String? comment});
+  /// [attestation]: the attorney ticked the sworn statement (required by
+  /// the API for a new submission, owner 2026-10-04).
+  Future<VerificationRequest> submit(
+    String requestId, {
+    String? comment,
+    bool attestation = false,
+  });
 }
 
 /// Cancels an in-flight upload (the data layer bridges it to the HTTP

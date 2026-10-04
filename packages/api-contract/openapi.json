@@ -48111,7 +48111,11 @@
           },
           "identityRequired": {
             "type": "boolean",
-            "description": "Identity document and selfie are required (false for an already verified attorney adding a state, §2.1)."
+            "description": "Identity document and selfie are required: off by default (owner 2026-10-04, setting verification.require_identity); always on for a verified attorney confirming a new name."
+          },
+          "barDocumentRequired": {
+            "type": "boolean",
+            "description": "A photo of the bar card is required per license (setting verification.require_bar_document, off by default)."
           },
           "submissionsLast30Days": {
             "type": "integer"
@@ -48123,6 +48127,7 @@
         "required": [
           "verificationStatus",
           "identityRequired",
+          "barDocumentRequired",
           "submissionsLast30Days",
           "maxSubmissions30Days"
         ]
@@ -48234,6 +48239,10 @@
       "SubmitVerificationRequestDto": {
         "type": "object",
         "properties": {
+          "attestation": {
+            "type": "boolean",
+            "description": "Owner 2026-10-04: the attorney confirms under penalty of perjury that they hold the entered licenses (sworn statement, version ATTESTATION_VERSION). Required for a new submission."
+          },
           "applicantComment": {
             "type": "string",
             "maxLength": 500
@@ -48385,6 +48394,11 @@
             "nullable": true,
             "description": "Latest automatic bar lookup (§2.4), null if none ran."
           },
+          "lookupUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "The state bar's public lookup page for this license (profile page when the state has one per number)."
+          },
           "rejectionCode": {
             "type": "string",
             "nullable": true
@@ -48412,6 +48426,7 @@
           "status",
           "expiresAt",
           "autoCheckResult",
+          "lookupUrl",
           "rejectionCode",
           "rejectionNote",
           "verifiedAt",
@@ -48622,6 +48637,21 @@
             "nullable": true,
             "format": "uuid"
           },
+          "attestedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time",
+            "description": "Owner 2026-10-04: when the attorney confirmed the licenses under the sworn statement"
+          },
+          "attestationIp": {
+            "type": "string",
+            "nullable": true
+          },
+          "attestationVersion": {
+            "type": "string",
+            "nullable": true,
+            "description": "Version of the sworn-statement text the attorney accepted"
+          },
           "applicantComment": {
             "type": "string",
             "nullable": true
@@ -48682,6 +48712,9 @@
           "submittedAt",
           "reviewedAt",
           "reviewerId",
+          "attestedAt",
+          "attestationIp",
+          "attestationVersion",
           "applicantComment",
           "infoRequestMessage",
           "rejectionCode",

@@ -33,6 +33,7 @@ import {
   type VerificationQueueQueryDto,
 } from '../dto/admin-verification.dto';
 import { VerificationProviderSelector } from '../providers/verification-provider.selector';
+import type { CheckOutcome } from '../providers/verification-providers';
 import {
   AUDIT_ACTION,
   DOCUMENT_URL_LIMIT_PER_ADMIN_PER_HOUR,
@@ -40,6 +41,7 @@ import {
   OPEN_REQUEST_STATUSES,
   VERIFICATION_NOTIFICATION_KIND as KIND,
 } from '../verification.constants';
+import { stateBarLookupUrl } from '../state-bar-links';
 import {
   httpError,
   invalidStatus,
@@ -181,6 +183,9 @@ export class VerificationAdminService {
       submittedAt: row.submitted_at?.toISOString() ?? null,
       reviewedAt: row.reviewed_at?.toISOString() ?? null,
       reviewerId: row.reviewed_by,
+      attestedAt: row.attested_at?.toISOString() ?? null,
+      attestationIp: row.attestation_ip,
+      attestationVersion: row.attestation_version,
       applicantComment: row.applicant_comment,
       infoRequestMessage: row.info_request_message,
       rejectionCode: row.rejection_code,
@@ -579,49 +584,10 @@ export class VerificationAdminService {
       lastName: license.attorney.user.last_name ?? '',
     });
     const requestId = await withTxRetry(this.prisma, async (tx) => {
-      let queuedIn: string | null = null;
-      if (outcome.result !== 'pass') {
-        await tx.attorneyLicense.update({
-          where: { id: license.id },
-          data: { license_status: 'pending' },
-        });
-        const open = await tx.verificationRequest.findFirst({
-          where: {
-            attorney_id: license.attorney_id,
-            status: { in: [...OPEN_REQUEST_STATUSES] },
-          },
-          select: { id: true },
-        });
-        queuedIn =
-          open?.id ??
-          (
-            await tx.verificationRequest.create({
-              data: {
-                attorney_id: license.attorney_id,
-                status: 'submitted',
-                submitted_at: now,
-                admin_note: `${LICENSE_RECHECK_NOTE_PREFIX}: ${license.state_code} ${license.id}`,
-              },
-              select: { id: true },
-            })
-          ).id;
-        await tx.verificationCheck.create({
-          data: {
-            request_id: queuedIn,
-            check_type: 'bar_lookup',
-            provider: 'manual',
-            result: outcome.result,
-            details: {
-              ...outcome.details,
-              lookupProvider: provider.name,
-              licenseId: license.id,
-              stateCode: license.state_code,
-              recheck: true,
-            },
-            checked_at: now,
-          },
-        });
-      }
+      const queuedIn =
+        outcome.result !== 'pass'
+          ? await this.queueForReview(tx, license, outcome, provider.name, now)
+          : null;
       await this.audit.record(
         {
           adminId: admin.id,
@@ -646,6 +612,94 @@ export class VerificationAdminService {
       include: { state: true },
     });
     return { license: licenseDto(fresh), result: outcome.result, requestId };
+  }
+
+  /**
+   * Owner 2026-10-04: monthly re-check of verified licenses in states with
+   * a registry API (job `licenses.registry-recheck`). Only a definite
+   * `fail` (number gone, status no longer "Currently registered") queues
+   * the license for a verifier exactly like the manual re-check; a name
+   * difference or a registry error changes nothing. Returns the lookup
+   * result, or null when automatic lookups are off.
+   */
+  async registryRecheck(
+    licenseId: string,
+    now = new Date(),
+  ): Promise<CheckOutcome['result'] | null> {
+    const provider = await this.selector.barLookup();
+    if (provider.name === 'manual') return null;
+    const license = await this.prisma.attorneyLicense.findUnique({
+      where: { id: licenseId },
+      include: {
+        attorney: {
+          select: { user: { select: { first_name: true, last_name: true } } },
+        },
+      },
+    });
+    if (!license || license.license_status !== 'verified') return null;
+    const outcome = await this.checks.barLookup(provider, license, null, {
+      firstName: license.attorney.user.first_name ?? '',
+      lastName: license.attorney.user.last_name ?? '',
+    });
+    if (outcome.result === 'fail') {
+      await withTxRetry(this.prisma, (tx) =>
+        this.queueForReview(tx, license, outcome, provider.name, now),
+      );
+    }
+    return outcome.result;
+  }
+
+  /** Puts [license] back to `pending` inside the attorney's open request,
+   * or a new `submitted` one (admin_note `license_recheck: …`), with the
+   * lookup stored as its `bar_lookup` check. Returns the request id. */
+  private async queueForReview(
+    tx: Tx,
+    license: Pick<AttorneyLicense, 'id' | 'attorney_id' | 'state_code'>,
+    outcome: CheckOutcome,
+    lookupProvider: string,
+    now: Date,
+  ): Promise<string> {
+    await tx.attorneyLicense.update({
+      where: { id: license.id },
+      data: { license_status: 'pending' },
+    });
+    const open = await tx.verificationRequest.findFirst({
+      where: {
+        attorney_id: license.attorney_id,
+        status: { in: [...OPEN_REQUEST_STATUSES] },
+      },
+      select: { id: true },
+    });
+    const queuedIn =
+      open?.id ??
+      (
+        await tx.verificationRequest.create({
+          data: {
+            attorney_id: license.attorney_id,
+            status: 'submitted',
+            submitted_at: now,
+            admin_note: `${LICENSE_RECHECK_NOTE_PREFIX}: ${license.state_code} ${license.id}`,
+          },
+          select: { id: true },
+        })
+      ).id;
+    await tx.verificationCheck.create({
+      data: {
+        request_id: queuedIn,
+        check_type: 'bar_lookup',
+        provider: 'manual',
+        result: outcome.result,
+        details: {
+          ...outcome.details,
+          lookupProvider,
+          licenseId: license.id,
+          stateCode: license.state_code,
+          recheck: true,
+        },
+        checked_at: now,
+      },
+    });
+    return queuedIn;
   }
 
   /**
@@ -854,6 +908,7 @@ function licenseDto(l: AttorneyLicense & { state: State }): AdminLicenseDto {
     status: l.license_status,
     expiresAt: isoDay(l.expires_at),
     autoCheckResult: asObject(l.auto_check_result),
+    lookupUrl: stateBarLookupUrl(l.state_code, l.bar_number),
     rejectionCode: l.rejection_code,
     rejectionNote: l.rejection_note,
     verifiedAt: l.verified_at?.toISOString() ?? null,
