@@ -335,10 +335,12 @@ class FeedCaseCard extends StatelessWidget {
                         item.title,
                         maxLines: 3,
                         overflow: TextOverflow.ellipsis,
+                        // Owner 2026-10-04: smaller type, more of the story.
                         style: typography.titleMedium.copyWith(
                           fontFamily: typography.body.fontFamily,
                           color: colors.text,
                           fontWeight: FontWeight.w700,
+                          fontSize: 20,
                           height: 1.25,
                         ),
                       ),
@@ -346,11 +348,12 @@ class FeedCaseCard extends StatelessWidget {
                         const SizedBox(height: AppSpacing.sm),
                         Text(
                           item.excerpt,
-                          maxLines: 3,
+                          maxLines: 6,
                           overflow: TextOverflow.ellipsis,
                           style: typography.body.copyWith(
                             color: colors.text,
-                            height: 1.45,
+                            fontSize: 15,
+                            height: 1.4,
                           ),
                         ),
                       ],
@@ -488,20 +491,24 @@ class FeedCaseCard extends StatelessWidget {
                           item.title,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
+                          // Owner 2026-10-04: smaller type, more of the
+                          // story on the card.
                           style: typography.titleMedium.copyWith(
                             fontFamily: typography.body.fontFamily,
                             color: colors.text,
                             fontWeight: FontWeight.w700,
+                            fontSize: 18,
+                            height: 1.25,
                           ),
                         ),
                       ),
                       if (item.excerpt.isNotEmpty) ...[
                         const SizedBox(height: AppSpacing.xs),
                         Padding(
-                          padding: const EdgeInsets.only(right: 72),
+                          padding: const EdgeInsets.only(right: 40),
                           child: Text(
                             item.excerpt,
-                            maxLines: 2,
+                            maxLines: 4,
                             overflow: TextOverflow.ellipsis,
                             style: typography.bodySmall.copyWith(
                               color: colors.textSecondary,
