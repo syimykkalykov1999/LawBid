@@ -121,9 +121,11 @@ describe('Admin content (e2e)', () => {
       })
       .expect(201);
     expect(b.body.data.recipients).toBeGreaterThan(0);
-    // Audit 2026-10-02: the fan-out runs in the background (queue).
+    // Audit 2026-10-02: the fan-out runs in the background (queue). It
+    // reaches every attorney the earlier suites left in the database, so
+    // on a full CI run it can take well over 5 s: wait up to 30 s.
     let delivered = 0;
-    for (let i = 0; i < 50 && delivered === 0; i++) {
+    for (let i = 0; i < 300 && delivered === 0; i++) {
       delivered = await prisma.notification.count({
         where: { user_id: author.id, type: 'admin_broadcast' },
       });
