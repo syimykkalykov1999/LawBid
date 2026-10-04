@@ -438,24 +438,33 @@ void main() {
   });
 
   group('Team', () {
-    testWidgets('add an assistant by phone', (tester) async {
+    testWidgets(
+        'owner 2026-10-04: add an assistant → their one-time code, '
+        'copy / send / new code', (tester) async {
       await pump(tester, const TeamScreen());
       expect(find.text('Seats: 0 of 2'), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('team-add')));
       await tester.pumpAndSettle();
-      await tester.enterText(
-        find.byKey(const ValueKey('team-add-phone')),
-        '+13125550111',
-      );
+      expect(find.byKey(const ValueKey('team-add-phone')), findsNothing);
       await tester.enterText(
         find.byKey(const ValueKey('team-add-name')),
         'Sam',
       );
       await tester.tap(find.byKey(const ValueKey('team-add-save')));
       await tester.pumpAndSettle();
-      expect(repo.calls, contains('add:+13125550111:Sam'));
-      expect(find.text('Sam'), findsOneWidget);
-      expect(find.text('Seats: 1 of 2'), findsOneWidget);
+      expect(repo.calls, contains('add:Sam'));
+      // The code shows at once, ready to copy or send.
+      expect(find.byKey(const ValueKey('code-card-m1')), findsOneWidget);
+      expect(find.text('K7QM-4XRT-92H1'), findsWidgets);
+      expect(find.byKey(const ValueKey('code-copy-m1')), findsOneWidget);
+      expect(find.byKey(const ValueKey('code-send-m1')), findsOneWidget);
+      // "New code" replaces it after a confirmation.
+      await tester.tap(find.byKey(const ValueKey('code-new-m1')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('code-new-confirm')));
+      await tester.pumpAndSettle();
+      expect(repo.calls, contains('code:m1'));
+      expect(find.text('NEW2-CODE-XYZ9'), findsWidgets);
     });
 
     testWidgets('requests: approve publishes, reject asks for a note',
@@ -495,20 +504,21 @@ void main() {
       expect(find.byKey(const ValueKey('join-accept')), findsOneWidget);
     });
 
-    testWidgets("not added: the attorney's phone gets a code", (tester) async {
+    testWidgets("not added: joins with the attorney's code, no SMS",
+        (tester) async {
       await pump(tester, const AssistantJoinScreen(), assistant: true);
+      expect(find.byKey(const ValueKey('join-phone')), findsNothing);
       await tester.enterText(
-        find.byKey(const ValueKey('join-phone')),
-        '+13125550101',
+        find.byKey(const ValueKey('join-code')),
+        'k7qm4xrt92hd',
       );
-      await tester.tap(find.byKey(const ValueKey('join-send')));
+      await tester.pump();
+      // Typed in any case, dashes added as it is typed.
+      expect(find.text('K7QM-4XRT-92HD'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('join-verify')));
       await tester.pump();
       await tester.pump();
-      expect(repo.calls, contains('code:+13125550101'));
-      expect(
-        find.textContaining("The code went to the attorney's phone"),
-        findsOneWidget,
-      );
+      expect(repo.calls, contains('join:K7QM-4XRT-92HD'));
     });
   });
 }

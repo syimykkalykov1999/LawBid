@@ -5,6 +5,7 @@
 import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
+import '../models/assistant_code_login_dto.dart';
 import '../models/auth_tokens_envelope.dart';
 import '../models/continue_login_dto.dart';
 import '../models/identifier_linked_envelope.dart';
@@ -45,6 +46,16 @@ abstract class AuthClient {
   @POST('/auth/login/continue')
   Future<AuthTokensEnvelope> continueLogin({
     @Body() required ContinueLoginDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Owner 2026-10-04: an assistant signs in with the one-time code the.
+  /// attorney got for their seat — no SMS. A new account becomes the.
+  /// assistant; a code issued again signs the same assistant in on a new.
+  /// phone (the old one is signed out).
+  @POST('/auth/assistant/code')
+  Future<AuthTokensEnvelope> assistantCodeLogin({
+    @Body() required AssistantCodeLoginDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

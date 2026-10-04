@@ -106,6 +106,21 @@ void main() {
         '/splash',
       ),
     ],
+    'owner 2026-10-04: assistant signs in with the attorney\'s code': [
+      const _Case('code screen is public', '/auth/assistant', _signedOut, null),
+      _Case(
+        'no consents yet → consents',
+        '/feed',
+        _signedIn(meFixture(role: UserRole.assistant)),
+        '/onboarding/consents',
+      ),
+      _Case(
+        'no phone needed: consents done → name (profile), never contacts',
+        '/onboarding/contacts',
+        _signedIn(meFixture(role: UserRole.assistant, consents: true)),
+        '/onboarding/profile',
+      ),
+    ],
     'row 1: нет токена → /welcome': [
       const _Case('/feed', '/feed', _signedOut, '/welcome'),
       const _Case('/splash', '/splash', _signedOut, '/welcome'),

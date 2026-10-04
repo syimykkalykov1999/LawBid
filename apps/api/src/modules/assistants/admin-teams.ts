@@ -185,6 +185,8 @@ export class AdminTeamsService {
         joinedAt: m.joined_at?.toISOString() ?? null,
         createdAt: m.created_at.toISOString(),
         liabilityAcceptedAt: null,
+        joinCode: null,
+        joinCodeExpiresAt: null,
       })),
       activity: acts.map((x) => ({
         id: x.id,

@@ -821,9 +821,12 @@ erDiagram
     String id PK
     String attorney_id FK
     String assistant_user_id FK "nullable"
-    String phone_e164
+    String phone_e164 "nullable"
     String display_name "nullable"
     enum_AssistantStatus status
+    String join_code_hash UK "nullable"
+    String join_code_enc "nullable"
+    DateTime join_code_expires_at "nullable"
     enum_AssistantApproval approval
     DateTime created_at
     DateTime joined_at "nullable"

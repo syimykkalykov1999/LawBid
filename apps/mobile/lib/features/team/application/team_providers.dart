@@ -93,8 +93,24 @@ class TeamController extends AsyncNotifier<TeamInfo> {
     if (ref.mounted) state = AsyncData(next);
   }
 
-  Future<void> add(String phone, {String? name}) =>
-      _apply(() => _repo.addAssistant(phone, name: name));
+  /// Owner 2026-10-04: a new seat with its one-time code; returns the
+  /// added member (the code is on it).
+  Future<TeamMember?> add({
+    String? name,
+    Set<AssistantDuty>? duties,
+    bool acceptLiability = false,
+  }) async {
+    final before = state.value?.members.map((m) => m.id).toSet() ?? {};
+    final next = await _repo.addAssistant(
+      name: name,
+      duties: duties,
+      acceptLiability: acceptLiability,
+    );
+    if (ref.mounted) state = AsyncData(next);
+    return next.members.where((m) => !before.contains(m.id)).firstOrNull;
+  }
+
+  Future<void> newCode(String id) => _apply(() => _repo.regenerateCode(id));
 
   Future<void> setDuties(
     String id,

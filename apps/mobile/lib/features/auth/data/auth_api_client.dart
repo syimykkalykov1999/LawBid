@@ -61,6 +61,21 @@ class AuthApiClient {
     return envelope.data;
   }
 
+  /// Owner 2026-10-04: `POST /auth/assistant/code` — the attorney's
+  /// one-time code for an assistant seat; issues tokens like [verifyOtp].
+  Future<AuthTokensResult> assistantCodeLogin({
+    required String code,
+    DeviceInfo? deviceInfo,
+  }) async {
+    final envelope = await guardApiCall(
+      () => _auth.assistantCodeLogin(
+        body: api.AssistantCodeLoginDto(code: code, deviceInfo: deviceInfo),
+        extras: _skipAuth,
+      ),
+    );
+    return envelope.data;
+  }
+
   /// `POST /auth/otp/verify-link` — email magic link: the link's one-time
   /// `token` plus the `verifier` this device stored when it requested the
   /// code. Issues tokens like [verifyOtp] (same `_skipAuth`).
