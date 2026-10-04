@@ -4,6 +4,7 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
+import { CounterAggregator } from '../src/modules/counters/counter-aggregator.service';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { withDeleted } from '../src/prisma/soft-delete.extension';
 import { adminSession } from './support/admin-login';
@@ -208,6 +209,8 @@ describe('Bulk moderation + broadcast states (e2e)', () => {
       })
       .expect(200)
       .expect((r) => expect(r.body.data.done).toHaveLength(2));
+    // Hot counters land through the Redis flusher.
+    await app.get(CounterAggregator).flush();
     expect(
       (await prisma.post.findUniqueOrThrow({ where: { id: keep.id } }))
         .comment_count,
