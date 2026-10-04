@@ -23,6 +23,12 @@ import {
   SkipAutoAudit,
   type AdminActor,
 } from '../admin-auth/admin-auth.decorators';
+import {
+  AdminBulkReasonDto,
+  AdminBulkResultDto,
+} from '../admin-content/admin-content.dto';
+import { eachId } from '../admin-content/bulk.util';
+import { AuditLogService } from '../admin-access/audit-log.service';
 import { FileDto, PresignedFileDto } from '../files/dto/files.dto';
 import {
   AddOfficialStickerDto,
@@ -55,7 +61,34 @@ export class AdminMediaController {
   constructor(
     private readonly videos: AdminVideosService,
     private readonly stickers: AdminStickersService,
+    private readonly audit: AuditLogService,
   ) {}
+
+  /** Owner 2026-10-04 (bulk moderation): each item keeps the audit row
+   * its single action writes; the batch adds one row with every id. */
+  private async bulk(
+    admin: AdminActor,
+    action: string,
+    targetType: string,
+    dto: AdminBulkReasonDto,
+    fn: (id: string) => Promise<unknown>,
+  ): Promise<AdminBulkResultDto> {
+    const result = await eachId(dto.ids, fn);
+    await this.audit.record({
+      adminId: admin.id,
+      action: `admin.media.${action}`,
+      targetType,
+      targetId: null,
+      after: {
+        reason: dto.reason,
+        requested: dto.ids.length,
+        done: result.done,
+        skipped: result.skipped.map((s) => ({ id: s.id, reason: s.reason })),
+      },
+      ip: admin.ip,
+    });
+    return result;
+  }
 
   // --- reels -----------------------------------------------------------------------
 
@@ -66,7 +99,7 @@ export class AdminMediaController {
   listAdminVideos(
     @Query() q: AdminVideosQueryDto,
   ): Promise<Page<AdminVideoRowDto>> {
-    return this.videos.list(q.status, q.ownerId, q.cursor);
+    return this.videos.list(q.status, q.ownerId, q.cursor, q);
   }
 
   @Get('videos/stats')
@@ -93,6 +126,23 @@ export class AdminMediaController {
     @Body() dto: AdminMediaReasonDto,
   ): Promise<void> {
     return this.videos.takedown(admin, p.id, dto.reason);
+  }
+
+  @Post('videos/bulk-takedown')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Take many videos down with one reason (posts removed, authors told why)',
+  })
+  @ApiEnvelopeResponse(AdminBulkResultDto)
+  @ApiErrors({ 400: [E.VALIDATION_ERROR] })
+  bulkTakedownAdminVideos(
+    @CurrentAdmin() admin: AdminActor,
+    @Body() dto: AdminBulkReasonDto,
+  ): Promise<AdminBulkResultDto> {
+    return this.bulk(admin, 'bulk_takedown', 'video_asset', dto, (id) =>
+      this.videos.takedown(admin, id, dto.reason),
+    );
   }
 
   // --- stickers --------------------------------------------------------------------
@@ -131,6 +181,36 @@ export class AdminMediaController {
     @Param() p: AdminMediaIdParamDto,
   ): Promise<AdminStickerPackDto> {
     return this.stickers.get(p.id);
+  }
+
+  @Post('sticker-packs/bulk-hide')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Hide many packs with one reason (authors told why)',
+  })
+  @ApiEnvelopeResponse(AdminBulkResultDto)
+  @ApiErrors({ 400: [E.VALIDATION_ERROR] })
+  bulkHideAdminStickerPacks(
+    @CurrentAdmin() admin: AdminActor,
+    @Body() dto: AdminBulkReasonDto,
+  ): Promise<AdminBulkResultDto> {
+    return this.bulk(admin, 'bulk_hide', 'sticker_pack', dto, (id) =>
+      this.stickers.setHidden(admin, id, true, dto.reason),
+    );
+  }
+
+  @Post('sticker-packs/bulk-unhide')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Make many hidden packs available again' })
+  @ApiEnvelopeResponse(AdminBulkResultDto)
+  @ApiErrors({ 400: [E.VALIDATION_ERROR] })
+  bulkUnhideAdminStickerPacks(
+    @CurrentAdmin() admin: AdminActor,
+    @Body() dto: AdminBulkReasonDto,
+  ): Promise<AdminBulkResultDto> {
+    return this.bulk(admin, 'bulk_unhide', 'sticker_pack', dto, (id) =>
+      this.stickers.setHidden(admin, id, false, dto.reason),
+    );
   }
 
   @Post('sticker-packs/:id/hide')

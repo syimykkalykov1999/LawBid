@@ -16,12 +16,84 @@ import { Input, Label, Select } from '@/components/ui/input';
 import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { Tabs } from '@/components/ui/tabs';
 import { ClientReviewsPanel, RestoreContentButton } from '@/components/content/client-reviews-panel';
+import {
+  AuthorFilterButton,
+  BulkBar,
+  bulkData,
+  EMPTY_FILTER,
+  FilterFields,
+  filterKey,
+  type ListFilter,
+  PageSelectBox,
+  RowSelectBox,
+  useBulkRun,
+  useSelection,
+} from '@/components/bulk/bulk-controls';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
+import type { components } from '@/lib/api/schema';
+import { collectIds, dayBounds, type Noun } from '@/lib/bulk';
+import { useMe } from '@/lib/hooks';
+import { can } from '@/lib/rbac';
 import { CONTENT_STATUS, StatusPill } from '@/lib/labels';
 import { formatDateTime } from '@/lib/utils';
 
 type Tab = 'posts' | 'comments' | 'reviews' | 'client-reviews';
+type BulkType = components['schemas']['AdminBulkContentType'];
+type BulkAction = components['schemas']['AdminBulkContentAction'];
+
+const POSTS: Noun = ['публикацию', 'публикации', 'публикаций'];
+const COMMENTS: Noun = ['комментарий', 'комментария', 'комментариев'];
+const REVIEWS: Noun = ['отзыв', 'отзыва', 'отзывов'];
+
+/** Owner 2026-10-04: one bulk endpoint for posts, comments and reviews. */
+async function sendBulk(action: BulkAction, type: BulkType, ids: string[], reason: string) {
+  return bulkData(await api.POST('/admin/content/bulk', { body: { action, type, ids, reason } }));
+}
+
+const filterQuery = (f: ListFilter) => ({ authorId: f.author?.id, ...dayBounds(f.from, f.to) });
+
+function useCanModerate() {
+  const { data: me } = useMe();
+  return can(me, 'content', 'manage');
+}
+
+/** The three bulk buttons; [actions] picks which apply to the list. */
+function BulkActions({
+  actions,
+  pending,
+  onAction,
+}: {
+  actions: BulkAction[];
+  pending: boolean;
+  onAction: (a: BulkAction) => void;
+}) {
+  return (
+    <>
+      {actions.includes('remove') ? (
+        <Button size="sm" variant="danger" disabled={pending} onClick={() => onAction('remove')}>
+          Удалить
+        </Button>
+      ) : null}
+      {actions.includes('hide') ? (
+        <Button size="sm" variant="danger-soft" disabled={pending} onClick={() => onAction('hide')}>
+          Скрыть
+        </Button>
+      ) : null}
+      {actions.includes('restore') ? (
+        <Button size="sm" variant="soft" disabled={pending} onClick={() => onAction('restore')}>
+          Вернуть
+        </Button>
+      ) : null}
+    </>
+  );
+}
+
+const ACTION_TEXT: Record<BulkAction, { verb: string; done: string; danger: boolean; describe: (what: string) => string }> = {
+  remove: { verb: 'Удалить', done: 'Удалено', danger: true, describe: (w) => `${w} пропадут у всех. Каждый автор получит уведомление с этой причиной. Уже удалённые будут пропущены.` },
+  hide: { verb: 'Скрыть', done: 'Скрыто', danger: true, describe: (w) => `${w} скроются. Каждый автор получит уведомление с этой причиной.` },
+  restore: { verb: 'Вернуть', done: 'Возвращено', danger: false, describe: (w) => `${w} снова станут видны. Удалённые авторами и те, у кого снято видео, будут пропущены.` },
+};
 
 /**
  * Owner 2026-09-30 — every post / news, every comment (posts and cases)
@@ -36,7 +108,7 @@ export default function ContentPage() {
       <PageHeader
         eyebrow="Модерация"
         title="Посты и отзывы"
-        subtitle="Публикации, новости, комментарии и отзывы. Удаление — с причиной, автор получает уведомление."
+        subtitle="Публикации, новости, комментарии и отзывы. Удаление — с причиной, автор получает уведомление. Отметьте строки галочками, чтобы удалить, скрыть или вернуть сразу много."
       />
       {dialog}
       <Tabs<Tab>
@@ -90,17 +162,38 @@ function Posts({ ask }: { ask: Ask }) {
   const text = useDebounced(input.trim(), 300);
   const [kind, setKind] = useState<'' | 'post' | 'news'>('');
   const [onlyVideo, setOnlyVideo] = useState(false);
+  const [filter, setFilter] = useState<ListFilter>(EMPTY_FILTER);
+  const canWrite = useCanModerate();
+  const sel = useSelection(`${text}|${kind}|${onlyVideo}|${filterKey(filter)}`);
+  const bulk = useBulkRun();
+  const fetchPage = async (cursor: string | undefined) =>
+    (
+      await api.GET('/admin/content/posts', {
+        params: { query: { q: text || undefined, kind: kind || undefined, media: onlyVideo ? 'video' : undefined, cursor, ...filterQuery(filter) } },
+      })
+    ).data!;
   const q = useInfiniteQuery({
-    queryKey: ['admin-posts', text, kind, onlyVideo],
+    queryKey: ['admin-posts', text, kind, onlyVideo, filterKey(filter)],
     initialPageParam: undefined as string | undefined,
-    queryFn: async ({ pageParam }) =>
-      (
-        await api.GET('/admin/content/posts', {
-          params: { query: { q: text || undefined, kind: kind || undefined, media: onlyVideo ? 'video' : undefined, cursor: pageParam } },
-        })
-      ).data!,
+    queryFn: ({ pageParam }) => fetchPage(pageParam),
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
   });
+  const onBulk = (action: BulkAction) => {
+    const t = ACTION_TEXT[action];
+    bulk.run({
+      ids: [...sel.selected],
+      verb: t.verb,
+      doneVerb: t.done,
+      noun: POSTS,
+      danger: t.danger,
+      description: t.describe('Выбранные публикации'),
+      send: (ids, reason) => sendBulk(action, 'post', ids, reason),
+      onDone: () => {
+        sel.clear();
+        void qc.invalidateQueries({ queryKey: ['admin-posts'] });
+      },
+    });
+  };
   const remove = useMutation({
     mutationFn: async (input: { id: string; reason: string }) => {
       const r = await api.POST('/admin/content/posts/{id}/remove', {
@@ -135,12 +228,36 @@ function Posts({ ask }: { ask: Ask }) {
             <option value="video">с видео (бывшие рилсы)</option>
           </Select>
         </div>
+        <FilterFields id="pf" value={filter} onChange={setFilter} />
         <CsvButton entity="posts" />
       </div>
+      {bulk.dialog}
+      {canWrite ? (
+        <BulkBar
+          selectedCount={sel.selected.size}
+          noun={POSTS}
+          onClear={sel.clear}
+          onSelectAll={async () => {
+            const r = await collectIds(async (c) => {
+              const p = await fetchPage(c);
+              return { data: p.data, nextCursor: p.meta?.nextCursor };
+            });
+            sel.replace(r.ids);
+            return r.capped;
+          }}
+        >
+          <BulkActions actions={['remove', 'hide', 'restore']} pending={bulk.pending} onAction={onBulk} />
+        </BulkBar>
+      ) : null}
       <ErrorNote text={q.error ? errorText(q.error) : null} />
       <Table>
         <thead>
           <tr>
+            {canWrite ? (
+              <Th className="w-10">
+                <PageSelectBox selected={sel.selected} ids={rows.map((p) => p.id)} onToggle={sel.togglePage} />
+              </Th>
+            ) : null}
             <Th>Публикация</Th>
             <Th>Автор</Th>
             <Th>Квалификация</Th>
@@ -150,9 +267,14 @@ function Posts({ ask }: { ask: Ask }) {
           </tr>
         </thead>
         <tbody>
-          {q.isPending ? <TableEmpty colSpan={6} loading /> : null}
+          {q.isPending ? <TableEmpty colSpan={canWrite ? 7 : 6} loading /> : null}
           {rows.map((p, i) => (
             <MotionRow key={p.id} i={i}>
+              {canWrite ? (
+                <Td>
+                  <RowSelectBox selected={sel.selected} id={p.id} onToggle={sel.toggle} />
+                </Td>
+              ) : null}
               <Td className="max-w-md">
                 {p.kind === 'news' ? <Badge tone="gold">новость</Badge> : null}
                 {p.hasVideo ? <Badge tone="info">видео</Badge> : null}
@@ -163,6 +285,7 @@ function Posts({ ask }: { ask: Ask }) {
                 <Link href={`/users/${p.authorId}`} className="text-gold-600 hover:underline">
                   {p.authorName}
                 </Link>
+                <AuthorFilterButton active={filter.author?.id === p.authorId} onPick={() => setFilter({ ...filter, author: { id: p.authorId, name: p.authorName } })} />
               </Td>
               <Td className="text-xs">{p.practice ?? '—'}</Td>
               <Td className="text-xs tabular-nums">
@@ -189,7 +312,7 @@ function Posts({ ask }: { ask: Ask }) {
             </MotionRow>
           ))}
           {!q.isPending && rows.length === 0 ? (
-            <TableEmpty colSpan={6}>{text ? 'Ничего не найдено' : 'Публикаций пока нет'}</TableEmpty>
+            <TableEmpty colSpan={canWrite ? 7 : 6}>{text || filterKey(filter) !== '||' ? 'Ничего не найдено' : 'Публикаций пока нет'}</TableEmpty>
           ) : null}
         </tbody>
       </Table>
@@ -204,17 +327,38 @@ function Comments({ ask }: { ask: Ask }) {
   const [input, setInput] = useState('');
   const text = useDebounced(input.trim(), 300);
   const [thread, setThread] = useState<'post' | 'case'>('post');
+  const [filter, setFilter] = useState<ListFilter>(EMPTY_FILTER);
+  const canWrite = useCanModerate();
+  const sel = useSelection(`${text}|${thread}|${filterKey(filter)}`);
+  const bulk = useBulkRun();
+  const fetchPage = async (cursor: string | undefined) =>
+    (
+      await api.GET('/admin/content/comments', {
+        params: { query: { q: text || undefined, thread, cursor, ...filterQuery(filter) } },
+      })
+    ).data!;
   const q = useInfiniteQuery({
-    queryKey: ['admin-comments', text, thread],
+    queryKey: ['admin-comments', text, thread, filterKey(filter)],
     initialPageParam: undefined as string | undefined,
-    queryFn: async ({ pageParam }) =>
-      (
-        await api.GET('/admin/content/comments', {
-          params: { query: { q: text || undefined, thread, cursor: pageParam } },
-        })
-      ).data!,
+    queryFn: ({ pageParam }) => fetchPage(pageParam),
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
   });
+  const onBulk = (action: BulkAction) => {
+    const t = ACTION_TEXT[action];
+    bulk.run({
+      ids: [...sel.selected],
+      verb: t.verb,
+      doneVerb: t.done,
+      noun: COMMENTS,
+      danger: t.danger,
+      description: t.describe('Выбранные комментарии'),
+      send: (ids, reason) => sendBulk(action, thread === 'case' ? 'case_comment' : 'comment', ids, reason),
+      onDone: () => {
+        sel.clear();
+        void qc.invalidateQueries({ queryKey: ['admin-comments'] });
+      },
+    });
+  };
   const remove = useMutation({
     mutationFn: async (input: { id: string; reason: string }) => {
       const r = await api.POST('/admin/content/comments/{id}/remove', {
@@ -241,11 +385,35 @@ function Comments({ ask }: { ask: Ask }) {
             <option value="case">под кейсами</option>
           </Select>
         </div>
+        <FilterFields id="cf" value={filter} onChange={setFilter} />
       </div>
+      {bulk.dialog}
+      {canWrite ? (
+        <BulkBar
+          selectedCount={sel.selected.size}
+          noun={COMMENTS}
+          onClear={sel.clear}
+          onSelectAll={async () => {
+            const r = await collectIds(async (c) => {
+              const p = await fetchPage(c);
+              return { data: p.data, nextCursor: p.meta?.nextCursor };
+            });
+            sel.replace(r.ids);
+            return r.capped;
+          }}
+        >
+          <BulkActions actions={['remove', 'hide', 'restore']} pending={bulk.pending} onAction={onBulk} />
+        </BulkBar>
+      ) : null}
       <ErrorNote text={q.error ? errorText(q.error) : null} />
       <Table>
         <thead>
           <tr>
+            {canWrite ? (
+              <Th className="w-10">
+                <PageSelectBox selected={sel.selected} ids={rows.map((c) => c.id)} onToggle={sel.togglePage} />
+              </Th>
+            ) : null}
             <Th>Комментарий</Th>
             <Th>Автор</Th>
             <Th>{thread === 'post' ? 'Публикация' : 'Кейс'}</Th>
@@ -254,14 +422,20 @@ function Comments({ ask }: { ask: Ask }) {
           </tr>
         </thead>
         <tbody>
-          {q.isPending ? <TableEmpty colSpan={5} loading /> : null}
+          {q.isPending ? <TableEmpty colSpan={canWrite ? 6 : 5} loading /> : null}
           {rows.map((c, i) => (
             <MotionRow key={c.id} i={i}>
+              {canWrite ? (
+                <Td>
+                  <RowSelectBox selected={sel.selected} id={c.id} onToggle={sel.toggle} />
+                </Td>
+              ) : null}
               <Td className="max-w-md text-sm">{c.body}</Td>
               <Td className="text-xs">
                 <Link href={`/users/${c.authorId}`} className="text-gold-600 hover:underline">
                   {c.authorName}
                 </Link>
+                <AuthorFilterButton active={filter.author?.id === c.authorId} onPick={() => setFilter({ ...filter, author: { id: c.authorId, name: c.authorName } })} />
               </Td>
               <Td className="max-w-xs text-xs">
                 {thread === 'case' ? (
@@ -293,7 +467,7 @@ function Comments({ ask }: { ask: Ask }) {
             </MotionRow>
           ))}
           {!q.isPending && rows.length === 0 ? (
-            <TableEmpty colSpan={5}>{text ? 'Ничего не найдено' : 'Комментариев пока нет'}</TableEmpty>
+            <TableEmpty colSpan={canWrite ? 6 : 5}>{text || filterKey(filter) !== '||' ? 'Ничего не найдено' : 'Комментариев пока нет'}</TableEmpty>
           ) : null}
         </tbody>
       </Table>
@@ -307,13 +481,34 @@ function Reviews({ ask }: { ask: Ask }) {
   const toast = useToast();
   const [input, setInput] = useState('');
   const text = useDebounced(input.trim(), 300);
+  const [filter, setFilter] = useState<ListFilter>(EMPTY_FILTER);
+  const canWrite = useCanModerate();
+  const sel = useSelection(`${text}|${filterKey(filter)}`);
+  const bulk = useBulkRun();
+  const fetchPage = async (cursor: string | undefined) =>
+    (await api.GET('/admin/content/reviews', { params: { query: { q: text || undefined, cursor, ...filterQuery(filter) } } })).data!;
   const q = useInfiniteQuery({
-    queryKey: ['admin-reviews', text],
+    queryKey: ['admin-reviews', text, filterKey(filter)],
     initialPageParam: undefined as string | undefined,
-    queryFn: async ({ pageParam }) =>
-      (await api.GET('/admin/content/reviews', { params: { query: { q: text || undefined, cursor: pageParam } } })).data!,
+    queryFn: ({ pageParam }) => fetchPage(pageParam),
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
   });
+  const onBulk = (action: BulkAction) => {
+    const t = ACTION_TEXT[action];
+    bulk.run({
+      ids: [...sel.selected],
+      verb: t.verb,
+      doneVerb: t.done,
+      noun: REVIEWS,
+      danger: t.danger,
+      description: action === 'hide' ? 'Отзывы пропадут из профилей адвокатов, рейтинги пересчитаются. Каждый автор получит уведомление с этой причиной.' : 'Отзывы снова появятся в профилях, рейтинги пересчитаются.',
+      send: (ids, reason) => sendBulk(action, 'review', ids, reason),
+      onDone: () => {
+        sel.clear();
+        void qc.invalidateQueries({ queryKey: ['admin-reviews'] });
+      },
+    });
+  };
   const act = useMutation({
     mutationFn: async (input: { id: string; hide: boolean; reason?: string }) => {
       const r = input.hide
@@ -341,11 +536,35 @@ function Reviews({ ask }: { ask: Ask }) {
     <>
       <div className="mb-4 flex flex-wrap items-end gap-3">
         <SearchBox id="rq" value={input} onChange={setInput} placeholder="Текст отзыва, адвокат или клиент" />
+        <FilterFields id="rf" value={filter} onChange={setFilter} authorLabel="Автор (клиент)" />
       </div>
+      {bulk.dialog}
+      {canWrite ? (
+        <BulkBar
+          selectedCount={sel.selected.size}
+          noun={REVIEWS}
+          onClear={sel.clear}
+          onSelectAll={async () => {
+            const r = await collectIds(async (c) => {
+              const p = await fetchPage(c);
+              return { data: p.data, nextCursor: p.meta?.nextCursor };
+            });
+            sel.replace(r.ids);
+            return r.capped;
+          }}
+        >
+          <BulkActions actions={['hide', 'restore']} pending={bulk.pending} onAction={onBulk} />
+        </BulkBar>
+      ) : null}
       <ErrorNote text={q.error ? errorText(q.error) : null} />
       <Table>
         <thead>
           <tr>
+            {canWrite ? (
+              <Th className="w-10">
+                <PageSelectBox selected={sel.selected} ids={rows.map((r) => r.id)} onToggle={sel.togglePage} />
+              </Th>
+            ) : null}
             <Th>Отзыв</Th>
             <Th>Адвокат</Th>
             <Th>Клиент</Th>
@@ -355,9 +574,14 @@ function Reviews({ ask }: { ask: Ask }) {
           </tr>
         </thead>
         <tbody>
-          {q.isPending ? <TableEmpty colSpan={6} loading /> : null}
+          {q.isPending ? <TableEmpty colSpan={canWrite ? 7 : 6} loading /> : null}
           {rows.map((r, i) => (
             <MotionRow key={r.id} i={i}>
+              {canWrite ? (
+                <Td>
+                  <RowSelectBox selected={sel.selected} id={r.id} onToggle={sel.toggle} />
+                </Td>
+              ) : null}
               <Td className="max-w-md">
                 <div className="text-gold-600">
                   {'★'.repeat(r.rating)}
@@ -366,7 +590,10 @@ function Reviews({ ask }: { ask: Ask }) {
                 <div className="line-clamp-3 text-xs">{r.body ?? 'без текста'}</div>
               </Td>
               <Td className="text-xs">{r.attorneyName}</Td>
-              <Td className="text-xs">{r.clientName}</Td>
+              <Td className="text-xs">
+                {r.clientName}
+                <AuthorFilterButton active={filter.author?.id === r.clientId} onPick={() => setFilter({ ...filter, author: { id: r.clientId, name: r.clientName } })} />
+              </Td>
               <Td className="max-w-xs text-xs">{r.caseTitle}</Td>
               <Td>
                 <StatusPill map={REVIEW_STATUS} value={r.status} />
@@ -401,7 +628,7 @@ function Reviews({ ask }: { ask: Ask }) {
             </MotionRow>
           ))}
           {!q.isPending && rows.length === 0 ? (
-            <TableEmpty colSpan={6}>{text ? 'Ничего не найдено' : 'Отзывов нет'}</TableEmpty>
+            <TableEmpty colSpan={canWrite ? 7 : 6}>{text || filterKey(filter) !== '||' ? 'Ничего не найдено' : 'Отзывов нет'}</TableEmpty>
           ) : null}
         </tbody>
       </Table>

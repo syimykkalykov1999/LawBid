@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import {
+  IsISO8601,
   IsIn,
   IsInt,
   IsOptional,
@@ -67,6 +68,22 @@ export class AdminVideosQueryDto extends CursorQueryDto {
   @IsOptional()
   @IsUUID('all')
   ownerId?: string;
+
+  @ApiPropertyOptional({
+    format: 'date-time',
+    description: 'Uploaded at or after (inclusive).',
+  })
+  @IsOptional()
+  @IsISO8601()
+  from?: string;
+
+  @ApiPropertyOptional({
+    format: 'date-time',
+    description: 'Uploaded before (exclusive).',
+  })
+  @IsOptional()
+  @IsISO8601()
+  to?: string;
 }
 
 export class AdminVideoRowDto {

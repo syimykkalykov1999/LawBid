@@ -13,6 +13,7 @@ class BroadcastDto {
     required this.title,
     required this.body,
     required this.audience,
+    required this.stateCodes,
     required this.recipients,
     required this.createdAt,
     this.stateCode,
@@ -26,6 +27,9 @@ class BroadcastDto {
   final String body;
   final String audience;
   final String? stateCode;
+
+  /// The chosen states (empty = every state).
+  final List<String> stateCodes;
   final int recipients;
   final String createdAt;
 

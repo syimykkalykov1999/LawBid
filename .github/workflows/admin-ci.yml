@@ -45,6 +45,8 @@ jobs:
         run: npx tsc --noEmit -p apps/admin/tsconfig.json
       - name: Lint
         run: npm run lint --workspace apps/admin
+      - name: Unit + component tests
+        run: npm test --workspace apps/admin
       - name: Build
         run: npm run build --workspace apps/admin
         env:
