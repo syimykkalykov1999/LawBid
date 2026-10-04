@@ -148,7 +148,9 @@ class _VerificationWizardScreenState
         if (r.pendingLicenses.isEmpty) {
           return _t.t('verification.missing.license');
         }
-        if (!r.licensesComplete) return _t.t('verification.licenses.needDocs');
+        if (!r.licensesReady(barDocumentRequired: s.barDocumentRequired)) {
+          return _t.t('verification.licenses.needDocs');
+        }
       case WizardStep.identity:
         final front =
             r.docsFor(DocSlot.identity(s.idType, DocSide.front)).isNotEmpty;
@@ -315,7 +317,11 @@ class _VerificationWizardScreenState
       },
     );
     final body = switch (s.step) {
-      WizardStep.intro => IntroStep(t: t, identityRequired: s.identityRequired),
+      WizardStep.intro => IntroStep(
+          t: t,
+          identityRequired: s.identityRequired,
+          barDocumentRequired: s.barDocumentRequired,
+        ),
       WizardStep.licenses => LicensesStep(t: t, state: s, actions: actions),
       WizardStep.identity => IdentityStep(t: t, state: s, actions: actions),
       WizardStep.selfie => SelfieStep(t: t, state: s, actions: actions),

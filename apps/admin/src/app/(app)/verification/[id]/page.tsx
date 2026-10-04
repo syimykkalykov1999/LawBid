@@ -328,13 +328,28 @@ export default function VerificationCardPage() {
             {r.licenses.map((l, i) => (
               <MotionRow key={l.id} i={i}>
                 <Td>{l.stateCode} <span className="text-xs text-muted">{l.stateName}</span></Td>
-                <Td className="font-mono text-xs">{l.barNumber}</Td>
+                <Td className="font-mono text-xs">
+                  {l.barNumber}
+                  {l.lookupUrl ? (
+                    <a href={l.lookupUrl} target="_blank" rel="noreferrer" className="mt-1 block font-sans text-primary underline">
+                      Открыть в коллегии штата
+                    </a>
+                  ) : null}
+                </Td>
                 <Td>
                   <StatusPill map={LICENSE_STATUS} value={l.status} />
                   {l.rejectionCode ? <div className="mt-1 text-xs text-muted">{label(REJECTION_CODE, l.rejectionCode)}{l.rejectionNote ? ` — ${l.rejectionNote}` : ''}</div> : null}
                 </Td>
                 <Td className="max-w-64 text-xs">
-                  {l.autoCheckResult ? <pre className="max-h-24 overflow-auto rounded-lg bg-surface-2 p-1.5">{JSON.stringify(l.autoCheckResult, null, 1)}</pre> : '—'}
+                  {l.autoCheckResult ? (
+                    <>
+                      <div className="font-medium">{autoCheckLabel(l.autoCheckResult)}</div>
+                      <details className="mt-1">
+                        <summary className="cursor-pointer text-muted">Подробно</summary>
+                        <pre className="max-h-24 overflow-auto rounded-lg bg-surface-2 p-1.5">{JSON.stringify(l.autoCheckResult, null, 1)}</pre>
+                      </details>
+                    </>
+                  ) : '—'}
                 </Td>
                 <Td className="whitespace-nowrap">{l.expiresAt ? formatDateTime(l.expiresAt) : '—'}</Td>
                 <Td>
@@ -418,4 +433,25 @@ function Row({ k, v }: { k: string; v: React.ReactNode }) {
       <span className="text-right">{v}</span>
     </div>
   );
+}
+
+/** One line for the verifier: what the state registry said (owner
+ * 2026-10-04: NY is checked automatically, other states by the link). */
+function autoCheckLabel(r: Record<string, unknown>): string {
+  const name = typeof r.name === 'string' && r.name ? ` (${r.name})` : '';
+  if (r.result === 'pass') return `Совпало с реестром штата${name}`;
+  switch (r.reason) {
+    case 'no_adapter_for_state':
+      return 'У штата нет API — проверьте по ссылке';
+    case 'not_found':
+      return 'Номер не найден в реестре';
+    case 'not_active':
+      return `Лицензия не активна: ${String(r.registryStatus ?? '—')}`;
+    case 'name_mismatch':
+      return `Имя в реестре другое${name}`;
+    case 'provider_error':
+      return 'Реестр не ответил — проверьте по ссылке';
+    default:
+      return String(r.result ?? '—');
+  }
 }

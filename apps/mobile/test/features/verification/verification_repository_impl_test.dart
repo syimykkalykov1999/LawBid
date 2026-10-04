@@ -66,6 +66,7 @@ void main() {
             ],
           ),
           'identityRequired': true,
+          'barDocumentRequired': false,
           'submissionsLast30Days': 2,
           'maxSubmissions30Days': 5,
         });
@@ -76,6 +77,7 @@ void main() {
     expect(o.request!.documents.single.kind, DocKind.driversLicense);
     expect(o.request!.documents.single.side, DocSide.back);
     expect(o.submissionsLast30Days, 2);
+    expect(o.barDocumentRequired, isFalse);
     expect(adapter.requests.single.path, '/verification/me');
   });
 

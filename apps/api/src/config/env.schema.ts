@@ -546,7 +546,8 @@ export const envSchema = z
       blankToUndefined,
       z.string().min(8).optional(),
     ),
-    BAR_LOOKUP_API_KEY: z.preprocess(
+    // Optional Socrata app token of the NY attorney registry (data.ny.gov).
+    NY_OPEN_DATA_APP_TOKEN: z.preprocess(
       blankToUndefined,
       z.string().min(8).optional(),
     ),

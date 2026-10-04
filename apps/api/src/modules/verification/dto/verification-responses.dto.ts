@@ -118,9 +118,15 @@ export class VerificationOverviewDto {
 
   @ApiProperty({
     description:
-      'Identity document and selfie are required (false for an already verified attorney adding a state, §2.1).',
+      'Identity document and selfie are required: off by default (owner 2026-10-04, setting verification.require_identity); always on for a verified attorney confirming a new name.',
   })
   identityRequired!: boolean;
+
+  @ApiProperty({
+    description:
+      'A photo of the bar card is required per license (setting verification.require_bar_document, off by default).',
+  })
+  barDocumentRequired!: boolean;
 
   @ApiProperty({ type: 'integer' })
   submissionsLast30Days!: number;

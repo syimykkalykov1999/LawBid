@@ -47984,7 +47984,11 @@
           },
           "identityRequired": {
             "type": "boolean",
-            "description": "Identity document and selfie are required (false for an already verified attorney adding a state, §2.1)."
+            "description": "Identity document and selfie are required: off by default (owner 2026-10-04, setting verification.require_identity); always on for a verified attorney confirming a new name."
+          },
+          "barDocumentRequired": {
+            "type": "boolean",
+            "description": "A photo of the bar card is required per license (setting verification.require_bar_document, off by default)."
           },
           "submissionsLast30Days": {
             "type": "integer"
@@ -47996,6 +48000,7 @@
         "required": [
           "verificationStatus",
           "identityRequired",
+          "barDocumentRequired",
           "submissionsLast30Days",
           "maxSubmissions30Days"
         ]
@@ -48258,6 +48263,11 @@
             "nullable": true,
             "description": "Latest automatic bar lookup (§2.4), null if none ran."
           },
+          "lookupUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "The state bar's public lookup page for this license (profile page when the state has one per number)."
+          },
           "rejectionCode": {
             "type": "string",
             "nullable": true
@@ -48285,6 +48295,7 @@
           "status",
           "expiresAt",
           "autoCheckResult",
+          "lookupUrl",
           "rejectionCode",
           "rejectionNote",
           "verifiedAt",

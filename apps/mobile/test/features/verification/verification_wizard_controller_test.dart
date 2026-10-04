@@ -132,6 +132,37 @@ void main() {
       );
       // An already verified attorney adding a state: no ID/selfie steps.
       expect(resumeStep(draft(), identityRequired: false), WizardStep.review);
+    });
+
+    test('owner 2026-10-04: state + bar number are enough without a bar card',
+        () {
+      const numberOnly = VerificationRequest(
+        id: 'r',
+        status: RequestStatus.draft,
+        licenses: [],
+        documents: [],
+      );
+      final withLicense = VerificationRequest(
+        id: 'r',
+        status: RequestStatus.draft,
+        licenses: [license('NY')],
+        documents: const [],
+      );
+      expect(withLicense.licensesComplete, isFalse);
+      expect(withLicense.licensesReady(barDocumentRequired: false), isTrue);
+      expect(numberOnly.licensesReady(barDocumentRequired: false), isFalse);
+      expect(
+        resumeStep(
+          withLicense,
+          identityRequired: false,
+          barDocumentRequired: false,
+        ),
+        WizardStep.review,
+      );
+      expect(
+        resumeStep(withLicense, identityRequired: false),
+        WizardStep.licenses,
+      );
       expect(
         resumeStep(
           draft(status: RequestStatus.needsMoreInfo),

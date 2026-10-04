@@ -94,10 +94,16 @@ describe('Verification (e2e) — docs/03 stages 3.3–3.4', () => {
       })
     ).id;
     await setFlag('stripe_identity', false);
+    // No registry calls from e2e: NY lookups stay off (unit-tested).
+    await setFlag('auto_bar_check', false);
+    await setConfig('verification.require_identity', false);
+    await setConfig('verification.require_bar_document', false);
   });
 
   afterAll(async () => {
     await setFlag('stripe_identity', false);
+    await setConfig('verification.require_identity', false);
+    await setConfig('verification.require_bar_document', false);
     await app.close();
   });
 
@@ -114,6 +120,15 @@ describe('Verification (e2e) — docs/03 stages 3.3–3.4', () => {
       update: { enabled },
     });
     await app.get(FeatureFlagsService).invalidate();
+  }
+
+  async function setConfig(key: string, value: boolean): Promise<void> {
+    await prisma.appConfig.upsert({
+      where: { key },
+      create: { key, value },
+      update: { value },
+    });
+    await app.get<Redis>(REDIS_CLIENT).del('config:app_config');
   }
 
   function nextPhone(): string {
@@ -291,7 +306,32 @@ describe('Verification (e2e) — docs/03 stages 3.3–3.4', () => {
       const data = (me.body as Body).data;
       expect(data.verificationStatus).toBe('unverified');
       expect((data.request as { id: string }).id).toBe(id);
-      expect(data.identityRequired).toBe(true);
+      // Owner 2026-10-04 ("только номер"): state + bar number only.
+      expect(data.identityRequired).toBe(false);
+      expect(data.barDocumentRequired).toBe(false);
+    });
+
+    it('owner 2026-10-04: state + bar number alone can be submitted', async () => {
+      const a = await attorney();
+      const id = await createDraft(a.auth);
+      const empty = await api()
+        .post(`/api/v1/verification/requests/${id}/submit`)
+        .set(a.auth)
+        .send({})
+        .expect(400);
+      expect((empty.body as Body).error?.details?.missing).toEqual(['license']);
+      await api()
+        .post(`/api/v1/verification/requests/${id}/licenses`)
+        .set(a.auth)
+        .send({ stateCode: 'NJ', barNumber: barNumber() })
+        .expect(201);
+      const sent = await api()
+        .post(`/api/v1/verification/requests/${id}/submit`)
+        .set(a.auth)
+        .send({})
+        .expect(200);
+      expect((sent.body as Body).data.status).toBe('submitted');
+      expect(await profileStatus(a.userId)).toBe('pending');
     });
 
     it('rejects clients and hides other attorneys requests', async () => {
@@ -310,7 +350,9 @@ describe('Verification (e2e) — docs/03 stages 3.3–3.4', () => {
       await api().post('/api/v1/verification/requests').set(auth).expect(403);
     });
 
-    it('cannot submit without license, identity document and selfie', async () => {
+    it('with both settings on: cannot submit without license, bar document, identity document and selfie', async () => {
+      await setConfig('verification.require_identity', true);
+      await setConfig('verification.require_bar_document', true);
       const a = await attorney();
       const id = await createDraft(a.auth);
       const empty = await api()
@@ -351,6 +393,8 @@ describe('Verification (e2e) — docs/03 stages 3.3–3.4', () => {
         ]),
       );
       expect(await profileStatus(a.userId)).toBe('unverified');
+      await setConfig('verification.require_identity', false);
+      await setConfig('verification.require_bar_document', false);
     });
 
     it('only clean files of the right purpose can be attached', async () => {

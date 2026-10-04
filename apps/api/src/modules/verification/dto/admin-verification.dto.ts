@@ -252,6 +252,14 @@ export class AdminLicenseDto {
   })
   autoCheckResult!: Record<string, unknown> | null;
 
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description:
+      "The state bar's public lookup page for this license (profile page when the state has one per number).",
+  })
+  lookupUrl!: string | null;
+
   @ApiProperty({ type: String, nullable: true })
   rejectionCode!: string | null;
 

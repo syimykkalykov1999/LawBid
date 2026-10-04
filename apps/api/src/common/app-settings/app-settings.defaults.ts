@@ -99,6 +99,14 @@ export const OWNER_BADGE_SETTINGS = {
   'verification.client_badge_cents': 1000,
 } as const;
 
+// Owner 2026-10-04 ("только номер"): an attorney verifies with state + bar
+// number only. A photo of the bar card and ID + selfie are asked for only
+// when switched on here (or, for ID + selfie, after a name change).
+export const OWNER_LAWYER_VERIFICATION_SETTINGS = {
+  'verification.require_bar_document': false,
+  'verification.require_identity': false,
+} as const;
+
 /** Every typed app_config tunable with its spec default. */
 export const APP_SETTINGS = {
   ...FILE_03_SETTINGS,
@@ -108,6 +116,7 @@ export const APP_SETTINGS = {
   ...OWNER_MEDIA_SETTINGS,
   ...OWNER_SUPPORT_SETTINGS,
   ...OWNER_BADGE_SETTINGS,
+  ...OWNER_LAWYER_VERIFICATION_SETTINGS,
 };
 
 export type AppSettingKey = keyof typeof APP_SETTINGS;

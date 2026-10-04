@@ -98,17 +98,28 @@ class PrivacyNote extends StatelessWidget {
 // --- 1. Intro ---------------------------------------------------------------
 
 class IntroStep extends StatelessWidget {
-  const IntroStep({required this.t, required this.identityRequired, super.key});
+  const IntroStep({
+    required this.t,
+    required this.identityRequired,
+    this.barDocumentRequired = true,
+    super.key,
+  });
 
   final Translator t;
   final bool identityRequired;
+  final bool barDocumentRequired;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final items = [
-      (AppIcons.balanceRounded, 'verification.intro.item.license'),
+      (
+        AppIcons.balanceRounded,
+        barDocumentRequired
+            ? 'verification.intro.item.license'
+            : 'verification.intro.item.licenseNumber'
+      ),
       if (identityRequired) ...[
         (AppIcons.badgeOutlined, 'verification.intro.item.id'),
         (
@@ -197,7 +208,11 @@ class LicensesStep extends StatelessWidget {
     final licenses = r.pendingLicenses;
     return StepBody(
       title: t.t('verification.licenses.title'),
-      lead: t.t('verification.licenses.lead'),
+      lead: t.t(
+        state.barDocumentRequired
+            ? 'verification.licenses.lead'
+            : 'verification.licenses.leadNumber',
+      ),
       children: [
         if (licenses.isEmpty)
           AppCard(
@@ -316,32 +331,39 @@ class _LicenseBlock extends StatelessWidget {
               ),
           ],
         ),
-        const SizedBox(height: AppSpacing.md),
-        DocumentSlotCard(
-          t: t,
-          title: t.t('verification.license.doc.title'),
-          subtitle: t.t('verification.license.doc.subtitle'),
-          icon: AppIcons.workspacePremiumOutlined,
-          documents: state.request.docsFor(slot),
-          tasks: state.tasksFor(slot),
-          canAdd: state.canAddTo(slot),
-          canRemoveAttached: state.request.isDraft,
-          onRemoveAttached: actions.removeDocument,
-          onRetry: actions.retry,
-          onCancel: actions.cancel,
-          actions: [
-            SlotAction(
-              label: t.t('verification.source.camera'),
-              icon: AppIcons.photoCameraOutlined,
-              onTap: () => actions.addFile(slot, FileOrigin.cameraCard),
-            ),
-            SlotAction(
-              label: t.t('verification.source.file'),
-              icon: AppIcons.uploadFileRounded,
-              onTap: () => actions.addFile(slot, FileOrigin.file),
-            ),
-          ],
-        ),
+        // Owner 2026-10-04: no bar card photo unless the API asks for it
+        // (or one is attached already, or the verifier asked for more).
+        if (state.barDocumentRequired ||
+            !state.request.isDraft ||
+            state.request.docsFor(slot).isNotEmpty ||
+            state.tasksFor(slot).isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.md),
+          DocumentSlotCard(
+            t: t,
+            title: t.t('verification.license.doc.title'),
+            subtitle: t.t('verification.license.doc.subtitle'),
+            icon: AppIcons.workspacePremiumOutlined,
+            documents: state.request.docsFor(slot),
+            tasks: state.tasksFor(slot),
+            canAdd: state.canAddTo(slot),
+            canRemoveAttached: state.request.isDraft,
+            onRemoveAttached: actions.removeDocument,
+            onRetry: actions.retry,
+            onCancel: actions.cancel,
+            actions: [
+              SlotAction(
+                label: t.t('verification.source.camera'),
+                icon: AppIcons.photoCameraOutlined,
+                onTap: () => actions.addFile(slot, FileOrigin.cameraCard),
+              ),
+              SlotAction(
+                label: t.t('verification.source.file'),
+                icon: AppIcons.uploadFileRounded,
+                onTap: () => actions.addFile(slot, FileOrigin.file),
+              ),
+            ],
+          ),
+        ],
       ],
     );
   }
@@ -620,7 +642,10 @@ class ReviewStep extends StatelessWidget {
           detail: r.pendingLicenses.isEmpty
               ? t.t('verification.review.none')
               : r.pendingLicenses.map((l) => l.stateName).join(', '),
-          complete: r.licensesComplete || !r.isDraft,
+          complete: r.licensesReady(
+                barDocumentRequired: state.barDocumentRequired,
+              ) ||
+              !r.isDraft,
           onEdit: () => actions.goTo(WizardStep.licenses),
         ),
         if (state.identityRequired) ...[

@@ -641,6 +641,8 @@ class StaticTranslatorRu extends _MapTranslator {
         'verification.intro.needed': 'Что понадобится',
         'verification.intro.item.license':
             'Номер лицензии и bar card, certificate of good standing или профиль State Bar для каждого штата',
+        'verification.intro.item.licenseNumber':
+            'Штат и номер лицензии (bar number) — и всё',
         'verification.intro.item.id':
             'Водительские права, паспорт или state ID',
         'verification.intro.item.selfie': 'Селфи, снятое камерой телефона',
@@ -650,6 +652,8 @@ class StaticTranslatorRu extends _MapTranslator {
         'verification.licenses.title': 'Ваши лицензии',
         'verification.licenses.lead':
             'Добавьте все штаты, где у вас есть лицензия. Для каждого загрузите bar card, certificate of good standing или скриншот/PDF профиля на сайте State Bar.',
+        'verification.licenses.leadNumber':
+            'Добавьте все штаты, где у вас есть лицензия, и номер лицензии. Мы сверим его с реестром штата.',
         'verification.licenses.empty': 'Штаты ещё не добавлены.',
         'verification.licenses.addFirst': 'Добавить штат',
         'verification.licenses.addAnother': 'Добавить ещё штат',
@@ -1984,6 +1988,8 @@ class StaticTranslatorEn extends _MapTranslator {
         'verification.intro.needed': "What you'll need",
         'verification.intro.item.license':
             'Bar number and a bar card, certificate of good standing or State Bar profile for each state',
+        'verification.intro.item.licenseNumber':
+            'Your state and bar number — that is all',
         'verification.intro.item.id': 'A driver license, passport or state ID',
         'verification.intro.item.selfie': 'A selfie taken with your camera',
         'verification.intro.disclaimer':
@@ -1992,6 +1998,8 @@ class StaticTranslatorEn extends _MapTranslator {
         'verification.licenses.title': 'Your licenses',
         'verification.licenses.lead':
             'Add every state where you are licensed. For each one, upload a bar card, a certificate of good standing or a screenshot/PDF of your State Bar profile.',
+        'verification.licenses.leadNumber':
+            'Add every state where you are licensed and your bar number. We check it against the state registry.',
         'verification.licenses.empty': 'No states added yet.',
         'verification.licenses.addFirst': 'Add a state',
         'verification.licenses.addAnother': 'Add another state',

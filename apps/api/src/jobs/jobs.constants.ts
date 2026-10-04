@@ -19,6 +19,8 @@ export const CRON_JOBS = {
   ratingReconcile: 'reviews.rating-reconcile',
   /** docs/03 §2.6: nightly license expiry + 30/7-day reminders. */
   licenseExpiry: 'licenses.expiry',
+  /** Owner 2026-10-04: monthly re-check of licenses in registry states. */
+  licenseRegistryRecheck: 'licenses.registry-recheck',
   /** docs/04 §2 (stage 4.4): safety-net withdrawal of an attorney's active
    * bids when SubscriptionAccessService.isActive() goes false. */
   bidSubscriptionLapse: 'bids.subscription-lapse',
@@ -77,6 +79,8 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   // 05:05 UTC = just after midnight US Eastern: expires_at is a date, the
   // license lapses "в день окончания".
   { name: CRON_JOBS.licenseExpiry, pattern: '5 5 * * *' },
+  // Monthly, the 2nd at 06:20 UTC (off-peak for the registry).
+  { name: CRON_JOBS.licenseRegistryRecheck, pattern: '20 6 2 * *' },
   // Hourly safety net (docs/04 §2, stage 4.4): usually a no-op once file
   // 06's subscription webhook calls withdrawActiveBidsForAttorney directly.
   { name: CRON_JOBS.bidSubscriptionLapse, pattern: '20 * * * *' },

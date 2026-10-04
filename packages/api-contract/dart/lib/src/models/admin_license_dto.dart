@@ -18,6 +18,7 @@ class AdminLicenseDto {
     required this.status,
     required this.expiresAt,
     required this.autoCheckResult,
+    required this.lookupUrl,
     required this.rejectionCode,
     required this.rejectionNote,
     required this.verifiedAt,
@@ -36,6 +37,9 @@ class AdminLicenseDto {
 
   /// Latest automatic bar lookup (§2.4), null if none ran.
   final dynamic autoCheckResult;
+
+  /// The state bar's public lookup page for this license (profile page when the state has one per number).
+  final String? lookupUrl;
   final String? rejectionCode;
   final String? rejectionNote;
   final DateTime? verifiedAt;

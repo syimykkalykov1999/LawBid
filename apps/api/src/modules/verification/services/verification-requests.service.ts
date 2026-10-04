@@ -83,22 +83,31 @@ export class VerificationRequestsService {
   ) {}
 
   /**
-   * ID + selfie are needed for a first verification and — owner decision
-   * 2026-09-30 (OQ-029) — for a verified attorney whose name no longer
-   * matches the verified one ("Confirm new name"); licenses alone
-   * otherwise. The profile stays verified while such a request is open.
+   * ID + selfie: owner 2026-10-04 ("только номер") — a first verification
+   * needs them only when `verification.require_identity` is on (off by
+   * default; the verifier can still ask for them with an info request).
+   * A verified attorney whose name no longer matches the verified one
+   * ("Confirm new name", OQ-029) always needs them. The profile stays
+   * verified while such a request is open.
    */
   private async identityRequired(
     userId: string,
     status: string,
     db: Pick<PrismaService, 'attorneyProfile'> = this.prisma,
   ): Promise<boolean> {
-    if (status !== 'verified') return true;
+    if (status !== 'verified') {
+      return this.settings.boolean('verification.require_identity');
+    }
     const row = await db.attorneyProfile.findUnique({
       where: { user_id: userId },
       select: { name_mismatch: true },
     });
     return row?.name_mismatch ?? false;
+  }
+
+  /** Photo of the bar card per license: optional unless switched on. */
+  private barDocumentRequired(): Promise<boolean> {
+    return this.settings.boolean('verification.require_bar_document');
   }
 
   async overview(
@@ -124,6 +133,7 @@ export class VerificationRequestsService {
       verificationStatus,
       request: latest ? toDto(latest) : null,
       identityRequired: await this.identityRequired(userId, verificationStatus),
+      barDocumentRequired: await this.barDocumentRequired(),
       submissionsLast30Days: used,
       maxSubmissions30Days: max,
     };
@@ -409,6 +419,7 @@ export class VerificationRequestsService {
   ): Promise<VerificationRequestDto> {
     const { verificationStatus } = await this.requireActiveAttorney(userId);
     const max = await this.settings.number('verification.max_submissions_30d');
+    const barDocRequired = await this.barDocumentRequired();
     const firstSubmission = await withTxRetry(this.prisma, async (tx) => {
       const req = await this.load(tx, userId, requestId);
       assertEditable(req.status);
@@ -418,6 +429,7 @@ export class VerificationRequestsService {
         req,
         fromDraft,
         await this.identityRequired(userId, verificationStatus, tx),
+        barDocRequired,
       );
       if (missing.length > 0) {
         throw httpError(
@@ -446,15 +458,16 @@ export class VerificationRequestsService {
     return this.get(userId, requestId);
   }
 
-  /** §2.1 completeness. A new submission needs ≥1 license (each with its
-   * bar document), plus — unless the attorney is already verified — an
-   * identity document (front, and back for driver license/state ID) and
-   * a selfie. Every attached file must still be `clean`. */
+  /** §2.1 completeness. A new submission needs ≥1 license; its bar
+   * document and the identity document (front, and back for driver
+   * license/state ID) + selfie only when required (see identityRequired,
+   * barDocumentRequired). Every attached file must still be `clean`. */
   private async missingItems(
     tx: Tx,
     req: RequestRow,
     fromDraft: boolean,
     identityRequired: boolean,
+    barDocRequired: boolean,
   ): Promise<MissingItem[]> {
     const missing: MissingItem[] = [];
     if (fromDraft) {
@@ -462,11 +475,14 @@ export class VerificationRequestsService {
         (l) => l.license_status === 'pending',
       );
       if (pending.length === 0) missing.push('license');
-      for (const l of pending) {
-        const has = req.documents.some(
-          (d) => d.doc_type === 'bar_license' && d.state_code === l.state_code,
-        );
-        if (!has) missing.push(`bar_license:${l.state_code}`);
+      if (barDocRequired) {
+        for (const l of pending) {
+          const has = req.documents.some(
+            (d) =>
+              d.doc_type === 'bar_license' && d.state_code === l.state_code,
+          );
+          if (!has) missing.push(`bar_license:${l.state_code}`);
+        }
       }
       if (identityRequired) {
         const identity = identityCompleteness(req.documents);
