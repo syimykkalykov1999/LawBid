@@ -1,0 +1,53 @@
+# One-button rollback of production (scaling TZ, point 9): Actions →
+# "Rollback production" → Run workflow → the image tag of a previous good
+# release (the commit SHA shown in an earlier "Deploy" run). Re-points
+# api / worker / admin at that image with the same rolling update as a
+# deploy, then runs the smoke checks. It skips staging and migrations on
+# purpose: migrations are expand/contract only (docs/02 §7.1), so the
+# previous release still runs against the current schema.
+# Needs the same secrets as deploy.yml and the `production` environment
+# (its required reviewers still approve the rollback).
+name: Rollback production
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Image tag to go back to (commit SHA of a previous good deploy)"
+        required: true
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
+  IMAGE_TAG: ${{ inputs.image_tag }}
+
+jobs:
+  rollback:
+    name: Roll production back to ${{ inputs.image_tag }}
+    if: ${{ vars.DEPLOY_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_PROD }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Image exists in ECR
+        run: |
+          for REPO in lawbid-api lawbid-admin; do
+            aws ecr describe-images --repository-name "$REPO" --image-ids imageTag="$IMAGE_TAG" >/dev/null
+          done
+      - name: Rolling update api / worker / admin
+        run: scripts/deploy/roll-services.sh lawbid-prod "$IMAGE_TAG"
+      - name: Smoke
+        run: scripts/deploy/smoke.sh "${{ secrets.PROD_API_URL }}" "${{ secrets.PROD_ADMIN_URL }}"

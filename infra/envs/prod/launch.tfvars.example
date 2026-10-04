@@ -1,0 +1,34 @@
+# Launch size for prod, ≈ $140/month
+# of AWS at us-east-1 prices (2026-10) plus CockroachDB Cloud billed separately.
+# Copy to terraform.tfvars and fill the REPLACE values. To grow, raise the
+# numbers below (or delete a line to fall back to the full-size default in
+# variables.tf) and run `terraform apply`; no code change is needed.
+
+domain            = "lawbid.dev"
+api_host          = "api.lawbid.dev"
+admin_host        = "admin.lawbid.dev"
+app_link_base_url = "https://lawbid.dev"
+certificate_arn   = "arn:aws:acm:us-east-1:047754151252:certificate/REPLACE"
+hosted_zone_id    = null # DNS stays at Namecheap; add `terraform output ses_dns` there
+dmarc_rua         = "support@lawbid.dev"
+ses_from_address  = "no-reply@lawbid.dev"
+api_image         = "047754151252.dkr.ecr.us-east-1.amazonaws.com/lawbid-api:REPLACE"
+admin_image       = "047754151252.dkr.ecr.us-east-1.amazonaws.com/lawbid-admin:REPLACE"
+alert_emails      = ["support@lawbid.dev"]
+stripe_price_id   = "price_REPLACE"
+
+# --- size (full-size default → launch) -----------------------------------
+min_tasks        = 1    # 2 → 1: one api + one worker task; autoscaling adds more
+api_max_tasks    = 4    # 20 → 4
+worker_max_tasks = 2    # 10 → 2
+api_cpu          = 512  # 1024 → 512 (0.5 vCPU)
+api_memory       = 1024 # 2048 → 1024
+worker_cpu       = 512
+worker_memory    = 1024
+admin_tasks      = 1    # 2 → 1
+
+redis_node_type = "cache.t4g.micro" # cache.r7g.large → t4g.micro (≈ $12)
+redis_replicas  = 0                 # 1 → 0 (no failover replica)
+
+nat_per_az          = false # one NAT gateway instead of one per AZ (≈ $33 saved)
+interface_endpoints = []    # AWS API traffic goes through the NAT (≈ $73 saved)
