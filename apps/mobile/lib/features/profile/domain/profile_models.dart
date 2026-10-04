@@ -91,8 +91,12 @@ class PracticeLeaf {
     required this.id,
     required this.i18nKey,
     required this.nameEn,
+    this.code,
   });
   final String id;
+
+  /// `family_law.divorce` (picks the case cover art).
+  final String? code;
   final String i18nKey;
   final String nameEn;
 }

@@ -8,8 +8,8 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_cover.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
-import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart'
     show CountPill;
 import 'package:lawbid/features/onboarding/domain/us_states.dart';
@@ -30,7 +30,14 @@ class MineTileData {
     this.practiceCode,
     this.categoryCode,
     this.badge,
+    this.coverKey,
+    this.coverSeed,
   });
+
+  /// Owner 2026-10-04: the case's cover (client cases); null seed = the
+  /// practice photo.
+  final String? coverKey;
+  final String? coverSeed;
 
   final String title;
   final String statusLabel;
@@ -57,9 +64,11 @@ class MineTile extends StatelessWidget {
         (data.practiceCode == null
             ? null
             : practiceCategoryOf(data.practiceCode!));
-    final Widget art = PracticePhoto(
+    final Widget art = CaseCover(
       categoryCode: category,
       practiceCode: data.practiceCode,
+      coverKey: data.coverKey,
+      seed: data.coverSeed,
     );
     final dot = switch (data.statusTone) {
       StatusTone.gold => colors.gold,

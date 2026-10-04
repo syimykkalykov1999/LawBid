@@ -95,8 +95,13 @@ class PracticeArt extends StatelessWidget {
     required this.categoryCode,
     this.practiceCode,
     this.imageUrl,
+    this.cover,
     super.key,
   });
+
+  /// Owner 2026-10-04: a case's own cover (CaseCover) in place of the
+  /// practice photo; [imageUrl] still wins.
+  final Widget? cover;
 
   final String? categoryCode;
 
@@ -149,13 +154,14 @@ class PracticeArt extends StatelessWidget {
             fit: BoxFit.cover,
             errorBuilder: (_, __, ___) => fallback(),
           )
-        : asset != null
-            ? Image.asset(
-                asset,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => fallback(),
-              )
-            : fallback();
+        : cover ??
+            (asset != null
+                ? Image.asset(
+                    asset,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => fallback(),
+                  )
+                : fallback());
 
     // Fade: transparent at the text side, visible at the right edge.
     return ExcludeSemantics(

@@ -1261,6 +1261,11 @@ model Case {
   city                  String?
   budget_mode           BudgetMode
   budget_cents          Int?
+  // Owner 2026-10-04: the client's card cover (`art:0..3` / `icon:<name>`,
+  // never a personal photo; null = picked from the id) and urgency
+  // (flexible | soon | urgent). CHECKs in the migration.
+  cover_key             String?
+  urgency               String?
   status                CaseStatus               @default(open)
   accepted_bid_id       String?                  @unique @db.Uuid
   accepted_bid          Bid?                     @relation("CaseAcceptedBid", fields: [accepted_bid_id], references: [id], onDelete: Restrict)

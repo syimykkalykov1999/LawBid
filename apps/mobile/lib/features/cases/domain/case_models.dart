@@ -4,6 +4,7 @@ import 'package:lawbid_api/lawbid_api.dart'
         BidStatus,
         BudgetMode,
         CaseStatus,
+        CaseUrgency,
         ContactIssueType,
         ContactMethod,
         FeeType,
@@ -16,6 +17,7 @@ export 'package:lawbid_api/lawbid_api.dart'
         BidStatus,
         BudgetMode,
         CaseStatus,
+        CaseUrgency,
         ContactIssueType,
         ContactMethod,
         FeeType,
@@ -83,7 +85,13 @@ class CaseSummary {
     required this.createdAt,
     required this.lastActivityAt,
     this.coverUrl,
+    this.coverKey,
+    this.urgency,
   });
+
+  /// Owner 2026-10-04: the chosen app cover (`art:N` / `icon:name`).
+  final String? coverKey;
+  final CaseUrgency? urgency;
 
   /// Owner 2026-09-30: the first photo (the Mine grid) when this viewer
   /// may see photos; else the qualification's art is shown.
@@ -150,10 +158,16 @@ class OwnerCase {
     this.acceptedBid,
     this.conversationId,
     this.photos = const [],
+    this.coverKey,
+    this.urgency,
   });
 
   /// OQ-031: the case photos (the owner always sees them).
   final List<CasePhoto> photos;
+
+  /// Owner 2026-10-04: the chosen app cover (`art:N` / `icon:name`).
+  final String? coverKey;
+  final CaseUrgency? urgency;
 
   final String id;
   final String title;
@@ -330,7 +344,16 @@ class FeedCase {
     this.bidAllowed = true,
     this.promoted = false,
     this.completionRequestedBy,
+    this.coverKey,
+    this.urgency,
   });
+
+  /// Owner 2026-10-04: the client's cover choice (`art:N` / `icon:name`);
+  /// null = a variant picked from the id. Never the client's photo.
+  final String? coverKey;
+
+  /// Owner 2026-10-04: how soon the client needs an attorney.
+  final CaseUrgency? urgency;
 
   /// Owner 2026-10-02: a paid promotion keeps this case near the top.
   final bool promoted;
@@ -402,6 +425,12 @@ class FeedCase {
         photosCount: photosCount,
         commentCount: commentCount,
         shareCount: shareCount,
+        inMyPractice: inMyPractice,
+        promoted: promoted,
+        completionRequestedBy: completionRequestedBy,
+        coverKey: coverKey,
+        urgency: urgency,
+        bidAllowed: bidAllowed,
       );
 }
 

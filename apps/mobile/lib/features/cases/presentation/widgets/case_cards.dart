@@ -4,6 +4,8 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_actions_bar.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_cover.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_facts.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
@@ -212,6 +214,36 @@ class FeedCaseCard extends StatelessWidget {
     );
     final budget = CaseFormat.budget(t, formats, item.budget);
     final radius = BorderRadius.circular(AppRadii.card + 2);
+    // Owner 2026-10-04: state, urgency and budget, large.
+    final extraStates = item.additionalStateCodes.length;
+    final facts = CaseKeyFacts(
+      t: t,
+      stateCode: item.primaryStateCode,
+      stateSub: [
+        if (item.city != null && item.city!.trim().isNotEmpty)
+          item.city!.trim(),
+        if (extraStates > 0) '+$extraStates',
+      ].join(' · '),
+      urgency: item.urgency,
+      budget: item.budget.isClarifyLater
+          ? null
+          : CaseFormat.money(formats, item.budget.amountCents!),
+    );
+    final urgency = CaseKeyFacts.urgencyLabel(t, item.urgency);
+    Widget stats() => Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _IconStat(
+              icon: AppIcons.visibilityOutlined,
+              value: SocialFormat.count(formats, item.viewCount),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            _IconStat(
+              icon: AppIcons.gavelRounded,
+              value: SocialFormat.count(formats, item.bidsCount),
+            ),
+          ],
+        );
 
     final semantics = [
       category,
@@ -219,6 +251,7 @@ class FeedCaseCard extends StatelessWidget {
       if (item.isNew) t.t('cases.card.new'),
       item.title,
       place,
+      urgency,
       budget,
       t.t('cases.card.bidsCount', {'count': '${item.bidsCount}'}),
       if (item.hasOwnBid) t.t('cases.card.youBid'),
@@ -272,24 +305,12 @@ class FeedCaseCard extends StatelessWidget {
                           // "NEW" flush with the right edge (in line with
                           // the Save button below).
                           Expanded(
-                            child: Row(
-                              children: [
-                                Flexible(
-                                  flex: 6,
-                                  child: _GoldChip(
-                                    icon: practiceGlyph(item.practice.artCode),
-                                    label: category,
-                                  ),
-                                ),
-                                const SizedBox(width: AppSpacing.sm),
-                                Flexible(
-                                  flex: 3,
-                                  child: _PlainChip(
-                                    icon: AppIcons.placeOutlined,
-                                    label: place,
-                                  ),
-                                ),
-                              ],
+                            child: Align(
+                              alignment: AlignmentDirectional.centerStart,
+                              child: _GoldChip(
+                                icon: practiceGlyph(item.practice.artCode),
+                                label: category,
+                              ),
                             ),
                           ),
                           if (item.promoted || item.isNew) ...[
@@ -334,61 +355,39 @@ class FeedCaseCard extends StatelessWidget {
                         ),
                       ],
                       const SizedBox(height: AppSpacing.md),
+                      facts,
+                      const SizedBox(height: AppSpacing.sm),
                       Row(
                         children: [
-                          AppIcon(
-                            AppIcons.paymentsOutlined,
-                            size: AppSizes.iconSm,
-                            color: colors.goldDark,
-                          ),
-                          const SizedBox(width: AppSpacing.xs),
                           Expanded(
-                            child: Text(
-                              budget,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: typography.body.copyWith(
-                                color: colors.text,
-                                fontWeight: FontWeight.w600,
-                              ),
+                            child: Wrap(
+                              spacing: AppSpacing.sm,
+                              runSpacing: AppSpacing.sm,
+                              children: [
+                                if (item.status != CaseStatus.open)
+                                  CaseStatusPill(status: item.status, t: t),
+                                if (item.hasOwnBid)
+                                  StatusPill(
+                                    label: t.t('cases.card.youBid'),
+                                    tone: StatusTone.gold,
+                                  ),
+                              ],
                             ),
                           ),
-                          _IconStat(
-                            icon: AppIcons.visibilityOutlined,
-                            value: SocialFormat.count(formats, item.viewCount),
-                          ),
-                          const SizedBox(width: AppSpacing.md),
-                          _IconStat(
-                            icon: AppIcons.gavelRounded,
-                            value: SocialFormat.count(formats, item.bidsCount),
-                          ),
+                          stats(),
                         ],
                       ),
-                      if (item.hasOwnBid || item.status != CaseStatus.open) ...[
-                        const SizedBox(height: AppSpacing.sm),
-                        Wrap(
-                          spacing: AppSpacing.sm,
-                          runSpacing: AppSpacing.sm,
-                          children: [
-                            if (item.status != CaseStatus.open)
-                              CaseStatusPill(status: item.status, t: t),
-                            if (item.hasOwnBid)
-                              StatusPill(
-                                label: t.t('cases.card.youBid'),
-                                tone: StatusTone.gold,
-                              ),
-                          ],
-                        ),
-                      ],
                     ],
                   ),
                 ),
                 // Our photo for the practice; the client's own case
                 // photos are private until a bid is accepted (OQ-031).
                 Expanded(
-                  child: PracticePhoto(
+                  child: CaseCover(
                     categoryCode: item.practice.artCode,
                     practiceCode: item.practice.code,
+                    coverKey: item.coverKey,
+                    seed: item.id,
                   ),
                 ),
                 // OQ-034: comments, share, time, Save — like a post.
@@ -409,6 +408,7 @@ class FeedCaseCard extends StatelessWidget {
         if (item.isNew) t.t('cases.card.new'),
         item.title,
         place,
+        urgency,
         budget,
         t.t('cases.card.bidsCount', {'count': '${item.bidsCount}'}),
         if (item.hasOwnBid) t.t('cases.card.youBid'),
@@ -445,6 +445,12 @@ class FeedCaseCard extends StatelessWidget {
                   child: PracticeArt(
                     categoryCode: item.practice.artCode,
                     practiceCode: item.practice.code,
+                    cover: CaseCover(
+                      categoryCode: item.practice.artCode,
+                      practiceCode: item.practice.code,
+                      coverKey: item.coverKey,
+                      seed: item.id,
+                    ),
                   ),
                 ),
                 Padding(
@@ -459,11 +465,6 @@ class FeedCaseCard extends StatelessWidget {
                               icon: practiceGlyph(item.practice.artCode),
                               label: category,
                             ),
-                          ),
-                          const SizedBox(width: AppSpacing.sm),
-                          _PlainChip(
-                            icon: AppIcons.placeOutlined,
-                            label: place,
                           ),
                           const Spacer(),
                           if (item.promoted || item.isNew)
@@ -510,52 +511,28 @@ class FeedCaseCard extends StatelessWidget {
                         ),
                       ],
                       const SizedBox(height: AppSpacing.md),
+                      facts,
+                      const SizedBox(height: AppSpacing.sm),
                       Row(
                         children: [
-                          AppIcon(
-                            AppIcons.paymentsOutlined,
-                            size: AppSizes.iconSm,
-                            color: colors.goldDark,
-                          ),
-                          const SizedBox(width: AppSpacing.xs),
                           Expanded(
-                            child: Text(
-                              budget,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: typography.body.copyWith(
-                                color: colors.text,
-                                fontWeight: FontWeight.w600,
-                              ),
+                            child: Wrap(
+                              spacing: AppSpacing.sm,
+                              runSpacing: AppSpacing.sm,
+                              children: [
+                                if (item.status != CaseStatus.open)
+                                  CaseStatusPill(status: item.status, t: t),
+                                if (item.hasOwnBid)
+                                  StatusPill(
+                                    label: t.t('cases.card.youBid'),
+                                    tone: StatusTone.gold,
+                                  ),
+                              ],
                             ),
                           ),
-                          _IconStat(
-                            icon: AppIcons.visibilityOutlined,
-                            value: SocialFormat.count(formats, item.viewCount),
-                          ),
-                          const SizedBox(width: AppSpacing.md),
-                          _IconStat(
-                            icon: AppIcons.gavelRounded,
-                            value: SocialFormat.count(formats, item.bidsCount),
-                          ),
+                          stats(),
                         ],
                       ),
-                      if (item.hasOwnBid || item.status != CaseStatus.open) ...[
-                        const SizedBox(height: AppSpacing.sm),
-                        Wrap(
-                          spacing: AppSpacing.sm,
-                          runSpacing: AppSpacing.sm,
-                          children: [
-                            if (item.status != CaseStatus.open)
-                              CaseStatusPill(status: item.status, t: t),
-                            if (item.hasOwnBid)
-                              StatusPill(
-                                label: t.t('cases.card.youBid'),
-                                tone: StatusTone.gold,
-                              ),
-                          ],
-                        ),
-                      ],
                     ],
                   ),
                 ),
@@ -604,43 +581,6 @@ class _GoldChip extends StatelessWidget {
                 fontWeight: FontWeight.w600,
               ),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Quiet chip with an icon (state / place).
-class _PlainChip extends StatelessWidget {
-  const _PlainChip({required this.icon, required this.label});
-
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.sm + 2,
-        vertical: AppSpacing.xs + 1,
-      ),
-      decoration: BoxDecoration(
-        color: colors.surface.withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(AppRadii.pill),
-        border: Border.all(color: colors.border),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          AppIcon(icon, size: 14, color: colors.textSecondary),
-          const SizedBox(width: AppSpacing.xs),
-          Text(
-            label,
-            maxLines: 1,
-            style: typography.caption.copyWith(color: colors.textSecondary),
           ),
         ],
       ),
@@ -697,6 +637,8 @@ class ClientCaseCard extends StatelessWidget {
       ].join(', '),
       artCode: item.practice.artCode,
       practiceCode: item.practice.code,
+      coverKey: item.coverKey,
+      coverSeed: item.id,
       practiceLabel: practice,
       status: CaseStatusPill(status: item.status, t: t),
       title: item.title,
@@ -743,7 +685,14 @@ class _MineCardFrame extends StatelessWidget {
     required this.meta,
     required this.footer,
     this.note,
+    this.coverKey,
+    this.coverSeed,
   });
+
+  /// Owner 2026-10-04: the case's cover, as attorneys see it (client
+  /// cards); without a seed the practice photo.
+  final String? coverKey;
+  final String? coverSeed;
 
   final VoidCallback onTap;
   final String semanticLabel;
@@ -767,7 +716,12 @@ class _MineCardFrame extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          PracticePhoto(categoryCode: artCode, practiceCode: practiceCode),
+          CaseCover(
+            categoryCode: artCode,
+            practiceCode: practiceCode,
+            coverKey: coverKey,
+            seed: coverSeed,
+          ),
           DecoratedBox(
             decoration: BoxDecoration(
               gradient: LinearGradient(
