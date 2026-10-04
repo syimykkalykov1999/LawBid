@@ -188,11 +188,17 @@ class _AccountTileState extends State<AccountTile> {
               ] else if (tappable) ...[
                 if (widget.actionLabel != null) ...[
                   const SizedBox(width: AppSpacing.sm),
-                  Text(
-                    widget.actionLabel!,
-                    style: typography.bodySmall.copyWith(
-                      color: colors.goldDark,
-                      fontWeight: FontWeight.w600,
+                  // Shares the row with the title (at most half of it).
+                  Flexible(
+                    child: Text(
+                      widget.actionLabel!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.end,
+                      style: typography.bodySmall.copyWith(
+                        color: colors.goldDark,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ],

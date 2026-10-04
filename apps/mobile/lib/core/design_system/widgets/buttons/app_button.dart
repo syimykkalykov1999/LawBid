@@ -166,7 +166,12 @@ class _AppButtonState extends State<AppButton> {
                 constraints: BoxConstraints(minHeight: widget.height),
                 child: Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+                  // Horizontal inset keeps long (translated) labels off the
+                  // rounded edges when they wrap.
+                  padding: const EdgeInsets.symmetric(
+                    vertical: AppSpacing.md,
+                    horizontal: AppSpacing.md,
+                  ),
                   decoration: BoxDecoration(
                     color: background,
                     borderRadius: BorderRadius.circular(AppRadii.button),

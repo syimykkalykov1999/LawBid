@@ -149,10 +149,17 @@ class _AppListRowState extends State<AppListRow> {
               ),
               if (widget.trailingText != null) ...[
                 const SizedBox(width: AppSpacing.sm),
-                Text(
-                  widget.trailingText!,
-                  style: typography.bodySmall.copyWith(
-                    color: colors.textSecondary,
+                // Shares the row with the label (at most half of it) so a
+                // long value can't squeeze the label away.
+                Flexible(
+                  child: Text(
+                    widget.trailingText!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.end,
+                    style: typography.bodySmall.copyWith(
+                      color: colors.textSecondary,
+                    ),
                   ),
                 ),
               ],
@@ -190,8 +197,8 @@ class AppListSection extends StatelessWidget {
       children: [
         if (title != null)
           Padding(
-            padding: const EdgeInsets.only(
-              left: AppSpacing.xs,
+            padding: const EdgeInsetsDirectional.only(
+              start: AppSpacing.xs,
               bottom: AppSpacing.sm,
             ),
             child: Semantics(

@@ -103,18 +103,22 @@ class CategoryBand extends StatelessWidget {
               ),
             ),
             if (isNew && newLabel != null)
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.sm,
-                  vertical: 2,
-                ),
-                decoration: BoxDecoration(
-                  color: colors.gold,
-                  borderRadius: BorderRadius.circular(AppRadii.proBadge),
-                ),
-                child: Text(
-                  newLabel!,
-                  style: typography.badge.copyWith(color: colors.navy),
+              Flexible(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: colors.gold,
+                    borderRadius: BorderRadius.circular(AppRadii.proBadge),
+                  ),
+                  child: Text(
+                    newLabel!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: typography.badge.copyWith(color: colors.navy),
+                  ),
                 ),
               ),
           ],
@@ -139,9 +143,13 @@ class _IconStat extends StatelessWidget {
       children: [
         AppIcon(icon, size: AppSpacing.lg, color: colors.textSecondary),
         const SizedBox(width: AppSpacing.xs),
-        Text(
-          value,
-          style: typography.bodySmall.copyWith(color: colors.textSecondary),
+        Flexible(
+          child: Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: typography.bodySmall.copyWith(color: colors.textSecondary),
+          ),
         ),
       ],
     );
@@ -294,16 +302,23 @@ class FeedCaseCard extends StatelessWidget {
                           ),
                           if (item.promoted || item.isNew) ...[
                             const SizedBox(width: AppSpacing.sm),
-                            Text(
-                              // Owner 2026-10-02: a paid promotion leads.
-                              t.t(
-                                item.promoted
-                                    ? 'cases.card.promoted'
-                                    : 'cases.card.new',
-                              ),
-                              style: typography.caption.copyWith(
-                                color: colors.goldDark,
-                                fontWeight: FontWeight.w700,
+                            // Capped so a long translation can't squeeze
+                            // the chips away.
+                            ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 120),
+                              child: Text(
+                                // Owner 2026-10-02: a paid promotion leads.
+                                t.t(
+                                  item.promoted
+                                      ? 'cases.card.promoted'
+                                      : 'cases.card.new',
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: typography.caption.copyWith(
+                                  color: colors.goldDark,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                             ),
                           ],
@@ -454,30 +469,46 @@ class FeedCaseCard extends StatelessWidget {
                     children: [
                       Row(
                         children: [
-                          Flexible(
-                            child: _GoldChip(
-                              icon: practiceGlyph(item.practice.artCode),
-                              label: category,
+                          Expanded(
+                            child: Row(
+                              children: [
+                                Flexible(
+                                  flex: 6,
+                                  child: _GoldChip(
+                                    icon: practiceGlyph(item.practice.artCode),
+                                    label: category,
+                                  ),
+                                ),
+                                const SizedBox(width: AppSpacing.sm),
+                                Flexible(
+                                  flex: 3,
+                                  child: _PlainChip(
+                                    icon: AppIcons.placeOutlined,
+                                    label: place,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(width: AppSpacing.sm),
-                          _PlainChip(
-                            icon: AppIcons.placeOutlined,
-                            label: place,
-                          ),
-                          const Spacer(),
-                          if (item.promoted || item.isNew)
-                            Text(
-                              t.t(
-                                item.promoted
-                                    ? 'cases.card.promoted'
-                                    : 'cases.card.new',
-                              ),
-                              style: typography.caption.copyWith(
-                                color: colors.goldDark,
-                                fontWeight: FontWeight.w700,
+                          if (item.promoted || item.isNew) ...[
+                            const SizedBox(width: AppSpacing.sm),
+                            ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 120),
+                              child: Text(
+                                t.t(
+                                  item.promoted
+                                      ? 'cases.card.promoted'
+                                      : 'cases.card.new',
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: typography.caption.copyWith(
+                                  color: colors.goldDark,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                             ),
+                          ],
                         ],
                       ),
                       const SizedBox(height: AppSpacing.md),
@@ -637,10 +668,13 @@ class _PlainChip extends StatelessWidget {
         children: [
           AppIcon(icon, size: 14, color: colors.textSecondary),
           const SizedBox(width: AppSpacing.xs),
-          Text(
-            label,
-            maxLines: 1,
-            style: typography.caption.copyWith(color: colors.textSecondary),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: typography.caption.copyWith(color: colors.textSecondary),
+            ),
           ),
         ],
       ),
@@ -718,7 +752,7 @@ class ClientCaseCard extends StatelessWidget {
           Expanded(child: _FooterText(bids)),
           if (fresh != null) ...[
             const SizedBox(width: AppSpacing.sm),
-            StatusPill(label: fresh, tone: StatusTone.gold),
+            Flexible(child: StatusPill(label: fresh, tone: StatusTone.gold)),
           ],
           AppIcon(AppIcons.chevronRightRounded, color: colors.textSecondary),
         ],
@@ -781,21 +815,26 @@ class _MineCardFrame extends StatelessWidget {
             ),
           ),
           // A solid backing keeps the status readable on any photo.
-          Positioned(
+          // Bounded on both sides so a long status label ellipsizes.
+          PositionedDirectional(
             top: AppSpacing.sm,
-            right: AppSpacing.sm,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: colors.surface,
-                borderRadius: BorderRadius.circular(AppRadii.pill),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.18),
-                    blurRadius: 6,
-                  ),
-                ],
+            start: AppSpacing.sm,
+            end: AppSpacing.sm,
+            child: Align(
+              alignment: AlignmentDirectional.centerEnd,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: colors.surface,
+                  borderRadius: BorderRadius.circular(AppRadii.pill),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.18),
+                      blurRadius: 6,
+                    ),
+                  ],
+                ),
+                child: status,
               ),
-              child: status,
             ),
           ),
           Positioned(
@@ -803,7 +842,7 @@ class _MineCardFrame extends StatelessWidget {
             right: AppSpacing.md,
             bottom: AppSpacing.sm + 2,
             child: Align(
-              alignment: Alignment.centerLeft,
+              alignment: AlignmentDirectional.centerStart,
               child: Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: AppSpacing.sm + 2,
@@ -1205,7 +1244,11 @@ class BidCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Expanded(child: MoneyText(terms)),
-              BidStatusPill(bid: bid, viewer: PartyRole.client, t: t),
+              const SizedBox(width: AppSpacing.sm),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 160),
+                child: BidStatusPill(bid: bid, viewer: PartyRole.client, t: t),
+              ),
             ],
           ),
           const SizedBox(height: AppSpacing.xs),
@@ -1292,7 +1335,7 @@ class MyBidCard extends StatelessWidget {
           Expanded(child: MoneyText(terms)),
           if (!bid.isFreeConsultation) ...[
             const SizedBox(width: AppSpacing.sm),
-            RoundCounter(used: bid.roundCount, t: t),
+            Flexible(child: RoundCounter(used: bid.roundCount, t: t)),
           ],
         ],
       ),

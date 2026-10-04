@@ -273,13 +273,20 @@ class _DraftBanner extends StatelessWidget {
                 style: typography.bodySmall.copyWith(color: colors.text),
               ),
             ),
-            TextButton(
-              onPressed: onStartOver,
-              child: Text(
-                t.t('cases.create.startOver'),
-                style: typography.bodySmall.copyWith(
-                  color: colors.goldDark,
-                  fontWeight: FontWeight.w600,
+            // Capped so a long label can't squeeze the message away.
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 140),
+              child: TextButton(
+                onPressed: onStartOver,
+                child: Text(
+                  t.t('cases.create.startOver'),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: typography.bodySmall.copyWith(
+                    color: colors.goldDark,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ),

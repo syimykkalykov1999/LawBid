@@ -252,10 +252,13 @@ class _StatusCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: AppSpacing.sm),
-              StatusPill(
-                key: const ValueKey('export-status'),
-                label: t.t('dataExport.status.${job.status.name}'),
-                tone: exportTone(job.status),
+              // Flexible: the pill ellipsizes instead of squeezing the title.
+              Flexible(
+                child: StatusPill(
+                  key: const ValueKey('export-status'),
+                  label: t.t('dataExport.status.${job.status.name}'),
+                  tone: exportTone(job.status),
+                ),
               ),
             ],
           ),

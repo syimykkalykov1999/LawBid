@@ -367,7 +367,15 @@ class _OwnBidCard extends ConsumerWidget {
                       ),
                     ),
                   ),
-                  BidStatusPill(bid: value, viewer: PartyRole.attorney, t: t),
+                  const SizedBox(width: AppSpacing.sm),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 160),
+                    child: BidStatusPill(
+                      bid: value,
+                      viewer: PartyRole.attorney,
+                      t: t,
+                    ),
+                  ),
                 ],
               ),
               if (!value.isFreeConsultation) ...[
@@ -377,11 +385,15 @@ class _OwnBidCard extends ConsumerWidget {
               const SizedBox(height: AppSpacing.md),
               Row(
                 children: [
-                  Text(
-                    t.t('cases.detail.openBid'),
-                    style: typography.bodySmall.copyWith(
-                      color: colors.goldDark,
-                      fontWeight: FontWeight.w600,
+                  Flexible(
+                    child: Text(
+                      t.t('cases.detail.openBid'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: typography.bodySmall.copyWith(
+                        color: colors.goldDark,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                   AppIcon(

@@ -112,54 +112,76 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                   ),
                   // Owner 2026-10-01: Chats · Requests · Team as segments,
                   // notifications as a bell at the right edge.
+                  // The middle keeps clear of the buttons at both edges: a long
+                  // count ellipsizes, the segments shrink on narrow phones.
                   if (selecting)
-                    Text(
-                      t.t(
-                        'chat.select.count',
-                        {'count': '${selection.length}'},
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 112),
+                      child: Text(
+                        t.t(
+                          'chat.select.count',
+                          {'count': '${selection.length}'},
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context)
+                            .extension<AppTypographyTokens>()!
+                            .titleMedium
+                            .copyWith(color: colors.text),
                       ),
-                      style: Theme.of(context)
-                          .extension<AppTypographyTokens>()!
-                          .titleMedium
-                          .copyWith(color: colors.text),
                     )
                   else
-                    _InboxTabs(
-                      value: tab,
-                      tabs: [
-                        (
-                          InboxTab.chats,
-                          t.t('inbox.tab.chats'),
-                          badges.chats + requests,
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 96),
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: _InboxTabs(
+                          value: tab,
+                          tabs: [
+                            (
+                              InboxTab.chats,
+                              t.t('inbox.tab.chats'),
+                              badges.chats + requests,
+                            ),
+                            if (showTeam)
+                              (
+                                InboxTab.team,
+                                t.t('inbox.tab.team'),
+                                teamPending,
+                              ),
+                          ],
+                          onChanged: (v) => setState(() => _tab = v),
                         ),
-                        if (showTeam)
-                          (InboxTab.team, t.t('inbox.tab.team'), teamPending),
-                      ],
-                      onChanged: (v) => setState(() => _tab = v),
+                      ),
                     ),
                   Align(
                     alignment: Alignment.centerRight,
                     child: Padding(
                       padding: const EdgeInsets.only(right: AppSpacing.xs),
                       child: selecting
-                          ? TextButton(
-                              key: const ValueKey('select-all'),
-                              onPressed: () {
-                                final n =
-                                    ref.read(chatSelectionProvider.notifier);
-                                chats.every(
-                                  (c) => selection.contains(c.id),
-                                )
-                                    ? n.clear()
-                                    : n.setAll(chats.map((c) => c.id));
-                              },
-                              child: Text(
-                                chats.isNotEmpty &&
-                                        chats.every(
-                                          (c) => selection.contains(c.id),
-                                        )
-                                    ? t.t('chat.select.none')
-                                    : t.t('chat.select.all'),
+                          ? ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 108),
+                              child: TextButton(
+                                key: const ValueKey('select-all'),
+                                onPressed: () {
+                                  final n =
+                                      ref.read(chatSelectionProvider.notifier);
+                                  chats.every(
+                                    (c) => selection.contains(c.id),
+                                  )
+                                      ? n.clear()
+                                      : n.setAll(chats.map((c) => c.id));
+                                },
+                                child: Text(
+                                  chats.isNotEmpty &&
+                                          chats.every(
+                                            (c) => selection.contains(c.id),
+                                          )
+                                      ? t.t('chat.select.none')
+                                      : t.t('chat.select.all'),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               ),
                             )
                           : Row(
@@ -250,11 +272,18 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           if (badges.notifications > 0)
-                            TextButton(
-                              onPressed: () => ref
-                                  .read(notificationsProvider.notifier)
-                                  .markRead(),
-                              child: Text(t.t('notif.markAllRead')),
+                            ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 160),
+                              child: TextButton(
+                                onPressed: () => ref
+                                    .read(notificationsProvider.notifier)
+                                    .markRead(),
+                                child: Text(
+                                  t.t('notif.markAllRead'),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
                             ),
                         ],
                       ),
@@ -777,6 +806,7 @@ class ConversationRow extends ConsumerWidget {
                                 t.t('chat.typing'),
                                 key: ValueKey('chat-typing-${c.id}'),
                                 maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 style: type.bodySmall.copyWith(
                                   color: colors.gold,
                                   fontStyle: FontStyle.italic,
@@ -882,11 +912,17 @@ class ConversationRow extends ConsumerWidget {
                       // Owner 2026-10-01: the time at the bottom right.
                       if (c.lastMessageAt != null) ...[
                         const SizedBox(width: AppSpacing.sm),
-                        Text(
-                          SocialFormat.ago(t, f, c.lastMessageAt!),
-                          style: type.caption.copyWith(
-                            color:
-                                unread ? colors.goldDark : colors.textSecondary,
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 110),
+                          child: Text(
+                            SocialFormat.ago(t, f, c.lastMessageAt!),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: type.caption.copyWith(
+                              color: unread
+                                  ? colors.goldDark
+                                  : colors.textSecondary,
+                            ),
                           ),
                         ),
                       ],

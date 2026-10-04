@@ -188,7 +188,8 @@ class _StepEditorSheetState extends ConsumerState<StepEditorSheet> {
                 children: [
                   for (final k in TaskKind.values)
                     Padding(
-                      padding: const EdgeInsets.only(right: AppSpacing.sm),
+                      padding:
+                          const EdgeInsetsDirectional.only(end: AppSpacing.sm),
                       child: AppChip(
                         key: ValueKey('step-kind-${k.wire}'),
                         label: taskKindLabel(t, k),
@@ -635,17 +636,22 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
                   ),
                 ),
                 if (canPlan && active)
-                  TextButton.icon(
-                    key: const ValueKey('task-step-add'),
-                    onPressed: _addStep,
-                    icon: AppIcon(
-                      AppIcons.addRounded,
-                      size: 18,
-                      color: colors.goldDark,
-                    ),
-                    label: Text(
-                      t.t('tasks.steps.add'),
-                      style: TextStyle(color: colors.goldDark),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 180),
+                    child: TextButton.icon(
+                      key: const ValueKey('task-step-add'),
+                      onPressed: _addStep,
+                      icon: AppIcon(
+                        AppIcons.addRounded,
+                        size: 18,
+                        color: colors.goldDark,
+                      ),
+                      label: Text(
+                        t.t('tasks.steps.add'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: colors.goldDark),
+                      ),
                     ),
                   ),
               ],
@@ -876,7 +882,18 @@ class _InfoRow extends StatelessWidget {
             ),
           ),
           if (action != null)
-            TextButton(onPressed: onAction, child: Text(action!)),
+            // Capped so a long label can't squeeze the info text.
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 140),
+              child: TextButton(
+                onPressed: onAction,
+                child: Text(
+                  action!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
         ],
       ),
     );

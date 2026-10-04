@@ -452,17 +452,26 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
               Row(
                 children: [
                   Expanded(child: Text(t.t('tasks.steps.title'), style: label)),
-                  TextButton.icon(
-                    key: const ValueKey('task-editor-step-add'),
-                    onPressed: () async {
-                      FocusScope.of(context).unfocus();
-                      final d = await showStepEditor(context, taskKind: _kind);
-                      if (d != null && mounted) setState(() => _steps.add(d));
-                    },
-                    icon: AppIcon(AppIcons.addRounded, color: colors.goldDark),
-                    label: Text(
-                      t.t('tasks.steps.add'),
-                      style: TextStyle(color: colors.goldDark),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 180),
+                    child: TextButton.icon(
+                      key: const ValueKey('task-editor-step-add'),
+                      onPressed: () async {
+                        FocusScope.of(context).unfocus();
+                        final d =
+                            await showStepEditor(context, taskKind: _kind);
+                        if (d != null && mounted) {
+                          setState(() => _steps.add(d));
+                        }
+                      },
+                      icon:
+                          AppIcon(AppIcons.addRounded, color: colors.goldDark),
+                      label: Text(
+                        t.t('tasks.steps.add'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: colors.goldDark),
+                      ),
                     ),
                   ),
                 ],
@@ -580,7 +589,7 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
                   ),
                 ),
               Align(
-                alignment: Alignment.centerLeft,
+                alignment: AlignmentDirectional.centerStart,
                 child: TextButton.icon(
                   key: const ValueKey('task-attach'),
                   onPressed: _attach,
@@ -646,10 +655,17 @@ class _PickedKind extends StatelessWidget {
               ),
             ),
           ),
-          TextButton(
-            key: const ValueKey('task-kind-change'),
-            onPressed: onChange,
-            child: Text(changeLabel),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 140),
+            child: TextButton(
+              key: const ValueKey('task-kind-change'),
+              onPressed: onChange,
+              child: Text(
+                changeLabel,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
           ),
         ],
       ),
@@ -702,14 +718,17 @@ class _KindTile extends StatelessWidget {
                 color: selected ? colors.gold : colors.textSecondary,
               ),
               const SizedBox(height: 6),
-              Text(
-                label,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: typography.caption.copyWith(
-                  color: selected ? colors.text : colors.textSecondary,
-                  fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+              // Flexible: the grid cell has a fixed height.
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: typography.caption.copyWith(
+                    color: selected ? colors.text : colors.textSecondary,
+                    fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                  ),
                 ),
               ),
             ],

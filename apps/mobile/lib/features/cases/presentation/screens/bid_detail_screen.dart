@@ -282,7 +282,7 @@ class _BidBody extends StatelessWidget {
         if (viewer == PartyRole.attorney)
           AppEntrance(
             child: Align(
-              alignment: Alignment.centerLeft,
+              alignment: AlignmentDirectional.centerStart,
               child: TextButton.icon(
                 onPressed: () => context.push(AppRoutes.caseDetail(bid.caseId)),
                 icon: AppIcon(
@@ -316,7 +316,11 @@ class _BidBody extends StatelessWidget {
                             .copyWith(color: colors.textSecondary),
                       ),
                     ),
-                    BidStatusPill(bid: bid, viewer: viewer, t: t),
+                    const SizedBox(width: AppSpacing.sm),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 160),
+                      child: BidStatusPill(bid: bid, viewer: viewer, t: t),
+                    ),
                   ],
                 ),
                 const SizedBox(height: AppSpacing.xs),

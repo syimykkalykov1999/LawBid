@@ -234,13 +234,19 @@ class _LanguageRow extends StatelessWidget {
                     size: AppSizes.iconSm,
                     color: colors.goldStroke,
                   )
-                else if (!enabled)
-                  Text(
-                    comingSoonLabel,
-                    style: typography.caption
-                        .copyWith(color: colors.textSecondary),
-                  )
-                else
+                else if (!enabled) ...[
+                  const SizedBox(width: AppSpacing.sm),
+                  Flexible(
+                    child: Text(
+                      comingSoonLabel,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.end,
+                      style: typography.caption
+                          .copyWith(color: colors.textSecondary),
+                    ),
+                  ),
+                ] else
                   Text(
                     entry.code.toUpperCase(),
                     style: typography.caption
