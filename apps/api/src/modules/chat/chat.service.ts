@@ -6,6 +6,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { Prisma, type Conversation, type Message } from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
@@ -39,6 +40,7 @@ import {
   type ConversationFolderName,
   OrganizeConversationDto,
 } from './chat.dto';
+import { MessageBodyCipher } from '../../common/secrets/message-body-cipher';
 
 const CONVERSATIONS_PAGE = 20;
 const MESSAGES_PAGE = 30;
@@ -95,6 +97,8 @@ export class ChatService {
     private readonly blocks: BlocksService,
     private readonly presence: PresenceService,
     private readonly stickers: StickersService,
+    // Scaling TZ point 11: message texts encrypted at rest.
+    @Optional() private readonly cipher?: MessageBodyCipher,
   ) {}
 
   /**
@@ -573,8 +577,8 @@ export class ChatService {
                 : sticker
                   ? 'sticker'
                   : 'text',
-            body_original: body,
-            body_display: masked.text,
+            body_original: this.seal(body),
+            body_display: this.seal(masked.text),
             contact_masked: masked.masked,
             client_message_id: dto.clientMessageId,
             ...(voice
@@ -953,6 +957,10 @@ export class ChatService {
     });
   }
 
+  private seal(text: string): string {
+    return this.cipher?.seal(text) ?? text;
+  }
+
   /** Security review (docs/05): while contacts are locked the attorney
    * must not learn the client's user id — their messages come with
    * senderId null (the app treats "not mine" the same). */
@@ -998,7 +1006,7 @@ export class ChatService {
               durationSec: Math.round((m.duration_ms ?? 0) / 1000),
             }
           : null,
-      body: m.body_display,
+      body: this.cipher?.open(m.body_display) ?? m.body_display,
       contactMasked: m.contact_masked,
       clientMessageId: m.sender_id === viewerId ? m.client_message_id : null,
       createdAt: m.created_at,

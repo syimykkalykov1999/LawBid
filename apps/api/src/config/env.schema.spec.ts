@@ -15,6 +15,9 @@ const base: Record<string, string> = {
   OTP_CODE_SECRET: strong('otp'),
   OTP_KEY_PEPPER: strong('pepper'),
   AUTH_EVENT_PEPPER: strong('event'),
+  // Scaling TZ point 11: required when deployed.
+  MESSAGE_ENC_KEYS: `m1:${strong('messages')}`,
+  MESSAGE_ENC_ACTIVE_KID: 'm1',
 };
 
 const twilio = {
@@ -116,6 +119,22 @@ describe('envSchema — credentials', () => {
         ...stripe,
       }),
     ).toEqual(['SMS_PROVIDER']);
+  });
+
+  it('staging/production refuse to store chat messages unencrypted', () => {
+    const env = { NODE_ENV: 'production', ...twilio, ...ses, ...stripe };
+    expect(issuePaths({ ...env, MESSAGE_ENC_KEYS: '' })).toEqual([
+      'MESSAGE_ENC_KEYS',
+    ]);
+    expect(issuePaths({ ...env, MESSAGE_ENC_ACTIVE_KID: 'm2' })).toEqual([
+      'MESSAGE_ENC_KEYS',
+    ]);
+    expect(issuePaths({ NODE_ENV: 'staging', MESSAGE_ENC_KEYS: '' })).toContain(
+      'MESSAGE_ENC_KEYS',
+    );
+    expect(
+      issues({ MESSAGE_ENC_KEYS: '', MESSAGE_ENC_ACTIVE_KID: '' }),
+    ).toEqual([]);
   });
 
   it('production with complete credentials boots', () => {

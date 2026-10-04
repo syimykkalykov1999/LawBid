@@ -339,7 +339,10 @@ describe('stage 6.3 — admin users and sanctions (e2e)', () => {
       where: { user_id: c.id, type: 'moderation_notice' },
     });
     expect(notice).toBeTruthy();
-    expect(JSON.stringify(notice?.payload)).not.toContain('Rude');
+    // Audit 2026-10-02 (b673d8ee): the user sees the moderator's reason.
+    expect(notice?.payload).toMatchObject({
+      reason: 'Rude messages to attorneys',
+    });
     expect(
       await prisma.moderationAction.count({
         where: { target_type: 'user', target_id: c.id, action: 'warn' },

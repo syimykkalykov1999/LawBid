@@ -135,6 +135,8 @@ locals {
     "OTP_KEY_PEPPER",
     "AUTH_EVENT_PEPPER",
     "ADMIN_TOTP_ENC_KEY",
+    "SECRETS_MASTER_KEYS", # admin key store ("k1:<secret>")
+    "MESSAGE_ENC_KEYS",    # chat texts at rest ("m1:<secret>"), scaling TZ point 11
     "TWILIO_ACCOUNT_SID",
     "TWILIO_AUTH_TOKEN",
     "TWILIO_MESSAGING_SERVICE_SID",
@@ -264,6 +266,10 @@ locals {
     GOOGLE_CLIENT_IDS   = var.google_client_ids
     APPLE_BUNDLE_IDS    = var.apple_bundle_ids
     APPLE_TEAM_ID       = var.apple_team_id
+    # Key ids inside the two key secrets above (rotation: add k2/m2 to
+    # the secret, then switch these).
+    SECRETS_ACTIVE_KID     = "k1"
+    MESSAGE_ENC_ACTIVE_KID = "m1"
   }
   app_secret_arns = merge(
     { for k in local.secret_names : k => module.secrets.arns[k] },

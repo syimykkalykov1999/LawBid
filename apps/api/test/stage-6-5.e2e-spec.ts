@@ -145,6 +145,12 @@ describe('stage 6.5 — disputes, contact issues, data requests (e2e)', () => {
         primary_state_code: 'NJ',
         budget_mode: 'clarify_later',
         status,
+        // Symmetric completion (62386883): only the side that did not mark
+        // "Done" first may dispute — here the client marked, the attorney
+        // disputes.
+        ...(status === 'pending_completion'
+          ? { client_completed_at: new Date() }
+          : {}),
       },
     });
     await prisma.caseState.create({

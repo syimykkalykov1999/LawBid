@@ -11,6 +11,7 @@ import { S3StorageService } from '../files/storage/s3-storage.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NOTIFICATION_EMAIL } from '../notifications/push/push.constants';
 import { DATA_EXPORT_LINK_TTL_SEC } from './privacy.constants';
+import { MessageBodyCipher } from '../../common/secrets/message-body-cipher';
 
 /** JSON with BigInt/Date friendly to `JSON.stringify`. */
 function toJson(value: unknown): string {
@@ -38,6 +39,7 @@ export class DataExportService {
     @Inject(NOTIFICATION_EMAIL) private readonly email: EmailProvider,
     private readonly logger: PinoLogger,
     @Optional() private readonly costGuard?: CostGuardService,
+    @Optional() private readonly cipher?: MessageBodyCipher,
   ) {
     this.logger.setContext(DataExportService.name);
   }
@@ -135,7 +137,10 @@ export class DataExportService {
         comments: commentLikes,
         caseComments: caseCommentLikes,
       },
-      'messages.json': messages,
+      'messages.json': messages.map((m) => ({
+        ...m,
+        body_original: this.cipher?.open(m.body_original) ?? m.body_original,
+      })),
     };
   }
 

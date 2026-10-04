@@ -225,7 +225,8 @@ describe('stage 6.9 — privacy and data lifecycle (e2e)', () => {
         data: {
           owner_user_id: attorney.id,
           purpose: 'avatar',
-          s3_bucket: 'lawbid-media',
+          // The run's own buckets (e2e-setup-env.ts), created at bootstrap.
+          s3_bucket: process.env.S3_BUCKET_MEDIA ?? 'lawbid-media',
           s3_key: `avatars/${attorney.id}/${randomUUID()}.jpg`,
           mime: 'image/jpeg',
           size_bytes: 10n,
@@ -237,7 +238,7 @@ describe('stage 6.9 — privacy and data lifecycle (e2e)', () => {
         data: {
           owner_user_id: attorney.id,
           purpose: 'verification_document',
-          s3_bucket: 'lawbid-documents',
+          s3_bucket: process.env.S3_BUCKET_DOCUMENTS ?? 'lawbid-documents',
           s3_key: `verification/${attorney.id}/${randomUUID()}.pdf`,
           mime: 'application/pdf',
           size_bytes: 10n,

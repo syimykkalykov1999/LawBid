@@ -515,6 +515,22 @@ export const envSchema = z
         .optional(),
     ),
     SECRETS_ACTIVE_KID: z.preprocess(blankToUndefined, z.string().optional()),
+    // Scaling TZ point 11 (2026-10-04): chat message texts encrypted at
+    // rest (MessageBodyCipher). Required on staging/production.
+    MESSAGE_ENC_KEYS: z.preprocess(
+      blankToUndefined,
+      z
+        .string()
+        .regex(
+          jwtKeysPattern,
+          'MESSAGE_ENC_KEYS must be "kid:secret[,kid:secret...]" with each secret >= 32 chars',
+        )
+        .optional(),
+    ),
+    MESSAGE_ENC_ACTIVE_KID: z.preprocess(
+      blankToUndefined,
+      z.string().optional(),
+    ),
     // Owner 2026-10-01: Bunny Stream (video posts) — normally set in the
     // admin → Integrations; these are only the fallback.
     BUNNY_LIBRARY_ID: z.preprocess(blankToUndefined, z.string().optional()),
@@ -569,6 +585,22 @@ export const envSchema = z
     ),
   })
   .superRefine((env, ctx) => {
+    if (env.NODE_ENV === 'production' || env.NODE_ENV === 'staging') {
+      const kids = (env.MESSAGE_ENC_KEYS ?? '')
+        .split(',')
+        .map((pair) => pair.slice(0, pair.indexOf(':')));
+      if (
+        !env.MESSAGE_ENC_ACTIVE_KID ||
+        !kids.includes(env.MESSAGE_ENC_ACTIVE_KID)
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['MESSAGE_ENC_KEYS'],
+          message:
+            'MESSAGE_ENC_KEYS with MESSAGE_ENC_ACTIVE_KID among its kids is required on staging/production (chat encryption at rest)',
+        });
+      }
+    }
     // Security audit 2026-10-01: deployed behind the ALB with 0 hops,
     // req.ip is the load balancer for everyone and every per-IP limit
     // (OTP, admin login, refresh) becomes one shared bucket.
