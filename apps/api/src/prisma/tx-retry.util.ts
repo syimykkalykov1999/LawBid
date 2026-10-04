@@ -30,6 +30,8 @@ const retryLog = pino({
 export interface TxRetryOptions {
   maxAttempts?: number;
   baseDelayMs?: number;
+  /** Interactive-transaction timeout (Prisma default 5 s) for big jobs. */
+  timeoutMs?: number;
 }
 
 const COCKROACH_SERIALIZATION_FAILURE = '40001';
@@ -48,7 +50,12 @@ export async function withTxRetry<T>(
   while (true) {
     attempt += 1;
     try {
-      return await prisma.$transaction(fn);
+      return await prisma.$transaction(
+        fn,
+        options.timeoutMs
+          ? { timeout: options.timeoutMs, maxWait: 10_000 }
+          : undefined,
+      );
     } catch (error) {
       if (!isSerializationFailure(error) || attempt >= maxAttempts) {
         throw error;

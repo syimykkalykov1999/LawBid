@@ -1,4 +1,5 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { withTxRetry } from '../../../prisma/tx-retry.util';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
@@ -39,6 +40,10 @@ export interface I18nImportReport {
  * validation fails; it exists specifically so an admin can see the
  * report before committing to anything.
  */
+/** Up to this many changed cells the simple per-row upserts are used; a full
+ * multi-language file goes through the batched path below. */
+const SMALL_IMPORT_CELLS = 2000;
+
 @Injectable()
 export class I18nImportService {
   constructor(
@@ -191,72 +196,123 @@ export class I18nImportService {
     const rowByKey = new Map(workbook.rows.map((row) => [row.key, row]));
     const versionByLang = new Map<string, number>();
 
-    await withTxRetry(this.prisma, async (tx) => {
-      let sortCursor =
-        existingLanguages.reduce((max, l) => Math.max(max, l.sort), -1) + 1;
-      for (const code of newLanguages) {
-        await tx.i18nLanguage.create({
-          data: {
-            code,
-            name_native: nativeNameForLanguage(code),
-            is_active: true,
-            is_rtl: isRtlLanguage(code),
-            sort: sortCursor++,
-          },
-        });
-      }
-
-      for (const lang of affectedLangs) {
-        const bundleVersion = await tx.i18nBundleVersion.findUnique({
-          where: { lang },
-        });
-        versionByLang.set(lang, (bundleVersion?.version ?? 0) + 1);
-      }
-
-      const keyIdByKey = new Map<string, string>();
-      const changedKeySet = new Set(changedKeys.map((c) => c.key));
-      for (const key of changedKeySet) {
-        const keyRow = await tx.i18nKey.upsert({
-          where: { key },
-          create: { key },
-          update: {},
-        });
-        keyIdByKey.set(key, keyRow.id);
-      }
-
-      for (const { key, lang } of changedKeys) {
-        const value = rowByKey.get(key)?.values[lang];
-        const keyId = keyIdByKey.get(key);
-        const version = versionByLang.get(lang);
-        if (
-          value === undefined ||
-          keyId === undefined ||
-          version === undefined
-        ) {
-          // Unreachable given how changedKeys/rowByKey/versionByLang are
-          // built above from the same workbook — guarded rather than
-          // asserted so a future refactor that breaks the invariant
-          // fails loudly instead of writing a translation with an
-          // undefined value.
-          throw new Error(
-            `i18n import: inconsistent state for key "${key}" lang "${lang}"`,
-          );
+    await withTxRetry(
+      this.prisma,
+      async (tx) => {
+        let sortCursor =
+          existingLanguages.reduce((max, l) => Math.max(max, l.sort), -1) + 1;
+        for (const code of newLanguages) {
+          await tx.i18nLanguage.create({
+            data: {
+              code,
+              name_native: nativeNameForLanguage(code),
+              is_active: true,
+              is_rtl: isRtlLanguage(code),
+              sort: sortCursor++,
+            },
+          });
         }
-        await tx.i18nTranslation.upsert({
-          where: { key_id_lang: { key_id: keyId, lang } },
-          create: { key_id: keyId, lang, value, version },
-          update: { value, version },
-        });
-      }
 
-      for (const [lang, version] of versionByLang) {
-        await tx.i18nBundleVersion.upsert({
-          where: { lang },
-          create: { lang, version },
-          update: { version },
-        });
-      }
-    });
+        for (const lang of affectedLangs) {
+          const bundleVersion = await tx.i18nBundleVersion.findUnique({
+            where: { lang },
+          });
+          versionByLang.set(lang, (bundleVersion?.version ?? 0) + 1);
+        }
+
+        if (changedKeys.length <= SMALL_IMPORT_CELLS) {
+          const keyIdByKey = new Map<string, string>();
+          for (const key of new Set(changedKeys.map((c) => c.key))) {
+            const keyRow = await tx.i18nKey.upsert({
+              where: { key },
+              create: { key },
+              update: {},
+            });
+            keyIdByKey.set(key, keyRow.id);
+          }
+          for (const { key, lang } of changedKeys) {
+            const value = rowByKey.get(key)?.values[lang];
+            const keyId = keyIdByKey.get(key);
+            const version = versionByLang.get(lang);
+            if (
+              value === undefined ||
+              keyId === undefined ||
+              version === undefined
+            ) {
+              throw new Error(
+                `i18n import: inconsistent state for key "${key}" lang "${lang}"`,
+              );
+            }
+            await tx.i18nTranslation.upsert({
+              where: { key_id_lang: { key_id: keyId, lang } },
+              create: { key_id: keyId, lang, value, version },
+              update: { value, version },
+            });
+          }
+        } else {
+          // Batched (hundreds of thousands of cells for a full 90-language file):
+          // one INSERT … ON CONFLICT per 500 rows instead of one query per cell.
+          const BATCH = 500;
+          const changedKeySet = new Set(changedKeys.map((c) => c.key));
+          const keyList = [...changedKeySet];
+          for (let at = 0; at < keyList.length; at += BATCH) {
+            const part = keyList.slice(at, at + BATCH);
+            await tx.$executeRaw`INSERT INTO i18n_keys (key, updated_at) VALUES ${Prisma.join(
+              part.map((k) => Prisma.sql`(${k}, now())`),
+            )} ON CONFLICT (key) DO NOTHING`;
+          }
+          const keyIdByKey = new Map<string, string>();
+          for (let at = 0; at < keyList.length; at += BATCH) {
+            const part = keyList.slice(at, at + BATCH);
+            const found = await tx.i18nKey.findMany({
+              where: { key: { in: part } },
+              select: { id: true, key: true },
+            });
+            for (const k of found) keyIdByKey.set(k.key, k.id);
+          }
+
+          const cells: {
+            keyId: string;
+            lang: string;
+            value: string;
+            version: number;
+          }[] = [];
+          for (const { key, lang } of changedKeys) {
+            const value = rowByKey.get(key)?.values[lang];
+            const keyId = keyIdByKey.get(key);
+            const version = versionByLang.get(lang);
+            if (
+              value === undefined ||
+              keyId === undefined ||
+              version === undefined
+            ) {
+              throw new Error(
+                `i18n import: inconsistent state for key "${key}" lang "${lang}"`,
+              );
+            }
+            cells.push({ keyId, lang, value, version });
+          }
+          for (let at = 0; at < cells.length; at += BATCH) {
+            const part = cells.slice(at, at + BATCH);
+            await tx.$executeRaw`INSERT INTO i18n_translations (key_id, lang, value, version, updated_at) VALUES ${Prisma.join(
+              part.map(
+                (c) =>
+                  Prisma.sql`(${c.keyId}::UUID, ${c.lang}, ${c.value}, ${c.version}, now())`,
+              ),
+            )} ON CONFLICT (key_id, lang) DO UPDATE SET value = EXCLUDED.value, version = EXCLUDED.version, updated_at = now()`;
+          }
+        }
+
+        for (const [lang, version] of versionByLang) {
+          await tx.i18nBundleVersion.upsert({
+            where: { lang },
+            create: { lang, version },
+            update: { version },
+          });
+        }
+      },
+      { timeoutMs: 180_000 },
+    );
 
     for (const [lang, version] of versionByLang) {
       await this.bundle.cacheVersion(lang, version);

@@ -20,7 +20,8 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "db:erd": "ts-node --transpile-only scripts/generate-erd.ts",
     "openapi:export": "nest build && node dist/src/openapi/export-openapi.js",
-    "admin:set-credentials": "node dist/src/cli/set-admin-credentials.js"
+    "admin:set-credentials": "node dist/src/cli/set-admin-credentials.js",
+    "i18n:import": "node dist/src/cli/import-translations.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1141.0",
