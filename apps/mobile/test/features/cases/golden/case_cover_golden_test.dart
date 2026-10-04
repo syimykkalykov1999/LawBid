@@ -1,4 +1,5 @@
 // ignore_for_file: lines_longer_than_80_chars
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:golden_toolkit/golden_toolkit.dart';
@@ -48,6 +49,31 @@ class _Ru implements Translator {
   @override
   String plural(String key, num count, [Map<String, String>? params]) =>
       _for('$key.other').plural(key, count, params);
+}
+
+/// The covers are drawn (gradients, blurred glows, thin strokes), and
+/// their anti-aliasing differs by a fraction of a percent between the Mac
+/// that rendered these goldens and the CI runner. Up to 0.5% of pixels
+/// may differ; a real layout or colour change moves far more.
+class _TolerantComparator extends LocalFileComparator {
+  _TolerantComparator(super.testFile);
+
+  static const double _maxDiff = 0.005;
+
+  @override
+  Future<bool> compare(Uint8List imageBytes, Uri golden) async {
+    final result = await GoldenFileComparator.compareLists(
+      imageBytes,
+      await getGoldenBytes(golden),
+    );
+    if (result.passed || result.diffPercent <= _maxDiff) {
+      result.dispose();
+      return true;
+    }
+    final error = await generateFailureOutput(result, golden, basedir);
+    result.dispose();
+    throw FlutterError(error);
+  }
 }
 
 FeedCase _case({
@@ -157,6 +183,10 @@ void main() {
   final themes = {'light': AppTheme.light(), 'dark': AppTheme.dark()};
   late final L10nFormats formats;
   setUpAll(() async {
+    final local = goldenFileComparator as LocalFileComparator;
+    goldenFileComparator = _TolerantComparator(
+      local.basedir.resolve('case_cover_golden_test.dart'),
+    );
     await initializeDateFormatting();
     formats = L10nFormats(AppLanguage.fallback);
   });
