@@ -77,7 +77,15 @@ class UsPhoneFormatter extends TextInputFormatter {
     TextEditingValue oldValue,
     TextEditingValue newValue,
   ) {
-    final digits = UsPhone.digitsOf(newValue.text);
+    var digits = UsPhone.digitsOf(newValue.text);
+    // Backspace over a separator ("-", ") ", "(") removes no digit, so the
+    // re-formatting would put it straight back and the cursor would stick.
+    // Treat it as deleting the digit before it.
+    if (newValue.text.length < oldValue.text.length &&
+        digits == UsPhone.digitsOf(oldValue.text) &&
+        digits.isNotEmpty) {
+      digits = digits.substring(0, digits.length - 1);
+    }
     final limited = digits.length > UsPhone.digitsLength
         ? digits.substring(0, UsPhone.digitsLength)
         : digits;

@@ -93,6 +93,8 @@ export class SecretsService implements OnModuleInit, OnModuleDestroy {
 
   // --- runtime ---------------------------------------------------------------
 
+  private storeDownUntil = 0;
+
   async get(provider: string): Promise<ResolvedCredentials | null> {
     const hit = this.cache.get(provider);
     if (hit && Date.now() - hit.at < CACHE_MS) return hit.value;
@@ -120,9 +122,7 @@ export class SecretsService implements OnModuleInit, OnModuleDestroy {
     const def = providerById(provider);
     if (!def) return null;
     if (this.envelope) {
-      const row = await this.prisma.integrationCredential.findFirst({
-        where: { provider, status: 'active' },
-      });
+      const row = await this.activeRow(provider);
       // An active DB version wins — no silent fallback to env.
       if (row) {
         try {
@@ -152,6 +152,30 @@ export class SecretsService implements OnModuleInit, OnModuleDestroy {
       fingerprint: `env:${Object.keys(fields).sort().join(',')}`,
       fields,
     };
+  }
+
+  /** The active DB version, or null when the key store does not answer
+   * within a couple of seconds (a damaged table must never freeze every
+   * request: the env keys are used instead and the store is retried a
+   * minute later). */
+  private async activeRow(
+    provider: string,
+  ): Promise<IntegrationCredential | null> {
+    if (Date.now() < this.storeDownUntil) return null;
+    try {
+      return await Promise.race([
+        this.prisma.integrationCredential.findFirst({
+          where: { provider, status: 'active' },
+        }),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('key store timeout')), 3000),
+        ),
+      ]);
+    } catch (e) {
+      this.storeDownUntil = Date.now() + 60_000;
+      this.logger.error(`key store unavailable, using env keys: ${String(e)}`);
+      return null;
+    }
   }
 
   private fieldsOf(row: IntegrationCredential): Record<string, string> {
