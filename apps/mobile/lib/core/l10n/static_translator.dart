@@ -4,6 +4,9 @@ import 'package:lawbid/core/l10n/plural_rules.dart';
 import 'package:lawbid/core/l10n/strings/file05_strings.dart';
 import 'package:lawbid/core/l10n/strings/file06_strings.dart';
 import 'package:lawbid/core/l10n/strings/file07_strings.dart';
+import 'package:lawbid/core/l10n/strings/audit_cases_strings.dart';
+import 'package:lawbid/core/l10n/strings/audit_chat_strings.dart';
+import 'package:lawbid/core/l10n/strings/audit_social_strings.dart';
 import 'package:lawbid/core/l10n/strings/reels_strings.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 
@@ -1071,6 +1074,9 @@ class StaticTranslatorRu extends _MapTranslator {
         ...file06Ru,
         ...file07Ru,
         ...reelsRu,
+        ...auditCasesRu,
+        ...auditChatRu,
+        ...auditSocialRu,
       };
 }
 
@@ -2416,5 +2422,8 @@ class StaticTranslatorEn extends _MapTranslator {
         ...file06En,
         ...file07En,
         ...reelsEn,
+        ...auditCasesEn,
+        ...auditChatEn,
+        ...auditSocialEn,
       };
 }
