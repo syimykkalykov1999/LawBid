@@ -66,6 +66,10 @@ variable "min_tasks" {
   type    = number
   default = 2
 }
+variable "admin_tasks" {
+  type    = number
+  default = 2
+}
 variable "api_max_tasks" {
   type    = number
   default = 20
@@ -349,7 +353,7 @@ resource "aws_ecs_service" "admin" {
   name                              = "admin"
   cluster                           = aws_ecs_cluster.this.id
   task_definition                   = aws_ecs_task_definition.admin.arn
-  desired_count                     = 2
+  desired_count                     = var.admin_tasks
   launch_type                       = "FARGATE"
   platform_version                  = "LATEST"
   health_check_grace_period_seconds = 30
@@ -373,7 +377,7 @@ resource "aws_ecs_service" "admin" {
   tags = var.tags
 }
 
-# --- autoscaling (§6.3: CPU 60 %, min 2, max per env) --------------------
+# --- autoscaling (§6.3: CPU 60 %, min var.min_tasks, max per env) --------------------
 resource "aws_appautoscaling_target" "svc" {
   for_each = {
     api    = { service = aws_ecs_service.api.name, max = var.api_max_tasks }

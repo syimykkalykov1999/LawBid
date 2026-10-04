@@ -53,6 +53,12 @@ module "stack" {
   redis_replicas      = var.redis_replicas
   api_max_tasks       = var.api_max_tasks
   worker_max_tasks    = var.worker_max_tasks
+  min_tasks           = var.min_tasks
+  admin_tasks         = var.admin_tasks
+  api_cpu             = var.api_cpu
+  api_memory          = var.api_memory
+  worker_cpu          = var.worker_cpu
+  worker_memory       = var.worker_memory
   p95_target_ms       = var.p95_target_ms
   nat_per_az          = var.nat_per_az
   interface_endpoints = var.interface_endpoints
