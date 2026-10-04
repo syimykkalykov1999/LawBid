@@ -27,7 +27,9 @@ void main() {
       );
       expect(
         detectSystemLanguage(
-            const [Locale('zh', 'CN')], {...compiled, 'zh-tw'}),
+          const [Locale('zh', 'CN')],
+          {...compiled, 'zh-tw'},
+        ),
         AppLanguage.fallback,
       );
     });
