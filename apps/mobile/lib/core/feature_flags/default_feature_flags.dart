@@ -23,6 +23,7 @@ const Map<String, bool> defaultFeatureFlags = {
   'stripe_identity': false,
   'persona_verification': false,
   'auto_bar_check': false,
+  'chat_translate': false,
   'phone_login': true,
   'email_login': true,
   'apple_login': true,

@@ -85,6 +85,7 @@ const _keys = <String, String>{
   ApiErrorCodes.fileTooLarge: 'error.api.FILE_TOO_LARGE',
   // Owner 2026-10-01: reels and stickers.
   ApiErrorCodes.videoUnavailable: 'error.api.VIDEO_UNAVAILABLE',
+  ApiErrorCodes.translationUnavailable: 'error.api.TRANSLATION_UNAVAILABLE',
   ApiErrorCodes.supportTicketClosed: 'error.api.SUPPORT_TICKET_CLOSED',
   ApiErrorCodes.referralCodeInvalid: 'error.api.REFERRAL_CODE_INVALID',
   ApiErrorCodes.referralNotAllowed: 'error.api.REFERRAL_NOT_ALLOWED',

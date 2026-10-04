@@ -270,6 +270,12 @@ const reelsRu = <String, String>{
   'account.suspended.reason': 'Причина: {reason}',
   'account.suspended.contact': 'Написать в поддержку',
   'account.suspended.leave': 'Выйти из аккаунта',
+  // Owner 2026-10-04: "Translate" under a chat message.
+  'chat.translate': 'Перевести',
+  'chat.translate.original': 'Показать оригинал',
+  'chat.translate.loading': 'Перевожу…',
+  'chat.translate.note': 'Машинный перевод',
+  'error.api.TRANSLATION_UNAVAILABLE': 'Перевод сейчас недоступен',
 };
 
 const reelsEn = <String, String>{
@@ -539,4 +545,10 @@ const reelsEn = <String, String>{
   'account.suspended.reason': 'Reason: {reason}',
   'account.suspended.contact': 'Contact support',
   'account.suspended.leave': 'Sign out',
+  // Owner 2026-10-04: "Translate" under a chat message.
+  'chat.translate': 'Translate',
+  'chat.translate.original': 'Show original',
+  'chat.translate.loading': 'Translating…',
+  'chat.translate.note': 'Machine translation',
+  'error.api.TRANSLATION_UNAVAILABLE': 'Translation is not available right now',
 };

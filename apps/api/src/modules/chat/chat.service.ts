@@ -910,6 +910,11 @@ export class ChatService {
         : null;
   }
 
+  /** 404 unless the caller takes part in the conversation. */
+  async ensureMember(user: RequestUser, id: string): Promise<void> {
+    await this.load(user, id);
+  }
+
   /** The conversation if the caller takes part in it, else 404. */
   private async load(user: RequestUser, id: string): Promise<Conversation> {
     const conv = await this.prisma.conversation.findUnique({ where: { id } });
