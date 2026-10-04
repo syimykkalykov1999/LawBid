@@ -308,15 +308,12 @@ describe('Stage 4.3 — attorney case feed, detail, views, save (e2e)', () => {
   });
 
   describe('§4.3 case detail: CASE_NOT_AVAILABLE, no client field', () => {
-    it('an attorney unlicensed in the state gets CASE_NOT_AVAILABLE by direct id, not CASE_NOT_FOUND', async () => {
+    it('an attorney unlicensed in the state can view and bid on the case (owner 2026-10-04)', async () => {
       const attorneyId = await newAttorney({ licenses: [['NY', 'verified']] });
       const caseId = await newCase({ states: ['NJ'] });
-      await expect(
-        feed.getDetailForAttorney(attorneyId, caseId),
-      ).rejects.toMatchObject({
-        status: 404,
-        response: { code: 'CASE_NOT_AVAILABLE' },
-      });
+      const detail = await feed.getDetailForAttorney(attorneyId, caseId);
+      expect(detail.id).toBe(caseId);
+      expect(detail.bidAllowed).toBe(true);
     });
 
     it('a non-existent case id also gets CASE_NOT_AVAILABLE for an attorney', async () => {
@@ -355,12 +352,12 @@ describe('Stage 4.3 — attorney case feed, detail, views, save (e2e)', () => {
       expect(row.view_count).toBe(2);
     });
 
-    it('recordView on a case the attorney cannot see is CASE_NOT_AVAILABLE, not tracked', async () => {
+    it('recordView works for any open case, including other states', async () => {
       const attorneyId = await newAttorney({ licenses: [['NY', 'verified']] });
       const caseId = await newCase({ states: ['NJ'] });
-      await expect(feed.recordView(attorneyId, caseId)).rejects.toMatchObject({
-        response: { code: 'CASE_NOT_AVAILABLE' },
-      });
+      await expect(
+        feed.recordView(attorneyId, caseId),
+      ).resolves.toBeUndefined();
     });
   });
 
