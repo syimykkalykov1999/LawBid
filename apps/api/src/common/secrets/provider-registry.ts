@@ -110,6 +110,28 @@ export const PROVIDERS: ProviderDefinition[] = [
       ),
   },
   {
+    id: 'google_translate',
+    label: 'Google Translate (chat translation)',
+    description:
+      'The "Translate" button under chat messages. Also turn on the chat_translate flag.',
+    fields: [
+      {
+        name: 'apiKey',
+        label: 'API key (Cloud Translation API)',
+        secret: true,
+        required: true,
+        pattern: /^[\w-]{30,}$/,
+        patternHint: 'AIza…',
+        env: 'GOOGLE_TRANSLATE_API_KEY',
+      },
+    ],
+    test: (f) =>
+      probe(
+        `https://translation.googleapis.com/language/translate/v2/languages?key=${encodeURIComponent(f.apiKey)}`,
+        { method: 'GET' },
+      ),
+  },
+  {
     id: 'stripe',
     label: 'Stripe (payments)',
     description: 'Subscriptions, checkout, the customer portal.',

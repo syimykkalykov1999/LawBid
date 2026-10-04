@@ -41,6 +41,13 @@ resource "aws_ses_configuration_set" "this" {
   reputation_metrics_enabled = true
 }
 
+# Bounces and complaints: SES itself stops sending to an address that
+# hard-bounced or marked us as spam (account-level suppression list), and
+# the reputation alarms in modules/monitoring warn before AWS pauses us.
+resource "aws_sesv2_account_suppression_attributes" "this" {
+  suppressed_reasons = ["BOUNCE", "COMPLAINT"]
+}
+
 data "aws_region" "current" {}
 
 locals {

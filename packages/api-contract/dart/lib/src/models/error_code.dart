@@ -276,6 +276,8 @@ enum ErrorCode {
   videoNotReady('VIDEO_NOT_READY'),
   @JsonValue('COMMENTS_DISABLED')
   commentsDisabled('COMMENTS_DISABLED'),
+  @JsonValue('TRANSLATION_UNAVAILABLE')
+  translationUnavailable('TRANSLATION_UNAVAILABLE'),
   @JsonValue('STICKER_LIMIT_REACHED')
   stickerLimitReached('STICKER_LIMIT_REACHED'),
   @JsonValue('SUPPORT_TICKET_CLOSED')

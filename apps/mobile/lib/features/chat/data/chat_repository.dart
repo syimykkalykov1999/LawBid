@@ -86,6 +86,9 @@ abstract interface class ChatRepository {
 
   /// OQ-040: the recipient played a voice message.
   Future<ChatMessage> listened(String id, String messageId);
+
+  /// Owner 2026-10-04: one message translated into [target] (app language).
+  Future<String> translate(String id, String messageId, String target);
   Future<void> read(String id, String lastReadMessageId);
   Future<Conversation> mute(String id, DateTime? until);
 }
@@ -329,6 +332,22 @@ class ApiChatRepository implements ChatRepository {
         ))
             .data,
       );
+
+  @override
+  Future<String> translate(
+    String id,
+    String messageId,
+    String target,
+  ) async =>
+      (await guardApiCall(
+        () => _chat.translateMessage(
+          id: id,
+          messageId: messageId,
+          body: api.TranslateMessageDto(target: target),
+        ),
+      ))
+          .data
+          .text;
 
   @override
   Future<Conversation> startDirect(String userId) async =>

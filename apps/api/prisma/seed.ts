@@ -276,6 +276,11 @@ async function seedFeatureFlags(): Promise<void> {
       description: 'Persona as a verification provider',
     },
     {
+      key: 'chat_translate',
+      enabled: false,
+      description: 'Translate button under chat messages (Google Translate)',
+    },
+    {
       key: 'auto_bar_check',
       // Owner 2026-10-04: self-attestation, no external lookups. The NY
       // registry adapter stays available behind this flag.

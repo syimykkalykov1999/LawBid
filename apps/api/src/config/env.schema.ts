@@ -520,6 +520,11 @@ export const envSchema = z
     BUNNY_LIBRARY_ID: z.preprocess(blankToUndefined, z.string().optional()),
     BUNNY_CDN_HOSTNAME: z.preprocess(blankToUndefined, z.string().optional()),
     BUNNY_API_KEY: z.preprocess(blankToUndefined, z.string().optional()),
+    // Owner 2026-10-04: chat translation; normally saved in the admin.
+    GOOGLE_TRANSLATE_API_KEY: z.preprocess(
+      blankToUndefined,
+      z.string().optional(),
+    ),
     BUNNY_TOKEN_AUTH_KEY: z.preprocess(blankToUndefined, z.string().optional()),
     BUNNY_WEBHOOK_TOKEN: z.preprocess(blankToUndefined, z.string().optional()),
     // OQ-041: STUN / TURN for in-app calls (TURN can also be set in the

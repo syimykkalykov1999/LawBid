@@ -68,6 +68,10 @@ export const PAID_FLAGS: Record<
       'BUNNY_WEBHOOK_TOKEN',
     ],
   },
+  chat_translate: {
+    integration: 'google_translate',
+    keys: ['GOOGLE_TRANSLATE_API_KEY'],
+  },
 };
 
 /**

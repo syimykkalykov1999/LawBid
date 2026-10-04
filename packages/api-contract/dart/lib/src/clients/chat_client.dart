@@ -11,6 +11,7 @@ import '../models/conversation_folder.dart';
 import '../models/conversation_list_envelope.dart';
 import '../models/message_envelope.dart';
 import '../models/message_list_envelope.dart';
+import '../models/message_translation_envelope.dart';
 import '../models/messages_filter.dart';
 import '../models/mute_conversation_dto.dart';
 import '../models/organize_conversation_dto.dart';
@@ -19,6 +20,7 @@ import '../models/read_result_envelope.dart';
 import '../models/requests_count_envelope.dart';
 import '../models/send_message_dto.dart';
 import '../models/start_direct_chat_dto.dart';
+import '../models/translate_message_dto.dart';
 
 part 'chat_client.g.dart';
 
@@ -110,6 +112,15 @@ abstract class ChatClient {
   Future<MessageEnvelope> voiceListened({
     @Path('id') required String id,
     @Path('messageId') required String messageId,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Translate one message into a language (owner 2026-10-04)
+  @POST('/conversations/{id}/messages/{messageId}/translate')
+  Future<MessageTranslationEnvelope> translateMessage({
+    @Path('id') required String id,
+    @Path('messageId') required String messageId,
+    @Body() required TranslateMessageDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 
