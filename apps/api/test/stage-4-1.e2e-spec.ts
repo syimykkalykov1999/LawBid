@@ -552,7 +552,12 @@ describe('Stage 4.1 — state machines, journal, access policy (e2e)', () => {
 
       expect(await policy.decide(v(att), njSpeeding)).toEqual(prospect);
       expect(await policy.decide(v(att), nyPlusNj)).toEqual(prospect);
-      expect(await policy.decide(v(att), nySpeeding)).toBeNull(); // pending NY license
+      // Pending NY license: viewable (owner 2026-10-04: any open case), but
+      // the access kind says it is not biddable.
+      expect(await policy.decide(v(att), nySpeeding)).toEqual({
+        ...prospect,
+        kind: 'attorney_browser',
+      });
       expect(await policy.decide(v(att), njDui)).toEqual(outside); // other practice
       expect(await policy.decide(v(att), njNotSure)).toEqual(outside);
       expect(await policy.decide(v(generalist), njNotSure)).toEqual(prospect); // §4.1 exception
