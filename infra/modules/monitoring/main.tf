@@ -361,6 +361,42 @@ resource "aws_cloudwatch_metric_alarm" "service_cpu" {
   tags                = var.tags
 }
 
+# Email reputation (SES production-access promise): AWS pauses sending
+# above ~10 % bounces or ~0.5 % complaints, so warn well before that.
+# Bounced and complained addresses are skipped by the SES account
+# suppression list (modules/ses).
+resource "aws_cloudwatch_metric_alarm" "ses_bounce_rate" {
+  alarm_name          = "${var.name}-ses-bounce-rate"
+  alarm_description   = "SES bounce rate > 4%. Check signup e-mails for typos or bots; sending pauses at ~10%."
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  period              = 3600
+  threshold           = 0.04
+  treat_missing_data  = "notBreaching"
+  statistic           = "Maximum"
+  metric_name         = "Reputation.BounceRate"
+  namespace           = "AWS/SES"
+  alarm_actions       = local.ops
+  ok_actions          = local.ops
+  tags                = var.tags
+}
+
+resource "aws_cloudwatch_metric_alarm" "ses_complaint_rate" {
+  alarm_name          = "${var.name}-ses-complaint-rate"
+  alarm_description   = "SES complaint rate > 0.1%. Someone marked our mail as spam; sending pauses at ~0.5%."
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  period              = 3600
+  threshold           = 0.001
+  treat_missing_data  = "notBreaching"
+  statistic           = "Maximum"
+  metric_name         = "Reputation.ComplaintRate"
+  namespace           = "AWS/SES"
+  alarm_actions       = local.ops
+  ok_actions          = local.ops
+  tags                = var.tags
+}
+
 output "alerts_topic_arn" { value = aws_sns_topic.alerts.arn }
 output "metrics_namespace" { value = local.ns }
 
