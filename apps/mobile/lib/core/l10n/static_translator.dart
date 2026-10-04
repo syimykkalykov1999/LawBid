@@ -357,7 +357,7 @@ class StaticTranslatorRu extends _MapTranslator {
         'error.api.VERIFICATION_INVALID_STATUS':
             'Сейчас заявку нельзя изменить. Обновите экран.',
         'error.api.VERIFICATION_INCOMPLETE':
-            'Заявка не заполнена: нужны лицензия с документом, документ личности и селфи.',
+            'Заявка не заполнена: добавьте лицензию и отметьте подтверждение.',
         'error.api.LICENSE_ALREADY_REGISTERED':
             'Эта лицензия уже привязана к другому аккаунту. Если это ошибка, обратитесь в поддержку.',
         'error.api.LICENSE_ALREADY_ADDED':
@@ -611,10 +611,9 @@ class StaticTranslatorRu extends _MapTranslator {
         'onboarding.verification.subtitle':
             'Ещё два шага до отправки предложений. 7-дневный триал начнётся только после одобрения верификации — до этого карта не нужна.',
         'onboarding.verification.item.profile': 'Профиль заполнен',
-        'onboarding.verification.item.license':
-            'Верификация лицензии и личности',
+        'onboarding.verification.item.license': 'Подтверждение лицензии',
         'onboarding.verification.item.license.desc':
-            'Номер лицензии адвоката и быстрая проверка личности.',
+            'Штат и номер лицензии — подтверждаете одной галочкой.',
         'onboarding.verification.item.subscription':
             'Подписка: 7 дней бесплатно',
         'onboarding.verification.item.subscription.desc':
@@ -637,7 +636,7 @@ class StaticTranslatorRu extends _MapTranslator {
             'Ваши документы видны только проверяющему LawBid и не публикуются',
         'verification.intro.title': 'Подтвердите лицензию',
         'verification.intro.lead':
-            'Верифицированные адвокаты получают синюю галочку, доступ к «Кейсам» и могут отправлять предложения. Это займёт около 5 минут.',
+            'Верифицированные адвокаты получают синюю галочку, доступ к «Кейсам» и могут отправлять предложения. Это займёт минуту.',
         'verification.intro.needed': 'Что понадобится',
         'verification.intro.item.license':
             'Номер лицензии и bar card, certificate of good standing или профиль State Bar для каждого штата',
@@ -647,13 +646,13 @@ class StaticTranslatorRu extends _MapTranslator {
             'Водительские права, паспорт или state ID',
         'verification.intro.item.selfie': 'Селфи, снятое камерой телефона',
         'verification.intro.disclaimer':
-            'Имя в профиле должно совпадать с документом личности и записью о лицензии. Если есть расхождение (например, девичья фамилия), поясните его в комментарии для проверяющего. Окончательное решение принимает проверяющий LawBid.',
+            'Вы сами отвечаете за указанные данные: LawBid не сверяет их с коллегиями штатов. На ложные данные можно пожаловаться, и такой аккаунт блокируется.',
         'verification.intro.start': 'Начать',
         'verification.licenses.title': 'Ваши лицензии',
         'verification.licenses.lead':
             'Добавьте все штаты, где у вас есть лицензия. Для каждого загрузите bar card, certificate of good standing или скриншот/PDF профиля на сайте State Bar.',
         'verification.licenses.leadNumber':
-            'Добавьте все штаты, где у вас есть лицензия, и номер лицензии. Мы сверим его с реестром штата.',
+            'Добавьте все штаты, где у вас есть лицензия, и номер лицензии.',
         'verification.licenses.empty': 'Штаты ещё не добавлены.',
         'verification.licenses.addFirst': 'Добавить штат',
         'verification.licenses.addAnother': 'Добавить ещё штат',
@@ -791,7 +790,7 @@ class StaticTranslatorRu extends _MapTranslator {
         'verification.status.error': 'Не удалось загрузить статус верификации.',
         'verification.status.start.title': 'Пройдите верификацию',
         'verification.status.start.body':
-            'Подтвердите лицензию и личность, чтобы получить доступ к «Кейсам», отправлять предложения и получить синюю галочку.',
+            'Подтвердите лицензию, чтобы получить доступ к «Кейсам», отправлять предложения и получить синюю галочку.',
         'verification.status.start.cta': 'Начать верификацию',
         'verification.status.draft.title': 'Черновик сохранён',
         'verification.status.draft.body':
@@ -1345,7 +1344,7 @@ class StaticTranslatorEn extends _MapTranslator {
         'error.api.VERIFICATION_INVALID_STATUS':
             "This request can't be changed right now. Please refresh.",
         'error.api.VERIFICATION_INCOMPLETE':
-            'Your request is incomplete: add a license with its document, an ID document and a selfie.',
+            'Your request is incomplete: add a license and tick the sworn statement.',
         'error.api.LICENSE_ALREADY_REGISTERED':
             'This license is already linked to another account. If this is a mistake, contact support.',
         'error.api.LICENSE_ALREADY_ADDED':
@@ -1962,10 +1961,9 @@ class StaticTranslatorEn extends _MapTranslator {
         'onboarding.verification.subtitle':
             'Two more steps before you can send offers. Your 7-day trial starts only after verification is approved — no card needed until then.',
         'onboarding.verification.item.profile': 'Profile completed',
-        'onboarding.verification.item.license':
-            'License & identity verification',
+        'onboarding.verification.item.license': 'License confirmation',
         'onboarding.verification.item.license.desc':
-            'Bar license number and a quick identity check.',
+            'Your state and bar number, confirmed with one tick.',
         'onboarding.verification.item.subscription':
             'Subscription: 7-day free trial',
         'onboarding.verification.item.subscription.desc':
@@ -1988,7 +1986,7 @@ class StaticTranslatorEn extends _MapTranslator {
             'Your documents are visible only to LawBid reviewers and are never published.',
         'verification.intro.title': 'Verify your license',
         'verification.intro.lead':
-            'Verified attorneys get the blue check, access to Cases and can send offers. It takes about 5 minutes.',
+            'Verified attorneys get the blue check, access to Cases and can send offers. It takes about a minute.',
         'verification.intro.needed': "What you'll need",
         'verification.intro.item.license':
             'Bar number and a bar card, certificate of good standing or State Bar profile for each state',
@@ -1997,13 +1995,13 @@ class StaticTranslatorEn extends _MapTranslator {
         'verification.intro.item.id': 'A driver license, passport or state ID',
         'verification.intro.item.selfie': 'A selfie taken with your camera',
         'verification.intro.disclaimer':
-            'Your name in the profile must match your ID and the license record. If they differ (for example, a maiden name), explain it in the comment for the reviewer. The final decision is made by a LawBid reviewer.',
+            'You are responsible for what you enter: LawBid does not check it with state bars. False information can be reported, and such accounts are banned.',
         'verification.intro.start': 'Start',
         'verification.licenses.title': 'Your licenses',
         'verification.licenses.lead':
             'Add every state where you are licensed. For each one, upload a bar card, a certificate of good standing or a screenshot/PDF of your State Bar profile.',
         'verification.licenses.leadNumber':
-            'Add every state where you are licensed and your bar number. We check it against the state registry.',
+            'Add every state where you are licensed and your bar number.',
         'verification.licenses.empty': 'No states added yet.',
         'verification.licenses.addFirst': 'Add a state',
         'verification.licenses.addAnother': 'Add another state',
@@ -2137,7 +2135,7 @@ class StaticTranslatorEn extends _MapTranslator {
         'verification.status.error': "Couldn't load the verification status.",
         'verification.status.start.title': 'Get verified',
         'verification.status.start.body':
-            'Confirm your license and identity to access Cases, send offers and get the blue check.',
+            'Confirm your license to access Cases, send offers and get the blue check.',
         'verification.status.start.cta': 'Start verification',
         'verification.status.draft.title': 'Your draft is saved',
         'verification.status.draft.body': 'Continue where you left off.',
