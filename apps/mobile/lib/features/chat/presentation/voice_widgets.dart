@@ -132,13 +132,17 @@ class VoiceMessageBody extends ConsumerWidget {
                   const SizedBox(height: 2),
                   Row(
                     children: [
-                      Text(
-                        playable
-                            ? voiceClock(shown)
-                            : t.t('chat.voice.unavailable'),
-                        style: type.caption.copyWith(
-                          color: fg.withValues(alpha: 0.8),
-                          fontFeatures: const [FontFeature.tabularFigures()],
+                      Flexible(
+                        child: Text(
+                          playable
+                              ? voiceClock(shown)
+                              : t.t('chat.voice.unavailable'),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: type.caption.copyWith(
+                            color: fg.withValues(alpha: 0.8),
+                            fontFeatures: const [FontFeature.tabularFigures()],
+                          ),
                         ),
                       ),
                       if (!v.listened && !m.isLocal) ...[

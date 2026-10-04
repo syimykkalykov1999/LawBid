@@ -90,7 +90,7 @@ class _GalleryState extends State<_Gallery> {
                   const Spacer(),
                   if (widget.urls.length > 1)
                     Padding(
-                      padding: const EdgeInsets.only(right: 12),
+                      padding: const EdgeInsetsDirectional.only(end: 12),
                       child: Text(
                         '${_page + 1} / ${widget.urls.length}',
                         style: const TextStyle(

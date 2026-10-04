@@ -11,7 +11,9 @@ void main() {
 
   test('backspace over the dash deletes the digit before it', () {
     expect(
-        f.formatEditUpdate(v('(777) 739-'), v('(777) 739')).text, '(777) 73');
+      f.formatEditUpdate(v('(777) 739-'), v('(777) 739')).text,
+      '(777) 73',
+    );
   });
 
   test('backspace over ") " deletes the digit before it', () {

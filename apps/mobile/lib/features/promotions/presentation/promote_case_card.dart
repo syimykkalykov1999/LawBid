@@ -86,12 +86,14 @@ class _PromoteCaseCardState extends ConsumerState<PromoteCaseCard>
             children: [
               AppIcon(AppIcons.campaignRounded, color: colors.goldDark),
               const SizedBox(width: AppSpacing.sm),
-              Text(
-                t.t('promote.title'),
-                style: type.titleMedium.copyWith(
-                  color: colors.text,
-                  fontFamily: type.body.fontFamily,
-                  fontWeight: FontWeight.w700,
+              Expanded(
+                child: Text(
+                  t.t('promote.title'),
+                  style: type.titleMedium.copyWith(
+                    color: colors.text,
+                    fontFamily: type.body.fontFamily,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
             ],
@@ -227,10 +229,15 @@ class _PromoteSheetState extends ConsumerState<_PromoteSheet> {
                 ),
                 SizedBox(
                   width: 120,
-                  child: Text(
-                    t.t('promote.days', {'days': '$_days'}),
-                    textAlign: TextAlign.center,
-                    style: type.titleLarge.copyWith(color: colors.text),
+                  // Long translations shrink instead of wrapping mid-word.
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      t.t('promote.days', {'days': '$_days'}),
+                      maxLines: 1,
+                      textAlign: TextAlign.center,
+                      style: type.titleLarge.copyWith(color: colors.text),
+                    ),
                   ),
                 ),
                 AppIconButton(

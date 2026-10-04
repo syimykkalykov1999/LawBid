@@ -152,12 +152,18 @@ class AppPaginationFooter extends StatelessWidget {
           child: Row(
             children: [
               Expanded(child: _Hairline(color: colors.goldStroke)),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-                child: Text(
-                  labels.end,
-                  style: typography.bodySmall
-                      .copyWith(color: colors.textSecondary),
+              // Flexible: a long translation wraps between the hairlines.
+              Flexible(
+                flex: 4,
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                  child: Text(
+                    labels.end,
+                    textAlign: TextAlign.center,
+                    style: typography.bodySmall
+                        .copyWith(color: colors.textSecondary),
+                  ),
                 ),
               ),
               Expanded(child: _Hairline(color: colors.goldStroke, flip: true)),

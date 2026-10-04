@@ -78,6 +78,8 @@ class AttorneyTile extends ConsumerWidget {
                   ),
                   Text(
                     '@${row.username}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: type.caption.copyWith(color: colors.textSecondary),
                   ),
                   const SizedBox(height: 2),
@@ -89,12 +91,16 @@ class AttorneyTile extends ConsumerWidget {
                         color: colors.gold,
                       ),
                       const SizedBox(width: 2),
-                      Text(
-                        row.ratingCount == 0
-                            ? t.t('profile.rating.new')
-                            : '${row.ratingAvg.toStringAsFixed(1)} · '
-                                '${SocialFormat.plural(t, ref.watch(l10nFormatsProvider), 'profile.rating.count', row.ratingCount)}',
-                        style: type.caption.copyWith(color: colors.text),
+                      Flexible(
+                        child: Text(
+                          row.ratingCount == 0
+                              ? t.t('profile.rating.new')
+                              : '${row.ratingAvg.toStringAsFixed(1)} · '
+                                  '${SocialFormat.plural(t, ref.watch(l10nFormatsProvider), 'profile.rating.count', row.ratingCount)}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: type.caption.copyWith(color: colors.text),
+                        ),
                       ),
                     ],
                   ),
@@ -112,7 +118,15 @@ class AttorneyTile extends ConsumerWidget {
             ),
             if (showFollow && row.id != me) ...[
               const SizedBox(width: AppSpacing.sm),
-              FollowButton(attorneyId: row.id, initial: row.isFollowing),
+              // Capped so a long "Follow" (de, uk, …) can't squeeze the
+              // name column; the label shrinks inside the pill instead.
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 136),
+                child: FollowButton(
+                  attorneyId: row.id,
+                  initial: row.isFollowing,
+                ),
+              ),
             ],
           ],
         ),
@@ -173,11 +187,15 @@ class ClientTile extends ConsumerWidget {
                   ),
                   Text(
                     '@${row.username}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: type.caption.copyWith(color: colors.textSecondary),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     '${t.t('person.client')} · ${row.stateCode}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: type.caption.copyWith(color: colors.textSecondary),
                   ),
                 ],

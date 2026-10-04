@@ -538,22 +538,27 @@ class _Licenses extends StatelessWidget {
                     style: typography.body.copyWith(color: colors.text),
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.sm,
-                    vertical: AppSpacing.xs / 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: switch (l.status) {
-                      LicenseState.verified => colors.successTint,
-                      LicenseState.pending => colors.goldTint,
-                      _ => colors.dangerTint,
-                    },
-                    borderRadius: BorderRadius.circular(AppRadii.pill),
-                  ),
-                  child: Text(
-                    t.t('profile.license.${l.status.name}'),
-                    style: typography.badge.copyWith(color: colors.text),
+                const SizedBox(width: AppSpacing.sm),
+                Flexible(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.sm,
+                      vertical: AppSpacing.xs / 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: switch (l.status) {
+                        LicenseState.verified => colors.successTint,
+                        LicenseState.pending => colors.goldTint,
+                        _ => colors.dangerTint,
+                      },
+                      borderRadius: BorderRadius.circular(AppRadii.pill),
+                    ),
+                    child: Text(
+                      t.t('profile.license.${l.status.name}'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: typography.badge.copyWith(color: colors.text),
+                    ),
                   ),
                 ),
               ],

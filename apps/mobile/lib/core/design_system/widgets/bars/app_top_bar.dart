@@ -34,7 +34,7 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
       // Owner 2026-09-30: the back arrow and the right-hand icons sit near
       // the edges (their 48 pt tap targets already give breathing room);
       // a bare title keeps the screen margin.
-      padding: EdgeInsets.fromLTRB(
+      padding: EdgeInsetsDirectional.fromSTEB(
         leading != null ? AppSpacing.xs : AppSpacing.screenSide,
         topInset,
         actions != null && actions!.isNotEmpty

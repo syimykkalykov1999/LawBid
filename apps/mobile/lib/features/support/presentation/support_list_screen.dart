@@ -70,7 +70,9 @@ class SupportListScreen extends ConsumerWidget {
                     Container(
                       width: 10,
                       height: 10,
-                      margin: const EdgeInsets.only(left: AppSpacing.md),
+                      margin: const EdgeInsetsDirectional.only(
+                        start: AppSpacing.md,
+                      ),
                       decoration: BoxDecoration(
                         color: colors.gold,
                         shape: BoxShape.circle,

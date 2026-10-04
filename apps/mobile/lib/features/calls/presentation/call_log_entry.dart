@@ -112,26 +112,33 @@ class CallLogEntry extends ConsumerWidget {
             ),
           ),
           const SizedBox(width: AppSpacing.sm),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                label,
-                style: type.body.copyWith(
-                  color: missedHere ? colors.danger : fg,
-                  fontWeight: FontWeight.w600,
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  label,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: type.body.copyWith(
+                    color: missedHere ? colors.danger : fg,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-              ),
-              Text(
-                [
-                  f.time(message.createdAt),
-                  if (log.durationSec > 0)
-                    voiceClock(Duration(seconds: log.durationSec)),
-                ].join(' · '),
-                style: type.caption.copyWith(color: fg.withValues(alpha: 0.7)),
-              ),
-            ],
+                Text(
+                  [
+                    f.time(message.createdAt),
+                    if (log.durationSec > 0)
+                      voiceClock(Duration(seconds: log.durationSec)),
+                  ].join(' · '),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style:
+                      type.caption.copyWith(color: fg.withValues(alpha: 0.7)),
+                ),
+              ],
+            ),
           ),
           if (canCall) ...[
             const SizedBox(width: AppSpacing.md),
