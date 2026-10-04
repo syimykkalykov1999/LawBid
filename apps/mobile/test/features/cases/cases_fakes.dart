@@ -47,6 +47,7 @@ class FakeCasesRepository implements CasesRepository {
     String? practiceCategory,
     String? state,
     CaseFeedExtras extras = const CaseFeedExtras(),
+    bool mineOnly = true,
   }) async =>
       _empty();
 
