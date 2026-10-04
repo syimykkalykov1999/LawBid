@@ -424,14 +424,14 @@ class FeedCaseCard extends StatelessWidget {
         child: Container(
           decoration: BoxDecoration(
             color: colors.surface,
-            // Light theme: a warm champagne wash instead of flat white.
+            // Light theme: champagne gold across the whole card.
             gradient: Theme.of(context).brightness == Brightness.light
                 ? LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      colors.surface,
-                      Color.alphaBlend(colors.goldTint, colors.surface),
+                      Color.lerp(colors.surface, colors.gold, 0.14)!,
+                      Color.lerp(colors.surface, colors.gold, 0.22)!,
                     ],
                   )
                 : null,
@@ -1386,7 +1386,7 @@ class _FrostedInLight extends StatelessWidget {
   Widget build(BuildContext context) {
     if (Theme.of(context).brightness != Brightness.light) return child;
     final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final veil = Color.alphaBlend(colors.goldTint, colors.surface);
+    final veil = Color.lerp(colors.surface, colors.gold, 0.2)!;
     return Stack(
       fit: StackFit.expand,
       children: [
