@@ -5,7 +5,7 @@ import { ErrorCode } from '../../../common/errors/error-code.enum';
 import type Redis from 'ioredis';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
 import { BOOTSTRAP_CACHE_KEY } from '../../feature-flags/services/bootstrap.service';
-import { nativeNameForLanguage } from '../language-names';
+import { isRtlLanguage, nativeNameForLanguage } from '../language-names';
 import {
   buildParsedWorkbook,
   parseTranslationsFile,
@@ -200,7 +200,7 @@ export class I18nImportService {
             code,
             name_native: nativeNameForLanguage(code),
             is_active: true,
-            is_rtl: false,
+            is_rtl: isRtlLanguage(code),
             sort: sortCursor++,
           },
         });

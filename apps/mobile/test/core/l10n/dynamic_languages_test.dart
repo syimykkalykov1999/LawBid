@@ -98,6 +98,19 @@ void main() {
     expect(AppLanguage.isValidCode('xyz'), isFalse);
   });
 
+  test('Traditional Chinese keeps its own code; RTL languages are flagged',
+      () {
+    expect(AppLanguage.fromCode('zh-TW').code, 'zh-tw');
+    expect(AppLanguage.fromCode('zh_Hant_HK').code, 'zh-tw');
+    expect(AppLanguage.fromCode('zh-MO').code, 'zh-tw');
+    expect(AppLanguage.fromCode('zh-CN').code, 'zh');
+    expect(AppLanguage.fromCode('zh_Hans').code, 'zh');
+    expect(AppLanguage.isValidCode('zh-tw'), isTrue);
+    expect(AppLanguage.fromCode('ar').isRtl, isTrue);
+    expect(AppLanguage.fromCode('he').isRtl, isTrue);
+    expect(AppLanguage.en.isRtl, isFalse);
+  });
+
   test(
       'server-only language: listed, selected, rendered from its bundle with en fallback',
       () async {

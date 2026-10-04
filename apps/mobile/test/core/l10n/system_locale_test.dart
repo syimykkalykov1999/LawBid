@@ -15,6 +15,23 @@ void main() {
   group('detectSystemLanguage', () {
     const compiled = {'en', 'ru'};
 
+    test('a Traditional Chinese device picks zh-tw, else zh', () {
+      const hant =
+          Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hant');
+      expect(
+        detectSystemLanguage(const [hant], {...compiled, 'zh', 'zh-tw'}),
+        AppLanguage.fromCode('zh-tw'),
+      );
+      expect(
+        detectSystemLanguage(const [Locale('zh', 'TW')], {...compiled, 'zh'}),
+        AppLanguage.fromCode('zh'),
+      );
+      expect(
+        detectSystemLanguage(const [Locale('zh', 'CN')], {...compiled, 'zh-tw'}),
+        AppLanguage.fallback,
+      );
+    });
+
     test('picks the first system locale whose language is selectable', () {
       expect(
         detectSystemLanguage(const [Locale('ru', 'RU')], compiled),

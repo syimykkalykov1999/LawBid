@@ -5,6 +5,8 @@ import 'package:lawbid/core/app_update/app_update_gate.dart';
 import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/connectivity/offline_banner_host.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/l10n/available_languages.dart';
+import 'package:lawbid/core/l10n/language_providers.dart';
 import 'package:lawbid/core/navigation/app_router.dart';
 import 'package:lawbid/core/navigation/root_messenger.dart';
 import 'package:lawbid/core/theme/preferences_sync.dart';
@@ -21,6 +23,13 @@ class LawBidApp extends ConsumerWidget {
     final router = ref.watch(appRouterProvider);
     final themeMode =
         ref.watch(themeModeControllerProvider).value ?? ThemeMode.system;
+    // Arabic, Hebrew, Persian, Urdu, Pashto: mirror the whole UI. The app
+    // ships no Flutter localization delegates, so nothing else would.
+    final language = ref.watch(languageControllerProvider).value;
+    final rtl = language != null &&
+        (language.isRtl ||
+            (ref.watch(activeLanguagesControllerProvider) ?? const [])
+                .any((l) => l.code == language.code && l.isRtl));
 
     return MaterialApp.router(
       scaffoldMessengerKey: rootMessengerKey,
@@ -40,19 +49,24 @@ class LawBidApp extends ConsumerWidget {
       // Owner 2026-09-30: a tap on empty space anywhere hides the keyboard
       // (Instagram/YouTube behaviour). Translucent: buttons and fields
       // still get their own taps first.
-      builder: (context, child) => GestureDetector(
-        behavior: HitTestBehavior.translucent,
-        onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
-        child: AccountSuspendedGate(
-          child: AppUpdateGate(
-            child: child == null
-                ? null
-                // OQ-041: the call screen pops over any route.
-                : CallHost(
-                    router: router,
-                    child:
-                        RouterOfflineBannerHost(router: router, child: child),
-                  ),
+      builder: (context, child) => Directionality(
+        textDirection: rtl ? TextDirection.rtl : TextDirection.ltr,
+        child: GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+          child: AccountSuspendedGate(
+            child: AppUpdateGate(
+              child: child == null
+                  ? null
+                  // OQ-041: the call screen pops over any route.
+                  : CallHost(
+                      router: router,
+                      child: RouterOfflineBannerHost(
+                        router: router,
+                        child: child,
+                      ),
+                    ),
+            ),
           ),
         ),
       ),
