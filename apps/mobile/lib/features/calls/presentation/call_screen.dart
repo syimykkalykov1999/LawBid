@@ -95,9 +95,13 @@ class _CallScreenState extends ConsumerState<CallScreen>
                         color: colors.goldLight,
                       ),
                       const SizedBox(width: AppSpacing.xs),
-                      Text(
-                        t.t('call.audioOnly'),
-                        style: type.caption.copyWith(color: colors.goldLight),
+                      Flexible(
+                        child: Text(
+                          t.t('call.audioOnly'),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: type.caption.copyWith(color: colors.goldLight),
+                        ),
                       ),
                     ],
                   ),
@@ -355,37 +359,45 @@ class _RoundButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    return Semantics(
-      button: true,
-      toggled: selected,
-      enabled: onTap != null,
-      label: label,
-      excludeSemantics: true,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          AppPressable(
-            onTap: () {
-              if (onTap == null) return;
-              HapticFeedback.lightImpact();
-              onTap!();
-            },
-            child: AnimatedContainer(
-              duration:
-                  context.reduceMotion ? Duration.zero : AppMotion.stateChange,
-              width: 72,
-              height: 72,
-              decoration: BoxDecoration(shape: BoxShape.circle, color: color),
-              child: AppIcon(icon, color: iconColor, size: 32),
+    // Expanded (always a child of a button Row): equal slots, so long
+    // translated labels wrap inside their own slot instead of overlapping.
+    return Expanded(
+      child: Semantics(
+        button: true,
+        toggled: selected,
+        enabled: onTap != null,
+        label: label,
+        excludeSemantics: true,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AppPressable(
+              onTap: () {
+                if (onTap == null) return;
+                HapticFeedback.lightImpact();
+                onTap!();
+              },
+              child: AnimatedContainer(
+                duration: context.reduceMotion
+                    ? Duration.zero
+                    : AppMotion.stateChange,
+                width: 72,
+                height: 72,
+                decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+                child: AppIcon(icon, color: iconColor, size: 32),
+              ),
             ),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          Text(
-            label,
-            style: type.caption
-                .copyWith(color: Colors.white.withValues(alpha: 0.85)),
-          ),
-        ],
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              label,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: type.caption
+                  .copyWith(color: Colors.white.withValues(alpha: 0.85)),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -641,9 +641,11 @@ class SavedPostsList extends ConsumerWidget {
                     color: colors.textSecondary,
                   ),
                   const SizedBox(width: AppSpacing.md),
-                  Text(
-                    t.t('post.unavailable'),
-                    style: type.body.copyWith(color: colors.textSecondary),
+                  Expanded(
+                    child: Text(
+                      t.t('post.unavailable'),
+                      style: type.body.copyWith(color: colors.textSecondary),
+                    ),
                   ),
                 ],
               ),

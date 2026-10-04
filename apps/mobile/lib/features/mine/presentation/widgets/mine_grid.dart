@@ -78,6 +78,7 @@ class MineTile extends StatelessWidget {
       StatusTone.danger => colors.danger,
       StatusTone.neutral => colors.textSecondary,
     };
+    final hasBadge = (data.badge ?? 0) > 0;
     return Semantics(
       button: true,
       label: '${data.title}, ${data.statusLabel}',
@@ -107,52 +108,59 @@ class MineTile extends StatelessWidget {
                   ),
                 ),
               ),
-              Positioned(
-                left: 6,
+              // Bounded on both sides (leaving room for the count badge) so a
+              // long status ellipsizes instead of running under the badge.
+              PositionedDirectional(
+                start: 6,
+                end: hasBadge ? 40 : 6,
                 top: 6,
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: const Color(0xB30A1A3F),
-                    borderRadius: BorderRadius.circular(AppRadii.pill),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 6,
-                        height: 6,
-                        decoration:
-                            BoxDecoration(color: dot, shape: BoxShape.circle),
-                      ),
-                      const SizedBox(width: 4),
-                      ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 84),
-                        child: Text(
-                          data.statusLabel,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: type.caption.copyWith(
-                            color: Colors.white,
-                            fontSize: 10,
-                            height: 1.2,
+                child: Align(
+                  alignment: AlignmentDirectional.topStart,
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xB30A1A3F),
+                      borderRadius: BorderRadius.circular(AppRadii.pill),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 6,
+                          height: 6,
+                          decoration: BoxDecoration(
+                            color: dot,
+                            shape: BoxShape.circle,
                           ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(
+                            data.statusLabel,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: type.caption.copyWith(
+                              color: Colors.white,
+                              fontSize: 10,
+                              height: 1.2,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
-              if ((data.badge ?? 0) > 0)
-                Positioned(
-                  right: 6,
+              if (hasBadge)
+                PositionedDirectional(
+                  end: 6,
                   top: 6,
                   child: CountPill(count: data.badge!),
                 ),
-              Positioned(
-                left: 6,
-                right: 6,
+              PositionedDirectional(
+                start: 6,
+                end: 6,
                 bottom: 6,
                 child: Text(
                   data.title,

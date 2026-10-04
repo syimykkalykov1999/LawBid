@@ -255,10 +255,18 @@ class _SheetState extends ConsumerState<_Sheet> {
                               color: colors.goldDark,
                             ),
                             const SizedBox(height: 2),
-                            Text(
-                              t.t('reviews.photos.add'),
-                              style:
-                                  type.caption.copyWith(color: colors.goldDark),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: AppSpacing.xs,
+                              ),
+                              child: Text(
+                                t.t('reviews.photos.add'),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                                style: type.caption
+                                    .copyWith(color: colors.goldDark),
+                              ),
                             ),
                           ],
                         ),

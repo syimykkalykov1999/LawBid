@@ -135,9 +135,9 @@ class RoleScreen extends ConsumerWidget {
                         child: !attorneySide
                             ? const SizedBox(width: double.infinity)
                             : Padding(
-                                padding: const EdgeInsets.only(
+                                padding: const EdgeInsetsDirectional.only(
                                   top: AppSpacing.sm,
-                                  left: AppSpacing.lg,
+                                  start: AppSpacing.lg,
                                 ),
                                 child: Column(
                                   children: [

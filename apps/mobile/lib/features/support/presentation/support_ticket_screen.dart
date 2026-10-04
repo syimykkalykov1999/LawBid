@@ -66,7 +66,9 @@ class _SupportTicketScreenState extends ConsumerState<SupportTicketScreen> {
     Widget bubble(SupportMessage m) {
       final team = m.fromTeam;
       return Align(
-        alignment: team ? Alignment.centerLeft : Alignment.centerRight,
+        alignment: team
+            ? AlignmentDirectional.centerStart
+            : AlignmentDirectional.centerEnd,
         child: Container(
           constraints: BoxConstraints(
             maxWidth: MediaQuery.sizeOf(context).width * 0.82,
@@ -84,6 +86,8 @@ class _SupportTicketScreenState extends ConsumerState<SupportTicketScreen> {
               if (team)
                 Text(
                   m.authorName ?? t.t('support.team'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: type.caption.copyWith(
                     color: colors.goldDark,
                     fontWeight: FontWeight.w700,
@@ -121,9 +125,17 @@ class _SupportTicketScreenState extends ConsumerState<SupportTicketScreen> {
         ),
         actions: [
           if (async.value?.isOpen ?? false)
-            TextButton(
-              onPressed: _busy ? null : _close,
-              child: Text(t.t('support.close')),
+            // Capped so a long translation can't squeeze the title away.
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 140),
+              child: TextButton(
+                onPressed: _busy ? null : _close,
+                child: Text(
+                  t.t('support.close'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             ),
         ],
       ),
@@ -162,7 +174,7 @@ class _SupportTicketScreenState extends ConsumerState<SupportTicketScreen> {
               if (ticket.canReply)
                 Container(
                   color: colors.surface,
-                  padding: const EdgeInsets.fromLTRB(
+                  padding: const EdgeInsetsDirectional.fromSTEB(
                     AppSpacing.md,
                     AppSpacing.sm,
                     AppSpacing.sm,

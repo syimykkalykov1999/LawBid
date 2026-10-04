@@ -208,6 +208,8 @@ class TaskRow extends StatelessWidget {
                             if (overdue)
                               Text(
                                 t.t('tasks.overdue'),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 style: typography.caption.copyWith(
                                   color: colors.dangerText,
                                   fontWeight: FontWeight.w600,
@@ -269,7 +271,10 @@ class TaskRow extends StatelessWidget {
                       ),
                     if (steps.length > _visibleSteps)
                       Padding(
-                        padding: const EdgeInsets.only(left: 34, top: 2),
+                        padding: const EdgeInsetsDirectional.only(
+                          start: 34,
+                          top: 2,
+                        ),
                         child: Text(
                           t.t(
                             'tasks.steps.more',
@@ -356,11 +361,16 @@ class TaskRow extends StatelessWidget {
                         ),
                         const SizedBox(width: AppSpacing.sm),
                       ],
-                      TaskMark(
-                        key: ValueKey('task-check-${task.id}'),
-                        status: task.status,
-                        label: taskStatusLabel(t, task.status),
-                        onTap: onMarkTap,
+                      // Capped so a long status word can't push out the
+                      // "set by" line.
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 160),
+                        child: TaskMark(
+                          key: ValueKey('task-check-${task.id}'),
+                          status: task.status,
+                          label: taskStatusLabel(t, task.status),
+                          onTap: onMarkTap,
+                        ),
                       ),
                     ],
                   ),
@@ -435,11 +445,15 @@ class TaskProgress extends StatelessWidget {
           ),
         ),
         const SizedBox(width: AppSpacing.sm),
-        Text(
-          label,
-          style: typography.caption.copyWith(
-            color: colors.goldDark,
-            fontWeight: FontWeight.w700,
+        Flexible(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: typography.caption.copyWith(
+              color: colors.goldDark,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ),
       ],
@@ -727,13 +741,17 @@ class TaskMark extends StatelessWidget {
     final row = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          label,
-          style: typography.caption.copyWith(
-            color: status == TaskStatus.done
-                ? colors.goldDark
-                : colors.textSecondary,
-            fontWeight: FontWeight.w600,
+        Flexible(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: typography.caption.copyWith(
+              color: status == TaskStatus.done
+                  ? colors.goldDark
+                  : colors.textSecondary,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
         const SizedBox(width: 6),
@@ -771,7 +789,7 @@ class TaskMark extends StatelessWidget {
         child: ConstrainedBox(
           constraints: const BoxConstraints(minHeight: AppSizes.touchTarget),
           child: Padding(
-            padding: const EdgeInsets.only(left: AppSpacing.sm),
+            padding: const EdgeInsetsDirectional.only(start: AppSpacing.sm),
             child: row,
           ),
         ),

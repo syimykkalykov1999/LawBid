@@ -93,7 +93,7 @@ class AppConnectivityBanner extends StatelessWidget {
           bottom: BorderSide(color: colors.goldStroke.withValues(alpha: 0.7)),
         ),
       ),
-      padding: EdgeInsets.fromLTRB(
+      padding: EdgeInsetsDirectional.fromSTEB(
         AppSpacing.screenSide,
         topInset + AppSpacing.xs,
         AppSpacing.lg,
@@ -171,9 +171,12 @@ class _BannerAction extends StatelessWidget {
         child: AppPressable(
           onTap: busy ? null : onTap,
           child: Container(
+            // maxWidth: a long translated action label must not squeeze
+            // the banner message to nothing.
             constraints: const BoxConstraints(
               minHeight: AppSizes.touchTarget,
               minWidth: AppSizes.touchTarget,
+              maxWidth: 140,
             ),
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
             alignment: Alignment.center,
@@ -196,6 +199,8 @@ class _BannerAction extends StatelessWidget {
                   : Text(
                       label,
                       key: const ValueKey('label'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: typography.bodySmall.copyWith(
                         color: foreground,
                         fontWeight: FontWeight.w600,

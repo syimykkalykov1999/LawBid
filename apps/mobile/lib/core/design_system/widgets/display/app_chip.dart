@@ -74,9 +74,16 @@ class AppChip extends StatelessWidget {
                   ),
                 )
               else
-                Text(
-                  label,
-                  style: typography.bodySmall.copyWith(color: colors.text),
+                // Owner 2026-10-04: a long label ("Приостановление и лишение
+                // водительских прав") wraps to two lines and then ends with
+                // an ellipsis instead of overflowing the chip.
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: typography.bodySmall.copyWith(color: colors.text),
+                  ),
                 ),
               if (trailing != null) ...[const SizedBox(width: 6), trailing!],
             ],

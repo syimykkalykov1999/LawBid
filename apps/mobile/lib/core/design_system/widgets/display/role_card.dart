@@ -120,17 +120,19 @@ class RoleCard extends StatelessWidget {
                                 .copyWith(color: titleColor),
                           ),
                         ),
-                        if (showProBadge)
+                        if (showProBadge) ...[
+                          const SizedBox(width: 6),
                           _ProBadge(
                             label: proBadgeLabel,
                             colors: colors,
                             style: typography.badge,
                           ),
+                        ],
                       ],
                     ),
                     const SizedBox(height: 6),
                     Padding(
-                      padding: const EdgeInsets.only(right: 30),
+                      padding: const EdgeInsetsDirectional.only(end: 30),
                       child: Text(
                         description,
                         style: typography.bodySmall
@@ -140,8 +142,8 @@ class RoleCard extends StatelessWidget {
                   ],
                 ),
               ),
-              Positioned(
-                right: 12,
+              PositionedDirectional(
+                end: 12,
                 bottom: 12,
                 child: AnimatedScale(
                   scale: isSelected ? 1 : 0.6,
@@ -185,12 +187,18 @@ class _ProBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      constraints: const BoxConstraints(maxWidth: 120),
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
       decoration: BoxDecoration(
         border: Border.all(color: colors.gold),
         borderRadius: BorderRadius.circular(AppRadii.proBadge),
       ),
-      child: Text(label, style: style.copyWith(color: colors.gold)),
+      child: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: style.copyWith(color: colors.gold),
+      ),
     );
   }
 }

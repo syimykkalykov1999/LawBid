@@ -85,7 +85,12 @@ class AppContentCard extends StatelessWidget {
             ),
             if (trailing != null) ...[
               const SizedBox(width: AppSpacing.sm),
-              trailing!,
+              // Capped so a wide trailing (price, badge) can't squeeze the
+              // title column away in long translations.
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 140),
+                child: trailing,
+              ),
             ],
           ],
         ),
