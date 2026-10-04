@@ -265,6 +265,12 @@ export default function VerificationCardPage() {
             <Row k="Провайдер" v={label(VERIFICATION_PROVIDER, r.provider)} />
             <Row k="Подана" v={formatDateTime(r.submittedAt)} />
             <Row k="Рассмотрена" v={formatDateTime(r.reviewedAt)} />
+            {r.attestedAt ? (
+              <Row
+                k="Клятва адвоката"
+                v={`${formatDateTime(r.attestedAt)} · IP ${r.attestationIp ?? '—'} · текст ${r.attestationVersion ?? '—'}`}
+              />
+            ) : null}
             <Row k="Статус адвоката" v={<StatusPill map={VERIFICATION_STATUS} value={r.attorney.verificationStatus} />} />
             {r.applicantComment ? <Row k="Комментарий" v={r.applicantComment} /> : null}
             {r.infoRequestMessage ? <Row k="Запрос" v={r.infoRequestMessage} /> : null}

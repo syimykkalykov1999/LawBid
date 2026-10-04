@@ -254,6 +254,9 @@ erDiagram
     String info_request_message "nullable"
     String applicant_comment "nullable"
     String rejection_code "nullable"
+    DateTime attested_at "nullable"
+    String attestation_ip "nullable"
+    String attestation_version "nullable"
     DateTime created_at
     DateTime updated_at
   }
@@ -415,6 +418,10 @@ erDiagram
     enum_PostKind kind
     String video_asset_id FK,UK "nullable"
     String language "nullable"
+    String location_name "nullable"
+    Float location_lat "nullable"
+    Float location_lng "nullable"
+    Boolean comments_enabled
     enum_ContentStatus status
     Int like_count
     Int comment_count

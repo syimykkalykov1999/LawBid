@@ -175,6 +175,7 @@ void main() {
 
   test('MissingItem.parse maps the API details', () {
     expect(MissingItem.parse('license'), isA<MissingLicense>());
+    expect(MissingItem.parse('attestation'), isA<MissingAttestation>());
     expect(
       MissingItem.parse('identity_document_back'),
       isA<MissingIdentity>().having((m) => m.back, 'back', true),
@@ -357,7 +358,11 @@ void main() {
 
 class _IncompleteBackend extends FakeVerificationBackend {
   @override
-  Future<VerificationRequest> submit(String requestId, {String? comment}) =>
+  Future<VerificationRequest> submit(
+    String requestId, {
+    String? comment,
+    bool attestation = false,
+  }) =>
       throw const ApiException(
         code: ApiErrorCodes.verificationIncomplete,
         message: 'incomplete',

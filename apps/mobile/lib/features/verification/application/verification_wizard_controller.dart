@@ -345,11 +345,18 @@ class VerificationWizardController extends AsyncNotifier<WizardState> {
   }
 
   /// Null when the wizard has no loaded request (nothing was sent).
-  Future<VerificationRequest?> submit(String comment) async {
+  Future<VerificationRequest?> submit(
+    String comment, {
+    bool attestation = false,
+  }) async {
     final s = _s;
     if (s == null) return null;
     try {
-      final r = await _repo.submit(s.request.id, comment: comment);
+      final r = await _repo.submit(
+        s.request.id,
+        comment: comment,
+        attestation: attestation,
+      );
       _setRequest(r);
       return r;
     } on ApiException catch (e) {

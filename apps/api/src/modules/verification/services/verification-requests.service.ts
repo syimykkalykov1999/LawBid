@@ -24,6 +24,7 @@ import type {
   VerificationRequestDto,
 } from '../dto/verification-responses.dto';
 import {
+  ATTESTATION_VERSION,
   EDITABLE_REQUEST_STATUSES,
   IDENTITY_DOC_TYPES,
   IDENTITY_NEEDS_BACK,
@@ -38,7 +39,10 @@ import {
   SUBMISSION_WINDOW_MS,
   syncProfileStatus,
 } from '../verification.helpers';
-import { VerificationChecksService } from './verification-checks.service';
+import {
+  SELF_ATTESTED_NOTE,
+  VerificationChecksService,
+} from './verification-checks.service';
 
 type Tx = Prisma.TransactionClient;
 
@@ -61,6 +65,7 @@ type RequestRow = Prisma.VerificationRequestGetPayload<{
 /** What is missing for submission (VERIFICATION_INCOMPLETE details). */
 export type MissingItem =
   | 'license'
+  | 'attestation'
   | 'identity_document'
   | 'identity_document_back'
   | 'selfie'
@@ -415,22 +420,31 @@ export class VerificationRequestsService {
     userId: string,
     requestId: string,
     dto: SubmitVerificationRequestDto,
+    ip: string | null = null,
     now = new Date(),
   ): Promise<VerificationRequestDto> {
     const { verificationStatus } = await this.requireActiveAttorney(userId);
     const max = await this.settings.number('verification.max_submissions_30d');
     const barDocRequired = await this.barDocumentRequired();
+    let identityRequired = false;
     const firstSubmission = await withTxRetry(this.prisma, async (tx) => {
       const req = await this.load(tx, userId, requestId);
       assertEditable(req.status);
       const fromDraft = req.status === 'draft';
+      identityRequired = await this.identityRequired(
+        userId,
+        verificationStatus,
+        tx,
+      );
       const missing = await this.missingItems(
         tx,
         req,
         fromDraft,
-        await this.identityRequired(userId, verificationStatus, tx),
+        identityRequired,
         barDocRequired,
       );
+      // Owner 2026-10-04: a new submission carries the sworn statement.
+      if (fromDraft && dto.attestation !== true) missing.unshift('attestation');
       if (missing.length > 0) {
         throw httpError(
           HttpStatus.BAD_REQUEST,
@@ -445,7 +459,12 @@ export class VerificationRequestsService {
         where: { id: req.id },
         data: {
           status: 'submitted',
-          ...(fromDraft && { submitted_at: now }),
+          ...(fromDraft && {
+            submitted_at: now,
+            attested_at: now,
+            attestation_ip: ip,
+            attestation_version: ATTESTATION_VERSION,
+          }),
           ...(dto.applicantComment !== undefined && {
             applicant_comment: dto.applicantComment || null,
           }),
@@ -454,7 +473,22 @@ export class VerificationRequestsService {
       await syncProfileStatus(tx, userId, 'submitted', now);
       return fromDraft;
     });
-    if (firstSubmission) await this.checks.runOnSubmit(requestId);
+    if (firstSubmission) {
+      // Owner 2026-10-04: self-attestation — no registry or bar website is
+      // consulted; the attorney answers for the statement and verifiers
+      // only act on complaints. Off (or ID + selfie required) = the
+      // automatic checks / verifier queue as before.
+      const selfAttested =
+        !identityRequired &&
+        (await this.settings.boolean(
+          'verification.self_attestation_auto_approve',
+        ));
+      if (selfAttested) {
+        await this.checks.approve(requestId, SELF_ATTESTED_NOTE);
+      } else {
+        await this.checks.runOnSubmit(requestId);
+      }
+    }
     return this.get(userId, requestId);
   }
 

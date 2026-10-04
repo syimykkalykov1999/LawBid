@@ -269,6 +269,7 @@ sealed class MissingItem {
 
   static MissingItem? parse(String raw) {
     if (raw == 'license') return const MissingLicense();
+    if (raw == 'attestation') return const MissingAttestation();
     if (raw == 'identity_document') return const MissingIdentity(back: false);
     if (raw == 'identity_document_back') {
       return const MissingIdentity(back: true);
@@ -284,6 +285,11 @@ sealed class MissingItem {
 
 class MissingLicense extends MissingItem {
   const MissingLicense();
+}
+
+/// Owner 2026-10-04: the sworn statement was not ticked.
+class MissingAttestation extends MissingItem {
+  const MissingAttestation();
 }
 
 class MissingIdentity extends MissingItem {

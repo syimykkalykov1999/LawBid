@@ -596,6 +596,8 @@ class ReviewStep extends StatelessWidget {
     required this.comment,
     required this.onCommentChanged,
     required this.blockMessage,
+    required this.attested,
+    required this.onAttestedChanged,
     super.key,
   });
 
@@ -604,6 +606,10 @@ class ReviewStep extends StatelessWidget {
   final StepActions actions;
   final TextEditingController comment;
   final ValueChanged<String> onCommentChanged;
+
+  /// Owner 2026-10-04: the sworn statement, asked on a new submission.
+  final bool attested;
+  final ValueChanged<bool> onAttestedChanged;
 
   /// Why the last submit tap was refused (uploads, missing items).
   final String? blockMessage;
@@ -695,9 +701,59 @@ class ReviewStep extends StatelessWidget {
           textCapitalization: TextCapitalization.sentences,
           onChanged: onCommentChanged,
         ),
+        if (r.isDraft) ...[
+          const SizedBox(height: AppSpacing.md),
+          _AttestationCheck(
+            t: t,
+            value: attested,
+            onChanged: onAttestedChanged,
+          ),
+        ],
         const SizedBox(height: AppSpacing.lg),
         PrivacyNote(t: t),
       ],
+    );
+  }
+}
+
+/// Owner 2026-10-04: the attorney confirms the entered licenses under a
+/// sworn statement; the API approves the request on it (no registry check).
+class _AttestationCheck extends StatelessWidget {
+  const _AttestationCheck({
+    required this.t,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final Translator t;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
+    return AppCard(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.xs,
+      ),
+      // Own Material: the card's background would hide the ink.
+      child: Material(
+        type: MaterialType.transparency,
+        child: CheckboxListTile(
+          key: const ValueKey('verification-attestation'),
+          contentPadding: EdgeInsets.zero,
+          controlAffinity: ListTileControlAffinity.leading,
+          activeColor: colors.gold,
+          value: value,
+          onChanged: (v) => onChanged(v ?? false),
+          title: Text(
+            t.t('verification.attest.text'),
+            style: typography.bodySmall.copyWith(color: colors.text),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -706,6 +762,7 @@ class ReviewStep extends StatelessWidget {
 String missingText(Translator t, MissingItem m, VerificationRequest r) =>
     switch (m) {
       MissingLicense() => t.t('verification.missing.license'),
+      MissingAttestation() => t.t('verification.attest.required'),
       MissingBarDocument(:final stateCode) =>
         t.t('verification.missing.barDoc', {
           'state': r.licenses

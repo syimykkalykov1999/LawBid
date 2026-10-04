@@ -11,6 +11,8 @@ import { adminSession } from './support/admin-login';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import { FeatureFlagsService } from '../src/modules/feature-flags/services/feature-flags.service';
+import { ATTESTATION_VERSION } from '../src/modules/verification/verification.constants';
+import { SELF_ATTESTED_NOTE } from '../src/modules/verification/services/verification-checks.service';
 
 /**
  * docs/03_VERIFICATION_PROFILES.md stages 3.3 (verification request API)
@@ -98,12 +100,16 @@ describe('Verification (e2e) — docs/03 stages 3.3–3.4', () => {
     await setFlag('auto_bar_check', false);
     await setConfig('verification.require_identity', false);
     await setConfig('verification.require_bar_document', false);
+    // The verifier-queue tests below need submitted requests to wait for a
+    // verifier; self-attestation (owner 2026-10-04) has its own test.
+    await setConfig('verification.self_attestation_auto_approve', false);
   });
 
   afterAll(async () => {
     await setFlag('stripe_identity', false);
     await setConfig('verification.require_identity', false);
     await setConfig('verification.require_bar_document', false);
+    await setConfig('verification.self_attestation_auto_approve', true);
     await app.close();
   });
 
@@ -263,7 +269,7 @@ describe('Verification (e2e) — docs/03 stages 3.3–3.4', () => {
     await api()
       .post(`/api/v1/verification/requests/${requestId}/submit`)
       .set(a.auth)
-      .send({})
+      .send({ attestation: true })
       .expect(200);
     return { requestId, licenseId, bar };
   }
@@ -319,19 +325,63 @@ describe('Verification (e2e) — docs/03 stages 3.3–3.4', () => {
         .set(a.auth)
         .send({})
         .expect(400);
-      expect((empty.body as Body).error?.details?.missing).toEqual(['license']);
+      expect((empty.body as Body).error?.details?.missing).toEqual([
+        'attestation',
+        'license',
+      ]);
       await api()
         .post(`/api/v1/verification/requests/${id}/licenses`)
         .set(a.auth)
         .send({ stateCode: 'NJ', barNumber: barNumber() })
         .expect(201);
+      const unsworn = await api()
+        .post(`/api/v1/verification/requests/${id}/submit`)
+        .set(a.auth)
+        .send({ attestation: false })
+        .expect(400);
+      expect((unsworn.body as Body).error?.details?.missing).toEqual([
+        'attestation',
+      ]);
       const sent = await api()
         .post(`/api/v1/verification/requests/${id}/submit`)
         .set(a.auth)
-        .send({})
+        .send({ attestation: true })
         .expect(200);
       expect((sent.body as Body).data.status).toBe('submitted');
       expect(await profileStatus(a.userId)).toBe('pending');
+    });
+
+    it('owner 2026-10-04: the sworn statement approves at once and is stored', async () => {
+      await setConfig('verification.self_attestation_auto_approve', true);
+      try {
+        const a = await attorney();
+        const id = await createDraft(a.auth);
+        await api()
+          .post(`/api/v1/verification/requests/${id}/licenses`)
+          .set(a.auth)
+          .send({ stateCode: 'CA', barNumber: barNumber() })
+          .expect(201);
+        const sent = await api()
+          .post(`/api/v1/verification/requests/${id}/submit`)
+          .set(a.auth)
+          .send({ attestation: true })
+          .expect(200);
+        expect((sent.body as Body).data.status).toBe('approved');
+        expect(await profileStatus(a.userId)).toBe('verified');
+        const row = await prisma.verificationRequest.findUniqueOrThrow({
+          where: { id },
+        });
+        expect(row.attested_at).toBeInstanceOf(Date);
+        expect(row.attestation_version).toBe(ATTESTATION_VERSION);
+        expect(row.attestation_ip).toEqual(expect.any(String));
+        expect(row.admin_note).toBe(SELF_ATTESTED_NOTE);
+        const license = await prisma.attorneyLicense.findFirstOrThrow({
+          where: { attorney_id: a.userId },
+        });
+        expect(license.license_status).toBe('verified');
+      } finally {
+        await setConfig('verification.self_attestation_auto_approve', false);
+      }
     });
 
     it('rejects clients and hides other attorneys requests', async () => {

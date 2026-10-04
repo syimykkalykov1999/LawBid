@@ -769,6 +769,10 @@ class StaticTranslatorRu extends _MapTranslator {
         'verification.missing.idBack':
             'Загрузите обратную сторону документа личности.',
         'verification.missing.selfie': 'Сделайте селфи.',
+        'verification.attest.text':
+            'Подтверждаю под присягой: я адвокат с указанной лицензией и номером, лицензия действует. За ложные данные аккаунт блокируется, вся ответственность на мне.',
+        'verification.attest.required':
+            'Отметьте подтверждение лицензии, чтобы отправить.',
         'verification.missing.notClean':
             'Один из файлов не прошёл проверку. Удалите его и загрузите другой.',
         'verification.submit': 'Отправить на проверку',
@@ -2112,6 +2116,9 @@ class StaticTranslatorEn extends _MapTranslator {
         'verification.missing.id': 'Upload the front of your ID document.',
         'verification.missing.idBack': 'Upload the back of your ID document.',
         'verification.missing.selfie': 'Take a selfie.',
+        'verification.attest.text':
+            'I swear that I am the attorney licensed under the number entered above and that the license is active. False information means a ban, and I alone am responsible for it.',
+        'verification.attest.required': 'Tick the sworn statement to submit.',
         'verification.missing.notClean':
             "One of the files didn't pass the check. Remove it and upload another one.",
         'verification.submit': 'Submit for review',

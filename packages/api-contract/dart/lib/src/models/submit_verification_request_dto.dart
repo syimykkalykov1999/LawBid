@@ -8,11 +8,13 @@ part 'submit_verification_request_dto.g.dart';
 
 @JsonSerializable()
 class SubmitVerificationRequestDto {
-  const SubmitVerificationRequestDto({this.applicantComment});
+  const SubmitVerificationRequestDto({this.attestation, this.applicantComment});
 
   factory SubmitVerificationRequestDto.fromJson(Map<String, Object?> json) =>
       _$SubmitVerificationRequestDtoFromJson(json);
 
+  /// Owner 2026-10-04: the attorney confirms under penalty of perjury that they hold the entered licenses (sworn statement, version ATTESTATION_VERSION). Required for a new submission.
+  final bool? attestation;
   final String? applicantComment;
 
   Map<String, Object?> toJson() => _$SubmitVerificationRequestDtoToJson(this);

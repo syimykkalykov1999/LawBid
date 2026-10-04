@@ -277,8 +277,9 @@ async function seedFeatureFlags(): Promise<void> {
     },
     {
       key: 'auto_bar_check',
-      // Owner 2026-10-04: NY bar numbers are checked automatically.
-      enabled: true,
+      // Owner 2026-10-04: self-attestation, no external lookups. The NY
+      // registry adapter stays available behind this flag.
+      enabled: false,
       description: 'Automatic bar-number lookup against state databases',
     },
     { key: 'phone_login', enabled: true, description: 'Phone/SMS OTP login' },

@@ -48112,6 +48112,10 @@
       "SubmitVerificationRequestDto": {
         "type": "object",
         "properties": {
+          "attestation": {
+            "type": "boolean",
+            "description": "Owner 2026-10-04: the attorney confirms under penalty of perjury that they hold the entered licenses (sworn statement, version ATTESTATION_VERSION). Required for a new submission."
+          },
           "applicantComment": {
             "type": "string",
             "maxLength": 500
@@ -48506,6 +48510,21 @@
             "nullable": true,
             "format": "uuid"
           },
+          "attestedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time",
+            "description": "Owner 2026-10-04: when the attorney confirmed the licenses under the sworn statement"
+          },
+          "attestationIp": {
+            "type": "string",
+            "nullable": true
+          },
+          "attestationVersion": {
+            "type": "string",
+            "nullable": true,
+            "description": "Version of the sworn-statement text the attorney accepted"
+          },
           "applicantComment": {
             "type": "string",
             "nullable": true
@@ -48566,6 +48585,9 @@
           "submittedAt",
           "reviewedAt",
           "reviewerId",
+          "attestedAt",
+          "attestationIp",
+          "attestationVersion",
           "applicantComment",
           "infoRequestMessage",
           "rejectionCode",

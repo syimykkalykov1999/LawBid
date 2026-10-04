@@ -112,6 +112,21 @@ void main() {
     expect(r.headers['Idempotency-Key'], 'key-1');
   });
 
+  test('submit sends the sworn statement only when ticked', () async {
+    final repo = VerificationRepositoryImpl(dio);
+    await repo.submit('req', comment: 'hi', attestation: true);
+    expect(adapter.requests.last.path, '/verification/requests/req/submit');
+    expect(adapter.requests.last.data, {
+      'attestation': true,
+      'applicantComment': 'hi',
+    });
+    await repo.submit('req');
+    expect(
+      (adapter.requests.last.data as Map).containsKey('attestation'),
+      isFalse,
+    );
+  });
+
   test('submit error keeps the API code and details', () async {
     adapter.handler = (o) async => apiError(400, 'VERIFICATION_INCOMPLETE', {
           'missing': ['selfie'],

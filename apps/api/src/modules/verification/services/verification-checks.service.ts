@@ -37,6 +37,11 @@ import type {
 export const AUTO_APPROVED_NOTE =
   'Одобрено автоматически: номер и имя совпали с реестром штата';
 
+/** `admin_note` of a request approved on the attorney's sworn statement
+ * (owner 2026-10-04, self-attestation). */
+export const SELF_ATTESTED_NOTE =
+  'Самоподтверждение: адвокат под присягой подтвердил лицензию, внешняя проверка не проводилась';
+
 @Injectable()
 export class VerificationChecksService {
   constructor(
@@ -96,7 +101,7 @@ export class VerificationChecksService {
       IDENTITY_DOC_TYPES.some((t) => types.has(t)) && types.has('selfie');
     const { provider, impl } = await this.selector.idVerification();
     if (!hasIdentity || provider === 'manual') {
-      if (barPassed && !hasIdentity) await this.autoApprove(request.id);
+      if (barPassed && !hasIdentity) await this.approve(request.id);
       return;
     }
 
@@ -114,7 +119,7 @@ export class VerificationChecksService {
       data: { provider },
     });
     if (barPassed && idCheck.result === 'pass' && faceMatch.result === 'pass') {
-      await this.autoApprove(request.id);
+      await this.approve(request.id);
     }
   }
 
@@ -123,8 +128,13 @@ export class VerificationChecksService {
    * pending licenses become verified (no verifier: `verified_by` null),
    * the profile turns verified and the attorney is notified exactly as
    * after a verifier's approval. `admin_note` marks it for the panel.
+   * Also used for self-attested submissions (SELF_ATTESTED_NOTE).
    */
-  private async autoApprove(requestId: string, now = new Date()) {
+  async approve(
+    requestId: string,
+    note: string = AUTO_APPROVED_NOTE,
+    now = new Date(),
+  ): Promise<void> {
     await withTxRetry(this.prisma, async (tx) => {
       const req = await tx.verificationRequest.findUnique({
         where: { id: requestId },
@@ -145,7 +155,7 @@ export class VerificationChecksService {
         data: {
           status: 'approved',
           reviewed_at: now,
-          admin_note: AUTO_APPROVED_NOTE,
+          admin_note: note,
         },
       });
       await syncProfileStatus(tx, req.attorney_id, 'approved', now);
@@ -158,7 +168,7 @@ export class VerificationChecksService {
         tx,
       );
     });
-    this.logger.info({ requestId }, 'Verification request auto-approved');
+    this.logger.info({ requestId, note }, 'Verification request auto-approved');
   }
 
   /**
