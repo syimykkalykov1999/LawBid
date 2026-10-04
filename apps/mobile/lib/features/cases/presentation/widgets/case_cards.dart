@@ -1,5 +1,3 @@
-import 'dart:ui' show ImageFilter;
-
 import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
@@ -178,11 +176,6 @@ class MoneyText extends StatelessWidget {
   }
 }
 
-/// Compact case card looks: 1 art on the right, 2 cover banner on top,
-/// 3 frosted glass over the whole cover, 4 a framed dossier with serif
-/// type, 5 a ticket with a perforated stub, 6 glass over a gold aurora.
-enum CaseCardStyle { classic, banner, glass, dossier, ticket, aurora }
-
 /// Attorney "Кейсы" card (docs/04 §4.2): category band + NEW, title,
 /// "city, state +N", Open, views, bids, budget, "Вы сделали бид".
 class FeedCaseCard extends StatelessWidget {
@@ -192,14 +185,11 @@ class FeedCaseCard extends StatelessWidget {
     required this.formats,
     required this.onTap,
     this.feedHeight,
-    this.style = CaseCardStyle.classic,
     super.key,
   });
 
   final FeedCase item;
 
-  /// The compact card's look (owner 2026-10-04: three to choose from).
-  final CaseCardStyle style;
   final Translator t;
   final L10nFormats formats;
   final VoidCallback onTap;
@@ -415,121 +405,10 @@ class FeedCaseCard extends StatelessWidget {
 
     final light = Theme.of(context).brightness == Brightness.light;
     final champagneLo = Color.lerp(colors.surface, colors.gold, 0.12)!;
-    final champagneHi = Color.lerp(colors.surface, colors.gold, 0.28)!;
-    Widget cover() => CaseCover(
-          categoryCode: item.practice.artCode,
-          practiceCode: item.practice.code,
-          coverKey: item.coverKey,
-          seed: item.id,
-        );
-    Widget art() => PracticeArt(
-          categoryCode: item.practice.artCode,
-          practiceCode: item.practice.code,
-          cover: cover(),
-        );
     final badge = item.promoted || item.isNew
         ? t.t(item.promoted ? 'cases.card.promoted' : 'cases.card.new')
         : null;
-    Widget header({bool onDark = false, bool newBelow = false}) {
-      final chip = _GoldChip(
-        icon: practiceGlyph(item.practice.artCode),
-        label: category,
-        onDark: onDark,
-      );
-      final mark = badge == null
-          ? null
-          : Text(
-              badge,
-              style: typography.caption.copyWith(
-                color: onDark ? colors.goldLight : colors.goldDark,
-                fontWeight: FontWeight.w700,
-              ),
-            );
-      if (newBelow) {
-        return Row(
-          children: [
-            Flexible(child: chip),
-            if (mark != null) ...[
-              const SizedBox(width: AppSpacing.sm),
-              mark,
-            ],
-          ],
-        );
-      }
-      return Row(
-        children: [
-          Flexible(child: chip),
-          const Spacer(),
-          if (mark != null) mark,
-        ],
-      );
-    }
-
-    List<Widget> story({
-      required double titleRight,
-      required double excerptRight,
-    }) =>
-        [
-          Padding(
-            padding: EdgeInsets.only(right: titleRight),
-            child: Text(
-              item.title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              // Owner 2026-10-04: smaller type, more of the story.
-              style: typography.titleMedium.copyWith(
-                fontFamily: typography.body.fontFamily,
-                color: colors.text,
-                fontWeight: FontWeight.w700,
-                fontSize: 18,
-                height: 1.25,
-              ),
-            ),
-          ),
-          if (item.excerpt.isNotEmpty) ...[
-            const SizedBox(height: AppSpacing.xs),
-            Padding(
-              padding: EdgeInsets.only(right: excerptRight),
-              child: Text(
-                item.excerpt,
-                maxLines: 4,
-                overflow: TextOverflow.ellipsis,
-                style: typography.bodySmall.copyWith(
-                  color: colors.textSecondary,
-                  height: 1.35,
-                ),
-              ),
-            ),
-          ],
-        ];
-
-    List<Widget> footer() => [
-          const SizedBox(height: AppSpacing.md),
-          facts,
-          const SizedBox(height: AppSpacing.sm),
-          Row(
-            children: [
-              Expanded(
-                child: Wrap(
-                  spacing: AppSpacing.sm,
-                  runSpacing: AppSpacing.sm,
-                  children: [
-                    if (item.status != CaseStatus.open)
-                      CaseStatusPill(status: item.status, t: t),
-                    if (item.hasOwnBid)
-                      StatusPill(
-                        label: t.t('cases.card.youBid'),
-                        tone: StatusTone.gold,
-                      ),
-                  ],
-                ),
-              ),
-              stats(),
-            ],
-          ),
-        ];
-
-    // Facts in one line with gold hairlines (styles 4–6).
+    // Facts in one line with gold hairlines.
     final urgencyColor = switch (item.urgency) {
       CaseUrgency.urgent => colors.danger,
       CaseUrgency.soon => light ? colors.goldDark : colors.gold,
@@ -732,17 +611,6 @@ class FeedCaseCard extends StatelessWidget {
         child: Container(
           decoration: BoxDecoration(
             color: colors.surface,
-            // Light theme: champagne gold across the whole card.
-            gradient: light && style != CaseCardStyle.glass
-                ? LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Color.lerp(colors.surface, colors.gold, 0.14)!,
-                      Color.lerp(colors.surface, colors.gold, 0.22)!,
-                    ],
-                  )
-                : null,
             borderRadius: radius,
             border: Border.all(
               color: item.isNew
@@ -759,429 +627,83 @@ class FeedCaseCard extends StatelessWidget {
           ),
           child: ClipRRect(
             borderRadius: radius,
-            child: switch (style) {
-              CaseCardStyle.classic => Stack(
-                  children: [
-                    Positioned(
-                      top: 0,
-                      bottom: 0,
-                      right: 0,
-                      width: 190,
-                      child: _FrostedInLight(
-                        glyph: practiceGlyph(item.practice.artCode),
-                        child: art(),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(AppSpacing.lg),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          header(),
-                          const SizedBox(height: AppSpacing.md),
-                          ...story(titleRight: 56, excerptRight: 40),
-                          ...footer(),
-                        ],
-                      ),
-                    ),
-                  ],
+            // Owner 2026-10-04 picked the framed dossier: a double gold
+            // frame, serif type, facts in one line with gold hairlines.
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: light ? [ivory, champagneLo] : [colors.navy, ink],
                 ),
-              // 2: the cover as a banner on top, text on a calm surface.
-              CaseCardStyle.banner => Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    SizedBox(
-                      height: 104,
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          cover(),
-                          DecoratedBox(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: [
-                                  Colors.black.withValues(alpha: 0.25),
-                                  Colors.black.withValues(alpha: 0),
-                                ],
-                              ),
-                            ),
-                          ),
-                          Positioned(
-                            left: AppSpacing.lg,
-                            right: AppSpacing.lg,
-                            top: AppSpacing.md,
-                            child: header(onDark: true),
-                          ),
-                          Positioned(
-                            left: 0,
-                            right: 0,
-                            bottom: 0,
-                            height: 2,
-                            child: ColoredBox(
-                              color: colors.gold.withValues(alpha: 0.8),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(AppSpacing.lg),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          ...story(titleRight: 0, excerptRight: 0),
-                          ...footer(),
-                        ],
-                      ),
-                    ),
-                  ],
+              ),
+              child: Container(
+                margin: const EdgeInsets.all(6),
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.lg - 2,
+                  AppSpacing.md + 2,
+                  AppSpacing.lg - 2,
+                  AppSpacing.md,
                 ),
-              // 3: frosted glass over the whole cover, a gold medallion.
-              CaseCardStyle.glass => Stack(
-                  children: [
-                    Positioned.fill(
-                      child: ImageFiltered(
-                        imageFilter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-                        child: art(),
-                      ),
-                    ),
-                    Positioned.fill(
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: light
-                                ? [
-                                    champagneLo.withValues(alpha: 0.9),
-                                    champagneHi.withValues(alpha: 0.8),
-                                  ]
-                                : [
-                                    colors.navy.withValues(alpha: 0.72),
-                                    Color.lerp(colors.navy, Colors.black, 0.7)!
-                                        .withValues(alpha: 0.86),
-                                  ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      top: AppSpacing.lg,
-                      right: AppSpacing.lg,
-                      child: Container(
-                        width: 52,
-                        height: 52,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: colors.gold.withValues(alpha: 0.12),
-                          border: Border.all(
-                            color: colors.gold.withValues(alpha: 0.8),
-                            width: 1.5,
-                          ),
-                        ),
-                        child: AppIcon(
-                          practiceGlyph(item.practice.artCode),
-                          size: 26,
-                          color: light ? colors.goldDark : colors.goldLight,
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(AppSpacing.lg),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.only(right: 64),
-                            child: header(newBelow: true),
-                          ),
-                          const SizedBox(height: AppSpacing.md),
-                          ...story(titleRight: 48, excerptRight: 0),
-                          ...footer(),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              // 4: a framed dossier — double gold frame, serif type.
-              CaseCardStyle.dossier => DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: light ? [ivory, champagneLo] : [colors.navy, ink],
-                    ),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(AppRadii.card - 4),
+                  border: Border.all(
+                    color: colors.gold.withValues(alpha: 0.35),
                   ),
-                  child: Container(
-                    margin: const EdgeInsets.all(6),
-                    padding: const EdgeInsets.fromLTRB(
-                      AppSpacing.lg - 2,
-                      AppSpacing.md + 2,
-                      AppSpacing.lg - 2,
-                      AppSpacing.md,
-                    ),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(AppRadii.card - 4),
-                      border: Border.all(
-                        color: colors.gold.withValues(alpha: 0.35),
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
                       children: [
-                        Row(
-                          children: [
-                            medallion(size: 40),
-                            const SizedBox(width: AppSpacing.sm + 2),
-                            Expanded(child: smallCaps(category)),
-                            newMark(),
-                          ],
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-                        serifTitle(),
-                        const SizedBox(height: AppSpacing.xs + 2),
-                        excerpt(),
-                        const SizedBox(height: AppSpacing.md),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Container(
-                                height: 1,
-                                color: colors.gold.withValues(alpha: 0.4),
-                              ),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: AppSpacing.sm,
-                              ),
-                              child: Transform.rotate(
-                                angle: 0.785,
-                                child: Container(
-                                  width: 6,
-                                  height: 6,
-                                  color: colors.gold,
-                                ),
-                              ),
-                            ),
-                            Expanded(
-                              child: Container(
-                                height: 1,
-                                color: colors.gold.withValues(alpha: 0.4),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-                        inlineFacts(),
-                        const SizedBox(height: AppSpacing.md),
-                        Align(alignment: Alignment.centerRight, child: stats()),
+                        medallion(size: 40),
+                        const SizedBox(width: AppSpacing.sm + 2),
+                        Expanded(child: smallCaps(category)),
+                        newMark(),
                       ],
                     ),
-                  ),
-                ),
-              // 5: a ticket — the cover with the title on top, a perforated
-              // line, the facts on the stub.
-              CaseCardStyle.ticket => ColoredBox(
-                  color: light ? ivory : colors.surface,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      SizedBox(
-                        height: 150,
-                        child: Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            cover(),
-                            DecoratedBox(
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                  colors: [
-                                    Colors.black.withValues(alpha: 0.15),
-                                    Colors.black.withValues(alpha: 0.78),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            Positioned(
-                              left: AppSpacing.lg,
-                              right: AppSpacing.lg,
-                              top: AppSpacing.md,
-                              child: Row(
-                                children: [
-                                  Flexible(
-                                    child: _GoldChip(
-                                      icon: practiceGlyph(
-                                        item.practice.artCode,
-                                      ),
-                                      label: category,
-                                      onDark: true,
-                                    ),
-                                  ),
-                                  const Spacer(),
-                                  newMark(),
-                                ],
-                              ),
-                            ),
-                            Positioned(
-                              left: AppSpacing.lg,
-                              right: AppSpacing.lg,
-                              bottom: AppSpacing.md,
-                              child: serifTitle(color: Colors.white),
-                            ),
-                          ],
-                        ),
-                      ),
-                      SizedBox(
-                        height: 20,
-                        child: Stack(
-                          clipBehavior: Clip.none,
-                          children: [
-                            Positioned.fill(
-                              child: CustomPaint(
-                                painter: _PerforationPainter(
-                                  color: colors.gold.withValues(alpha: 0.55),
-                                ),
-                              ),
-                            ),
-                            for (final left in [true, false])
-                              Positioned(
-                                top: 0,
-                                left: left ? -10 : null,
-                                right: left ? null : -10,
-                                child: Container(
-                                  width: 20,
-                                  height: 20,
-                                  decoration: BoxDecoration(
-                                    color: colors.bg,
-                                    shape: BoxShape.circle,
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(
-                          AppSpacing.lg,
-                          AppSpacing.xs,
-                          AppSpacing.lg,
-                          AppSpacing.md,
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            excerpt(lines: 2),
-                            const SizedBox(height: AppSpacing.md),
-                            inlineFacts(),
-                            const SizedBox(height: AppSpacing.sm),
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: stats(),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              // 6: glass over a soft gold-and-navy aurora.
-              CaseCardStyle.aurora => Stack(
-                  children: [
-                    Positioned.fill(
-                      child: ColoredBox(color: light ? ivory : ink),
-                    ),
-                    Positioned.fill(
-                      child: ImageFiltered(
-                        imageFilter: ImageFilter.blur(sigmaX: 42, sigmaY: 42),
-                        child: Stack(
-                          children: [
-                            Positioned(
-                              left: -40,
-                              top: -50,
-                              child: _Blob(
-                                size: 200,
-                                color: colors.gold
-                                    .withValues(alpha: light ? 0.45 : 0.38),
-                              ),
-                            ),
-                            Positioned(
-                              right: -60,
-                              top: 40,
-                              child: _Blob(
-                                size: 220,
-                                color: light
-                                    ? colors.navy.withValues(alpha: 0.18)
-                                    : const Color(0xFF2A4BA8)
-                                        .withValues(alpha: 0.55),
-                              ),
-                            ),
-                            Positioned(
-                              left: 80,
-                              bottom: -70,
-                              child: _Blob(
-                                size: 180,
-                                color: colors.goldLight
-                                    .withValues(alpha: light ? 0.35 : 0.2),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      right: -14,
-                      top: -10,
-                      child: AppIcon(
-                        practiceGlyph(item.practice.artCode),
-                        size: 120,
-                        color: colors.gold.withValues(alpha: 0.12),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(AppSpacing.lg),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Flexible(child: smallCaps(category)),
-                              const SizedBox(width: AppSpacing.sm),
-                              newMark(),
-                            ],
+                    const SizedBox(height: AppSpacing.md),
+                    serifTitle(),
+                    const SizedBox(height: AppSpacing.xs + 2),
+                    excerpt(),
+                    const SizedBox(height: AppSpacing.md),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Container(
+                            height: 1,
+                            color: colors.gold.withValues(alpha: 0.4),
                           ),
-                          const SizedBox(height: AppSpacing.sm + 2),
-                          serifTitle(),
-                          const SizedBox(height: AppSpacing.xs + 2),
-                          excerpt(),
-                          const SizedBox(height: AppSpacing.md),
-                          Container(
-                            padding: const EdgeInsets.all(AppSpacing.md),
-                            decoration: BoxDecoration(
-                              color: light
-                                  ? Colors.white.withValues(alpha: 0.6)
-                                  : Colors.white.withValues(alpha: 0.06),
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(
-                                color: colors.gold.withValues(alpha: 0.45),
-                              ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.sm,
+                          ),
+                          child: Transform.rotate(
+                            angle: 0.785,
+                            child: Container(
+                              width: 6,
+                              height: 6,
+                              color: colors.gold,
                             ),
-                            child: inlineFacts(),
                           ),
-                          const SizedBox(height: AppSpacing.sm),
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: stats(),
+                        ),
+                        Expanded(
+                          child: Container(
+                            height: 1,
+                            color: colors.gold.withValues(alpha: 0.4),
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
+                    const SizedBox(height: AppSpacing.md),
+                    inlineFacts(),
+                    const SizedBox(height: AppSpacing.md),
+                    Align(alignment: Alignment.centerRight, child: stats()),
                   ],
                 ),
-            },
+              ),
+            ),
           ),
         ),
       ),
@@ -1189,55 +711,12 @@ class FeedCaseCard extends StatelessWidget {
   }
 }
 
-/// A soft colour blob for the aurora background.
-class _Blob extends StatelessWidget {
-  const _Blob({required this.size, required this.color});
-
-  final double size;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) => Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-      );
-}
-
-/// The dashed tear line of the ticket card.
-class _PerforationPainter extends CustomPainter {
-  _PerforationPainter({required this.color});
-
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 1.2;
-    final y = size.height / 2;
-    for (var x = 14.0; x < size.width - 14; x += 9) {
-      canvas.drawLine(Offset(x, y), Offset(x + 4.5, y), paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(_PerforationPainter old) => old.color != color;
-}
-
 /// Gold-outlined chip with an icon (practice area).
 class _GoldChip extends StatelessWidget {
-  const _GoldChip({
-    required this.icon,
-    required this.label,
-    this.onDark = false,
-  });
+  const _GoldChip({required this.icon, required this.label});
 
   final IconData icon;
   final String label;
-
-  /// Over a dark cover, in either theme.
-  final bool onDark;
 
   @override
   Widget build(BuildContext context) {
@@ -1249,18 +728,14 @@ class _GoldChip extends StatelessWidget {
         vertical: AppSpacing.xs + 1,
       ),
       decoration: BoxDecoration(
-        color: onDark ? colors.navy.withValues(alpha: 0.7) : colors.goldTint,
+        color: colors.goldTint,
         borderRadius: BorderRadius.circular(AppRadii.pill),
         border: Border.all(color: colors.gold.withValues(alpha: 0.7)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          AppIcon(
-            icon,
-            size: 15,
-            color: onDark ? colors.goldLight : colors.goldDark,
-          ),
+          AppIcon(icon, size: 15, color: colors.goldDark),
           const SizedBox(width: AppSpacing.xs),
           Flexible(
             child: Text(
@@ -1268,7 +743,7 @@ class _GoldChip extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: typography.caption.copyWith(
-                color: onDark ? Colors.white : colors.text,
+                color: colors.text,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -2037,66 +1512,6 @@ class UnavailableCaseCard extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-/// Owner 2026-10-04: on the light theme the navy art under dark text made
-/// words vanish, so there it turns into frosted glass: the art is blurred
-/// and veiled in a champagne tint, its gold and navy only a soft glow.
-class _FrostedInLight extends StatelessWidget {
-  const _FrostedInLight({required this.glyph, required this.child});
-
-  final IconData glyph;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    if (Theme.of(context).brightness != Brightness.light) return child;
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final veil = Color.lerp(colors.surface, colors.gold, 0.2)!;
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        ImageFiltered(
-          imageFilter: ImageFilter.blur(sigmaX: 9, sigmaY: 9),
-          child: child,
-        ),
-        DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                veil,
-                veil.withValues(alpha: 0.86),
-                veil.withValues(alpha: 0.74),
-              ],
-              stops: const [0, 0.45, 1],
-            ),
-          ),
-        ),
-        // A soft gold glow with the practice glyph, so the card keeps
-        // its identity through the frost.
-        DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: RadialGradient(
-              center: const Alignment(0.45, 0.05),
-              radius: 0.75,
-              colors: [
-                colors.gold.withValues(alpha: 0.22),
-                colors.gold.withValues(alpha: 0),
-              ],
-            ),
-          ),
-        ),
-        Align(
-          alignment: const Alignment(0.55, 0.05),
-          child: AppIcon(
-            glyph,
-            size: 72,
-            color: colors.gold.withValues(alpha: 0.38),
-          ),
-        ),
-      ],
     );
   }
 }
