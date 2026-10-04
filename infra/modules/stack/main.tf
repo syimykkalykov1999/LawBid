@@ -87,6 +87,31 @@ variable "worker_max_tasks" {
   type    = number
   default = 10
 }
+variable "min_tasks" {
+  type        = number
+  default     = 2
+  description = "Minimum api and worker tasks (autoscaling floor). 1 = launch size, 2+ = survives a lost AZ."
+}
+variable "admin_tasks" {
+  type    = number
+  default = 2
+}
+variable "api_cpu" {
+  type    = number
+  default = 1024
+}
+variable "api_memory" {
+  type    = number
+  default = 2048
+}
+variable "worker_cpu" {
+  type    = number
+  default = 512
+}
+variable "worker_memory" {
+  type    = number
+  default = 1024
+}
 variable "waf_rate_limit_per_5m" {
   type    = number
   default = 3000
@@ -268,6 +293,12 @@ module "ecs" {
   alb_resource_label               = "${module.alb.arn_suffix}/${module.alb.api_target_group_arn_suffix}"
   api_max_tasks                    = var.api_max_tasks
   worker_max_tasks                 = var.worker_max_tasks
+  min_tasks                        = var.min_tasks
+  admin_tasks                      = var.admin_tasks
+  api_cpu                          = var.api_cpu
+  api_memory                       = var.api_memory
+  worker_cpu                       = var.worker_cpu
+  worker_memory                    = var.worker_memory
   tags                             = local.tags
 }
 

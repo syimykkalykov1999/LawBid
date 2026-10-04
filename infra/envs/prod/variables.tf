@@ -88,3 +88,28 @@ variable "admin_allowed_cidrs" {
   type    = list(string)
   default = []
 }
+variable "min_tasks" {
+  type        = number
+  default     = 2
+  description = "Minimum api and worker tasks (autoscaling floor). 1 = launch size, 2+ = survives a lost AZ."
+}
+variable "admin_tasks" {
+  type    = number
+  default = 2
+}
+variable "api_cpu" {
+  type    = number
+  default = 1024
+}
+variable "api_memory" {
+  type    = number
+  default = 2048
+}
+variable "worker_cpu" {
+  type    = number
+  default = 512
+}
+variable "worker_memory" {
+  type    = number
+  default = 1024
+}

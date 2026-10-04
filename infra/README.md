@@ -40,6 +40,15 @@ infra/
    roles of docs/02 §6.3 (`lawbid_migrator`, `lawbid_app`,
    `lawbid_retention`, `lawbid_readonly`) and allow the VPC's NAT IPs.
 
+## Launch size
+
+`envs/prod/launch.tfvars.example` is the small starting size (one api and
+one worker task, t4g.micro Redis without a replica, one NAT gateway, no
+interface endpoints; ≈ $140/month of AWS at 2026-10 prices). Growing is a
+change of numbers in `terraform.tfvars` and `terraform apply`: the
+variables without an override keep the full-size defaults of
+`variables.tf` (min 2 tasks, r7g.large Redis with a replica, NAT per AZ).
+
 ## Apply
 
 ```sh
