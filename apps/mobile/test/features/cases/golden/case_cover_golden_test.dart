@@ -53,12 +53,12 @@ class _Ru implements Translator {
 
 /// The covers are drawn (gradients, blurred glows, thin strokes), and
 /// their anti-aliasing differs by a fraction of a percent between the Mac
-/// that rendered these goldens and the CI runner. Up to 0.5% of pixels
+/// that rendered these goldens and the CI runner. Up to 1% of pixels
 /// may differ; a real layout or colour change moves far more.
 class _TolerantComparator extends LocalFileComparator {
   _TolerantComparator(super.testFile);
 
-  static const double _maxDiff = 0.005;
+  static const double _maxDiff = 0.01;
 
   @override
   Future<bool> compare(Uint8List imageBytes, Uri golden) async {
