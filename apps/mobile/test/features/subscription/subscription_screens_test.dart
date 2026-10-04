@@ -404,14 +404,41 @@ void main() {
   });
 
   group('PaywallScreen', () {
-    testWidgets('names the gate and leads to the subscription', (tester) async {
+    testWidgets('names the gate and offers the 7-day trial, or Later',
+        (tester) async {
       await pump(tester, const PaywallScreen(reason: PaywallReason.contacts));
       expect(
         find.text('Client contacts come with a subscription'),
         findsOneWidget,
       );
-      expect(find.byKey(const ValueKey('paywall-cta')), findsOneWidget);
-      expect(find.text('7 days free for verified attorneys.'), findsOneWidget);
+      expect(find.text('7 days free'), findsOneWidget);
+      final cta =
+          tester.widget<AppButton>(find.byKey(const ValueKey('paywall-cta')));
+      expect(cta.label, 'Start 7 days free');
+      expect(find.byKey(const ValueKey('paywall-later')), findsOneWidget);
+      expect(find.textContaining(r'$399'), findsWidgets);
+    });
+
+    testWidgets(
+        '"Start 7 days free" opens the Stripe page for the monthly '
+        'plan', (tester) async {
+      repo.onComplete = () => makeOverview(subscription: makeInfo());
+      await pump(tester, const PaywallScreen(reason: PaywallReason.bid));
+      await tester.tap(find.byKey(const ValueKey('paywall-cta')));
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+      expect(repo.calls, contains('checkout:monthly:0:'));
+      expect(launched.single.host, 'checkout.stripe.com');
+    });
+
+    testWidgets('trial used: "Subscribe" instead of the trial', (tester) async {
+      repo.current = makeOverview(trialEligible: false);
+      await pump(tester, const PaywallScreen(reason: PaywallReason.bid));
+      expect(find.text('Subscribe to continue'), findsOneWidget);
+      final cta =
+          tester.widget<AppButton>(find.byKey(const ValueKey('paywall-cta')));
+      expect(cta.label, 'Subscribe');
     });
 
     test('reason parsing is lenient', () {

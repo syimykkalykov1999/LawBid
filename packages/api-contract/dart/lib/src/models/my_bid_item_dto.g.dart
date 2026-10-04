@@ -27,6 +27,7 @@ MyBidItemDto _$MyBidItemDtoFromJson(Map<String, dynamic> json) => MyBidItemDto(
       ? null
       : DateTime.parse(json['decidedAt'] as String),
   outsidePractice: json['outsidePractice'] as bool,
+  outsideLicensedStates: json['outsideLicensedStates'] as bool,
   createdAt: DateTime.parse(json['createdAt'] as String),
   caseValue: BidCaseRefDto.fromJson(json['case'] as Map<String, dynamic>),
   lastOffer: BidOfferDto.fromJson(json['lastOffer'] as Map<String, dynamic>),
@@ -49,6 +50,7 @@ Map<String, dynamic> _$MyBidItemDtoToJson(MyBidItemDto instance) =>
       'turn': instance.turn.toJson(),
       'decidedAt': ?instance.decidedAt?.toIso8601String(),
       'outsidePractice': instance.outsidePractice,
+      'outsideLicensedStates': instance.outsideLicensedStates,
       'createdAt': instance.createdAt.toIso8601String(),
       'case': instance.caseValue.toJson(),
       'lastOffer': instance.lastOffer.toJson(),

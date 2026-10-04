@@ -3,119 +3,306 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/cases/presentation/screens/attorney_cases_tab.dart'
     show myPracticesProvider;
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/onboarding/application/onboarding_actions.dart';
+import 'package:lawbid/features/onboarding/domain/attorney_setup.dart';
 import 'package:lawbid/features/onboarding/domain/onboarding_step_id.dart';
 import 'package:lawbid/features/onboarding/onboarding_routes.dart';
 import 'package:lawbid/features/onboarding/presentation/widgets/onboarding_scaffold.dart';
+import 'package:lawbid/features/profile/presentation/screens/practices_screen.dart';
+import 'package:lawbid/features/subscription/application/subscription_providers.dart';
+import 'package:lawbid/features/subscription/domain/subscription_models.dart';
+import 'package:lawbid/features/subscription/presentation/subscription_offer.dart';
 import 'package:lawbid/features/verification/application/verification_overview_controller.dart';
 
 enum ChecklistStatus { done, next, locked }
 
-/// `/onboarding/verification` — «Верификация и подписка» (docs/01_
-/// FOUNDATION_AUTH.md §11 Шаг 4B): a status checklist (profile ✔ →
-/// license & identity verification → 7-day trial, which starts only AFTER
-/// verification is approved, card via Stripe SetupIntent). "Verify now"
-/// opens the verification entry (placeholder until file 03); "Later"
-/// continues — the attorney then gets Feed/Search/Profile, and the Mine tab
-/// shows a verification banner (guard row "attorney + unverified").
-class AttorneyVerificationStepScreen extends ConsumerWidget {
+/// `/onboarding/verification` — the attorney's setup (owner 2026-10-04,
+/// docs/onboarding-lawyer.md): ONE coordinator that shows exactly one stage
+/// at a time, decided by the server state ([attorneySetupStage]):
+/// licence → practice areas → subscription offer → (done) → tour.
+///
+/// Every stage is shown in place (no pushed screen to come back from), and
+/// the state is re-read from the server after each save, so a stage never
+/// repeats and "Back" never lands on the same step again.
+class AttorneyVerificationStepScreen extends ConsumerStatefulWidget {
   const AttorneyVerificationStepScreen({super.key});
+
+  @override
+  ConsumerState<AttorneyVerificationStepScreen> createState() =>
+      _AttorneyVerificationStepScreenState();
+}
+
+class _AttorneyVerificationStepScreenState
+    extends ConsumerState<AttorneyVerificationStepScreen> {
+  void _back() {
+    final role = ref.read(currentUserRoleProvider);
+    final previous = OnboardingStepId.verification.previousFor(role);
+    if (previous != null) context.go(OnboardingRoutes.forStep(previous));
+  }
+
+  void _advance() => ref
+      .read(onboardingActionsProvider.notifier)
+      .advance(OnboardingStepId.verification);
+
+  /// The licence form (state + bar number + sworn checkbox). Back here,
+  /// the verification state and the signed-in user (its verification
+  /// flag unlocks practices, cases and bids) are re-read from the server.
+  Future<void> _openLicense(VerificationView view) async {
+    await context.push(
+      view == VerificationView.needsMoreInfo ||
+              view == VerificationView.rejected
+          ? AppRoutes.verification
+          : AppRoutes.verificationWizard,
+    );
+    if (!mounted) return;
+    ref.invalidate(verificationOverviewProvider);
+    await ref.read(currentUserControllerProvider.notifier).load();
+  }
+
+  void _practicesSaved() {
+    ref
+      ..invalidate(myPracticesProvider)
+      ..invalidate(practicesEditorDataProvider);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ref.watch(translatorProvider);
+    final action = ref.watch(onboardingActionsProvider);
+    final verification = ref.watch(verificationOverviewProvider);
+
+    // Each source is read only once the previous stage is complete.
+    final view = switch (verification) {
+      AsyncData(:final value) => viewOf(value),
+      _ => null,
+    };
+    final practices = view == VerificationView.verified
+        ? ref.watch(myPracticesProvider)
+        : null;
+    final hasPractices = practices?.value?.isNotEmpty;
+    final subscription =
+        hasPractices ?? false ? ref.watch(subscriptionOverviewProvider) : null;
+    final pendingError =
+        verification.error ?? practices?.error ?? subscription?.error;
+    final loading = view == null ||
+        (view == VerificationView.verified && hasPractices == null) ||
+        (hasPractices ?? false) && subscription?.value == null;
+
+    if (pendingError != null && loading) {
+      return OnboardingScaffold(
+        step: OnboardingStepId.verification,
+        title: t.t('onboarding.attorney.license.title'),
+        onBack: _back,
+        error: pendingError,
+        primaryLabel: t.t('error.retry'),
+        onPrimary: () => ref
+          ..invalidate(verificationOverviewProvider)
+          ..invalidate(myPracticesProvider)
+          ..invalidate(subscriptionOverviewProvider),
+        children: const [],
+      );
+    }
+    if (loading) {
+      return OnboardingScaffold(
+        key: const ValueKey('attorney-setup-loading'),
+        step: OnboardingStepId.verification,
+        title: t.t('onboarding.attorney.license.title'),
+        onBack: _back,
+        children: const [AppSkeletonCard()],
+      );
+    }
+
+    final stage = attorneySetupStage(
+      verification: view,
+      hasPractices: hasPractices,
+      subscriptionActive: subscription?.value?.isActive,
+    );
+    final progress = _progress(stage);
+
+    switch (stage) {
+      case AttorneySetupStage.license:
+        return OnboardingScaffold(
+          key: const ValueKey('attorney-setup-license'),
+          step: OnboardingStepId.verification,
+          progress: progress,
+          title: t.t('onboarding.attorney.license.title'),
+          subtitle: t.t('onboarding.attorney.license.subtitle'),
+          onBack: _back,
+          error: action.error,
+          primaryLabel: switch (view) {
+            VerificationView.draft => t.t('onboarding.attorney.license.resume'),
+            VerificationView.needsMoreInfo ||
+            VerificationView.rejected =>
+              t.t('onboarding.attorney.license.fix'),
+            _ => t.t('onboarding.attorney.license.cta'),
+          },
+          onPrimary: () => _openLicense(view),
+          children: const [
+            Center(
+              child: AppIconMedallion(
+                icon: AppIcons.verifiedUserOutlined,
+                size: AppSizes.rowMedallion * 2,
+                iconSize: AppSizes.iconLg,
+              ),
+            ),
+          ],
+        );
+      case AttorneySetupStage.licensePending:
+        return OnboardingScaffold(
+          key: const ValueKey('attorney-setup-pending'),
+          step: OnboardingStepId.verification,
+          progress: progress,
+          title: t.t('onboarding.attorney.license.pending.title'),
+          subtitle: t.t('onboarding.attorney.license.pending.body'),
+          onBack: _back,
+          error: action.error,
+          primaryLabel: t.t('onboarding.verification.continue'),
+          primaryLoading: action.busy,
+          onPrimary: _advance,
+          children: const [],
+        );
+      case AttorneySetupStage.practices:
+        final data = ref.watch(practicesEditorDataProvider);
+        return OnboardingScaffold(
+          key: const ValueKey('attorney-setup-practices'),
+          step: OnboardingStepId.verification,
+          progress: progress,
+          title: t.t('onboarding.attorney.practices.title'),
+          onBack: _back,
+          error: data.error,
+          body: switch (data) {
+            AsyncData(:final value) => PracticesEditor(
+                tree: value.tree,
+                initial: value.selected,
+                saveLabel: t.t('onboarding.attorney.practices.save'),
+                onSaved: _practicesSaved,
+              ),
+            _ => const Padding(
+                padding: EdgeInsets.all(AppSpacing.screenSide),
+                child: AppSkeletonCard(),
+              ),
+          },
+          children: const [],
+        );
+      case AttorneySetupStage.subscription:
+        return _SubscriptionStage(
+          overview: subscription!.requireValue,
+          progress: progress,
+          onBack: _back,
+          onDone: _advance,
+        );
+      case AttorneySetupStage.done:
+        return OnboardingScaffold(
+          key: const ValueKey('attorney-setup-done'),
+          step: OnboardingStepId.verification,
+          progress: progress,
+          title: t.t('onboarding.verification.title'),
+          onBack: _back,
+          error: action.error,
+          primaryLabel: t.t('onboarding.verification.continue'),
+          primaryLoading: action.busy,
+          onPrimary: _advance,
+          children: [
+            VerificationChecklist(
+              items: [
+                (
+                  t.t('onboarding.verification.item.license'),
+                  null,
+                  ChecklistStatus.done,
+                ),
+                (
+                  t.t('onboarding.attorney.practices.title'),
+                  null,
+                  ChecklistStatus.done,
+                ),
+                (
+                  t.t('onboarding.verification.item.subscription'),
+                  null,
+                  ChecklistStatus.done,
+                ),
+              ],
+              statusLabels: {
+                ChecklistStatus.done:
+                    t.t('onboarding.verification.status.done'),
+                ChecklistStatus.next:
+                    t.t('onboarding.verification.status.next'),
+                ChecklistStatus.locked:
+                    t.t('onboarding.verification.status.locked'),
+              },
+            ),
+          ],
+        );
+    }
+  }
+
+  /// The overall onboarding bar with this step split into its three
+  /// stages (licence, practices, subscription).
+  (int, int) _progress(AttorneySetupStage stage) {
+    final order = OnboardingStepId.orderFor(ref.read(currentUserRoleProvider));
+    final index = order.indexOf(OnboardingStepId.verification);
+    const extra = AttorneySetupStage.segments - 1;
+    return (index + 1 + stage.segment, order.length + extra);
+  }
+}
+
+/// "7 days free, a card at the start" — the same offer the bid button
+/// opens later (subscription_offer.dart). "Start 7 days free" pays on
+/// Stripe's page and moves on once active; "Later" moves on without it.
+class _SubscriptionStage extends ConsumerWidget {
+  const _SubscriptionStage({
+    required this.overview,
+    required this.progress,
+    required this.onBack,
+    required this.onDone,
+  });
+
+  final SubscriptionOverview overview;
+  final (int, int) progress;
+  final VoidCallback onBack;
+  final VoidCallback onDone;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translatorProvider);
+    final formats = ref.watch(l10nFormatsProvider);
     final action = ref.watch(onboardingActionsProvider);
-    // Owner 2026-10-04: once the licence is confirmed this screen moves on
-    // by itself: pick practice areas (the case feed matches by them), then
-    // continue to the tour and the feed — no "go back and tap Later".
-    // The signed-in user (and its verification flag, which locks the
-    // practices screen) is loaded once at start: reload it as soon as the
-    // licence is confirmed, or "Choose practice areas" would still be locked
-    // and send the attorney round in a circle.
-    ref.listen(verificationOverviewProvider, (_, next) {
-      final o = next.value;
-      if (o != null && viewOf(o) == VerificationView.verified) {
-        ref.read(currentUserControllerProvider.notifier).load();
-      }
-    });
-    final overview = ref.watch(verificationOverviewProvider).value;
-    final verified =
-        overview != null && viewOf(overview) == VerificationView.verified;
-    final practices = ref.watch(myPracticesProvider).value;
-    final needsPractices = verified && (practices?.isEmpty ?? false);
-
-    Future<void> openVerification() async {
-      await context.push(AppRoutes.verification);
-      ref
-        ..invalidate(verificationOverviewProvider)
-        ..invalidate(myPracticesProvider);
-    }
-
-    Future<void> openPractices() async {
-      await context.push(AppRoutes.practices);
-      ref.invalidate(myPracticesProvider);
-    }
-
+    final subscribe = ref.watch(subscribeControllerProvider);
+    final texts = offerTexts(t, overview, formats.currencyFromCents);
+    final kind = offerKindOf(overview);
+    final waiting = subscribe.phase == SubscribePhase.awaitingPayment;
+    final canPay = kind == OfferKind.trial || kind == OfferKind.paid;
     return OnboardingScaffold(
+      key: const ValueKey('attorney-setup-subscription'),
       step: OnboardingStepId.verification,
-      title: t.t('onboarding.verification.title'),
-      subtitle: t.t('onboarding.verification.subtitle'),
-      onBack: () => context.go(OnboardingRoutes.forStep(OnboardingStepId.push)),
+      progress: progress,
+      title: texts.title,
+      subtitle: texts.body,
+      onBack: onBack,
       error: action.error,
-      primaryLabel: !verified
-          ? t.t('onboarding.verification.verifyNow')
-          : needsPractices
-              ? t.t('onboarding.verification.choosePractices')
-              : t.t('onboarding.verification.continue'),
-      onPrimary: !verified
-          ? openVerification
-          : needsPractices
-              ? openPractices
-              : () => ref
-                  .read(onboardingActionsProvider.notifier)
-                  .advance(OnboardingStepId.verification),
-      secondary: verified
-          ? null
-          : AppButton(
-              label: t.t('onboarding.verification.later'),
-              variant: AppButtonVariant.secondary,
-              isLoading: action.busy,
-              onPressed: () => ref
-                  .read(onboardingActionsProvider.notifier)
-                  .advance(OnboardingStepId.verification),
-            ),
-      children: [
-        VerificationChecklist(
-          items: [
-            (
-              t.t('onboarding.verification.item.profile'),
-              null,
-              ChecklistStatus.done
-            ),
-            (
-              t.t('onboarding.verification.item.license'),
-              t.t('onboarding.verification.item.license.desc'),
-              verified ? ChecklistStatus.done : ChecklistStatus.next,
-            ),
-            (
-              t.t('onboarding.verification.item.subscription'),
-              t.t('onboarding.verification.item.subscription.desc'),
-              verified ? ChecklistStatus.next : ChecklistStatus.locked,
-            ),
-          ],
-          statusLabels: {
-            ChecklistStatus.done: t.t('onboarding.verification.status.done'),
-            ChecklistStatus.next: t.t('onboarding.verification.status.next'),
-            ChecklistStatus.locked:
-                t.t('onboarding.verification.status.locked'),
-          },
-        ),
-      ],
+      primaryLabel: canPay ? texts.cta : null,
+      primaryLoading: subscribe.busy,
+      onPrimary: () async {
+        if (await startSubscriptionFromOffer(context, ref)) onDone();
+      },
+      footnote: waiting ? t.t('plans.waiting') : null,
+      secondary: AppButton(
+        key: const ValueKey('offer-later'),
+        label: waiting
+            ? t.t('plans.waiting.stop')
+            : t.t('subscription.offer.later'),
+        variant: AppButtonVariant.secondary,
+        isLoading: action.busy,
+        onPressed: waiting
+            ? () => ref.read(subscribeControllerProvider.notifier).stopWaiting()
+            : onDone,
+      ),
+      children: const [SubscriptionOfferBenefits()],
     );
   }
 }

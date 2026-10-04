@@ -1342,6 +1342,8 @@ model Bid {
   turn                    PartyRole
   // Owner 2026-09-30: the case's practice is not one of the attorney's.
   outside_practice        Boolean           @default(false)
+  // Owner 2026-10-04: no verified licence in the case's states.
+  outside_licensed_states Boolean           @default(false)
   decided_at              DateTime?         @db.Timestamptz
   created_at              DateTime          @default(now()) @db.Timestamptz
   updated_at              DateTime          @updatedAt @db.Timestamptz

@@ -361,10 +361,17 @@ void main() {
         null,
       ),
       _Case(
-        'practices open from the verification step (no loop back)',
-        '/profile/practices',
+        'the licence form opens from the verification step',
+        '/verification/wizard',
         _signedIn(_readyAttorney(step: OnboardingStepId.verification)),
         null,
+      ),
+      _Case(
+        'practices are a stage of the verification step, not a pushed '
+            'screen (owner 2026-10-04: no loop back)',
+        '/profile/practices',
+        _signedIn(_readyAttorney(step: OnboardingStepId.verification)),
+        '/onboarding/verification',
       ),
       _Case(
         '…but not from the push step',

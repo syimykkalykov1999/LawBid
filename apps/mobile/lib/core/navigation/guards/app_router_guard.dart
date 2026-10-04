@@ -224,12 +224,9 @@ abstract final class AppRouterGuard {
         location == AppRoutes.verificationWizard) {
       return required == OnboardingStepId.verification;
     }
-    // Owner 2026-10-04: the checklist's "Choose practice areas" opens the
-    // practices screen from the verification step; without this the guard
-    // sent the attorney straight back (a loop).
-    if (location == AppRoutes.practices) {
-      return required == OnboardingStepId.verification;
-    }
+    // Owner 2026-10-04: practice areas and the subscription offer are
+    // stages shown in place on the verification step (no pushed screens
+    // to come back from), so nothing else is reachable mid-onboarding.
     final step = OnboardingRoutes.stepOf(location);
     if (step == null) return false;
     final order = OnboardingStepId.orderFor(user.role);

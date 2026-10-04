@@ -328,6 +328,7 @@ erDiagram
     Int round_count
     enum_PartyRole turn
     Boolean outside_practice
+    Boolean outside_licensed_states
     DateTime decided_at "nullable"
     DateTime created_at
     DateTime updated_at

@@ -20,8 +20,9 @@ export interface CaseViewer {
  *   whether it is one of the attorney's own (the client is warned on a
  *   bid from outside them).
  *
- * - attorney_browser (owner 2026-10-04): any other open case, viewable by a
- *   verified attorney but NOT biddable — no verified licence in its states.
+ * - attorney_browser (owner 2026-10-04): any other open case (any state,
+ *   any practice) a verified attorney may see AND bid on — the client is
+ *   told on the bid that the attorney has no licence in the case's states.
  *
  * `clientIdentityVisible` is false for every attorney access: the client's
  * name, photo and contacts are never part of a case view for an attorney.
@@ -36,6 +37,10 @@ export type CaseAccess =
       /** The case's practice is one of the attorney's own (or the §4.1
        * General Practice exception). */
       inPractice: boolean;
+      /** Owner 2026-10-04: the attorney holds a verified licence in one of
+       * the case's states. Informational only — never blocks a bid; the
+       * client is told on the bid when it is false. */
+      inLicensedState: boolean;
     };
 
 /** docs/04 §4.1 exception: not_sure_or_other cases are also shown to
@@ -87,6 +92,7 @@ export class CaseAccessPolicy {
         visible: boolean;
         browsable: boolean;
         in_practice: boolean;
+        in_licensed_state: boolean;
       }[]
     >`
       SELECT
@@ -125,18 +131,25 @@ export class CaseAccessPolicy {
                              SELECT id FROM practice_areas
                              WHERE code IN (${GENERAL_PRACTICE_CODES[0]},
                                             ${GENERAL_PRACTICE_CODES[1]})))))
-          AS in_practice
+          AS in_practice,
+        EXISTS (SELECT 1 FROM case_states cs
+                JOIN attorney_licenses l ON l.state_code = cs.state_code
+                WHERE cs.case_id = c.id AND l.attorney_id = ${a}::UUID
+                  AND l.license_status = 'verified')
+          AS in_licensed_state
       FROM cases c
       JOIN practice_areas pa ON pa.id = c.practice_area_id
       WHERE c.id = ${caseId}::UUID AND c.deleted_at IS NULL`;
     const row = rows[0];
     if (!row) return null;
     const inPractice = row.in_practice;
+    const inLicensedState = row.in_licensed_state;
     if (row.participant) {
       return {
         kind: 'attorney_participant',
         clientIdentityVisible: false,
         inPractice,
+        inLicensedState,
       };
     }
     if (row.visible) {
@@ -144,6 +157,7 @@ export class CaseAccessPolicy {
         kind: 'attorney_prospect',
         clientIdentityVisible: false,
         inPractice,
+        inLicensedState,
       };
     }
     if (row.browsable) {
@@ -151,6 +165,7 @@ export class CaseAccessPolicy {
         kind: 'attorney_browser',
         clientIdentityVisible: false,
         inPractice,
+        inLicensedState,
       };
     }
     return null;

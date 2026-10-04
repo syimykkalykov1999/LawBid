@@ -82,6 +82,7 @@ abstract final class CasesMappers {
         verifiedBadge: a.verifiedBadge,
         ratingAvg: a.rating.avg.toDouble(),
         ratingCount: a.rating.count.toInt(),
+        licensedStates: a.licensedStates,
       );
 
   static BidOffer offer(api.BidOfferDto o) => BidOffer(
@@ -112,6 +113,7 @@ abstract final class CasesMappers {
         decidedAt: b.decidedAt?.toLocal(),
         attorney: attorney(b.attorney),
         outsidePractice: b.outsidePractice,
+        outsideLicensedStates: b.outsideLicensedStates,
       );
 
   static CaseBid bid(api.BidDto b) => CaseBid(
@@ -131,6 +133,7 @@ abstract final class CasesMappers {
         decidedAt: b.decidedAt?.toLocal(),
         offers: b.offers.map(offer).toList(growable: false),
         outsidePractice: b.outsidePractice,
+        outsideLicensedStates: b.outsideLicensedStates,
       );
 
   static FeedCase feedCase(api.CaseFeedItemDto c) => FeedCase(
@@ -180,6 +183,7 @@ abstract final class CasesMappers {
         commentCount: c.commentCount,
         shareCount: c.shareCount,
         inMyPractice: c.inMyPractice,
+        inMyLicensedStates: c.inMyLicensedStates,
         bidAllowed: c.bidAllowed,
       );
 

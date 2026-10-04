@@ -49304,6 +49304,10 @@
             "type": "boolean",
             "description": "Owner 2026-09-30: the case's practice is outside the attorney's\nown — the client is told to discuss it first."
           },
+          "outsideLicensedStates": {
+            "type": "boolean",
+            "description": "Owner 2026-10-04: the attorney holds no verified licence in the\ncase's states — bidding is allowed, the client is told."
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -49330,6 +49334,7 @@
           "turn",
           "decidedAt",
           "outsidePractice",
+          "outsideLicensedStates",
           "createdAt",
           "offers"
         ]
@@ -54811,9 +54816,13 @@
             "type": "boolean",
             "description": "Owner 2026-09-30: the case's practice is one of this attorney's —\notherwise \"Bid\" warns that the client will be told."
           },
+          "inMyLicensedStates": {
+            "type": "boolean",
+            "description": "Owner 2026-10-04: the attorney holds a verified licence in one of\nthe case's states — otherwise \"Bid\" notes that the client will see it."
+          },
           "bidAllowed": {
             "type": "boolean",
-            "description": "Owner 2026-10-04: false when the attorney may only view the case (no verified licence in its states): no offer button."
+            "description": "Owner 2026-10-04: an attorney may bid on any open case (any state, any practice); kept for older apps, always true."
           }
         },
         "required": [
@@ -54838,6 +54847,7 @@
           "photos",
           "photosCount",
           "inMyPractice",
+          "inMyLicensedStates",
           "bidAllowed"
         ]
       },
@@ -54925,6 +54935,13 @@
             "type": "boolean",
             "description": "Blue check (docs/03 §6.3)."
           },
+          "licensedStates": {
+            "description": "Owner 2026-10-04: 2-letter codes of the states where the attorney holds a verified licence.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "rating": {
             "$ref": "#/components/schemas/RatingDto"
           }
@@ -54936,6 +54953,7 @@
           "lastName",
           "avatarUrl256",
           "verifiedBadge",
+          "licensedStates",
           "rating"
         ]
       },
@@ -55011,6 +55029,10 @@
             "type": "boolean",
             "description": "Owner 2026-09-30: the case's practice is outside the attorney's\nown — the client is told to discuss it first."
           },
+          "outsideLicensedStates": {
+            "type": "boolean",
+            "description": "Owner 2026-10-04: the attorney holds no verified licence in the\ncase's states — bidding is allowed, the client is told."
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -55034,6 +55056,7 @@
           "turn",
           "decidedAt",
           "outsidePractice",
+          "outsideLicensedStates",
           "createdAt",
           "attorney"
         ]
@@ -55587,6 +55610,10 @@
             "type": "boolean",
             "description": "Owner 2026-09-30: the case's practice is outside the attorney's\nown — the client is told to discuss it first."
           },
+          "outsideLicensedStates": {
+            "type": "boolean",
+            "description": "Owner 2026-10-04: the attorney holds no verified licence in the\ncase's states — bidding is allowed, the client is told."
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -55618,6 +55645,7 @@
           "turn",
           "decidedAt",
           "outsidePractice",
+          "outsideLicensedStates",
           "createdAt",
           "case",
           "lastOffer"

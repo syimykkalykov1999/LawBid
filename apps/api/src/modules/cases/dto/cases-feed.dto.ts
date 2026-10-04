@@ -297,9 +297,14 @@ export class CaseDetailForAttorneyDto extends CaseFeedItemDto {
   @ApiProperty()
   inMyPractice!: boolean;
 
+  /** Owner 2026-10-04: the attorney holds a verified licence in one of
+   * the case's states — otherwise "Bid" notes that the client will see it. */
+  @ApiProperty()
+  inMyLicensedStates!: boolean;
+
   @ApiProperty({
     description:
-      'Owner 2026-10-04: false when the attorney may only view the case (no verified licence in its states): no offer button.',
+      'Owner 2026-10-04: an attorney may bid on any open case (any state, any practice); kept for older apps, always true.',
   })
   bidAllowed!: boolean;
 }

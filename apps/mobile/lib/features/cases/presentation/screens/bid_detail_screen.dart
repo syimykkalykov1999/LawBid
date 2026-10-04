@@ -68,9 +68,21 @@ class _BidDetailScreenState extends ConsumerState<BidDetailScreen> {
       title: t.t(
         client ? 'cases.accept.clientTitle' : 'cases.accept.attorneyTitle',
       ),
-      message: t.t(
-        client ? 'cases.accept.clientMessage' : 'cases.accept.attorneyMessage',
-      ),
+      // Owner 2026-10-04: the client accepts knowingly — the bid's state /
+      // practice mismatch is repeated right in the confirmation.
+      message: [
+        t.t(
+          client
+              ? 'cases.accept.clientMessage'
+              : 'cases.accept.attorneyMessage',
+        ),
+        if (client && (bid.outsideLicensedStates || bid.outsidePractice)) ...[
+          t.t('cases.accept.mismatchIntro'),
+          if (bid.outsideLicensedStates)
+            t.t('cases.outsideStates.clientNoList'),
+          if (bid.outsidePractice) t.t('cases.outsidePractice.client'),
+        ],
+      ].join('\n\n'),
       confirmLabel: t.t('cases.accept.confirm'),
     );
     if (ok) {
@@ -366,6 +378,14 @@ class _BidBody extends StatelessWidget {
             ),
           ),
         ],
+        if (bid.outsideLicensedStates)
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.md),
+            child: OutsideStatesNote(
+              t: t,
+              forClient: viewer == PartyRole.client,
+            ),
+          ),
         if (bid.outsidePractice)
           Padding(
             padding: const EdgeInsets.only(bottom: AppSpacing.md),
