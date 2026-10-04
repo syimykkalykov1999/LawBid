@@ -7,6 +7,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/cases/presentation/screens/attorney_cases_tab.dart'
     show myPracticesProvider;
+import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/onboarding/application/onboarding_actions.dart';
 import 'package:lawbid/features/onboarding/domain/onboarding_step_id.dart';
 import 'package:lawbid/features/onboarding/onboarding_routes.dart';
@@ -32,6 +33,16 @@ class AttorneyVerificationStepScreen extends ConsumerWidget {
     // Owner 2026-10-04: once the licence is confirmed this screen moves on
     // by itself: pick practice areas (the case feed matches by them), then
     // continue to the tour and the feed — no "go back and tap Later".
+    // The signed-in user (and its verification flag, which locks the
+    // practices screen) is loaded once at start: reload it as soon as the
+    // licence is confirmed, or "Choose practice areas" would still be locked
+    // and send the attorney round in a circle.
+    ref.listen(verificationOverviewProvider, (_, next) {
+      final o = next.value;
+      if (o != null && viewOf(o) == VerificationView.verified) {
+        ref.read(currentUserControllerProvider.notifier).load();
+      }
+    });
     final overview = ref.watch(verificationOverviewProvider).value;
     final verified =
         overview != null && viewOf(overview) == VerificationView.verified;

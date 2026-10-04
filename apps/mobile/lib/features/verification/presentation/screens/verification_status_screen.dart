@@ -7,6 +7,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/verification/application/verification_overview_controller.dart';
 import 'package:lawbid/features/verification/domain/verification_models.dart';
 import 'package:lawbid/features/verification/presentation/widgets/inline_notice.dart';
@@ -30,6 +31,14 @@ class VerificationStatusScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final t = ref.watch(translatorProvider);
+    // Reload the signed-in user once verified, so the practices screen and the
+    // Cases tab stop treating the attorney as unverified.
+    ref.listen(verificationOverviewProvider, (_, next) {
+      final o = next.value;
+      if (o != null && viewOf(o) == VerificationView.verified) {
+        ref.read(currentUserControllerProvider.notifier).load();
+      }
+    });
     final async = ref.watch(verificationOverviewProvider);
     final controller = ref.read(verificationOverviewProvider.notifier);
     ref.listen(connectivityStatusProvider, (previous, next) {
