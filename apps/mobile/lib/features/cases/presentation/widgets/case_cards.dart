@@ -1,3 +1,5 @@
+import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
@@ -422,6 +424,17 @@ class FeedCaseCard extends StatelessWidget {
         child: Container(
           decoration: BoxDecoration(
             color: colors.surface,
+            // Light theme: a warm champagne wash instead of flat white.
+            gradient: Theme.of(context).brightness == Brightness.light
+                ? LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      colors.surface,
+                      Color.alphaBlend(colors.goldTint, colors.surface),
+                    ],
+                  )
+                : null,
             borderRadius: radius,
             border: Border.all(
               color: item.isNew
@@ -445,14 +458,17 @@ class FeedCaseCard extends StatelessWidget {
                   bottom: 0,
                   right: 0,
                   width: 190,
-                  child: PracticeArt(
-                    categoryCode: item.practice.artCode,
-                    practiceCode: item.practice.code,
-                    cover: CaseCover(
+                  child: _FrostedInLight(
+                    glyph: practiceGlyph(item.practice.artCode),
+                    child: PracticeArt(
                       categoryCode: item.practice.artCode,
                       practiceCode: item.practice.code,
-                      coverKey: item.coverKey,
-                      seed: item.id,
+                      cover: CaseCover(
+                        categoryCode: item.practice.artCode,
+                        practiceCode: item.practice.code,
+                        coverKey: item.coverKey,
+                        seed: item.id,
+                      ),
                     ),
                   ),
                 ),
@@ -1353,6 +1369,66 @@ class UnavailableCaseCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Owner 2026-10-04: on the light theme the navy art under dark text made
+/// words vanish, so there it turns into frosted glass: the art is blurred
+/// and veiled in a champagne tint, its gold and navy only a soft glow.
+class _FrostedInLight extends StatelessWidget {
+  const _FrostedInLight({required this.glyph, required this.child});
+
+  final IconData glyph;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (Theme.of(context).brightness != Brightness.light) return child;
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final veil = Color.alphaBlend(colors.goldTint, colors.surface);
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        ImageFiltered(
+          imageFilter: ImageFilter.blur(sigmaX: 9, sigmaY: 9),
+          child: child,
+        ),
+        DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                veil,
+                veil.withValues(alpha: 0.86),
+                veil.withValues(alpha: 0.74),
+              ],
+              stops: const [0, 0.45, 1],
+            ),
+          ),
+        ),
+        // A soft gold glow with the practice glyph, so the card keeps
+        // its identity through the frost.
+        DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: RadialGradient(
+              center: const Alignment(0.45, 0.05),
+              radius: 0.75,
+              colors: [
+                colors.gold.withValues(alpha: 0.22),
+                colors.gold.withValues(alpha: 0),
+              ],
+            ),
+          ),
+        ),
+        Align(
+          alignment: const Alignment(0.55, 0.05),
+          child: AppIcon(
+            glyph,
+            size: 72,
+            color: colors.gold.withValues(alpha: 0.38),
+          ),
+        ),
+      ],
     );
   }
 }
