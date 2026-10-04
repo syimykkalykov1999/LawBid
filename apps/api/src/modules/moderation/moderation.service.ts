@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import type { Prisma, ReportTargetType } from '@prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { FilesService } from '../files/files.service';
@@ -10,6 +10,7 @@ import {
   profileEntity,
 } from '../counters/counter-aggregator.service';
 import { recalcAttorneyRating } from '../reviews/review-rating';
+import { MessageBodyCipher } from '../../common/secrets/message-body-cipher';
 
 export type Tx = Prisma.TransactionClient;
 
@@ -51,6 +52,7 @@ export class ModerationService {
     private readonly counters: CounterAggregator,
     private readonly settings: AppSettingsService,
     private readonly files: FilesService,
+    @Optional() private readonly cipher?: MessageBodyCipher,
   ) {}
 
   async resolve(
@@ -158,6 +160,7 @@ export class ModerationService {
           },
         });
         if (!m) return null;
+        const body = this.cipher?.open(m.body_display) ?? m.body_display;
         // OQ-040: a reported voice note — the moderator gets a short
         // signed link to listen (outside transactions only).
         const voiceUrl =
@@ -179,8 +182,8 @@ export class ModerationService {
             m.type === 'voice'
               ? `[voice message, ${Math.round((m.duration_ms ?? 0) / 1000)} s]`
               : m.type === 'attachment'
-                ? `[file: ${m.file_name ?? 'file'}] ${m.body_display}`.trim()
-                : m.body_display,
+                ? `[file: ${m.file_name ?? 'file'}] ${body}`.trim()
+                : body,
           context: {
             conversationId: m.conversation_id,
             ...(m.type === 'voice' ? { voiceUrl } : {}),

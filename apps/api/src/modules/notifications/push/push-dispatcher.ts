@@ -35,6 +35,7 @@ import {
   type PushJobData,
   type PushSender,
 } from './push.constants';
+import { MessageBodyCipher } from '../../../common/secrets/message-body-cipher';
 
 export interface PushModuleOptions {
   mode: 'api' | 'worker';
@@ -86,6 +87,7 @@ export class PushDispatcher
     // Security audit 2026-10-01: notification emails count against the
     // same daily/monthly email budget as OTP mail.
     @Optional() private readonly costGuard?: CostGuardService,
+    @Optional() private readonly cipher?: MessageBodyCipher,
   ) {
     this.logger.setContext(PushDispatcher.name);
   }
@@ -325,7 +327,9 @@ export class PushDispatcher
     const text = await this.templates.render('new_message', user.ui_language);
     // OQ-040: a voice note has no text — say what it is.
     const ru = user.ui_language === 'ru';
-    const caption = [...message.body_display]
+    const caption = [
+      ...(this.cipher?.open(message.body_display) ?? message.body_display),
+    ]
       .slice(0, MESSAGE_PREVIEW_CHARS)
       .join('');
     const preview =

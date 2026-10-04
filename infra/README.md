@@ -66,7 +66,9 @@ After the first apply:
    the three CockroachDB connection strings (`DATABASE_URL` = `lawbid_app`,
    `MIGRATOR_DATABASE_URL` = `lawbid_migrator`, `RETENTION_DATABASE_URL` =
    `lawbid_retention`), `JWT_KEYS`, the OTP/auth peppers,
-   `ADMIN_TOTP_ENC_KEY`, Twilio, Stripe (test keys on staging — §6.2), FCM,
+   `ADMIN_TOTP_ENC_KEY`, `SECRETS_MASTER_KEYS` (`k1:<random 48+ chars>`),
+   `MESSAGE_ENC_KEYS` (`m1:<random 48+ chars>`, chat texts at rest; keep it
+   forever, losing it makes stored messages unreadable), Twilio, Stripe (test keys on staging — §6.2), FCM,
    Sentry, and the provider keys that stay empty until the paid flags are
    turned on (docs/06 §2.3 п.7). `REDIS_URL` is written by Terraform.
    Secrets are injected into the tasks by ECS at start; they are never in
