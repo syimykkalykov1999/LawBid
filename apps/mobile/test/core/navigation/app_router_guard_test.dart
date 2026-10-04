@@ -106,7 +106,7 @@ void main() {
         '/splash',
       ),
     ],
-    'owner 2026-10-04: assistant signs in with the attorney\'s code': [
+    "owner 2026-10-04: assistant signs in with the attorney's code": [
       const _Case('code screen is public', '/auth/assistant', _signedOut, null),
       _Case(
         'no consents yet → consents',
