@@ -98,6 +98,9 @@ abstract final class ApiErrorCodes {
   static const fileTooLarge = 'FILE_TOO_LARGE';
   static const fileChecksumMismatch = 'FILE_CHECKSUM_MISMATCH';
   static const fileNotUploaded = 'FILE_NOT_UPLOADED';
+  // Owner 2026-10-05 (storage like Telegram): per-user and per-chat caps.
+  static const storageQuotaExceeded = 'STORAGE_QUOTA_EXCEEDED';
+  static const chatStorageFull = 'CHAT_STORAGE_FULL';
   static const fileNotAttachable = 'FILE_NOT_ATTACHABLE';
   static const fileStorageUnavailable = 'FILE_STORAGE_UNAVAILABLE';
   // Verification (docs/03 §2, stages 3.3–3.4)
@@ -301,6 +304,8 @@ abstract final class ApiErrorCodes {
     fileTooLarge,
     fileChecksumMismatch,
     fileNotUploaded,
+    storageQuotaExceeded,
+    chatStorageFull,
     fileNotAttachable,
     fileStorageUnavailable,
     verificationAlreadyPending,

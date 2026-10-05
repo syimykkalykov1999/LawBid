@@ -523,3 +523,33 @@ resource "aws_cloudwatch_metric_alarm" "cost_budget" {
   alarm_actions       = local.ops
   tags                = var.tags
 }
+
+# Owner 2026-10-05 (storage like Telegram): the nightly storage.snapshot
+# logs `alert: storage_growth` when files or the database grew more than
+# storage.growth_alert_percent (admin Система → Хранилище) in a day.
+resource "aws_cloudwatch_log_metric_filter" "storage_growth" {
+  name           = "${var.name}-storage-growth"
+  log_group_name = var.worker_log_group
+  pattern        = "{ $.alert = \"storage_growth\" }"
+  metric_transformation {
+    name      = "StorageGrowthAlerts"
+    namespace = local.ns
+    value     = "1"
+    unit      = "Count"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "storage_growth" {
+  alarm_name          = "${var.name}-storage-growth"
+  alarm_description   = "Files or the database grew faster than storage.growth_alert_percent in a day. Check admin Система → Хранилище (top users, biggest tables)."
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  period              = 3600
+  threshold           = 1
+  statistic           = "Sum"
+  metric_name         = "StorageGrowthAlerts"
+  namespace           = local.ns
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.ops
+  tags                = var.tags
+}
