@@ -375,7 +375,7 @@ describe('owner — client → attorney payments (e2e, fake provider)', () => {
     // The client pays on the (fake) Stripe page; the Connect webhook lands.
     await api()
       .post(`/api/v1/subscriptions/fake-checkout/${row.stripe_checkout_id}/pay`)
-      .expect(200);
+      .expect(201);
     const { id: evt } = await connectWebhook(
       'checkout.session.completed',
       {
@@ -833,10 +833,12 @@ describe('owner — client → attorney payments (e2e, fake provider)', () => {
       .get('/api/v1/admin/export/case_payments')
       .set(support.auth)
       .expect(403);
+    // Money is a super-admin-only area (owner 2026-10-02): closed in the API
+    // for every other role, not only hidden in the panel.
     await api()
       .get('/api/v1/admin/case-payments')
       .set(support.auth)
-      .expect(200);
+      .expect(403);
     await api()
       .put('/api/v1/admin/case-payments/settings')
       .set(support.auth)
@@ -943,8 +945,16 @@ describe('owner — client → attorney payments (e2e, fake provider)', () => {
       .set(cli.auth)
       .send({ description: 'Retainer', items: [{ amountCents: 10_000 }] })
       .expect(403);
-    const due1 = new Date(Date.now() + 36 * 3_600_000);
-    const due2 = new Date(Date.now() + 10 * 86_400_000);
+    // Due dates at noon UTC so the day arithmetic of the reminder job is
+    // the same whatever time the suite runs: the first part tomorrow (paid
+    // below), the second in 3 days (a reminder day by default).
+    const todayUtc = Date.UTC(
+      new Date().getUTCFullYear(),
+      new Date().getUTCMonth(),
+      new Date().getUTCDate(),
+    );
+    const due1 = new Date(todayUtc + 86_400_000 + 12 * 3_600_000);
+    const due2 = new Date(todayUtc + 3 * 86_400_000 + 12 * 3_600_000);
     const created = await api()
       .post(`/api/v1/cases/${c.id}/payment-requests`)
       .set(att.auth)
@@ -1249,11 +1259,12 @@ describe('owner — client → attorney payments (e2e, fake provider)', () => {
     const [req] = (created.body as { data: Record<string, unknown>[] }).data;
     expect(req).toMatchObject({
       processingFeePayer: 'split',
-      processingFeeCents: 306,
-      clientTotalCents: 20_306,
+      processingFeeCents: 315,
+      clientTotalCents: 20_315,
     });
-    // Stripe takes ~2.9% + 30¢ of the charged 203.06; half was added on top.
-    expect(req.attorneyReceivesCents).toBe(20_306 - 619);
+    // Half of the gross-up (629 → 315) was added on top; Stripe takes
+    // ~2.9% + 30¢ of the charged 203.15 from the attorney's balance.
+    expect(req.attorneyReceivesCents).toBe(20_315 - 619);
     const started = await pay(cli, c.id, {
       kind: 'invoice',
       requestId: req.id,
@@ -1263,7 +1274,7 @@ describe('owner — client → attorney payments (e2e, fake provider)', () => {
       where: { id: (started.body as Body).data.paymentId as string },
     });
     expect(row.processing_fee_payer).toBe('split');
-    expect(row.client_total_cents).toBe(20_306);
+    expect(row.client_total_cents).toBe(20_315);
     // A free payment (no invoice) uses the attorney's default.
     const free = await pay(cli, c.id, { kind: 'custom', amountCents: 10_000 });
     expect(free.status).toBe(201);
@@ -1392,8 +1403,8 @@ describe('owner — client → attorney payments (e2e, fake provider)', () => {
       feePayerStatus: 'agreed',
       canPay: true,
       processingFeePayer: 'split',
-      processingFeeCents: 160,
-      clientTotalCents: 10_160,
+      processingFeeCents: 165,
+      clientTotalCents: 10_165,
     });
     expect((await answer(att, r1.id, { action: 'accept' })).status).toBe(409);
     expect(
@@ -1408,7 +1419,7 @@ describe('owner — client → attorney payments (e2e, fake provider)', () => {
     });
     expect(row).toMatchObject({
       processing_fee_payer: 'split',
-      client_total_cents: 10_160,
+      client_total_cents: 10_165,
     });
     const lines = await prisma.message.findMany({
       where: { conversation: { case_id: c.id }, type: 'system' },

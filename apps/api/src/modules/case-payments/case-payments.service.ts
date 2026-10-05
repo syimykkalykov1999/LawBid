@@ -715,6 +715,12 @@ export class CasePaymentsService {
     dto: RefundCasePaymentDto,
     by: { type: 'attorney' | 'admin'; id: string },
   ): Promise<CasePayment> {
+    if (row.status === 'refunded') {
+      throw new ConflictException({
+        code: ErrorCode.PAYMENT_INVALID_STATE,
+        message: 'This payment is already refunded in full.',
+      });
+    }
     if (!isPaid(row.status)) {
       throw new ConflictException({
         code: ErrorCode.REFUND_NOT_ALLOWED,
@@ -1886,21 +1892,25 @@ export class CasePaymentsService {
       if (bidAmountCents === null)
         throw invalid('This case has no fixed bid amount; enter an amount.');
       amount = bidAmountCents;
-      if (dto.kind === 'balance') {
-        const paid = await this.prisma.casePayment.findMany({
-          where: { case_id: caseId, status: { in: PAID_STATUSES } },
-          select: {
-            amount_cents: true,
-            refunded_cents: true,
-            client_total_cents: true,
-          },
-        });
-        amount -= paid.reduce(
-          (sum, r) => sum + r.amount_cents - refundedFee(r),
-          0,
-        );
-        if (amount <= 0) throw invalid('The bid is already paid in full.');
-      }
+      // What already reached the attorney for this case (net of refunds):
+      // the balance is the rest of the bid, and a bid paid in full is not
+      // charged twice by accident (a second tap is a `custom` payment).
+      const paid = await this.prisma.casePayment.findMany({
+        where: { case_id: caseId, status: { in: PAID_STATUSES } },
+        select: {
+          amount_cents: true,
+          refunded_cents: true,
+          client_total_cents: true,
+        },
+      });
+      const paidCents = paid.reduce(
+        (sum, r) => sum + r.amount_cents - refundedFee(r),
+        0,
+      );
+      if (dto.kind === 'balance') amount -= paidCents;
+      else if (paidCents >= amount)
+        throw invalid('The bid is already paid in full.');
+      if (amount <= 0) throw invalid('The bid is already paid in full.');
     } else {
       if (!s.allowCustomAmount && dto.kind === 'custom')
         throw invalid('Only the bid amount can be paid.');

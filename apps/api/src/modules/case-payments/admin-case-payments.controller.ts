@@ -42,11 +42,12 @@ import {
 const E = ErrorCode;
 type Page<T> = { items: T[]; nextCursor: string | null };
 
-/** Owner 2026-10-05: client → attorney payments in the admin (money:
- * super_admin + finance act; support reads). CSV: GET
- * /admin/export/case_payments (super admin). */
+/** Owner 2026-10-05: client → attorney payments in the admin. Money is a
+ * super-admin-only area (owner 2026-10-02), so every route here is closed
+ * for the other roles in the API itself. CSV: GET
+ * /admin/export/case_payments. */
 @ApiTags('admin-case-payments')
-@AdminEndpoint('super_admin', 'finance', 'support')
+@AdminEndpoint('super_admin')
 @Controller('admin/case-payments')
 export class AdminCasePaymentsController {
   constructor(private readonly payments: AdminCasePaymentsService) {}
