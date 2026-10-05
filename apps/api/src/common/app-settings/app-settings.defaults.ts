@@ -313,6 +313,13 @@ export const OWNER_COUNTRY_SETTINGS = {
   'countries.notify_waitlist': true,
 };
 
+/** Owner 2026-10-05: requests per minute for one signed-in admin (the
+ * panel keeps several queues live on one screen). Users keep 100/min.
+ * ADMIN_THROTTLE_LIMIT in the env wins (src/throttler/throttle-limits.ts). */
+export const OWNER_RATE_LIMIT_SETTINGS = {
+  'security.admin_rate_limit_per_minute': 600,
+};
+
 export const APP_SETTINGS = {
   ...FILE_03_SETTINGS,
   ...FILE_04_SETTINGS,
@@ -335,6 +342,7 @@ export const APP_SETTINGS = {
   ...OWNER_SUPPORT_DESK_SETTINGS,
   ...OWNER_REWARDS_SETTINGS,
   ...OWNER_COUNTRY_SETTINGS,
+  ...OWNER_RATE_LIMIT_SETTINGS,
 };
 
 export type AppSettingKey = keyof typeof APP_SETTINGS;

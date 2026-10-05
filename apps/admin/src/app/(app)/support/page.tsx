@@ -17,15 +17,17 @@ import { Card } from '@/components/ui/card';
 import { EmptyState, Skeleton } from '@/components/ui/empty';
 import { Input, Select } from '@/components/ui/input';
 import { Tabs } from '@/components/ui/tabs';
+import { UpdatedAgo } from '@/components/updated-ago';
 import { api, errorText } from '@/lib/api/client';
 import { PRIORITY, TICKET_CATEGORY } from '@/lib/labels';
+import { livePoll, supportStatsQuery } from '@/lib/live';
 import { cn } from '@/lib/utils';
 
 type StatusTab = 'all' | TicketStatus;
 type AssigneeTab = 'all' | 'me' | 'unassigned';
 type SlaFilter = '' | 'breached';
 
-/** Support inbox — user tickets, latest activity first, refreshed every 30 s. */
+/** Support inbox — user tickets, latest activity first, refreshed every minute. */
 export default function SupportInboxPage() {
   const [status, setStatus] = useState<StatusTab>('open');
   const [assignee, setAssignee] = useState<AssigneeTab>('all');
@@ -35,11 +37,8 @@ export default function SupportInboxPage() {
   const [q, setQ] = useState('');
   const [sla, setSla] = useState<SlaFilter>('');
 
-  const stats = useQuery({
-    queryKey: ['support-stats'],
-    queryFn: async () => (await api.GET('/admin/support/stats')).data!.data,
-    refetchInterval: 30_000,
-  });
+  // Polled by the sidebar badge (lib/live.ts); this page reads the cache.
+  const stats = useQuery(supportStatsQuery);
   const filters = { status, assignee, category, priority, q, sla };
   const list = useInfiniteQuery({
     queryKey: ['support-tickets', filters],
@@ -61,7 +60,8 @@ export default function SupportInboxPage() {
         })
       ).data!,
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
-    refetchInterval: 30_000,
+    // Every loaded page is one request per refresh: keep it to a minute.
+    refetchInterval: livePoll(),
   });
   const rows = list.data?.pages.flatMap((p) => p.data) ?? [];
   const s = stats.data;
@@ -74,8 +74,8 @@ export default function SupportInboxPage() {
         title="Поддержка"
         subtitle={
           s?.openNow === false
-            ? 'Сейчас нерабочее время: пользователи получают автоответ. Список обновляется каждые 30 секунд.'
-            : 'Обращения пользователей из приложения. Список обновляется каждые 30 секунд.'
+            ? <>Сейчас нерабочее время: пользователи получают автоответ. Список обновляется раз в минуту, <UpdatedAgo at={list.dataUpdatedAt} />.</>
+            : <>Обращения пользователей из приложения. Список обновляется раз в минуту, <UpdatedAgo at={list.dataUpdatedAt} />.</>
         }
         actions={
           <div className="flex flex-wrap gap-2">

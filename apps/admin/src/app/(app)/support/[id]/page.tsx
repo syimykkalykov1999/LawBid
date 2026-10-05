@@ -19,6 +19,7 @@ import { EmptyState, Skeleton } from '@/components/ui/empty';
 import { Field, Select } from '@/components/ui/input';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
+import { livePoll } from '@/lib/live';
 import { useMe } from '@/lib/hooks';
 import { PRIORITY, StatusPill, TICKET_STATUS } from '@/lib/labels';
 import { canOpen } from '@/lib/rbac';
@@ -41,7 +42,7 @@ export default function SupportTicketPage() {
   const tq = useQuery({
     queryKey: ['support-ticket', id],
     queryFn: async () => (await api.GET('/admin/support/tickets/{id}', { params: { path: { id } } })).data!.data,
-    refetchInterval: 30_000,
+    refetchInterval: livePoll(),
   });
   const macros = useQuery({
     queryKey: ['support-macros', 'active'],

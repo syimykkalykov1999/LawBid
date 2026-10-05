@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/trust/application/trust_providers.dart';
 import 'package:lawbid/features/trust/domain/trust_models.dart';
 import 'package:lawbid/features/trust/presentation/trust_level_chip.dart';
@@ -43,6 +44,7 @@ class TrustLevelSheet extends ConsumerWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final async = ref.watch(attorneyTrustProvider(attorneyId));
+    final self = ref.watch(currentUserIdProvider) == attorneyId;
     final trust = async.value;
     final lv = trust?.level ?? level;
     final maxHeight = MediaQuery.sizeOf(context).height * 0.88;
@@ -127,7 +129,7 @@ class TrustLevelSheet extends ConsumerWidget {
                         onRetry: () =>
                             ref.invalidate(attorneyTrustProvider(attorneyId)),
                       ),
-                      data: (p) => TrustSignalsList(trust: p, t: t),
+                      data: (p) => TrustSignalsList(trust: p, t: t, self: self),
                     ),
                     const SizedBox(height: AppSpacing.lg),
                     TrustPaymentNotice(

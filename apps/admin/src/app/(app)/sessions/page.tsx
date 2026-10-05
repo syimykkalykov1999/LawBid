@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/card';
 import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
+import { livePoll } from '@/lib/live';
 import { ROLE_LABEL, type AdminRole } from '@/lib/rbac';
 import { formatDateTime } from '@/lib/utils';
 
@@ -21,7 +22,7 @@ export default function SessionsPage() {
   const list = useQuery({
     queryKey: ['admin-sessions'],
     queryFn: async () => (await api.GET('/admin/sessions')).data!.data,
-    refetchInterval: 15_000,
+    refetchInterval: livePoll(),
   });
   const revoke = useMutation({
     mutationFn: async (v: { id: string; who: string }) => {
@@ -50,7 +51,7 @@ export default function SessionsPage() {
       <PageHeader
         eyebrow="Система"
         title="Сессии админов"
-        subtitle="Кто сейчас вошёл, откуда и что делал последним. Обновляется каждые 15 секунд. Все действия также пишутся в журнал аудита."
+        subtitle="Кто сейчас вошёл, откуда и что делал последним. Обновляется раз в минуту. Все действия также пишутся в журнал аудита."
       />
       <ErrorNote text={list.error ? errorText(list.error) : null} />
       <Table>
