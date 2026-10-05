@@ -17,24 +17,30 @@
 
 Любая потеря факта (отзыв подтверждения, флаг реестра, suspend) понижает уровень; галочка снимается автоматически.
 
-## 2. Гейты и настройки (`trust.*`, админка Верификация → «Уровни доверия»)
+## 2. Правила («Борьба с мошенниками», решение владельца 05:54)
+
+Админка Верификация → «Борьба с мошенниками», ключи `trust.*`. Вместо минимальных уровней — переключатели «что требовать от адвоката», чтобы открыть галочку и приём денег. Всё, что проверяется автоматически, проверяется само; остальное попадает сотруднику в очередь; «Подтвердить» сотрудником открывает всё навсегда (перепроверок нет, кроме жалоб и явного отзыва).
 
 | Ключ | По умолчанию | Что делает |
 |---|---|---|
-| `trust.min_level_bids` | 0 | ниже — 403 `TRUST_LEVEL_REQUIRED` `{gate:'bids', required, current}` при отправке бида; приглашение адвокату тоже не принимается (`AttorneyInactive why = 'on_hold'`) |
-| `trust.min_level_payments` | 2 | ниже — `paymentsGate.allowed = false`, клиент не может платить адвокату в приложении (`assertCanAcceptPayments`) |
-| `trust.min_level_badge` | 2 | с какого уровня показывается галочка |
-| `trust.payout_delay_days` | 7 | задержка выплат Stripe (`settings.payouts.schedule.delay_days`) |
-| `trust.payout_delay_until_level` | 3 | с этого уровня задержка снимается (`payoutDelayFor`) |
+| `trust.require_registry` | true | номер совпал с реестром штата (или сотрудник подтвердил лицензию) |
+| `trust.require_identity` | true | Stripe KYC, где проверенный человек — адвокат (или представитель/владелец компании), либо подтверждённая связь с фирмой |
+| `trust.require_documents` | false | сотрудник проверил ID + селфи + bar card |
+| `trust.bids_require_cleared` | false | биды тоже ждут выполнения требований (иначе биды открыты каждому заявленному адвокату) |
+| `trust.payout_delay_days` | 7 | задержка выплат Stripe, пока адвокат не «cleared» |
 | `trust.auto_hold_on_complaint` | true | жалоба → холд оплат и бидов |
 | `trust.complaints_to_suspend` | 2 | столько разных клиентов за окно → `verification_status = 'suspended'`, биды снимаются |
 | `trust.complaint_window_days` | 90 | окно жалоб |
-| `trust.auto_hold_on_name_mismatch` | true | имя в Stripe ≠ профиль/реестр → холд оплат + запрос документов |
-| `trust.flag_duplicate_claims` | true | второй аккаунт с тем же номером → `registry_flag = 'duplicate_claim'` у владельца |
+| `trust.auto_hold_on_name_mismatch` | true | имя в Stripe ≠ профиль/реестр → холд оплат + в очередь |
+| `trust.flag_duplicate_claims` | true | второй аккаунт с тем же номером → `registry_flag = 'duplicate_claim'` у владельца, в очередь |
 | `trust.firm_link_auto_registry` | true | фирма из реестра == `company.name` в Stripe → связь подтверждена автоматически |
 | `trust.firm_link_auto_email` | true | код на почту на домене фирмы (== домен `business_profile.url`) → связь подтверждена |
 
-Холды (`payments_hold`, `bids_hold`, `hold_note` с кодом complaint / name_mismatch / duplicate_claim / admin) — отдельно от уровня: уровень может быть 3, а оплаты на паузе. Снимает сотрудник (`POST /admin/trust/attorneys/:id/release`) или `confirmDocuments` для name_mismatch.
+`cleared` (`isCleared`) = заявлен и (сотрудник подтвердил `attorney_trust.staff_cleared_at` **или** все включённые требования выполнены); `missing` — список невыполненных. Галочка = `verified` && `cleared`; гейт оплат закрыт с `reason = 'requirements'` (403 `TRUST_LEVEL_REQUIRED`, details `{gate, missing, current}`) пока не cleared, `hold` при холде, `suspended`. Уровень 0–3 остаётся внутренней моделью и объяснением для клиента.
+
+**Очередь сотрудника** (`GET /admin/trust/queue?reason&q`): адвокаты не cleared и не suspended, у которых есть что решать человеку: `documents` (загружены документы в заявке `submitted`/`in_review`, а требования не выполнены), `firm_link` (ожидает), `name_mismatch`, `duplicate_claim`, `registry_flag`, `complaint`. Строка: причины, что не хватает, сигналы, Stripe тип/представитель, ссылки в реестр, `requestId` с документами. Действия: `POST …/clear` («Подтвердить»: staff_cleared, документы и связь с фирмой считаются проверенными, холды name_mismatch/duplicate и флаги реестра снимаются, уведомление `trust_cleared`), `…/unclear`, `…/request-documents {template: id_selfie|bar_card|firm_letter|custom, note}` (уведомление `trust_documents_requested` с шаблоном), `…/reject` (suspend + снятие бидов), `POST /admin/trust/bulk {attorneyIds, action: clear|request_documents|reject|release}`.
+
+Холды (`payments_hold`, `bids_hold`, `hold_note` с кодом complaint / name_mismatch / duplicate_claim / admin) — отдельно: уровень может быть 3, а оплаты на паузе. Снимает сотрудник (`release`) или `clear`.
 
 ## 3. Личность через Stripe Connect
 
@@ -64,7 +70,7 @@
 
 ## 7. Миграции
 
-`20261005080000_owner_trust_enums` (`report_reason` += `fraud`), `20261005080100_owner_attorney_trust` (`attorney_profiles.trust_level/trust_badge`, `attorney_trust`, `attorney_trust_events`). После деплоя один раз `POST /admin/trust/recompute-all` (или дождаться ночного job), чтобы заполнить уровни существующим адвокатам.
+`20261005080000_owner_trust_enums` (`report_reason` += `fraud`), `20261005080100_owner_attorney_trust` (`attorney_profiles.trust_level/trust_badge`, `attorney_trust`, `attorney_trust_events`), `20261005080200_owner_trust_staff_clearance` (`staff_cleared_*`, `documents_requested_*`). После деплоя один раз `POST /admin/trust/recompute-all` (или дождаться ночного job), чтобы заполнить уровни существующим адвокатам.
 
 ## 8. Юридические тексты
 
