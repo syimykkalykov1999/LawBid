@@ -539,7 +539,7 @@ class _Licenses extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: AppSpacing.sm),
-                Flexible(
+                AppTrailingCap(
                   child: Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: AppSpacing.sm,

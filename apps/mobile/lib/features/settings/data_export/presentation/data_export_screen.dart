@@ -252,8 +252,8 @@ class _StatusCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: AppSpacing.sm),
-              // Flexible: the pill ellipsizes instead of squeezing the title.
-              Flexible(
+              // Capped: the pill ellipsizes instead of squeezing the title.
+              AppTrailingCap(
                 child: StatusPill(
                   key: const ValueKey('export-status'),
                   label: t.t('dataExport.status.${job.status.name}'),

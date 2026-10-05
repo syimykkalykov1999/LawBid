@@ -137,7 +137,7 @@ class _SeatsCard extends StatelessWidget {
                   ),
                 ),
               ),
-              Flexible(
+              AppTrailingCap(
                 child: Text(
                   info.plan == 'yearly'
                       ? t.t('plans.yearly')

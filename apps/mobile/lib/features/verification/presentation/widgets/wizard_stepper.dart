@@ -123,7 +123,7 @@ class WizardStepper extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: AppSpacing.sm),
-              Flexible(
+              AppTrailingCap(
                 child: Text(
                   stepOfLabel,
                   maxLines: 1,

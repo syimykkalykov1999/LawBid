@@ -189,152 +189,157 @@ class _SheetState extends ConsumerState<_Sheet> {
         AppSpacing.screenSide,
         AppSpacing.lg + MediaQuery.viewInsetsOf(context).bottom,
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const AppSheetHandle(),
-          Text(
-            t.t(widget.titleKey),
-            style: type.titleMedium.copyWith(color: colors.text),
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-            t.t(widget.hintKey),
-            style: type.bodySmall.copyWith(color: colors.textSecondary),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              for (var i = 1; i <= 5; i++)
-                Semantics(
-                  button: true,
-                  selected: i <= _rating,
-                  label: '$i',
-                  child: IconButton(
-                    iconSize: 40,
-                    onPressed: () => setState(() => _rating = i),
-                    icon: AppIcon(
-                      i <= _rating
-                          ? AppIcons.starRounded
-                          : AppIcons.starOutlineRounded,
-                      color: colors.gold,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.md),
-          AppTextField(
-            controller: _text,
-            maxLength: 2000,
-            maxLines: 6,
-          ),
-          // Owner 2026-10-01 (Google Maps-style): photos in the review.
-          SizedBox(
-            height: 76,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const AppSheetHandle(),
+            Text(
+              t.t(widget.titleKey),
+              style: type.titleMedium.copyWith(color: colors.text),
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              t.t(widget.hintKey),
+              style: type.bodySmall.copyWith(color: colors.textSecondary),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                if (_photos.length + _uploading < _maxPhotos)
-                  Padding(
-                    padding: const EdgeInsets.only(right: AppSpacing.sm),
-                    child: InkWell(
-                      key: const ValueKey('review-add-photos'),
-                      borderRadius: BorderRadius.circular(AppRadii.field),
-                      onTap: _busy ? null : _addPhotos,
-                      child: Container(
-                        width: 76,
-                        decoration: BoxDecoration(
-                          color: colors.goldTint,
-                          borderRadius: BorderRadius.circular(AppRadii.field),
-                          border: Border.all(color: colors.gold),
-                        ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            AppIcon(
-                              AppIcons.addAPhotoOutlined,
-                              color: colors.goldDark,
-                            ),
-                            const SizedBox(height: 2),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: AppSpacing.xs,
-                              ),
-                              child: Text(
-                                t.t('reviews.photos.add'),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                textAlign: TextAlign.center,
-                                style: type.caption
-                                    .copyWith(color: colors.goldDark),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                for (final (i, p) in _photos.indexed)
-                  Padding(
-                    padding: const EdgeInsets.only(right: AppSpacing.sm),
-                    child: Stack(
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(AppRadii.field),
-                          child: SizedBox.square(
-                            dimension: 76,
-                            child: p.url != null
-                                ? Image.network(p.url!, fit: BoxFit.cover)
-                                : i < _local.length
-                                    ? Image.memory(_local[i], fit: BoxFit.cover)
-                                    : ColoredBox(color: colors.goldTint),
-                          ),
-                        ),
-                        Positioned(
-                          top: 2,
-                          right: 2,
-                          child: GestureDetector(
-                            onTap: () => setState(() {
-                              _photos.removeAt(i);
-                              if (i < _local.length) _local.removeAt(i);
-                            }),
-                            child: const CircleAvatar(
-                              radius: 11,
-                              backgroundColor: Colors.black54,
-                              child: AppIcon(
-                                AppIcons.closeRounded,
-                                size: 14,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                for (var i = 0; i < _uploading; i++)
-                  const Padding(
-                    padding: EdgeInsets.only(right: AppSpacing.sm),
-                    child: SizedBox.square(
-                      dimension: 76,
-                      child: Center(
-                        child: CircularProgressIndicator(strokeWidth: 2),
+                for (var i = 1; i <= 5; i++)
+                  Semantics(
+                    button: true,
+                    selected: i <= _rating,
+                    label: '$i',
+                    child: IconButton(
+                      iconSize: 40,
+                      onPressed: () => setState(() => _rating = i),
+                      icon: AppIcon(
+                        i <= _rating
+                            ? AppIcons.starRounded
+                            : AppIcons.starOutlineRounded,
+                        color: colors.gold,
                       ),
                     ),
                   ),
               ],
             ),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          AppButton(
-            label: t.t('client.review.save'),
-            height: AppSizes.touchTarget,
-            onPressed: _rating == 0 || _busy ? null : _save,
-          ),
-        ],
+            const SizedBox(height: AppSpacing.md),
+            AppTextField(
+              controller: _text,
+              maxLength: 2000,
+              maxLines: 6,
+            ),
+            // Owner 2026-10-01 (Google Maps-style): photos in the review.
+            SizedBox(
+              height: 76,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: [
+                  if (_photos.length + _uploading < _maxPhotos)
+                    Padding(
+                      padding: const EdgeInsets.only(right: AppSpacing.sm),
+                      child: InkWell(
+                        key: const ValueKey('review-add-photos'),
+                        borderRadius: BorderRadius.circular(AppRadii.field),
+                        onTap: _busy ? null : _addPhotos,
+                        child: Container(
+                          width: 76,
+                          decoration: BoxDecoration(
+                            color: colors.goldTint,
+                            borderRadius: BorderRadius.circular(AppRadii.field),
+                            border: Border.all(color: colors.gold),
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              AppIcon(
+                                AppIcons.addAPhotoOutlined,
+                                color: colors.goldDark,
+                              ),
+                              const SizedBox(height: 2),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: AppSpacing.xs,
+                                ),
+                                child: Text(
+                                  t.t('reviews.photos.add'),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.center,
+                                  style: type.caption
+                                      .copyWith(color: colors.goldDark),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  for (final (i, p) in _photos.indexed)
+                    Padding(
+                      padding: const EdgeInsets.only(right: AppSpacing.sm),
+                      child: Stack(
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(AppRadii.field),
+                            child: SizedBox.square(
+                              dimension: 76,
+                              child: p.url != null
+                                  ? Image.network(p.url!, fit: BoxFit.cover)
+                                  : i < _local.length
+                                      ? Image.memory(
+                                          _local[i],
+                                          fit: BoxFit.cover,
+                                        )
+                                      : ColoredBox(color: colors.goldTint),
+                            ),
+                          ),
+                          Positioned(
+                            top: 2,
+                            right: 2,
+                            child: GestureDetector(
+                              onTap: () => setState(() {
+                                _photos.removeAt(i);
+                                if (i < _local.length) _local.removeAt(i);
+                              }),
+                              child: const CircleAvatar(
+                                radius: 11,
+                                backgroundColor: Colors.black54,
+                                child: AppIcon(
+                                  AppIcons.closeRounded,
+                                  size: 14,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  for (var i = 0; i < _uploading; i++)
+                    const Padding(
+                      padding: EdgeInsets.only(right: AppSpacing.sm),
+                      child: SizedBox.square(
+                        dimension: 76,
+                        child: Center(
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            AppButton(
+              label: t.t('client.review.save'),
+              height: AppSizes.touchTarget,
+              onPressed: _rating == 0 || _busy ? null : _save,
+            ),
+          ],
+        ),
       ),
     );
   }
