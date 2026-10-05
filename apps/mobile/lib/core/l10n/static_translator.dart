@@ -10,6 +10,7 @@ import 'package:lawbid/core/l10n/strings/file06_strings.dart';
 import 'package:lawbid/core/l10n/strings/file07_strings.dart';
 import 'package:lawbid/core/l10n/strings/invite_strings.dart';
 import 'package:lawbid/core/l10n/strings/partner_strings.dart';
+import 'package:lawbid/core/l10n/strings/plan_strings.dart';
 import 'package:lawbid/core/l10n/strings/reels_docs_strings.dart';
 import 'package:lawbid/core/l10n/strings/reels_strings.dart';
 import 'package:lawbid/core/l10n/strings/templates_strings.dart';
@@ -1089,6 +1090,7 @@ class StaticTranslatorRu extends _MapTranslator {
         ...reelsDocsRu,
         ...templatesRu,
         ...caseCoverRu,
+        ...planRu,
         ...attorneySetupRu,
         ...assistantCodeRu,
         ...inviteRu,
@@ -2448,6 +2450,7 @@ class StaticTranslatorEn extends _MapTranslator {
         ...reelsDocsEn,
         ...templatesEn,
         ...caseCoverEn,
+        ...planEn,
         ...attorneySetupEn,
         ...assistantCodeEn,
         ...inviteEn,

@@ -9,6 +9,7 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/auth/application/sign_out.dart';
 import 'package:lawbid/features/chat/application/presence_providers.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
+import 'package:lawbid/features/client_plan/client_plan_routes.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/partners/application/partners_providers.dart';
 import 'package:lawbid/features/referrals/application/referrals_providers.dart';
@@ -103,6 +104,16 @@ class SettingsScreen extends ConsumerWidget {
               label: t.t('cbadge.title'),
               subtitle: t.t('cbadge.hint'),
               onTap: () => context.push(AppRoutes.clientBadge),
+            ),
+          // Owner 2026-10-05 (plan builder): the client's plan (badge
+          // included, priority in the feed, case limits).
+          if (ref.watch(currentUserRoleProvider) == UserRole.client)
+            AppListRow(
+              key: const ValueKey('settings-client-plan'),
+              icon: AppIcons.workspacePremiumOutlined,
+              label: t.t('plan.client.title'),
+              subtitle: t.t('plan.client.hint'),
+              onTap: () => context.push(ClientPlanRoutes.clientPlan),
             ),
           // Owner 2026-10-02: referrals (shown only when the program is on).
           if (ref.watch(referralMeProvider).value?.enabled ?? false)

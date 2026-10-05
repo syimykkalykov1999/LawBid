@@ -1,5 +1,6 @@
-import type { ClientVerification } from '@prisma/client';
+import { type ClientVerification, Prisma } from '@prisma/client';
 import type { PrismaService } from '../../prisma/prisma.service';
+import { clientsWithEntitlementSql } from '../plans/entitlements.service';
 
 /** Owner 2026-10-02: a client's gold badge shows only while the admin's
  * approval stands AND the $10/month is paid. `comped` = given free by an
@@ -21,9 +22,11 @@ export function clientBadgeActive(
   );
 }
 
-/** Which of these users wear the gold badge (one query for a whole page). */
+/** Which of these users wear the gold badge (one query for a whole page).
+ * Owner 2026-10-05 (plan builder): approved documents + either the old
+ * badge subscription or a plan whose entitlements include the badge. */
 export async function activeClientBadgeIds(
-  prisma: Pick<PrismaService, 'clientVerification'>,
+  prisma: Pick<PrismaService, 'clientVerification' | '$queryRaw'>,
   userIds: readonly string[],
 ): Promise<Set<string>> {
   const ids = [...new Set(userIds)];
@@ -51,7 +54,32 @@ export async function activeClientBadgeIds(
     throw e;
   }
   const now = new Date();
-  return new Set(
+  const out = new Set(
     rows.filter((r) => clientBadgeActive(r, now)).map((r) => r.user_id),
   );
+  const approvedUnpaid = rows
+    .filter((r) => !out.has(r.user_id))
+    .map((r) => r.user_id);
+  if (approvedUnpaid.length) {
+    for (const id of await planBadgeHolders(prisma, approvedUnpaid))
+      out.add(id);
+  }
+  return out;
+}
+
+/** Approved clients among [userIds] whose live plan includes the badge. */
+export async function planBadgeHolders(
+  prisma: Pick<PrismaService, '$queryRaw'>,
+  userIds: readonly string[],
+): Promise<Set<string>> {
+  if (userIds.length === 0) return new Set();
+  try {
+    const rows = await prisma.$queryRaw<{ id: string }[]>`
+      SELECT u.id FROM users u
+      WHERE u.id = ANY(${[...userIds]}::UUID[])
+        AND ${clientsWithEntitlementSql('verified_badge', Prisma.sql`u.id`)}`;
+    return new Set(rows.map((r) => r.id));
+  } catch {
+    return new Set();
+  }
 }

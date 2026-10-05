@@ -35,10 +35,16 @@ class ClientBadgeState {
     required this.priceCents,
     required this.canSubmit,
     required this.canSubscribe,
+    this.includedInPlan = false,
     this.subscription,
     this.rejectReason,
     this.revokeReason,
   });
+
+  /// Owner 2026-10-05 (plan builder): the client's plan includes the
+  /// badge — no separate payment; it shows once the documents are
+  /// approved.
+  final bool includedInPlan;
 
   final ClientBadgeStatus status;
   final bool badgeActive;

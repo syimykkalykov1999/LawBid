@@ -13,6 +13,7 @@ import { ConfigService } from '@nestjs/config';
 import type { CasePromotion, Prisma } from '@prisma/client';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
+import { EntitlementsService } from '../plans/entitlements.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { PAYMENT_PROVIDER } from '../billing/billing.constants';
@@ -95,7 +96,21 @@ export class PromotionsService {
     @Inject(PAYMENT_PROVIDER)
     private readonly provider?: PaymentProvider,
     @Optional() private readonly notifications?: NotificationsService,
+    // Owner 2026-10-05 (plan builder): promotion is a client plan term.
+    @Optional() private readonly entitlements?: EntitlementsService,
   ) {}
+
+  private async assertEntitled(userId: string): Promise<void> {
+    if (
+      this.entitlements &&
+      !(await this.entitlements.has(userId, 'case_promotion'))
+    ) {
+      throw new ForbiddenException({
+        code: ErrorCode.ENTITLEMENT_REQUIRED,
+        message: 'Your plan does not include case promotion.',
+      });
+    }
+  }
 
   async settings(db: Db = this.prisma): Promise<PromotionSettings> {
     const row = await db.appConfig.findUnique({
@@ -108,6 +123,7 @@ export class PromotionsService {
 
   /** GET /promotions/quote?days= (credits applied when available). */
   async quote(userId: string, days: number): Promise<PromotionQuoteDto> {
+    await this.assertEntitled(userId);
     const settings = await this.settings();
     this.assertDays(days, settings);
     const creditDaysAvailable =
@@ -167,6 +183,7 @@ export class PromotionsService {
     caseId: string,
     dto: CreatePromotionDto,
   ): Promise<CreatePromotionResultDto> {
+    await this.assertEntitled(userId);
     const settings = await this.settings();
     if (!settings.enabled) {
       throw new ForbiddenException({
