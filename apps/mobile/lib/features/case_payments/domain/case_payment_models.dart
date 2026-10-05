@@ -160,6 +160,10 @@ class PaymentRequest {
     required this.seq,
     required this.total,
     required this.createdAt,
+    required this.processingFeePayer,
+    required this.processingFeeCents,
+    required this.clientTotalCents,
+    required this.attorneyReceivesCents,
     this.caseTitle,
     this.dueAt,
     this.planId,
@@ -185,6 +189,13 @@ class PaymentRequest {
   final DateTime createdAt;
   final PaymentParty? client;
   final PaymentParty? attorney;
+
+  /// Who covers Stripe's fee on this invoice (the attorney's choice):
+  /// client | attorney | split. The client sees the breakdown before paying.
+  final String processingFeePayer;
+  final int processingFeeCents;
+  final int clientTotalCents;
+  final int attorneyReceivesCents;
 
   bool get payable =>
       status == PaymentRequestStatus.open ||
@@ -248,6 +259,7 @@ class CasePaymentsState {
     required this.openRequestsCents,
     required this.requests,
     required this.items,
+    required this.processingFeePayer,
     this.bidAmountCents,
     this.remainingCents,
   });
@@ -259,6 +271,9 @@ class CasePaymentsState {
   final int maxInstallments;
   final int openRequestsCents;
   final List<PaymentRequest> requests;
+
+  /// The case attorney's default for who covers Stripe's fee.
+  final String processingFeePayer;
   final int? bidAmountCents;
   final int paidCents;
   final int refundedCents;
@@ -286,10 +301,17 @@ class PayoutAccount {
     required this.detailsSubmitted,
     required this.requirementsDue,
     required this.available,
+    required this.processingFeePayer,
+    required this.processingFeePayerIsDefault,
     this.disabledReason,
     this.updatedAt,
   });
   final PayoutAccountStatus status;
+
+  /// The attorney's default for who covers Stripe's fee on their invoices;
+  /// [processingFeePayerIsDefault] while they have not chosen.
+  final String processingFeePayer;
+  final bool processingFeePayerIsDefault;
   final bool canReceive;
   final bool chargesEnabled;
   final bool payoutsEnabled;

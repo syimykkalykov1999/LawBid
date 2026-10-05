@@ -760,6 +760,7 @@ export 'models/payment_quote_envelope.dart';
 export 'models/payout_account_status.dart';
 export 'models/payout_account_dto.dart';
 export 'models/payout_account_envelope.dart';
+export 'models/payout_preferences_dto.dart';
 export 'models/payout_account_link_dto.dart';
 export 'models/payout_account_link_envelope.dart';
 export 'models/payment_request_status.dart';

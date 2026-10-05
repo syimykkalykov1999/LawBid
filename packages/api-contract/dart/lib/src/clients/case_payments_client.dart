@@ -19,6 +19,8 @@ import '../models/payment_request_list_envelope.dart';
 import '../models/payment_settings_public_envelope.dart';
 import '../models/payout_account_envelope.dart';
 import '../models/payout_account_link_envelope.dart';
+import '../models/payout_preferences_dto.dart';
+import '../models/processing_fee_payer.dart';
 import '../models/refund_case_payment_dto.dart';
 
 part 'case_payments_client.g.dart';
@@ -33,16 +35,29 @@ abstract class CasePaymentsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// What the client pays for an amount, fees split
+  /// What the client pays for an amount, fees split.
+  ///
+  /// [caseId] - Quote for this case: the attorney's fee-payer choice applies.
+  ///
+  /// [processingFeePayer] - Preview a specific choice (attorney composing an invoice).
   @GET('/payments/quote')
   Future<PaymentQuoteEnvelope> getPaymentQuote({
     @Query('amountCents') required int amountCents,
+    @Query('caseId') String? caseId,
+    @Query('processingFeePayer') ProcessingFeePayer? processingFeePayer,
     @Extras() Map<String, dynamic>? extras,
   });
 
   /// My Stripe payout account status (attorney)
   @GET('/payout-account')
   Future<PayoutAccountEnvelope> getPayoutAccount({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Who covers Stripe's fee on my invoices by default (attorney)
+  @PUT('/payout-account/preferences')
+  Future<PayoutAccountEnvelope> updatePayoutPreferences({
+    @Body() required PayoutPreferencesDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

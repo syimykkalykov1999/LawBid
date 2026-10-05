@@ -13,11 +13,15 @@ CreatePaymentRequestsDto _$CreatePaymentRequestsDtoFromJson(
   items: (json['items'] as List<dynamic>)
       .map((e) => PaymentRequestItemDto.fromJson(e as Map<String, dynamic>))
       .toList(),
+  processingFeePayer: json['processingFeePayer'] == null
+      ? null
+      : ProcessingFeePayer.fromJson(json['processingFeePayer'] as String),
 );
 
 Map<String, dynamic> _$CreatePaymentRequestsDtoToJson(
   CreatePaymentRequestsDto instance,
 ) => <String, dynamic>{
   'description': instance.description,
+  'processingFeePayer': ?instance.processingFeePayer?.toJson(),
   'items': instance.items.map((e) => e.toJson()).toList(),
 };

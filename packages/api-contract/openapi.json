@@ -40717,6 +40717,25 @@
               "maximum": 100000000,
               "type": "integer"
             }
+          },
+          {
+            "name": "caseId",
+            "required": false,
+            "in": "query",
+            "description": "Quote for this case: the attorney's fee-payer choice applies.",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "processingFeePayer",
+            "required": false,
+            "in": "query",
+            "description": "Preview a specific choice (attorney composing an invoice).",
+            "schema": {
+              "$ref": "#/components/schemas/ProcessingFeePayer"
+            }
           }
         ],
         "responses": {
@@ -40874,6 +40893,113 @@
           }
         ],
         "summary": "My Stripe payout account status (attorney)",
+        "tags": [
+          "case-payments"
+        ]
+      }
+    },
+    "/payout-account/preferences": {
+      "put": {
+        "operationId": "updatePayoutPreferences",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PayoutPreferencesDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayoutAccountEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: PAYOUT_ACCOUNT_NOT_READY",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Who covers Stripe's fee on my invoices by default (attorney)",
         "tags": [
           "case-payments"
         ]
@@ -68787,6 +68913,18 @@
             "type": "boolean",
             "description": "The payments feature is on and Stripe is configured."
           },
+          "processingFeePayer": {
+            "description": "The attorney's default for who covers Stripe's fee.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ProcessingFeePayer"
+              }
+            ]
+          },
+          "processingFeePayerIsDefault": {
+            "type": "boolean",
+            "description": "True while the attorney has not chosen (admin default)."
+          },
           "updatedAt": {
             "type": "string",
             "nullable": true,
@@ -68802,6 +68940,8 @@
           "requirementsDue",
           "disabledReason",
           "available",
+          "processingFeePayer",
+          "processingFeePayerIsDefault",
           "updatedAt"
         ]
       },
@@ -68817,6 +68957,22 @@
         },
         "required": [
           "data"
+        ]
+      },
+      "PayoutPreferencesDto": {
+        "type": "object",
+        "properties": {
+          "processingFeePayer": {
+            "description": "Who covers Stripe's card fee on this attorney's invoices.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ProcessingFeePayer"
+              }
+            ]
+          }
+        },
+        "required": [
+          "processingFeePayer"
         ]
       },
       "PayoutAccountLinkDto": {
@@ -68907,6 +69063,25 @@
             "nullable": true,
             "format": "date-time"
           },
+          "processingFeePayer": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ProcessingFeePayer"
+              }
+            ]
+          },
+          "processingFeeCents": {
+            "type": "integer",
+            "description": "The client's share of Stripe's fee (estimate)."
+          },
+          "clientTotalCents": {
+            "type": "integer",
+            "description": "What the client is charged in total (estimate)."
+          },
+          "attorneyReceivesCents": {
+            "type": "integer",
+            "description": "What the attorney receives after Stripe (estimate)."
+          },
           "status": {
             "allOf": [
               {
@@ -68972,6 +69147,10 @@
           "amountCents",
           "description",
           "dueAt",
+          "processingFeePayer",
+          "processingFeeCents",
+          "clientTotalCents",
+          "attorneyReceivesCents",
           "status",
           "overdue",
           "planId",
@@ -69182,6 +69361,14 @@
           "allowPartial": {
             "type": "boolean"
           },
+          "processingFeePayer": {
+            "description": "The attorney's default for who covers Stripe's fee on this case.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ProcessingFeePayer"
+              }
+            ]
+          },
           "canRequest": {
             "type": "boolean",
             "description": "The attorney (or their assistant) may send a payment request now."
@@ -69222,6 +69409,7 @@
           "maxAmountCents",
           "allowCustomAmount",
           "allowPartial",
+          "processingFeePayer",
           "canRequest",
           "allowInstallments",
           "maxInstallments",
@@ -69344,6 +69532,14 @@
             "minLength": 1,
             "maxLength": 200,
             "description": "What the client pays for (shown on every installment)."
+          },
+          "processingFeePayer": {
+            "description": "Who covers Stripe's fee on these invoices; defaults to the attorney's setting.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ProcessingFeePayer"
+              }
+            ]
           },
           "items": {
             "minItems": 1,
@@ -70107,6 +70303,15 @@
             "type": "integer",
             "description": "Succeeded payments, all time."
           },
+          "processingFeePayer": {
+            "nullable": true,
+            "description": "The attorney's own fee-payer choice; null = admin default.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ProcessingFeePayer"
+              }
+            ]
+          },
           "lastSyncedAt": {
             "type": "string",
             "nullable": true,
@@ -70128,6 +70333,7 @@
           "requirementsDue",
           "disabledReason",
           "receivedCents",
+          "processingFeePayer",
           "lastSyncedAt",
           "createdAt"
         ]

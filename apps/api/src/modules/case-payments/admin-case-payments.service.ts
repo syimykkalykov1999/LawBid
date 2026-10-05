@@ -35,7 +35,11 @@ import type {
   AdminRefundCasePaymentDto,
   PaymentRequestDto,
 } from './case-payments.dto';
-import { CasePaymentsService, strip } from './case-payments.service';
+import {
+  CasePaymentsService,
+  feePayerOf,
+  strip,
+} from './case-payments.service';
 import {
   PAYMENT_SETTINGS_KEY,
   PAYMENTS_FLAG,
@@ -424,6 +428,7 @@ export class AdminCasePaymentsService {
         requirementsDue: r.requirements_due,
         disabledReason: r.disabled_reason,
         receivedCents: sums.get(r.user_id) ?? 0,
+        processingFeePayer: feePayerOf(r.processing_fee_payer),
         lastSyncedAt: r.last_synced_at?.toISOString() ?? null,
         createdAt: r.created_at.toISOString(),
       };

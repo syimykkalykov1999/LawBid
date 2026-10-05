@@ -247,6 +247,75 @@ class CasePaymentTile extends StatelessWidget {
 }
 
 /// One payment request (invoice) in the case card or the chat bar.
+/// «Платит клиент / Плачу я / Пополам» — who covers Stripe's fee. Used in
+/// the attorney's payout settings (default) and on each invoice (override).
+class FeePayerChips extends StatelessWidget {
+  const FeePayerChips({
+    required this.value,
+    required this.onChanged,
+    required this.t,
+    this.enabled = true,
+    super.key,
+  });
+
+  static const values = ['client', 'attorney', 'split'];
+
+  final String value;
+  final ValueChanged<String> onChanged;
+  final Translator t;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final current = values.contains(value) ? value : 'client';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            for (final v in values) ...[
+              Expanded(
+                child: AppChip(
+                  label: t.t('cpay.feePayer.$v'),
+                  selected: v == current,
+                  expand: true,
+                  fitLabel: true,
+                  onTap: enabled ? () => onChanged(v) : null,
+                ),
+              ),
+              if (v != values.last) const SizedBox(width: AppSpacing.xs),
+            ],
+          ],
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          t.t('cpay.feePayer.$current.hint'),
+          style: type.caption.copyWith(color: colors.textSecondary),
+        ),
+      ],
+    );
+  }
+}
+
+/// One line the client (or attorney) reads before paying an invoice:
+/// total, Stripe's share, what the attorney receives.
+String requestBreakdownText(
+  Translator t,
+  L10nFormats formats,
+  PaymentRequest r,
+) {
+  final key = FeePayerChips.values.contains(r.processingFeePayer)
+      ? r.processingFeePayer
+      : 'client';
+  return t.t('cpay.req.breakdown.$key', {
+    'total': formats.currencyFromCents(r.clientTotalCents),
+    'fee': formats.currencyFromCents(r.processingFeeCents),
+    'net': formats.currencyFromCents(r.attorneyReceivesCents),
+  });
+}
+
 class PaymentRequestTile extends StatelessWidget {
   const PaymentRequestTile({
     required this.request,
@@ -275,12 +344,13 @@ class PaymentRequestTile extends StatelessWidget {
         t.t('cpay.req.due', {'date': formats.date(r.dueAt!)}),
       if (r.paidAt != null) formats.date(r.paidAt!),
     ].join(' · ');
+    final breakdown = r.payable ? requestBreakdownText(t, formats, r) : null;
     final status = paymentRequestStatusLabel(t, r);
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.sm),
       child: Semantics(
         container: true,
-        label: '$amount, $sub, $status',
+        label: '$amount, $sub, ${breakdown ?? ''}, $status',
         child: AppCard(
           padding: const EdgeInsets.all(AppSpacing.md),
           child: Column(
@@ -306,6 +376,14 @@ class PaymentRequestTile extends StatelessWidget {
                             style: type.caption
                                 .copyWith(color: colors.textSecondary),
                           ),
+                          if (breakdown != null) ...[
+                            const SizedBox(height: AppSpacing.xs / 2),
+                            Text(
+                              breakdown,
+                              maxLines: 2,
+                              style: type.caption.copyWith(color: colors.text),
+                            ),
+                          ],
                         ],
                       ),
                     ),

@@ -47,10 +47,12 @@ import type {
   MyCasePaymentsQueryDto,
   MyCasePaymentsSummaryDto,
   PaymentQuoteDto,
+  PaymentQuoteQueryDto,
   PaymentRequestDto,
   PaymentSettingsPublicDto,
   PaymentsExportQueryDto,
   PayoutAccountDto,
+  PayoutPreferencesDto,
   RefundCasePaymentDto,
 } from './case-payments.dto';
 import { renderPaymentReceiptPdf } from './payment-receipt.pdf';
@@ -63,6 +65,7 @@ import {
   type PaymentSettings,
   type PaymentStatus,
   type PayoutAccountStatus,
+  PROCESSING_FEE_PAYERS,
   type ProcessingFeePayer,
   parsePaymentSettings,
   quotePayment,
@@ -234,10 +237,71 @@ export class CasePaymentsService {
     };
   }
 
-  async quote(amountCents: number): Promise<PaymentQuoteDto> {
+  /**
+   * Who covers Stripe's fee is the parties' business (owner 2026-10-05):
+   * with `caseId` the quote applies the case attorney's own default; an
+   * explicit `processingFeePayer` previews a choice (the attorney
+   * composing an invoice). Without either, the admin default for new
+   * attorneys.
+   */
+  async quote(
+    user: RequestUser,
+    q: PaymentQuoteQueryDto,
+  ): Promise<PaymentQuoteDto> {
     const s = await this.settings();
-    this.assertAmount(amountCents, s);
-    return quotePayment(amountCents, s);
+    this.assertAmount(q.amountCents, s);
+    let payer: ProcessingFeePayer | undefined = q.processingFeePayer;
+    if (!payer && q.caseId) {
+      const { attorneyId } = await this.caseSide(user, q.caseId);
+      payer = await this.attorneyFeePayer(attorneyId, s);
+    }
+    return quotePayment(q.amountCents, {
+      ...s,
+      processingFeePayer: payer ?? s.processingFeePayer,
+    });
+  }
+
+  /** The attorney's own default for who covers Stripe's fee, else the
+   * admin default for attorneys who have not chosen. */
+  async attorneyFeePayer(
+    attorneyId: string | null,
+    s: PaymentSettings,
+  ): Promise<ProcessingFeePayer> {
+    if (!attorneyId) return s.processingFeePayer;
+    const row = await this.prisma.payoutAccount.findUnique({
+      where: { user_id: attorneyId },
+      select: { processing_fee_payer: true },
+    });
+    return feePayerOf(row?.processing_fee_payer) ?? s.processingFeePayer;
+  }
+
+  /** `PUT /payout-account/preferences` — the attorney (not an assistant)
+   * chooses who covers Stripe's fee on their invoices by default; every
+   * invoice can still override it. Works before Stripe onboarding too. */
+  async updatePreferences(
+    user: RequestUser,
+    dto: PayoutPreferencesDto,
+  ): Promise<PayoutAccountDto> {
+    this.assertAttorney(user);
+    this.assertNotAssistant(user);
+    const existing = await this.prisma.payoutAccount.findUnique({
+      where: { user_id: user.sub },
+    });
+    if (!existing) {
+      throw new ConflictException({
+        code: ErrorCode.PAYOUT_ACCOUNT_NOT_READY,
+        message: 'Connect your payout account first.',
+      });
+    }
+    const row = await this.prisma.payoutAccount.update({
+      where: { user_id: user.sub },
+      data: { processing_fee_payer: dto.processingFeePayer },
+    });
+    return this.presentPayoutAccount(
+      row,
+      await this.enabled(),
+      await this.settings(),
+    );
   }
 
   /**
@@ -263,7 +327,11 @@ export class CasePaymentsService {
       row && row.status !== 'active' && this.provider?.retrieveConnectAccount
         ? await this.syncAccount(row.stripe_account_id).catch(() => row)
         : row;
-    return this.presentPayoutAccount(fresh, await this.enabled());
+    return this.presentPayoutAccount(
+      fresh,
+      await this.enabled(),
+      await this.settings(),
+    );
   }
 
   /** Creates the Express account on first call; returns the hosted
@@ -436,7 +504,9 @@ export class CasePaymentsService {
       openRequestsCents: requests
         .filter((r) => r.status === 'open')
         .reduce((sum, r) => sum + r.amount_cents, 0),
-      requests: await this.presentRequests(requests),
+      processingFeePayer:
+        feePayerOf(account?.processing_fee_payer) ?? s.processingFeePayer,
+      requests: await this.presentRequests(requests, s),
       items: await this.present(rows, s),
     };
   }
@@ -485,7 +555,15 @@ export class CasePaymentsService {
       fixedBidAmount(bid),
       req,
     );
-    const quote = quotePayment(amountCents, s);
+    // The invoice carries the attorney's choice of who covers Stripe's
+    // fee; a free payment uses the attorney's default.
+    const payer =
+      feePayerOf(req?.processing_fee_payer) ??
+      (await this.attorneyFeePayer(attorneyId, s));
+    const quote = quotePayment(amountCents, {
+      ...s,
+      processingFeePayer: payer,
+    });
 
     const row = await withTxRetry(this.prisma, async (tx) => {
       // An earlier unpaid checkout on this case is superseded.
@@ -1036,6 +1114,10 @@ export class CasePaymentsService {
     }
     const planId = dto.items.length > 1 ? randomUUID() : null;
     const total = dto.items.reduce((sum, it) => sum + it.amountCents, 0);
+    const payer =
+      dto.processingFeePayer ??
+      feePayerOf(account.processing_fee_payer) ??
+      s.processingFeePayer;
     const rows = await withTxRetry(this.prisma, async (tx) => {
       const created: PaymentRequest[] = [];
       for (const [i, it] of dto.items.entries()) {
@@ -1052,6 +1134,7 @@ export class CasePaymentsService {
                 200,
               ),
               due_at: it.dueAt ? new Date(it.dueAt) : null,
+              processing_fee_payer: payer,
               plan_id: planId,
               seq: i + 1,
               total: dto.items.length,
@@ -1076,7 +1159,7 @@ export class CasePaymentsService {
       amountCents: total,
       installments: dto.items.length,
     });
-    return this.presentRequests(rows.created);
+    return this.presentRequests(rows.created, s);
   }
 
   async listRequests(
@@ -1157,8 +1240,12 @@ export class CasePaymentsService {
     return row;
   }
 
-  async presentRequests(rows: PaymentRequest[]): Promise<PaymentRequestDto[]> {
+  async presentRequests(
+    rows: PaymentRequest[],
+    settings?: PaymentSettings,
+  ): Promise<PaymentRequestDto[]> {
     if (rows.length === 0) return [];
+    const s = settings ?? (await this.settings());
     const [parties, cases] = await Promise.all([
       this.parties(rows.flatMap((r) => [r.client_id, r.attorney_id])),
       this.prisma.case.findMany({
@@ -1175,6 +1262,7 @@ export class CasePaymentsService {
       amountCents: r.amount_cents,
       description: r.description,
       dueAt: r.due_at?.toISOString() ?? null,
+      ...breakdown(r, s),
       status: r.status as PaymentRequestStatus,
       overdue: r.status === 'open' && !!r.due_at && r.due_at.getTime() < now,
       planId: r.plan_id,
@@ -1579,8 +1667,12 @@ export class CasePaymentsService {
   presentPayoutAccount(
     row: PayoutAccount | null,
     available: boolean,
+    s: PaymentSettings,
   ): PayoutAccountDto {
+    const own = feePayerOf(row?.processing_fee_payer);
     return {
+      processingFeePayer: own ?? s.processingFeePayer,
+      processingFeePayerIsDefault: own === null,
       status: (row?.status as PayoutAccountStatus | undefined) ?? 'none',
       canReceive: !!row && row.status === 'active' && row.charges_enabled,
       chargesEnabled: row?.charges_enabled ?? false,
@@ -1761,4 +1853,36 @@ function fixedBidAmount(
   return bid && bid.fee_type === 'fixed' && bid.amount_cents > 0
     ? bid.amount_cents
     : null;
+}
+
+/** A stored fee-payer value, or null when unset / unknown. */
+export function feePayerOf(
+  v: string | null | undefined,
+): ProcessingFeePayer | null {
+  return v && (PROCESSING_FEE_PAYERS as readonly string[]).includes(v)
+    ? (v as ProcessingFeePayer)
+    : null;
+}
+
+/** What the client will be charged for an invoice and what the attorney
+ * receives, under the invoice's own fee-payer choice (estimates at
+ * today's rate; the payment row snapshots the real quote). */
+function breakdown(
+  r: PaymentRequest,
+  s: PaymentSettings,
+): Pick<
+  PaymentRequestDto,
+  | 'processingFeePayer'
+  | 'processingFeeCents'
+  | 'clientTotalCents'
+  | 'attorneyReceivesCents'
+> {
+  const payer = feePayerOf(r.processing_fee_payer) ?? s.processingFeePayer;
+  const q = quotePayment(r.amount_cents, { ...s, processingFeePayer: payer });
+  return {
+    processingFeePayer: payer,
+    processingFeeCents: q.processingFeeCents,
+    clientTotalCents: q.clientTotalCents,
+    attorneyReceivesCents: q.attorneyReceivesCents,
+  };
 }

@@ -421,7 +421,7 @@ function AccountsTab({ canWrite }: { canWrite: boolean }) {
     },
     onError: (e) => toast.error(errorText(e)),
   });
-  const cols = canWrite ? 6 : 5;
+  const cols = canWrite ? 7 : 6;
 
   return (
     <>
@@ -443,6 +443,7 @@ function AccountsTab({ canWrite }: { canWrite: boolean }) {
               <Th>Адвокат</Th>
               <Th>Статус</Th>
               <Th>Чего не хватает</Th>
+              <Th>Комиссия Stripe</Th>
               <Th className="text-right">Получено</Th>
               <Th>Подключён</Th>
               {canWrite ? <Th /> : null}
@@ -469,6 +470,13 @@ function AccountsTab({ canWrite }: { canWrite: boolean }) {
                   <Td className="max-w-[260px] text-xs text-muted">
                     {a.disabledReason ? <div className="text-danger">{a.disabledReason}</div> : null}
                     {a.requirementsDue.length ? a.requirementsDue.join(', ') : a.disabledReason ? null : '—'}
+                  </Td>
+                  <Td className="text-xs text-muted">
+                    {a.processingFeePayer ? (
+                      PROCESSING_FEE_PAYER[a.processingFeePayer]
+                    ) : (
+                      <span className="text-faint">по умолчанию</span>
+                    )}
                   </Td>
                   <Td className="text-right tabular-nums">{usd(a.receivedCents)}</Td>
                   <Td className="text-xs text-muted">
@@ -645,10 +653,10 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
           <div className="mt-4 border-t border-line pt-4">
             <h4 className="text-sm font-medium text-heading">Комиссия Stripe — кто платит</h4>
             <p className="mt-1 text-sm text-muted">
-              Деньги списываются прямо на Stripe-аккаунт адвоката, и свою плату Stripe берёт с адвоката — платформа не платит ни при какой настройке. «Клиент» — к сумме добавляется оценка платы Stripe, и адвокат получает всю сумму; «пополам» — половина надбавки. Ставку Stripe держите здесь: поменяется тариф — поменяйте цифру.
+              Это дело адвоката и клиента: адвокат выбирает в настройках выплат («плачу я / платит клиент / пополам») и может поменять на каждом счёте; клиент видит разбивку до оплаты. Здесь — только значение по умолчанию для адвокатов, которые ещё не выбирали, и ставка Stripe для оценок. Деньги списываются прямо на Stripe-аккаунт адвоката — платформа не платит ни при какой настройке. Кто что выбрал — во вкладке «Stripe-аккаунты».
             </p>
             <div className="mt-3 grid gap-4 sm:grid-cols-3">
-              <Field label="Кто платит комиссию Stripe" htmlFor="cp-proc-payer">
+              <Field label="По умолчанию для новых адвокатов" htmlFor="cp-proc-payer">
                 <Select id="cp-proc-payer" value={procPayer} disabled={!canEdit} onChange={(e) => setProcPayer(e.target.value as Settings['processingFeePayer'])}>
                   {(Object.keys(PROCESSING_FEE_PAYER) as Settings['processingFeePayer'][]).map((k) => (
                     <option key={k} value={k}>{PROCESSING_FEE_PAYER[k]}</option>

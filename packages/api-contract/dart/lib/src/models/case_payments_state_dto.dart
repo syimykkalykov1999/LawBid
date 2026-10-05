@@ -6,6 +6,7 @@ import 'package:json_annotation/json_annotation.dart';
 
 import 'case_payment_dto.dart';
 import 'payment_request_dto.dart';
+import 'processing_fee_payer.dart';
 
 part 'case_payments_state_dto.g.dart';
 
@@ -23,6 +24,7 @@ class CasePaymentsStateDto {
     required this.maxAmountCents,
     required this.allowCustomAmount,
     required this.allowPartial,
+    required this.processingFeePayer,
     required this.canRequest,
     required this.allowInstallments,
     required this.maxInstallments,
@@ -54,6 +56,9 @@ class CasePaymentsStateDto {
   final int maxAmountCents;
   final bool allowCustomAmount;
   final bool allowPartial;
+
+  /// The attorney's default for who covers Stripe's fee on this case.
+  final ProcessingFeePayer processingFeePayer;
 
   /// The attorney (or their assistant) may send a payment request now.
   final bool canRequest;

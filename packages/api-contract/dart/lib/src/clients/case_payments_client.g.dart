@@ -54,11 +54,17 @@ class _CasePaymentsClient implements CasePaymentsClient {
   @override
   Future<PaymentQuoteEnvelope> getPaymentQuote({
     required int amountCents,
+    String? caseId,
+    ProcessingFeePayer? processingFeePayer,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
     _extra.addAll(extras ?? <String, dynamic>{});
-    final queryParameters = <String, dynamic>{r'amountCents': amountCents};
+    final queryParameters = <String, dynamic>{
+      r'amountCents': amountCents,
+      r'caseId': caseId,
+      r'processingFeePayer': processingFeePayer?.toJson(),
+    };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};
     const Map<String, dynamic>? _data = null;
@@ -98,6 +104,39 @@ class _CasePaymentsClient implements CasePaymentsClient {
           .compose(
             _dio.options,
             '/payout-account',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late PayoutAccountEnvelope _value;
+    try {
+      _value = PayoutAccountEnvelope.fromJson(_result.data!);
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
+  @override
+  Future<PayoutAccountEnvelope> updatePayoutPreferences({
+    required PayoutPreferencesDto body,
+    Map<String, dynamic>? extras,
+  }) async {
+    final _extra = <String, dynamic>{};
+    _extra.addAll(extras ?? <String, dynamic>{});
+    final queryParameters = <String, dynamic>{};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{};
+    final _data = <String, dynamic>{};
+    _data.addAll(body.toJson());
+    final _options = _setStreamType<PayoutAccountEnvelope>(
+      Options(method: 'PUT', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/payout-account/preferences',
             queryParameters: queryParameters,
             data: _data,
           )

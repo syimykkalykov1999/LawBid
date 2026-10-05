@@ -445,7 +445,9 @@ class _PaySheetState extends ConsumerState<PaySheet> {
     }
     final seq = ++_quoteSeq;
     try {
-      final q = await ref.read(casePaymentsRepositoryProvider).quote(a);
+      final q = await ref
+          .read(casePaymentsRepositoryProvider)
+          .quote(a, caseId: widget.caseId);
       if (mounted && seq == _quoteSeq) setState(() => _quote = q);
     } on Object {
       // The server prices the payment anyway.

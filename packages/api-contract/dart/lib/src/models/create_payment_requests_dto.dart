@@ -5,6 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'payment_request_item_dto.dart';
+import 'processing_fee_payer.dart';
 
 part 'create_payment_requests_dto.g.dart';
 
@@ -13,6 +14,7 @@ class CreatePaymentRequestsDto {
   const CreatePaymentRequestsDto({
     required this.description,
     required this.items,
+    this.processingFeePayer,
   });
 
   factory CreatePaymentRequestsDto.fromJson(Map<String, Object?> json) =>
@@ -20,6 +22,9 @@ class CreatePaymentRequestsDto {
 
   /// What the client pays for (shown on every installment).
   final String description;
+
+  /// Who covers Stripe's fee on these invoices; defaults to the attorney's setting.
+  final ProcessingFeePayer? processingFeePayer;
 
   /// One item = one request; several = an installment plan.
   final List<PaymentRequestItemDto> items;

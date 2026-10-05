@@ -18,6 +18,10 @@ PayoutAccountDto _$PayoutAccountDtoFromJson(Map<String, dynamic> json) =>
           .toList(),
       disabledReason: json['disabledReason'] as String?,
       available: json['available'] as bool,
+      processingFeePayer: ProcessingFeePayer.fromJson(
+        json['processingFeePayer'] as String,
+      ),
+      processingFeePayerIsDefault: json['processingFeePayerIsDefault'] as bool,
       updatedAt: json['updatedAt'] == null
           ? null
           : DateTime.parse(json['updatedAt'] as String),
@@ -33,5 +37,7 @@ Map<String, dynamic> _$PayoutAccountDtoToJson(PayoutAccountDto instance) =>
       'requirementsDue': instance.requirementsDue,
       'disabledReason': ?instance.disabledReason,
       'available': instance.available,
+      'processingFeePayer': instance.processingFeePayer.toJson(),
+      'processingFeePayerIsDefault': instance.processingFeePayerIsDefault,
       'updatedAt': ?instance.updatedAt?.toIso8601String(),
     };

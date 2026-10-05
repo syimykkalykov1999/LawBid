@@ -3022,6 +3022,10 @@ model PayoutAccount {
   requirements_due  String[]  @default([])
   disabled_reason   String?   @db.String(200)
   country           String?   @db.String(2)
+  // Owner 2026-10-05: the attorney's own default for who covers Stripe's
+  // card fee on their invoices (client | attorney | split); null = the
+  // admin default for new attorneys applies.
+  processing_fee_payer String? @db.String(16)
   last_synced_at    DateTime? @db.Timestamptz
   created_at        DateTime  @default(now()) @db.Timestamptz
   updated_at        DateTime  @updatedAt @db.Timestamptz
@@ -3098,6 +3102,9 @@ model PaymentRequest {
   amount_cents     Int
   description      String    @db.String(200)
   due_at           DateTime? @db.Timestamptz
+  // Who covers Stripe's fee on this invoice: client | attorney | split
+  // (the attorney's choice at creation, snapshotted).
+  processing_fee_payer String @default("client") @db.String(16)
   // open | paid | canceled | expired
   status           String    @default("open") @db.String(16)
   plan_id          String?   @db.Uuid

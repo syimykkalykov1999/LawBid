@@ -5,6 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'payout_account_status.dart';
+import 'processing_fee_payer.dart';
 
 part 'payout_account_dto.g.dart';
 
@@ -19,6 +20,8 @@ class PayoutAccountDto {
     required this.requirementsDue,
     required this.disabledReason,
     required this.available,
+    required this.processingFeePayer,
+    required this.processingFeePayerIsDefault,
     required this.updatedAt,
   });
 
@@ -40,6 +43,12 @@ class PayoutAccountDto {
 
   /// The payments feature is on and Stripe is configured.
   final bool available;
+
+  /// The attorney's default for who covers Stripe's fee.
+  final ProcessingFeePayer processingFeePayer;
+
+  /// True while the attorney has not chosen (admin default).
+  final bool processingFeePayerIsDefault;
   final DateTime? updatedAt;
 
   Map<String, Object?> toJson() => _$PayoutAccountDtoToJson(this);

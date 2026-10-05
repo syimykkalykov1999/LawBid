@@ -23,6 +23,9 @@ AdminPayoutAccountRowDto _$AdminPayoutAccountRowDtoFromJson(
       .toList(),
   disabledReason: json['disabledReason'] as String?,
   receivedCents: (json['receivedCents'] as num).toInt(),
+  processingFeePayer: json['processingFeePayer'] == null
+      ? null
+      : ProcessingFeePayer.fromJson(json['processingFeePayer'] as String),
   lastSyncedAt: json['lastSyncedAt'] == null
       ? null
       : DateTime.parse(json['lastSyncedAt'] as String),
@@ -42,6 +45,7 @@ Map<String, dynamic> _$AdminPayoutAccountRowDtoToJson(
   'requirementsDue': instance.requirementsDue,
   'disabledReason': ?instance.disabledReason,
   'receivedCents': instance.receivedCents,
+  'processingFeePayer': ?instance.processingFeePayer?.toJson(),
   'lastSyncedAt': ?instance.lastSyncedAt?.toIso8601String(),
   'createdAt': instance.createdAt.toIso8601String(),
 };

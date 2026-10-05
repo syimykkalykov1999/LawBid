@@ -127,9 +127,38 @@ export class PaymentQuoteQueryDto {
   @Min(50)
   @Max(100_000_000)
   amountCents!: number;
+
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description:
+      "Quote for this case: the attorney's fee-payer choice applies.",
+  })
+  @IsOptional()
+  @IsUUID('all')
+  caseId?: string;
+
+  @ApiPropertyOptional({
+    enum: PROCESSING_FEE_PAYERS,
+    enumName: 'ProcessingFeePayer',
+    description: 'Preview a specific choice (attorney composing an invoice).',
+  })
+  @IsOptional()
+  @IsIn(PROCESSING_FEE_PAYERS)
+  processingFeePayer?: ProcessingFeePayer;
 }
 
 // ---- payout account (attorney) --------------------------------------------
+
+/** `PUT /payout-account/preferences` — the attorney's own defaults. */
+export class PayoutPreferencesDto {
+  @ApiProperty({
+    enum: PROCESSING_FEE_PAYERS,
+    enumName: 'ProcessingFeePayer',
+    description: "Who covers Stripe's card fee on this attorney's invoices.",
+  })
+  @IsIn(PROCESSING_FEE_PAYERS)
+  processingFeePayer!: ProcessingFeePayer;
+}
 
 export class PayoutAccountDto {
   @ApiProperty({
@@ -150,6 +179,16 @@ export class PayoutAccountDto {
     description: 'The payments feature is on and Stripe is configured.',
   })
   available!: boolean;
+  @ApiProperty({
+    enum: PROCESSING_FEE_PAYERS,
+    enumName: 'ProcessingFeePayer',
+    description: "The attorney's default for who covers Stripe's fee.",
+  })
+  processingFeePayer!: ProcessingFeePayer;
+  @ApiProperty({
+    description: 'True while the attorney has not chosen (admin default).',
+  })
+  processingFeePayerIsDefault!: boolean;
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   updatedAt!: string | null;
 }
@@ -219,6 +258,23 @@ export class PaymentRequestDto {
   @ApiProperty() description!: string;
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   dueAt!: string | null;
+  @ApiProperty({ enum: PROCESSING_FEE_PAYERS, enumName: 'ProcessingFeePayer' })
+  processingFeePayer!: ProcessingFeePayer;
+  @ApiProperty({
+    type: 'integer',
+    description: "The client's share of Stripe's fee (estimate).",
+  })
+  processingFeeCents!: number;
+  @ApiProperty({
+    type: 'integer',
+    description: 'What the client is charged in total (estimate).',
+  })
+  clientTotalCents!: number;
+  @ApiProperty({
+    type: 'integer',
+    description: 'What the attorney receives after Stripe (estimate).',
+  })
+  attorneyReceivesCents!: number;
   @ApiProperty({
     enum: PAYMENT_REQUEST_STATUSES,
     enumName: 'PaymentRequestStatus',
@@ -281,6 +337,16 @@ export class CreatePaymentRequestsDto {
   @Length(1, 200)
   description!: string;
 
+  @ApiPropertyOptional({
+    enum: PROCESSING_FEE_PAYERS,
+    enumName: 'ProcessingFeePayer',
+    description:
+      "Who covers Stripe's fee on these invoices; defaults to the attorney's setting.",
+  })
+  @IsOptional()
+  @IsIn(PROCESSING_FEE_PAYERS)
+  processingFeePayer?: ProcessingFeePayer;
+
   @ApiProperty({
     type: [PaymentRequestItemDto],
     description: 'One item = one request; several = an installment plan.',
@@ -342,6 +408,13 @@ export class CasePaymentsStateDto {
   @ApiProperty({ type: 'integer' }) maxAmountCents!: number;
   @ApiProperty() allowCustomAmount!: boolean;
   @ApiProperty() allowPartial!: boolean;
+  @ApiProperty({
+    enum: PROCESSING_FEE_PAYERS,
+    enumName: 'ProcessingFeePayer',
+    description:
+      "The attorney's default for who covers Stripe's fee on this case.",
+  })
+  processingFeePayer!: ProcessingFeePayer;
   @ApiProperty({
     description:
       'The attorney (or their assistant) may send a payment request now.',
@@ -690,6 +763,13 @@ export class AdminPayoutAccountRowDto {
     description: 'Succeeded payments, all time.',
   })
   receivedCents!: number;
+  @ApiProperty({
+    enum: PROCESSING_FEE_PAYERS,
+    enumName: 'ProcessingFeePayer',
+    nullable: true,
+    description: "The attorney's own fee-payer choice; null = admin default.",
+  })
+  processingFeePayer!: ProcessingFeePayer | null;
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   lastSyncedAt!: string | null;
   @ApiProperty({ format: 'date-time' }) createdAt!: string;

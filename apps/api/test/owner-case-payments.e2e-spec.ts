@@ -1157,4 +1157,137 @@ describe('owner — client → attorney payments (e2e, fake provider)', () => {
       .expect(200);
     expect((stats.body as Body).data).toHaveProperty('openRequests');
   });
+
+  it("the Stripe fee payer is the attorney's choice: a default in payout settings, an override per invoice; the client sees the breakdown; admin value is only the default", async () => {
+    await prisma.appConfig.deleteMany({ where: { key: PAYMENT_SETTINGS_KEY } });
+    const att = await attorney();
+    const cli = await client();
+    // Before onboarding there is nothing to attach the choice to.
+    await api()
+      .put('/api/v1/payout-account/preferences')
+      .set(att.auth)
+      .send({ processingFeePayer: 'attorney' })
+      .expect(409);
+    await onboard(att);
+    const c = await caseInProgress(cli, att, 50_000);
+    // Admin default applies until the attorney chooses.
+    const acct0 = (
+      (await api().get('/api/v1/payout-account').set(att.auth).expect(200))
+        .body as Body
+    ).data;
+    expect(acct0).toMatchObject({
+      processingFeePayer: 'client',
+      processingFeePayerIsDefault: true,
+    });
+    // Clients cannot set it; an unknown value is rejected.
+    await api()
+      .put('/api/v1/payout-account/preferences')
+      .set(cli.auth)
+      .send({ processingFeePayer: 'attorney' })
+      .expect(403);
+    await api()
+      .put('/api/v1/payout-account/preferences')
+      .set(att.auth)
+      .send({ processingFeePayer: 'platform' })
+      .expect(400);
+    const acct1 = (
+      (
+        await api()
+          .put('/api/v1/payout-account/preferences')
+          .set(att.auth)
+          .send({ processingFeePayer: 'attorney' })
+          .expect(200)
+      ).body as Body
+    ).data;
+    expect(acct1).toMatchObject({
+      processingFeePayer: 'attorney',
+      processingFeePayerIsDefault: false,
+    });
+    // The client's quote for this case follows the attorney's choice;
+    // a quote without a case follows the admin default.
+    const quote = async (qs: string) =>
+      (
+        (
+          await api()
+            .get(`/api/v1/payments/quote?amountCents=50000${qs}`)
+            .set(cli.auth)
+            .expect(200)
+        ).body as Body
+      ).data;
+    expect(await quote(`&caseId=${c.id}`)).toMatchObject({
+      processingFeePayer: 'attorney',
+      processingFeeCents: 0,
+      clientTotalCents: 50_000,
+      attorneyReceivesCents: 48_520,
+    });
+    expect(await quote('')).toMatchObject({ processingFeePayer: 'client' });
+    // The attorney previews a choice while composing an invoice.
+    expect(await quote('&processingFeePayer=split')).toMatchObject({
+      processingFeePayer: 'split',
+      processingFeeCents: 763,
+    });
+    const state = (
+      (
+        await api()
+          .get(`/api/v1/cases/${c.id}/payments`)
+          .set(cli.auth)
+          .expect(200)
+      ).body as Body
+    ).data;
+    expect(state.processingFeePayer).toBe('attorney');
+
+    // An invoice overrides the default; the client sees amount, fee, total.
+    const created = await api()
+      .post(`/api/v1/cases/${c.id}/payment-requests`)
+      .set(att.auth)
+      .send({
+        description: 'Filing fees',
+        processingFeePayer: 'split',
+        items: [{ amountCents: 20_000 }],
+      })
+      .expect(201);
+    const [req] = (created.body as { data: Record<string, unknown>[] }).data;
+    expect(req).toMatchObject({
+      processingFeePayer: 'split',
+      processingFeeCents: 306,
+      clientTotalCents: 20_306,
+    });
+    // Stripe takes ~2.9% + 30¢ of the charged 203.06; half was added on top.
+    expect(req.attorneyReceivesCents).toBe(20_306 - 619);
+    const started = await pay(cli, c.id, {
+      kind: 'invoice',
+      requestId: req.id,
+    });
+    expect(started.status).toBe(201);
+    const row = await prisma.casePayment.findUniqueOrThrow({
+      where: { id: (started.body as Body).data.paymentId as string },
+    });
+    expect(row.processing_fee_payer).toBe('split');
+    expect(row.client_total_cents).toBe(20_306);
+    // A free payment (no invoice) uses the attorney's default.
+    const free = await pay(cli, c.id, { kind: 'custom', amountCents: 10_000 });
+    expect(free.status).toBe(201);
+    const freeRow = await prisma.casePayment.findUniqueOrThrow({
+      where: { id: (free.body as Body).data.paymentId as string },
+    });
+    expect(freeRow).toMatchObject({
+      processing_fee_payer: 'attorney',
+      processing_fee_cents: 0,
+      client_total_cents: 10_000,
+    });
+
+    // Admin: the overview shows the attorney's own choice, no edit.
+    const root = await adminSession(baseUrl, prisma, 'super_admin');
+    const accounts = (
+      (
+        await api()
+          .get('/api/v1/admin/case-payments/payout-accounts')
+          .set(root.auth)
+          .expect(200)
+      ).body as { data: Record<string, unknown>[] }
+    ).data;
+    expect(accounts.find((a) => a.userId === att.id)?.processingFeePayer).toBe(
+      'attorney',
+    );
+  });
 });

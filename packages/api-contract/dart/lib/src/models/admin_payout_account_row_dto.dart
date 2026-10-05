@@ -6,6 +6,7 @@ import 'package:json_annotation/json_annotation.dart';
 
 import 'case_payment_party_dto.dart';
 import 'payout_account_status.dart';
+import 'processing_fee_payer.dart';
 
 part 'admin_payout_account_row_dto.g.dart';
 
@@ -22,6 +23,7 @@ class AdminPayoutAccountRowDto {
     required this.requirementsDue,
     required this.disabledReason,
     required this.receivedCents,
+    required this.processingFeePayer,
     required this.lastSyncedAt,
     required this.createdAt,
   });
@@ -41,6 +43,9 @@ class AdminPayoutAccountRowDto {
 
   /// Succeeded payments, all time.
   final int receivedCents;
+
+  /// The attorney's own fee-payer choice; null = admin default.
+  final ProcessingFeePayer? processingFeePayer;
   final DateTime? lastSyncedAt;
   final DateTime createdAt;
 

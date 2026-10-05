@@ -49,6 +49,19 @@ class _PayoutAccountScreenState extends ConsumerState<PayoutAccountScreen>
     await ref.read(payoutAccountProvider.future);
   }
 
+  Future<void> _setFeePayer(String v) async {
+    final t = ref.read(translatorProvider);
+    try {
+      await ref.read(casePaymentsRepositoryProvider).setFeePayer(v);
+      ref.invalidate(payoutAccountProvider);
+      if (mounted) {
+        showAppSnackBar(context, t.t('cpay.payout.feePayer.saved'));
+      }
+    } on Object catch (e) {
+      if (mounted) showAppSnackBar(context, errorText(t, e));
+    }
+  }
+
   Future<void> _open(Future<String> Function() link) async {
     final t = ref.read(translatorProvider);
     setState(() => _busy = true);
@@ -215,6 +228,41 @@ class _PayoutAccountScreenState extends ConsumerState<PayoutAccountScreen>
                     ],
                   ),
                 ),
+                if (a.status != PayoutAccountStatus.none) ...[
+                  const SizedBox(height: AppSpacing.lg),
+                  AppCard(
+                    padding: const EdgeInsets.all(AppSpacing.md),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          t.t('cpay.payout.feePayer.title'),
+                          style: type.titleMedium.copyWith(color: colors.text),
+                        ),
+                        const SizedBox(height: AppSpacing.xs),
+                        Text(
+                          t.t('cpay.payout.feePayer.sub'),
+                          style: type.caption
+                              .copyWith(color: colors.textSecondary),
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                        FeePayerChips(
+                          value: a.processingFeePayer,
+                          t: t,
+                          onChanged: _setFeePayer,
+                        ),
+                        if (a.processingFeePayerIsDefault) ...[
+                          const SizedBox(height: AppSpacing.xs),
+                          Text(
+                            t.t('cpay.payout.feePayer.isDefault'),
+                            style: type.caption
+                                .copyWith(color: colors.textSecondary),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
                 if (settings != null) ...[
                   const SizedBox(height: AppSpacing.lg),
                   Text(

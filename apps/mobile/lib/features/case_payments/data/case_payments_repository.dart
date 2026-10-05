@@ -36,12 +36,30 @@ class CasePaymentsRepository {
     );
   }
 
-  Future<PaymentQuote> quote(int amountCents) async {
+  /// With [caseId] the case attorney's fee-payer choice applies; with
+  /// [processingFeePayer] a choice is previewed (attorney composing an
+  /// invoice).
+  Future<PaymentQuote> quote(
+    int amountCents, {
+    String? caseId,
+    String? processingFeePayer,
+  }) async {
     final r = await guardApiCall(
-      () => _api.getPaymentQuote(amountCents: amountCents),
+      () => _api.getPaymentQuote(
+        amountCents: amountCents,
+        caseId: caseId,
+        processingFeePayer: _payer(processingFeePayer),
+      ),
     );
     return _quote(r.data);
   }
+
+  static api.ProcessingFeePayer? _payer(String? v) => v == null
+      ? null
+      : api.ProcessingFeePayer.values.firstWhere(
+          (e) => e.json == v,
+          orElse: () => api.ProcessingFeePayer.client,
+        );
 
   Future<CasePaymentsState> caseState(String caseId) async {
     final d = (await guardApiCall(() => _api.getCasePayments(id: caseId))).data;
@@ -63,6 +81,7 @@ class CasePaymentsRepository {
       openRequestsCents: d.openRequestsCents,
       requests: d.requests.map(_request).toList(),
       items: d.items.map(_payment).toList(),
+      processingFeePayer: d.processingFeePayer.json ?? 'client',
     );
   }
 
@@ -98,12 +117,14 @@ class CasePaymentsRepository {
     required String description,
     required List<({int amountCents, DateTime? dueAt, String? description})>
         items,
+    String? processingFeePayer,
   }) async {
     final r = await guardApiCall(
       () => _api.createPaymentRequests(
         id: caseId,
         body: api.CreatePaymentRequestsDto(
           description: description,
+          processingFeePayer: _payer(processingFeePayer),
           items: [
             for (final it in items)
               api.PaymentRequestItemDto(
@@ -187,6 +208,19 @@ class CasePaymentsRepository {
   Future<PayoutAccount> payoutAccount() async =>
       _account((await guardApiCall(_api.getPayoutAccount)).data);
 
+  /// The attorney's default for who covers Stripe's fee.
+  Future<PayoutAccount> setFeePayer(String processingFeePayer) async =>
+      _account(
+        (await guardApiCall(
+          () => _api.updatePayoutPreferences(
+            body: api.PayoutPreferencesDto(
+              processingFeePayer: _payer(processingFeePayer)!,
+            ),
+          ),
+        ))
+            .data,
+      );
+
   Future<String> startOnboarding() async =>
       (await guardApiCall(_api.startPayoutOnboarding)).data.url;
 
@@ -218,6 +252,10 @@ class CasePaymentsRepository {
         paymentId: d.paymentId,
         paidAt: d.paidAt?.toLocal(),
         createdAt: d.createdAt.toLocal(),
+        processingFeePayer: d.processingFeePayer.json ?? 'client',
+        processingFeeCents: d.processingFeeCents,
+        clientTotalCents: d.clientTotalCents,
+        attorneyReceivesCents: d.attorneyReceivesCents,
         client: _party(d.client),
         attorney: _party(d.attorney),
       );
@@ -264,6 +302,8 @@ class CasePaymentsRepository {
         requirementsDue: d.requirementsDue,
         disabledReason: d.disabledReason,
         available: d.available,
+        processingFeePayer: d.processingFeePayer.json ?? 'client',
+        processingFeePayerIsDefault: d.processingFeePayerIsDefault,
         updatedAt: d.updatedAt?.toLocal(),
       );
 }

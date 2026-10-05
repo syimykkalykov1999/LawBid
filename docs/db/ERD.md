@@ -1163,6 +1163,7 @@ erDiagram
     Boolean details_submitted
     String disabled_reason "nullable"
     String country "nullable"
+    String processing_fee_payer "nullable"
     DateTime last_synced_at "nullable"
     DateTime created_at
     DateTime updated_at
@@ -1209,6 +1210,7 @@ erDiagram
     Int amount_cents
     String description
     DateTime due_at "nullable"
+    String processing_fee_payer
     String status
     String plan_id "nullable"
     Int seq

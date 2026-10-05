@@ -7,6 +7,7 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/case_payments/application/case_payments_providers.dart';
 import 'package:lawbid/features/case_payments/domain/case_payment_models.dart';
+import 'package:lawbid/features/case_payments/presentation/case_payment_widgets.dart';
 
 /// Owner 2026-10-05 — the attorney asks the client to pay: an amount, what
 /// for, an optional due date; or the same split into installments (N parts
@@ -52,6 +53,10 @@ class _PaymentRequestSheetState extends ConsumerState<PaymentRequestSheet> {
   int _parts = 2;
   int _everyDays = 30;
   bool _busy = false;
+  // Who covers Stripe's fee: the attorney's default, changeable here.
+  late String _feePayer = widget.state.processingFeePayer;
+  PaymentQuote? _preview;
+  int _previewSeq = 0;
 
   CasePaymentsState get s => widget.state;
 
@@ -113,6 +118,26 @@ class _PaymentRequestSheetState extends ConsumerState<PaymentRequestSheet> {
     }
   }
 
+  /// What the client will pay and what the attorney receives for the whole
+  /// amount under the chosen fee payer (server estimate).
+  Future<void> _refreshPreview() async {
+    final total = _totalCents;
+    if (total == null || total < s.minAmountCents || total > s.maxAmountCents) {
+      setState(() => _preview = null);
+      return;
+    }
+    final seq = ++_previewSeq;
+    try {
+      final q = await ref.read(casePaymentsRepositoryProvider).quote(
+            total,
+            processingFeePayer: _feePayer,
+          );
+      if (mounted && seq == _previewSeq) setState(() => _preview = q);
+    } on Object {
+      // The invoice shows the server's breakdown anyway.
+    }
+  }
+
   Future<void> _send() async {
     final t = ref.read(translatorProvider);
     setState(() => _busy = true);
@@ -120,6 +145,7 @@ class _PaymentRequestSheetState extends ConsumerState<PaymentRequestSheet> {
       await ref.read(casePaymentsRepositoryProvider).createRequests(
         widget.caseId,
         description: _description.text.trim(),
+        processingFeePayer: _feePayer,
         items: [
           for (final it in _items)
             (
@@ -183,7 +209,10 @@ class _PaymentRequestSheetState extends ConsumerState<PaymentRequestSheet> {
               inputFormatters: [
                 FilteringTextInputFormatter.allow(RegExp('[0-9.,]')),
               ],
-              onChanged: (_) => setState(() {}),
+              onChanged: (_) {
+                setState(() {});
+                _refreshPreview();
+              },
             ),
             const SizedBox(height: AppSpacing.md),
             AppTextField(
@@ -205,6 +234,30 @@ class _PaymentRequestSheetState extends ConsumerState<PaymentRequestSheet> {
                   _due == null ? t.t('cpay.req.sheet.noDue') : f.date(_due!),
               onTap: _pickDue,
             ),
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              t.t('cpay.req.sheet.feePayer'),
+              style: type.bodySmall.copyWith(color: colors.textSecondary),
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            FeePayerChips(
+              value: _feePayer,
+              t: t,
+              onChanged: (v) {
+                setState(() => _feePayer = v);
+                _refreshPreview();
+              },
+            ),
+            if (_preview != null) ...[
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                t.t('cpay.req.sheet.feePreview', {
+                  'total': f.currencyFromCents(_preview!.clientTotalCents),
+                  'net': f.currencyFromCents(_preview!.attorneyReceivesCents),
+                }),
+                style: type.caption.copyWith(color: colors.text),
+              ),
+            ],
             if (s.allowInstallments && s.maxInstallments >= 2) ...[
               const SizedBox(height: AppSpacing.sm),
               SwitchListTile.adaptive(

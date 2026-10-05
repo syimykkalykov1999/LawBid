@@ -6,6 +6,7 @@ import {
   HttpStatus,
   Param,
   Post,
+  Put,
   Query,
   Res,
   UseGuards,
@@ -49,6 +50,7 @@ import {
   PaymentsExportQueryDto,
   PaymentSettingsPublicDto,
   PayoutAccountDto,
+  PayoutPreferencesDto,
   PayoutAccountLinkDto,
   RefundCasePaymentDto,
 } from './case-payments.dto';
@@ -78,8 +80,11 @@ export class CasePaymentsController {
   @ApiOperation({ summary: 'What the client pays for an amount, fees split' })
   @ApiEnvelopeResponse(PaymentQuoteDto)
   @ApiErrors({ 400: [E.VALIDATION_ERROR], 403: [E.FEATURE_DISABLED] })
-  getPaymentQuote(@Query() q: PaymentQuoteQueryDto): Promise<PaymentQuoteDto> {
-    return this.payments.quote(q.amountCents);
+  getPaymentQuote(
+    @CurrentUser() user: RequestUser,
+    @Query() q: PaymentQuoteQueryDto,
+  ): Promise<PaymentQuoteDto> {
+    return this.payments.quote(user, q);
   }
 
   // ---- attorney: payout account ---------------------------------------------
@@ -92,6 +97,23 @@ export class CasePaymentsController {
     @CurrentUser() user: RequestUser,
   ): Promise<PayoutAccountDto> {
     return this.payments.payoutAccount(user);
+  }
+
+  @Put('payout-account/preferences')
+  @ApiOperation({
+    summary: "Who covers Stripe's fee on my invoices by default (attorney)",
+  })
+  @ApiEnvelopeResponse(PayoutAccountDto)
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    403: [E.FORBIDDEN],
+    409: [E.PAYOUT_ACCOUNT_NOT_READY],
+  })
+  updatePayoutPreferences(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: PayoutPreferencesDto,
+  ): Promise<PayoutAccountDto> {
+    return this.payments.updatePreferences(user, dto);
   }
 
   @Post('payout-account/onboarding')

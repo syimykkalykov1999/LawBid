@@ -6,6 +6,7 @@ import 'package:json_annotation/json_annotation.dart';
 
 import 'case_payment_party_dto.dart';
 import 'payment_request_status.dart';
+import 'processing_fee_payer.dart';
 
 part 'payment_request_dto.g.dart';
 
@@ -18,6 +19,10 @@ class PaymentRequestDto {
     required this.amountCents,
     required this.description,
     required this.dueAt,
+    required this.processingFeePayer,
+    required this.processingFeeCents,
+    required this.clientTotalCents,
+    required this.attorneyReceivesCents,
     required this.status,
     required this.overdue,
     required this.planId,
@@ -39,6 +44,16 @@ class PaymentRequestDto {
   final int amountCents;
   final String description;
   final DateTime? dueAt;
+  final ProcessingFeePayer processingFeePayer;
+
+  /// The client's share of Stripe's fee (estimate).
+  final int processingFeeCents;
+
+  /// What the client is charged in total (estimate).
+  final int clientTotalCents;
+
+  /// What the attorney receives after Stripe (estimate).
+  final int attorneyReceivesCents;
   final PaymentRequestStatus status;
 
   /// Open and past its due date.
