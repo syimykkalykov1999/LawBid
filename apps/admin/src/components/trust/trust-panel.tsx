@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { useConfirm } from '@/components/legacy/confirm';
 import { ErrorNote } from '@/components/page-header';
 import { useReason } from '@/components/reason-dialog';
+import { BarLookups, BlockedChip } from '@/components/trust/bar-lookups';
 import { TRUST_NOTE_MAX, useDocumentRequest } from '@/components/trust/document-request-dialog';
 import { Button } from '@/components/ui/button';
 import { Badge, Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -280,6 +281,7 @@ export function TrustPanel({ attorneyId }: { attorneyId: string }) {
             </Badge>
             <TrustLevelChip level={c.level} />
             <Badge tone={c.badge ? 'info' : 'neutral'}>{c.badge ? 'Галочка показана' : 'Без галочки'}</Badge>
+            {c.blocked ? <BlockedChip /> : null}
           </div>
         </CardHeader>
         <CardContent className="space-y-5 text-sm">
@@ -462,7 +464,9 @@ export function TrustPanel({ attorneyId }: { attorneyId: string }) {
                 />
                 <Row k="Чужих заявок на этот номер" v={<span className={c.duplicateClaims > 0 ? 'font-medium text-warning' : ''}>{c.duplicateClaims}</span>} />
               </ul>
-              {c.registryLinks.length ? (
+              {c.lookups.length ? (
+                <BarLookups lookups={c.lookups} className="mt-2" />
+              ) : c.registryLinks.length ? (
                 <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs">
                   {c.registryLinks.map((l) =>
                     l.url ? (

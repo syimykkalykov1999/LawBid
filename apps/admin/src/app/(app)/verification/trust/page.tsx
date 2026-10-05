@@ -6,6 +6,8 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { Kpi, KpiSkeletons } from '@/components/billing/kpi';
 import { AttorneysList } from '@/components/trust/attorneys-list';
+import { BarLookups, BlockedChip } from '@/components/trust/bar-lookups';
+import { BlockedBarNumbers } from '@/components/trust/blocked-bar-numbers';
 import { BulkBar, PageSelectBox, RowSelectBox, useSelection } from '@/components/bulk/bulk-controls';
 import { useConfirm } from '@/components/legacy/confirm';
 import { MotionRow } from '@/components/legacy/fade-in';
@@ -46,7 +48,7 @@ type Settings = components['schemas']['TrustSettingsDto'];
 type QueueItem = components['schemas']['TrustQueueItemDto'];
 type Stats = components['schemas']['TrustStatsDto'];
 type Preset = components['schemas']['TrustPresetDto']['preset'];
-type Tab = 'attorneys' | 'queue' | 'rules' | 'holds' | 'staff';
+type Tab = 'attorneys' | 'queue' | 'rules' | 'holds' | 'blocked' | 'staff';
 
 const ATTORNEYS = ['адвокат', 'адвоката', 'адвокатов'] as const;
 
@@ -126,6 +128,7 @@ export default function AntiFraudPage() {
             { value: 'queue', label: 'Очередь', count: stats.data?.inQueue },
             { value: 'rules', label: 'Правила' },
             { value: 'holds', label: 'Холды', count: stats.data?.held },
+            { value: 'blocked', label: 'Заблокированные номера', count: stats.data?.blockedBarNumbers },
             { value: 'staff', label: 'Решения сотрудников' },
           ]}
         />
@@ -135,6 +138,7 @@ export default function AntiFraudPage() {
       {tab === 'queue' ? <Queue canManage={canManage} stats={stats.data} /> : null}
       {tab === 'rules' ? <Rules canManage={canManage} /> : null}
       {tab === 'holds' ? <Holds canManage={canManage} /> : null}
+      {tab === 'blocked' ? <BlockedBarNumbers canManage={canManage} /> : null}
       {tab === 'staff' ? <StaffDecisions /> : null}
     </>
   );
@@ -348,8 +352,11 @@ function Queue({ canManage, stats }: { canManage: boolean; stats: Stats | undefi
                     <TrustLevelChip level={r.level} />
                     {r.holds.payments ? <Badge tone="danger">платежи: {HOLD_RU[r.holds.payments] ?? r.holds.payments}</Badge> : null}
                     {r.holds.bids ? <Badge tone="danger">ставки: {HOLD_RU[r.holds.bids] ?? r.holds.bids}</Badge> : null}
+                    {r.blocked ? <BlockedChip /> : null}
                   </div>
-                  {r.registryLinks.length ? (
+                  {r.lookups.length ? (
+                    <BarLookups lookups={r.lookups} compact className="mt-1.5 w-72 max-w-full" />
+                  ) : r.registryLinks.length ? (
                     <div className="mt-1 flex flex-wrap gap-x-2 text-xs">
                       {r.registryLinks.map((l) =>
                         l.url ? (
@@ -659,6 +666,18 @@ function RulesForm({ initial, canEdit }: { initial: Settings; canEdit: boolean }
             'Отмечать повторные заявки номера',
             'Включено: кто-то регистрируется с занятым номером — владелец номера попадает в очередь на сверку с реестром.',
             'Выключено: повторная заявка отклоняется без отметки у владельца.',
+          )}
+          {toggle(
+            'blockOnReject',
+            'Отклонение блокирует номер лицензии',
+            'Включено: отклонённый или приостановленный адвокат не сможет зарегистрировать этот номер снова под другим именем или новым аккаунтом.',
+            'Выключено: номер отклонённого адвоката остаётся свободным; блокировать можно вручную во вкладке «Заблокированные номера».',
+          )}
+          {toggle(
+            'blockContacts',
+            'Блокировать также e-mail и телефон',
+            'Включено: вместе с номером в блок-лист попадают e-mail и телефон отклонённого аккаунта — с них тоже не зарегистрироваться.',
+            'Выключено: блокируется только номер лицензии.',
           )}
           <div className="rounded-xl bg-surface-2 px-3.5 py-3">
             <div className="text-sm font-medium text-ink">Автоприостановка по жалобам</div>

@@ -225,6 +225,23 @@ export const TRUST_ACTOR_RU: Record<string, string> = {
   stripe: 'Stripe',
 };
 
+/** `BarNumberBlockDto.source` — how the bar number got on the block list (owner 2026-10-05 07:00). */
+export const BLOCK_SOURCES = ['staff_reject', 'verification_reject', 'suspend', 'manual'] as const;
+export type BlockSource = (typeof BLOCK_SOURCES)[number];
+export const BLOCK_SOURCE_RU: Record<BlockSource, { text: string; tone: Tone }> = {
+  staff_reject: { text: 'Отклонил сотрудник', tone: 'danger' },
+  verification_reject: { text: 'Отклонена верификация', tone: 'warning' },
+  suspend: { text: 'Приостановка', tone: 'warning' },
+  manual: { text: 'Вручную', tone: 'neutral' },
+};
+
+/** `BarNumberBlockEventDto.kind`. */
+export const BLOCK_EVENT_RU: Record<string, { text: string; tone: Tone }> = {
+  blocked: { text: 'Заблокирован', tone: 'danger' },
+  unblocked: { text: 'Разблокирован', tone: 'success' },
+  attempt: { text: 'Попытка регистрации', tone: 'warning' },
+};
+
 export const GATE_REASON_RU: Record<string, string> = {
   requirements: 'не пройдены требования',
   hold: 'холд',

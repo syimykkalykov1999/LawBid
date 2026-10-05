@@ -9,6 +9,7 @@ import { MotionRow } from '@/components/legacy/fade-in';
 import { useDebounced } from '@/components/legacy/use-debounced';
 import { ErrorNote } from '@/components/page-header';
 import { useReason } from '@/components/reason-dialog';
+import { BlockedChip } from '@/components/trust/bar-lookups';
 import { TRUST_NOTE_MAX, useDocumentRequest } from '@/components/trust/document-request-dialog';
 import { invalidateTrust } from '@/components/trust/trust-panel';
 import { Button } from '@/components/ui/button';
@@ -236,6 +237,7 @@ export function AttorneysList({ canManage }: { canManage: boolean }) {
                     <div className="flex flex-wrap items-center gap-1">
                       <BadgeStatusChip status={r.badgeStatus} />
                       {r.badge ? <Badge tone="info">галочка</Badge> : null}
+                      {r.blocked ? <BlockedChip /> : null}
                     </div>
                     {r.documentsRequestedAt ? <div className="mt-1 text-xs text-muted">запрошены {formatDateTime(r.documentsRequestedAt)}</div> : null}
                   </Td>
