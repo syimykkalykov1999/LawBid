@@ -18,3 +18,14 @@ DELETE /team/{id} the response property `data/members/items/phone` became option
 PATCH /team/{id} the response property `data/members/items/phone` became nullable for the status `200`
 PATCH /team/{id} the response property `data/members/items/phone` became optional for the status `200`
 PUT /attorneys/me/practice-areas the `practiceAreaIds` request property's minItems was set to `1`
+# PR #55 (anti-fraud): registry_flag gains duplicate_claim (two accounts claim one bar number); the clients read it as a string
+POST /admin/verification/licenses/{licenseId}/recheck added the new `duplicate_claim` enum value to the `data/license/registryFlag` response property for the response status `200`
+POST /admin/verification/licenses/{licenseId}/registry-check added the new `duplicate_claim` enum value to the `data/license/registryFlag` response property for the response status `200`
+POST /admin/verification/licenses/{licenseId}/registry-flag/clear added the new `duplicate_claim` enum value to the `data/registryFlag` response property for the response status `200`
+GET /admin/verification/registry-flags added the new `duplicate_claim` enum value to the `data/items/license/registryFlag` response property for the response status `200`
+GET /admin/verification/requests/{id} added the new `duplicate_claim` enum value to the `data/licenses/items/registryFlag` response property for the response status `200`
+POST /admin/verification/requests/{id}/approve added the new `duplicate_claim` enum value to the `data/licenses/items/registryFlag` response property for the response status `200`
+POST /admin/verification/requests/{id}/licenses/{licenseId}/decision added the new `duplicate_claim` enum value to the `data/licenses/items/registryFlag` response property for the response status `200`
+POST /admin/verification/requests/{id}/reject added the new `duplicate_claim` enum value to the `data/licenses/items/registryFlag` response property for the response status `200`
+POST /admin/verification/requests/{id}/request-info added the new `duplicate_claim` enum value to the `data/licenses/items/registryFlag` response property for the response status `200`
+POST /admin/verification/requests/{id}/take added the new `duplicate_claim` enum value to the `data/licenses/items/registryFlag` response property for the response status `200`
