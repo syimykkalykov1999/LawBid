@@ -23,6 +23,8 @@ class DashboardDto {
     required this.openDisputes,
     required this.openContactIssues,
     required this.seatLimitRequests,
+    required this.fraudQueue,
+    required this.fraudBlocked7d,
     required this.computedAt,
   });
 
@@ -43,6 +45,12 @@ class DashboardDto {
 
   /// Owner 2026-10-05: requests for more assistant seats.
   final int seatLimitRequests;
+
+  /// Owner 2026-10-05 (client fraud): accounts waiting for a check or restricted.
+  final int fraudQueue;
+
+  /// Owner 2026-10-05: blocked fraudsters refused at sign-in + accounts blocked automatically, 7 days.
+  final int fraudBlocked7d;
 
   /// When the numbers were computed (cached ≤ 60 s).
   final DateTime computedAt;

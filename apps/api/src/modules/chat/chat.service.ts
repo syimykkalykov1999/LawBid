@@ -8,6 +8,7 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
+import { ClientFraudService } from '../client-fraud/client-fraud.service';
 import { Prisma, type Conversation, type Message } from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
@@ -100,6 +101,9 @@ export class ChatService {
     private readonly stickers: StickersService,
     // Scaling TZ point 11: message texts encrypted at rest.
     @Optional() private readonly cipher?: MessageBodyCipher,
+    // Owner 2026-10-05 (docs/CLIENT_FRAUD.md): a restricted account cannot
+    // write to attorneys until staff look.
+    @Optional() private readonly fraud?: ClientFraudService,
   ) {}
 
   /**
@@ -389,6 +393,7 @@ export class ChatService {
     // Owner 2026-10-01: a sticker carries no text.
     const sticker = dto.type === 'sticker';
     const body = voice || sticker ? '' : (dto.body ?? '').trim();
+    await this.fraud?.assertNotRestricted(user.sub);
     // OQ-048: an assistant sends documents/photos only with "files".
     if (
       attachment &&

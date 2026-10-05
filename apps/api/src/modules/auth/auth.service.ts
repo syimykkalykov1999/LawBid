@@ -1,3 +1,4 @@
+import { ClientFraudService } from '../client-fraud/client-fraud.service';
 import { AccountBansService } from '../account-bans/account-bans.service';
 import { OTP_LIMIT_WINDOW_SECONDS } from './otp-limits';
 import {
@@ -9,6 +10,7 @@ import {
   UnauthorizedException,
   ConflictException,
   Inject,
+  Optional,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { User } from '@prisma/client';
@@ -95,6 +97,9 @@ export class AuthService {
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     private readonly bans: AccountBansService,
     private readonly assistantCodes: AssistantCodeService,
+    // Owner 2026-10-05 (docs/CLIENT_FRAUD.md): a blocked fraudster's new
+    // account (same phone, e-mail, card or device) is refused.
+    @Optional() private readonly fraud?: ClientFraudService,
   ) {}
 
   // ---------------------------------------------------------------------
@@ -110,6 +115,11 @@ export class AuthService {
       phone: dto.channel === 'phone' ? identifier : null,
       email: dto.channel === 'email' ? identifier : null,
       deviceId: meta.deviceId,
+    });
+    await this.fraud?.assertSignInAllowed({
+      phone: dto.channel === 'phone' ? identifier : null,
+      email: dto.channel === 'email' ? identifier : null,
+      deviceKey: meta.deviceKey,
     });
 
     const perIdentifier = await this.rateLimit.consumeSlidingWindow(
@@ -568,6 +578,13 @@ export class AuthService {
       email: user.email,
       deviceId: deviceInfo.deviceId,
     });
+    const fraudSignals = {
+      phone: user.phone_e164,
+      email: user.email,
+      deviceKey: meta.deviceKey,
+      ip: meta.ip,
+    };
+    await this.fraud?.assertSignInAllowed(fraudSignals, user.id);
     const isNewDevice = await this.sessions.isNewDevice(
       user.id,
       deviceInfo.deviceId,
@@ -608,6 +625,9 @@ export class AuthService {
       device: deviceInfo,
       meta,
     });
+
+    // Hashes of this sign-in's signals + re-score (never fails the login).
+    void this.fraud?.recordSignIn(user.id, fraudSignals);
 
     return {
       accessToken,

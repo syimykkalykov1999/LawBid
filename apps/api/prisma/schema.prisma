@@ -4038,3 +4038,69 @@ model ClientSubscription {
   @@index([status, current_period_end], map: "client_subscriptions_status_idx")
   @@map("client_subscriptions")
 }
+
+/// Owner 2026-10-05 (docs/CLIENT_FRAUD.md): hashed identity signals of an
+/// account — phone, e-mail, Apple / Google subject, on-device key, card,
+/// IP, case text. HMAC-SHA256 only, never the value. A sign-in sharing a
+/// strong one with a blocked account is refused or held for review.
+model IdentityFingerprint {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id       String    @db.Uuid
+  /// phone | email | apple | google | device | card | ip | text
+  kind          String    @db.String(16)
+  hash          String    @db.String(64)
+  first_seen_at DateTime  @default(now()) @db.Timestamptz
+  last_seen_at  DateTime  @default(now()) @db.Timestamptz
+  /// Set when the owner's account was blocked and then deleted: the hash
+  /// keeps blocking after the account row is anonymised.
+  banned_at     DateTime? @db.Timestamptz
+
+  @@unique([user_id, kind, hash])
+  @@index([kind, hash])
+  @@index([last_seen_at])
+  @@map("identity_fingerprints")
+}
+
+/// Owner 2026-10-05: one client's risk score and fraud status
+/// (ok | review | restricted | banned), recomputed on every signal.
+model ClientFraudProfile {
+  user_id         String    @id @db.Uuid
+  score           Int       @default(0)
+  status          String    @default("ok") @db.String(16)
+  /// [{ code, points, count }] — what the score is made of.
+  signals         Json      @default("[]")
+  /// The blocked account a sign-in matched, if any.
+  linked_user_id  String?   @db.Uuid
+  /// What put the account in the queue: 'score' | 'linked' | 'staff'.
+  queue_reason    String?   @db.String(16)
+  queued_at       DateTime? @db.Timestamptz
+  /// A staff «Снять» freezes the score: automatic actions return only when
+  /// the score grows past it.
+  cleared_score   Int?
+  cleared_by      String?   @db.Uuid
+  cleared_at      DateTime? @db.Timestamptz
+  computed_at     DateTime  @default(now()) @db.Timestamptz
+  created_at      DateTime  @default(now()) @db.Timestamptz
+  updated_at      DateTime  @updatedAt @db.Timestamptz
+
+  @@index([status, score(sort: Desc)])
+  @@map("client_fraud_profiles")
+}
+
+/// Append-only history of automatic and staff decisions.
+model ClientFraudEvent {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String?  @db.Uuid
+  kind       String   @db.String(32)
+  /// system | admin
+  actor_type String   @default("system") @db.String(16)
+  actor_id   String?  @db.Uuid
+  note       String?  @db.String(500)
+  details    Json     @default("{}")
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  @@index([user_id, created_at(sort: Desc)])
+  @@index([kind, created_at(sort: Desc)])
+  @@index([actor_id, created_at(sort: Desc)])
+  @@map("client_fraud_events")
+}

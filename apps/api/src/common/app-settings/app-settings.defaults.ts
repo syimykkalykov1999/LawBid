@@ -307,6 +307,40 @@ export const OWNER_REWARDS_SETTINGS = {
   'rewards.period': 'month',
 };
 
+/** Owner 2026-10-05: repeat accounts of blocked fraudsters and the
+ * client risk score (docs/CLIENT_FRAUD.md, Admin → Галочки → «Борьба с
+ * мошенниками» → «Клиенты»). Presets set the actions and thresholds. */
+export const OWNER_FRAUD_SETTINGS = {
+  /** Master switch. Off = nothing is recorded or checked. */
+  'fraud.enabled': true,
+  /** Automation principle: actions apply by themselves. Off = everything
+   * only lands in the staff queue. */
+  'fraud.auto': true,
+  /** A sign-in shares a phone, e-mail, Apple / Google account or card
+   * with a blocked account: 'block' | 'review' (restricted until staff
+   * look) | 'off'. */
+  'fraud.match_action': 'block',
+  /** The same for the phone (device) only: a phone can be sold or shared. */
+  'fraud.device_action': 'review',
+  /** Client risk score thresholds. */
+  'fraud.review_score': 30,
+  'fraud.restrict_score': 60,
+  'fraud.ban_score': 100,
+  /** Points per distinct attorney who dealt with the client and reported
+   * fraud / impersonation; per other report; per card chargeback. */
+  'fraud.weight_fraud_report': 25,
+  'fraud.weight_report': 8,
+  'fraud.weight_chargeback': 30,
+  /** Complaints and cancellations older than this do not count. */
+  'fraud.window_days': 180,
+  /** E-mail the verifiers when an account is blocked or queued. */
+  'fraud.notify_staff': true,
+  /** Hashes of ordinary accounts are deleted after this many days without
+   * use; those of blocked accounts are kept for the longer period. */
+  'fraud.fingerprint_retention_days': 365,
+  'fraud.blocked_retention_days': 1095,
+} as const;
+
 /** Owner 2026-10-05: requests per minute for one signed-in admin (the
  * panel keeps several queues live on one screen). Users keep 100/min.
  * ADMIN_THROTTLE_LIMIT in the env wins (src/throttler/throttle-limits.ts). */
@@ -336,6 +370,7 @@ export const APP_SETTINGS = {
   ...OWNER_SUPPORT_DESK_SETTINGS,
   ...OWNER_REWARDS_SETTINGS,
   ...OWNER_RATE_LIMIT_SETTINGS,
+  ...OWNER_FRAUD_SETTINGS,
 };
 
 export type AppSettingKey = keyof typeof APP_SETTINGS;

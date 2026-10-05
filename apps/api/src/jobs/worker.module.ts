@@ -26,6 +26,7 @@ import { BroadcastFanoutModule } from '../modules/admin-content/broadcast-fanout
 import { SecretsModule } from '../common/secrets/secrets.module';
 import { AdminAuthModule } from '../modules/admin-auth/admin-auth.module';
 import { AttorneyTrustCoreModule } from '../modules/attorney-trust/attorney-trust.module';
+import { ClientFraudCoreModule } from '../modules/client-fraud/client-fraud.module';
 import { MentionsModule } from '../modules/mentions/mentions.module';
 import { ModerationModule } from '../modules/moderation/moderation.module';
 @Module({
@@ -56,6 +57,8 @@ import { ModerationModule } from '../modules/moderation/moderation.module';
     AdminAuthModule,
     // Owner 2026-10-05: nightly trust recompute (`trust.recompute`).
     AttorneyTrustCoreModule,
+    // Owner 2026-10-05: nightly `fraud.sweep` (repeat accounts, retention).
+    ClientFraudCoreModule,
     JobsModule.register({ mode: 'worker' }),
     // docs/03 stage 3.2: antivirus scan + image processing (`files` queue).
     FilesWorkerModule,
