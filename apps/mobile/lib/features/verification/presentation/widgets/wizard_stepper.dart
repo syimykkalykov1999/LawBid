@@ -46,18 +46,18 @@ class WizardStepper extends StatelessWidget {
                 const inset = AppSizes.touchTarget / 2;
                 final railWidth = box.maxWidth - inset * 2;
                 return Stack(
-                  alignment: Alignment.centerLeft,
+                  alignment: AlignmentDirectional.centerStart,
                   children: [
-                    Positioned(
-                      left: inset,
+                    PositionedDirectional(
+                      start: inset,
                       width: railWidth,
                       child: Container(
                         height: 2,
                         color: colors.border,
                       ),
                     ),
-                    Positioned(
-                      left: inset,
+                    PositionedDirectional(
+                      start: inset,
                       child: TweenAnimationBuilder<double>(
                         tween: Tween(end: fraction),
                         duration: duration,
@@ -67,6 +67,8 @@ class WizardStepper extends StatelessWidget {
                           width: railWidth * v,
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
+                              begin: AlignmentDirectional.centerStart,
+                              end: AlignmentDirectional.centerEnd,
                               colors: [colors.goldDark, colors.gold],
                             ),
                           ),
@@ -105,7 +107,7 @@ class WizardStepper extends StatelessWidget {
                 child: AnimatedSwitcher(
                   duration: duration,
                   layoutBuilder: (currentChild, previous) => Stack(
-                    alignment: Alignment.centerLeft,
+                    alignment: AlignmentDirectional.centerStart,
                     children: [
                       ...previous,
                       if (currentChild != null) currentChild,
@@ -114,13 +116,22 @@ class WizardStepper extends StatelessWidget {
                   child: Text(
                     labels[current],
                     key: ValueKey(current),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: typography.caption.copyWith(color: colors.goldDark),
                   ),
                 ),
               ),
-              Text(
-                stepOfLabel,
-                style: typography.caption.copyWith(color: colors.textSecondary),
+              const SizedBox(width: AppSpacing.sm),
+              Flexible(
+                child: Text(
+                  stepOfLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.end,
+                  style:
+                      typography.caption.copyWith(color: colors.textSecondary),
+                ),
               ),
             ],
           ),

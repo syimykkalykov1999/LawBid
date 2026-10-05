@@ -28,6 +28,8 @@ import {
   type DocumentUrlDto,
   type LicenseDecisionDto,
   type LicenseRecheckDto,
+  type RegistryCheckDto,
+  type RegistryFlagItemDto,
   type RejectRequestDto,
   type VerificationQueuePage,
   type VerificationQueueQueryDto,
@@ -615,8 +617,125 @@ export class VerificationAdminService {
   }
 
   /**
+   * Owner 2026-10-05: licenses the state registry disagreed with after a
+   * self-attested approval (Admin → Проверка → "Сверка с реестром"),
+   * newest first. They stay verified until an admin acts.
+   */
+  async registryFlags(limit = 100): Promise<RegistryFlagItemDto[]> {
+    const rows = await this.prisma.attorneyLicense.findMany({
+      where: { registry_flag: { not: null } },
+      orderBy: [{ registry_flagged_at: 'desc' }, { id: 'asc' }],
+      take: limit,
+      include: {
+        state: true,
+        attorney: {
+          include: {
+            user: { select: { first_name: true, last_name: true } },
+            verification_requests: {
+              orderBy: { created_at: 'desc' },
+              take: 1,
+              select: { id: true },
+            },
+          },
+        },
+      },
+    });
+    return rows.map((l) => ({
+      attorney: {
+        id: l.attorney.user_id,
+        firstName: l.attorney.user.first_name,
+        lastName: l.attorney.user.last_name,
+        username: l.attorney.username,
+        verificationStatus: l.attorney.verification_status,
+      },
+      license: licenseDto(l),
+      latestRequestId: l.attorney.verification_requests[0]?.id ?? null,
+    }));
+  }
+
+  /**
+   * Owner 2026-10-05: "Проверить по реестру" — one lookup now, whatever the
+   * license status; the result is stored on the license and, for a
+   * verified license, sets or clears its registry flag. Nothing else
+   * changes (unlike `recheck`, which queues a non-pass for review).
+   */
+  async registryCheck(
+    admin: AdminActor,
+    licenseId: string,
+  ): Promise<RegistryCheckDto> {
+    const license = await this.prisma.attorneyLicense.findUnique({
+      where: { id: licenseId },
+      include: {
+        attorney: {
+          select: { user: { select: { first_name: true, last_name: true } } },
+        },
+      },
+    });
+    if (!license) throw notFound('License not found.');
+    const provider = await this.selector.barLookup();
+    const outcome = await this.checks.barLookup(provider, license, null, {
+      firstName: license.attorney.user.first_name ?? '',
+      lastName: license.attorney.user.last_name ?? '',
+    });
+    if (license.license_status === 'verified') {
+      await this.checks.applyRegistryFlag(license.id, outcome);
+    }
+    await this.audit.record({
+      adminId: admin.id,
+      action: AUDIT_ACTION.registryCheck,
+      targetType: 'attorney_license',
+      targetId: license.id,
+      before: { flag: license.registry_flag },
+      after: {
+        result: outcome.result,
+        reason:
+          typeof outcome.details.reason === 'string'
+            ? outcome.details.reason
+            : null,
+      },
+      ip: admin.ip,
+    });
+    const fresh = await this.prisma.attorneyLicense.findUniqueOrThrow({
+      where: { id: license.id },
+      include: { state: true },
+    });
+    return {
+      license: licenseDto(fresh),
+      result: outcome.result,
+      details: outcome.details,
+    };
+  }
+
+  /** Owner 2026-10-05: the admin looked at a registry difference and
+   * keeps the license as it is. */
+  async clearRegistryFlag(
+    admin: AdminActor,
+    licenseId: string,
+  ): Promise<AdminLicenseDto> {
+    const license = await this.prisma.attorneyLicense.findUnique({
+      where: { id: licenseId },
+    });
+    if (!license) throw notFound('License not found.');
+    const updated = await this.prisma.attorneyLicense.update({
+      where: { id: licenseId },
+      data: { registry_flag: null, registry_flagged_at: null },
+      include: { state: true },
+    });
+    await this.audit.record({
+      adminId: admin.id,
+      action: AUDIT_ACTION.registryFlagClear,
+      targetType: 'attorney_license',
+      targetId: license.id,
+      before: { flag: license.registry_flag },
+      after: { flag: null },
+      ip: admin.ip,
+    });
+    return licenseDto(updated);
+  }
+
+  /**
    * Owner 2026-10-04: monthly re-check of verified licenses in states with
-   * a registry API (job `licenses.registry-recheck`). Only a definite
+   * an enabled registry (job `licenses.registry-recheck`). Only a definite
    * `fail` (number gone, status no longer "Currently registered") queues
    * the license for a verifier exactly like the manual re-check; a name
    * difference or a registry error changes nothing. Returns the lookup
@@ -627,7 +746,6 @@ export class VerificationAdminService {
     now = new Date(),
   ): Promise<CheckOutcome['result'] | null> {
     const provider = await this.selector.barLookup();
-    if (provider.name === 'manual') return null;
     const license = await this.prisma.attorneyLicense.findUnique({
       where: { id: licenseId },
       include: {
@@ -637,6 +755,7 @@ export class VerificationAdminService {
       },
     });
     if (!license || license.license_status !== 'verified') return null;
+    if (!(await provider.supports(license.state_code))) return null;
     const outcome = await this.checks.barLookup(provider, license, null, {
       firstName: license.attorney.user.first_name ?? '',
       lastName: license.attorney.user.last_name ?? '',
@@ -913,6 +1032,8 @@ function licenseDto(l: AttorneyLicense & { state: State }): AdminLicenseDto {
     rejectionNote: l.rejection_note,
     verifiedAt: l.verified_at?.toISOString() ?? null,
     decidedBy: l.verified_by,
+    registryFlag: (l.registry_flag as AdminLicenseDto['registryFlag']) ?? null,
+    registryFlaggedAt: l.registry_flagged_at?.toISOString() ?? null,
   };
 }
 

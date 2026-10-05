@@ -1,10 +1,7 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PinoLogger } from 'nestjs-pino';
 import { PrismaService } from '../../prisma/prisma.service';
-import {
-  STATE_BAR_ADAPTERS,
-  type StateBarAdapter,
-} from '../../modules/verification/providers/bar-lookup/state-bar-adapter';
+import { StateRegistryService } from '../../modules/verification/services/state-registry.service';
 import { VerificationAdminService } from '../../modules/verification/services/verification-admin.service';
 
 const BATCH = 200;
@@ -15,8 +12,8 @@ export interface LicenseRegistryRecheckResult {
 }
 
 /**
- * Owner 2026-10-04: once a month every verified license in a state with a
- * registry API (today New York) is looked up again; a license whose
+ * Owner 2026-10-04: once a month every verified license in a state with an
+ * enabled registry (Admin → Ключи и сервисы, owner 2026-10-05) is looked up again; a license whose
  * number disappeared or whose status is no longer active goes back to the
  * verifier queue (VerificationAdminService.registryRecheck). Lookups run
  * one at a time — the free registry is rate limited.
@@ -26,15 +23,14 @@ export class LicenseRegistryRecheckJob {
   constructor(
     private readonly prisma: PrismaService,
     private readonly verification: VerificationAdminService,
-    @Inject(STATE_BAR_ADAPTERS)
-    private readonly adapters: readonly StateBarAdapter[],
+    private readonly registries: StateRegistryService,
     private readonly logger: PinoLogger,
   ) {
     this.logger.setContext(LicenseRegistryRecheckJob.name);
   }
 
   async run(now: Date = new Date()): Promise<LicenseRegistryRecheckResult> {
-    const states = this.adapters.flatMap((a) => [...a.states]);
+    const states = await this.registries.enabledStates();
     const result: LicenseRegistryRecheckResult = { checked: 0, queued: 0 };
     let cursor: string | undefined;
     for (;;) {

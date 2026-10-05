@@ -18,6 +18,20 @@ describe('missingRequirements (docs/01_FOUNDATION_AUTH.md §11)', () => {
     ]);
   });
 
+  it('owner 2026-10-04: an assistant (code sign-in) needs no phone', () => {
+    expect(
+      missingRequirements(
+        {
+          ...base,
+          role: 'assistant' as const,
+          first_name: 'A',
+          last_name: 'B',
+        },
+        true,
+      ),
+    ).toEqual([]);
+  });
+
   it('client needs BOTH phone and email verified', () => {
     const client = {
       ...base,

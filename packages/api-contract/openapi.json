@@ -721,6 +721,98 @@
         ]
       }
     },
+    "/auth/assistant/code": {
+      "post": {
+        "operationId": "assistantCodeLogin",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssistantCodeLoginDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthTokensEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: ASSISTANT_CODE_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ACCOUNT_SUSPENDED, ACCOUNT_DELETED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Owner 2026-10-04: an assistant signs in with the one-time code the\nattorney got for their seat — no SMS. A new account becomes the\nassistant; a code issued again signs the same assistant in on a new\nphone (the old one is signed out).",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/auth/otp/verify-link": {
       "post": {
         "operationId": "verifyOtpLink",
@@ -7818,6 +7910,297 @@
         ]
       }
     },
+    "/admin/verification/registry-flags": {
+      "get": {
+        "operationId": "listRegistryFlags",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegistryFlagItemListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Verified licenses the state registry disagreed with",
+        "tags": [
+          "admin-verification"
+        ]
+      }
+    },
+    "/admin/verification/licenses/{licenseId}/registry-check": {
+      "post": {
+        "operationId": "checkLicenseInRegistry",
+        "parameters": [
+          {
+            "name": "licenseId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegistryCheckEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Look the license up in its state's registry now (no status change)",
+        "tags": [
+          "admin-verification"
+        ]
+      }
+    },
+    "/admin/verification/licenses/{licenseId}/registry-flag/clear": {
+      "post": {
+        "operationId": "clearRegistryFlag",
+        "parameters": [
+          {
+            "name": "licenseId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminLicenseEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Keep the license; remove its registry flag",
+        "tags": [
+          "admin-verification"
+        ]
+      }
+    },
     "/admin/verification/attorneys/{attorneyId}/suspend": {
       "post": {
         "operationId": "suspendAttorney",
@@ -8059,6 +8442,440 @@
           }
         ],
         "summary": "Restore a suspended attorney",
+        "tags": [
+          "admin-verification"
+        ]
+      }
+    },
+    "/admin/verification/registries": {
+      "get": {
+        "operationId": "listStateRegistries",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StateRegistriesOverviewEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Every state with its registry settings",
+        "tags": [
+          "admin-verification"
+        ]
+      }
+    },
+    "/admin/verification/registries/{stateCode}": {
+      "put": {
+        "operationId": "saveStateRegistry",
+        "parameters": [
+          {
+            "name": "stateCode",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "minLength": 2,
+              "maxLength": 2,
+              "example": "NY",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveStateRegistryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StateRegistryEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable: INTEGRATIONS_NOT_CONFIGURED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Save a state's registry (needs step-up)",
+        "tags": [
+          "admin-verification"
+        ]
+      }
+    },
+    "/admin/verification/registries/{stateCode}/test": {
+      "post": {
+        "operationId": "testStateRegistry",
+        "parameters": [
+          {
+            "name": "stateCode",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "minLength": 2,
+              "maxLength": 2,
+              "example": "NY",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TestStateRegistryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegistryTestResultEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Look up a sample bar number with the saved settings",
+        "tags": [
+          "admin-verification"
+        ]
+      }
+    },
+    "/admin/verification/registries/{stateCode}/copy": {
+      "post": {
+        "operationId": "copyStateRegistry",
+        "parameters": [
+          {
+            "name": "stateCode",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "minLength": 2,
+              "maxLength": 2,
+              "example": "NY",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CopyStateRegistryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CopyStateRegistryResultEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Copy a state's registry and key to other states (needs step-up)",
         "tags": [
           "admin-verification"
         ]
@@ -13777,106 +14594,16 @@
         ]
       }
     },
-    "/assistants/join/request-code": {
+    "/assistants/join/code": {
       "post": {
-        "operationId": "requestAssistantCode",
+        "operationId": "joinWithCode",
         "parameters": [],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/AssistantPhoneDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "204": {
-            "description": ""
-          },
-          "401": {
-            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found: NOT_FOUND",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Conflict: ASSISTANT_NO_FREE_SEAT",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "426": {
-            "description": "Upgrade required: APP_UPDATE_REQUIRED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests: RATE_LIMITED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal error: INTERNAL_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Send a join code to the attorney's phone",
-        "tags": [
-          "assistants"
-        ]
-      }
-    },
-    "/assistants/join/verify": {
-      "post": {
-        "operationId": "verifyAssistantCode",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/JoinVerifyDto"
+                "$ref": "#/components/schemas/JoinCodeDto"
               }
             }
           }
@@ -13892,8 +14619,8 @@
               }
             }
           },
-          "400": {
-            "description": "Bad request: AUTH_OTP_INVALID, AUTH_OTP_EXPIRED, AUTH_OTP_LOCKED",
+          "401": {
+            "description": "Unauthorized: ASSISTANT_CODE_INVALID",
             "content": {
               "application/json": {
                 "schema": {
@@ -13902,8 +14629,8 @@
               }
             }
           },
-          "401": {
-            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+          "403": {
+            "description": "Forbidden: ASSISTANT_NOT_ALLOWED",
             "content": {
               "application/json": {
                 "schema": {
@@ -13913,7 +14640,7 @@
             }
           },
           "409": {
-            "description": "Conflict: ASSISTANT_NO_FREE_SEAT",
+            "description": "Conflict: ASSISTANT_PHONE_TAKEN",
             "content": {
               "application/json": {
                 "schema": {
@@ -13958,7 +14685,7 @@
             "bearer": []
           }
         ],
-        "summary": "Join with the code the attorney received",
+        "summary": "Join with the attorney's one-time code",
         "tags": [
           "assistants"
         ]
@@ -14120,7 +14847,94 @@
             "bearer": []
           }
         ],
-        "summary": "Add an assistant by phone (joins without a code)",
+        "summary": "Add an assistant: takes a seat and gives it a one-time code",
+        "tags": [
+          "assistants"
+        ]
+      }
+    },
+    "/team/{id}/code": {
+      "post": {
+        "operationId": "regenerateAssistantCode",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A new one-time code for this seat (the old one stops working; for a joined assistant it signs them in on a new phone)",
         "tags": [
           "assistants"
         ]
@@ -16272,6 +17086,124 @@
           }
         ],
         "summary": "Remove an assistant (access ends at once)",
+        "tags": [
+          "admin-teams"
+        ]
+      }
+    },
+    "/admin/teams/{id}/seat-limit": {
+      "patch": {
+        "operationId": "setAdminTeamSeatLimit",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "The attorney user id.",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminSeatLimitDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminTeamEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Set the attorney's own assistant limit (null = global)",
         "tags": [
           "admin-teams"
         ]
@@ -20495,6 +21427,709 @@
         "summary": "Bids on my case with the attorney summary (client, docs/04 §5.2; sort newest / lowest_price / highest_rating)",
         "tags": [
           "cases"
+        ]
+      }
+    },
+    "/cases/{id}/invites": {
+      "post": {
+        "operationId": "createInvite",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateInviteDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseInviteEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CASE_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: CASE_INVALID_STATE, INVITE_ATTORNEY_UNAVAILABLE, INVITE_ALREADY_PENDING, BID_ALREADY_EXISTS",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: INVITE_LIMIT_REACHED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Offer my open case to an attorney (client)",
+        "tags": [
+          "invites"
+        ]
+      },
+      "get": {
+        "operationId": "listCaseInvites",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseInviteListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CASE_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Invites on a case: all of them for its client, the attorney's own for an attorney",
+        "tags": [
+          "invites"
+        ]
+      }
+    },
+    "/invites": {
+      "get": {
+        "operationId": "listMyInvites",
+        "parameters": [
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "description": "pending (default): waiting for an answer; all: history too.",
+            "schema": {
+              "$ref": "#/components/schemas/InviteListStatus"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseInviteListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "My invites from clients (attorney)",
+        "tags": [
+          "invites"
+        ]
+      }
+    },
+    "/invites/{id}": {
+      "get": {
+        "operationId": "getInvite",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseInviteEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: INVITE_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "One invite (its client or attorney)",
+        "tags": [
+          "invites"
+        ]
+      }
+    },
+    "/invites/{id}/decline": {
+      "post": {
+        "operationId": "declineInvite",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeclineInviteDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseInviteEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: INVITE_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: INVITE_INVALID_STATE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Decline an invite, optionally with a reason",
+        "tags": [
+          "invites"
+        ]
+      }
+    },
+    "/invites/{id}/cancel": {
+      "post": {
+        "operationId": "cancelInvite",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseInviteEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: INVITE_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: INVITE_INVALID_STATE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Cancel my pending invite (client)",
+        "tags": [
+          "invites"
         ]
       }
     },
@@ -28286,7 +29921,7 @@
             "name": "seats",
             "required": false,
             "in": "query",
-            "description": "Paid assistant seats: none (0), some (1-5), full (6).",
+            "description": "Paid assistant seats: none (0), some, full (the admin seat limit or the yearly plan).",
             "schema": {
               "type": "string",
               "enum": [
@@ -30327,6 +31962,539 @@
           }
         ],
         "summary": "Move current subscribers to today's price from their next renewal",
+        "tags": [
+          "admin-billing"
+        ]
+      }
+    },
+    "/billing/seat-limit-requests": {
+      "post": {
+        "operationId": "createSeatLimitRequest",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSeatLimitRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeatLimitRequestEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: SEAT_LIMIT_REQUEST_PENDING",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Ask the admins for a higher assistant limit",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/billing/seat-limit-requests/latest": {
+      "get": {
+        "operationId": "seatLimitState",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeatLimitStateEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The attorney's seat limit and latest request",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/admin/billing/seat-limit-requests": {
+      "get": {
+        "operationId": "listSeatLimitRequests",
+        "parameters": [
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/SeatLimitRequestStatus"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "meta.nextCursor of the previous page.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminSeatLimitRequestListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Requests for more assistant seats, newest first",
+        "tags": [
+          "admin-billing"
+        ]
+      }
+    },
+    "/admin/billing/seat-limit-requests/{id}/approve": {
+      "post": {
+        "operationId": "approveSeatLimitRequest",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApproveSeatLimitDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeatLimitRequestEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: SEAT_LIMIT_REQUEST_DECIDED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Approve: set the attorney's own seat limit",
+        "tags": [
+          "admin-billing"
+        ]
+      }
+    },
+    "/admin/billing/seat-limit-requests/{id}/reject": {
+      "post": {
+        "operationId": "rejectSeatLimitRequest",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectSeatLimitDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeatLimitRequestEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: SEAT_LIMIT_REQUEST_DECIDED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Reject a seat limit request",
         "tags": [
           "admin-billing"
         ]
@@ -48697,6 +50865,7 @@
           "ASSISTANT_NOT_ALLOWED",
           "ASSISTANT_PHONE_TAKEN",
           "ASSISTANT_INVITE_NOT_FOUND",
+          "ASSISTANT_CODE_INVALID",
           "ASSISTANT_LIABILITY_REQUIRED",
           "TASK_CLOSED",
           "TASK_STEPS_LIMIT",
@@ -48748,6 +50917,13 @@
           "BID_COUNTER_NOT_ALLOWED",
           "SUBSCRIPTION_REQUIRED",
           "BID_ALREADY_EXISTS",
+          "INVITE_NOT_FOUND",
+          "INVITE_INVALID_STATE",
+          "INVITE_ALREADY_PENDING",
+          "INVITE_ATTORNEY_UNAVAILABLE",
+          "INVITE_LIMIT_REACHED",
+          "SEAT_LIMIT_REQUEST_PENDING",
+          "SEAT_LIMIT_REQUEST_DECIDED",
           "CASE_CONTAINS_CONTACT_INFO",
           "CLIENT_CONTACT_SHARING_CONSENT_REQUIRED",
           "BID_ATTORNEY_INACTIVE",
@@ -49144,6 +51320,24 @@
         },
         "required": [
           "pendingToken"
+        ]
+      },
+      "AssistantCodeLoginDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 32,
+            "example": "K7QM-4XRT-92HD",
+            "description": "The one-time code from the attorney (dashes optional)."
+          },
+          "deviceInfo": {
+            "$ref": "#/components/schemas/DeviceInfoDto"
+          }
+        },
+        "required": [
+          "code"
         ]
       },
       "OtpVerifyLinkDto": {
@@ -50049,6 +52243,10 @@
           "bids24h": {
             "type": "integer"
           },
+          "invites24h": {
+            "type": "integer",
+            "description": "Owner 2026-10-05: client → attorney case invites sent."
+          },
           "openReports": {
             "type": "integer"
           },
@@ -50057,6 +52255,10 @@
           },
           "openContactIssues": {
             "type": "integer"
+          },
+          "seatLimitRequests": {
+            "type": "integer",
+            "description": "Owner 2026-10-05: requests for more assistant seats."
           },
           "computedAt": {
             "type": "string",
@@ -50070,9 +52272,11 @@
           "subscriptions",
           "openCases",
           "bids24h",
+          "invites24h",
           "openReports",
           "openDisputes",
           "openContactIssues",
+          "seatLimitRequests",
           "computedAt"
         ]
       },
@@ -50625,6 +52829,31 @@
           "data"
         ]
       },
+      "AdminUserLicenseDto": {
+        "type": "object",
+        "properties": {
+          "stateCode": {
+            "type": "string"
+          },
+          "barNumber": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "stateCode",
+          "barNumber",
+          "status",
+          "expiresAt"
+        ]
+      },
       "AdminUserSubscriptionDto": {
         "type": "object",
         "properties": {
@@ -50695,6 +52924,19 @@
               "type": "string"
             }
           },
+          "licenseItems": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminUserLicenseDto"
+            }
+          },
+          "practices": {
+            "description": "English names of the chosen practice areas.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "subscription": {
             "nullable": true,
             "type": "object",
@@ -50715,6 +52957,8 @@
           "followersCount",
           "postsCount",
           "licenses",
+          "licenseItems",
+          "practices",
           "subscription"
         ]
       },
@@ -51476,6 +53720,10 @@
             "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
             "example": "2027-06-30",
             "description": "License expiry (YYYY-MM-DD), if the license has one."
+          },
+          "renewal": {
+            "type": "boolean",
+            "description": "True to renew a license that is still verified (a new expiry date). Without it a state that is already verified is refused."
           }
         },
         "required": [
@@ -51699,6 +53947,21 @@
             "type": "string",
             "nullable": true,
             "format": "uuid"
+          },
+          "registryFlag": {
+            "nullable": true,
+            "enum": [
+              "name_mismatch",
+              "not_found",
+              "not_active"
+            ],
+            "type": "string",
+            "description": "Owner 2026-10-05: the state registry disagreed with this verified license (it stays verified)."
+          },
+          "registryFlaggedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
           }
         },
         "required": [
@@ -51713,7 +53976,9 @@
           "rejectionCode",
           "rejectionNote",
           "verifiedAt",
-          "decidedBy"
+          "decidedBy",
+          "registryFlag",
+          "registryFlaggedAt"
         ]
       },
       "ScanStatus": {
@@ -52168,6 +54433,97 @@
           "data"
         ]
       },
+      "RegistryFlagItemDto": {
+        "type": "object",
+        "properties": {
+          "attorney": {
+            "$ref": "#/components/schemas/AdminAttorneySummaryDto"
+          },
+          "license": {
+            "$ref": "#/components/schemas/AdminLicenseDto"
+          },
+          "latestRequestId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid",
+            "description": "The attorney's latest verification request (its card)."
+          }
+        },
+        "required": [
+          "attorney",
+          "license",
+          "latestRequestId"
+        ]
+      },
+      "RegistryFlagItemListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RegistryFlagItemDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "RegistryCheckDto": {
+        "type": "object",
+        "properties": {
+          "license": {
+            "$ref": "#/components/schemas/AdminLicenseDto"
+          },
+          "result": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CheckResult"
+              }
+            ]
+          },
+          "details": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "required": [
+          "license",
+          "result",
+          "details"
+        ]
+      },
+      "RegistryCheckEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/RegistryCheckDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AdminLicenseEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminLicenseDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
       "AttorneyVerificationStatusDto": {
         "type": "object",
         "properties": {
@@ -52210,6 +54566,364 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/AttorneyVerificationStatusDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "RegistryFieldDescriptorDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "placeholder": {
+            "type": "string"
+          },
+          "help": {
+            "type": "string"
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "name",
+          "label",
+          "required"
+        ]
+      },
+      "RegistryAdapterDescriptorDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "enum": [
+              "manual",
+              "ny_open_data",
+              "socrata",
+              "generic_rest"
+            ],
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RegistryFieldDescriptorDto"
+            }
+          },
+          "secret": {
+            "enum": [
+              "none",
+              "optional",
+              "required"
+            ],
+            "type": "string"
+          },
+          "secretLabel": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "label",
+          "description",
+          "fields",
+          "secret"
+        ]
+      },
+      "StateRegistryDto": {
+        "type": "object",
+        "properties": {
+          "stateCode": {
+            "type": "string",
+            "example": "NY"
+          },
+          "stateName": {
+            "type": "string",
+            "example": "New York"
+          },
+          "adapter": {
+            "enum": [
+              "manual",
+              "ny_open_data",
+              "socrata",
+              "generic_rest"
+            ],
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Licenses of this state are checked automatically."
+          },
+          "config": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Non-secret settings of the adapter."
+          },
+          "hasSecret": {
+            "type": "boolean"
+          },
+          "secretMasked": {
+            "type": "string",
+            "nullable": true,
+            "example": "••••a1b2"
+          },
+          "testBarNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastTestAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "lastTestResult": {
+            "type": "object",
+            "additionalProperties": true,
+            "nullable": true
+          },
+          "updatedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "stateCode",
+          "stateName",
+          "adapter",
+          "enabled",
+          "config",
+          "hasSecret",
+          "secretMasked",
+          "testBarNumber",
+          "lastTestAt",
+          "lastTestResult",
+          "updatedAt"
+        ]
+      },
+      "StateRegistriesOverviewDto": {
+        "type": "object",
+        "properties": {
+          "secretsEnabled": {
+            "type": "boolean",
+            "description": "The server can store keys (master key set)."
+          },
+          "adapterTypes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RegistryAdapterDescriptorDto"
+            }
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StateRegistryDto"
+            }
+          }
+        },
+        "required": [
+          "secretsEnabled",
+          "adapterTypes",
+          "items"
+        ]
+      },
+      "StateRegistriesOverviewEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/StateRegistriesOverviewDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "SaveStateRegistryDto": {
+        "type": "object",
+        "properties": {
+          "adapter": {
+            "enum": [
+              "manual",
+              "ny_open_data",
+              "socrata",
+              "generic_rest"
+            ],
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "config": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "secret": {
+            "type": "string",
+            "maxLength": 4000,
+            "description": "A new key; empty keeps the saved one."
+          },
+          "clearSecret": {
+            "type": "boolean"
+          },
+          "testBarNumber": {
+            "type": "string",
+            "maxLength": 40
+          }
+        },
+        "required": [
+          "adapter",
+          "enabled"
+        ]
+      },
+      "StateRegistryEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/StateRegistryDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "RegistryTestResultDto": {
+        "type": "object",
+        "properties": {
+          "result": {
+            "enum": [
+              "pass",
+              "fail",
+              "manual_review",
+              "error"
+            ],
+            "type": "string"
+          },
+          "details": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "testedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "result",
+          "details",
+          "error",
+          "testedAt"
+        ]
+      },
+      "TestStateRegistryDto": {
+        "type": "object",
+        "properties": {
+          "barNumber": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40,
+            "example": "1234567"
+          },
+          "firstName": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "lastName": {
+            "type": "string",
+            "maxLength": 100
+          }
+        },
+        "required": [
+          "barNumber"
+        ]
+      },
+      "RegistryTestResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/RegistryTestResultDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "CopyStateRegistryResultDto": {
+        "type": "object",
+        "properties": {
+          "copied": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "copied"
+        ]
+      },
+      "CopyStateRegistryDto": {
+        "type": "object",
+        "properties": {
+          "states": {
+            "maxItems": 51,
+            "example": [
+              "CA",
+              "TX"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 2,
+              "minLength": 2
+            }
+          }
+        },
+        "required": [
+          "states"
+        ]
+      },
+      "CopyStateRegistryResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CopyStateRegistryResultDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
@@ -52572,6 +55286,10 @@
             "type": "boolean",
             "description": "Owner 2026-09-30: the case's practice is outside the attorney's\nown — the client is told to discuss it first."
           },
+          "outsideLicensedStates": {
+            "type": "boolean",
+            "description": "Owner 2026-10-04: the attorney holds no verified licence in the\ncase's states — bidding is allowed, the client is told."
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -52598,6 +55316,7 @@
           "turn",
           "decidedAt",
           "outsidePractice",
+          "outsideLicensedStates",
           "createdAt",
           "offers"
         ]
@@ -53425,6 +56144,32 @@
             "type": "boolean",
             "description": "A paid / granted promotion is running."
           },
+          "imagesCount": {
+            "type": "integer",
+            "description": "Owner 2026-10-05: the case dossier (\"4 of 6\")."
+          },
+          "documentsCount": {
+            "type": "integer"
+          },
+          "dossierScore": {
+            "type": "integer",
+            "description": "Filled-in items, 0–6."
+          },
+          "dossierMissing": {
+            "type": "array",
+            "description": "Dossier items the client has not filled in.",
+            "items": {
+              "type": "string",
+              "enum": [
+                "description",
+                "city",
+                "urgency",
+                "budget",
+                "documents",
+                "photos"
+              ]
+            }
+          },
           "lastActivityAt": {
             "type": "string",
             "format": "date-time"
@@ -53448,6 +56193,10 @@
           "viewCount",
           "openReports",
           "promoted",
+          "imagesCount",
+          "documentsCount",
+          "dossierScore",
+          "dossierMissing",
           "lastActivityAt",
           "createdAt"
         ]
@@ -53537,6 +56286,58 @@
           "createdAt"
         ]
       },
+      "AdminCaseInviteDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "attorneyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "attorneyName": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "description": "pending / accepted / declined / cancelled / expired / closed"
+          },
+          "budgetCents": {
+            "type": "integer",
+            "nullable": true
+          },
+          "declineReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "bidId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "attorneyId",
+          "attorneyName",
+          "status",
+          "budgetCents",
+          "declineReason",
+          "bidId",
+          "expiresAt",
+          "createdAt"
+        ]
+      },
       "AdminCaseCardDto": {
         "type": "object",
         "properties": {
@@ -53591,6 +56392,32 @@
             "type": "boolean",
             "description": "A paid / granted promotion is running."
           },
+          "imagesCount": {
+            "type": "integer",
+            "description": "Owner 2026-10-05: the case dossier (\"4 of 6\")."
+          },
+          "documentsCount": {
+            "type": "integer"
+          },
+          "dossierScore": {
+            "type": "integer",
+            "description": "Filled-in items, 0–6."
+          },
+          "dossierMissing": {
+            "type": "array",
+            "description": "Dossier items the client has not filled in.",
+            "items": {
+              "type": "string",
+              "enum": [
+                "description",
+                "city",
+                "urgency",
+                "budget",
+                "documents",
+                "photos"
+              ]
+            }
+          },
           "lastActivityAt": {
             "type": "string",
             "format": "date-time"
@@ -53639,6 +56466,13 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/AdminCaseBidDto"
+            }
+          },
+          "invites": {
+            "description": "Owner 2026-10-05: invites the client sent, newest first.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminCaseInviteDto"
             }
           },
           "journal": {
@@ -53692,6 +56526,10 @@
           "viewCount",
           "openReports",
           "promoted",
+          "imagesCount",
+          "documentsCount",
+          "dossierScore",
+          "dossierMissing",
           "lastActivityAt",
           "createdAt",
           "description",
@@ -53703,6 +56541,7 @@
           "photosCount",
           "acceptedBidId",
           "bids",
+          "invites",
           "journal",
           "disputeIds",
           "contactIssueIds",
@@ -54633,7 +57472,7 @@
           "assistantSeats": {
             "type": "integer",
             "minimum": 0,
-            "maximum": 6,
+            "maximum": 50,
             "default": 0
           },
           "assistantPhones": {
@@ -54857,7 +57696,7 @@
           "seats": {
             "type": "integer",
             "minimum": 0,
-            "maximum": 6
+            "maximum": 50
           }
         },
         "required": [
@@ -55225,34 +58064,17 @@
           "data"
         ]
       },
-      "AssistantPhoneDto": {
+      "JoinCodeDto": {
         "type": "object",
         "properties": {
-          "phone": {
-            "type": "string",
-            "example": "+13125550111"
-          }
-        },
-        "required": [
-          "phone"
-        ]
-      },
-      "JoinVerifyDto": {
-        "type": "object",
-        "properties": {
-          "attorneyPhone": {
-            "type": "string",
-            "example": "+13125550101",
-            "description": "The attorney's phone."
-          },
           "code": {
             "type": "string",
-            "pattern": "^[0-9]{6}$",
-            "example": "000000"
+            "minLength": 8,
+            "maxLength": 32,
+            "example": "K7QM-4XRT-92HD"
           }
         },
         "required": [
-          "attorneyPhone",
           "code"
         ]
       },
@@ -55264,7 +58086,8 @@
             "format": "uuid"
           },
           "phone": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "name": {
             "type": "string",
@@ -55303,11 +58126,20 @@
             "type": "string",
             "nullable": true,
             "description": "OQ-049: when the attorney last accepted responsibility for this assistant (\"bids\" / \"publish\")."
+          },
+          "joinCode": {
+            "type": "string",
+            "nullable": true,
+            "example": "K7QM-4XRT-92HD",
+            "description": "Owner 2026-10-04: the one-time code for this seat while it can be used (join, or sign in on a new phone); null once used or expired."
+          },
+          "joinCodeExpiresAt": {
+            "type": "string",
+            "nullable": true
           }
         },
         "required": [
           "id",
-          "phone",
           "status",
           "approval",
           "duties",
@@ -55364,7 +58196,8 @@
         "properties": {
           "phone": {
             "type": "string",
-            "example": "+13125550111"
+            "example": "+13125550111",
+            "description": "Optional (older apps). The assistant joins with the one-time code the seat gets."
           },
           "name": {
             "type": "string",
@@ -55393,10 +58226,7 @@
             "type": "boolean",
             "description": "OQ-049: required (true) when granting \"bids\" or \"publish\" — the attorney accepts full responsibility for the assistant's bids, negotiations and publications."
           }
-        },
-        "required": [
-          "phone"
-        ]
+        }
       },
       "UpdateAssistantDto": {
         "type": "object",
@@ -56266,6 +59096,14 @@
           },
           "openTasks": {
             "type": "integer"
+          },
+          "seatLimit": {
+            "type": "integer",
+            "description": "Owner 2026-10-05: how many assistants this attorney may add."
+          },
+          "seatLimitPersonal": {
+            "type": "boolean",
+            "description": "An admin set a personal limit."
           }
         },
         "required": [
@@ -56276,7 +59114,9 @@
           "active",
           "invited",
           "pendingRequests",
-          "openTasks"
+          "openTasks",
+          "seatLimit",
+          "seatLimitPersonal"
         ]
       },
       "AdminTeamRowListEnvelope": {
@@ -56333,6 +59173,14 @@
           "openTasks": {
             "type": "integer"
           },
+          "seatLimit": {
+            "type": "integer",
+            "description": "Owner 2026-10-05: how many assistants this attorney may add."
+          },
+          "seatLimitPersonal": {
+            "type": "boolean",
+            "description": "An admin set a personal limit."
+          },
           "members": {
             "type": "array",
             "items": {
@@ -56356,6 +59204,8 @@
           "invited",
           "pendingRequests",
           "openTasks",
+          "seatLimit",
+          "seatLimitPersonal",
           "members",
           "activity"
         ]
@@ -56384,6 +59234,20 @@
         },
         "required": [
           "reason"
+        ]
+      },
+      "AdminSeatLimitDto": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 1,
+            "maximum": 50
+          }
+        },
+        "required": [
+          "limit"
         ]
       },
       "AdminMemberDutiesDto": {
@@ -57698,6 +60562,16 @@
                 "$ref": "#/components/schemas/CaseUrgency"
               }
             ]
+          },
+          "photoFileIds": {
+            "description": "Full set of clean case_photo / case_attachment file ids (0-9), display order.",
+            "uniqueItems": true,
+            "maxItems": 9,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
           }
         }
       },
@@ -57894,6 +60768,28 @@
           "mode"
         ]
       },
+      "CaseDossierDto": {
+        "type": "object",
+        "properties": {
+          "imagesCount": {
+            "type": "integer",
+            "description": "Attached photos (image/*)."
+          },
+          "documentsCount": {
+            "type": "integer",
+            "description": "Attached documents (PDF, Word…)."
+          },
+          "descriptionLength": {
+            "type": "integer",
+            "description": "Length of the full description, in characters."
+          }
+        },
+        "required": [
+          "imagesCount",
+          "documentsCount",
+          "descriptionLength"
+        ]
+      },
       "CaseFeedItemDto": {
         "type": "object",
         "properties": {
@@ -57986,6 +60882,14 @@
           "promoted": {
             "type": "boolean",
             "description": "Promoted by its client right now."
+          },
+          "dossier": {
+            "description": "Owner 2026-10-05: how complete the case is (counts only).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CaseDossierDto"
+              }
+            ]
           }
         },
         "required": [
@@ -58005,7 +60909,8 @@
           "commentCount",
           "shareCount",
           "isSaved",
-          "promoted"
+          "promoted",
+          "dossier"
         ]
       },
       "CaseFeedItemListEnvelope": {
@@ -58148,6 +61053,14 @@
             "type": "boolean",
             "description": "Promoted by its client right now."
           },
+          "dossier": {
+            "description": "Owner 2026-10-05: how complete the case is (counts only).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CaseDossierDto"
+              }
+            ]
+          },
           "description": {
             "type": "string"
           },
@@ -58180,9 +61093,13 @@
             "type": "boolean",
             "description": "Owner 2026-09-30: the case's practice is one of this attorney's —\notherwise \"Bid\" warns that the client will be told."
           },
+          "inMyLicensedStates": {
+            "type": "boolean",
+            "description": "Owner 2026-10-04: the attorney holds a verified licence in one of\nthe case's states — otherwise \"Bid\" notes that the client will see it."
+          },
           "bidAllowed": {
             "type": "boolean",
-            "description": "Owner 2026-10-04: false when the attorney may only view the case (no verified licence in its states): no offer button."
+            "description": "Owner 2026-10-04: an attorney may bid on any open case (any state, any practice); kept for older apps, always true."
           }
         },
         "required": [
@@ -58203,10 +61120,12 @@
           "shareCount",
           "isSaved",
           "promoted",
+          "dossier",
           "description",
           "photos",
           "photosCount",
           "inMyPractice",
+          "inMyLicensedStates",
           "bidAllowed"
         ]
       },
@@ -58294,6 +61213,13 @@
             "type": "boolean",
             "description": "Blue check (docs/03 §6.3)."
           },
+          "licensedStates": {
+            "description": "Owner 2026-10-04: 2-letter codes of the states where the attorney holds a verified licence.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "rating": {
             "$ref": "#/components/schemas/RatingDto"
           }
@@ -58305,6 +61231,7 @@
           "lastName",
           "avatarUrl256",
           "verifiedBadge",
+          "licensedStates",
           "rating"
         ]
       },
@@ -58380,6 +61307,10 @@
             "type": "boolean",
             "description": "Owner 2026-09-30: the case's practice is outside the attorney's\nown — the client is told to discuss it first."
           },
+          "outsideLicensedStates": {
+            "type": "boolean",
+            "description": "Owner 2026-10-04: the attorney holds no verified licence in the\ncase's states — bidding is allowed, the client is told."
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -58403,6 +61334,7 @@
           "turn",
           "decidedAt",
           "outsidePractice",
+          "outsideLicensedStates",
           "createdAt",
           "attorney"
         ]
@@ -58423,6 +61355,198 @@
         "required": [
           "data"
         ]
+      },
+      "CaseInviteStatus": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "accepted",
+          "declined",
+          "cancelled",
+          "expired",
+          "closed"
+        ]
+      },
+      "CaseInviteDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "caseId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "attorneyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CaseInviteStatus"
+              }
+            ]
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "budgetCents": {
+            "type": "integer",
+            "nullable": true
+          },
+          "declineReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "outsidePractice": {
+            "type": "boolean",
+            "description": "The case's practice is not one of the attorney's."
+          },
+          "outsideLicensedStates": {
+            "type": "boolean",
+            "description": "The attorney holds no verified licence in the case's states."
+          },
+          "bidId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid",
+            "description": "The attorney's bid that answered the invite."
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "decidedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "caseTitle": {
+            "type": "string"
+          },
+          "caseStatus": {
+            "type": "string",
+            "description": "cases.status"
+          },
+          "casePracticeKey": {
+            "type": "string",
+            "description": "i18n key of the case's practice area."
+          },
+          "caseStateCodes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "attorney": {
+            "nullable": true,
+            "description": "The invited attorney (client view only).",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BidAttorneySummaryDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "caseId",
+          "attorneyId",
+          "status",
+          "message",
+          "budgetCents",
+          "declineReason",
+          "outsidePractice",
+          "outsideLicensedStates",
+          "bidId",
+          "expiresAt",
+          "decidedAt",
+          "createdAt",
+          "caseTitle",
+          "caseStatus",
+          "casePracticeKey",
+          "caseStateCodes",
+          "attorney"
+        ]
+      },
+      "CreateInviteDto": {
+        "type": "object",
+        "properties": {
+          "attorneyId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The attorney to invite."
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 1000,
+            "description": "A note to the attorney (no contacts)."
+          },
+          "budgetCents": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000000000,
+            "description": "The budget the client proposes, in cents."
+          }
+        },
+        "required": [
+          "attorneyId"
+        ]
+      },
+      "CaseInviteEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CaseInviteDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "CaseInviteListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CaseInviteDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "InviteListStatus": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "all"
+        ]
+      },
+      "DeclineInviteDto": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "maxLength": 500
+          }
+        }
       },
       "ContactMethod": {
         "type": "string",
@@ -58971,6 +62095,10 @@
             "type": "boolean",
             "description": "Owner 2026-09-30: the case's practice is outside the attorney's\nown — the client is told to discuss it first."
           },
+          "outsideLicensedStates": {
+            "type": "boolean",
+            "description": "Owner 2026-10-04: the attorney holds no verified licence in the\ncase's states — bidding is allowed, the client is told."
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -59002,6 +62130,7 @@
           "turn",
           "decidedAt",
           "outsidePractice",
+          "outsideLicensedStates",
           "createdAt",
           "case",
           "lastOffer"
@@ -60602,6 +63731,7 @@
         "properties": {
           "practiceAreaIds": {
             "uniqueItems": true,
+            "minItems": 1,
             "type": "array",
             "items": {
               "type": "string",
@@ -63047,7 +66177,7 @@
           "assistantSeats": {
             "type": "integer",
             "minimum": 0,
-            "maximum": 6,
+            "maximum": 50,
             "default": 0
           },
           "startsAt": {
@@ -64070,6 +67200,254 @@
         "required": [
           "data"
         ]
+      },
+      "SeatLimitRequestStatus": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "approved",
+          "rejected"
+        ]
+      },
+      "SeatLimitRequestDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SeatLimitRequestStatus"
+              }
+            ]
+          },
+          "requestedSeats": {
+            "type": "integer"
+          },
+          "grantedSeats": {
+            "type": "integer",
+            "nullable": true
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          },
+          "decisionNote": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "decidedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "requestedSeats",
+          "grantedSeats",
+          "note",
+          "decisionNote",
+          "createdAt",
+          "decidedAt"
+        ]
+      },
+      "CreateSeatLimitRequestDto": {
+        "type": "object",
+        "properties": {
+          "seats": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "seats"
+        ]
+      },
+      "SeatLimitRequestEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SeatLimitRequestDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "SeatLimitStateDto": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "description": "The attorney's limit."
+          },
+          "isPersonal": {
+            "type": "boolean",
+            "description": "An admin set a personal limit."
+          },
+          "request": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SeatLimitRequestDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "limit",
+          "isPersonal",
+          "request"
+        ]
+      },
+      "SeatLimitStateEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SeatLimitStateDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AdminSeatLimitRequestDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SeatLimitRequestStatus"
+              }
+            ]
+          },
+          "requestedSeats": {
+            "type": "integer"
+          },
+          "grantedSeats": {
+            "type": "integer",
+            "nullable": true
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          },
+          "decisionNote": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "decidedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "attorneyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "user": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AdminBillingUserDto"
+              }
+            ]
+          },
+          "currentLimit": {
+            "type": "integer",
+            "description": "The attorney's limit today (own or global)."
+          },
+          "assistantsUsed": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "requestedSeats",
+          "grantedSeats",
+          "note",
+          "decisionNote",
+          "createdAt",
+          "decidedAt",
+          "attorneyId",
+          "user",
+          "currentLimit",
+          "assistantsUsed"
+        ]
+      },
+      "AdminSeatLimitRequestListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminSeatLimitRequestDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "ApproveSeatLimitDto": {
+        "type": "object",
+        "properties": {
+          "seats": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50,
+            "description": "The attorney's new limit."
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "seats"
+        ]
+      },
+      "RejectSeatLimitDto": {
+        "type": "object",
+        "properties": {
+          "note": {
+            "type": "string",
+            "maxLength": 500
+          }
+        }
       },
       "SupportMessageDto": {
         "type": "object",

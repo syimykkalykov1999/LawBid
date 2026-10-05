@@ -99,6 +99,9 @@ export enum ErrorCode {
   ASSISTANT_NOT_ALLOWED = 'ASSISTANT_NOT_ALLOWED',
   ASSISTANT_PHONE_TAKEN = 'ASSISTANT_PHONE_TAKEN',
   ASSISTANT_INVITE_NOT_FOUND = 'ASSISTANT_INVITE_NOT_FOUND',
+  // Owner 2026-10-04: the assistant's one-time code is unknown, used,
+  // expired or its seat was removed (one answer for all, no probing).
+  ASSISTANT_CODE_INVALID = 'ASSISTANT_CODE_INVALID',
   // OQ-049: granting bids / publish needs the attorney's acceptance.
   ASSISTANT_LIABILITY_REQUIRED = 'ASSISTANT_LIABILITY_REQUIRED',
   /** Owner 2026-10-01: a cancelled task takes no new steps. */
@@ -235,6 +238,20 @@ export enum ErrorCode {
   // 409: UQ bids(case_id, attorney_id) — a second bid by the same
   // attorney on this case, including after the first was withdrawn (§5.1).
   BID_ALREADY_EXISTS = 'BID_ALREADY_EXISTS',
+  // Owner 2026-10-05: client → attorney case invites.
+  // 404: unknown invite, or not the caller's.
+  INVITE_NOT_FOUND = 'INVITE_NOT_FOUND',
+  // 409: the invite was already answered, cancelled or expired.
+  INVITE_INVALID_STATE = 'INVITE_INVALID_STATE',
+  // 409: this attorney already has a pending invite on this case.
+  INVITE_ALREADY_PENDING = 'INVITE_ALREADY_PENDING',
+  // 409: the attorney can't take the case (not a verified attorney, or a
+  // block either way).
+  INVITE_ATTORNEY_UNAVAILABLE = 'INVITE_ATTORNEY_UNAVAILABLE',
+  // 429: too many pending invites on the case / invites today.
+  INVITE_LIMIT_REACHED = 'INVITE_LIMIT_REACHED',
+  SEAT_LIMIT_REQUEST_PENDING = 'SEAT_LIMIT_REQUEST_PENDING',
+  SEAT_LIMIT_REQUEST_DECIDED = 'SEAT_LIMIT_REQUEST_DECIDED',
   // Case creation and management (docs/04_CASES_BIDS.md §3, stage 4.2)
   // 400: title/description/city matched the §3.3 phone/email/link
   // detector; details.field names which one.

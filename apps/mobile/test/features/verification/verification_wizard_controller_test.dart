@@ -121,6 +121,20 @@ void main() {
         ),
         WizardStep.intro,
       );
+      // Owner 2026-10-05 (audit): sworn statement only → no intro screen.
+      expect(
+        resumeStep(
+          const VerificationRequest(
+            id: 'r',
+            status: RequestStatus.draft,
+            licenses: [],
+            documents: [],
+          ),
+          identityRequired: false,
+          barDocumentRequired: false,
+        ),
+        WizardStep.licenses,
+      );
       expect(resumeStep(draft(), identityRequired: true), WizardStep.identity);
       expect(
         resumeStep(draft(identity: true), identityRequired: true),

@@ -30,12 +30,14 @@ CaseDetailForAttorneyDto _$CaseDetailForAttorneyDtoFromJson(
   shareCount: (json['shareCount'] as num).toInt(),
   isSaved: json['isSaved'] as bool,
   promoted: json['promoted'] as bool,
+  dossier: CaseDossierDto.fromJson(json['dossier'] as Map<String, dynamic>),
   description: json['description'] as String,
   photos: (json['photos'] as List<dynamic>)
       .map((e) => CasePhotoDto.fromJson(e as Map<String, dynamic>))
       .toList(),
   photosCount: json['photosCount'] as num,
   inMyPractice: json['inMyPractice'] as bool,
+  inMyLicensedStates: json['inMyLicensedStates'] as bool,
   bidAllowed: json['bidAllowed'] as bool,
   city: json['city'] as String?,
   coverKey: json['coverKey'] as String?,
@@ -73,11 +75,13 @@ Map<String, dynamic> _$CaseDetailForAttorneyDtoToJson(
   'shareCount': instance.shareCount,
   'isSaved': instance.isSaved,
   'promoted': instance.promoted,
+  'dossier': instance.dossier.toJson(),
   'description': instance.description,
   'ownBidId': ?instance.ownBidId,
   'completionRequestedBy': ?instance.completionRequestedBy?.toJson(),
   'photos': instance.photos.map((e) => e.toJson()).toList(),
   'photosCount': instance.photosCount,
   'inMyPractice': instance.inMyPractice,
+  'inMyLicensedStates': instance.inMyLicensedStates,
   'bidAllowed': instance.bidAllowed,
 };

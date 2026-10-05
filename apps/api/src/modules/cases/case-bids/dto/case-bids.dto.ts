@@ -67,6 +67,14 @@ export class BidAttorneySummaryDto {
   @ApiProperty({ description: 'Blue check (docs/03 §6.3).' })
   verifiedBadge!: boolean;
 
+  @ApiProperty({
+    type: String,
+    isArray: true,
+    description:
+      'Owner 2026-10-04: 2-letter codes of the states where the attorney holds a verified licence.',
+  })
+  licensedStates!: string[];
+
   @ApiProperty({ type: RatingDto })
   rating!: RatingDto;
 }

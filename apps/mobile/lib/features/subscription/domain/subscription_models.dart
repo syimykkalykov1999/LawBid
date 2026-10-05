@@ -39,7 +39,7 @@ class PlanPrices {
     this.monthlyCents = 39900,
     this.seatCents = 10000,
     this.yearlyCents = 959000,
-    this.maxSeats = 6,
+    this.maxSeats = 10,
   });
 
   final int monthlyCents;

@@ -14,10 +14,12 @@ import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_cards.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_header.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_invites_section.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_photos.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_wizard_steps.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
+import 'package:lawbid/features/cases/presentation/widgets/owner_case_dossier.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/promotions/presentation/promote_case_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
@@ -367,6 +369,8 @@ class _OwnerCaseBody extends ConsumerWidget {
           ],
           // Owner 2026-10-02: paid promotion of an open case.
           if (c.status == CaseStatus.open) PromoteCaseCard(caseId: c.id),
+          // Owner 2026-10-05: attorneys the client offered the case to.
+          CaseInvitesSection(caseId: c.id),
           if (c.acceptedBid != null)
             DetailSection(
               title: t.t('cases.owner.attorneyAtWork'),
@@ -380,6 +384,11 @@ class _OwnerCaseBody extends ConsumerWidget {
           // Owner 2026-10-05: pay the attorney through the platform.
           if (c.acceptedBid != null)
             CasePaymentsCard(caseId: c.id, asAttorney: false),
+          // Owner 2026-10-05: the client's case file and adding files.
+          Padding(
+            padding: const EdgeInsets.only(top: AppSpacing.md),
+            child: OwnerCaseDossier(kase: c),
+          ),
           DetailSection(
             title: t.t('cases.detail.description'),
             child: Text(

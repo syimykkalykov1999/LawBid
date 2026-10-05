@@ -31,6 +31,13 @@ class RecordingAuthRepository extends StubAuthRepository {
   final List<String> requested = [];
   final List<({String identifier, String code, String channel})> verified = [];
   final List<({String token, String verifier})> verifiedLinks = [];
+  final List<String> assistantCodes = [];
+
+  @override
+  Future<OtpVerifyResult> signInWithAssistantCode(String code) async {
+    assistantCodes.add(code);
+    return verifyResult;
+  }
 
   @override
   Future<void> requestOtp(String identifier, {String channel = 'phone'}) async {

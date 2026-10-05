@@ -273,6 +273,12 @@ describe('Profiles and practices (e2e) — docs/03 stages 3.5–3.6', () => {
             .details.invalidIds,
         ).toEqual([bad]);
       }
+      // Owner 2026-10-05 (audit): an empty set is refused.
+      await api()
+        .put('/api/v1/attorneys/me/practice-areas')
+        .set(a.auth)
+        .send({ practiceAreaIds: [] })
+        .expect(400);
       await api()
         .put('/api/v1/attorneys/me/practice-areas')
         .set(a.auth)

@@ -24,6 +24,7 @@ import {
   type PromoAudience,
   type PromoDiscountType,
 } from './promo-rules';
+import { SEATS_HARD_CAP } from '../billing/billing.constants';
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
@@ -113,12 +114,17 @@ export class CreateContractGrantDto {
   @Max(12)
   months!: number;
 
-  @ApiPropertyOptional({ type: 'integer', minimum: 0, maximum: 6, default: 0 })
+  @ApiPropertyOptional({
+    type: 'integer',
+    minimum: 0,
+    maximum: SEATS_HARD_CAP,
+    default: 0,
+  })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(0)
-  @Max(6)
+  @Max(SEATS_HARD_CAP)
   assistantSeats?: number;
 
   @ApiPropertyOptional({ format: 'date-time', description: 'Default: now.' })
@@ -587,7 +593,8 @@ export class AdminBillingSubscriptionsQueryDto extends AdminBillingCursorQueryDt
   trialEndsWithinDays?: number;
 
   @ApiPropertyOptional({
-    description: 'Paid assistant seats: none (0), some (1-5), full (6).',
+    description:
+      'Paid assistant seats: none (0), some, full (the admin seat limit or the yearly plan).',
     enum: ['none', 'some', 'full'],
   })
   @IsOptional()

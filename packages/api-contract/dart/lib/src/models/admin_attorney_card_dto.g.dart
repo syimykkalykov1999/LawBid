@@ -22,6 +22,12 @@ AdminAttorneyCardDto _$AdminAttorneyCardDtoFromJson(
   licenses: (json['licenses'] as List<dynamic>)
       .map((e) => e as String)
       .toList(),
+  licenseItems: (json['licenseItems'] as List<dynamic>)
+      .map((e) => AdminUserLicenseDto.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  practices: (json['practices'] as List<dynamic>)
+      .map((e) => e as String)
+      .toList(),
   subscription: json['subscription'] == null
       ? null
       : AdminUserSubscriptionDto.fromJson(
@@ -41,5 +47,7 @@ Map<String, dynamic> _$AdminAttorneyCardDtoToJson(
   'followersCount': instance.followersCount,
   'postsCount': instance.postsCount,
   'licenses': instance.licenses,
+  'licenseItems': instance.licenseItems.map((e) => e.toJson()).toList(),
+  'practices': instance.practices,
   'subscription': ?instance.subscription?.toJson(),
 };

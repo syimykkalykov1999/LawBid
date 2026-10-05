@@ -1,0 +1,12 @@
+{
+  "count": 1,
+  "results": [
+    {
+      "license_number": "300123",
+      "jurisdiction": "CA",
+      "status": "Active",
+      "person": { "first": "Kim", "last": "Wexler", "full": "Kimberly Wexler" },
+      "admitted": "2009-06-01"
+    }
+  ]
+}

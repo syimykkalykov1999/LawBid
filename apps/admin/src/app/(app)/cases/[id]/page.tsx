@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'motion/react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import { DossierChecklist } from '@/components/cases/dossier';
 import { fadeUp } from '@/components/billing/shared';
 import { ErrorNote, PageHeader } from '@/components/page-header';
 import { useReason } from '@/components/reason-dialog';
@@ -18,7 +19,7 @@ import { api, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
 import { useMe } from '@/lib/hooks';
 import { can } from '@/lib/rbac';
-import { BID_STATUS, CASE_STATUS, FEE_TYPE, JOURNAL_EVENT, label, PARTY_ROLE, partyName, StatusPill, usd } from '@/lib/labels';
+import { BID_STATUS, CASE_STATUS, FEE_TYPE, INVITE_STATUS, JOURNAL_EVENT, label, PARTY_ROLE, partyName, StatusPill, usd } from '@/lib/labels';
 import { formatDateTime } from '@/lib/utils';
 
 type CaseCard = components['schemas']['AdminCaseCardDto'];
@@ -173,7 +174,7 @@ export default function CaseDetailPage() {
             </CardHeader>
             <CardContent>
               <p className="text-sm leading-relaxed whitespace-pre-wrap text-ink">{c.description}</p>
-              {c.photosCount > 0 ? <p className="mt-3 text-xs text-faint">Фото: {c.photosCount}</p> : null}
+              <DossierChecklist c={c} />
             </CardContent>
           </Card>
         </motion.div>
@@ -236,6 +237,9 @@ export default function CaseDetailPage() {
       <h2 className="mt-9 mb-3.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-faint">Ставки</h2>
       <Bids c={c} canOpenUsers={canOpenUsers} />
 
+      <h2 className="mt-9 mb-3.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-faint">Приглашения от клиента</h2>
+      <Invites c={c} canOpenUsers={canOpenUsers} />
+
       <h2 className="mt-9 mb-3.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-faint">Журнал кейса</h2>
       <motion.div {...fadeUp(2)}>
         <Card>
@@ -276,6 +280,49 @@ function Row({ k, children }: { k: string; children: React.ReactNode }) {
       <dt className="text-muted">{k}</dt>
       <dd className="text-right text-ink">{children}</dd>
     </div>
+  );
+}
+
+function Invites({ c, canOpenUsers }: { c: CaseCard; canOpenUsers: boolean }) {
+  return (
+    <Table>
+      <thead>
+        <tr>
+          <Th>Адвокат</Th>
+          <Th className="text-right">Бюджет клиента</Th>
+          <Th>Статус</Th>
+          <Th>Причина отказа</Th>
+          <Th>Отправлено</Th>
+          <Th>Истекает</Th>
+        </tr>
+      </thead>
+      <tbody>
+        {c.invites.length === 0 ? (
+          <TableEmpty colSpan={6}>Приглашений нет</TableEmpty>
+        ) : (
+          c.invites.map((v) => (
+            <tr key={v.id}>
+              <Td>
+                {canOpenUsers ? (
+                  <Link href={`/users/${v.attorneyId}`} className="font-medium text-ink underline-offset-2 hover:text-gold-600 hover:underline">
+                    {v.attorneyName}
+                  </Link>
+                ) : (
+                  <span className="font-medium text-ink">{v.attorneyName}</span>
+                )}
+              </Td>
+              <Td className="text-right whitespace-nowrap tabular-nums">{v.budgetCents == null ? '—' : usd(v.budgetCents)}</Td>
+              <Td>
+                <StatusPill map={INVITE_STATUS} value={v.status} />
+              </Td>
+              <Td className="max-w-xs text-xs text-muted">{v.declineReason ?? '—'}</Td>
+              <Td className="whitespace-nowrap text-xs text-muted">{formatDateTime(v.createdAt)}</Td>
+              <Td className="whitespace-nowrap text-xs text-muted">{formatDateTime(v.expiresAt)}</Td>
+            </tr>
+          ))
+        )}
+      </tbody>
+    </Table>
   );
 }
 

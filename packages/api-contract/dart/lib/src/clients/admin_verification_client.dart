@@ -5,15 +5,25 @@
 import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
+import '../models/admin_license_envelope.dart';
 import '../models/admin_verification_request_envelope.dart';
 import '../models/attorney_verification_status_envelope.dart';
+import '../models/copy_state_registry_dto.dart';
+import '../models/copy_state_registry_result_envelope.dart';
 import '../models/document_url_envelope.dart';
 import '../models/license_decision_dto.dart';
 import '../models/license_recheck_envelope.dart';
+import '../models/registry_check_envelope.dart';
+import '../models/registry_flag_item_list_envelope.dart';
+import '../models/registry_test_result_envelope.dart';
 import '../models/reject_request_dto.dart';
 import '../models/request_info_dto.dart';
+import '../models/save_state_registry_dto.dart';
+import '../models/state_registries_overview_envelope.dart';
+import '../models/state_registry_envelope.dart';
 import '../models/status2.dart';
 import '../models/suspend_attorney_dto.dart';
+import '../models/test_state_registry_dto.dart';
 import '../models/verification_queue_item_list_envelope.dart';
 
 part 'admin_verification_client.g.dart';
@@ -100,6 +110,26 @@ abstract class AdminVerificationClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
+  /// Verified licenses the state registry disagreed with
+  @GET('/admin/verification/registry-flags')
+  Future<RegistryFlagItemListEnvelope> listRegistryFlags({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Look the license up in its state's registry now (no status change)
+  @POST('/admin/verification/licenses/{licenseId}/registry-check')
+  Future<RegistryCheckEnvelope> checkLicenseInRegistry({
+    @Path('licenseId') required String licenseId,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Keep the license; remove its registry flag
+  @POST('/admin/verification/licenses/{licenseId}/registry-flag/clear')
+  Future<AdminLicenseEnvelope> clearRegistryFlag({
+    @Path('licenseId') required String licenseId,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
   /// Suspend an attorney (hidden from search, active bids withdrawn).
   ///
   /// [attorneyId] - Attorney user id.
@@ -116,6 +146,36 @@ abstract class AdminVerificationClient {
   @POST('/admin/verification/attorneys/{attorneyId}/restore')
   Future<AttorneyVerificationStatusEnvelope> restoreAttorney({
     @Path('attorneyId') required String attorneyId,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Every state with its registry settings
+  @GET('/admin/verification/registries')
+  Future<StateRegistriesOverviewEnvelope> listStateRegistries({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Save a state's registry (needs step-up)
+  @PUT('/admin/verification/registries/{stateCode}')
+  Future<StateRegistryEnvelope> saveStateRegistry({
+    @Path('stateCode') required String stateCode,
+    @Body() required SaveStateRegistryDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Look up a sample bar number with the saved settings
+  @POST('/admin/verification/registries/{stateCode}/test')
+  Future<RegistryTestResultEnvelope> testStateRegistry({
+    @Path('stateCode') required String stateCode,
+    @Body() required TestStateRegistryDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Copy a state's registry and key to other states (needs step-up)
+  @POST('/admin/verification/registries/{stateCode}/copy')
+  Future<CopyStateRegistryResultEnvelope> copyStateRegistry({
+    @Path('stateCode') required String stateCode,
+    @Body() required CopyStateRegistryDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 }
