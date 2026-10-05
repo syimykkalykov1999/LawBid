@@ -10,7 +10,9 @@ import {
   HttpStatus,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
+import { ClientFraudService } from '../client-fraud/client-fraud.service';
 import type { Prisma } from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
@@ -123,6 +125,9 @@ export class AdminUsersService {
     private readonly files: FilesService,
     private readonly otp: OtpService,
     private readonly rateLimit: RateLimitService,
+    // Owner 2026-10-05 (docs/CLIENT_FRAUD.md): a block re-scores the
+    // accounts that share a phone, e-mail, card or device with this one.
+    @Optional() private readonly fraud?: ClientFraudService,
   ) {}
 
   async search(
@@ -675,6 +680,7 @@ export class AdminUsersService {
       u.role === 'client'
         ? (await this.lifecycle.archiveOpenCasesOfClient(id)).length
         : 0;
+    void this.fraud?.onBanned(id);
     return {
       userId: id,
       status: 'suspended',

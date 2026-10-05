@@ -22,6 +22,10 @@ export interface RequestMeta {
   /** X-Device-Id header (client-generated, unauthenticated — only used
    * as a rate-limit key, never trusted for anything else). */
   deviceId?: string;
+  /** X-Device-Key (owner 2026-10-05, docs/CLIENT_FRAUD.md): Android ID /
+   * an iOS Keychain id that survives reinstalling the app. Only hashed,
+   * only to recognise a blocked fraudster's phone. */
+  deviceKey?: string;
 }
 
 export type RefreshOutcome =

@@ -1,7 +1,7 @@
 'use client';
 
 import {
-  ArrowUpRight, Briefcase, ChatsCircle, CrownSimple, Flag, Gavel, Lifebuoy, Phone, SealCheck,
+  ArrowUpRight, Briefcase, ChatsCircle, CrownSimple, Flag, Gavel, Lifebuoy, Phone, SealCheck, ShieldWarning,
   UserPlus, Users, UsersThree, Wallet, type Icon,
 } from '@phosphor-icons/react';
 import { useQuery } from '@tanstack/react-query';
@@ -60,6 +60,8 @@ export default function DashboardPage() {
         { href: '/moderation', label: 'Жалобы', value: d.openReports, icon: Flag },
         { href: '/cases?tab=disputes', label: 'Споры по кейсам', value: d.openDisputes, icon: Gavel },
         { href: '/cases?tab=contact', label: '«Не могу связаться»', value: d.openContactIssues, icon: Phone },
+        // Owner 2026-10-05: clients sent to the fraud queue + sign-ins refused / accounts blocked.
+        { href: '/verification/trust?tab=clients', label: 'Мошенники: в очереди', value: d.fraudQueue, hint: `отказано/заблокировано за 7 дней: ${d.fraudBlocked7d}`, icon: ShieldWarning },
         { href: '/prices', label: 'Заявки на лимит помощников', value: d.seatLimitRequests, icon: UsersThree },
         ...(sq.data ? [{ href: '/support', label: 'Обращения в поддержку', value: sq.data.attention ?? sq.data.unreadByAdmin, hint: sq.data.openUnassigned ? `без ответственного: ${sq.data.openUnassigned}` : undefined, icon: Lifebuoy }] : []),
       ].filter((x) => !me || canOpen(me, x.href.split('?')[0]))
@@ -114,17 +116,17 @@ export default function DashboardPage() {
                   <Link href={x.href} className="group flex items-center gap-3 py-3">
                     <span
                       className={cn(
-                        'grid h-9 w-9 place-items-center rounded-xl',
+                        'grid h-9 w-9 shrink-0 place-items-center rounded-xl',
                         x.value > 0 ? 'bg-accent-soft text-gold-600' : 'bg-surface-2 text-faint',
                       )}
                     >
                       <x.icon size={18} weight="light" />
                     </span>
-                    <span className="flex-1">
-                      <span className="block text-sm text-ink">{x.label}</span>
-                      {x.hint ? <span className="block text-xs text-faint">{x.hint}</span> : null}
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm text-ink">{x.label}</span>
+                      {x.hint ? <span className="block truncate text-xs text-faint">{x.hint}</span> : null}
                     </span>
-                    <span className={cn('text-lg font-semibold tabular-nums', x.value > 0 ? 'text-heading' : 'text-faint')}>
+                    <span className={cn('shrink-0 text-lg font-semibold tabular-nums', x.value > 0 ? 'text-heading' : 'text-faint')}>
                       {x.value}
                     </span>
                     <ArrowUpRight size={14} className="text-faint transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-gold-600" />

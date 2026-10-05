@@ -56,6 +56,10 @@ import {
   AttorneyTrustCoreModule,
   AttorneyTrustModule,
 } from './modules/attorney-trust/attorney-trust.module';
+import {
+  ClientFraudCoreModule,
+  ClientFraudModule,
+} from './modules/client-fraud/client-fraud.module';
 import { ProfilesModule } from './modules/profiles/profiles.module';
 import { ReviewsModule } from './modules/reviews/reviews.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
@@ -273,12 +277,17 @@ const isDev =
     // the blue check).
     AttorneyTrustCoreModule,
     AttorneyTrustModule,
+    // Owner 2026-10-05: repeat accounts of blocked fraudsters, client risk
+    // score (docs/CLIENT_FRAUD.md).
+    ClientFraudCoreModule,
+
     // Owner 2026-10-05: countries (Система → Страны).
     CountriesCoreModule,
     CountriesModule,
     FilesModule,
     ProfilesModule,
     ReviewsModule,
+    ClientFraudModule,
     // BullMQ `cron` queue (session/OTP cleanup, disposable-domain refresh).
     // Runs in this process while JOBS_ENABLED (default true); src/worker.ts
     // runs the same module as the dedicated worker service.

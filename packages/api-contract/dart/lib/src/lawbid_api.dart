@@ -86,6 +86,7 @@ import 'clients/admin_trust_client.dart';
 import 'clients/countries_client.dart';
 import 'clients/admin_countries_client.dart';
 import 'clients/reviews_client.dart';
+import 'clients/admin_fraud_client.dart';
 
 /// LawBid API `v0.1.0`.
 ///
@@ -180,6 +181,7 @@ class LawbidApi {
   CountriesClient? _countries;
   AdminCountriesClient? _adminCountries;
   ReviewsClient? _reviews;
+  AdminFraudClient? _adminFraud;
 
   ConfigClient get config => _config ??= ConfigClient(_dio, baseUrl: _baseUrl);
 
@@ -412,4 +414,7 @@ class LawbidApi {
 
   ReviewsClient get reviews =>
       _reviews ??= ReviewsClient(_dio, baseUrl: _baseUrl);
+
+  AdminFraudClient get adminFraud =>
+      _adminFraud ??= AdminFraudClient(_dio, baseUrl: _baseUrl);
 }
