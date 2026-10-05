@@ -22,6 +22,10 @@ CreateCaseDto _$CreateCaseDtoFromJson(Map<String, dynamic> json) =>
           .toList(),
       budgetAmountDollars: (json['budgetAmountDollars'] as num?)?.toInt(),
       clientContactSharingConsent: json['clientContactSharingConsent'] as bool?,
+      coverKey: json['coverKey'] as String?,
+      urgency: json['urgency'] == null
+          ? null
+          : CaseUrgency.fromJson(json['urgency'] as String),
     );
 
 Map<String, dynamic> _$CreateCaseDtoToJson(CreateCaseDto instance) =>
@@ -36,4 +40,6 @@ Map<String, dynamic> _$CreateCaseDtoToJson(CreateCaseDto instance) =>
       'photoFileIds': ?instance.photoFileIds,
       'budgetAmountDollars': ?instance.budgetAmountDollars,
       'clientContactSharingConsent': ?instance.clientContactSharingConsent,
+      'coverKey': ?instance.coverKey,
+      'urgency': ?instance.urgency?.toJson(),
     };

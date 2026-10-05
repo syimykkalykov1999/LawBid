@@ -5,6 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'budget_mode.dart';
+import 'case_urgency.dart';
 
 part 'create_case_dto.g.dart';
 
@@ -21,6 +22,8 @@ class CreateCaseDto {
     this.photoFileIds,
     this.budgetAmountDollars,
     this.clientContactSharingConsent,
+    this.coverKey,
+    this.urgency,
   });
 
   factory CreateCaseDto.fromJson(Map<String, Object?> json) =>
@@ -45,6 +48,12 @@ class CreateCaseDto {
 
   /// Must be true unless the client already granted client_contact_sharing on an earlier case.
   final bool? clientContactSharingConsent;
+
+  /// `art:0`-`art:3` (practice cover variant) or `icon:<name>`.
+  final String? coverKey;
+
+  /// Owner 2026-10-04: how soon the client needs an attorney.
+  final CaseUrgency? urgency;
 
   Map<String, Object?> toJson() => _$CreateCaseDtoToJson(this);
 }

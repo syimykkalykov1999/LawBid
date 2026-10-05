@@ -293,6 +293,8 @@ erDiagram
     String city "nullable"
     enum_BudgetMode budget_mode
     Int budget_cents "nullable"
+    String cover_key "nullable"
+    String urgency "nullable"
     enum_CaseStatus status
     String accepted_bid_id FK,UK "nullable"
     Int view_count

@@ -398,6 +398,7 @@ export 'models/case_comment_envelope.dart';
 export 'models/practice_area_ref_dto.dart';
 export 'models/case_state_dto.dart';
 export 'models/budget_mode.dart';
+export 'models/case_urgency.dart';
 export 'models/case_status.dart';
 export 'models/case_dto.dart';
 export 'models/create_case_dto.dart';

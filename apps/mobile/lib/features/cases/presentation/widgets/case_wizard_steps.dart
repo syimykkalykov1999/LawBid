@@ -75,6 +75,7 @@ class _PracticeStepState extends ConsumerState<PracticeStep> {
           practiceAreaId: leaf.id,
           practiceI18nKey: leaf.i18nKey,
           practiceNameEn: leaf.nameEn,
+          practiceCode: leaf.code,
         ),
       );
 
@@ -914,6 +915,25 @@ class _BudgetStepState extends ConsumerState<BudgetStep> {
                     ],
                   ),
                 ),
+        ),
+        // Owner 2026-10-04: shown large on the attorney's card.
+        const SizedBox(height: AppSpacing.xl),
+        Text(
+          t.t('cases.create.urgency.title'),
+          style: typography.body.copyWith(
+            color: colors.text,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        SegmentedChoice<String>(
+          value: d.urgency ?? kDefaultCaseUrgency,
+          options: [
+            ('flexible', t.t('cases.urgency.flexible')),
+            ('soon', t.t('cases.urgency.soon')),
+            ('urgent', t.t('cases.urgency.urgent')),
+          ],
+          onChanged: (v) => widget.onChange((x) => x.copyWith(urgency: v)),
         ),
       ],
     );
