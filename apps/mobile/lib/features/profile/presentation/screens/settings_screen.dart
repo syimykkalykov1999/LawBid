@@ -415,7 +415,6 @@ class _ActivityStatusRow extends ConsumerWidget {
       key: const ValueKey('settings-activity-status'),
       icon: AppIcons.visibilityOutlined,
       label: t.t('settings.activityStatus'),
-      subtitle: t.t('settings.activityStatus.hint'),
       trailingText: value.hasValue ? t.t(on ? 'common.on' : 'common.off') : '…',
       showChevron: false,
       onTap: value.hasValue

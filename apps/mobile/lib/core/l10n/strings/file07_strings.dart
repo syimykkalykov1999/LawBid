@@ -130,8 +130,6 @@ const file07Ru = <String, String>{
   'presence.yesterdayAt': 'был(а) вчера в {time}',
   'presence.on': 'был(а) {date}',
   'settings.activityStatus': 'Показывать статус активности',
-  'settings.activityStatus.hint':
-      'Собеседники видят, когда вы в сети. Если выключить — вы тоже не будете видеть их статус.',
   'tasks.pickKind': 'Выберите, что нужно сделать — откроются нужные поля',
   'tasks.kindChange': 'Изменить',
   'tasks.field.phoneInvalid':
@@ -696,8 +694,6 @@ const file07En = <String, String>{
   'presence.yesterdayAt': 'last seen yesterday at {time}',
   'presence.on': 'last seen {date}',
   'settings.activityStatus': 'Show activity status',
-  'settings.activityStatus.hint':
-      'People you chat with see when you are online. Turn it off and you will not see theirs either.',
   'tasks.pickKind': 'Pick what to do — its fields will open',
   'tasks.kindChange': 'Change',
   'tasks.field.phoneInvalid':
