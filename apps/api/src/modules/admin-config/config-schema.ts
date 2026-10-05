@@ -63,6 +63,12 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Sections where admins (not the super admin) must write a reason for an action.',
     pattern: REASON_AREA_PATTERN,
   };
+  out['translate.scope'] = {
+    ...out['translate.scope'],
+    description:
+      'Where the translator works: all = every zone, zones = only the switched-on translate.<zone> keys.',
+    pattern: /^(all|zones)$/,
+  };
   out['sms.allowed_country_codes'] = {
     type: 'string[]',
     defaultValue: ['US'],

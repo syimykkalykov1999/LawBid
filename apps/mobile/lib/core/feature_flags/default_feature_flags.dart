@@ -24,6 +24,11 @@ const Map<String, bool> defaultFeatureFlags = {
   'persona_verification': false,
   'auto_bar_check': false,
   'chat_translate': false,
+  // Owner 2026-10-05: «Перевести» per zone (the API sends the real values).
+  'translate_posts': false,
+  'translate_cases': false,
+  'translate_reviews': false,
+  'translate_profiles': false,
   'phone_login': true,
   'email_login': true,
   'apple_login': true,

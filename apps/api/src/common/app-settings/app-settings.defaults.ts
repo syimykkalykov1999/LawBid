@@ -146,6 +146,17 @@ export const OWNER_REASON_SETTINGS = {
 } as const;
 
 /** Every typed app_config tunable with its spec default. */
+/** Owner 2026-10-05: where the paid translator works (Ключи и сервисы →
+ * Google Translate): 'all' zones, or only the switched-on 'zones'. */
+export const OWNER_TRANSLATE_SETTINGS = {
+  'translate.scope': 'all',
+  'translate.chat': true,
+  'translate.posts': true,
+  'translate.cases': true,
+  'translate.reviews': true,
+  'translate.profiles': true,
+};
+
 export const APP_SETTINGS = {
   ...FILE_03_SETTINGS,
   ...FILE_04_SETTINGS,
@@ -159,6 +170,7 @@ export const APP_SETTINGS = {
   ...OWNER_SEAT_SETTINGS,
   ...OWNER_TRIAL_SETTINGS,
   ...OWNER_REASON_SETTINGS,
+  ...OWNER_TRANSLATE_SETTINGS,
 };
 
 export type AppSettingKey = keyof typeof APP_SETTINGS;

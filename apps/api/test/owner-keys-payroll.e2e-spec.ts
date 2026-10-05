@@ -534,6 +534,76 @@ describe('Key sets + payroll (e2e)', () => {
     }
   });
 
+  it('translator zones: everywhere or chosen ones, the app reads them', async () => {
+    const admin = await adminSession(base, prisma, 'super_admin');
+    await stepUp(admin);
+    const put = (key: string, value: unknown) =>
+      api().put(`/api/v1/admin/config/${key}`).set(admin.auth).send({ value });
+    const zones = async () =>
+      (
+        (await api().get('/api/v1/config/bootstrap').expect(200)).body as {
+          data: { flags: Record<string, boolean> };
+        }
+      ).data.flags;
+    const setFlag = async (enabled: boolean) => {
+      await prisma.featureFlag.upsert({
+        where: { key: 'chat_translate' },
+        update: { enabled },
+        create: {
+          key: 'chat_translate',
+          enabled,
+          rollout_percent: 100,
+          description: 'e2e',
+        },
+      });
+      await flags.invalidate();
+    };
+    await put('translate.scope', 'some').expect(400);
+    await put('translate.posts', 'yes').expect(400);
+    try {
+      // No key yet: no zone, even with the translator on.
+      await prisma.integrationCredential.deleteMany({
+        where: { provider: 'google_translate' },
+      });
+      await setFlag(true);
+      expect((await zones()).translate_posts).toBe(false);
+      const r = await api()
+        .post('/api/v1/admin/integrations/google_translate/versions')
+        .set(admin.auth)
+        .send({ values: { apiKey: 'AIza'.padEnd(39, 'x') }, slot: 'main' })
+        .expect(201);
+      await api()
+        .post(
+          `/api/v1/admin/integrations/google_translate/versions/${(r.body as { data: { version: number } }).data.version}/activate`,
+        )
+        .set(admin.auth)
+        .send({ force: true })
+        .expect(200);
+      await put('translate.posts', false).expect(200);
+      let f = await zones();
+      // «Везде»: every zone, whatever its own switch says.
+      expect([f.chat_translate, f.translate_posts, f.translate_cases]).toEqual([
+        true,
+        true,
+        true,
+      ]);
+      await put('translate.scope', 'zones').expect(200);
+      f = await zones();
+      expect(f.translate_posts).toBe(false);
+      expect(f.translate_reviews).toBe(true);
+      await setFlag(false);
+      f = await zones();
+      expect(f.chat_translate || f.translate_reviews).toBe(false);
+    } finally {
+      await put('translate.scope', 'all').expect(200);
+      await put('translate.posts', true).expect(200);
+      await setFlag(false);
+      await prisma.integrationCredential.deleteMany({
+        where: { provider: 'google_translate' },
+      });
+    }
+  });
+
   it('reason: never for the owner, per section for other admins', async () => {
     const owner = await adminSession(base, prisma, 'super_admin');
     const finance = await adminSession(base, prisma, 'finance');

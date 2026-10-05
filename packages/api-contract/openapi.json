@@ -47487,6 +47487,113 @@
         ]
       }
     },
+    "/translations": {
+      "post": {
+        "operationId": "translate",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TranslateContentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentTranslationEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable: TRANSLATION_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Translate a post, comment, case, bid, review or bio",
+        "tags": [
+          "translations"
+        ]
+      }
+    },
     "/conversations/{id}/calls": {
       "post": {
         "operationId": "startCall",
@@ -73674,6 +73781,82 @@
             "description": "ISO time; null unmutes."
           }
         }
+      },
+      "ContentTranslationDto": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "The translated text."
+          },
+          "sourceLanguage": {
+            "type": "string",
+            "nullable": true,
+            "description": "Detected language of the original."
+          },
+          "targetLanguage": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "sourceLanguage",
+          "targetLanguage"
+        ]
+      },
+      "TranslatableKind": {
+        "type": "string",
+        "enum": [
+          "post",
+          "comment",
+          "case",
+          "bid",
+          "review",
+          "profile"
+        ],
+        "description": "post / comment: the post or comment text; case: the description; bid: the bid message; review: the review text; profile: the attorney bio (id = the attorney user id)."
+      },
+      "TranslateContentDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "description": "post / comment: the post or comment text; case: the description; bid: the bid message; review: the review text; profile: the attorney bio (id = the attorney user id).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TranslatableKind"
+              }
+            ]
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "target": {
+            "type": "string",
+            "pattern": "^[a-z]{2,3}(-[A-Z]{2})?$",
+            "description": "Target language, ISO 639-1 (or zh-CN / zh-TW), e.g. \"ru\".",
+            "example": "ru"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "target"
+        ]
+      },
+      "ContentTranslationEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ContentTranslationDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
       },
       "CallStatus": {
         "type": "string",

@@ -15,6 +15,7 @@ import { useToast } from '@/components/ui/toast';
 import { api, ApiError, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
 import { formatDateTime } from '@/lib/utils';
+import { TranslateZones } from './translate-zones';
 
 export type Integration = components['schemas']['IntegrationDto'];
 type Slot = components['schemas']['IntegrationSlotDto'];
@@ -128,6 +129,8 @@ export function IntegrationCard({
           <Warning size={14} className="mt-px shrink-0" /> {it.warning}
         </p>
       ) : null}
+
+      {it.provider === 'google_translate' ? <TranslateZones configured={!!inUse || it.source === 'env'} /> : null}
 
       {it.source === 'env' && it.envMasked ? (
         <dl className="mt-4 space-y-1.5 text-sm">

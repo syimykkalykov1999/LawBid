@@ -7,6 +7,12 @@ import { REDIS_CLIENT } from '../../../redis/redis.constants';
 import { FeatureFlagsService } from './feature-flags.service';
 import { AppConfigService } from './app-config.service';
 import { SecretsService } from '../../../common/secrets/secrets.service';
+import {
+  TRANSLATE_FLAG,
+  TRANSLATE_ZONES,
+  zoneAllowed,
+  zoneFlag,
+} from '../../translation/translation-zones';
 
 /** `GET /config/bootstrap`'s response shape (docs/01_FOUNDATION_AUTH.md
  * §15, "Этап 1.8": "эндпоинт GET /config/bootstrap (флаги, min-версия,
@@ -114,19 +120,22 @@ export class BootstrapService {
     return { ...flags, video_posts: ready };
   }
 
-  /** Owner 2026-10-04: the chat "Translate" button shows only while
-   * `chat_translate` is on AND the Google key is saved — and (2026-10-05)
-   * the chat zone isn't switched off (app_config `translate.chat`). */
+  /** Owner 2026-10-04/05: a "Translate" button shows only while the
+   * translator is on (`chat_translate`), the Google key is saved and its
+   * zone is allowed (Ключи и сервисы → Google Translate). One flag per
+   * zone: `chat_translate` for chats, `translate_<zone>` for the rest. */
   private async withTranslateGate(
     flags: Record<string, boolean>,
     appConfig: Record<string, unknown>,
   ): Promise<Record<string, boolean>> {
-    if (!flags.chat_translate) return flags;
-    if (appConfig['translate.chat'] === false) {
-      return { ...flags, chat_translate: false };
+    const on =
+      !!flags[TRANSLATE_FLAG] &&
+      !!(await this.secrets?.get('google_translate'))?.fields.apiKey;
+    const out = { ...flags };
+    for (const zone of TRANSLATE_ZONES) {
+      out[zoneFlag(zone)] = on && zoneAllowed(appConfig, zone);
     }
-    const f = (await this.secrets?.get('google_translate'))?.fields ?? {};
-    return { ...flags, chat_translate: !!f.apiKey };
+    return out;
   }
 
   async build(): Promise<BootstrapResponse> {

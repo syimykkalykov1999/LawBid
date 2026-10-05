@@ -34,6 +34,7 @@ import { PromotionsModule } from './modules/promotions/promotions.module';
 import { ClientBadgeModule } from './modules/client-badge/client-badge.module';
 import { SearchModule } from './modules/search/search.module';
 import { ChatModule } from './modules/chat/chat.module';
+import { TranslationModule } from './modules/translation/translation.module';
 import { CallsModule } from './modules/calls/calls.module';
 import { MentionsModule } from './modules/mentions/mentions.module';
 import { NotificationsApiModule } from './modules/notifications/notifications-api.module';
@@ -215,6 +216,7 @@ const isDev =
     RealtimeModule,
     RealtimeGatewayModule,
     ChatModule,
+    TranslationModule,
     CallsModule,
     MentionsModule,
     // docs/05 §9-§10 notifications REST, badges, push tokens.

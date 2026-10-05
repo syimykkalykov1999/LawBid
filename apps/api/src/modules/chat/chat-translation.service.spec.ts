@@ -4,10 +4,12 @@ import type { SecretsService } from '../../common/secrets/secrets.service';
 import type { PrismaService } from '../../prisma/prisma.service';
 import type { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
+import type { AppConfigService } from '../feature-flags/services/app-config.service';
 import {
-  ChatTranslationService,
   DAILY_TRANSLATIONS,
-} from './chat-translation.service';
+  TranslationService,
+} from '../translation/translation.service';
+import { ChatTranslationService } from './chat-translation.service';
 
 const user = { sub: 'u1', role: 'client' } as unknown as RequestUser;
 
@@ -15,6 +17,7 @@ function setup(opts: {
   flag?: boolean;
   key?: string;
   message?: { body_display: string } | null;
+  config?: Record<string, unknown>;
 }) {
   const store = new Map<string, string>();
   const redis = {
@@ -52,12 +55,19 @@ function setup(opts: {
   };
   const flags = { isEnabled: jest.fn().mockResolvedValue(opts.flag ?? true) };
   const logger = { warn: jest.fn() };
-  const service = new ChatTranslationService(
-    prisma as unknown as PrismaService,
+  const appConfig = {
+    getConfig: jest.fn().mockResolvedValue(opts.config ?? {}),
+  };
+  const engine = new TranslationService(
     secrets as unknown as SecretsService,
     flags as unknown as FeatureFlagsService,
     redis as never,
     logger as unknown as PinoLogger,
+    appConfig as unknown as AppConfigService,
+  );
+  const service = new ChatTranslationService(
+    prisma as unknown as PrismaService,
+    engine,
   );
   return { service, redis, store, prisma };
 }
@@ -99,8 +109,13 @@ describe('ChatTranslationService', () => {
     expect(body).toMatchObject({ q: 'Hello', target: 'ru' });
   });
 
-  it('is unavailable while the flag is off or the key is missing', async () => {
-    for (const opts of [{ flag: false }, { key: '' }]) {
+  it('is unavailable while the flag, the zone or the key is off', async () => {
+    for (const opts of [
+      { flag: false },
+      { key: '' },
+      // Owner 2026-10-05: «только выбранные» with chats switched off.
+      { config: { 'translate.scope': 'zones', 'translate.chat': false } },
+    ]) {
       const s = setup(opts);
       await expect(
         s.service.translate(user, 'c1', 'm1', 'ru'),
@@ -121,7 +136,7 @@ describe('ChatTranslationService', () => {
     const s = setup({});
     googleAnswers('x');
     s.store.set(
-      `chat:tr:quota:u1:${new Date().toISOString().slice(0, 10)}`,
+      `tr:quota:u1:${new Date().toISOString().slice(0, 10)}`,
       String(DAILY_TRANSLATIONS),
     );
     await expect(

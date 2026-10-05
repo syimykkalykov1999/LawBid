@@ -27,6 +27,8 @@ import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart'
 import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/social/social_routes.dart';
+import 'package:lawbid/features/translation/data/content_translation_repository.dart';
+import 'package:lawbid/features/translation/presentation/translatable_text.dart';
 
 /// Owner 2026-09-30: a feed card fills the list viewport down to the nav
 /// bar with no gaps between cards (edge-to-edge list); never
@@ -243,12 +245,15 @@ class PostCard extends ConsumerWidget {
 
   /// Owner 2026-09-30: the post's own title and its whole text; older
   /// posts split their text.
-  static (String, String) _titleAndRest(Post p) {
+  static (String, String) _titleAndRest(Post p) => _titleAndBody(p, p.body);
+
+  /// [_titleAndRest] with [body] in place of the post's (a translation).
+  static (String, String) _titleAndBody(Post p, String body) {
     final title = p.title;
     if (title != null && title.trim().isNotEmpty) {
-      return (title.trim(), p.body.trim());
+      return (title.trim(), body.trim());
     }
-    return _split(p.body);
+    return _split(body);
   }
 
   /// "Title" = the first line (or sentence) of the post, the rest below.
@@ -280,7 +285,6 @@ class PostCard extends ConsumerWidget {
     Future<void> Function(Future<Object?> Function()) run,
   ) {
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    final (title, rest) = _titleAndRest(p);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -300,31 +304,45 @@ class PostCard extends ConsumerWidget {
             ),
           ),
         _TimeLine(post: p),
+        // Owner 2026-10-05: «Перевести» under the text (posts zone); the
+        // translation replaces the body on screen, the title stays.
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-          // OQ-042: @mentions / #tags tappable in the title line too.
-          child: PostBodyText(
-            body: title,
-            expanded: true,
-            mentions: p.mentions,
-            style: typography.titleLarge.copyWith(
-              fontFamily: typography.body.fontFamily,
-              color: colors.text,
-              fontWeight: FontWeight.w700,
-            ),
+          child: TranslatableText(
+            kind: TranslatableKind.post,
+            id: p.id,
+            text: p.body,
+            enabled: !p.isMine,
+            builder: (context, body) {
+              final (title, rest) = _titleAndBody(p, body);
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // OQ-042: @mentions / #tags tappable in the title line too.
+                  PostBodyText(
+                    body: title,
+                    expanded: true,
+                    mentions: p.mentions,
+                    style: typography.titleLarge.copyWith(
+                      fontFamily: typography.body.fontFamily,
+                      color: colors.text,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  if (rest.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: AppSpacing.sm),
+                      child: PostBodyText(
+                        body: rest,
+                        expanded: true,
+                        mentions: p.mentions,
+                      ),
+                    ),
+                ],
+              );
+            },
           ),
         ),
-        if (rest.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.lg,
-              AppSpacing.sm,
-              AppSpacing.lg,
-              0,
-            ),
-            child:
-                PostBodyText(body: rest, expanded: true, mentions: p.mentions),
-          ),
         const SizedBox(height: AppSpacing.md),
         if (p.video != null)
           Padding(
