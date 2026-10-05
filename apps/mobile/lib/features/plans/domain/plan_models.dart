@@ -49,6 +49,7 @@ class PlanEntitlements {
     this.prioritySearch,
     this.calls,
     this.videoCalls,
+    this.documentTemplates,
     this.chatTranslate,
     this.translationsPerDay,
     this.videoPosts,
@@ -71,6 +72,7 @@ class PlanEntitlements {
   final bool? prioritySearch;
   final bool? calls;
   final bool? videoCalls;
+  final bool? documentTemplates;
   final bool? chatTranslate;
   final int? translationsPerDay;
   final bool? videoPosts;

@@ -36,6 +36,8 @@ import 'package:lawbid/features/stickers/presentation/sticker_widgets.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/features/team/team_routes.dart';
+import 'package:lawbid/features/templates/application/templates_providers.dart';
+import 'package:lawbid/features/templates/presentation/templates_screen.dart';
 
 /// docs/05 §8.2: 2000 characters, text only.
 const kMessageMaxChars = 2000;
@@ -153,7 +155,11 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
   /// with the first as its caption.
   Future<void> _attach() async {
     final t = ref.read(translatorProvider);
-    final files = await pickChatFiles(context, t);
+    final files = await pickChatFiles(
+      context,
+      t,
+      onTemplate: ref.read(templatesEnabledProvider) ? _sendTemplate : null,
+    );
     if (files.isEmpty || !mounted) return;
     final caption = _text.text.trim();
     if (caption.isNotEmpty) _text.clear();
@@ -168,6 +174,18 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
         ),
       );
     }
+  }
+
+  /// Owner 2026-10-05: a document template from the library, sent as a
+  /// regular attachment (the server copies it; nothing is uploaded).
+  Future<void> _sendTemplate() async {
+    final tpl = await pickTemplate(context);
+    if (tpl == null || !mounted) return;
+    final caption = _text.text.trim();
+    if (caption.isNotEmpty) _text.clear();
+    unawaited(
+      _thread.sendTemplate(tpl, caption: caption.isEmpty ? null : caption),
+    );
   }
 
   Future<void> _menu(ChatThreadState s) async {

@@ -22,6 +22,8 @@ enum EntitlementKey {
   calls('calls'),
   @JsonValue('video_calls')
   videoCalls('video_calls'),
+  @JsonValue('document_templates')
+  documentTemplates('document_templates'),
   @JsonValue('chat_translate')
   chatTranslate('chat_translate'),
   @JsonValue('translations_per_day')

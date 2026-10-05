@@ -361,61 +361,63 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
     final choice = await showAppBottomSheet<String>(
       context: context,
       builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (checkable) ...[
-              AppListRow(
-                key: const ValueKey('step-act-done'),
-                icon: step.status == TaskStatus.done
-                    ? AppIcons.undoRounded
-                    : AppIcons.checkRounded,
-                label: step.status == TaskStatus.done
-                    ? t.t('tasks.steps.reopen')
-                    : t.t('tasks.done'),
-                onTap: () => Navigator.of(ctx).pop('done'),
-              ),
-              if (step.status != TaskStatus.notDone)
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (checkable) ...[
                 AppListRow(
-                  key: const ValueKey('step-act-not'),
-                  icon: AppIcons.closeRounded,
-                  label: t.t('tasks.notDone'),
-                  onTap: () => Navigator.of(ctx).pop('not'),
+                  key: const ValueKey('step-act-done'),
+                  icon: step.status == TaskStatus.done
+                      ? AppIcons.undoRounded
+                      : AppIcons.checkRounded,
+                  label: step.status == TaskStatus.done
+                      ? t.t('tasks.steps.reopen')
+                      : t.t('tasks.done'),
+                  onTap: () => Navigator.of(ctx).pop('done'),
+                ),
+                if (step.status != TaskStatus.notDone)
+                  AppListRow(
+                    key: const ValueKey('step-act-not'),
+                    icon: AppIcons.closeRounded,
+                    label: t.t('tasks.notDone'),
+                    onTap: () => Navigator.of(ctx).pop('not'),
+                  ),
+              ],
+              if (canPlan && active && !step.checked)
+                AppListRow(
+                  key: const ValueKey('step-act-move'),
+                  icon: AppIcons.scheduleRounded,
+                  label: t.t('tasks.steps.move'),
+                  onTap: () => Navigator.of(ctx).pop('move'),
+                ),
+              if (step.contactPhone?.isNotEmpty ?? false)
+                AppListRow(
+                  icon: AppIcons.callOutlined,
+                  label: '${t.t('tasks.call')} · ${step.contactPhone}',
+                  onTap: () => Navigator.of(ctx).pop('call'),
+                ),
+              if (step.contactEmail?.isNotEmpty ?? false)
+                AppListRow(
+                  icon: AppIcons.mailOutlineRounded,
+                  label: '${t.t('tasks.write')} · ${step.contactEmail}',
+                  onTap: () => Navigator.of(ctx).pop('mail'),
+                ),
+              if (step.location?.isNotEmpty ?? false)
+                AppListRow(
+                  icon: AppIcons.mapOutlined,
+                  label: t.t('tasks.map'),
+                  onTap: () => Navigator.of(ctx).pop('map'),
+                ),
+              if (canPlan && active)
+                AppListRow(
+                  key: const ValueKey('step-act-remove'),
+                  icon: AppIcons.deleteOutlineRounded,
+                  label: t.t('tasks.steps.remove'),
+                  onTap: () => Navigator.of(ctx).pop('remove'),
                 ),
             ],
-            if (canPlan && active && !step.checked)
-              AppListRow(
-                key: const ValueKey('step-act-move'),
-                icon: AppIcons.scheduleRounded,
-                label: t.t('tasks.steps.move'),
-                onTap: () => Navigator.of(ctx).pop('move'),
-              ),
-            if (step.contactPhone?.isNotEmpty ?? false)
-              AppListRow(
-                icon: AppIcons.callOutlined,
-                label: '${t.t('tasks.call')} · ${step.contactPhone}',
-                onTap: () => Navigator.of(ctx).pop('call'),
-              ),
-            if (step.contactEmail?.isNotEmpty ?? false)
-              AppListRow(
-                icon: AppIcons.mailOutlineRounded,
-                label: '${t.t('tasks.write')} · ${step.contactEmail}',
-                onTap: () => Navigator.of(ctx).pop('mail'),
-              ),
-            if (step.location?.isNotEmpty ?? false)
-              AppListRow(
-                icon: AppIcons.mapOutlined,
-                label: t.t('tasks.map'),
-                onTap: () => Navigator.of(ctx).pop('map'),
-              ),
-            if (canPlan && active)
-              AppListRow(
-                key: const ValueKey('step-act-remove'),
-                icon: AppIcons.deleteOutlineRounded,
-                label: t.t('tasks.steps.remove'),
-                onTap: () => Navigator.of(ctx).pop('remove'),
-              ),
-          ],
+          ),
         ),
       ),
     );

@@ -537,7 +537,7 @@ class TaskProgress extends StatelessWidget {
           ),
         ),
         const SizedBox(width: AppSpacing.sm),
-        Flexible(
+        AppTrailingCap(
           child: Text(
             label,
             maxLines: 1,
