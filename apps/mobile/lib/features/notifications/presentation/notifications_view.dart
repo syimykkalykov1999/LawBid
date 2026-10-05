@@ -110,7 +110,9 @@ String? notificationRoute({
           'payment_request_created' ||
           'payment_request_due' ||
           'payment_request_overdue' ||
-          'payment_request_canceled':
+          'payment_request_canceled' ||
+          'payment_fee_countered' ||
+          'payment_fee_agreed':
       if (caseId == null) return CasePaymentsRoutes.history;
       return AppRoutes.myCase(caseId);
     case 'payout_account_status':
@@ -217,6 +219,9 @@ IconData _icon(AppNotification n) => switch (n.type) {
       'payment_request_created' ||
       'payment_request_canceled' =>
         AppIcons.paymentsOutlined,
+      'payment_fee_countered' ||
+      'payment_fee_agreed' =>
+        AppIcons.handshakeOutlined,
       'payment_request_due' ||
       'payment_request_overdue' =>
         AppIcons.scheduleRounded,

@@ -164,6 +164,11 @@ class PaymentRequest {
     required this.processingFeeCents,
     required this.clientTotalCents,
     required this.attorneyReceivesCents,
+    required this.feePayerStatus,
+    required this.feePayerBy,
+    required this.feePayerRounds,
+    required this.feePayerMaxRounds,
+    required this.canPay,
     this.caseTitle,
     this.dueAt,
     this.planId,
@@ -196,6 +201,22 @@ class PaymentRequest {
   final int processingFeeCents;
   final int clientTotalCents;
   final int attorneyReceivesCents;
+
+  /// Agreed like a bid: proposed (by the attorney with the invoice),
+  /// countered, agreed. [feePayerBy] made the current proposal; the other
+  /// side answers. [canPay]: agreed, or the attorney's proposal stands
+  /// (paying accepts it).
+  final String feePayerStatus;
+  final String feePayerBy;
+  final int feePayerRounds;
+  final int feePayerMaxRounds;
+  final bool canPay;
+
+  bool get feeAgreed => feePayerStatus == 'agreed';
+  bool get canCounter => feePayerRounds < feePayerMaxRounds;
+
+  /// Whether [side] ('client' | 'attorney') is the one to answer now.
+  bool awaits(String side) => payable && !feeAgreed && feePayerBy != side;
 
   bool get payable =>
       status == PaymentRequestStatus.open ||

@@ -373,6 +373,28 @@ export const NOTIFICATION_TEMPLATES: Partial<
       body: 'Срок оплаты счёта от адвоката прошёл.',
     },
   },
+  payment_fee_countered: {
+    group: 'cases',
+    en: {
+      title: 'Stripe fee: counter-offer',
+      body: 'The other side proposed another way to cover the Stripe fee.',
+    },
+    ru: {
+      title: 'Комиссия Stripe: встречное предложение',
+      body: 'Другая сторона предложила иначе разделить комиссию Stripe.',
+    },
+  },
+  payment_fee_agreed: {
+    group: 'cases',
+    en: {
+      title: 'Stripe fee agreed',
+      body: 'Who covers the Stripe fee on the invoice is agreed.',
+    },
+    ru: {
+      title: 'Комиссия Stripe согласована',
+      body: 'Кто платит комиссию Stripe по счёту — согласовано.',
+    },
+  },
   payment_request_canceled: {
     group: 'cases',
     en: {

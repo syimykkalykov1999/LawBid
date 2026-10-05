@@ -1262,6 +1262,10 @@ erDiagram
     String description
     DateTime due_at "nullable"
     String processing_fee_payer
+    String fee_payer_status
+    String fee_payer_by
+    Int fee_payer_rounds
+    DateTime fee_payer_agreed_at "nullable"
     String status
     String plan_id "nullable"
     Int seq

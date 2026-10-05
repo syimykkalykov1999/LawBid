@@ -316,11 +316,43 @@ String requestBreakdownText(
   });
 }
 
+/// The state of the fee-payer agreement on an invoice, from [side]'s
+/// point of view ('client' | 'attorney'); null once paid / withdrawn.
+String? feeNegotiationText(Translator t, PaymentRequest r, String side) {
+  if (!r.payable) return null;
+  final payer = t.t('cpay.feePayerOf.${r.processingFeePayer}');
+  final String key;
+  if (r.feeAgreed) {
+    key = 'cpay.fee.agreed';
+  } else if (r.feePayerBy == 'attorney') {
+    key = side == 'attorney'
+        ? (r.feePayerRounds == 0
+            ? 'cpay.fee.agreed'
+            : 'cpay.fee.counteredByAttorney')
+        : 'cpay.fee.proposedByAttorney';
+  } else {
+    key = side == 'client'
+        ? 'cpay.fee.proposedByClient'
+        : 'cpay.fee.counteredByClient';
+  }
+  // The attorney's own first proposal reads as the invoice's terms.
+  final text = key == 'cpay.fee.agreed' && !r.feeAgreed
+      ? t.t('cpay.feePayer.${r.processingFeePayer}')
+      : t.t(key, {'payer': payer});
+  return r.feePayerRounds == 0 || r.feeAgreed
+      ? text
+      : '$text · ${t.t('cpay.fee.rounds', {
+              'n': '${r.feePayerRounds}',
+              'max': '${r.feePayerMaxRounds}',
+            })}';
+}
+
 class PaymentRequestTile extends StatelessWidget {
   const PaymentRequestTile({
     required this.request,
     required this.t,
     required this.formats,
+    this.side = 'client',
     this.action,
     super.key,
   });
@@ -328,6 +360,9 @@ class PaymentRequestTile extends StatelessWidget {
   final PaymentRequest request;
   final Translator t;
   final L10nFormats formats;
+
+  /// 'client' | 'attorney' — whose screen this is.
+  final String side;
   final Widget? action;
 
   @override
@@ -345,6 +380,7 @@ class PaymentRequestTile extends StatelessWidget {
       if (r.paidAt != null) formats.date(r.paidAt!),
     ].join(' · ');
     final breakdown = r.payable ? requestBreakdownText(t, formats, r) : null;
+    final negotiation = feeNegotiationText(t, r, side);
     final status = paymentRequestStatusLabel(t, r);
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.sm),
@@ -382,6 +418,19 @@ class PaymentRequestTile extends StatelessWidget {
                               breakdown,
                               maxLines: 2,
                               style: type.caption.copyWith(color: colors.text),
+                            ),
+                          ],
+                          if (negotiation != null) ...[
+                            const SizedBox(height: AppSpacing.xs / 2),
+                            Text(
+                              negotiation,
+                              maxLines: 2,
+                              style: type.caption.copyWith(
+                                color: r.feeAgreed
+                                    ? colors.success
+                                    : colors.goldDark,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ],
                         ],

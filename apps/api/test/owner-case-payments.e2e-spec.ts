@@ -1290,4 +1290,173 @@ describe('owner — client → attorney payments (e2e, fake provider)', () => {
       'attorney',
     );
   });
+
+  it("who covers the Stripe fee is agreed per invoice like a bid: propose, counter, accept, round cap; paying accepts the attorney's proposal", async () => {
+    await prisma.appConfig.deleteMany({ where: { key: PAYMENT_SETTINGS_KEY } });
+    const att = await attorney();
+    const cli = await client();
+    await onboard(att);
+    const c = await caseInProgress(cli, att, 50_000);
+    await prisma.conversation.create({
+      data: {
+        case_id: c.id,
+        attorney_id: att.id,
+        client_id: cli.id,
+        bid_id: c.bidId,
+        status: 'active',
+      },
+    });
+    const create = async (payer: string) =>
+      (
+        (
+          await api()
+            .post(`/api/v1/cases/${c.id}/payment-requests`)
+            .set(att.auth)
+            .send({
+              description: 'Retainer',
+              processingFeePayer: payer,
+              items: [{ amountCents: 10_000 }],
+            })
+            .expect(201)
+        ).body as { data: Record<string, unknown>[] }
+      ).data[0];
+    const answer = (
+      who: { auth: Record<string, string> },
+      id: unknown,
+      body: Record<string, unknown>,
+    ) =>
+      api()
+        .post(`/api/v1/payment-requests/${String(id)}/fee-payer`)
+        .set(who.auth)
+        .send(body);
+
+    // The attorney proposes with the invoice; it is the client's turn.
+    const r1 = await create('client');
+    expect(r1).toMatchObject({
+      feePayerStatus: 'proposed',
+      feePayerBy: 'attorney',
+      feePayerRounds: 0,
+      feePayerMaxRounds: 5,
+      canPay: true,
+    });
+    // The attorney cannot answer their own proposal; a stranger gets 404.
+    expect((await answer(att, r1.id, { action: 'accept' })).status).toBe(409);
+    const other = await client();
+    expect((await answer(other, r1.id, { action: 'accept' })).status).toBe(404);
+    // Counter needs a different option.
+    expect((await answer(cli, r1.id, { action: 'counter' })).status).toBe(400);
+    expect(
+      (
+        await answer(cli, r1.id, {
+          action: 'counter',
+          processingFeePayer: 'client',
+        })
+      ).status,
+    ).toBe(409);
+    // The client counters: now the attorney's turn, paying is blocked.
+    const c1 = await answer(cli, r1.id, {
+      action: 'counter',
+      processingFeePayer: 'attorney',
+    });
+    expect(c1.status).toBe(200);
+    expect((c1.body as Body).data).toMatchObject({
+      feePayerStatus: 'countered',
+      feePayerBy: 'client',
+      feePayerRounds: 1,
+      processingFeePayer: 'attorney',
+      processingFeeCents: 0,
+      clientTotalCents: 10_000,
+      canPay: false,
+    });
+    const blocked = await pay(cli, c.id, { kind: 'invoice', requestId: r1.id });
+    expect(blocked.status).toBe(409);
+    expect(
+      await prisma.notification.count({
+        where: { user_id: att.id, type: 'payment_fee_countered' },
+      }),
+    ).toBe(1);
+    // The attorney counters back with split; the client accepts.
+    const c2 = await answer(att, r1.id, {
+      action: 'counter',
+      processingFeePayer: 'split',
+    });
+    expect(c2.status).toBe(200);
+    expect((c2.body as Body).data).toMatchObject({
+      feePayerBy: 'attorney',
+      feePayerRounds: 2,
+      processingFeePayer: 'split',
+    });
+    const ok = await answer(cli, r1.id, { action: 'accept' });
+    expect(ok.status).toBe(200);
+    expect((ok.body as Body).data).toMatchObject({
+      feePayerStatus: 'agreed',
+      canPay: true,
+      processingFeePayer: 'split',
+      processingFeeCents: 160,
+      clientTotalCents: 10_160,
+    });
+    expect((await answer(att, r1.id, { action: 'accept' })).status).toBe(409);
+    expect(
+      await prisma.notification.count({
+        where: { user_id: att.id, type: 'payment_fee_agreed' },
+      }),
+    ).toBe(1);
+    const paid = await pay(cli, c.id, { kind: 'invoice', requestId: r1.id });
+    expect(paid.status).toBe(201);
+    const row = await prisma.casePayment.findUniqueOrThrow({
+      where: { id: (paid.body as Body).data.paymentId as string },
+    });
+    expect(row).toMatchObject({
+      processing_fee_payer: 'split',
+      client_total_cents: 10_160,
+    });
+    const lines = await prisma.message.findMany({
+      where: { conversation: { case_id: c.id }, type: 'system' },
+      orderBy: { created_at: 'asc' },
+      select: { body_original: true },
+    });
+    expect(lines.map((m) => m.body_original)).toEqual(
+      expect.arrayContaining([
+        'payment_fee_countered:attorney',
+        'payment_fee_countered:split',
+        'payment_fee_agreed:split',
+      ]),
+    );
+
+    // Paying the attorney's proposal accepts it without a separate step.
+    const r2 = await create('attorney');
+    const paid2 = await pay(cli, c.id, { kind: 'invoice', requestId: r2.id });
+    expect(paid2.status).toBe(201);
+    // (checkout completion is covered by the installment test; the request
+    // is marked agreed together with paid there.)
+
+    // Round cap from the admin: 0 counter-offers → accept or pay only.
+    const root = await adminSession(baseUrl, prisma, 'super_admin');
+    const s0 = (
+      (
+        await api()
+          .get('/api/v1/admin/case-payments/settings')
+          .set(root.auth)
+          .expect(200)
+      ).body as Body
+    ).data;
+    const body = { ...s0 } as Record<string, unknown>;
+    delete body.flagEnabled;
+    delete body.stripeConfigured;
+    await api()
+      .put('/api/v1/admin/case-payments/settings')
+      .set(root.auth)
+      .send({ ...body, feePayerMaxRounds: 0 })
+      .expect(200);
+    const r3 = await create('client');
+    const capped = await answer(cli, r3.id, {
+      action: 'counter',
+      processingFeePayer: 'split',
+    });
+    expect(capped.status).toBe(409);
+    expect(JSON.stringify(capped.body)).toContain(
+      'PAYMENT_FEE_MAX_ROUNDS_REACHED',
+    );
+    await prisma.appConfig.deleteMany({ where: { key: PAYMENT_SETTINGS_KEY } });
+  });
 });

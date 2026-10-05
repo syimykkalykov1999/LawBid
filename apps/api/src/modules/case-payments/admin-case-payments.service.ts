@@ -94,6 +94,7 @@ export class AdminCasePaymentsService {
       allowInvoices: dto.allowInvoices,
       allowInstallments: dto.allowInstallments,
       maxInstallments: dto.maxInstallments,
+      feePayerMaxRounds: dto.feePayerMaxRounds,
       invoiceReminderDays: dto.invoiceReminderDays,
       overdueReminderEveryDays: dto.overdueReminderEveryDays,
       invoiceExpireDays: dto.invoiceExpireDays,

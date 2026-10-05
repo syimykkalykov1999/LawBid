@@ -29,6 +29,7 @@ class ChatPaymentBar extends ConsumerWidget {
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final attorney = ref.watch(actsAsAttorneyProvider);
     final open = state.openRequests;
+    final payableNow = open.where((r) => r.canPay).toList();
 
     Widget? content;
     if (attorney && state.canRequest) {
@@ -66,8 +67,8 @@ class ChatPaymentBar extends ConsumerWidget {
           ),
         ],
       );
-    } else if (!attorney && open.isNotEmpty && state.canPay) {
-      final first = open.first;
+    } else if (!attorney && payableNow.isNotEmpty && state.canPay) {
+      final first = payableNow.first;
       content = Row(
         children: [
           AppIcon(

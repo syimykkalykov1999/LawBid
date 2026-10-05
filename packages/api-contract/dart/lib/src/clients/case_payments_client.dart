@@ -12,6 +12,7 @@ import '../models/case_payments_state_envelope.dart';
 import '../models/create_case_payment_dto.dart';
 import '../models/create_case_payment_result_envelope.dart';
 import '../models/create_payment_requests_dto.dart';
+import '../models/fee_payer_answer_dto.dart';
 import '../models/my_case_payments_summary_envelope.dart';
 import '../models/payment_quote_envelope.dart';
 import '../models/payment_request_envelope.dart';
@@ -107,6 +108,14 @@ abstract class CasePaymentsClient {
   @POST('/payment-requests/{id}/cancel')
   Future<PaymentRequestEnvelope> cancelPaymentRequest({
     @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Who covers the Stripe fee: accept the other side's proposal or counter (like a bid)
+  @POST('/payment-requests/{id}/fee-payer')
+  Future<PaymentRequestEnvelope> answerFeePayer({
+    @Path('id') required String id,
+    @Body() required FeePayerAnswerDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

@@ -94,6 +94,8 @@ const _keys = <String, String>{
   ApiErrorCodes.payoutAccountNotReady: 'error.api.PAYOUT_ACCOUNT_NOT_READY',
   ApiErrorCodes.paymentInvalidState: 'error.api.PAYMENT_INVALID_STATE',
   ApiErrorCodes.paymentAmountInvalid: 'error.api.PAYMENT_AMOUNT_INVALID',
+  ApiErrorCodes.paymentFeeMaxRoundsReached:
+      'error.api.PAYMENT_FEE_MAX_ROUNDS_REACHED',
   ApiErrorCodes.refundNotAllowed: 'error.api.REFUND_NOT_ALLOWED',
   ApiErrorCodes.videoTooLong: 'error.api.VIDEO_TOO_LONG',
   ApiErrorCodes.videoNotReady: 'error.api.VIDEO_NOT_READY',

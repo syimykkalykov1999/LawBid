@@ -249,6 +249,7 @@ export const PAYMENT_FEE_PAYER: Record<string, string> = {
 };
 export const PROCESSING_FEE_PAYER = { client: 'клиент (сверх суммы)', attorney: 'адвокат (из суммы)', split: 'пополам' } as const;
 export const PAYMENT_REQUEST_STATUS = { open: 'Открыт', paid: 'Оплачен', canceled: 'Отозван', expired: 'Истёк' } as const;
+export const FEE_PAYER_STATUS = { proposed: 'предложено', countered: 'встречное', agreed: 'согласовано' } as const;
 
 export const REPORT_STATUS: Record<string, string> = {
   open: 'открыта',

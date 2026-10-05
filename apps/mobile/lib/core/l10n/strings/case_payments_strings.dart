@@ -95,6 +95,33 @@ const casePaymentsRu = <String, String>{
   'error.api.PAYMENT_INVALID_STATE':
       'Это действие недоступно для платежа в текущем статусе',
   'error.api.PAYMENT_AMOUNT_INVALID': 'Сумма вне допустимых пределов',
+  'error.api.PAYMENT_FEE_MAX_ROUNDS_REACHED':
+      'Лимит встречных предложений исчерпан: примите вариант или адвокат отзовёт счёт',
+  'notif.list.payment_fee_countered':
+      'Встречное предложение по комиссии Stripe',
+  'notif.list.payment_fee_agreed': 'Комиссия Stripe по счёту согласована',
+  'chat.system.payment_fee_countered':
+      'Встречное предложение: комиссию Stripe {payer}',
+  'chat.system.payment_fee_agreed': 'Согласовано: комиссию Stripe {payer}',
+  'cpay.feePayerOf.client': 'платит клиент',
+  'cpay.feePayerOf.attorney': 'платит адвокат',
+  'cpay.feePayerOf.split': 'делят пополам',
+  'cpay.fee.proposedByAttorney': 'Адвокат предлагает: {payer}',
+  'cpay.fee.proposedByClient': 'Вы предложили: {payer}. Ждём ответа адвоката',
+  'cpay.fee.counteredByClient': 'Клиент предлагает: {payer}',
+  'cpay.fee.counteredByAttorney': 'Вы предложили: {payer}. Ждём ответа клиента',
+  'cpay.fee.agreed': 'Согласовано: {payer}',
+  'cpay.fee.rounds': 'раунд {n} из {max}',
+  'cpay.fee.accept': 'Принять',
+  'cpay.fee.counter': 'Предложить своё',
+  'cpay.fee.payAccepts': 'Оплата = согласие с предложением адвоката',
+  'cpay.fee.sheet.title': 'Кто платит комиссию Stripe',
+  'cpay.fee.sheet.sub':
+      'Как с бидами: предложите вариант, другая сторона примет или ответит своим. LawBid в этом не участвует.',
+  'cpay.fee.sheet.send': 'Отправить предложение',
+  'cpay.fee.sheet.sent': 'Предложение отправлено',
+  'cpay.fee.noRounds':
+      'Встречных предложений больше нет: примите или отзовите счёт',
   'error.api.REFUND_NOT_ALLOWED':
       'Срок возврата из приложения истёк — напишите в поддержку',
   'notif.list.case_payment_received': 'Клиент оплатил вам через LawBid',
@@ -261,6 +288,32 @@ const casePaymentsEn = <String, String>{
       'This action is not available for the payment in its current state',
   'error.api.PAYMENT_AMOUNT_INVALID':
       'The amount is outside the allowed limits',
+  'error.api.PAYMENT_FEE_MAX_ROUNDS_REACHED':
+      'No more counter-offers: accept the option or the attorney withdraws the invoice',
+  'notif.list.payment_fee_countered': 'Counter-offer on the Stripe fee',
+  'notif.list.payment_fee_agreed': 'Stripe fee on the invoice agreed',
+  'chat.system.payment_fee_countered': 'Counter-offer: Stripe fee {payer}',
+  'chat.system.payment_fee_agreed': 'Agreed: Stripe fee {payer}',
+  'cpay.feePayerOf.client': 'paid by the client',
+  'cpay.feePayerOf.attorney': 'paid by the attorney',
+  'cpay.feePayerOf.split': 'split in half',
+  'cpay.fee.proposedByAttorney': 'Attorney proposes: {payer}',
+  'cpay.fee.proposedByClient':
+      'You proposed: {payer}. Waiting for the attorney',
+  'cpay.fee.counteredByClient': 'Client proposes: {payer}',
+  'cpay.fee.counteredByAttorney':
+      'You proposed: {payer}. Waiting for the client',
+  'cpay.fee.agreed': 'Agreed: {payer}',
+  'cpay.fee.rounds': 'round {n} of {max}',
+  'cpay.fee.accept': 'Accept',
+  'cpay.fee.counter': 'Counter-offer',
+  'cpay.fee.payAccepts': "Paying accepts the attorney's proposal",
+  'cpay.fee.sheet.title': 'Who covers the Stripe fee',
+  'cpay.fee.sheet.sub':
+      'Like bids: propose an option, the other side accepts or answers with theirs. LawBid takes no part in this.',
+  'cpay.fee.sheet.send': 'Send proposal',
+  'cpay.fee.sheet.sent': 'Proposal sent',
+  'cpay.fee.noRounds': 'No more counter-offers: accept or withdraw the invoice',
   'error.api.REFUND_NOT_ALLOWED':
       'The in-app refund window has passed — contact support',
   'notif.list.case_payment_received': 'A client paid you through LawBid',

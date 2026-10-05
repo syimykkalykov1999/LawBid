@@ -63,6 +63,8 @@ export const NOTIFICATION_CATEGORY: Record<
   payment_request_due: 'cases',
   payment_request_overdue: 'cases',
   payment_request_canceled: 'cases',
+  payment_fee_countered: 'cases',
+  payment_fee_agreed: 'cases',
   new_case: 'new_cases',
   comment_reply: 'social',
   comment_like: 'social',

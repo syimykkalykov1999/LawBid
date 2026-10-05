@@ -28,6 +28,7 @@ class AdminPaymentSettingsDto {
     required this.allowInvoices,
     required this.allowInstallments,
     required this.maxInstallments,
+    required this.feePayerMaxRounds,
     required this.invoiceReminderDays,
     required this.overdueReminderEveryDays,
     required this.invoiceExpireDays,
@@ -53,6 +54,9 @@ class AdminPaymentSettingsDto {
   final bool allowInvoices;
   final bool allowInstallments;
   final int maxInstallments;
+
+  /// Counter-offers allowed while agreeing who covers the Stripe fee (0 = accept or pay only).
+  final int feePayerMaxRounds;
 
   /// Days before the due date to remind the client.
   final List<num> invoiceReminderDays;

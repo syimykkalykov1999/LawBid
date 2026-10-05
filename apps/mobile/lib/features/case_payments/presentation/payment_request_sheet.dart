@@ -360,3 +360,105 @@ class _Stepper extends StatelessWidget {
     );
   }
 }
+
+/// Counter-offer on who covers Stripe's fee (either side, like a bid):
+/// pick another option and send; the other side accepts or answers.
+class FeePayerSheet extends ConsumerStatefulWidget {
+  const FeePayerSheet({required this.request, required this.onDone, super.key});
+
+  final PaymentRequest request;
+  final VoidCallback onDone;
+
+  static Future<void> show(
+    BuildContext context,
+    PaymentRequest request, {
+    required VoidCallback onDone,
+  }) =>
+      showAppBottomSheet<void>(
+        context: context,
+        builder: (_) => FeePayerSheet(request: request, onDone: onDone),
+      );
+
+  @override
+  ConsumerState<FeePayerSheet> createState() => _FeePayerSheetState();
+}
+
+class _FeePayerSheetState extends ConsumerState<FeePayerSheet> {
+  late String _payer = widget.request.processingFeePayer;
+  bool _busy = false;
+
+  Future<void> _send() async {
+    final t = ref.read(translatorProvider);
+    setState(() => _busy = true);
+    try {
+      await ref.read(casePaymentsRepositoryProvider).answerFeePayer(
+            widget.request.id,
+            accept: false,
+            processingFeePayer: _payer,
+          );
+      if (!mounted) return;
+      widget.onDone();
+      Navigator.of(context).pop();
+      showAppSnackBar(context, t.t('cpay.fee.sheet.sent'));
+    } on Object catch (e) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      showAppSnackBar(context, errorText(t, e));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ref.watch(translatorProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final r = widget.request;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.screenSide,
+        AppSpacing.md,
+        AppSpacing.screenSide,
+        AppSpacing.lg,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const AppSheetHandle(),
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            t.t('cpay.fee.sheet.title'),
+            style: type.titleMedium.copyWith(color: colors.text),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            t.t('cpay.fee.sheet.sub'),
+            style: type.bodySmall.copyWith(color: colors.textSecondary),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          FeePayerChips(
+            value: _payer,
+            t: t,
+            onChanged: (v) => setState(() => _payer = v),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            t.t('cpay.fee.rounds', {
+              'n': '${r.feePayerRounds + 1}',
+              'max': '${r.feePayerMaxRounds}',
+            }),
+            style: type.caption.copyWith(color: colors.textSecondary),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          AppButton(
+            label: t.t('cpay.fee.sheet.send'),
+            icon: AppIcons.handshakeOutlined,
+            isLoading: _busy,
+            isEnabled: _payer != r.processingFeePayer,
+            onPressed: _send,
+          ),
+        ],
+      ),
+    );
+  }
+}

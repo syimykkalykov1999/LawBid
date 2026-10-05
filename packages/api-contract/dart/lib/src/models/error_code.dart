@@ -316,6 +316,8 @@ enum ErrorCode {
   paymentInvalidState('PAYMENT_INVALID_STATE'),
   @JsonValue('PAYMENT_AMOUNT_INVALID')
   paymentAmountInvalid('PAYMENT_AMOUNT_INVALID'),
+  @JsonValue('PAYMENT_FEE_MAX_ROUNDS_REACHED')
+  paymentFeeMaxRoundsReached('PAYMENT_FEE_MAX_ROUNDS_REACHED'),
   @JsonValue('PROMO_CODE_INVALID')
   promoCodeInvalid('PROMO_CODE_INVALID'),
   @JsonValue('PROMO_CODE_EXISTS')

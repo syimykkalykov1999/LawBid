@@ -53,6 +53,9 @@ export interface PaymentSettings {
   /** …and split them into installments (several requests with due dates). */
   allowInstallments: boolean;
   maxInstallments: number;
+  /** Counter-offers allowed while the parties agree who covers Stripe's
+   * fee on an invoice (like bid rounds). */
+  feePayerMaxRounds: number;
   /** Days before the due date on which the client is reminded. */
   invoiceReminderDays: number[];
   /** Overdue requests: remind again every N days (0 = never). */
@@ -89,6 +92,7 @@ export const DEFAULT_PAYMENT_SETTINGS: PaymentSettings = {
   allowInvoices: true,
   allowInstallments: true,
   maxInstallments: 12,
+  feePayerMaxRounds: 5,
   invoiceReminderDays: [3, 1],
   overdueReminderEveryDays: 3,
   invoiceExpireDays: 30,
@@ -133,6 +137,11 @@ export const PAYOUT_ACCOUNT_STATUSES = [
   'disabled',
 ] as const;
 export type PayoutAccountStatus = (typeof PAYOUT_ACCOUNT_STATUSES)[number];
+export const FEE_PAYER_STATUSES = ['proposed', 'countered', 'agreed'] as const;
+export type FeePayerStatus = (typeof FEE_PAYER_STATUSES)[number];
+export const FEE_PAYER_PARTIES = ['attorney', 'client'] as const;
+export type FeePayerParty = (typeof FEE_PAYER_PARTIES)[number];
+
 export const PAYMENT_REQUEST_STATUSES = [
   'open',
   'paid',
@@ -210,6 +219,7 @@ export function parsePaymentSettings(raw: unknown): PaymentSettings {
     allowInvoices: bool(r.allowInvoices, d.allowInvoices),
     allowInstallments: bool(r.allowInstallments, d.allowInstallments),
     maxInstallments: int(r.maxInstallments, 2, 36) ?? d.maxInstallments,
+    feePayerMaxRounds: int(r.feePayerMaxRounds, 0, 20) ?? d.feePayerMaxRounds,
     invoiceReminderDays:
       intList(r.invoiceReminderDays, 0, 60, 6) ?? d.invoiceReminderDays,
     overdueReminderEveryDays:

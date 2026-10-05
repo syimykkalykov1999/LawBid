@@ -13,7 +13,9 @@ export type ChatSystemKey =
   // Owner 2026-10-05: payments through the platform (body `key:cents`).
   | 'payment_requested'
   | 'payment_received'
-  | 'payment_request_canceled';
+  | 'payment_request_canceled'
+  | 'payment_fee_countered'
+  | 'payment_fee_agreed';
 
 /** A conversation changed inside a transaction; published after commit. */
 export interface ChatChange {

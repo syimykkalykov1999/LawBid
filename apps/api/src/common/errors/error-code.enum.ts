@@ -346,6 +346,9 @@ export enum ErrorCode {
   // 400: amount outside the admin's min/max, over the remaining balance
   // or a kind that needs an amount came without one.
   PAYMENT_AMOUNT_INVALID = 'PAYMENT_AMOUNT_INVALID',
+  // Owner 2026-10-05: 409 — who covers Stripe's fee on an invoice is agreed
+  // like a bid; no more counter-offers after the admin's round cap.
+  PAYMENT_FEE_MAX_ROUNDS_REACHED = 'PAYMENT_FEE_MAX_ROUNDS_REACHED',
   // Owner 2026-10-02: 400 — promo code unknown, expired, used up or not
   // valid for this purchase.
   PROMO_CODE_INVALID = 'PROMO_CODE_INVALID',

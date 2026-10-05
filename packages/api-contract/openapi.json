@@ -43897,6 +43897,123 @@
         ]
       }
     },
+    "/payment-requests/{id}/fee-payer": {
+      "post": {
+        "operationId": "answerFeePayer",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeePayerAnswerDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentRequestEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: PAYMENT_INVALID_STATE, PAYMENT_FEE_MAX_ROUNDS_REACHED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Who covers the Stripe fee: accept the other side's proposal or counter (like a bid)",
+        "tags": [
+          "case-payments"
+        ]
+      }
+    },
     "/payments/export.csv": {
       "get": {
         "operationId": "exportMyCasePayments",
@@ -50966,6 +51083,7 @@
           "PAYOUT_ACCOUNT_NOT_READY",
           "PAYMENT_INVALID_STATE",
           "PAYMENT_AMOUNT_INVALID",
+          "PAYMENT_FEE_MAX_ROUNDS_REACHED",
           "PROMO_CODE_INVALID",
           "PROMO_CODE_EXISTS",
           "CONTRACT_GRANT_NOT_ATTORNEY",
@@ -72103,6 +72221,9 @@
           "maxInstallments": {
             "type": "integer"
           },
+          "feePayerMaxRounds": {
+            "type": "integer"
+          },
           "minAmountCents": {
             "type": "integer"
           },
@@ -72139,6 +72260,7 @@
           "allowInvoices",
           "allowInstallments",
           "maxInstallments",
+          "feePayerMaxRounds",
           "minAmountCents",
           "maxAmountCents",
           "allowCustomAmount",
@@ -72379,6 +72501,23 @@
           "data"
         ]
       },
+      "FeePayerStatus": {
+        "type": "string",
+        "enum": [
+          "proposed",
+          "countered",
+          "agreed"
+        ],
+        "description": "Agreed like a bid: proposed (by the attorney with the invoice), countered, agreed."
+      },
+      "FeePayerParty": {
+        "type": "string",
+        "enum": [
+          "attorney",
+          "client"
+        ],
+        "description": "Who made the current proposal; the other side answers."
+      },
       "PaymentRequestStatus": {
         "type": "string",
         "enum": [
@@ -72460,6 +72599,34 @@
             "type": "integer",
             "description": "What the attorney receives after Stripe (estimate)."
           },
+          "feePayerStatus": {
+            "description": "Agreed like a bid: proposed (by the attorney with the invoice), countered, agreed.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/FeePayerStatus"
+              }
+            ]
+          },
+          "feePayerBy": {
+            "description": "Who made the current proposal; the other side answers.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/FeePayerParty"
+              }
+            ]
+          },
+          "feePayerRounds": {
+            "type": "integer",
+            "description": "Counter-offers so far."
+          },
+          "feePayerMaxRounds": {
+            "type": "integer",
+            "description": "Admin cap on counter-offers."
+          },
+          "canPay": {
+            "type": "boolean",
+            "description": "The client may pay now: agreed, or it is the attorney's proposal (paying accepts it)."
+          },
           "status": {
             "allOf": [
               {
@@ -72529,6 +72696,11 @@
           "processingFeeCents",
           "clientTotalCents",
           "attorneyReceivesCents",
+          "feePayerStatus",
+          "feePayerBy",
+          "feePayerRounds",
+          "feePayerMaxRounds",
+          "canPay",
           "status",
           "overdue",
           "planId",
@@ -72963,6 +73135,29 @@
         },
         "required": [
           "data"
+        ]
+      },
+      "FeePayerAnswerDto": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "enum": [
+              "accept",
+              "counter"
+            ],
+            "type": "string"
+          },
+          "processingFeePayer": {
+            "description": "Required for counter.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ProcessingFeePayer"
+              }
+            ]
+          }
+        },
+        "required": [
+          "action"
         ]
       },
       "CasePaymentListEnvelope": {
@@ -73425,6 +73620,12 @@
             "minimum": 2,
             "maximum": 36
           },
+          "feePayerMaxRounds": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 20,
+            "description": "Counter-offers allowed while agreeing who covers the Stripe fee (0 = accept or pay only)."
+          },
           "invoiceReminderDays": {
             "maxItems": 6,
             "description": "Days before the due date to remind the client.",
@@ -73480,6 +73681,7 @@
           "allowInvoices",
           "allowInstallments",
           "maxInstallments",
+          "feePayerMaxRounds",
           "invoiceReminderDays",
           "overdueReminderEveryDays",
           "invoiceExpireDays",
@@ -73577,6 +73779,12 @@
             "minimum": 2,
             "maximum": 36
           },
+          "feePayerMaxRounds": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 20,
+            "description": "Counter-offers allowed while agreeing who covers the Stripe fee (0 = accept or pay only)."
+          },
           "invoiceReminderDays": {
             "maxItems": 6,
             "description": "Days before the due date to remind the client.",
@@ -73624,6 +73832,7 @@
           "allowInvoices",
           "allowInstallments",
           "maxInstallments",
+          "feePayerMaxRounds",
           "invoiceReminderDays",
           "overdueReminderEveryDays",
           "invoiceExpireDays",

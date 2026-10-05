@@ -44,6 +44,7 @@ import type {
   CreateCasePaymentDto,
   CreateCasePaymentResultDto,
   CreatePaymentRequestsDto,
+  FeePayerAnswerDto,
   MyCasePaymentsQueryDto,
   MyCasePaymentsSummaryDto,
   PaymentQuoteDto,
@@ -65,6 +66,8 @@ import {
   type PaymentSettings,
   type PaymentStatus,
   type PayoutAccountStatus,
+  type FeePayerParty,
+  type FeePayerStatus,
   PROCESSING_FEE_PAYERS,
   type ProcessingFeePayer,
   parsePaymentSettings,
@@ -227,6 +230,7 @@ export class CasePaymentsService {
       allowInvoices: s.allowInvoices,
       allowInstallments: s.allowInstallments,
       maxInstallments: s.maxInstallments,
+      feePayerMaxRounds: s.feePayerMaxRounds,
       minAmountCents: s.minAmountCents,
       maxAmountCents: s.maxAmountCents,
       allowCustomAmount: s.allowCustomAmount,
@@ -848,7 +852,14 @@ export class CasePaymentsService {
       if (p.request_id) {
         await tx.paymentRequest.updateMany({
           where: { id: p.request_id, status: { in: ['open', 'expired'] } },
-          data: { status: 'paid', payment_id: p.id, paid_at: new Date() },
+          data: {
+            status: 'paid',
+            payment_id: p.id,
+            paid_at: new Date(),
+            // Paying the attorney's proposal accepts it.
+            fee_payer_status: 'agreed',
+            fee_payer_agreed_at: new Date(),
+          },
         });
       }
       return p;
@@ -1237,7 +1248,111 @@ export class CasePaymentsService {
         message: `This request is already ${row.status}.`,
       });
     }
+    if (!requestPayable(row)) {
+      throw new ConflictException({
+        code: ErrorCode.PAYMENT_INVALID_STATE,
+        message:
+          'Who covers the Stripe fee is not agreed yet: the attorney has to answer your counter-offer.',
+      });
+    }
     return row;
+  }
+
+  /**
+   * `POST /payment-requests/:id/fee-payer` — who covers Stripe's fee is
+   * agreed like a bid (owner 2026-10-05 03:03): the attorney proposed with
+   * the invoice; the client accepts or counters; the attorney accepts or
+   * counters back. Only the side that did not make the current proposal
+   * may answer; counter-offers are capped by the admin like bid rounds.
+   * Paying the attorney's proposal also accepts it (see `applyCheckout`).
+   */
+  async answerFeePayer(
+    user: RequestUser,
+    id: string,
+    dto: FeePayerAnswerDto,
+  ): Promise<PaymentRequestDto> {
+    const row = await this.prisma.paymentRequest.findUnique({ where: { id } });
+    if (!row) throw requestNotFound();
+    const me: FeePayerParty | null =
+      row.attorney_id === user.sub
+        ? 'attorney'
+        : row.client_id === user.sub
+          ? 'client'
+          : null;
+    if (!me) throw requestNotFound();
+    if (me === 'attorney') this.assertNotAssistant(user);
+    const s = await this.settings();
+    const conflict = (code: ErrorCode, message: string) =>
+      new ConflictException({ code, message });
+    if (row.status !== 'open' && row.status !== 'expired')
+      throw conflict(
+        ErrorCode.PAYMENT_INVALID_STATE,
+        `This request is ${row.status}.`,
+      );
+    if (row.fee_payer_status === 'agreed')
+      throw conflict(
+        ErrorCode.PAYMENT_INVALID_STATE,
+        'Who covers the Stripe fee is already agreed.',
+      );
+    if (row.fee_payer_by === me)
+      throw conflict(
+        ErrorCode.PAYMENT_INVALID_STATE,
+        "It is the other side's turn to answer your proposal.",
+      );
+    const other = me === 'attorney' ? row.client_id : row.attorney_id;
+    let data: Prisma.PaymentRequestUpdateInput;
+    let key: 'payment_fee_agreed' | 'payment_fee_countered';
+    let payer = row.processing_fee_payer;
+    if (dto.action === 'accept') {
+      data = { fee_payer_status: 'agreed', fee_payer_agreed_at: new Date() };
+      key = 'payment_fee_agreed';
+    } else {
+      if (!dto.processingFeePayer) {
+        throw new BadRequestException({
+          code: ErrorCode.VALIDATION_ERROR,
+          message: 'processingFeePayer is required for a counter-offer.',
+          details: { field: 'processingFeePayer' },
+        });
+      }
+      if (dto.processingFeePayer === row.processing_fee_payer)
+        throw conflict(
+          ErrorCode.PAYMENT_INVALID_STATE,
+          'That is the current proposal; accept it instead.',
+        );
+      if (row.fee_payer_rounds >= s.feePayerMaxRounds)
+        throw conflict(
+          ErrorCode.PAYMENT_FEE_MAX_ROUNDS_REACHED,
+          `No more counter-offers (limit ${s.feePayerMaxRounds}); accept or let the attorney withdraw the invoice.`,
+        );
+      payer = dto.processingFeePayer;
+      data = {
+        processing_fee_payer: payer,
+        fee_payer_status: 'countered',
+        fee_payer_by: me,
+        fee_payer_rounds: { increment: 1 },
+      };
+      key = 'payment_fee_countered';
+    }
+    const updated = await withTxRetry(this.prisma, async (tx) => {
+      const u = await tx.paymentRequest.update({ where: { id }, data });
+      const changes = await this.chatSystem?.post(
+        tx,
+        { case_id: row.case_id },
+        key,
+        { param: payer },
+      );
+      return { u, changes: changes ?? [] };
+    });
+    this.chatSystem?.publish(updated.changes);
+    await this.notify(other, key, {
+      caseId: row.case_id,
+      requestId: row.id,
+      amountCents: row.amount_cents,
+      processingFeePayer: payer,
+      by: me,
+    });
+    const [out] = await this.presentRequests([updated.u], s);
+    return out;
   }
 
   async presentRequests(
@@ -1263,6 +1378,11 @@ export class CasePaymentsService {
       description: r.description,
       dueAt: r.due_at?.toISOString() ?? null,
       ...breakdown(r, s),
+      feePayerStatus: r.fee_payer_status as FeePayerStatus,
+      feePayerBy: r.fee_payer_by as FeePayerParty,
+      feePayerRounds: r.fee_payer_rounds,
+      feePayerMaxRounds: s.feePayerMaxRounds,
+      canPay: requestPayable(r),
       status: r.status as PaymentRequestStatus,
       overdue: r.status === 'open' && !!r.due_at && r.due_at.getTime() < now,
       planId: r.plan_id,
@@ -1836,7 +1956,9 @@ export class CasePaymentsService {
       | 'payment_request_created'
       | 'payment_request_due'
       | 'payment_request_overdue'
-      | 'payment_request_canceled',
+      | 'payment_request_canceled'
+      | 'payment_fee_countered'
+      | 'payment_fee_agreed',
     payload: Prisma.InputJsonObject,
   ): Promise<void> {
     try {
@@ -1853,6 +1975,15 @@ function fixedBidAmount(
   return bid && bid.fee_type === 'fixed' && bid.amount_cents > 0
     ? bid.amount_cents
     : null;
+}
+
+/** The client may pay an open invoice once the fee payer is agreed, or
+ * while the attorney's own proposal stands (paying accepts it). */
+function requestPayable(r: PaymentRequest): boolean {
+  return (
+    (r.status === 'open' || r.status === 'expired') &&
+    (r.fee_payer_status === 'agreed' || r.fee_payer_by === 'attorney')
+  );
 }
 
 /** A stored fee-payer value, or null when unset / unknown. */

@@ -140,6 +140,27 @@ class CasePaymentsRepository {
     return r.data.map(_request).toList();
   }
 
+  /// Accept the other side's fee-payer proposal, or counter with another.
+  Future<PaymentRequest> answerFeePayer(
+    String id, {
+    required bool accept,
+    String? processingFeePayer,
+  }) async =>
+      _request(
+        (await guardApiCall(
+          () => _api.answerFeePayer(
+            id: id,
+            body: api.FeePayerAnswerDto(
+              action: accept
+                  ? api.FeePayerAnswerDtoAction.accept
+                  : api.FeePayerAnswerDtoAction.counter,
+              processingFeePayer: _payer(processingFeePayer),
+            ),
+          ),
+        ))
+            .data,
+      );
+
   Future<PaymentRequest> cancelRequest(String id) async => _request(
         (await guardApiCall(() => _api.cancelPaymentRequest(id: id))).data,
       );
@@ -256,6 +277,11 @@ class CasePaymentsRepository {
         processingFeeCents: d.processingFeeCents,
         clientTotalCents: d.clientTotalCents,
         attorneyReceivesCents: d.attorneyReceivesCents,
+        feePayerStatus: d.feePayerStatus.json ?? 'proposed',
+        feePayerBy: d.feePayerBy.json ?? 'attorney',
+        feePayerRounds: d.feePayerRounds,
+        feePayerMaxRounds: d.feePayerMaxRounds,
+        canPay: d.canPay,
         client: _party(d.client),
         attorney: _party(d.attorney),
       );

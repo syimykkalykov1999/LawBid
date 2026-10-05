@@ -466,6 +466,9 @@ enum NotificationType {
   payment_request_due
   payment_request_overdue
   payment_request_canceled
+  // Owner 2026-10-05: who covers Stripe's fee is agreed like a bid.
+  payment_fee_countered
+  payment_fee_agreed
   // Owner 2026-10-05: a client offered their case to the attorney / the
   // attorney declined it.
   case_invite_received
@@ -3202,9 +3205,18 @@ model PaymentRequest {
   amount_cents     Int
   description      String    @db.String(200)
   due_at           DateTime? @db.Timestamptz
-  // Who covers Stripe's fee on this invoice: client | attorney | split
-  // (the attorney's choice at creation, snapshotted).
+  // Who covers Stripe's fee on this invoice: client | attorney | split.
+  // Owner 2026-10-05 03:03: agreed like a bid — the attorney proposes, the
+  // client accepts or counters, the attorney answers; paying is possible
+  // once agreed (or by accepting the attorney's proposal with the payment).
   processing_fee_payer String @default("client") @db.String(16)
+  // proposed | countered | agreed
+  fee_payer_status     String    @default("proposed") @db.String(16)
+  // Who made the current proposal: attorney | client.
+  fee_payer_by         String    @default("attorney") @db.String(16)
+  // Counter-offers so far (the admin caps them like bid rounds).
+  fee_payer_rounds     Int       @default(0)
+  fee_payer_agreed_at  DateTime? @db.Timestamptz
   // open | paid | canceled | expired
   status           String    @default("open") @db.String(16)
   plan_id          String?   @db.Uuid

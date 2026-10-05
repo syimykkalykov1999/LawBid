@@ -24,6 +24,7 @@ class PaymentSettingsPublicDto {
     required this.allowInvoices,
     required this.allowInstallments,
     required this.maxInstallments,
+    required this.feePayerMaxRounds,
     required this.minAmountCents,
     required this.maxAmountCents,
     required this.allowCustomAmount,
@@ -50,6 +51,7 @@ class PaymentSettingsPublicDto {
   final bool allowInvoices;
   final bool allowInstallments;
   final int maxInstallments;
+  final int feePayerMaxRounds;
   final int minAmountCents;
   final int maxAmountCents;
   final bool allowCustomAmount;

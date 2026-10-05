@@ -5,6 +5,8 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'case_payment_party_dto.dart';
+import 'fee_payer_party.dart';
+import 'fee_payer_status.dart';
 import 'payment_request_status.dart';
 import 'processing_fee_payer.dart';
 
@@ -23,6 +25,11 @@ class PaymentRequestDto {
     required this.processingFeeCents,
     required this.clientTotalCents,
     required this.attorneyReceivesCents,
+    required this.feePayerStatus,
+    required this.feePayerBy,
+    required this.feePayerRounds,
+    required this.feePayerMaxRounds,
+    required this.canPay,
     required this.status,
     required this.overdue,
     required this.planId,
@@ -54,6 +61,21 @@ class PaymentRequestDto {
 
   /// What the attorney receives after Stripe (estimate).
   final int attorneyReceivesCents;
+
+  /// Agreed like a bid: proposed (by the attorney with the invoice), countered, agreed.
+  final FeePayerStatus feePayerStatus;
+
+  /// Who made the current proposal; the other side answers.
+  final FeePayerParty feePayerBy;
+
+  /// Counter-offers so far.
+  final int feePayerRounds;
+
+  /// Admin cap on counter-offers.
+  final int feePayerMaxRounds;
+
+  /// The client may pay now: agreed, or it is the attorney's proposal (paying accepts it).
+  final bool canPay;
   final PaymentRequestStatus status;
 
   /// Open and past its due date.

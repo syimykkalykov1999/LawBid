@@ -30,6 +30,7 @@ import {
   PAYMENT_REQUEST_STATUS,
   PAYOUT_ACCOUNT_STATUS,
   PROCESSING_FEE_PAYER,
+  FEE_PAYER_STATUS,
   StatusPill,
   usd,
 } from '@/lib/labels';
@@ -361,12 +362,13 @@ function RequestsTab() {
               <Th>За что</Th>
               <Th className="text-right">Сумма</Th>
               <Th>Срок</Th>
+              <Th>Комиссия Stripe</Th>
               <Th>Статус</Th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 ? (
-              <tr><Td colSpan={8} className="py-8 text-center text-muted">Счетов пока нет</Td></tr>
+              <tr><Td colSpan={9} className="py-8 text-center text-muted">Счетов пока нет</Td></tr>
             ) : (
               rows.map((r: PaymentRequest) => (
                 <tr key={r.id}>
@@ -382,6 +384,14 @@ function RequestsTab() {
                   <Td className="whitespace-nowrap text-muted">
                     {r.dueAt ? formatDateTime(r.dueAt) : '—'}
                     {r.overdue ? <span className="ml-1 text-xs text-danger">просрочен</span> : null}
+                  </Td>
+                  <Td className="text-xs text-muted">
+                    <div>{PROCESSING_FEE_PAYER[r.processingFeePayer]}</div>
+                    <div className="text-faint">
+                      {FEE_PAYER_STATUS[r.feePayerStatus]}
+                      {r.feePayerStatus !== 'agreed' ? ` · ${r.feePayerBy === 'attorney' ? 'от адвоката' : 'от клиента'}` : ''}
+                      {r.feePayerRounds > 0 ? ` · раунд ${r.feePayerRounds}/${r.feePayerMaxRounds}` : ''}
+                    </div>
                   </Td>
                   <Td><StatusPill map={PAYMENT_REQUEST_STATUS} value={r.status} /></Td>
                 </tr>
@@ -522,6 +532,7 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
   const [allowInvoices, setAllowInvoices] = useState(initial.allowInvoices);
   const [allowInstallments, setAllowInstallments] = useState(initial.allowInstallments);
   const [maxInstallments, setMaxInstallments] = useState(String(initial.maxInstallments));
+  const [feeRounds, setFeeRounds] = useState(String(initial.feePayerMaxRounds));
   const [reminderDays, setReminderDays] = useState(initial.invoiceReminderDays.join(', '));
   const [overdueEvery, setOverdueEvery] = useState(String(initial.overdueReminderEveryDays));
   const [expireDays, setExpireDays] = useState(String(initial.invoiceExpireDays));
@@ -542,6 +553,7 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
   const maxC = dollarsToCents(maxAmount);
   const rd = Number(refundDays);
   const mi = Number(maxInstallments);
+  const fr = Number(feeRounds);
   const oe = Number(overdueEvery);
   const ed = Number(expireDays);
   const remind = reminderDays.split(/[,\s]+/).filter(Boolean).map(Number);
@@ -553,6 +565,7 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
     minC != null && maxC != null && minC >= 50 && maxC >= minC &&
     Number.isInteger(rd) && rd >= 0 && rd <= 365 &&
     Number.isInteger(mi) && mi >= 2 && mi <= 36 &&
+    Number.isInteger(fr) && fr >= 0 && fr <= 20 &&
     Number.isInteger(oe) && oe >= 0 && oe <= 60 &&
     Number.isInteger(ed) && ed >= 0 && ed <= 365 && remindOk &&
     disclaimerEn.trim().length > 0 && disclaimerEn.length <= 4000 &&
@@ -573,6 +586,7 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
     allowInvoices,
     allowInstallments,
     maxInstallments: mi,
+    feePayerMaxRounds: fr,
     invoiceReminderDays: [...new Set(remind)].sort((a, b) => b - a),
     overdueReminderEveryDays: oe,
     invoiceExpireDays: ed,
@@ -653,9 +667,12 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
           <div className="mt-4 border-t border-line pt-4">
             <h4 className="text-sm font-medium text-heading">Комиссия Stripe — кто платит</h4>
             <p className="mt-1 text-sm text-muted">
-              Это дело адвоката и клиента: адвокат выбирает в настройках выплат («плачу я / платит клиент / пополам») и может поменять на каждом счёте; клиент видит разбивку до оплаты. Здесь — только значение по умолчанию для адвокатов, которые ещё не выбирали, и ставка Stripe для оценок. Деньги списываются прямо на Stripe-аккаунт адвоката — платформа не платит ни при какой настройке. Кто что выбрал — во вкладке «Stripe-аккаунты».
+              Это дело адвоката и клиента, согласуется по каждому счёту как бид: адвокат предлагает в счёте («плачу я / платит клиент / пополам»), клиент видит разбивку и принимает или предлагает своё, адвокат отвечает; оплата возможна после согласия обеих сторон (оплата предложения адвоката и есть согласие). Настройка адвоката лишь предзаполняет первое предложение. Здесь — только значение по умолчанию для адвокатов, которые ещё не выбирали, лимит встречных предложений и ставка Stripe для оценок. Деньги списываются прямо на Stripe-аккаунт адвоката — платформа не платит ни при какой настройке. Кто что выбрал — во вкладке «Stripe-аккаунты», ход согласования — в «Счета клиентам».
             </p>
-            <div className="mt-3 grid gap-4 sm:grid-cols-3">
+            <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <Field label="Встречных предложений максимум" htmlFor="cp-fr" hint="Как раунды у бидов; 0 — только принять или оплатить.">
+                <Input id="cp-fr" type="number" min={0} max={20} value={feeRounds} disabled={!canEdit} onChange={(e) => setFeeRounds(e.target.value)} />
+              </Field>
               <Field label="По умолчанию для новых адвокатов" htmlFor="cp-proc-payer">
                 <Select id="cp-proc-payer" value={procPayer} disabled={!canEdit} onChange={(e) => setProcPayer(e.target.value as Settings['processingFeePayer'])}>
                   {(Object.keys(PROCESSING_FEE_PAYER) as Settings['processingFeePayer'][]).map((k) => (

@@ -20,8 +20,12 @@ import {
   ValidateNested,
 } from 'class-validator';
 import {
+  FEE_PAYER_PARTIES,
+  FEE_PAYER_STATUSES,
   FEE_PAYERS,
   FEE_TYPES,
+  type FeePayerParty,
+  type FeePayerStatus,
   type FeePayer,
   type FeeType,
   PAYMENT_KINDS,
@@ -109,6 +113,7 @@ export class PaymentSettingsPublicDto {
   @ApiProperty() allowInvoices!: boolean;
   @ApiProperty() allowInstallments!: boolean;
   @ApiProperty({ type: 'integer' }) maxInstallments!: number;
+  @ApiProperty({ type: 'integer' }) feePayerMaxRounds!: number;
   @ApiProperty({ type: 'integer' }) minAmountCents!: number;
   @ApiProperty({ type: 'integer' }) maxAmountCents!: number;
   @ApiProperty() allowCustomAmount!: boolean;
@@ -276,6 +281,28 @@ export class PaymentRequestDto {
   })
   attorneyReceivesCents!: number;
   @ApiProperty({
+    enum: FEE_PAYER_STATUSES,
+    enumName: 'FeePayerStatus',
+    description:
+      'Agreed like a bid: proposed (by the attorney with the invoice), countered, agreed.',
+  })
+  feePayerStatus!: FeePayerStatus;
+  @ApiProperty({
+    enum: FEE_PAYER_PARTIES,
+    enumName: 'FeePayerParty',
+    description: 'Who made the current proposal; the other side answers.',
+  })
+  feePayerBy!: FeePayerParty;
+  @ApiProperty({ type: 'integer', description: 'Counter-offers so far.' })
+  feePayerRounds!: number;
+  @ApiProperty({ type: 'integer', description: 'Admin cap on counter-offers.' })
+  feePayerMaxRounds!: number;
+  @ApiProperty({
+    description:
+      "The client may pay now: agreed, or it is the attorney's proposal (paying accepts it).",
+  })
+  canPay!: boolean;
+  @ApiProperty({
     enum: PAYMENT_REQUEST_STATUSES,
     enumName: 'PaymentRequestStatus',
   })
@@ -357,6 +384,23 @@ export class CreatePaymentRequestsDto {
   @ValidateNested({ each: true })
   @Type(() => PaymentRequestItemDto)
   items!: PaymentRequestItemDto[];
+}
+
+/** `POST /payment-requests/:id/fee-payer` — accept the other side's
+ * proposal or counter with another option. */
+export class FeePayerAnswerDto {
+  @ApiProperty({ enum: ['accept', 'counter'] })
+  @IsIn(['accept', 'counter'])
+  action!: 'accept' | 'counter';
+
+  @ApiPropertyOptional({
+    enum: PROCESSING_FEE_PAYERS,
+    enumName: 'ProcessingFeePayer',
+    description: 'Required for counter.',
+  })
+  @IsOptional()
+  @IsIn(PROCESSING_FEE_PAYERS)
+  processingFeePayer?: ProcessingFeePayer;
 }
 
 export class PaymentRequestIdParamDto {
@@ -603,6 +647,18 @@ export class AdminPaymentSettingsDto {
   @Min(2)
   @Max(36)
   maxInstallments!: number;
+
+  @ApiProperty({
+    type: 'integer',
+    minimum: 0,
+    maximum: 20,
+    description:
+      'Counter-offers allowed while agreeing who covers the Stripe fee (0 = accept or pay only).',
+  })
+  @IsInt()
+  @Min(0)
+  @Max(20)
+  feePayerMaxRounds!: number;
 
   @ApiProperty({
     type: [Number],

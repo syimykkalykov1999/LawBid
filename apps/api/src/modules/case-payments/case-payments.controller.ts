@@ -41,6 +41,7 @@ import {
   CreateCasePaymentDto,
   CreateCasePaymentResultDto,
   CreatePaymentRequestsDto,
+  FeePayerAnswerDto,
   MyCasePaymentsQueryDto,
   MyCasePaymentsSummaryDto,
   PaymentQuoteDto,
@@ -240,6 +241,26 @@ export class CasePaymentsController {
     @Param() p: PaymentRequestIdParamDto,
   ): Promise<PaymentRequestDto> {
     return this.payments.cancelRequest(user, p.id);
+  }
+
+  @Post('payment-requests/:id/fee-payer')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      "Who covers the Stripe fee: accept the other side's proposal or counter (like a bid)",
+  })
+  @ApiEnvelopeResponse(PaymentRequestDto)
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    404: [E.NOT_FOUND],
+    409: [E.PAYMENT_INVALID_STATE, E.PAYMENT_FEE_MAX_ROUNDS_REACHED],
+  })
+  answerFeePayer(
+    @CurrentUser() user: RequestUser,
+    @Param() p: PaymentRequestIdParamDto,
+    @Body() dto: FeePayerAnswerDto,
+  ): Promise<PaymentRequestDto> {
+    return this.payments.answerFeePayer(user, p.id, dto);
   }
 
   // ---- documents --------------------------------------------------------------

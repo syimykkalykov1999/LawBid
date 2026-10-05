@@ -26,6 +26,7 @@ AdminPaymentSettingsDto _$AdminPaymentSettingsDtoFromJson(
   allowInvoices: json['allowInvoices'] as bool,
   allowInstallments: json['allowInstallments'] as bool,
   maxInstallments: (json['maxInstallments'] as num).toInt(),
+  feePayerMaxRounds: (json['feePayerMaxRounds'] as num).toInt(),
   invoiceReminderDays: (json['invoiceReminderDays'] as List<dynamic>)
       .map((e) => e as num)
       .toList(),
@@ -53,6 +54,7 @@ Map<String, dynamic> _$AdminPaymentSettingsDtoToJson(
   'allowInvoices': instance.allowInvoices,
   'allowInstallments': instance.allowInstallments,
   'maxInstallments': instance.maxInstallments,
+  'feePayerMaxRounds': instance.feePayerMaxRounds,
   'invoiceReminderDays': instance.invoiceReminderDays,
   'overdueReminderEveryDays': instance.overdueReminderEveryDays,
   'invoiceExpireDays': instance.invoiceExpireDays,

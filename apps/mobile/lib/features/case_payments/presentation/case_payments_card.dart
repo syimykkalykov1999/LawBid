@@ -72,6 +72,96 @@ class _CasePaymentsCardState extends ConsumerState<CasePaymentsCard>
     }
   }
 
+  Future<void> _acceptFee(PaymentRequest r) async {
+    final t = ref.read(translatorProvider);
+    try {
+      await ref
+          .read(casePaymentsRepositoryProvider)
+          .answerFeePayer(r.id, accept: true);
+      _refresh();
+      if (mounted) showAppSnackBar(context, t.t('cpay.fee.accepted'));
+    } on Object catch (e) {
+      if (mounted) showAppSnackBar(context, errorText(t, e));
+    }
+  }
+
+  /// Who covers Stripe's fee is agreed like a bid: the side whose turn it
+  /// is may accept or counter; the client may pay the attorney's proposal
+  /// outright (paying accepts it); the attorney may always withdraw.
+  Widget? _requestActions(
+    PaymentRequest r,
+    CasePaymentsState state,
+    Translator t,
+    L10nFormats f,
+  ) {
+    final side = widget.asAttorney ? 'attorney' : 'client';
+    final myTurn = r.awaits(side);
+    final buttons = <Widget>[];
+    if (myTurn) {
+      buttons.add(
+        AppButton(
+          label: t.t('cpay.fee.accept'),
+          icon: AppIcons.handshakeOutlined,
+          variant: widget.asAttorney
+              ? AppButtonVariant.primary
+              : AppButtonVariant.secondary,
+          height: 40,
+          onPressed: () => _acceptFee(r),
+        ),
+      );
+      if (r.canCounter) {
+        buttons.add(
+          AppButton(
+            label: t.t('cpay.fee.counter'),
+            variant: AppButtonVariant.secondary,
+            height: 40,
+            onPressed: () => FeePayerSheet.show(context, r, onDone: _refresh),
+          ),
+        );
+      }
+    }
+    if (!widget.asAttorney && r.payable && r.canPay && state.canPay) {
+      buttons.insert(
+        0,
+        AppButton(
+          label: t.t('cpay.req.pay', {
+            'amount': f.currencyFromCents(r.clientTotalCents),
+          }),
+          icon: AppIcons.lockOutlineRounded,
+          height: 44,
+          onPressed: () => _payRequest(r),
+        ),
+      );
+    }
+    if (widget.asAttorney && r.payable) {
+      buttons.add(
+        AppButton(
+          label: t.t('cpay.req.cancel'),
+          variant: AppButtonVariant.secondary,
+          height: 40,
+          onPressed: () => _cancelRequest(r),
+        ),
+      );
+    }
+    if (buttons.isEmpty) return null;
+    if (buttons.length == 1) return buttons.first;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        buttons.first,
+        const SizedBox(height: AppSpacing.xs),
+        Row(
+          children: [
+            for (final (i, b) in buttons.skip(1).indexed) ...[
+              if (i > 0) const SizedBox(width: AppSpacing.xs),
+              Expanded(child: b),
+            ],
+          ],
+        ),
+      ],
+    );
+  }
+
   Future<void> _cancelRequest(PaymentRequest r) async {
     final t = ref.read(translatorProvider);
     try {
@@ -232,29 +322,8 @@ class _CasePaymentsCardState extends ConsumerState<CasePaymentsCard>
             request: r,
             t: t,
             formats: f,
-            action: !widget.asAttorney && r.payable && state.canPay
-                ? AppButton(
-                    label: t.t('cpay.req.pay', {
-                      'amount': f.currencyFromCents(r.amountCents),
-                    }),
-                    icon: AppIcons.lockOutlineRounded,
-                    height: 44,
-                    onPressed: () => _payRequest(r),
-                  )
-                : widget.asAttorney && r.payable
-                    ? Row(
-                        children: [
-                          Expanded(
-                            child: AppButton(
-                              label: t.t('cpay.req.cancel'),
-                              variant: AppButtonVariant.secondary,
-                              height: 40,
-                              onPressed: () => _cancelRequest(r),
-                            ),
-                          ),
-                        ],
-                      )
-                    : null,
+            side: widget.asAttorney ? 'attorney' : 'client',
+            action: _requestActions(r, state, t, f),
           ),
       ],
       if (widget.asAttorney && state.canRequest) ...[

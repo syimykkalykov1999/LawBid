@@ -329,10 +329,13 @@ String systemLineText(Translator t, String body, {L10nFormats? formats}) {
   final i = body.indexOf(':');
   if (i < 0) return t.t('chat.system.$body');
   final raw = body.substring(i + 1);
+  final key = body.substring(0, i);
   final cents = int.tryParse(raw);
-  final amount = cents == null
-      ? raw
-      : formats?.currencyFromCents(cents) ??
-          '\$${(cents / 100).toStringAsFixed(2)}';
-  return t.t('chat.system.${body.substring(0, i)}', {'amount': amount});
+  if (cents == null) {
+    // A fee-payer option (client | attorney | split) or any other word.
+    return t.t('chat.system.$key', {'payer': t.t('cpay.feePayerOf.$raw')});
+  }
+  final amount = formats?.currencyFromCents(cents) ??
+      '\$${(cents / 100).toStringAsFixed(2)}';
+  return t.t('chat.system.$key', {'amount': amount});
 }
