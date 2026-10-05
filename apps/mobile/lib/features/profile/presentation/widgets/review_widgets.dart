@@ -498,41 +498,43 @@ class ReviewSummaryPanel extends ConsumerWidget {
         final colors = Theme.of(sheet).extension<AppColorTokens>()!;
         final typography = Theme.of(sheet).extension<AppTypographyTokens>()!;
         return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const AppSheetHandle(),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.screenSide,
-                  AppSpacing.sm,
-                  AppSpacing.screenSide,
-                  AppSpacing.md,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const AppSheetHandle(),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.screenSide,
+                    AppSpacing.sm,
+                    AppSpacing.screenSide,
+                    AppSpacing.md,
+                  ),
+                  child: Text(
+                    t.t('reviews.sort.label'),
+                    style: typography.titleMedium.copyWith(color: colors.text),
+                  ),
                 ),
-                child: Text(
-                  t.t('reviews.sort.label'),
-                  style: typography.titleMedium.copyWith(color: colors.text),
-                ),
-              ),
-              for (final v in ReviewsSort.values)
-                AppListRow(
-                  key: ValueKey('reviews-sort-${v.name}'),
-                  icon: switch (v) {
-                    ReviewsSort.relevant => AppIcons.autoAwesomeOutlined,
-                    ReviewsSort.newest => AppIcons.arrowDownwardRounded,
-                    ReviewsSort.oldest => AppIcons.arrowUpwardRounded,
-                    ReviewsSort.highest => AppIcons.starRounded,
-                    ReviewsSort.lowest => AppIcons.starOutlineRounded,
-                    ReviewsSort.helpful => AppIcons.thumbUpAltOutlined,
-                  },
-                  label: t.t('reviews.sort.${v.name}'),
-                  selected: v == sort,
-                  showChevron: false,
-                  onTap: () => Navigator.of(sheet).pop(v),
-                ),
-              const SizedBox(height: AppSpacing.md),
-            ],
+                for (final v in ReviewsSort.values)
+                  AppListRow(
+                    key: ValueKey('reviews-sort-${v.name}'),
+                    icon: switch (v) {
+                      ReviewsSort.relevant => AppIcons.autoAwesomeOutlined,
+                      ReviewsSort.newest => AppIcons.arrowDownwardRounded,
+                      ReviewsSort.oldest => AppIcons.arrowUpwardRounded,
+                      ReviewsSort.highest => AppIcons.starRounded,
+                      ReviewsSort.lowest => AppIcons.starOutlineRounded,
+                      ReviewsSort.helpful => AppIcons.thumbUpAltOutlined,
+                    },
+                    label: t.t('reviews.sort.${v.name}'),
+                    selected: v == sort,
+                    showChevron: false,
+                    onTap: () => Navigator.of(sheet).pop(v),
+                  ),
+                const SizedBox(height: AppSpacing.md),
+              ],
+            ),
           ),
         );
       },

@@ -30,6 +30,7 @@ import { AccountAnonymizationService } from '../modules/privacy/account-anonymiz
 import { ExportsCleanupService } from '../modules/privacy/exports-cleanup.service';
 import { JournalIntegrityService } from '../modules/privacy/journal-integrity.service';
 import { JournalRetentionService } from '../modules/privacy/journal-retention.service';
+import type { CasePaymentsService } from '../modules/case-payments/case-payments.service';
 import type { PromotionsService } from '../modules/promotions/promotions.service';
 import type { PartnersService } from '../modules/partners/partners.service';
 
@@ -152,6 +153,9 @@ function processor() {
         expire: jest.fn(() => Promise.resolve({ finished: 0, abandoned: 0 })),
       } as unknown as PromotionsService,
       {
+        expire: jest.fn(() => Promise.resolve({ abandoned: 0 })),
+      } as unknown as CasePaymentsService,
+      {
         sweep: jest.fn(() =>
           Promise.resolve({ approved: 0, reversed: 0, monthlyBase: 0 }),
         ),
@@ -183,8 +187,9 @@ describe('JobsRunner', () => {
     // review-appeal sweep; owner 2026-10-01: + videos.sweep every 5 min;
     // owner 2026-10-02: + promotions.expire every 5 min; owner 2026-10-04:
     // + monthly licenses.registry-recheck; owner 2026-10-05: + daily
-    // partners.sweep.
-    expect(upserts).toHaveLength(27);
+    // partners.sweep, case-payments.expire every 10 min and the daily
+    // case-payments.remind.
+    expect(upserts).toHaveLength(29);
     const byName = Object.fromEntries(
       upserts.map((c: unknown[]) => [c[0], c[1]]),
     );

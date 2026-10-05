@@ -6,6 +6,7 @@ import {
   Optional,
   Param,
   Post,
+  Query,
   Res,
 } from '@nestjs/common';
 import { ApiExcludeController } from '@nestjs/swagger';
@@ -16,6 +17,7 @@ import { FakePaymentProvider } from './fake-payment.provider';
 import type { PaymentProvider } from './payment-provider';
 import { SubscriptionsService } from './subscriptions.service';
 import { PromotionsService } from '../promotions/promotions.service';
+import { CasePaymentsService } from '../case-payments/case-payments.service';
 
 const page = (title: string, body: string) => `<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
@@ -46,6 +48,7 @@ export class FakeCheckoutController {
     @Inject(PAYMENT_PROVIDER) private readonly provider: PaymentProvider,
     private readonly subscriptions: SubscriptionsService,
     @Optional() private readonly promotions?: PromotionsService,
+    @Optional() private readonly casePayments?: CasePaymentsService,
   ) {}
 
   private fake(): FakePaymentProvider {
@@ -54,9 +57,68 @@ export class FakeCheckoutController {
     return this.provider as unknown as FakePaymentProvider;
   }
 
+  /** Owner 2026-10-05: stands in for Stripe's Connect onboarding — one
+   * click completes the attorney's account. */
+  @Get('connect/:accountId')
+  showConnect(
+    @Param('accountId') accountId: string,
+    @Query('return') returnUrl: string | undefined,
+    @Res() res: Response,
+  ): void {
+    this.fake();
+    const back = encodeURIComponent(returnUrl ?? '');
+    res.type('html').send(
+      page(
+        'LawBid — Payout account',
+        `<h1>Stripe onboarding</h1><p>Bank details and identity would be collected here.</p>
+<form method="post" action="/api/v1/subscriptions/fake-checkout/connect/${accountId}/complete?return=${back}"><button type="submit">Complete onboarding</button></form>
+<div class="test">Test mode — no real account</div>`,
+      ),
+    );
+  }
+
+  @Post('connect/:accountId/complete')
+  async completeConnect(
+    @Param('accountId') accountId: string,
+    @Query('return') returnUrl: string | undefined,
+    @Res() res: Response,
+  ): Promise<void> {
+    const fake = this.fake();
+    fake.completeConnectOnboarding(accountId);
+    await this.casePayments?.syncAccount(accountId);
+    const link = returnUrl && /^https?:\/\//.test(returnUrl) ? returnUrl : null;
+    res
+      .type('html')
+      .send(
+        page(
+          'LawBid — Done',
+          `<h1>Payout account ready</h1><p>Return to the LawBid app — clients can now pay you through the platform.</p>${
+            link
+              ? `<a href="${link}"><button type="button">Back to the app</button></a>`
+              : ''
+          }`,
+        ),
+      );
+  }
+
   @Get(':id')
   async show(@Param('id') id: string, @Res() res: Response): Promise<void> {
-    const s = await this.fake().retrieveCheckoutSession(id);
+    const fake = this.fake();
+    // Owner 2026-10-05: a client → attorney payment (connected account).
+    const connected = fake.connectedCheckoutById(id);
+    if (connected) {
+      const dollars = ((connected.amountTotalCents ?? 0) / 100).toFixed(2);
+      res.type('html').send(
+        page(
+          'LawBid — Pay attorney',
+          `<h1>Payment to your attorney</h1><p>$${dollars} — goes straight to the attorney's account.</p>
+<form method="post" action="${id}/pay"><button type="submit">Pay with test card</button></form>
+<div class="test">Test mode — no real charge</div>`,
+        ),
+      );
+      return;
+    }
+    const s = await fake.retrieveCheckoutSession(id);
     if (!s) throw new NotFoundException();
     // Owner 2026-10-02: one-time case-promotion payment.
     if (s.metadata.kind === 'case_promotion') {
@@ -84,6 +146,20 @@ export class FakeCheckoutController {
   @Post(':id/pay')
   async pay(@Param('id') id: string, @Res() res: Response): Promise<void> {
     const fake = this.fake();
+    if (fake.connectedCheckoutById(id)) {
+      fake.payConnectedCheckout(id);
+      const paid = fake.connectedCheckoutById(id);
+      if (paid) await this.casePayments?.applyCheckout(paid);
+      res
+        .type('html')
+        .send(
+          page(
+            'LawBid — Done',
+            `<h1>Payment sent</h1><p>Return to the LawBid app — your attorney has been paid.</p>`,
+          ),
+        );
+      return;
+    }
     await fake.payCheckout(id);
     const paid = await fake.retrieveCheckoutSession(id);
     if (paid?.metadata.kind === 'case_promotion') {

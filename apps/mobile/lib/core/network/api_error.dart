@@ -198,6 +198,11 @@ abstract final class ApiErrorCodes {
   static const promotionAlreadyActive = 'PROMOTION_ALREADY_ACTIVE';
   static const promotionInvalidState = 'PROMOTION_INVALID_STATE';
   static const promoCodeInvalid = 'PROMO_CODE_INVALID';
+  // Owner 2026-10-05: client → attorney payments.
+  static const payoutAccountNotReady = 'PAYOUT_ACCOUNT_NOT_READY';
+  static const paymentInvalidState = 'PAYMENT_INVALID_STATE';
+  static const paymentAmountInvalid = 'PAYMENT_AMOUNT_INVALID';
+  static const paymentFeeMaxRoundsReached = 'PAYMENT_FEE_MAX_ROUNDS_REACHED';
   static const promoCodeExists = 'PROMO_CODE_EXISTS';
   static const contractGrantNotAttorney = 'CONTRACT_GRANT_NOT_ATTORNEY';
   static const contractGrantRevoked = 'CONTRACT_GRANT_REVOKED';
@@ -372,6 +377,10 @@ abstract final class ApiErrorCodes {
     promotionInvalidState,
     promoCodeInvalid,
     promoCodeExists,
+    payoutAccountNotReady,
+    paymentInvalidState,
+    paymentAmountInvalid,
+    paymentFeeMaxRoundsReached,
     contractGrantNotAttorney,
     contractGrantRevoked,
     refundAmountExceeded,

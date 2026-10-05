@@ -366,7 +366,7 @@ export class AdminContentController {
     // Owner 2026-10-02: payments are money; only the super admin (and,
     // 2026-10-05, the trusted deputy, who reads money) exports them.
     if (
-      p.entity === 'payments' &&
+      (p.entity === 'payments' || p.entity === 'case_payments') &&
       admin.adminRole !== 'super_admin' &&
       !admin.manageAdmins
     ) {

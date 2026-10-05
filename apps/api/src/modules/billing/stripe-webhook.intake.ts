@@ -51,9 +51,14 @@ export class StripeWebhookIntakeService
   async receive(
     rawBody: Buffer,
     signature: string | undefined,
+    options: { connect?: boolean } = {},
   ): Promise<boolean> {
     await refreshProvider(this.provider);
-    const event = this.provider.constructWebhookEvent(rawBody, signature);
+    const event = this.provider.constructWebhookEvent(
+      rawBody,
+      signature,
+      options,
+    );
     try {
       await this.prisma.stripeWebhookEvent.create({
         data: {

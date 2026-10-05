@@ -215,45 +215,47 @@ Future<bool> showConfirmSheet(
             AppSpacing.screenSide,
             AppSpacing.lg,
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const AppSheetHandle(),
-              const SizedBox(height: AppSpacing.lg),
-              AppIconMedallion(
-                icon: destructive
-                    ? AppIcons.warningAmberRounded
-                    : AppIcons.gavelRounded,
-                tone: destructive
-                    ? AppMedallionTone.danger
-                    : AppMedallionTone.gold,
-                size: AppSizes.stateMedallion * 0.6,
-              ),
-              const SizedBox(height: AppSpacing.md),
-              Text(
-                title,
-                textAlign: TextAlign.center,
-                style: typography.titleMedium.copyWith(color: colors.text),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              Text(
-                message,
-                textAlign: TextAlign.center,
-                style: typography.body.copyWith(color: colors.textSecondary),
-              ),
-              const SizedBox(height: AppSpacing.xl),
-              AppButton(
-                label: confirmLabel,
-                onPressed: () => Navigator.of(context).pop(true),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              AppButton(
-                label: t.t('common.cancel'),
-                variant: AppButtonVariant.secondary,
-                onPressed: () => Navigator.of(context).pop(false),
-              ),
-            ],
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const AppSheetHandle(),
+                const SizedBox(height: AppSpacing.lg),
+                AppIconMedallion(
+                  icon: destructive
+                      ? AppIcons.warningAmberRounded
+                      : AppIcons.gavelRounded,
+                  tone: destructive
+                      ? AppMedallionTone.danger
+                      : AppMedallionTone.gold,
+                  size: AppSizes.stateMedallion * 0.6,
+                ),
+                const SizedBox(height: AppSpacing.md),
+                Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  style: typography.titleMedium.copyWith(color: colors.text),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  message,
+                  textAlign: TextAlign.center,
+                  style: typography.body.copyWith(color: colors.textSecondary),
+                ),
+                const SizedBox(height: AppSpacing.xl),
+                AppButton(
+                  label: confirmLabel,
+                  onPressed: () => Navigator.of(context).pop(true),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                AppButton(
+                  label: t.t('common.cancel'),
+                  variant: AppButtonVariant.secondary,
+                  onPressed: () => Navigator.of(context).pop(false),
+                ),
+              ],
+            ),
           ),
         ),
       );

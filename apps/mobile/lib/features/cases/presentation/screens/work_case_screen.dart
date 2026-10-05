@@ -8,6 +8,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/features/case_payments/presentation/case_payments_card.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/screens/attorney_case_screen.dart'
@@ -254,6 +255,8 @@ class _WorkCaseScreenState extends ConsumerState<WorkCaseScreen> {
                   title: t.t('cases.work.terms'),
                   child: _TermsLine(bidId: c.ownBidId!, t: t, formats: formats),
                 ),
+              // Owner 2026-10-05: what the client paid through the platform.
+              CasePaymentsCard(caseId: c.id, asAttorney: true),
               // OQ-038: the hired attorney reviews the client (audit
               // 2026-10-02: in person — not an assistant in their name).
               if (!ref.watch(isAssistantProvider))

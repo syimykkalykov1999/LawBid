@@ -462,6 +462,21 @@ enum NotificationType {
   partner_payout
   // Owner 2026-10-01: an admin changed the phone on the user's request.
   security_phone_changed
+  // Owner 2026-10-05: client → attorney payments through the platform.
+  case_payment_received
+  case_payment_sent
+  case_payment_refunded
+  case_payment_disputed
+  payout_account_status
+  // Owner 2026-10-05: payment requests (invoices) from the attorney.
+  payment_request_created
+  payment_request_due
+  payment_request_overdue
+  payment_request_canceled
+  // Owner 2026-10-05: who covers Stripe's fee is agreed like a bid.
+  payment_fee_countered
+  payment_fee_agreed
+
   // Owner 2026-10-04: the other side disputed completion / support decided.
   case_disputed
   dispute_resolved
@@ -3332,6 +3347,167 @@ model PayrollAccrual {
   @@index([employee_id, status])
   @@index([payout_id])
   @@map("payroll_accruals")
+}
+
+// Owner 2026-10-05: client → attorney payments through the platform.
+// The attorney's own Stripe Connect (Express) account: money settles on
+// the attorney's balance (direct charges), the platform keeps only its
+// fee (`application_fee_amount`) and never holds the client's funds.
+model PayoutAccount {
+  user_id              String    @id @db.Uuid
+  provider             String    @default("stripe") @db.String(16)
+  stripe_account_id    String    @unique
+  // pending | onboarding | active | restricted | disabled
+  status               String    @default("pending") @db.String(16)
+  charges_enabled      Boolean   @default(false)
+  payouts_enabled      Boolean   @default(false)
+  details_submitted    Boolean   @default(false)
+  requirements_due     String[]  @default([])
+  disabled_reason      String?   @db.String(200)
+  country              String?   @db.String(2)
+  // Owner 2026-10-05: the attorney's own default for who covers Stripe's
+  // card fee on their invoices (client | attorney | split); null = the
+  // admin default for new attorneys applies.
+  processing_fee_payer String?   @db.String(16)
+  last_synced_at       DateTime? @db.Timestamptz
+  created_at           DateTime  @default(now()) @db.Timestamptz
+  updated_at           DateTime  @updatedAt @db.Timestamptz
+
+  @@index([status])
+  @@map("payout_accounts")
+}
+
+// One payment of a client to the accepted attorney of a case (the bid
+// amount, a deposit, the balance or any amount). Fee columns are a
+// snapshot of the admin's commission settings at creation.
+model CasePayment {
+  id                       String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  case_id                  String    @db.Uuid
+  bid_id                   String?   @db.Uuid
+  client_id                String    @db.Uuid
+  attorney_id              String    @db.Uuid
+  // bid | deposit | balance | custom | invoice
+  kind                     String    @db.String(16)
+  // The attorney's payment request this pays (kind = invoice).
+  request_id               String?   @db.Uuid
+  // pending_payment | succeeded | failed | canceled | refunded |
+  // partially_refunded | disputed
+  status                   String    @db.String(24)
+  // What the attorney charges for the work.
+  amount_cents             Int
+  // The platform's fee (application fee) and the card-processing fee
+  // passed to the client (an estimate of Stripe's charge).
+  platform_fee_cents       Int       @default(0)
+  processing_fee_cents     Int       @default(0)
+  client_total_cents       Int
+  attorney_net_cents       Int
+  // fixed | none; client | attorney
+  fee_type                 String    @db.String(16)
+  fee_payer                String    @db.String(16)
+  // Who covered Stripe's card fee: client | attorney | split.
+  processing_fee_payer     String    @default("client") @db.String(16)
+  currency                 String    @default("usd") @db.String(3)
+  note                     String?   @db.String(200)
+  stripe_account_id        String?
+  stripe_checkout_id       String?   @unique
+  stripe_payment_intent_id String?   @unique
+  stripe_charge_id         String?
+  receipt_url              String?
+  refunded_cents           Int       @default(0)
+  // Stripe dispute status while / after a chargeback.
+  dispute_status           String?   @db.String(32)
+  disputed_at              DateTime? @db.Timestamptz
+  paid_at                  DateTime? @db.Timestamptz
+  canceled_reason          String?   @db.String(100)
+  failure_code             String?   @db.String(100)
+  created_at               DateTime  @default(now()) @db.Timestamptz
+  updated_at               DateTime  @updatedAt @db.Timestamptz
+
+  @@index([case_id, created_at(sort: Desc)])
+  @@index([client_id, created_at(sort: Desc)])
+  @@index([attorney_id, created_at(sort: Desc)])
+  @@index([status, created_at(sort: Desc)])
+  @@index([request_id])
+  @@map("case_payments")
+}
+
+// Owner 2026-10-05: a payment request (invoice) the attorney sends the
+// client from the case: an amount, a description, an optional due date.
+// Installments = several requests sharing a plan_id. The client pays it in
+// two taps; reminders go out before and after the due date.
+model PaymentRequest {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  case_id              String    @db.Uuid
+  attorney_id          String    @db.Uuid
+  client_id            String    @db.Uuid
+  // Who actually created it (the attorney or one of their assistants).
+  created_by           String    @db.Uuid
+  amount_cents         Int
+  description          String    @db.String(200)
+  due_at               DateTime? @db.Timestamptz
+  // Who covers Stripe's fee on this invoice: client | attorney | split.
+  // Owner 2026-10-05 03:03: agreed like a bid — the attorney proposes, the
+  // client accepts or counters, the attorney answers; paying is possible
+  // once agreed (or by accepting the attorney's proposal with the payment).
+  processing_fee_payer String    @default("client") @db.String(16)
+  // proposed | countered | agreed
+  fee_payer_status     String    @default("proposed") @db.String(16)
+  // Who made the current proposal: attorney | client.
+  fee_payer_by         String    @default("attorney") @db.String(16)
+  // Counter-offers so far (the admin caps them like bid rounds).
+  fee_payer_rounds     Int       @default(0)
+  fee_payer_agreed_at  DateTime? @db.Timestamptz
+  // open | paid | canceled | expired
+  status               String    @default("open") @db.String(16)
+  plan_id              String?   @db.Uuid
+  seq                  Int       @default(1)
+  total                Int       @default(1)
+  payment_id           String?   @unique @db.Uuid
+  paid_at              DateTime? @db.Timestamptz
+  canceled_at          DateTime? @db.Timestamptz
+  last_reminded_at     DateTime? @db.Timestamptz
+  reminders_sent       Int       @default(0)
+  created_at           DateTime  @default(now()) @db.Timestamptz
+  updated_at           DateTime  @updatedAt @db.Timestamptz
+
+  @@index([case_id, created_at(sort: Desc)])
+  @@index([client_id, status, due_at])
+  @@index([attorney_id, created_at(sort: Desc)])
+  @@index([status, due_at])
+  @@map("payment_requests")
+}
+
+// Owner 2026-10-05: the client as a Stripe customer on one attorney's
+// connected account, so Checkout can offer their saved card next time.
+model ConnectedCustomer {
+  client_id          String   @db.Uuid
+  stripe_account_id  String
+  stripe_customer_id String
+  created_at         DateTime @default(now()) @db.Timestamptz
+
+  @@id([client_id, stripe_account_id])
+  @@map("connected_customers")
+}
+
+// A refund of a case payment, started by the attorney (the app), an admin
+// or Stripe (a lost dispute).
+model CasePaymentRefund {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  payment_id        String   @db.Uuid
+  amount_cents      Int
+  reason            String   @db.String(500)
+  // attorney | admin | stripe
+  initiated_by_type String   @db.String(16)
+  initiated_by      String?  @db.Uuid
+  stripe_refund_id  String?  @unique
+  // pending | succeeded | failed
+  status            String   @db.String(16)
+  failure_reason    String?
+  created_at        DateTime @default(now()) @db.Timestamptz
+  updated_at        DateTime @updatedAt @db.Timestamptz
+
+  @@index([payment_id])
+  @@map("case_payment_refunds")
 }
 
 // Owner 2026-10-05: the document templates library (admin → Content →

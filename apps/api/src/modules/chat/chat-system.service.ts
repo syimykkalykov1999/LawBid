@@ -10,6 +10,12 @@ export type ChatSystemKey =
   | 'no_agreement'
   | 'case_closed'
   | 'accepted_by_other'
+  // Owner 2026-10-05: payments through the platform (body `key:cents`).
+  | 'payment_requested'
+  | 'payment_received'
+  | 'payment_request_canceled'
+  | 'payment_fee_countered'
+  | 'payment_fee_agreed'
   // Owner 2026-10-04: one side disputed the completion.
   | 'case_disputed';
 
@@ -37,8 +43,10 @@ export class ChatSystemMessages {
     tx: Prisma.TransactionClient,
     where: Prisma.ConversationWhereInput,
     key: ChatSystemKey,
-    opts: { close?: boolean } = {},
+    opts: { close?: boolean; param?: string } = {},
   ): Promise<ChatChange[]> {
+    // The app localizes `chat.system.<key>`; a parameter rides after ':'.
+    const body = opts.param ? `${key}:${opts.param}` : key;
     const conversations = await tx.conversation.findMany({
       where,
       select: { id: true, client_id: true, attorney_id: true },
@@ -50,8 +58,8 @@ export class ChatSystemMessages {
           conversation_id: c.id,
           sender_id: null,
           type: 'system',
-          body_original: key,
-          body_display: key,
+          body_original: body,
+          body_display: body,
           client_message_id: `system:${key}:${randomUUID()}`,
         },
         select: { id: true, created_at: true },

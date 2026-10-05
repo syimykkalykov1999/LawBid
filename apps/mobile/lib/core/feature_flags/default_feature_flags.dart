@@ -29,6 +29,7 @@ const Map<String, bool> defaultFeatureFlags = {
   'translate_cases': false,
   'translate_reviews': false,
   'translate_profiles': false,
+  'payments_in_app': false,
   // Owner 2026-10-05: on only with TURN configured (bootstrap gate).
   'video_calls': false,
   // Owner 2026-10-05: the document templates library (on).
