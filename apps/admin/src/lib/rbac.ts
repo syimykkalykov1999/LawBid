@@ -114,6 +114,7 @@ export const GROUPS: readonly SectionGroup[] = [
     items: [
       { href: '/users', label: 'Пользователи', icon: 'users', area: 'users', hint: 'поиск, санкции, сессии' },
       { href: '/verification', label: 'Верификация', icon: 'seal-check', area: 'verification', count: 'verification', hint: 'лицензии адвокатов' },
+      { href: '/verification/trust', label: 'Уровни доверия', icon: 'shield-check', area: 'verification', hint: 'что может адвокат на каждом уровне' },
       { href: '/client-badges', label: 'Галочки клиентов', icon: 'shield-check', area: 'verification', hint: 'платная золотая галочка' },
       { href: '/teams', label: 'Команды адвокатов', icon: 'users-three', area: 'teams', hint: 'помощники и места' },
     ],
