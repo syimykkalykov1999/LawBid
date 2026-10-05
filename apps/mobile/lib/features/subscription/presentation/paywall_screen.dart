@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/l10n/api_error_text.dart';
+import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
-import 'package:lawbid/features/subscription/subscription_routes.dart';
+import 'package:lawbid/features/subscription/application/subscription_providers.dart';
+import 'package:lawbid/features/subscription/presentation/subscription_offer.dart';
 
 /// Which gate sent the attorney here (docs/06 §1.7 п.3): the paywall
 /// names the locked action instead of a generic "нужна подписка".
@@ -21,80 +23,141 @@ enum PaywallReason {
 }
 
 /// docs/06 §1.7 п.3 — paywall for «Сделать бид», «Написать клиенту»,
-/// «Контакты клиента»: short explanation, "7 дней бесплатно" hint and the
-/// way to the "Подписка" screen. Modal over the gated screen.
-class PaywallScreen extends ConsumerWidget {
+/// «Контакты клиента». Owner 2026-10-04: the same subscription offer as
+/// the onboarding step — "Start 7 days free" (or "Subscribe" after the
+/// trial), "Later" closes it. Modal over the gated screen.
+class PaywallScreen extends ConsumerStatefulWidget {
   const PaywallScreen({this.reason = PaywallReason.generic, super.key});
 
   final PaywallReason reason;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<PaywallScreen> createState() => _PaywallScreenState();
+}
+
+class _PaywallScreenState extends ConsumerState<PaywallScreen> {
+  void _close() => Navigator.of(context).maybePop();
+
+  @override
+  Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
+    final formats = ref.watch(l10nFormatsProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    final (IconData icon, String title, String body) = switch (reason) {
-      PaywallReason.bid => (
-          AppIcons.gavelRounded,
-          t.t('paywall.bid.title'),
-          t.t('paywall.bid.body'),
-        ),
-      PaywallReason.chat => (
-          AppIcons.chatBubbleOutlineRounded,
-          t.t('paywall.chat.title'),
-          t.t('paywall.chat.body'),
-        ),
-      PaywallReason.contacts => (
-          AppIcons.contactPhoneOutlined,
-          t.t('paywall.contacts.title'),
-          t.t('paywall.contacts.body'),
-        ),
-      PaywallReason.generic => (
-          AppIcons.workspacePremiumOutlined,
-          t.t('cases.subscription.title'),
-          t.t('cases.subscription.message'),
-        ),
+    final overview = ref.watch(subscriptionOverviewProvider);
+    final subscribe = ref.watch(subscribeControllerProvider);
+    final reason = switch (widget.reason) {
+      PaywallReason.bid => t.t('paywall.bid.title'),
+      PaywallReason.chat => t.t('paywall.chat.title'),
+      PaywallReason.contacts => t.t('paywall.contacts.title'),
+      PaywallReason.generic => null,
     };
+    // Became active (e.g. paid on another device): nothing to sell.
+    ref.listen(subscriptionOverviewProvider, (_, next) {
+      if (next.value?.isActive ?? false) _close();
+    });
+
+    Widget body;
+    Widget? actions;
+    switch (overview) {
+      case AsyncData(:final value):
+        final texts = offerTexts(t, value, formats.currencyFromCents);
+        final kind = offerKindOf(value);
+        final waiting = subscribe.phase == SubscribePhase.awaitingPayment;
+        body = ListView(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.screenSide,
+            AppSpacing.lg,
+            AppSpacing.screenSide,
+            AppSpacing.xl,
+          ),
+          children: [
+            Text(
+              texts.title,
+              style: typography.titleLarge.copyWith(color: colors.text),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              texts.body,
+              style: typography.body.copyWith(color: colors.textSecondary),
+            ),
+            const SizedBox(height: AppSpacing.xl),
+            SubscriptionOfferBenefits(reason: reason),
+          ],
+        );
+        actions = Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (waiting) ...[
+              Text(
+                t.t('plans.waiting'),
+                textAlign: TextAlign.center,
+                style: typography.caption.copyWith(color: colors.textSecondary),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+            ],
+            if (kind == OfferKind.trial || kind == OfferKind.paid)
+              AppButton(
+                key: const ValueKey('paywall-cta'),
+                label: texts.cta,
+                icon: AppIcons.workspacePremiumOutlined,
+                isLoading: subscribe.busy,
+                onPressed: () async {
+                  if (await startSubscriptionFromOffer(context, ref)) {
+                    _close();
+                  }
+                },
+              ),
+            const SizedBox(height: AppSpacing.sm),
+            AppButton(
+              key: const ValueKey('paywall-later'),
+              label: waiting
+                  ? t.t('plans.waiting.stop')
+                  : t.t('subscription.offer.later'),
+              variant: AppButtonVariant.secondary,
+              onPressed: waiting
+                  ? () => ref
+                      .read(subscribeControllerProvider.notifier)
+                      .stopWaiting()
+                  : _close,
+            ),
+          ],
+        );
+      case AsyncError(:final error):
+        body = AppErrorState(
+          message: errorText(t, error),
+          retryLabel: t.t('error.retry'),
+          onRetry: () => ref.invalidate(subscriptionOverviewProvider),
+        );
+      default:
+        body = const Center(child: CircularProgressIndicator());
+    }
+
     return Scaffold(
       backgroundColor: colors.bg,
       appBar: AppTopBar(
         leading: AppBackButton(
           semanticLabel: t.t('common.close'),
-          onPressed: () => Navigator.of(context).maybePop(),
+          onPressed: _close,
         ),
         title: Text(t.t('paywall.title')),
       ),
-      body: AppStateLayout(
-        icon: icon,
-        title: title,
-        message: body,
-        action: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AppButton(
-              key: const ValueKey('paywall-cta'),
-              label: t.t('paywall.cta'),
-              icon: AppIcons.workspacePremiumOutlined,
-              height: AppSizes.touchTarget,
-              onPressed: () =>
-                  context.pushReplacement(SubscriptionRoutes.subscription),
+      body: body,
+      bottomNavigationBar: actions == null
+          ? null
+          : SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.screenSide,
+                  AppSpacing.sm,
+                  AppSpacing.screenSide,
+                  AppSpacing.md,
+                ),
+                child: actions,
+              ),
             ),
-            const SizedBox(height: AppSpacing.sm),
-            Text(
-              t.t('paywall.trialHint'),
-              textAlign: TextAlign.center,
-              style: typography.caption.copyWith(color: colors.textSecondary),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            AppButton(
-              label: t.t('common.close'),
-              variant: AppButtonVariant.secondary,
-              height: AppSizes.touchTarget,
-              onPressed: () => Navigator.of(context).maybePop(),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

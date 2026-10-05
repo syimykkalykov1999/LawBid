@@ -75,6 +75,7 @@ abstract final class AppRouterGuard {
     AuthRoutes.phone,
     AuthRoutes.email,
     AuthRoutes.otp,
+    AuthRoutes.assistant,
   };
 
   static String? redirect(String location, GuardSnapshot s) {
@@ -182,8 +183,7 @@ abstract final class AppRouterGuard {
             missing.contains(MissingRequirement.emailVerified))) {
       return OnboardingStepId.contacts;
     }
-    if ((user.isAttorney || user.role == UserRole.assistant) &&
-        missing.contains(MissingRequirement.phoneVerified)) {
+    if (user.isAttorney && missing.contains(MissingRequirement.phoneVerified)) {
       return OnboardingStepId.contacts;
     }
     if (completed) return null;
@@ -191,15 +191,17 @@ abstract final class AppRouterGuard {
     final order = OnboardingStepId.orderFor(user.role);
     final roleIndex = order.indexOf(OnboardingStepId.role);
     OnboardingStepId effective;
+    // The first step after the role (contacts; profile for an assistant).
+    final afterRole = order[roleIndex + 1];
     if (saved == null) {
-      effective = OnboardingStepId.contacts;
+      effective = afterRole;
     } else if (!order.contains(saved)) {
       // A step that doesn't exist for this role (e.g. `verification` saved
       // for a client) → the last step.
       effective = order.last;
     } else if (order.indexOf(saved) <= roleIndex) {
       // language/consents/role are already satisfied (rows 2-3 passed).
-      effective = OnboardingStepId.contacts;
+      effective = afterRole;
     } else {
       effective = saved;
     }
@@ -224,12 +226,9 @@ abstract final class AppRouterGuard {
         location == AppRoutes.verificationWizard) {
       return required == OnboardingStepId.verification;
     }
-    // Owner 2026-10-04: the checklist's "Choose practice areas" opens the
-    // practices screen from the verification step; without this the guard
-    // sent the attorney straight back (a loop).
-    if (location == AppRoutes.practices) {
-      return required == OnboardingStepId.verification;
-    }
+    // Owner 2026-10-04: practice areas and the subscription offer are
+    // stages shown in place on the verification step (no pushed screens
+    // to come back from), so nothing else is reachable mid-onboarding.
     final step = OnboardingRoutes.stepOf(location);
     if (step == null) return false;
     final order = OnboardingStepId.orderFor(user.role);

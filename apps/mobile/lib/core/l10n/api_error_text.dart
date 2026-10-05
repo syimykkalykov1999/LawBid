@@ -73,6 +73,7 @@ const _keys = <String, String>{
   ApiErrorCodes.assistantNotAllowed: 'error.api.ASSISTANT_NOT_ALLOWED',
   ApiErrorCodes.assistantPhoneTaken: 'error.api.ASSISTANT_PHONE_TAKEN',
   ApiErrorCodes.assistantInviteNotFound: 'error.api.ASSISTANT_INVITE_NOT_FOUND',
+  ApiErrorCodes.assistantCodeInvalid: 'error.api.ASSISTANT_CODE_INVALID',
   ApiErrorCodes.assistantLiabilityRequired:
       'error.api.ASSISTANT_LIABILITY_REQUIRED',
   ApiErrorCodes.taskClosed: 'error.api.TASK_CLOSED',

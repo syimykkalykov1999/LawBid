@@ -1347,6 +1347,8 @@ model Bid {
   turn                    PartyRole
   // Owner 2026-09-30: the case's practice is not one of the attorney's.
   outside_practice        Boolean           @default(false)
+  // Owner 2026-10-04: no verified licence in the case's states.
+  outside_licensed_states Boolean           @default(false)
   decided_at              DateTime?         @db.Timestamptz
   created_at              DateTime          @default(now()) @db.Timestamptz
   updated_at              DateTime          @updatedAt @db.Timestamptz
@@ -2377,19 +2379,24 @@ enum AssistantApproval {
 /// OQ-048: an assistant in an attorney's team. Partial unique index on
 /// phone_e164 for live rows lives in the migration.
 model AssistantMembership {
-  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  attorney_id       String            @db.Uuid
-  attorney          User              @relation("AssistantAttorney", fields: [attorney_id], references: [id], onDelete: Cascade)
-  assistant_user_id String?           @db.Uuid
-  assistant_user    User?             @relation("AssistantUser", fields: [assistant_user_id], references: [id], onDelete: SetNull)
-  phone_e164        String
-  display_name      String?
-  status            AssistantStatus   @default(invited)
-  approval          AssistantApproval
-  duties            String[]          @default([])
-  created_at        DateTime          @default(now()) @db.Timestamptz
-  joined_at         DateTime?         @db.Timestamptz
-  removed_at        DateTime?         @db.Timestamptz
+  id                   String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  attorney_id          String            @db.Uuid
+  attorney             User              @relation("AssistantAttorney", fields: [attorney_id], references: [id], onDelete: Cascade)
+  assistant_user_id    String?           @db.Uuid
+  assistant_user       User?             @relation("AssistantUser", fields: [assistant_user_id], references: [id], onDelete: SetNull)
+  phone_e164           String?
+  display_name         String?
+  status               AssistantStatus   @default(invited)
+  /// Owner 2026-10-04: one-time join / sign-in code (sha256, unique),
+  /// the same code encrypted for the attorney to show again, and its end.
+  join_code_hash       String?           @unique
+  join_code_enc        String?
+  join_code_expires_at DateTime?         @db.Timestamptz
+  approval             AssistantApproval
+  duties               String[]          @default([])
+  created_at           DateTime          @default(now()) @db.Timestamptz
+  joined_at            DateTime?         @db.Timestamptz
+  removed_at           DateTime?         @db.Timestamptz
 
   activity              AssistantActivity[]
   requests              AssistantRequest[]

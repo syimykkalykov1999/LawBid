@@ -120,10 +120,23 @@ class PracticesScreen extends ConsumerWidget {
 }
 
 class PracticesEditor extends ConsumerStatefulWidget {
-  const PracticesEditor({required this.tree, required this.initial, super.key});
+  const PracticesEditor({
+    required this.tree,
+    required this.initial,
+    super.key,
+    this.saveLabel,
+    this.onSaved,
+  });
 
   final List<PracticeCategory> tree;
   final List<SelectedPractice> initial;
+
+  /// Owner 2026-10-04 (attorney onboarding): "Save and continue" — the
+  /// button is enabled with any non-empty selection (even unchanged) and
+  /// [onSaved] moves the onboarding forward; no snack bar, no staying on
+  /// the same screen.
+  final String? saveLabel;
+  final VoidCallback? onSaved;
 
   @override
   ConsumerState<PracticesEditor> createState() => _PracticesEditorState();
@@ -145,8 +158,12 @@ class _PracticesEditorState extends ConsumerState<PracticesEditor> {
   bool get _dirty =>
       _selected.length != _saved.length || !_selected.containsAll(_saved);
 
+  bool get _onboarding => widget.onSaved != null;
+
+  bool get _canSave => _onboarding ? _selected.isNotEmpty : _dirty;
+
   Future<void> _save(Translator t) async {
-    if (_saving || !_dirty) return;
+    if (_saving || !_canSave) return;
     setState(() => _saving = true);
     try {
       final saved = await ref
@@ -165,7 +182,11 @@ class _PracticesEditorState extends ConsumerState<PracticesEditor> {
       if (username != null) {
         ref.invalidate(publicAttorneyProfileProvider(username));
       }
-      showAppSnackBar(context, t.t('practices.saved'));
+      if (_onboarding) {
+        widget.onSaved!();
+      } else {
+        showAppSnackBar(context, t.t('practices.saved'));
+      }
     } catch (e) {
       if (mounted) showAppSnackBar(context, errorText(t, e));
     } finally {
@@ -361,9 +382,9 @@ class _PracticesEditorState extends ConsumerState<PracticesEditor> {
               ),
               child: AppButton(
                 key: const ValueKey('practices-save'),
-                label: t.t('practices.save'),
+                label: widget.saveLabel ?? t.t('practices.save'),
                 isLoading: _saving,
-                isEnabled: _dirty,
+                isEnabled: _canSave,
                 dimWhenDisabled: true,
                 onPressed: () => _save(t),
               ),

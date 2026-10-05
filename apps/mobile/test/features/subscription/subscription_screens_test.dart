@@ -16,15 +16,18 @@ import 'package:lawbid/features/subscription/presentation/payments_screen.dart';
 import 'package:lawbid/features/subscription/presentation/paywall_screen.dart';
 import 'package:lawbid/features/subscription/presentation/plan_picker.dart';
 import 'package:lawbid/features/subscription/presentation/subscription_screen.dart';
+import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 
 import '../../helpers/ux_harness.dart';
+import '../team/team_fakes.dart';
 import 'subscription_fakes.dart';
 
 /// docs/06 §1.7 screens: "Подписка" in its states, the paywall per gate,
 /// the payment history.
 void main() {
   late FakeSubscriptionRepository repo;
+  late FakeTeamRepository team;
   late FakeCardCollector collector;
   late List<Uri> launched;
   var launchResult = true;
@@ -33,6 +36,7 @@ void main() {
   List<Override> overrides() => uxOverrides(
         extra: [
           subscriptionRepositoryProvider.overrideWithValue(repo),
+          teamRepositoryProvider.overrideWithValue(team),
           cardCollectorProvider.overrideWithValue(collector),
           subscriptionPollIntervalProvider.overrideWithValue(Duration.zero),
           checkoutPollIntervalProvider.overrideWithValue(Duration.zero),
@@ -69,6 +73,7 @@ void main() {
 
   setUp(() {
     repo = FakeSubscriptionRepository(makeOverview());
+    team = FakeTeamRepository();
     collector = FakeCardCollector();
     launched = [];
     launchResult = true;
@@ -123,7 +128,8 @@ void main() {
       expect(find.byType(SubscriptionStatusCard), findsNothing);
     });
 
-    testWidgets('monthly + 2 assistants + a phone → Stripe page → trial',
+    testWidgets(
+        'monthly + 2 assistants → Stripe page → trial → a code per assistant',
         (tester) async {
       repo.onComplete = () => makeOverview(
             subscription: makeInfo(assistantSeats: 2),
@@ -137,26 +143,39 @@ void main() {
       await tester.pump();
       expect(find.text('Assistants: 2'), findsOneWidget);
       expect(find.text(r'$599 per month'), findsOneWidget);
-      await tester.ensureVisible(find.byKey(const ValueKey('plan-phone-add')));
-      await tester.tap(find.byKey(const ValueKey('plan-phone-add')));
-      await tester.pump();
-      await tester.enterText(
-        find.byKey(const ValueKey('plan-phone-0')),
-        '+13125550111',
-      );
+      // Owner 2026-10-04: no phones at checkout — codes come after it.
+      expect(find.byKey(const ValueKey('plan-seat-codes')), findsOneWidget);
       await tester.ensureVisible(find.byKey(const ValueKey('subscribe-cta')));
       await tester.pump();
       await tester.tap(find.byKey(const ValueKey('subscribe-cta')));
       await tester.pump();
       await tester.pump();
       await tester.pump();
-      expect(repo.calls, contains('checkout:monthly:2:+13125550111'));
+      expect(repo.calls, contains('checkout:monthly:2:'));
       expect(launched.single.host, 'checkout.stripe.com');
       expect(repo.calls, contains('complete:cs_1'));
       expect(find.text('Your trial has started'), findsOneWidget);
       expect(find.byKey(const ValueKey('subscription-status')), findsOneWidget);
       expect(find.byKey(const ValueKey('subscribe-cta')), findsNothing);
       expect(find.text('Assistants: 2'), findsOneWidget);
+
+      // "Your assistants": add one → its one-time code shows at once.
+      await tester.pump();
+      expect(find.byKey(const ValueKey('assistant-seats')), findsOneWidget);
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('seats-add-assistant')),
+      );
+      await tester.tap(find.byKey(const ValueKey('seats-add-assistant')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const ValueKey('team-add-name')),
+        'Sam',
+      );
+      await tester.tap(find.byKey(const ValueKey('team-add-save')));
+      await tester.pumpAndSettle();
+      expect(team.calls, contains('add:Sam'));
+      expect(find.text('K7QM-4XRT-92H1'), findsWidgets);
+      expect(find.byKey(const ValueKey('code-send-m1')), findsWidgets);
     });
 
     testWidgets('yearly: all six seats, the year total', (tester) async {
@@ -185,22 +204,6 @@ void main() {
       // "Active" sits on the Prime card, with the team inside it.
       expect(find.text('Active'), findsWidgets);
       expect(find.byKey(const ValueKey('team-row')), findsOneWidget);
-    });
-
-    testWidgets('a bad phone is flagged, nothing is sent', (tester) async {
-      await pump(tester, const SubscriptionScreen());
-      await tester.tap(find.byKey(const ValueKey('seats-add-first')));
-      await tester.pump();
-      await tester.ensureVisible(find.byKey(const ValueKey('plan-phone-add')));
-      await tester.tap(find.byKey(const ValueKey('plan-phone-add')));
-      await tester.pump();
-      await tester.enterText(find.byKey(const ValueKey('plan-phone-0')), '123');
-      await tester.ensureVisible(find.byKey(const ValueKey('subscribe-cta')));
-      await tester.pump();
-      await tester.tap(find.byKey(const ValueKey('subscribe-cta')));
-      await tester.pump();
-      expect(find.text('Phone like +13125550123'), findsOneWidget);
-      expect(repo.calls.where((c) => c.startsWith('checkout')), isEmpty);
     });
 
     testWidgets("the page can't open: a clear message", (tester) async {
@@ -404,14 +407,41 @@ void main() {
   });
 
   group('PaywallScreen', () {
-    testWidgets('names the gate and leads to the subscription', (tester) async {
+    testWidgets('names the gate and offers the 7-day trial, or Later',
+        (tester) async {
       await pump(tester, const PaywallScreen(reason: PaywallReason.contacts));
       expect(
         find.text('Client contacts come with a subscription'),
         findsOneWidget,
       );
-      expect(find.byKey(const ValueKey('paywall-cta')), findsOneWidget);
-      expect(find.text('7 days free for verified attorneys.'), findsOneWidget);
+      expect(find.text('7 days free'), findsOneWidget);
+      final cta =
+          tester.widget<AppButton>(find.byKey(const ValueKey('paywall-cta')));
+      expect(cta.label, 'Start 7 days free');
+      expect(find.byKey(const ValueKey('paywall-later')), findsOneWidget);
+      expect(find.textContaining(r'$399'), findsWidgets);
+    });
+
+    testWidgets(
+        '"Start 7 days free" opens the Stripe page for the monthly '
+        'plan', (tester) async {
+      repo.onComplete = () => makeOverview(subscription: makeInfo());
+      await pump(tester, const PaywallScreen(reason: PaywallReason.bid));
+      await tester.tap(find.byKey(const ValueKey('paywall-cta')));
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+      expect(repo.calls, contains('checkout:monthly:0:'));
+      expect(launched.single.host, 'checkout.stripe.com');
+    });
+
+    testWidgets('trial used: "Subscribe" instead of the trial', (tester) async {
+      repo.current = makeOverview(trialEligible: false);
+      await pump(tester, const PaywallScreen(reason: PaywallReason.bid));
+      expect(find.text('Subscribe to continue'), findsOneWidget);
+      final cta =
+          tester.widget<AppButton>(find.byKey(const ValueKey('paywall-cta')));
+      expect(cta.label, 'Subscribe');
     });
 
     test('reason parsing is lenient', () {

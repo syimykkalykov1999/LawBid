@@ -79,6 +79,7 @@ abstract final class ApiErrorCodes {
   static const assistantNotAllowed = 'ASSISTANT_NOT_ALLOWED';
   static const assistantPhoneTaken = 'ASSISTANT_PHONE_TAKEN';
   static const assistantInviteNotFound = 'ASSISTANT_INVITE_NOT_FOUND';
+  static const assistantCodeInvalid = 'ASSISTANT_CODE_INVALID';
   static const assistantLiabilityRequired = 'ASSISTANT_LIABILITY_REQUIRED';
   static const taskClosed = 'TASK_CLOSED';
   static const taskStepsLimit = 'TASK_STEPS_LIMIT';
@@ -250,6 +251,7 @@ abstract final class ApiErrorCodes {
     assistantNotAllowed,
     assistantPhoneTaken,
     assistantInviteNotFound,
+    assistantCodeInvalid,
     assistantLiabilityRequired,
     taskClosed,
     taskStepsLimit,

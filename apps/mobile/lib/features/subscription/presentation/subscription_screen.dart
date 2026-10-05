@@ -18,6 +18,7 @@ import 'package:lawbid/features/subscription/data/card_collector.dart';
 import 'package:lawbid/features/subscription/domain/subscription_models.dart';
 import 'package:lawbid/features/subscription/presentation/plan_picker.dart';
 import 'package:lawbid/features/subscription/subscription_routes.dart';
+import 'package:lawbid/features/team/presentation/assistant_code_card.dart';
 import 'package:lawbid/features/team/team_routes.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -358,6 +359,13 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
             onTeam: () => context.push(TeamRoutes.team),
           ),
         ),
+      // Owner 2026-10-04: every assistant seat with its one-time code
+      // (copy / send / new code) and "Add assistant" — right here after
+      // buying seats, no SMS.
+      if (s != null &&
+          !showCta &&
+          (s.assistantSeats > 0 || (grant?.assistantSeats ?? 0) > 0))
+        section(const AssistantSeatsSection()),
       if (s != null && !statusFirst) statusCard(s),
       if (showCta)
         section(

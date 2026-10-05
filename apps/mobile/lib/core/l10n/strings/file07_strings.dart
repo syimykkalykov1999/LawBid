@@ -315,7 +315,7 @@ const file07Ru = <String, String>{
   'plans.total.year': '{price} в год',
   'plans.phones': 'Телефоны помощников (необязательно)',
   'plans.phones.hint':
-      'Эти помощники войдут без кода. Остальных добавите позже — код придёт на ваш телефон.',
+      'Каждый помощник входит по одноразовому коду, который вы ему отправите. SMS не нужны.',
   'plans.phones.add': 'Добавить телефон',
   'plans.phones.invalid': 'Телефон в формате +13125550123',
   'plans.phones.tooMany': 'Телефонов больше, чем мест',
@@ -357,7 +357,7 @@ const file07Ru = <String, String>{
   'assistant.join.code': 'Код из SMS адвоката',
   'assistant.join.verify': 'Подключиться',
   'assistant.join.none':
-      'Попросите адвоката добавить ваш номер в «Команда» — или подключитесь по его номеру.',
+      'Попросите у адвоката код помощника: он в разделе Подписка → «Ваши помощники».',
   'assistant.join.done': 'Вы подключены к {name}',
   'assistant.banner': 'Вы — помощник {name}',
   'assistant.of': 'Помощник · {name}',
@@ -390,7 +390,7 @@ const file07Ru = <String, String>{
   'team.add': 'Добавить помощника',
   'team.add.phone': 'Телефон помощника',
   'team.add.name': 'Имя (как вы его зовёте)',
-  'team.add.done': 'Помощник добавлен. Он войдёт со своим номером без кода.',
+  'team.add.done': 'Помощник добавлен. Отправьте ему код.',
   'team.noSeats': 'Нет свободных мест. Добавьте места в «Подписка».',
   'team.buySeats': 'Добавить места',
   'team.empty': 'Помощников пока нет',
@@ -882,7 +882,7 @@ const file07En = <String, String>{
   'plans.total.year': '{price} per year',
   'plans.phones': 'Assistant phones (optional)',
   'plans.phones.hint':
-      'These assistants join without a code. Add others later — the code goes to your phone.',
+      'Each assistant signs in with a one-time code you send them. No SMS needed.',
   'plans.phones.add': 'Add a phone',
   'plans.phones.invalid': 'Phone like +13125550123',
   'plans.phones.tooMany': 'More phones than seats',
@@ -925,7 +925,7 @@ const file07En = <String, String>{
   'assistant.join.code': "Code from the attorney's SMS",
   'assistant.join.verify': 'Join',
   'assistant.join.none':
-      'Ask your attorney to add your number in "Team" — or join with their phone.',
+      'Ask your attorney for your assistant code: it is in Subscription → "Your assistants".',
   'assistant.join.done': "You've joined {name}",
   'assistant.banner': "You're {name}'s assistant",
   'assistant.of': 'Assistant · {name}',
@@ -958,7 +958,7 @@ const file07En = <String, String>{
   'team.add': 'Add an assistant',
   'team.add.phone': "Assistant's phone",
   'team.add.name': 'Name (how you call them)',
-  'team.add.done': 'Assistant added. They sign in with their number, no code.',
+  'team.add.done': 'Assistant added. Send them the code.',
   'team.noSeats': 'No free seats. Add seats in Subscription.',
   'team.buySeats': 'Add seats',
   'team.empty': 'No assistants yet',

@@ -78,12 +78,8 @@ class FakeTeamRepository implements TeamRepository {
   }
 
   @override
-  Future<void> requestJoinCode(String attorneyPhone) async =>
-      calls.add('code:$attorneyPhone');
-
-  @override
-  Future<AssistantMe> verifyJoinCode(String attorneyPhone, String code) async {
-    calls.add('verify:$attorneyPhone:$code');
+  Future<AssistantMe> joinWithCode(String code) async {
+    calls.add('join:$code');
     return me = const AssistantMe(
       state: AssistantState.active,
       duties: {AssistantDuty.tasks},
@@ -95,20 +91,21 @@ class FakeTeamRepository implements TeamRepository {
   Future<TeamInfo> team() async => teamInfo;
 
   @override
-  Future<TeamInfo> addAssistant(
-    String phone, {
+  Future<TeamInfo> addAssistant({
     String? name,
     Set<AssistantDuty>? duties,
     bool acceptLiability = false,
   }) async {
-    calls.add('add:$phone:$name');
+    calls.add('add:$name');
+    final n = teamInfo.members.length + 1;
     return teamInfo = TeamInfo(
       members: [
         ...teamInfo.members,
         TeamMember(
-          id: 'm${teamInfo.members.length + 1}',
-          phone: phone,
+          id: 'm$n',
           name: name,
+          joinCode: 'K7QM-4XRT-92H$n',
+          joinCodeExpiresAt: _now.add(const Duration(days: 7)),
           status: MemberStatus.invited,
           approval: 'attorney_added',
           duties: const {AssistantDuty.chats, AssistantDuty.tasks},
@@ -132,6 +129,33 @@ class FakeTeamRepository implements TeamRepository {
       'update:$id:${duties?.map((d) => d.wire).join(',')}:$acceptLiability',
     );
     return teamInfo;
+  }
+
+  @override
+  Future<TeamInfo> regenerateCode(String id) async {
+    calls.add('code:$id');
+    return teamInfo = TeamInfo(
+      members: [
+        for (final m in teamInfo.members)
+          if (m.id == id)
+            TeamMember(
+              id: m.id,
+              name: m.name,
+              status: m.status,
+              approval: m.approval,
+              duties: m.duties,
+              createdAt: m.createdAt,
+              joinedAt: m.joinedAt,
+              joinCode: 'NEW2-CODE-XYZ9',
+              joinCodeExpiresAt: _now.add(const Duration(days: 7)),
+            )
+          else
+            m,
+      ],
+      seats: teamInfo.seats,
+      used: teamInfo.used,
+      plan: teamInfo.plan,
+    );
   }
 
   @override

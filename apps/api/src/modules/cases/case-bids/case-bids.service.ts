@@ -81,8 +81,8 @@ export const BID_LIST_INCLUDE = {
           rating_count: true,
           licenses: {
             where: { license_status: 'verified' },
-            select: { id: true },
-            take: 1,
+            select: { state_code: true },
+            orderBy: { state_code: 'asc' },
           },
         },
       },
@@ -181,6 +181,7 @@ export class CaseBidsService {
       roundCount: bid.round_count,
       turn: bid.turn,
       outsidePractice: bid.outside_practice,
+      outsideLicensedStates: bid.outside_licensed_states,
       decidedAt: bid.decided_at?.toISOString() ?? null,
       createdAt: bid.created_at.toISOString(),
       attorney: {
@@ -193,6 +194,9 @@ export class CaseBidsService {
           p?.verification_status === 'verified' &&
           !p.name_mismatch &&
           (p.licenses.length ?? 0) > 0,
+        licensedStates: [
+          ...new Set((p?.licenses ?? []).map((l) => l.state_code)),
+        ],
         rating: {
           avg: p ? Number(p.rating_avg) : 0,
           count: p?.rating_count ?? 0,

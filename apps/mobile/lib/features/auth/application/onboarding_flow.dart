@@ -224,6 +224,23 @@ class OnboardingFlow extends _$OnboardingFlow {
     );
   }
 
+  /// Owner 2026-10-04: an assistant signs in with the attorney's one-time
+  /// code (no SMS); the guard then opens the assistant's next step.
+  Future<bool> signInWithAssistantCode(String code) async {
+    state = state.copyWith(isSubmitting: true, errorMessage: null);
+    final t = ref.read(translatorProvider);
+    final result =
+        await ref.read(authRepositoryProvider).signInWithAssistantCode(code);
+    return result.when(
+      success: (_) => _afterSignIn(isNewUser: false),
+      invalid: () => _fail(t.t('assistant.code.invalid')),
+      expired: () => _fail(t.t('assistant.code.invalid')),
+      locked: () => _fail(t.t('assistant.code.tooMany')),
+      rateLimited: (_) => _fail(t.t('assistant.code.tooMany')),
+      networkError: () => _fail(t.t('error.api.NETWORK_ERROR')),
+    );
+  }
+
   Future<bool> _fail(String message) async {
     state = state.copyWith(isSubmitting: false, errorMessage: message);
     return false;

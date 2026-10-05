@@ -258,6 +258,24 @@ class WelcomeScreen extends ConsumerWidget {
                             // телефоном" — GavelStrikeIconButton (added in stage 1.7,
                             // docs/CHANGELOG.md, see gavel_strike_icon_button.dart).
                             socialLoginRow,
+                            // Owner 2026-10-04: assistants come in with the
+                            // attorney's one-time code (no SMS).
+                            const SizedBox(height: 4),
+                            TextButton(
+                              key: const ValueKey('welcome-assistant'),
+                              onPressed: () =>
+                                  context.push(AuthRoutes.assistant),
+                              child: Text(
+                                t.t('assistant.code.entry'),
+                                textAlign: TextAlign.center,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: typography.body.copyWith(
+                                  color: colors.textSecondary,
+                                  decoration: TextDecoration.underline,
+                                ),
+                              ),
+                            ),
                             // Second flexible spacer (see the one above the phone
                             // button): the pair centers the button block between the
                             // logo and the legal text, while still pinning the legal

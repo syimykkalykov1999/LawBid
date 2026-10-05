@@ -1195,7 +1195,6 @@ class AttorneyLine extends StatelessWidget {
   }
 }
 
-/// A bid in the client's list (docs/04 §5.2).
 /// Owner 2026-09-30: a bid on a case outside the attorney's practices —
 /// the client is asked to discuss it first; the attorney is told the
 /// client will see this.
@@ -1208,6 +1207,51 @@ class OutsidePracticeNote extends StatelessWidget {
 
   final Translator t;
   final bool forClient;
+
+  @override
+  Widget build(BuildContext context) => BidInfoNote(
+        text: t.t(
+          forClient
+              ? 'cases.outsidePractice.client'
+              : 'cases.outsidePractice.attorney',
+        ),
+      );
+}
+
+/// Owner 2026-10-04: an attorney may bid in any state. When none of their
+/// verified licences is in the case's states, the client sees where they
+/// are licensed ([states], 2-letter codes; may be unknown on screens that
+/// only have the bid); the attorney is told the client will see it.
+class OutsideStatesNote extends StatelessWidget {
+  const OutsideStatesNote({
+    required this.t,
+    required this.forClient,
+    this.states = const [],
+    super.key,
+  });
+
+  final Translator t;
+  final bool forClient;
+  final List<String> states;
+
+  @override
+  Widget build(BuildContext context) => BidInfoNote(
+        key: const ValueKey('outside-states-note'),
+        text: !forClient
+            ? t.t('cases.outsideStates.attorney')
+            : states.isEmpty
+                ? t.t('cases.outsideStates.clientNoList')
+                : t.t('cases.outsideStates.client', {
+                    'states': states.join(', '),
+                  }),
+      );
+}
+
+/// Gold info box used by the bid mismatch notes.
+class BidInfoNote extends StatelessWidget {
+  const BidInfoNote({required this.text, super.key});
+
+  final String text;
 
   @override
   Widget build(BuildContext context) {
@@ -1233,11 +1277,7 @@ class OutsidePracticeNote extends StatelessWidget {
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Text(
-                t.t(
-                  forClient
-                      ? 'cases.outsidePractice.client'
-                      : 'cases.outsidePractice.attorney',
-                ),
+                text,
                 style: typography.bodySmall.copyWith(color: colors.text),
               ),
             ),
@@ -1248,6 +1288,7 @@ class OutsidePracticeNote extends StatelessWidget {
   }
 }
 
+/// A bid in the client's list (docs/04 §5.2).
 class BidCard extends StatelessWidget {
   const BidCard({
     required this.bid,
@@ -1290,6 +1331,14 @@ class BidCard extends StatelessWidget {
               formats: formats,
               onTap: onAttorneyTap,
             ),
+          if (bid.outsideLicensedStates) ...[
+            const SizedBox(height: AppSpacing.sm),
+            OutsideStatesNote(
+              t: t,
+              forClient: true,
+              states: bid.attorney?.licensedStates ?? const [],
+            ),
+          ],
           if (bid.outsidePractice) ...[
             const SizedBox(height: AppSpacing.sm),
             OutsidePracticeNote(t: t, forClient: true),

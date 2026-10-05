@@ -112,6 +112,8 @@ enum ErrorCode {
   assistantPhoneTaken('ASSISTANT_PHONE_TAKEN'),
   @JsonValue('ASSISTANT_INVITE_NOT_FOUND')
   assistantInviteNotFound('ASSISTANT_INVITE_NOT_FOUND'),
+  @JsonValue('ASSISTANT_CODE_INVALID')
+  assistantCodeInvalid('ASSISTANT_CODE_INVALID'),
   @JsonValue('ASSISTANT_LIABILITY_REQUIRED')
   assistantLiabilityRequired('ASSISTANT_LIABILITY_REQUIRED'),
   @JsonValue('TASK_CLOSED')

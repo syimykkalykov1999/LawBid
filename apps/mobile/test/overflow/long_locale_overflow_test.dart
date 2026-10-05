@@ -7,6 +7,7 @@ import 'package:lawbid/core/l10n/app_language.dart';
 import 'package:lawbid/core/l10n/l10n_translator.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
+import 'package:lawbid/features/auth/presentation/screens/assistant_code_screen.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/feed/presentation/screens/feed_screen.dart';
 import 'package:lawbid/features/mine/presentation/screens/mine_screen.dart';
@@ -16,6 +17,8 @@ import 'package:lawbid/features/search/presentation/screens/search_screen.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
+import 'package:lawbid/features/team/domain/team_models.dart';
+import 'package:lawbid/features/team/presentation/assistant_code_card.dart';
 import 'package:lawbid/features/team/presentation/tasks_tab.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -244,6 +247,43 @@ void main() {
             reason: '$k and "Add a task" share one row',
           );
         }
+      });
+
+      testWidgets('assistant codes: seats section, code card, sign-in',
+          (tester) async {
+        final repo = FakeTeamRepository();
+        final team = await repo.addAssistant(name: 'Alexandra Montgomery-Kim');
+        repo.teamInfo = TeamInfo(
+          members: team.members,
+          seats: 6,
+          used: 1,
+          plan: team.plan,
+        );
+        await pump(
+          tester,
+          Scaffold(
+            body: ListView(
+              children: [
+                const AssistantSeatsSection(),
+                AssistantCodeCard(member: team.members.single),
+              ],
+            ),
+          ),
+          t,
+          dir,
+          extra: [teamRepositoryProvider.overrideWithValue(repo)],
+        );
+        expect(find.byKey(const ValueKey('assistant-seats')), findsOneWidget);
+        expect(tester.takeException(), isNull);
+        await pump(
+          tester,
+          const AssistantCodeScreen(),
+          t,
+          dir,
+          extra: [teamRepositoryProvider.overrideWithValue(repo)],
+        );
+        expect(find.byType(AssistantCodeScreen), findsOneWidget);
+        expect(tester.takeException(), isNull);
       });
 
       final screens = <String, Widget>{

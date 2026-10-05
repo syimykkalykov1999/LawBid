@@ -99,6 +99,9 @@ export enum ErrorCode {
   ASSISTANT_NOT_ALLOWED = 'ASSISTANT_NOT_ALLOWED',
   ASSISTANT_PHONE_TAKEN = 'ASSISTANT_PHONE_TAKEN',
   ASSISTANT_INVITE_NOT_FOUND = 'ASSISTANT_INVITE_NOT_FOUND',
+  // Owner 2026-10-04: the assistant's one-time code is unknown, used,
+  // expired or its seat was removed (one answer for all, no probing).
+  ASSISTANT_CODE_INVALID = 'ASSISTANT_CODE_INVALID',
   // OQ-049: granting bids / publish needs the attorney's acceptance.
   ASSISTANT_LIABILITY_REQUIRED = 'ASSISTANT_LIABILITY_REQUIRED',
   /** Owner 2026-10-01: a cancelled task takes no new steps. */
