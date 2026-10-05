@@ -49,8 +49,13 @@ const trustRu = <String, String>{
       'Имя в платёжном аккаунте не совпадает с профилем',
   'trust.signal.name.match': 'Имя в платёжном аккаунте совпадает с профилем',
   'trust.signal.name.unknown': 'Имя в платёжном аккаунте ещё не сверено',
-  'trust.signal.payments.ok': 'Принимает оплату через LawBid',
-  'trust.signal.payments.no': 'Оплата через LawBid пока не принимается',
+  // Payments inside LawBid = the client paying this attorney in the app
+  // (and the attorney invoicing the client). Not the subscription.
+  'trust.signal.payments.ok': 'Можно оплатить через LawBid',
+  'trust.signal.payments.no': 'Оплатить через LawBid пока нельзя',
+  'trust.signal.payments.ok.self': 'Клиенты могут платить вам через LawBid',
+  'trust.signal.payments.no.self':
+      'Клиенты пока не могут платить вам через LawBid',
   'trust.signal.bids.ok': 'Может откликаться на кейсы',
   'trust.signal.bids.no': 'Отклики и чат приостановлены',
 
@@ -64,7 +69,28 @@ const trustRu = <String, String>{
       'Связь этого адвоката с юридической фирмой подтверждена.',
   'trust.payment.ok.generic': 'Личность этого адвоката подтверждена.',
   'trust.payment.blocked':
-      'LawBid не принимает платежи адвокатам, чья личность ещё не подтверждена (уровень ниже «Личность»). Переводить деньги вне платформы небезопасно.',
+      'Оплатить работу этого адвоката через LawBid пока нельзя: его аккаунт ещё не подтверждён, LawBid не проверил его личность. Не переводите ему деньги напрямую, мимо приложения: такие платежи LawBid не проверяет.',
+  'trust.payment.blocked.review':
+      'Оплатить работу этого адвоката через LawBid сейчас нельзя: LawBid ещё не завершил проверку его аккаунта. Не переводите ему деньги напрямую, мимо приложения: такие платежи LawBid не проверяет.',
+
+  // The same card when the attorney looks at their own profile.
+  'trust.payment.self.title': 'Оплаты через LawBid',
+  'trust.payment.self.blocked':
+      'Оплаты внутри LawBid для вас пока не работают: ваш аккаунт ещё не подтверждён. Клиенты не могут оплатить вашу работу через приложение, а вы не можете выставить им счёт.',
+  'trust.payment.self.paused':
+      'Оплаты внутри LawBid для вас приостановлены: клиенты не могут оплатить вашу работу через приложение, а вы не можете выставить им счёт. Причина — в «Мой уровень доверия».',
+  'trust.payment.self.missing': 'Осталось: {missing}.',
+  'trust.payment.self.step.registry': 'сверка номера лицензии с реестром штата',
+  'trust.payment.self.step.identity': 'подтверждение личности через Stripe',
+  'trust.payment.self.step.documents': 'проверка документов сотрудником LawBid',
+  'trust.payment.self.step.staff': 'решение сотрудника LawBid',
+  'trust.payment.self.subscription':
+      'С подпиской это не связано: она работает как обычно.',
+  'trust.payment.self.subscription.bids':
+      'С подпиской это не связано: подписка и отклики на кейсы работают как обычно.',
+  'trust.payment.self.ok':
+      'Клиенты могут оплачивать вашу работу через LawBid, а вы можете выставлять им счета.',
+  'trust.payment.self.cta': 'Как подтвердить аккаунт',
   'trust.payment.unavailable': 'Не удалось загрузить уровень доверия.',
 
   // The attorney's own screen.
@@ -74,7 +100,7 @@ const trustRu = <String, String>{
       'Клиенты видят ваш уровень на карточке и перед первой оплатой. Он растёт только от проверок, которые не зависят от ваших слов.',
   'trust.me.badge.on': 'Синяя галочка показывается',
   'trust.me.badge.off':
-      'Синяя галочка и приём оплаты откроются, когда будут выполнены все требования.',
+      'Синяя галочка и оплаты от клиентов через LawBid включатся, когда аккаунт будет подтверждён.',
   // Status card (what the attorney sees first).
   'trust.me.status.cleared': 'Проверка пройдена',
   'trust.me.status.cleared.body':
@@ -111,7 +137,7 @@ const trustRu = <String, String>{
   'trust.docs.cta': 'Загрузить документы',
   'trust.me.gates': 'Что доступно',
   'trust.me.gate.bids': 'Отклики на кейсы',
-  'trust.me.gate.payments': 'Оплата через LawBid',
+  'trust.me.gate.payments': 'Оплаты от клиентов через LawBid',
   'trust.me.gate.ok': 'Доступно',
   'trust.me.gate.requirements': 'Не выполнено: {missing}',
   'trust.me.gate.hold': 'Приостановлено',
@@ -247,8 +273,10 @@ const trustEn = <String, String>{
       'Name on the payout account does not match the profile',
   'trust.signal.name.match': 'Name on the payout account matches the profile',
   'trust.signal.name.unknown': 'Name on the payout account not checked yet',
-  'trust.signal.payments.ok': 'Accepts payments through LawBid',
-  'trust.signal.payments.no': 'Payments through LawBid not accepted yet',
+  'trust.signal.payments.ok': 'Can be paid through LawBid',
+  'trust.signal.payments.no': "Can't be paid through LawBid yet",
+  'trust.signal.payments.ok.self': 'Clients can pay you through LawBid',
+  'trust.signal.payments.no.self': "Clients can't pay you through LawBid yet",
   'trust.signal.bids.ok': 'Can bid on cases',
   'trust.signal.bids.no': 'Bids and chat are paused',
   'trust.payment.title': 'Before you pay',
@@ -260,7 +288,27 @@ const trustEn = <String, String>{
       "This attorney's link to a law firm has been confirmed.",
   'trust.payment.ok.generic': "This attorney's identity has been confirmed.",
   'trust.payment.blocked':
-      'LawBid does not accept payments to attorneys whose identity is not confirmed yet (below the "Identity" level). Sending money outside the platform is unsafe.',
+      "You can't pay this attorney through LawBid yet: their account is not confirmed, LawBid has not checked their identity. Don't send them money directly, outside the app: LawBid does not check such payments.",
+  'trust.payment.blocked.review':
+      "You can't pay this attorney through LawBid right now: LawBid has not finished checking their account. Don't send them money directly, outside the app: LawBid does not check such payments.",
+  'trust.payment.self.title': 'Payments through LawBid',
+  'trust.payment.self.blocked':
+      "Payments inside LawBid don't work for you yet: your account is not confirmed. Clients can't pay you through the app, and you can't send them invoices.",
+  'trust.payment.self.paused':
+      'Payments inside LawBid are paused for you: clients cannot pay you through the app, and you cannot send them invoices. The reason is in "My trust level".',
+  'trust.payment.self.missing': 'Still needed: {missing}.',
+  'trust.payment.self.step.registry':
+      'bar number check against the state registry',
+  'trust.payment.self.step.identity': 'identity check through Stripe',
+  'trust.payment.self.step.documents': 'document review by LawBid staff',
+  'trust.payment.self.step.staff': 'a decision by LawBid staff',
+  'trust.payment.self.subscription':
+      'This has nothing to do with your subscription: it works as usual.',
+  'trust.payment.self.subscription.bids':
+      'This has nothing to do with your subscription: your subscription and bidding on cases work as usual.',
+  'trust.payment.self.ok':
+      'Clients can pay you through LawBid, and you can send them invoices.',
+  'trust.payment.self.cta': 'How to confirm my account',
   'trust.payment.unavailable': 'Could not load the trust level.',
   'trust.me.title': 'My trust level',
   'trust.me.hint': 'What is confirmed and how to raise the level',
@@ -268,7 +316,7 @@ const trustEn = <String, String>{
       'Clients see your level on your card and before their first payment. It only grows from checks that do not depend on your word.',
   'trust.me.badge.on': 'The blue check is shown',
   'trust.me.badge.off':
-      'The blue check and payments open once every requirement is met.',
+      'The blue check and client payments through LawBid turn on once your account is confirmed.',
   'trust.me.status.cleared': 'Check passed',
   'trust.me.status.cleared.body':
       'Your badge and payments through LawBid are open.',
@@ -303,7 +351,7 @@ const trustEn = <String, String>{
   'trust.docs.cta': 'Upload documents',
   'trust.me.gates': 'What you can do',
   'trust.me.gate.bids': 'Bidding on cases',
-  'trust.me.gate.payments': 'Payments through LawBid',
+  'trust.me.gate.payments': 'Client payments through LawBid',
   'trust.me.gate.ok': 'Available',
   'trust.me.gate.requirements': 'Not met: {missing}',
   'trust.me.gate.hold': 'Paused',

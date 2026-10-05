@@ -73,7 +73,9 @@ class MyTrustScreen extends ConsumerWidget {
                 _FirmLinkCard(me: me, t: t),
                 const SizedBox(height: AppSpacing.lg),
                 _SectionTitle(t.t('trust.sheet.signals')),
-                AppCard(child: TrustSignalsList(trust: me.public, t: t)),
+                AppCard(
+                  child: TrustSignalsList(trust: me.public, t: t, self: true),
+                ),
                 if (me.public.registryLinks.isNotEmpty) ...[
                   const SizedBox(height: AppSpacing.lg),
                   _SectionTitle(t.t('trust.me.registry')),
