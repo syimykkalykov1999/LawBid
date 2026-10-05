@@ -1,5 +1,6 @@
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/auth/application/auth_providers.dart';
 import 'package:lawbid/features/auth/data/auth_repository.dart';
 import 'package:lawbid/features/auth/data/sms_code_retriever.dart';
@@ -54,6 +55,7 @@ class OnboardingFlow extends _$OnboardingFlow {
     state = state.copyWith(
       isSubmitting: true,
       errorMessage: null,
+      closedCountry: null,
       autofilledCode: null,
     );
     // SMS Retriever must be listening BEFORE the SMS is sent (§10.2 D).
@@ -74,6 +76,7 @@ class OnboardingFlow extends _$OnboardingFlow {
       state = state.copyWith(
         isSubmitting: false,
         errorMessage: errorText(ref.read(translatorProvider), e),
+        closedCountry: _closedCountry(e),
       );
       return false;
     }
@@ -325,5 +328,15 @@ class OnboardingFlow extends _$OnboardingFlow {
   /// Clears a stale error (e.g. when the user edits the field).
   void clearError() {
     if (state.errorMessage != null) state = state.copyWith(errorMessage: null);
+  }
+
+  static String? _closedCountry(Object e) {
+    if (e is! ApiException) return null;
+    final code = e.details?['countryCode'];
+    if (code is! String || code.length != 2) return null;
+    final closed = e.code == ApiErrorCodes.countryNotAvailable ||
+        (e.code == ApiErrorCodes.phoneCountryNotSupported &&
+            e.details?['reason'] == 'country_not_allowed');
+    return closed ? code : null;
   }
 }

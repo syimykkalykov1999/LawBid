@@ -65,6 +65,9 @@ abstract final class ApiErrorCodes {
   static const providerBudgetExceeded = 'PROVIDER_BUDGET_EXCEEDED';
   static const phoneCountryNotSupported = 'PHONE_COUNTRY_NOT_SUPPORTED';
 
+  // Countries (owner 2026-10-05): LawBid is not open there yet.
+  static const countryNotAvailable = 'COUNTRY_NOT_AVAILABLE';
+
   // Reviews (docs/03 §7, stage 3.7)
   static const reviewCaseNotClosed = 'REVIEW_CASE_NOT_CLOSED';
   static const reviewNoAcceptedBid = 'REVIEW_NO_ACCEPTED_BID';
@@ -272,6 +275,7 @@ abstract final class ApiErrorCodes {
     i18nImportInvalid,
     providerBudgetExceeded,
     phoneCountryNotSupported,
+    countryNotAvailable,
     reviewCaseNotClosed,
     reviewNoAcceptedBid,
     reviewAlreadyExists,

@@ -90,7 +90,7 @@ class TopicFilterBar extends ConsumerWidget {
             value: kMyLicensedStates,
             label: t.t('cases.feed.allLicensedStates'),
           ),
-        for (final s in kUsStates)
+        for (final s in kRegions)
           PickerOption(value: s.code, label: s.name, sublabel: s.code),
       ],
     );

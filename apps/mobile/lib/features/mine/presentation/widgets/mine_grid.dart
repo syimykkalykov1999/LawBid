@@ -419,7 +419,7 @@ class _MineSearchBarState extends ConsumerState<MineSearchBar> {
       initial: {if (s.state != null) s.state!},
       options: [
         PickerOption(value: '', label: t.t('mine.search.any')),
-        for (final st in kUsStates)
+        for (final st in kRegions)
           PickerOption(value: st.code, label: st.name, sublabel: st.code),
       ],
     );
