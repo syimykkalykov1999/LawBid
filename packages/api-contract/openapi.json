@@ -74751,13 +74751,10 @@
         "properties": {
           "reason": {
             "type": "string",
-            "minLength": 10,
+            "default": "",
             "maxLength": 300
           }
-        },
-        "required": [
-          "reason"
-        ]
+        }
       },
       "AdminPartnerCommissionRowEnvelope": {
         "type": "object",
@@ -74778,7 +74775,7 @@
         "properties": {
           "reason": {
             "type": "string",
-            "minLength": 10,
+            "default": "",
             "maxLength": 300
           },
           "payoutRef": {
@@ -74792,10 +74789,7 @@
             "example": "2026-10",
             "description": "Only this period; default = everything approved."
           }
-        },
-        "required": [
-          "reason"
-        ]
+        }
       },
       "CreatePartnerDto": {
         "type": "object",
@@ -74855,13 +74849,12 @@
           },
           "reason": {
             "type": "string",
-            "minLength": 10,
+            "default": "",
             "maxLength": 300
           }
         },
         "required": [
-          "userId",
-          "reason"
+          "userId"
         ]
       },
       "AdminPartnerRowEnvelope": {
@@ -75033,13 +75026,10 @@
           },
           "reason": {
             "type": "string",
-            "minLength": 10,
+            "default": "",
             "maxLength": 300
           }
-        },
-        "required": [
-          "reason"
-        ]
+        }
       },
       "AdminPartnerAdjustmentDto": {
         "type": "object",
@@ -75056,14 +75046,13 @@
           },
           "reason": {
             "type": "string",
-            "minLength": 10,
+            "default": "",
             "maxLength": 300
           }
         },
         "required": [
           "amountCents",
-          "note",
-          "reason"
+          "note"
         ]
       },
       "AdminPartnerPayResultDto": {

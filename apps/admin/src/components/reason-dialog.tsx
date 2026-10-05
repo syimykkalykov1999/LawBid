@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { Label, Select, Textarea } from '@/components/ui/input';
+import { useMe } from '@/lib/hooks';
 import { REASON_MIN, useReasonRequired } from '@/lib/reason-policy';
 
 export interface ReasonOptions {
@@ -77,7 +78,11 @@ function ReasonDialog({
   const trimmed = text.trim();
   // Owner 2026-10-05: an admin never has to write a reason for an action;
   // it is optional and stored empty when left blank.
-  const optional = opts.optionalText || (!opts.required && isReason && !policy);
+  // The X-Justification for personal data too: optional for the owner
+  // (the access is still logged).
+  const { data: me } = useMe();
+  const owner = me?.role === 'super_admin';
+  const optional = opts.optionalText || (opts.required ? owner && isReason : isReason && !policy);
   const ok = (optional || trimmed.length >= min) && trimmed.length <= max;
 
   return (

@@ -3,6 +3,7 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import type {
@@ -15,6 +16,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { AuditLogService } from '../admin-access/audit-log.service';
 import { PayrollStripeService } from './payroll-stripe.service';
+import { PayrollPartnersBridge } from './payroll-partners.bridge';
 import { PayrollAccrualsService, stripeFee } from './payroll-accruals.service';
 import type { AdminActor } from '../admin-auth/admin-auth.decorators';
 import {
@@ -79,9 +81,12 @@ export class AdminPayrollService {
     private readonly audit: AuditLogService,
     private readonly stripe: PayrollStripeService,
     private readonly accruals: PayrollAccrualsService,
+    @Optional() private readonly partnersBridge?: PayrollPartnersBridge,
   ) {}
 
   async employees(includeInactive = false): Promise<PayrollEmployeeDto[]> {
+    // Owner 2026-10-05: approved partner commissions show up as «Начислено».
+    await this.partnersBridge?.sync();
     const rows = await this.prisma.payrollEmployee.findMany({
       where: includeInactive ? {} : { active: true },
       orderBy: [{ active: 'desc' }, { name: 'asc' }],
@@ -192,6 +197,7 @@ export class AdminPayrollService {
     dto: PayrollBulkPayDto,
   ): Promise<PayrollBulkResultDto> {
     const ids = [...new Set(dto.employeeIds)];
+    await this.partnersBridge?.sync();
     const people = await this.prisma.payrollEmployee.findMany({
       where: { id: { in: ids }, active: true },
     });

@@ -162,7 +162,15 @@ export class AdminAuthGuard implements CanActivate {
     );
     let justification: string | null = null;
     if (needsJustification) {
-      justification = readJustification(req.header('x-justification'));
+      // Owner 2026-10-05: the owner never has to explain; the access is
+      // still written to the log (with the text when one is given). A
+      // legal data-request package keeps its basis (subpoena record).
+      const ownerFree =
+        adminRole === 'super_admin' &&
+        routeArea(req.originalUrl || req.url) !== 'data_requests';
+      justification = ownerFree
+        ? decodeJustification(req.header('x-justification')) || null
+        : readJustification(req.header('x-justification'));
     }
 
     req.admin = {

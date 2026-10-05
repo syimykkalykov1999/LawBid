@@ -377,8 +377,9 @@ export class AdminContentController {
     }
     // Audit 2026-10-02: the users CSV holds contacts — same rule as
     // GET /admin/users/:id/contacts.
+    // Owner 2026-10-05: optional for the owner.
     const justification =
-      p.entity === 'users'
+      p.entity === 'users' && admin.adminRole !== 'super_admin'
         ? readJustification(justificationHeader)
         : decodeJustification(justificationHeader) || null;
     const csv = await this.content.exportCsv(p.entity);

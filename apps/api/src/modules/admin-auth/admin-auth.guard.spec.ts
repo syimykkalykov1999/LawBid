@@ -339,6 +339,26 @@ describe('AdminAuthGuard (docs/06 §2.1–2.2, deny by default)', () => {
     );
   });
 
+  it('the owner may skip X-Justification, except on a legal data request', async () => {
+    const owner = setup({
+      allowed: ['super_admin'],
+      justification: true,
+      row: admin('super_admin'),
+    });
+    await expect(owner.guard.canActivate(owner.ctx)).resolves.toBe(true);
+    expect(owner.req.admin?.justification).toBeNull();
+    const legal = setup({
+      allowed: ['super_admin'],
+      justification: true,
+      row: admin('super_admin'),
+      url: '/api/v1/admin/data-requests/r1/package',
+      method: 'POST',
+    });
+    await expect(legal.guard.canActivate(legal.ctx)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
+
   it('decodes a percent-encoded (Cyrillic) X-Justification', async () => {
     const reason = 'Проверка лицензии по заявке 42';
     const ok = setup({
