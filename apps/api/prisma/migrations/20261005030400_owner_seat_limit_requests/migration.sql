@@ -19,3 +19,11 @@ CREATE INDEX IF NOT EXISTS seat_limit_requests_status_created_idx
   ON seat_limit_requests (status, created_at);
 CREATE INDEX IF NOT EXISTS seat_limit_requests_attorney_created_idx
   ON seat_limit_requests (attorney_id, created_at);
+
+-- Owner 2026-10-05: the assistant limit is an admin setting (default 10)
+-- with personal overrides, so the old "at most 6" checks become the hard
+-- cap of 50 (SEATS_HARD_CAP in billing.constants.ts).
+ALTER TABLE "subscriptions" DROP CONSTRAINT "subscriptions_assistant_seats_range";
+ALTER TABLE "subscriptions" ADD CONSTRAINT "subscriptions_assistant_seats_range" CHECK ("assistant_seats" BETWEEN 0 AND 50);
+ALTER TABLE "contract_grants" DROP CONSTRAINT "contract_grants_seats_check";
+ALTER TABLE "contract_grants" ADD CONSTRAINT "contract_grants_seats_check" CHECK ("assistant_seats" BETWEEN 0 AND 50);

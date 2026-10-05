@@ -179,7 +179,7 @@ describe('Assistants (e2e, OQ-048)', () => {
     expect(me.body.data.role).toBe('assistant');
   });
 
-  it('owner 2026-10-04: one-time code per seat, no SMS; yearly = 6 seats', async () => {
+  it('owner 2026-10-04: one-time code per seat, no SMS; yearly = all seats (default 10)', async () => {
     const att = await attorney(0, 'yearly');
     const other = await attorney(1);
     const CODE = /^[2-9A-HJKMNP-Z]{4}-[2-9A-HJKMNP-Z]{4}-[2-9A-HJKMNP-Z]{4}$/;
@@ -189,7 +189,7 @@ describe('Assistants (e2e, OQ-048)', () => {
       .set(att.auth)
       .send({ name: 'Sam' })
       .expect(201);
-    expect(added.body.data).toMatchObject({ seats: 6, used: 1 });
+    expect(added.body.data).toMatchObject({ seats: 10, used: 1 });
     const seat = added.body.data.members[0];
     expect(seat.status).toBe('invited');
     expect(seat.phone).toBeNull();
