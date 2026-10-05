@@ -251,14 +251,19 @@ export class AdminDemoAccountsQueryDto {
   @MaxLength(80)
   q?: string;
 
-  @ApiPropertyOptional({ minimum: 1, default: 1 })
+  @ApiPropertyOptional({ type: 'integer', minimum: 1, default: 1 })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
   page = 1;
 
-  @ApiPropertyOptional({ minimum: 1, maximum: 100, default: 50 })
+  @ApiPropertyOptional({
+    type: 'integer',
+    minimum: 1,
+    maximum: 100,
+    default: 50,
+  })
   @IsOptional()
   @Type(() => Number)
   @IsInt()

@@ -16,6 +16,7 @@ import '../models/admin_partner_row_envelope.dart';
 import '../models/admin_partner_row_list_envelope.dart';
 import '../models/admin_partner_stats_envelope.dart';
 import '../models/create_partner_dto.dart';
+import '../models/link_partner_user_dto.dart';
 import '../models/partner_commission_kind.dart';
 import '../models/partner_commission_status.dart';
 import '../models/partner_settings_dto.dart';
@@ -133,6 +134,14 @@ abstract class AdminPartnersClient {
   Future<AdminPartnerRowEnvelope> updateAdminPartner({
     @Path('id') required String id,
     @Body() required UpdatePartnerDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Attach a real account to a partner created without one (code and earnings move with it)
+  @POST('/admin/partners/{id}/link-user')
+  Future<AdminPartnerRowEnvelope> linkAdminPartnerUser({
+    @Path('id') required String id,
+    @Body() required LinkPartnerUserDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

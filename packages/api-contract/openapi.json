@@ -51064,6 +51064,133 @@
         ]
       }
     },
+    "/admin/partners/{id}/link-user": {
+      "post": {
+        "operationId": "linkAdminPartnerUser",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkPartnerUserDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPartnerRowEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: PARTNER_INVALID_STATE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Attach a real account to a partner created without one (code and earnings move with it)",
+        "tags": [
+          "admin-partners"
+        ]
+      }
+    },
     "/admin/partners/{id}/adjustments": {
       "post": {
         "operationId": "adjustAdminPartner",
@@ -51315,6 +51442,1294 @@
         "summary": "Pay everything approved for the partner (one payout)",
         "tags": [
           "admin-partners"
+        ]
+      }
+    },
+    "/demo/me": {
+      "get": {
+        "operationId": "getDemoMe",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoMeEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "My demo accounts and whether I may create one",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/demo/accounts": {
+      "post": {
+        "operationId": "createDemoAccount",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDemoAccountDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoSessionEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: DEMO_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: DEMO_LIMIT_REACHED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable: DEMO_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Create a demo account of a role and get its session",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/demo/accounts/{id}/session": {
+      "post": {
+        "operationId": "enterDemoAccount",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^[0-9a-f-]{36}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoSessionEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: DEMO_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable: DEMO_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Enter one of my demo accounts again",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/demo/accounts/{id}": {
+      "delete": {
+        "operationId": "deleteDemoAccount",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^[0-9a-f-]{36}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delete one of my demo accounts and its data",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/demo/invites/redeem": {
+      "post": {
+        "operationId": "redeemDemoInvite",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RedeemDemoInviteDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoSessionEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: DEMO_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: DEMO_CODE_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable: DEMO_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Enter a demo account with the code the LawBid team handed out",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/demo/session": {
+      "get": {
+        "operationId": "getDemoSession",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoCurrentEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The demo account I am in right now (demo session only)",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/admin/demo/settings": {
+      "get": {
+        "operationId": "getDemoSettings",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoSettingsEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Demo mode settings",
+        "tags": [
+          "admin-demo"
+        ]
+      },
+      "put": {
+        "operationId": "updateDemoSettings",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DemoSettingsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoSettingsEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Change demo mode settings",
+        "tags": [
+          "admin-demo"
+        ]
+      }
+    },
+    "/admin/demo/status": {
+      "get": {
+        "operationId": "getDemoStatus",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoStatusEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Is the demo world ready; counts; last reset",
+        "tags": [
+          "admin-demo"
+        ]
+      }
+    },
+    "/admin/demo/accounts": {
+      "get": {
+        "operationId": "listDemoAccounts",
+        "parameters": [
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminDemoAccountsPageEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Demo accounts: who created them, last use",
+        "tags": [
+          "admin-demo"
+        ]
+      },
+      "post": {
+        "operationId": "createDemoAccountForBlogger",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminCreateDemoAccountDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminDemoAccountCreatedEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable: DEMO_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Create a demo account for a blogger (code shown once)",
+        "tags": [
+          "admin-demo"
+        ]
+      }
+    },
+    "/admin/demo/accounts/{id}/invite": {
+      "post": {
+        "operationId": "mintDemoInvite",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^[0-9a-f-]{36}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminDemoInviteEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "New entry code (the old one stops working)",
+        "tags": [
+          "admin-demo"
+        ]
+      }
+    },
+    "/admin/demo/accounts/{id}": {
+      "delete": {
+        "operationId": "deleteDemoAccountAsAdmin",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^[0-9a-f-]{36}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Delete a demo account and its data",
+        "tags": [
+          "admin-demo"
+        ]
+      }
+    },
+    "/admin/demo/reset": {
+      "post": {
+        "operationId": "resetDemoWorld",
+        "parameters": [],
+        "responses": {
+          "202": {
+            "description": ""
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable: DEMO_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Wipe the demo world and seed it again (deletes all demo accounts)",
+        "tags": [
+          "admin-demo"
         ]
       }
     },
@@ -66956,7 +68371,11 @@
           "OUTREACH_IMPORT_INVALID",
           "OUTREACH_INVALID_STATE",
           "OUTREACH_EMAIL_LIMIT",
-          "COUNTRY_NOT_AVAILABLE"
+          "COUNTRY_NOT_AVAILABLE",
+          "DEMO_DISABLED",
+          "DEMO_LIMIT_REACHED",
+          "DEMO_UNAVAILABLE",
+          "DEMO_CODE_INVALID"
         ]
       },
       "ErrorBodyDto": {
@@ -93036,6 +94455,23 @@
           "id"
         ]
       },
+      "AdminPartnerExternalDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "How the admin knows the blogger."
+          },
+          "contact": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "name",
+          "contact"
+        ]
+      },
       "AdminPartnerRowDto": {
         "type": "object",
         "properties": {
@@ -93107,6 +94543,20 @@
             "type": "string",
             "nullable": true,
             "format": "date-time"
+          },
+          "demoAccess": {
+            "type": "boolean",
+            "description": "Owner 2026-10-05 («Продвижение»): may create demo accounts."
+          },
+          "external": {
+            "nullable": true,
+            "description": "Set for a partner without an app account (blogger).",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AdminPartnerExternalDto"
+              }
+            ]
           }
         },
         "required": [
@@ -93117,7 +94567,9 @@
           "shareUrl",
           "rates",
           "totals",
-          "createdAt"
+          "createdAt",
+          "demoAccess",
+          "external"
         ]
       },
       "AdminPartnerRowListEnvelope": {
@@ -93482,7 +94934,18 @@
           "userId": {
             "type": "string",
             "format": "uuid",
-            "description": "Any existing user account."
+            "description": "An existing user account. Leave out and give externalName for a blogger without an account."
+          },
+          "externalName": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 120,
+            "description": "Owner 2026-10-05: partner without an app account (blogger)."
+          },
+          "externalContact": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "Instagram, phone, e-mail…"
           },
           "code": {
             "type": "string",
@@ -93495,10 +94958,7 @@
             "default": "",
             "maxLength": 300
           }
-        },
-        "required": [
-          "userId"
-        ]
+        }
       },
       "AdminPartnerRowEnvelope": {
         "type": "object",
@@ -93667,12 +95127,43 @@
               }
             ]
           },
+          "demoAccess": {
+            "type": "boolean",
+            "description": "Owner 2026-10-05 («Продвижение»): may create demo accounts."
+          },
+          "externalName": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 120
+          },
+          "externalContact": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 200
+          },
           "reason": {
             "type": "string",
             "default": "",
             "maxLength": 300
           }
         }
+      },
+      "LinkPartnerUserDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason": {
+            "type": "string",
+            "default": "",
+            "maxLength": 300
+          }
+        },
+        "required": [
+          "userId"
+        ]
       },
       "AdminPartnerAdjustmentDto": {
         "type": "object",
@@ -93718,6 +95209,562 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/AdminPartnerPayResultDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "DemoRole": {
+        "type": "string",
+        "enum": [
+          "client",
+          "attorney",
+          "assistant"
+        ]
+      },
+      "DemoAccountDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "role": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DemoRole"
+              }
+            ]
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastSeenAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the sweep deletes it unless it is used again."
+          }
+        },
+        "required": [
+          "id",
+          "role",
+          "displayName",
+          "createdAt",
+          "lastSeenAt",
+          "expiresAt"
+        ]
+      },
+      "DemoMeDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "Master switch on and this account is an active partner with demo access."
+          },
+          "canCreate": {
+            "type": "boolean"
+          },
+          "maxAccounts": {
+            "type": "number"
+          },
+          "ttlDays": {
+            "type": "number"
+          },
+          "accounts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DemoAccountDto"
+            }
+          }
+        },
+        "required": [
+          "enabled",
+          "canCreate",
+          "maxAccounts",
+          "ttlDays",
+          "accounts"
+        ]
+      },
+      "DemoMeEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DemoMeDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "DemoTokensDto": {
+        "type": "object",
+        "properties": {
+          "accessToken": {
+            "type": "string"
+          },
+          "refreshToken": {
+            "type": "string"
+          },
+          "accessTokenExpiresIn": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "accessToken",
+          "refreshToken",
+          "accessTokenExpiresIn"
+        ]
+      },
+      "DemoSessionDto": {
+        "type": "object",
+        "properties": {
+          "account": {
+            "$ref": "#/components/schemas/DemoAccountDto"
+          },
+          "tokens": {
+            "$ref": "#/components/schemas/DemoTokensDto"
+          }
+        },
+        "required": [
+          "account",
+          "tokens"
+        ]
+      },
+      "CreateDemoAccountDto": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DemoRole"
+              }
+            ]
+          },
+          "firstName": {
+            "type": "string",
+            "maxLength": 60
+          },
+          "lastName": {
+            "type": "string",
+            "maxLength": 60
+          }
+        },
+        "required": [
+          "role"
+        ]
+      },
+      "DemoSessionEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DemoSessionDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "RedeemDemoInviteDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "minLength": 6,
+            "maxLength": 12,
+            "description": "8 letters/digits the admin handed out."
+          }
+        },
+        "required": [
+          "code"
+        ]
+      },
+      "DemoCurrentDto": {
+        "type": "object",
+        "properties": {
+          "account": {
+            "$ref": "#/components/schemas/DemoAccountDto"
+          },
+          "bannerText": {
+            "type": "string",
+            "description": "The banner text in the user's language."
+          }
+        },
+        "required": [
+          "account",
+          "bannerText"
+        ]
+      },
+      "DemoCurrentEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DemoCurrentDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "DemoBannerTextDto": {
+        "type": "object",
+        "properties": {
+          "en": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "ru": {
+            "type": "string",
+            "maxLength": 120
+          }
+        },
+        "required": [
+          "en",
+          "ru"
+        ]
+      },
+      "DemoSettingsDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "ttlDays": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 60
+          },
+          "maxAccountsPerPartner": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 20
+          },
+          "autoClean": {
+            "type": "boolean"
+          },
+          "uploadQuotaMb": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 500
+          },
+          "bannerText": {
+            "$ref": "#/components/schemas/DemoBannerTextDto"
+          }
+        },
+        "required": [
+          "enabled",
+          "ttlDays",
+          "maxAccountsPerPartner",
+          "autoClean",
+          "uploadQuotaMb",
+          "bannerText"
+        ]
+      },
+      "DemoSettingsEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DemoSettingsDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "DemoStatusDto": {
+        "type": "object",
+        "properties": {
+          "ready": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true
+          },
+          "databaseName": {
+            "type": "string",
+            "nullable": true
+          },
+          "accounts": {
+            "type": "number"
+          },
+          "lastResetAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "lastSweepAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "migrationsApplied": {
+            "type": "number"
+          },
+          "migrationsPending": {
+            "type": "number"
+          },
+          "seedCounts": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "number"
+            },
+            "nullable": true,
+            "description": "What the last seed created (users, cases, posts …)."
+          }
+        },
+        "required": [
+          "ready",
+          "reason",
+          "databaseName",
+          "accounts",
+          "lastResetAt",
+          "lastSweepAt",
+          "migrationsApplied",
+          "migrationsPending",
+          "seedCounts"
+        ]
+      },
+      "DemoStatusEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DemoStatusDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "DemoCreatedByDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "enum": [
+              "partner",
+              "admin"
+            ],
+            "type": "string"
+          },
+          "userId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "userId",
+          "name"
+        ]
+      },
+      "AdminDemoAccountDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "role": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DemoRole"
+              }
+            ]
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastSeenAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the sweep deletes it unless it is used again."
+          },
+          "createdBy": {
+            "$ref": "#/components/schemas/DemoCreatedByDto"
+          },
+          "label": {
+            "type": "string",
+            "nullable": true
+          },
+          "hasInvite": {
+            "type": "boolean"
+          },
+          "inviteExpiresAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "role",
+          "displayName",
+          "createdAt",
+          "lastSeenAt",
+          "expiresAt",
+          "createdBy",
+          "label",
+          "hasInvite",
+          "inviteExpiresAt"
+        ]
+      },
+      "AdminDemoAccountsPageDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminDemoAccountDto"
+            }
+          },
+          "total": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "items",
+          "total"
+        ]
+      },
+      "AdminDemoAccountsPageEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminDemoAccountsPageDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AdminDemoAccountCreatedDto": {
+        "type": "object",
+        "properties": {
+          "account": {
+            "$ref": "#/components/schemas/AdminDemoAccountDto"
+          },
+          "inviteCode": {
+            "type": "string",
+            "nullable": true,
+            "description": "Shown once; only its hash is stored."
+          }
+        },
+        "required": [
+          "account",
+          "inviteCode"
+        ]
+      },
+      "AdminCreateDemoAccountDto": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DemoRole"
+              }
+            ]
+          },
+          "firstName": {
+            "type": "string",
+            "maxLength": 60
+          },
+          "lastName": {
+            "type": "string",
+            "maxLength": 60
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "withInvite": {
+            "type": "boolean",
+            "default": true,
+            "description": "Also mint a code the blogger enters in the app."
+          }
+        },
+        "required": [
+          "role"
+        ]
+      },
+      "AdminDemoAccountCreatedEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminDemoAccountCreatedDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AdminDemoInviteDto": {
+        "type": "object",
+        "properties": {
+          "inviteCode": {
+            "type": "string",
+            "description": "Shown once; only its hash is stored."
+          },
+          "inviteExpiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "inviteCode",
+          "inviteExpiresAt"
+        ]
+      },
+      "AdminDemoInviteEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminDemoInviteDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
