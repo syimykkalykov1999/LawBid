@@ -390,12 +390,27 @@ export class CasePaymentsService {
     if (!row) {
       const u = await this.prisma.user.findUnique({
         where: { id: user.sub },
-        select: { email: true },
+        select: {
+          email: true,
+          country_code: true,
+          country: { select: { stripe_supported: true } },
+        },
       });
+      // Owner 2026-10-05: the payout account opens in the attorney's own
+      // country, where Stripe Connect works there.
+      const country = u?.country_code ?? 'US';
+      if (u?.country && !u.country.stripe_supported) {
+        throw new ForbiddenException({
+          code: ErrorCode.COUNTRY_NOT_AVAILABLE,
+          message:
+            'In-app payments are not available in your country yet. Clients can pay you directly.',
+          details: { countryCode: country, reason: 'payments' },
+        });
+      }
       const accountId = await this.provider.createConnectAccount({
         userId: user.sub,
         email: u?.email ?? null,
-        country: 'US',
+        country,
       });
       row = await this.prisma.payoutAccount.upsert({
         where: { user_id: user.sub },
@@ -403,7 +418,7 @@ export class CasePaymentsService {
           user_id: user.sub,
           stripe_account_id: accountId,
           status: 'onboarding',
-          country: 'US',
+          country,
         },
         update: {},
       });

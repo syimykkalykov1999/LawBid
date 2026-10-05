@@ -1,4 +1,13 @@
-import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import {
+  CountriesService,
+  notAvailable,
+} from '../../countries/countries.service';
+import {
+  HttpException,
+  HttpStatus,
+  Injectable,
+  Optional,
+} from '@nestjs/common';
 import {
   ContactMethod,
   Prisma,
@@ -82,6 +91,7 @@ export class UserProfilesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly usernames: UsernameRegistry,
+    @Optional() private readonly countries?: CountriesService,
   ) {}
 
   async facts(
@@ -175,6 +185,9 @@ export class UserProfilesService {
     } else {
       await this.saveAttorney(userId, dto, extras);
     }
+    // Owner 2026-10-05: the person now works in the country of the state /
+    // province they live in (client) or are licensed in first (attorney).
+    await this.countries?.followRegion(userId, states[0]);
   }
 
   /**
@@ -462,6 +475,12 @@ export class UserProfilesService {
     if (invalid.length > 0) {
       throw validation('Unknown state code.', { states: invalid });
     }
+    // Owner 2026-10-05: only regions of switched-on countries.
+    const closed = await this.prisma.state.findFirst({
+      where: { code: { in: unique }, country: { is_enabled: false } },
+      select: { country_code: true },
+    });
+    if (closed) throw notAvailable(closed.country_code);
   }
 
   /** Best-effort read of the pre-structured `data.profile` JSON (older

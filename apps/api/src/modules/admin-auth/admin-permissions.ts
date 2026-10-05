@@ -81,6 +81,8 @@ const SEGMENT_AREA: Record<string, RouteArea> = {
   'email-templates': 'email_templates',
   broadcasts: 'broadcasts',
   i18n: 'localization',
+  // Owner 2026-10-05: Система → Страны.
+  countries: 'localization',
   'feature-flags': 'settings',
   config: 'settings',
   'legal-documents': 'legal',

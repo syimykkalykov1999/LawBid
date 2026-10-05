@@ -348,3 +348,10 @@ export const EXTRA_REGIONS: readonly RegionRef[] = [
  * (Mexico's INEGI numbers). */
 export const REGION_CODE_RE = /^[A-Z0-9]{2}$/;
 export const REGION_CODE_PATTERN = '^[A-Z0-9]{2}$';
+
+const KNOWN = new Set(COUNTRIES.map((c) => c.code));
+
+/** True for a code in `countries` (ISO 3166-1 alpha-2 we list). */
+export function isKnownCountry(code: string | null | undefined): boolean {
+  return !!code && KNOWN.has(code);
+}

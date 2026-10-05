@@ -1,3 +1,4 @@
+import { userInScope } from '../countries/country-scope';
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { AdminActor } from '../admin-auth/admin-auth.decorators';
@@ -31,17 +32,28 @@ export class WorkspaceService {
     const now = Date.now();
     const dayAgo = new Date(now - DAY_MS);
     const jobs: Promise<WorkspaceQueueDto>[] = [];
+    // Owner 2026-10-05: an employee of one country (or a country tab)
+    // counts only that country's queues.
+    const scope = admin.countries ?? null;
+    const people = userInScope(scope);
+    const inCases = scope
+      ? { case: { primary_state: { country_code: { in: scope } } } }
+      : {};
 
     if (can('verification')) {
       jobs.push(
         Promise.all([
           this.prisma.verificationRequest.count({
-            where: { status: { in: ['submitted', 'in_review'] } },
+            where: {
+              status: { in: ['submitted', 'in_review'] },
+              attorney: { user: people },
+            },
           }),
           this.prisma.verificationRequest.count({
             where: {
               status: { in: ['submitted', 'in_review'] },
               submitted_at: { lt: dayAgo },
+              attorney: { user: people },
             },
           }),
         ]).then(([count, urgent]) => ({
@@ -63,12 +75,14 @@ export class WorkspaceService {
             where: {
               status: 'open',
               OR: [{ assignee_id: admin.id }, { assignee_id: null }],
+              ...(scope ? { country_code: { in: scope } } : {}),
             },
           }),
           this.prisma.supportTicket.count({
             where: {
               sla_due_at: { not: null },
               sla_breached_at: { not: null },
+              ...(scope ? { country_code: { in: scope } } : {}),
             },
           }),
         ]).then(([count, urgent]) => ({
@@ -86,9 +100,15 @@ export class WorkspaceService {
     if (can('moderation')) {
       jobs.push(
         Promise.all([
-          this.prisma.report.count({ where: { status: 'open' } }),
           this.prisma.report.count({
-            where: { status: 'open', created_at: { lt: dayAgo } },
+            where: { status: 'open', reporter: people },
+          }),
+          this.prisma.report.count({
+            where: {
+              status: 'open',
+              created_at: { lt: dayAgo },
+              reporter: people,
+            },
           }),
         ]).then(([count, urgent]) => ({
           key: 'moderation',
@@ -101,7 +121,7 @@ export class WorkspaceService {
           canAct: can('moderation', 'manage'),
         })),
         this.prisma.clientReviewAppeal
-          .count({ where: { status: 'pending' } })
+          .count({ where: { status: 'pending', appellant: people } })
           .then((count) => ({
             key: 'review_appeals',
             label: 'Обжалования отзывов',
@@ -117,8 +137,12 @@ export class WorkspaceService {
     if (can('cases')) {
       jobs.push(
         Promise.all([
-          this.prisma.caseDispute.count({ where: { status: 'open' } }),
-          this.prisma.contactIssueReport.count({ where: { status: 'open' } }),
+          this.prisma.caseDispute.count({
+            where: { status: 'open', ...inCases },
+          }),
+          this.prisma.contactIssueReport.count({
+            where: { status: 'open', ...inCases },
+          }),
         ]).then(([disputes, contact]) => ({
           key: 'cases',
           label: 'Споры и «не могу связаться»',

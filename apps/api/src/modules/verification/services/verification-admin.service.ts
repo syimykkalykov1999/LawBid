@@ -1,3 +1,4 @@
+import { type CountryScope, userInScope } from '../../countries/country-scope';
 import { HttpStatus, Injectable } from '@nestjs/common';
 import type {
   AttorneyLicense,
@@ -111,11 +112,17 @@ export class VerificationAdminService {
   /** §2.5.1: oldest submission first; keyset cursor on (submitted_at, id). */
   async queue(
     query: VerificationQueueQueryDto,
+    countries: CountryScope = null,
   ): Promise<VerificationQueuePage> {
     const limit = query.limit ?? QUEUE_PAGE_DEFAULT;
     const after = query.cursor ? decodeCursor(query.cursor) : null;
     const rows = await this.prisma.verificationRequest.findMany({
       where: {
+        // Owner 2026-10-05: a verifier for one country sees only its
+        // attorneys.
+        ...(countries && {
+          AND: [{ attorney: { user: userInScope(countries) } }],
+        }),
         status: {
           in: query.status ? [query.status] : ['submitted', 'needs_more_info'],
         },
@@ -175,9 +182,15 @@ export class VerificationAdminService {
   }
 
   /** §2.5.2 request card. */
-  async card(requestId: string): Promise<AdminVerificationRequestDto> {
-    const row = await this.prisma.verificationRequest.findUnique({
-      where: { id: requestId },
+  async card(
+    requestId: string,
+    countries: CountryScope = null,
+  ): Promise<AdminVerificationRequestDto> {
+    const row = await this.prisma.verificationRequest.findFirst({
+      where: {
+        id: requestId,
+        ...(countries && { attorney: { user: userInScope(countries) } }),
+      },
       include: CARD_INCLUDE,
     });
     if (!row) throw notFound('Verification request not found.');

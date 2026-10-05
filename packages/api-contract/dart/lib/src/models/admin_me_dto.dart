@@ -22,6 +22,7 @@ class AdminMeDto {
     required this.permissions,
     required this.hasSecurityQuestion,
     required this.canManageAdmins,
+    required this.countries,
     required this.securityQuestion,
     required this.reasonRequiredAreas,
   });
@@ -49,6 +50,9 @@ class AdminMeDto {
 
   /// May create and manage other admins (the super admin always can).
   final bool canManageAdmins;
+
+  /// Owner 2026-10-05: countries this admin works with (ISO 3166-1 alpha-2); empty = every country.
+  final List<String> countries;
   final String? securityQuestion;
 
   /// Sections where this admin must write a reason (always empty for the super admin).
