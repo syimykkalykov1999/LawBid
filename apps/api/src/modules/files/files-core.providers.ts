@@ -1,6 +1,7 @@
 import type { Provider } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { S3StorageService } from './storage/s3-storage.service';
+import { FileReleaseService } from './storage/file-release.service';
 import { ImageProcessor } from './processing/image-processor';
 import { FileScanProcessor } from './jobs/file-scan.processor';
 import {
@@ -26,6 +27,7 @@ export function filesCoreProviders(options: FilesJobsOptions): Provider[] {
         }),
     },
     S3StorageService,
+    FileReleaseService,
     ImageProcessor,
     FileScanProcessor,
     FileScanRunner,

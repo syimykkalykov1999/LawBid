@@ -208,7 +208,9 @@ describe('JobsRunner', () => {
     // Owner 2026-10-05: + nightly trust.recompute (anti-fraud).
     // Owner 2026-10-05: + daily cases.deadline-reminder,
     // + support.sweep every 5 min and the daily rewards.award.
-    expect(upserts).toHaveLength(35);
+    // Owner 2026-10-05: + hourly storage.gc, nightly storage.retention and
+    // storage.snapshot (storage like Telegram).
+    expect(upserts).toHaveLength(38);
     const byName = Object.fromEntries(
       upserts.map((c: unknown[]) => [c[0], c[1]]),
     );

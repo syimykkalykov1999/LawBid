@@ -649,6 +649,9 @@ model User {
   last_name               String?
   avatar_file_id          String?                 @db.Uuid
   avatar_file             File?                   @relation("UserAvatar", fields: [avatar_file_id], references: [id], onDelete: Restrict)
+  /// Owner 2026-10-05: a personal storage cap in MB set by an admin
+  /// (null = storage.user_quota_mb, 0 = no cap).
+  storage_quota_mb        Int?
   // UQ (docs/02 §4.A, §5.1). A plain unique index already admits any
   // number of NULLs in CockroachDB, which is exactly the §8 stage-2.2
   // acceptance ("несколько NULL допускаются"); a partial index can't be
@@ -766,28 +769,42 @@ model User {
   // scan must not walk the whole table.
   @@index([created_at])
   @@index([status, deletion_requested_at])
+  // Owner 2026-10-05: the storage cleanup asks "is this file an avatar?".
+  @@index([avatar_file_id])
   @@map("users")
 }
 
 // docs/02_DATABASE.md §4.A (stage 2.2). Binary content lives only in S3
 // (§1.6); this row is the reference. Soft delete via deleted_at.
 model File {
-  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  owner_user_id String      @db.Uuid
-  owner         User        @relation("FileOwner", fields: [owner_user_id], references: [id], onDelete: Restrict)
-  purpose       FilePurpose
-  s3_bucket     String
-  s3_key        String      @unique
-  mime          String
-  size_bytes    BigInt
-  sha256        String
-  width         Int?
-  height        Int?
-  scan_status   ScanStatus  @default(pending)
-  is_public     Boolean     @default(false)
-  deleted_at    DateTime?   @db.Timestamptz
-  created_at    DateTime    @default(now()) @db.Timestamptz
-  updated_at    DateTime    @updatedAt @db.Timestamptz
+  id             String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  owner_user_id  String      @db.Uuid
+  owner          User        @relation("FileOwner", fields: [owner_user_id], references: [id], onDelete: Restrict)
+  purpose        FilePurpose
+  s3_bucket      String
+  /// Owner 2026-10-05 (storage like Telegram): one object can back many
+  /// rows — identical uploads share it (no longer unique). The object is
+  /// removed only when no live row points at it (FileReleaseService).
+  s3_key         String
+  mime           String
+  size_bytes     BigInt
+  sha256         String
+  /// SHA-256 of the bytes as uploaded (sha256 above describes the stored,
+  /// processed object). The deduplication key together with the bucket.
+  source_sha256  String?
+  width          Int?
+  height         Int?
+  scan_status    ScanStatus  @default(pending)
+  is_public      Boolean     @default(false)
+  deleted_at     DateTime?   @db.Timestamptz
+  /// Why the row was deleted: orphan (never attached / detached), released
+  /// (its owner entity went away), infected, failed.
+  deleted_reason String?     @db.String(16)
+  /// The S3 object (and its variants) is gone; the row stays only while
+  /// something still references it.
+  purged_at      DateTime?   @db.Timestamptz
+  created_at     DateTime    @default(now()) @db.Timestamptz
+  updated_at     DateTime    @updatedAt @db.Timestamptz
 
   avatar_of User[] @relation("UserAvatar")
 
@@ -802,6 +819,9 @@ model File {
   document_template DocumentTemplate?
 
   @@index([owner_user_id])
+  @@index([s3_bucket, s3_key])
+  @@index([s3_bucket, source_sha256])
+  @@index([deleted_at, created_at])
   @@map("files")
 }
 
@@ -1158,26 +1178,26 @@ model AttorneyProfile {
   created_at          DateTime           @default(now()) @db.Timestamptz
   updated_at          DateTime           @updatedAt @db.Timestamptz
 
-  licenses                 AttorneyLicense[]
-  practice_areas           AttorneyPracticeArea[]
+  licenses                    AttorneyLicense[]
+  practice_areas              AttorneyPracticeArea[]
   /// Owner 2026-10-01: true = new-case alerts follow new_case_alert_practices.
-  new_case_alerts_custom   Boolean                @default(false)
+  new_case_alerts_custom      Boolean                @default(false)
   /// Owner 2026-10-05: new-case alerts only for urgent cases.
-  new_case_alerts_urgent_only Boolean             @default(false)
-  new_case_alert_practices NewCaseAlertPractice[]
-  verification_requests    VerificationRequest[]
+  new_case_alerts_urgent_only Boolean                @default(false)
+  new_case_alert_practices    NewCaseAlertPractice[]
+  verification_requests       VerificationRequest[]
   // Owner 2026-10-05: a personal assistant limit set by an admin on
   // the attorney's request; null = the global billing.max_assistant_seats.
-  assistant_seat_limit     Int?                   @db.Int2
+  assistant_seat_limit        Int?                   @db.Int2
   // Owner 2026-10-05 (attorney trust levels): 0 self-attested, 1 license
   // confirmed (registry / staff), 2 identity confirmed (Stripe KYC with a
   // matching name, or staff-checked documents), 3 both. Recomputed by
   // AttorneyTrustService from events; `trust_badge` is the blue check
   // (level >= trust.min_level_badge, verified, no name mismatch).
-  trust_level              Int                    @default(0) @db.Int2
-  trust_badge              Boolean                @default(false)
-  trust                    AttorneyTrust?
-  trust_events             AttorneyTrustEvent[]
+  trust_level                 Int                    @default(0) @db.Int2
+  trust_badge                 Boolean                @default(false)
+  trust                       AttorneyTrust?
+  trust_events                AttorneyTrustEvent[]
 
   // GIN/inverted (trigram gin_trgm_ops or full-text), created by the stage 2.6
   // migration; declared so Prisma's diff matches the DB.
@@ -1595,6 +1615,8 @@ model Review {
   helpful_votes ReviewHelpfulVote[]
 
   @@index([attorney_id, created_at(sort: Desc)])
+  // Owner 2026-10-05: the storage cleanup looks photos up by id.
+  @@index([photo_ids], map: "reviews_photo_ids_idx", type: Gin)
   @@map("reviews")
 }
 
@@ -1692,6 +1714,7 @@ model PostMedia {
   created_at DateTime  @default(now()) @db.Timestamptz
 
   @@unique([post_id, position])
+  @@index([file_id])
   @@map("post_media")
 }
 
@@ -2404,6 +2427,7 @@ model ClientReview {
   @@unique([case_id, attorney_id])
   @@index([client_id, created_at(sort: Desc)])
   @@index([client_id, attorney_id])
+  @@index([photo_ids], map: "client_reviews_photo_ids_idx", type: Gin)
   @@map("client_reviews")
 }
 
@@ -2533,6 +2557,8 @@ model AssistantActivity {
 
   @@index([attorney_id, created_at(sort: Desc)])
   @@index([membership_id, created_at(sort: Desc)])
+  // Owner 2026-10-05: the nightly retention removes old rows by date.
+  @@index([created_at])
   @@map("assistant_activity")
 }
 
@@ -2675,6 +2701,7 @@ model AttorneyTask {
   @@index([attorney_id, status, due_at])
   @@index([remind_at], map: "attorney_tasks_remind_idx")
   @@index([archived_at], map: "attorney_tasks_archived_idx")
+  @@index([file_ids], map: "attorney_tasks_file_ids_idx", type: Gin)
   @@map("attorney_tasks")
 }
 
@@ -4037,4 +4064,26 @@ model ClientSubscription {
 
   @@index([status, current_period_end], map: "client_subscriptions_status_idx")
   @@map("client_subscriptions")
+}
+
+/// Owner 2026-10-05 (storage like Telegram): one row a day — how much the
+/// files take by type, how much deduplication saved, the biggest tables.
+/// The admin «Хранилище» page draws growth from these; the growth alert
+/// compares the newest two.
+model StorageSnapshot {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  day          DateTime @unique @db.Date
+  /// Sum of live files as users see them (each copy counted).
+  files_bytes  BigInt
+  /// What S3 really keeps (shared objects counted once).
+  stored_bytes BigInt
+  files_count  Int
+  /// { purpose: { bytes, count } }
+  by_purpose   Json
+  /// [{ table, rows, bytes }] — estimates from CockroachDB statistics.
+  db_tables    Json
+  db_bytes     BigInt   @default(0)
+  created_at   DateTime @default(now()) @db.Timestamptz
+
+  @@map("storage_snapshots")
 }

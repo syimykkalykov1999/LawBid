@@ -14,7 +14,7 @@ import type { PaymentProvider } from '../billing/payment-provider';
 import { BidStateMachine } from '../bids/domain/bid-state-machine';
 import { SubscriptionSyncService } from '../billing/subscription-sync.service';
 import { CaseLifecycleService } from '../cases/lifecycle/case-lifecycle.service';
-import { S3StorageService } from '../files/storage/s3-storage.service';
+import { FileReleaseService } from '../files/storage/file-release.service';
 import { CaseJournalService } from '../journal/case-journal.service';
 import { SubscriptionAccessService } from '../subscriptions/subscription-access.service';
 import {
@@ -46,7 +46,7 @@ const BATCH = 100;
 export class AccountAnonymizationService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly storage: S3StorageService,
+    private readonly release: FileReleaseService,
     private readonly lifecycle: CaseLifecycleService,
     private readonly sync: SubscriptionSyncService,
     private readonly access: SubscriptionAccessService,
@@ -168,18 +168,13 @@ export class AccountAnonymizationService {
       },
       select: { id: true, s3_bucket: true, s3_key: true },
     });
-    if (files.length > 0 && this.storage.configured) {
-      const byBucket = new Map<string, string[]>();
-      for (const f of files) {
-        byBucket.set(f.s3_bucket, [
-          ...(byBucket.get(f.s3_bucket) ?? []),
-          f.s3_key,
-        ]);
-      }
-      for (const [bucket, keys] of byBucket) {
-        await this.storage.remove(bucket, keys);
-      }
-    }
+    // Owner 2026-10-05: objects shared with another user's identical
+    // upload stay for them; everything else goes, previews included.
+    await this.release.release(
+      files.map((f) => f.id),
+      'account_deleted',
+      now,
+    );
 
     // 3. Cases still in work are closed with a journal event and the
     // counterpart is notified (one transaction per case, before the
