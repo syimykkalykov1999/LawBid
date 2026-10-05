@@ -8,6 +8,10 @@ import { withTxRetry } from '../../prisma/tx-retry.util';
 import { BidsService } from '../bids/bids.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PromotionsService } from '../promotions/promotions.service';
+import {
+  CASE_PAYMENT_CHECKOUT_KIND,
+  CasePaymentsService,
+} from '../case-payments/case-payments.service';
 import { ReferralsService } from '../referrals/referrals.service';
 import { PartnersService } from '../partners/partners.service';
 import { SubscriptionAccessService } from '../subscriptions/subscription-access.service';
@@ -46,6 +50,8 @@ export class SubscriptionSyncService {
     @Optional() private readonly promotions?: PromotionsService,
     // Owner 2026-10-02: the client's paid gold badge.
     @Optional() private readonly clientBadges?: ClientBadgeService,
+    // Owner 2026-10-05: client → attorney payments (Stripe Connect).
+    @Optional() private readonly casePayments?: CasePaymentsService,
     // Owner 2026-10-05: a client's plan.
     @Optional() private readonly clientPlans?: ClientPlansService,
     // Owner 2026-10-05: partner commissions reversed on refunds.
@@ -54,6 +60,18 @@ export class SubscriptionSyncService {
 
   async handleEvent(event: ProviderEvent): Promise<void> {
     const o = event.object;
+    // Owner 2026-10-05: anything that happened on an attorney's connected
+    // account (or a client → attorney checkout) belongs to case payments.
+    const meta = o.metadata as Record<string, string> | undefined;
+    if (
+      typeof o._account === 'string' ||
+      meta?.kind === CASE_PAYMENT_CHECKOUT_KIND ||
+      event.type.startsWith('account.') ||
+      event.type.startsWith('charge.dispute.')
+    ) {
+      await this.casePayments?.handleProviderEvent(event);
+      return;
+    }
     switch (event.type) {
       case 'customer.subscription.created':
       case 'customer.subscription.updated':

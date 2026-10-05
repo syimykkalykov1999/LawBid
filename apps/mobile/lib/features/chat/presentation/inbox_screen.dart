@@ -514,7 +514,7 @@ class CountPill extends StatelessWidget {
 /// A chat's last-message preview: localized system messages and masked
 /// contacts (§8.2, §8.3).
 String messagePreview(Translator t, ChatMessage m, {String? me}) {
-  if (m.kind == MessageKind.system) return t.t('chat.system.${m.body}');
+  if (m.kind == MessageKind.system) return systemLineText(t, m.body);
   // OQ-041: "📞 Missed call".
   if (m.kind == MessageKind.call && m.callLog != null) {
     return '📞 ${t.t(callLogKey(m.callLog!.outcome, outgoing: m.senderId != null && m.senderId == me))}';

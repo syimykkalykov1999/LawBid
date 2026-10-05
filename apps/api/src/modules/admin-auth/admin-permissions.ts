@@ -78,6 +78,7 @@ const SEGMENT_AREA: Record<string, RouteArea> = {
   promotions: 'money',
   referrals: 'money',
   partners: 'money',
+  'case-payments': 'money', // client → attorney payments (Stripe Connect)
   integrations: 'keys',
   admins: 'admins',
   'audit-log': 'audit',

@@ -364,7 +364,10 @@ export class AdminContentController {
     @Res() res: Response,
   ): Promise<void> {
     // Owner 2026-10-02: payments are money; only the super admin exports them.
-    if (p.entity === 'payments' && admin.adminRole !== 'super_admin') {
+    if (
+      (p.entity === 'payments' || p.entity === 'case_payments') &&
+      admin.adminRole !== 'super_admin'
+    ) {
       throw new ForbiddenException({
         code: E.FORBIDDEN,
         message: 'Payments are available to the super admin only.',

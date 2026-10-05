@@ -266,6 +266,12 @@ async function seedFeatureFlags(): Promise<void> {
       description: 'Paid attorney profile promotion',
     },
     {
+      key: 'payments_in_app',
+      enabled: false,
+      description:
+        'Clients pay the accepted attorney through the platform (Stripe Connect)',
+    },
+    {
       key: 'stripe_identity',
       enabled: false,
       description: 'Stripe Identity as a verification provider',

@@ -272,13 +272,16 @@ describe('Case & bid notifications (e2e, docs/04 §13, stage 4.8)', () => {
       where: { id: client.id },
       data: { ui_language: 'ru' },
     });
-    const sent: { title: string }[] = [];
+    // Keyed by the push's dedupe key (`n:<notification id>`): the in-process
+    // worker may still be delivering rows from the earlier tests while the
+    // spy is on, so the first message seen is not necessarily this row's.
+    const sent = new Map<string, { title: string }>();
     const sender = (dispatcher as unknown as { sender: { send: jest.Mock } })
       .sender;
     const spy = jest
       .spyOn(sender, 'send')
-      .mockImplementation((m: { title: string }) => {
-        sent.push(m);
+      .mockImplementation((m: { title: string }, key: string) => {
+        sent.set(key, m);
         return Promise.resolve();
       });
 
@@ -293,7 +296,7 @@ describe('Case & bid notifications (e2e, docs/04 §13, stage 4.8)', () => {
     expect(await dispatcher.dispatch({ notificationId: row.id }, row.id)).toBe(
       'sent',
     );
-    expect(sent[0]?.title).toBe('Новый бид');
+    expect(sent.get(`n:${row.id}`)?.title).toBe('Новый бид');
 
     await prisma.notificationSetting.create({
       data: { user_id: client.id, category: 'bids', push_enabled: false },

@@ -6,6 +6,7 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/features/case_payments/case_payments_routes.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
@@ -120,6 +121,22 @@ String? notificationRoute({
     case 'promotion_started' || 'promotion_ended':
       if (caseId == null) return null;
       return AppRoutes.myCase(caseId);
+    // Owner 2026-10-05: client → attorney payments.
+    case 'case_payment_received' || 'case_payment_disputed':
+      if (caseId == null) return CasePaymentsRoutes.history;
+      return AppRoutes.workCase(caseId);
+    case 'case_payment_sent' ||
+          'case_payment_refunded' ||
+          'payment_request_created' ||
+          'payment_request_due' ||
+          'payment_request_overdue' ||
+          'payment_request_canceled' ||
+          'payment_fee_countered' ||
+          'payment_fee_agreed':
+      if (caseId == null) return CasePaymentsRoutes.history;
+      return AppRoutes.myCase(caseId);
+    case 'payout_account_status':
+      return CasePaymentsRoutes.payoutAccount;
     case 'subscription_trial_ending' ||
           'subscription_payment_failed' ||
           'subscription_status':
@@ -242,6 +259,20 @@ IconData _icon(AppNotification n) => switch (n.type) {
       'referral_reward' => AppIcons.starRounded,
       'partner_commission' || 'partner_payout' => AppIcons.handshakeOutlined,
       'promotion_started' || 'promotion_ended' => AppIcons.campaignOutlined,
+      'case_payment_received' ||
+      'case_payment_sent' ||
+      'case_payment_refunded' ||
+      'payment_request_created' ||
+      'payment_request_canceled' =>
+        AppIcons.paymentsOutlined,
+      'payment_fee_countered' ||
+      'payment_fee_agreed' =>
+        AppIcons.handshakeOutlined,
+      'payment_request_due' ||
+      'payment_request_overdue' =>
+        AppIcons.scheduleRounded,
+      'case_payment_disputed' => AppIcons.errorOutlineRounded,
+      'payout_account_status' => AppIcons.accountBalanceOutlined,
       'assistant_task' || 'task_assigned' => AppIcons.eventNoteRounded,
       'task_reminder' => AppIcons.notificationsActiveOutlined,
       'task_purge_soon' => AppIcons.inventory2Outlined,

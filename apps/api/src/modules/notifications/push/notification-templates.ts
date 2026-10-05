@@ -364,6 +364,128 @@ export const NOTIFICATION_TEMPLATES: Partial<
       body: 'Продвижение вашего дела завершилось.',
     },
   },
+  // Owner 2026-10-05: client → attorney payments through the platform.
+  case_payment_received: {
+    group: 'cases',
+    en: {
+      title: 'Payment received',
+      body: 'A client paid you through LawBid. The money goes to your Stripe account.',
+    },
+    ru: {
+      title: 'Оплата получена',
+      body: 'Клиент оплатил вам через LawBid. Деньги поступят на ваш счёт Stripe.',
+    },
+  },
+  case_payment_sent: {
+    group: 'cases',
+    en: {
+      title: 'Payment sent',
+      body: 'Your payment to the attorney went through. The receipt is in the case.',
+    },
+    ru: {
+      title: 'Оплата отправлена',
+      body: 'Ваш платёж адвокату прошёл. Чек — в карточке дела.',
+    },
+  },
+  case_payment_refunded: {
+    group: 'cases',
+    en: {
+      title: 'Refund issued',
+      body: 'The attorney refunded part or all of your payment.',
+    },
+    ru: {
+      title: 'Возврат оформлен',
+      body: 'Адвокат вернул вам часть или всю сумму платежа.',
+    },
+  },
+  case_payment_disputed: {
+    group: 'cases',
+    en: {
+      title: 'Payment disputed',
+      body: 'A client disputed a payment with their bank. Respond in your Stripe dashboard.',
+    },
+    ru: {
+      title: 'Платёж оспорен',
+      body: 'Клиент оспорил платёж через банк. Ответьте в панели Stripe.',
+    },
+  },
+  payment_request_created: {
+    group: 'cases',
+    en: {
+      title: 'Payment request',
+      body: 'Your attorney sent you a payment request. Open the case to pay in two taps.',
+    },
+    ru: {
+      title: 'Счёт от адвоката',
+      body: 'Адвокат выставил вам счёт. Откройте дело, чтобы оплатить в два касания.',
+    },
+  },
+  payment_request_due: {
+    group: 'cases',
+    en: {
+      title: 'Payment due soon',
+      body: 'A payment request from your attorney is due soon.',
+    },
+    ru: {
+      title: 'Скоро срок оплаты',
+      body: 'Срок оплаты счёта от адвоката скоро наступит.',
+    },
+  },
+  payment_request_overdue: {
+    group: 'cases',
+    en: {
+      title: 'Payment overdue',
+      body: 'A payment request from your attorney is past its due date.',
+    },
+    ru: {
+      title: 'Счёт просрочен',
+      body: 'Срок оплаты счёта от адвоката прошёл.',
+    },
+  },
+  payment_fee_countered: {
+    group: 'cases',
+    en: {
+      title: 'Stripe fee: counter-offer',
+      body: 'The other side proposed another way to cover the Stripe fee.',
+    },
+    ru: {
+      title: 'Комиссия Stripe: встречное предложение',
+      body: 'Другая сторона предложила иначе разделить комиссию Stripe.',
+    },
+  },
+  payment_fee_agreed: {
+    group: 'cases',
+    en: {
+      title: 'Stripe fee agreed',
+      body: 'Who covers the Stripe fee on the invoice is agreed.',
+    },
+    ru: {
+      title: 'Комиссия Stripe согласована',
+      body: 'Кто платит комиссию Stripe по счёту — согласовано.',
+    },
+  },
+  payment_request_canceled: {
+    group: 'cases',
+    en: {
+      title: 'Payment request withdrawn',
+      body: 'Your attorney withdrew a payment request.',
+    },
+    ru: {
+      title: 'Счёт отозван',
+      body: 'Адвокат отозвал выставленный счёт.',
+    },
+  },
+  payout_account_status: {
+    group: 'system',
+    en: {
+      title: 'Payout account',
+      body: 'The status of your payout account changed. Check Settings → Receiving payments.',
+    },
+    ru: {
+      title: 'Счёт для выплат',
+      body: 'Статус вашего счёта для выплат изменился. Проверьте Настройки → Приём оплат.',
+    },
+  },
   admin_broadcast: {
     group: 'system',
     en: { title: 'LawBid', body: 'A message from the LawBid team.' },

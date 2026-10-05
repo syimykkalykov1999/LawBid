@@ -68,6 +68,8 @@ import 'clients/partners_client.dart';
 import 'clients/admin_partners_client.dart';
 import 'clients/promotions_client.dart';
 import 'clients/admin_promotions_client.dart';
+import 'clients/case_payments_client.dart';
+import 'clients/admin_case_payments_client.dart';
 import 'clients/client_badge_client.dart';
 import 'clients/admin_client_badge_client.dart';
 import 'clients/chat_client.dart';
@@ -150,6 +152,8 @@ class LawbidApi {
   AdminPartnersClient? _adminPartners;
   PromotionsClient? _promotions;
   AdminPromotionsClient? _adminPromotions;
+  CasePaymentsClient? _casePayments;
+  AdminCasePaymentsClient? _adminCasePayments;
   ClientBadgeClient? _clientBadge;
   AdminClientBadgeClient? _adminClientBadge;
   ChatClient? _chat;
@@ -337,6 +341,12 @@ class LawbidApi {
 
   AdminPromotionsClient get adminPromotions =>
       _adminPromotions ??= AdminPromotionsClient(_dio, baseUrl: _baseUrl);
+
+  CasePaymentsClient get casePayments =>
+      _casePayments ??= CasePaymentsClient(_dio, baseUrl: _baseUrl);
+
+  AdminCasePaymentsClient get adminCasePayments =>
+      _adminCasePayments ??= AdminCasePaymentsClient(_dio, baseUrl: _baseUrl);
 
   ClientBadgeClient get clientBadge =>
       _clientBadge ??= ClientBadgeClient(_dio, baseUrl: _baseUrl);
