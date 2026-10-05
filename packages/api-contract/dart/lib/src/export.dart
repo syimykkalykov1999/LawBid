@@ -392,6 +392,7 @@ export 'models/case_summary_dto.dart';
 export 'models/case_summary_list_envelope.dart';
 export 'models/case_practice_area_dto.dart';
 export 'models/case_budget_dto.dart';
+export 'models/case_dossier_dto.dart';
 export 'models/case_feed_item_dto.dart';
 export 'models/case_feed_item_list_envelope.dart';
 export 'models/case_photo_dto.dart';

@@ -6,6 +6,7 @@ import 'package:json_annotation/json_annotation.dart';
 
 import 'case_budget_dto.dart';
 import 'case_detail_for_attorney_dto_completion_requested_by.dart';
+import 'case_dossier_dto.dart';
 import 'case_photo_dto.dart';
 import 'case_practice_area_dto.dart';
 import 'case_status.dart';
@@ -33,6 +34,7 @@ class CaseDetailForAttorneyDto {
     required this.shareCount,
     required this.isSaved,
     required this.promoted,
+    required this.dossier,
     required this.description,
     required this.photos,
     required this.photosCount,
@@ -86,6 +88,9 @@ class CaseDetailForAttorneyDto {
 
   /// Promoted by its client right now.
   final bool promoted;
+
+  /// Owner 2026-10-05: how complete the case is (counts only).
+  final CaseDossierDto dossier;
   final String description;
 
   /// The attorney's own bid on this case (§4.3: shown instead of "Сделать бид").

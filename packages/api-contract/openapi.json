@@ -55154,6 +55154,28 @@
           "mode"
         ]
       },
+      "CaseDossierDto": {
+        "type": "object",
+        "properties": {
+          "imagesCount": {
+            "type": "integer",
+            "description": "Attached photos (image/*)."
+          },
+          "documentsCount": {
+            "type": "integer",
+            "description": "Attached documents (PDF, Word…)."
+          },
+          "descriptionLength": {
+            "type": "integer",
+            "description": "Length of the full description, in characters."
+          }
+        },
+        "required": [
+          "imagesCount",
+          "documentsCount",
+          "descriptionLength"
+        ]
+      },
       "CaseFeedItemDto": {
         "type": "object",
         "properties": {
@@ -55246,6 +55268,14 @@
           "promoted": {
             "type": "boolean",
             "description": "Promoted by its client right now."
+          },
+          "dossier": {
+            "description": "Owner 2026-10-05: how complete the case is (counts only).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CaseDossierDto"
+              }
+            ]
           }
         },
         "required": [
@@ -55265,7 +55295,8 @@
           "commentCount",
           "shareCount",
           "isSaved",
-          "promoted"
+          "promoted",
+          "dossier"
         ]
       },
       "CaseFeedItemListEnvelope": {
@@ -55408,6 +55439,14 @@
             "type": "boolean",
             "description": "Promoted by its client right now."
           },
+          "dossier": {
+            "description": "Owner 2026-10-05: how complete the case is (counts only).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CaseDossierDto"
+              }
+            ]
+          },
           "description": {
             "type": "string"
           },
@@ -55463,6 +55502,7 @@
           "shareCount",
           "isSaved",
           "promoted",
+          "dossier",
           "description",
           "photos",
           "photosCount",
