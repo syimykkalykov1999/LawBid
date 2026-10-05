@@ -36,6 +36,9 @@ import {
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
+/** Trims and drops trailing slashes, so `https://api.lawbid.dev/` is accepted. */
+const trimUrl = ({ value }: { value: unknown }) =>
+  typeof value === 'string' ? value.trim().replace(/\/+$/, '') : value;
 const emptyToNull = ({ value }: { value: unknown }) =>
   value === '' ? null : value;
 const toInt = ({ value }: { value: unknown }) =>
@@ -524,11 +527,11 @@ export class OutreachSettingsDto {
     description:
       'Public https base of the API for unsubscribe links, e.g. https://api.lawbid.dev.',
   })
-  @Transform(trim)
+  @Transform(trimUrl)
   @IsString()
   @MaxLength(OUTREACH_TEXT_LIMITS.apiPublicUrl)
   @Matches(/^(https:\/\/[a-z0-9.-]+(:\d+)?(\/[\w./-]*[\w-])?)?$/i, {
-    message: 'apiPublicUrl must be an https URL without a trailing slash',
+    message: 'apiPublicUrl must be an https URL (host, optional port and path)',
   })
   apiPublicUrl!: string;
 }
