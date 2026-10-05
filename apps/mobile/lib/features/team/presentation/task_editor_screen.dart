@@ -647,11 +647,13 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
       ),
       body: ListView(
         controller: _scroll,
-        padding: const EdgeInsets.fromLTRB(
+        // The save button ends the list: keep it clear of the iPhone home
+        // indicator (Android reserves its bar in SystemNavBand).
+        padding: EdgeInsets.fromLTRB(
           AppSpacing.screenSide,
           AppSpacing.md,
           AppSpacing.screenSide,
-          AppSpacing.xxl,
+          AppSpacing.xxl + MediaQuery.paddingOf(context).bottom,
         ),
         children: [
           Text(t.t('tasks.field.kind'), style: label),

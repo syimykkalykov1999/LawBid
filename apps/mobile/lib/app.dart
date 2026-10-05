@@ -51,21 +51,25 @@ class LawBidApp extends ConsumerWidget {
       // still get their own taps first.
       builder: (context, child) => Directionality(
         textDirection: rtl ? TextDirection.rtl : TextDirection.ltr,
-        child: GestureDetector(
-          behavior: HitTestBehavior.translucent,
-          onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
-          child: AccountSuspendedGate(
-            child: AppUpdateGate(
-              child: child == null
-                  ? null
-                  // OQ-041: the call screen pops over any route.
-                  : CallHost(
-                      router: router,
-                      child: RouterOfflineBannerHost(
+        // Owner 2026-10-05: nothing ever sits under the Android system
+        // navigation bar (core/design_system/widgets/bars/system_nav_band.dart).
+        child: SystemNavBand(
+          child: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+            child: AccountSuspendedGate(
+              child: AppUpdateGate(
+                child: child == null
+                    ? null
+                    // OQ-041: the call screen pops over any route.
+                    : CallHost(
                         router: router,
-                        child: child,
+                        child: RouterOfflineBannerHost(
+                          router: router,
+                          child: child,
+                        ),
                       ),
-                    ),
+              ),
             ),
           ),
         ),
