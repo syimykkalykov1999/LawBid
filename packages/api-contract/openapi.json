@@ -58705,6 +58705,25 @@
               "type": "string"
             }
           },
+          "caseCity": {
+            "type": "string",
+            "nullable": true,
+            "description": "Owner 2026-10-05: the dossier (\"Case file 4 of 6\") on the invite, so\nthe attorney sees what the client filled in before answering. Counts\nonly — the files open once the client accepts the attorney's bid."
+          },
+          "caseUrgency": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CaseUrgency"
+              }
+            ]
+          },
+          "caseBudget": {
+            "$ref": "#/components/schemas/CaseBudgetDto"
+          },
+          "caseDossier": {
+            "$ref": "#/components/schemas/CaseDossierDto"
+          },
           "attorney": {
             "nullable": true,
             "description": "The invited attorney (client view only).",
@@ -58734,6 +58753,8 @@
           "caseStatus",
           "casePracticeKey",
           "caseStateCodes",
+          "caseBudget",
+          "caseDossier",
           "attorney"
         ]
       },

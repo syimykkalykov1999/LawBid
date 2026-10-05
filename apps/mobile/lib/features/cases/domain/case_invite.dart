@@ -36,6 +36,10 @@ class CaseInvite {
     this.outsideLicensedStates = false,
     this.bidId,
     this.attorney,
+    this.caseCity,
+    this.caseUrgency,
+    this.caseBudget = const CaseBudget(mode: BudgetMode.clarifyLater),
+    this.caseDossier = CaseDossier.empty,
   });
 
   final String id;
@@ -60,6 +64,13 @@ class CaseInvite {
 
   /// The invited attorney (the client's view only).
   final BidAttorney? attorney;
+
+  /// Owner 2026-10-05: what the client filled in, for the dossier on the
+  /// attorney's invite card (counts only; files open after acceptance).
+  final String? caseCity;
+  final CaseUrgency? caseUrgency;
+  final CaseBudget caseBudget;
+  final CaseDossier caseDossier;
 
   bool get isPending => status == InviteStatus.pending;
 }
