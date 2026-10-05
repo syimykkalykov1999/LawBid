@@ -9,6 +9,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/features/chat/application/presence_providers.dart';
 import 'package:lawbid/features/profile/presentation/screens/settings_screen.dart';
+import 'package:lawbid/features/support/application/support_providers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../helpers/referral_overrides.dart';
@@ -31,6 +32,8 @@ void main() {
             partnerOffOverride,
             l10nDatabaseProvider.overrideWithValue(l10nDb),
             activityStatusProvider.overrideWith(_ActivityOn.new),
+            // No network in a golden: the support dot stays off.
+            supportUnreadProvider.overrideWithValue(false),
           ],
           child: MaterialApp(
             theme: theme,

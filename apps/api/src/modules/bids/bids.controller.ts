@@ -1,7 +1,6 @@
 import {
   Body,
   Controller,
-  Get,
   HttpStatus,
   Param,
   Post,
@@ -78,17 +77,6 @@ export class BidsController {
     @Body() dto: CreateBidDto,
   ): Promise<BidDto> {
     return this.bids.create(user, params.caseId, dto);
-  }
-
-  @Get('bids/:id')
-  @ApiOperation({ summary: 'Bid details and full negotiation history' })
-  @ApiEnvelopeResponse(BidDto)
-  @ApiErrors({ 400: [E.VALIDATION_ERROR], 404: [E.NOT_FOUND] })
-  getBid(
-    @CurrentUser() user: RequestUser,
-    @Param() params: BidIdParamDto,
-  ): Promise<BidDto> {
-    return this.bids.get(user, params.id);
   }
 
   // OQ-049: or an assistant the attorney trusted (their responsibility).

@@ -131,6 +131,16 @@ export const OWNER_TASKS_SETTINGS = {
   'tasks.archive_auto_purge': true,
 } as const;
 
+// Future web client (a client form on lawbid.dev sharing this API): the
+// browser origins allowed to call the API cross-origin (CORS). Localhost
+// origins are added on top outside production (src/common/cors).
+export const OWNER_WEB_SETTINGS = {
+  'web.allowed_origins': [
+    'https://lawbid.dev',
+    'https://www.lawbid.dev',
+  ] as string[],
+};
+
 // Owner 2026-10-05 (automation principle, docs/AUTOMATION_PRINCIPLE.md):
 // every manual admin step except checking an attorney's documents has an
 // "auto" switch, on by default. A client's badge request is approved the
@@ -169,6 +179,7 @@ export const APP_SETTINGS = {
   ...OWNER_BADGE_SETTINGS,
   ...OWNER_LAWYER_VERIFICATION_SETTINGS,
   ...OWNER_TASKS_SETTINGS,
+  ...OWNER_WEB_SETTINGS,
   ...OWNER_AUTOMATION_SETTINGS,
   ...OWNER_INVITE_SETTINGS,
   ...OWNER_SEAT_SETTINGS,

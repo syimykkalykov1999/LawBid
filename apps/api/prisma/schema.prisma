@@ -465,6 +465,9 @@ enum NotificationType {
   partner_payout
   // Owner 2026-10-01: an admin changed the phone on the user's request.
   security_phone_changed
+  // Owner 2026-10-04: the other side disputed completion / support decided.
+  case_disputed
+  dispute_resolved
   // Owner 2026-10-05: a client offered their case to the attorney / the
   // attorney declined it.
   case_invite_received

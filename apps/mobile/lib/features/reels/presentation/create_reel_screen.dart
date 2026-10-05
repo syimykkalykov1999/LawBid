@@ -30,10 +30,19 @@ import 'package:video_player/video_player.dart';
 /// what opens with "Смотреть" under the reel: up to 9 photos and up to 9
 /// documents (PDF, Word, text).
 class CreateReelScreen extends ConsumerStatefulWidget {
-  const CreateReelScreen({this.initialFile, super.key});
+  const CreateReelScreen({
+    this.initialFile,
+    this.initialTitle = '',
+    this.initialText = '',
+    super.key,
+  });
 
   /// A video already chosen in the post's gallery picker.
   final File? initialFile;
+
+  /// The title and text already typed on the post screen.
+  final String initialTitle;
+  final String initialText;
 
   @override
   ConsumerState<CreateReelScreen> createState() => _CreateReelScreenState();
@@ -60,8 +69,8 @@ class _Photo {
 }
 
 class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
-  final _title = TextEditingController();
-  final _text = TextEditingController();
+  late final _title = TextEditingController(text: widget.initialTitle);
+  late final _text = TextEditingController(text: widget.initialText);
   final _place = TextEditingController();
   bool _comments = true;
   File? _file;

@@ -10,10 +10,14 @@ import {
   CurrentUser,
   type RequestUser,
 } from '../auth/decorators/current-user.decorator';
+import { AttorneyOnly } from '../auth/assistant/assistant-context';
 import { BlockedUserDto, BlockUserParamDto } from './blocks.dto';
 import { BlocksService } from './blocks.service';
 
-/** Owner decision 2026-09-29 (OQ-028): block / unblock any user. */
+/** Owner decision 2026-09-29 (OQ-028): block / unblock any user. Audit
+ * 2026-10-04: the attorney's own decision — never an assistant's (clients
+ * and attorneys themselves are unaffected). */
+@AttorneyOnly()
 @ApiTags('blocks')
 @ApiBearerAuth()
 @ApiErrors(AUTHENTICATED_ERRORS)

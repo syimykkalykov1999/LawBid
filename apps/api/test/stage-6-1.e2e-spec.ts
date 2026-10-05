@@ -70,6 +70,15 @@ describe('Stage 6.1 — base security + migration (e2e)', () => {
     expect(r.headers['access-control-allow-origin']).toBeUndefined();
   });
 
+  it('CORS: the web client origin (web.allowed_origins default) is allowed without credentials', async () => {
+    const r = await request(baseUrl)
+      .options('/api/v1/health/live')
+      .set('Origin', 'https://lawbid.dev')
+      .set('Access-Control-Request-Method', 'POST');
+    expect(r.headers['access-control-allow-origin']).toBe('https://lawbid.dev');
+    expect(r.headers['access-control-allow-credentials']).toBeUndefined();
+  });
+
   it('logs never contain phones, emails or tokens (pino redact + serializer)', () => {
     const lines: string[] = [];
     const sink = new Writable({

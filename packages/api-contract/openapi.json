@@ -564,7 +564,7 @@
             }
           },
           "403": {
-            "description": "Forbidden: AUTH_PROVIDER_DISABLED, ACCOUNT_SUSPENDED, ACCOUNT_DELETED",
+            "description": "Forbidden: AUTH_PROVIDER_DISABLED, FEATURE_DISABLED, ACCOUNT_SUSPENDED, ACCOUNT_DELETED",
             "content": {
               "application/json": {
                 "schema": {
@@ -675,7 +675,7 @@
             }
           },
           "403": {
-            "description": "Forbidden: ACCOUNT_SUSPENDED, ACCOUNT_DELETED",
+            "description": "Forbidden: FEATURE_DISABLED, ACCOUNT_SUSPENDED, ACCOUNT_DELETED",
             "content": {
               "application/json": {
                 "schema": {
@@ -859,7 +859,7 @@
             }
           },
           "403": {
-            "description": "Forbidden: AUTH_PROVIDER_DISABLED, ACCOUNT_SUSPENDED, ACCOUNT_DELETED",
+            "description": "Forbidden: AUTH_PROVIDER_DISABLED, FEATURE_DISABLED, ACCOUNT_SUSPENDED, ACCOUNT_DELETED",
             "content": {
               "application/json": {
                 "schema": {
@@ -970,7 +970,7 @@
             }
           },
           "403": {
-            "description": "Forbidden: DEVICE_ATTESTATION_REQUIRED, AUTH_PROVIDER_DISABLED, ACCOUNT_SUSPENDED, ACCOUNT_DELETED",
+            "description": "Forbidden: DEVICE_ATTESTATION_REQUIRED, AUTH_PROVIDER_DISABLED, FEATURE_DISABLED, ACCOUNT_SUSPENDED, ACCOUNT_DELETED",
             "content": {
               "application/json": {
                 "schema": {
@@ -1091,7 +1091,7 @@
             }
           },
           "403": {
-            "description": "Forbidden: ACCOUNT_SUSPENDED, ACCOUNT_DELETED",
+            "description": "Forbidden: FEATURE_DISABLED, ACCOUNT_SUSPENDED, ACCOUNT_DELETED",
             "content": {
               "application/json": {
                 "schema": {
@@ -9345,103 +9345,6 @@
         ]
       }
     },
-    "/bids/{id}": {
-      "get": {
-        "operationId": "getBid",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success envelope (docs/01 §7).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BidEnvelope"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request: VALIDATION_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found: NOT_FOUND",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "426": {
-            "description": "Upgrade required: APP_UPDATE_REQUIRED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests: RATE_LIMITED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal error: INTERNAL_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Bid details and full negotiation history",
-        "tags": [
-          "bids"
-        ]
-      }
-    },
     "/bids/{id}/withdraw": {
       "post": {
         "operationId": "withdraw",
@@ -17595,6 +17498,16 @@
               }
             }
           },
+          "409": {
+            "description": "Conflict: CASE_INVALID_STATE, BID_ALREADY_EXISTS",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
           "426": {
             "description": "Upgrade required: APP_UPDATE_REQUIRED",
             "content": {
@@ -22333,6 +22246,103 @@
         "summary": "Bids on my case with the attorney summary (client, docs/04 §5.2; sort newest / lowest_price / highest_rating)",
         "tags": [
           "cases"
+        ]
+      }
+    },
+    "/bids/{id}": {
+      "get": {
+        "operationId": "getBid",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BidEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Bid details, full negotiation history and the attorney summary",
+        "tags": [
+          "bids"
         ]
       }
     },
@@ -50924,6 +50934,16 @@
               }
             }
           },
+          "409": {
+            "description": "Conflict: REVIEW_ALREADY_EXISTS",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
           "426": {
             "description": "Upgrade required: APP_UPDATE_REQUIRED",
             "content": {
@@ -55914,6 +55934,71 @@
           "createdAt"
         ]
       },
+      "RatingDto": {
+        "type": "object",
+        "properties": {
+          "avg": {
+            "type": "number",
+            "description": "Average of published reviews, 0 if none."
+          },
+          "count": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "avg",
+          "count"
+        ]
+      },
+      "BidAttorneySummaryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "username": {
+            "type": "string"
+          },
+          "firstName": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastName": {
+            "type": "string",
+            "nullable": true
+          },
+          "avatarUrl256": {
+            "type": "string",
+            "nullable": true,
+            "description": "Signed link to the 256 px avatar; null when none."
+          },
+          "verifiedBadge": {
+            "type": "boolean",
+            "description": "Blue check (docs/03 §6.3)."
+          },
+          "licensedStates": {
+            "description": "Owner 2026-10-04: 2-letter codes of the states where the attorney holds a verified licence.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "rating": {
+            "$ref": "#/components/schemas/RatingDto"
+          }
+        },
+        "required": [
+          "id",
+          "username",
+          "firstName",
+          "lastName",
+          "avatarUrl256",
+          "verifiedBadge",
+          "licensedStates",
+          "rating"
+        ]
+      },
       "BidDto": {
         "type": "object",
         "properties": {
@@ -55999,6 +56084,14 @@
             "items": {
               "$ref": "#/components/schemas/BidOfferDto"
             }
+          },
+          "attorney": {
+            "description": "The attorney summary — only on GET /bids/:id.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BidAttorneySummaryDto"
+              }
+            ]
           }
         },
         "required": [
@@ -62357,6 +62450,11 @@
           "deletedAt": {
             "type": "string",
             "nullable": true
+          },
+          "stalePromptSentAt": {
+            "type": "string",
+            "nullable": true,
+            "description": "§10.2 \"Is this case still relevant?\" prompt time, else null. Set while\nthe prompt is pending; POST /cases/:id/keep-alive clears it."
           }
         },
         "required": [
@@ -63056,6 +63154,10 @@
             "nullable": true,
             "description": "The attorney's own bid on this case (§4.3: shown instead of \"Сделать бид\")."
           },
+          "acceptedBidIsMine": {
+            "type": "boolean",
+            "description": "True when this attorney's bid is the case's accepted one (the hired lawyer: open the work screen)."
+          },
           "completionRequestedBy": {
             "nullable": true,
             "enum": [
@@ -63110,6 +63212,7 @@
           "priorityClient",
           "dossier",
           "description",
+          "acceptedBidIsMine",
           "photos",
           "photosCount",
           "inMyPractice",
@@ -63156,71 +63259,6 @@
         "required": [
           "itemType",
           "itemId"
-        ]
-      },
-      "RatingDto": {
-        "type": "object",
-        "properties": {
-          "avg": {
-            "type": "number",
-            "description": "Average of published reviews, 0 if none."
-          },
-          "count": {
-            "type": "number"
-          }
-        },
-        "required": [
-          "avg",
-          "count"
-        ]
-      },
-      "BidAttorneySummaryDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "username": {
-            "type": "string"
-          },
-          "firstName": {
-            "type": "string",
-            "nullable": true
-          },
-          "lastName": {
-            "type": "string",
-            "nullable": true
-          },
-          "avatarUrl256": {
-            "type": "string",
-            "nullable": true,
-            "description": "Signed link to the 256 px avatar; null when none."
-          },
-          "verifiedBadge": {
-            "type": "boolean",
-            "description": "Blue check (docs/03 §6.3)."
-          },
-          "licensedStates": {
-            "description": "Owner 2026-10-04: 2-letter codes of the states where the attorney holds a verified licence.",
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "rating": {
-            "$ref": "#/components/schemas/RatingDto"
-          }
-        },
-        "required": [
-          "id",
-          "username",
-          "firstName",
-          "lastName",
-          "avatarUrl256",
-          "verifiedBadge",
-          "licensedStates",
-          "rating"
         ]
       },
       "CaseBidItemDto": {
@@ -63939,6 +63977,11 @@
             "type": "string",
             "nullable": true
           },
+          "stalePromptSentAt": {
+            "type": "string",
+            "nullable": true,
+            "description": "§10.2 \"Is this case still relevant?\" prompt time, else null. Set while\nthe prompt is pending; POST /cases/:id/keep-alive clears it."
+          },
           "acceptedBid": {
             "nullable": true,
             "type": "object",
@@ -64111,6 +64154,14 @@
           "createdAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "attorney": {
+            "description": "The attorney summary — only on GET /bids/:id.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BidAttorneySummaryDto"
+              }
+            ]
           },
           "case": {
             "$ref": "#/components/schemas/BidCaseRefDto"
@@ -76396,6 +76447,10 @@
           "requestedByMe": {
             "type": "boolean",
             "description": "The viewer sent this message request."
+          },
+          "blocked": {
+            "type": "boolean",
+            "description": "Either side blocked the other. Messages and calls still work in a case chat while the accepted case is not closed."
           }
         },
         "required": [
@@ -76409,7 +76464,8 @@
           "folderAuto",
           "kind",
           "requestStatus",
-          "requestedByMe"
+          "requestedByMe",
+          "blocked"
         ]
       },
       "ConversationFolder": {

@@ -62,6 +62,10 @@ class CreateCaseState {
 
   bool get photosUploading => photos.any((p) => p.uploading);
 
+  /// Audit 2026-10-04: a failed upload blocks Next / Publish until it is
+  /// retried or removed (it would otherwise be silently dropped).
+  bool get photosFailed => photos.any((p) => p.failed);
+
   final CaseDraft draft;
   final bool loaded;
 
@@ -79,10 +83,15 @@ class CreateCaseState {
 
   bool get stepValid => switch (draft.step) {
         0 => draft.practiceValid,
-        1 => draft.titleValid && draft.descriptionValid && !photosUploading,
+        1 => draft.titleValid &&
+            draft.descriptionValid &&
+            !photosUploading &&
+            !photosFailed,
         2 => draft.placeValid,
         3 => draft.budgetValid,
-        _ => !needsConsent || consentChecked,
+        _ => (!needsConsent || consentChecked) &&
+            !photosUploading &&
+            !photosFailed,
       };
 
   CreateCaseState copyWith({
@@ -140,9 +149,27 @@ class CreateCaseController extends Notifier<CreateCaseState> {
     final raw = await ref.read(casesLocalDatabaseProvider).draftJson(_ownerId);
     final saved = CaseDraft.decode(raw);
     if (!ref.mounted) return;
-    state = saved == null || saved.isEmpty
-        ? state.copyWith(loaded: true)
-        : state.copyWith(draft: saved, loaded: true, restoredDraft: true);
+    if (saved == null || saved.isEmpty) {
+      state = state.copyWith(loaded: true);
+      return;
+    }
+    state = state.copyWith(
+      draft: saved,
+      loaded: true,
+      restoredDraft: true,
+      // Audit 2026-10-04: uploaded files come back with the draft (their
+      // bytes are not kept — photos show a placeholder tile).
+      photos: [
+        for (final f in saved.files)
+          CasePhotoUpload(
+            key: _photoKey++,
+            bytes: Uint8List(0),
+            fileId: f.fileId,
+            name: f.name,
+          ),
+        ...state.photos,
+      ],
+    );
   }
 
   void update(CaseDraft Function(CaseDraft d) change) {
@@ -195,13 +222,28 @@ class CreateCaseController extends Notifier<CreateCaseState> {
         for (final p in state.photos) p.key == item.key ? done : p,
       ],
     );
+    if (done.fileId != null) _syncFiles();
   }
 
-  void removePhoto(int key) => state = state.copyWith(
-        photos: [
-          for (final p in state.photos)
-            if (p.key != key) p,
-        ],
+  void removePhoto(int key) {
+    state = state.copyWith(
+      photos: [
+        for (final p in state.photos)
+          if (p.key != key) p,
+      ],
+    );
+    _syncFiles();
+  }
+
+  /// Audit 2026-10-04: mirrors the uploaded files into the saved draft.
+  void _syncFiles() => update(
+        (d) => d.copyWith(
+          files: [
+            for (final p in state.photos)
+              if (p.fileId != null)
+                CaseDraftFile(fileId: p.fileId!, name: p.name),
+          ],
+        ),
       );
 
   void retryPhoto(int key) {
@@ -222,15 +264,22 @@ class CreateCaseController extends Notifier<CreateCaseState> {
 
   void next() {
     if (!state.stepValid || state.draft.step >= kCaseWizardSteps - 1) return;
-    update((d) => d.copyWith(step: d.step + 1));
+    _changeStep(state.draft.step + 1);
   }
 
   void back() {
     if (state.draft.step == 0) return;
-    update((d) => d.copyWith(step: d.step - 1));
+    _changeStep(state.draft.step - 1);
   }
 
-  void goTo(int step) => update((d) => d.copyWith(step: step));
+  void goTo(int step) => _changeStep(step);
+
+  /// The "Draft restored" banner shows on the step the draft reopened on
+  /// and goes away once the client moves on.
+  void _changeStep(int step) {
+    if (state.restoredDraft) state = state.copyWith(restoredDraft: false);
+    update((d) => d.copyWith(step: step));
+  }
 
   /// "Начать заново": drops the restored draft.
   Future<void> startOver() async {
@@ -240,6 +289,7 @@ class CreateCaseController extends Notifier<CreateCaseState> {
       draft: CaseDraft(primaryStateCode: user?.clientProfile?.stateCode),
       restoredDraft: false,
       clearError: true,
+      photos: const [],
     );
   }
 
