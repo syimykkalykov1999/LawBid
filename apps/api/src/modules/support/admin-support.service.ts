@@ -19,6 +19,7 @@ import {
   type SupportPriority,
   type SupportStatus,
 } from './support.dto';
+import { SupportDeskService } from './support-desk.service';
 import {
   activityKeyset,
   activityPage,
@@ -51,6 +52,7 @@ export class AdminSupportService {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
     private readonly subscriptions: SubscriptionAccessService,
+    private readonly desk: SupportDeskService,
   ) {}
 
   async list(
@@ -70,8 +72,24 @@ export class AdminSupportService {
           : q.assignee
             ? { assignee_id: q.assignee.toLowerCase() }
             : {}),
-      ...activityKeyset(q.cursor),
+      ...(q.sla === 'breached'
+        ? { sla_due_at: { not: null }, sla_breached_at: { not: null } }
+        : q.sla === 'waiting'
+          ? { sla_due_at: { not: null } }
+          : activityKeyset(q.cursor)),
     };
+    if (q.sla) {
+      // Owner 2026-10-05: the most overdue first; one page is the queue.
+      const due = await this.prisma.supportTicket.findMany({
+        where,
+        orderBy: [{ sla_due_at: 'asc' }, { id: 'asc' }],
+        take: PAGE,
+      });
+      const p = await this.people(
+        due.flatMap((r) => [r.user_id, r.assignee_id]),
+      );
+      return { items: due.map((r) => this.row(r, p)), nextCursor: null };
+    }
     const rows = await this.prisma.supportTicket.findMany({
       where,
       orderBy: [{ last_message_at: 'desc' }, { id: 'desc' }],
@@ -84,28 +102,41 @@ export class AdminSupportService {
   }
 
   async stats(): Promise<AdminSupportStatsDto> {
-    const [grouped, openUnassigned, unreadByAdmin, attention, avg] =
-      await Promise.all([
-        this.prisma.supportTicket.groupBy({
-          by: ['status'],
-          _count: { _all: true },
-        }),
-        this.prisma.supportTicket.count({
-          where: { status: 'open', assignee_id: null },
-        }),
-        this.prisma.supportTicket.count({
-          where: { unread_by_admin: true, status: { not: 'closed' } },
-        }),
-        this.prisma.supportTicket.count({
-          where: {
-            OR: [
-              { status: 'open', assignee_id: null },
-              { unread_by_admin: true, status: { not: 'closed' } },
-            ],
-          },
-        }),
-        this.avgFirstResponseMinutes(),
-      ]);
+    const [
+      grouped,
+      openUnassigned,
+      unreadByAdmin,
+      attention,
+      avg,
+      late,
+      shift,
+      info,
+    ] = await Promise.all([
+      this.prisma.supportTicket.groupBy({
+        by: ['status'],
+        _count: { _all: true },
+      }),
+      this.prisma.supportTicket.count({
+        where: { status: 'open', assignee_id: null },
+      }),
+      this.prisma.supportTicket.count({
+        where: { unread_by_admin: true, status: { not: 'closed' } },
+      }),
+      this.prisma.supportTicket.count({
+        where: {
+          OR: [
+            { status: 'open', assignee_id: null },
+            { unread_by_admin: true, status: { not: 'closed' } },
+          ],
+        },
+      }),
+      this.avgFirstResponseMinutes(),
+      this.prisma.supportTicket.count({
+        where: { sla_due_at: { not: null }, sla_breached_at: { not: null } },
+      }),
+      this.prisma.supportAgent.count({ where: { on_shift: true } }),
+      this.desk.info(),
+    ]);
     const byStatus = { open: 0, waiting_user: 0, resolved: 0, closed: 0 };
     for (const g of grouped) {
       if ((SUPPORT_STATUSES as readonly string[]).includes(g.status)) {
@@ -118,6 +149,9 @@ export class AdminSupportService {
       unreadByAdmin,
       attention,
       avgFirstResponseMinutes30d: avg,
+      slaBreached: late,
+      onShift: shift,
+      openNow: info.open,
     };
   }
 
@@ -180,8 +214,20 @@ export class AdminSupportService {
           unread_by_user: true,
           unread_by_admin: false,
           last_message_at: now,
+          // Owner 2026-10-05: answered — nothing is due; the first answer
+          // and who resolved it count in the staff stats.
+          ...answeredData(t, adminId, now),
+          ...(next.resolvedAt && !t.resolved_at
+            ? { resolved_by: adminId }
+            : {}),
         },
       });
+      if (dto.macroId) {
+        await tx.supportMacro.updateMany({
+          where: { id: dto.macroId },
+          data: { uses: { increment: 1 } },
+        });
+      }
       const lang = await tx.user.findUnique({
         where: { id: t.user_id },
         select: { ui_language: true },
@@ -214,6 +260,7 @@ export class AdminSupportService {
   async update(
     id: string,
     dto: AdminUpdateSupportTicketDto,
+    adminId?: string,
   ): Promise<AdminSupportTicketRowDto> {
     if (dto.assigneeId) await this.assertAdmin(dto.assigneeId);
     const updated = await withTxRetry(this.prisma, async (tx) => {
@@ -224,9 +271,17 @@ export class AdminSupportService {
         const next = withResolvedAt(dto.status, t.resolved_at, new Date());
         data.status = next.status;
         data.resolved_at = next.resolvedAt;
+        if (next.resolvedAt && !t.resolved_at && adminId) {
+          data.resolved_by = adminId;
+        }
+        // Nothing is due on a resolved or closed ticket.
+        if (next.resolvedAt) data.sla_due_at = null;
       }
       if (dto.priority) data.priority = dto.priority;
-      if (dto.assigneeId !== undefined) data.assignee_id = dto.assigneeId;
+      if (dto.assigneeId !== undefined && dto.assigneeId !== t.assignee_id) {
+        data.assignee_id = dto.assigneeId;
+        data.assigned_at = dto.assigneeId ? new Date() : null;
+      }
       if (Object.keys(data).length === 0) return t;
       return tx.supportTicket.update({ where: { id }, data });
     });
@@ -288,6 +343,9 @@ export class AdminSupportService {
       lastMessageAt: t.last_message_at.toISOString(),
       createdAt: t.created_at.toISOString(),
       resolvedAt: t.resolved_at?.toISOString() ?? null,
+      slaDueAt: t.sla_due_at?.toISOString() ?? null,
+      slaBreached: !!t.sla_due_at && !!t.sla_breached_at,
+      firstResponseAt: t.first_response_at?.toISOString() ?? null,
     };
   }
 
@@ -381,14 +439,16 @@ export function presentAdminMessage(
   m: SupportMessage,
   people: Map<string, Named>,
 ): AdminSupportMessageDto {
-  const isAdmin = m.author_admin_id !== null;
+  // Owner 2026-10-05: an automatic answer has no author.
+  const isAdmin = m.author_admin_id !== null || m.auto;
   const authorId = (isAdmin ? m.author_admin_id : m.author_user_id) ?? '';
   return {
     id: m.id,
     authorType: isAdmin ? 'admin' : 'user',
     authorId,
-    authorName: nameOf(people.get(authorId)),
+    authorName: m.auto ? 'Автоответ' : nameOf(people.get(authorId)),
     internal: m.internal,
+    auto: m.auto,
     body: m.body,
     createdAt: m.created_at.toISOString(),
   };
@@ -396,4 +456,21 @@ export function presentAdminMessage(
 
 function clip(s: string, max = 60): string {
   return s.length > max ? `${s.slice(0, max - 1)}…` : s;
+}
+
+/** The team answered publicly: nothing is due any more; the first answer
+ * and its author are kept for the stats; an unassigned ticket becomes the
+ * answering agent's. */
+export function answeredData(
+  t: SupportTicket,
+  adminId: string,
+  now: Date,
+): Prisma.SupportTicketUpdateInput {
+  return {
+    sla_due_at: null,
+    ...(t.first_response_at
+      ? {}
+      : { first_response_at: now, first_response_by: adminId }),
+    ...(t.assignee_id ? {} : { assignee_id: adminId, assigned_at: now }),
+  };
 }

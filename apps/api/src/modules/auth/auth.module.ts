@@ -184,6 +184,8 @@ import { resolveSmsProvider } from '../../config/provider-selection';
     AssistantContextService,
     // Owner 2026-10-04: joining a team with the attorney's code.
     AssistantCodeService,
+    // Owner 2026-10-05: support SLA alerts e-mail the team directly.
+    EMAIL_PROVIDER,
   ],
 })
 export class AuthModule {}

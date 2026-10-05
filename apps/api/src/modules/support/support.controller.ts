@@ -33,6 +33,7 @@ import {
   SupportMessageDto,
   SupportTicketDetailDto,
   SupportTicketDto,
+  SupportInfoDto,
   SupportTicketIdParamDto,
 } from './support.dto';
 import { SupportService } from './support.service';
@@ -121,5 +122,22 @@ export class SupportController {
     @Param() p: SupportTicketIdParamDto,
   ): Promise<SupportTicketDto> {
     return this.support.close(user.sub, p.id);
+  }
+}
+
+/** Owner 2026-10-05 (support 24/7): the team's hours and the usual answer
+ * time, shown above "New request". */
+@ApiTags('support')
+@ApiBearerAuth()
+@ApiErrors(AUTHENTICATED_ERRORS)
+@Controller('support')
+export class SupportInfoController {
+  constructor(private readonly support: SupportService) {}
+
+  @Get('info')
+  @ApiOperation({ summary: 'Support hours and the usual first answer time' })
+  @ApiEnvelopeResponse(SupportInfoDto)
+  getSupportInfo(): Promise<SupportInfoDto> {
+    return this.support.info();
   }
 }

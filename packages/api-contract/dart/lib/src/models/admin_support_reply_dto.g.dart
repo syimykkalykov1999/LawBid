@@ -13,6 +13,7 @@ AdminSupportReplyDto _$AdminSupportReplyDtoFromJson(
   status: json['status'] == null
       ? null
       : AdminSupportReplyDtoStatus.fromJson(json['status'] as String),
+  macroId: json['macroId'] as String?,
   internal: json['internal'] as bool? ?? false,
 );
 
@@ -22,4 +23,5 @@ Map<String, dynamic> _$AdminSupportReplyDtoToJson(
   'body': instance.body,
   'internal': instance.internal,
   'status': ?instance.status?.toJson(),
+  'macroId': ?instance.macroId,
 };

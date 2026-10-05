@@ -7,6 +7,7 @@ import { useMe } from '@/lib/hooks';
 import { canOpen, sectionFor } from '@/lib/rbac';
 import { cn } from '@/lib/utils';
 import { CommandPalette } from './command-palette';
+import { SectionTabs } from './section-tabs';
 import { Sidebar } from './sidebar';
 import { Topbar } from './topbar';
 
@@ -90,7 +91,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <p className="mt-3 text-sm text-muted">Такой страницы нет.</p>
               </div>
             ) : (
-              children
+              <>
+                <SectionTabs me={me} />
+                {children}
+              </>
             )}
           </motion.div>
         </main>

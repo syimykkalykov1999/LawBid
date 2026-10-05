@@ -16,6 +16,9 @@ class AdminSupportStatsDto {
     required this.unreadByAdmin,
     required this.attention,
     this.avgFirstResponseMinutes30d,
+    this.slaBreached,
+    this.onShift,
+    this.openNow,
   });
 
   factory AdminSupportStatsDto.fromJson(Map<String, Object?> json) =>
@@ -34,6 +37,15 @@ class AdminSupportStatsDto {
 
   /// Average minutes to the first public admin reply, tickets created in the last 30 days (null = no data).
   final num? avgFirstResponseMinutes30d;
+
+  /// Owner 2026-10-05: tickets whose answer is late right now.
+  final num? slaBreached;
+
+  /// Support agents on shift now.
+  final num? onShift;
+
+  /// The team works now (24/7 or within the hours).
+  final bool? openNow;
 
   Map<String, Object?> toJson() => _$AdminSupportStatsDtoToJson(this);
 }

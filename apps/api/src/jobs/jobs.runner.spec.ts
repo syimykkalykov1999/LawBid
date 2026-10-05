@@ -188,8 +188,9 @@ describe('JobsRunner', () => {
     // owner 2026-10-02: + promotions.expire every 5 min; owner 2026-10-04:
     // + monthly licenses.registry-recheck; owner 2026-10-05: + daily
     // partners.sweep, case-payments.expire every 10 min and the daily
-    // case-payments.remind.
-    expect(upserts).toHaveLength(29);
+    // case-payments.remind, support.sweep every 5 min and the daily
+    // rewards.award (owner 2026-10-05).
+    expect(upserts).toHaveLength(31);
     const byName = Object.fromEntries(
       upserts.map((c: unknown[]) => [c[0], c[1]]),
     );
