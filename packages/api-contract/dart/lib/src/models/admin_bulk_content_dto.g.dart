@@ -8,10 +8,10 @@ part of 'admin_bulk_content_dto.dart';
 
 AdminBulkContentDto _$AdminBulkContentDtoFromJson(Map<String, dynamic> json) =>
     AdminBulkContentDto(
-      reason: json['reason'] as String,
       ids: (json['ids'] as List<dynamic>).map((e) => e as String).toList(),
       action: AdminBulkContentAction.fromJson(json['action'] as String),
       type: AdminBulkContentType.fromJson(json['type'] as String),
+      reason: json['reason'] as String? ?? '',
     );
 
 Map<String, dynamic> _$AdminBulkContentDtoToJson(

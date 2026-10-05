@@ -12,10 +12,10 @@ part 'admin_bulk_content_dto.g.dart';
 @JsonSerializable()
 class AdminBulkContentDto {
   const AdminBulkContentDto({
-    required this.reason,
     required this.ids,
     required this.action,
     required this.type,
+    this.reason = '',
   });
 
   factory AdminBulkContentDto.fromJson(Map<String, Object?> json) =>

@@ -9,8 +9,8 @@ part of 'admin_remove_comment_dto.dart';
 AdminRemoveCommentDto _$AdminRemoveCommentDtoFromJson(
   Map<String, dynamic> json,
 ) => AdminRemoveCommentDto(
-  reason: json['reason'] as String,
   thread: AdminCommentThread.fromJson(json['thread'] as String),
+  reason: json['reason'] as String? ?? '',
 );
 
 Map<String, dynamic> _$AdminRemoveCommentDtoToJson(

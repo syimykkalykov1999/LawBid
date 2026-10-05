@@ -8,13 +8,16 @@ part 'remove_integration_dto.g.dart';
 
 @JsonSerializable()
 class RemoveIntegrationDto {
-  const RemoveIntegrationDto({required this.confirm});
+  const RemoveIntegrationDto({required this.confirm, this.slot});
 
   factory RemoveIntegrationDto.fromJson(Map<String, Object?> json) =>
       _$RemoveIntegrationDtoFromJson(json);
 
   /// Type the provider id to confirm.
   final String confirm;
+
+  /// Only this key set; every set when omitted.
+  final String? slot;
 
   Map<String, Object?> toJson() => _$RemoveIntegrationDtoToJson(this);
 }

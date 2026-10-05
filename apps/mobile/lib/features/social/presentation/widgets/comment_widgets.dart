@@ -19,6 +19,8 @@ import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
+import 'package:lawbid/features/translation/data/content_translation_repository.dart';
+import 'package:lawbid/features/translation/presentation/translatable_text.dart';
 
 /// Who a new comment answers (§5.1: one level; a reply to a reply goes to
 /// the top-level comment, the server prefixes "@username").
@@ -227,11 +229,18 @@ class _CommentTileState extends ConsumerState<CommentTile> {
                       ),
                       const SizedBox(height: 2),
                       // OQ-042: #tags and @mentions are tappable.
-                      PostBodyText(
-                        body: _c.body,
-                        expanded: true,
-                        mentions: _c.mentions,
-                        height: 1.4,
+                      // Owner 2026-10-05: «Перевести» (posts zone).
+                      TranslatableText(
+                        kind: TranslatableKind.comment,
+                        id: _c.id,
+                        text: _c.body,
+                        enabled: !_c.isMine,
+                        builder: (context, body) => PostBodyText(
+                          body: body,
+                          expanded: true,
+                          mentions: _c.mentions,
+                          height: 1.4,
+                        ),
                       ),
                       // One row; long translations shrink, nothing moves.
                       Row(

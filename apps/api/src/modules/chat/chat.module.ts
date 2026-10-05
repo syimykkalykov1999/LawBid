@@ -10,6 +10,7 @@ import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { ChatController } from './chat.controller';
 import { ChatService } from './chat.service';
 import { ChatTranslationService } from './chat-translation.service';
+import { TranslationCoreModule } from '../translation/translation.module';
 
 /** docs/05 §8 chats REST (stage 5.7); realtime in RealtimeModule. */
 @Module({
@@ -22,6 +23,7 @@ import { ChatTranslationService } from './chat-translation.service';
     PresenceModule,
     StickersModule,
     FeatureFlagsModule,
+    TranslationCoreModule,
   ],
   controllers: [ChatController],
   providers: [ChatService, ChatTranslationService],

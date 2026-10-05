@@ -40,6 +40,18 @@ const KEY_TEXT: Record<string, string> = {
   'media.video_frame_rate': 'Видео: кадров в секунду после сжатия (24–60)',
   'files.document_template_max_size_mb': 'Максимальный размер шаблона документа (PDF, Word), МБ.',
   'media.avatar_max_px': 'Фото профиля: длинная сторона после сжатия, px',
+  'translate.scope': 'Где работает переводчик: all = везде, zones = только в разделах ниже, где стоит true. Удобнее менять в «Ключи и сервисы» → Google Translate.',
+  'translate.chat': 'Перевод в чатах (при «только выбранные»).',
+  'translate.posts': 'Перевод постов и комментариев в ленте (при «только выбранные»).',
+  'translate.cases': 'Перевод описания кейса и текста ставки (при «только выбранные»).',
+  'translate.reviews': 'Перевод отзывов (при «только выбранные»).',
+  'translate.profiles': 'Перевод «О себе» в профиле адвоката (при «только выбранные»).',
+  'payroll.stripe_fee_percent':
+    'Зарплаты через Stripe: процент Stripe с каждой выплаты. Вычитается из выплаты сотрудника, не с вашего счёта.',
+  'payroll.stripe_fee_fixed_cents':
+    'Зарплаты через Stripe: фиксированная часть комиссии за выплату, в центах (25 = $0.25). Платит сотрудник.',
+  'payroll.stripe_monthly_fee_cents':
+    'Зарплаты через Stripe: плата Stripe за активный счёт в месяц, в центах (200 = $2). Вычитается из первой выплаты месяца.',
   'contacts.suspend_after_confirmed_reports': 'После скольких подтверждённых «Не могу связаться» клиент приостанавливается.',
   'rate_limit.post_create_per_day': 'Публикаций в день на пользователя.',
   'rate_limit.comment_per_hour': 'Комментариев в час.',
@@ -80,8 +92,17 @@ function keyText(e: { key: string; description: string | null }): string | null 
   if (KEY_TEXT[e.key]) return KEY_TEXT[e.key];
   const budget = /^budget\.(\w+)\.(per_minute_max|daily_max|monthly_max)$/.exec(e.key);
   if (budget) {
-    const what: Record<string, string> = { sms: 'SMS', email: 'писем', id_check: 'проверок документов', storage: 'хранилища' };
-    const per: Record<string, string> = { per_minute_max: 'в минуту', daily_max: 'в день', monthly_max: 'в месяц' };
+    const what: Record<string, string> = {
+      sms: 'SMS',
+      email: 'писем',
+      id_check: 'проверок документов',
+      storage: 'хранилища',
+    };
+    const per: Record<string, string> = {
+      per_minute_max: 'в минуту',
+      daily_max: 'в день',
+      monthly_max: 'в месяц',
+    };
     return `Лимит расходов: ${what[budget[1]] ?? budget[1]} ${per[budget[2]]}; 0 — отключить.`;
   }
   return e.description;
@@ -146,7 +167,10 @@ export default function ConfigPage() {
   const save = useMutation({
     mutationFn: (v: { key: string; value: unknown }) =>
       // The contract types `value` as an opaque object; any JSON value is valid here.
-      api.PUT('/admin/config/{key}', { params: { path: { key: v.key } }, body: { value: v.value } as never }),
+      api.PUT('/admin/config/{key}', {
+        params: { path: { key: v.key } },
+        body: { value: v.value } as never,
+      }),
     onSuccess: (_r, v) => {
       toast.success(`Сохранено: ${v.key}`);
       setDrafts((d) => {

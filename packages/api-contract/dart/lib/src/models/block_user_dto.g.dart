@@ -7,11 +7,11 @@ part of 'block_user_dto.dart';
 // **************************************************************************
 
 BlockUserDto _$BlockUserDtoFromJson(Map<String, dynamic> json) => BlockUserDto(
-  reason: json['reason'] as String,
+  days: json['days'] as num?,
+  reason: json['reason'] as String? ?? '',
   banPhone: json['banPhone'] as bool? ?? false,
   banEmail: json['banEmail'] as bool? ?? false,
   banDevices: json['banDevices'] as bool? ?? false,
-  days: json['days'] as num?,
 );
 
 Map<String, dynamic> _$BlockUserDtoToJson(BlockUserDto instance) =>

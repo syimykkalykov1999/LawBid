@@ -25,7 +25,6 @@ import {
   IsInt,
   Max,
   Min,
-  IsNotEmpty,
   IsOptional,
   IsString,
   IsUUID,
@@ -85,12 +84,12 @@ export class AdminMemberParamDto {
 }
 
 export class AdminRemoveMemberDto {
-  @ApiProperty({ maxLength: 500 })
+  @ApiPropertyOptional({ type: String, maxLength: 500 })
+  @IsOptional()
   @Transform(trim)
   @IsString()
-  @IsNotEmpty()
   @MaxLength(500)
-  reason!: string;
+  reason = '';
 }
 
 export class AdminMemberDutiesDto {

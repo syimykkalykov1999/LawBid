@@ -319,7 +319,7 @@ const file07Ru = <String, String>{
   'plans.phones.invalid': 'Телефон в формате +13125550123',
   'plans.phones.tooMany': 'Телефонов больше, чем мест',
   'plans.pay': 'Оплатить на защищённой странице Stripe',
-  'plans.pay.trial': 'Начать 7 дней бесплатно',
+  'plans.pay.trial': 'Начать {days} бесплатно',
   'plans.pay.secure':
       'Оплата картой, Apple Pay или Google Pay на странице Stripe. Мы не видим данные карты.',
   'plans.waiting': 'Ждём оплату на странице Stripe…',
@@ -886,7 +886,7 @@ const file07En = <String, String>{
   'plans.phones.invalid': 'Phone like +13125550123',
   'plans.phones.tooMany': 'More phones than seats',
   'plans.pay': 'Pay on the secure Stripe page',
-  'plans.pay.trial': 'Start 7 days free',
+  'plans.pay.trial': 'Start {days} free',
   'plans.pay.secure':
       'Card, Apple Pay or Google Pay on the Stripe page. We never see your card.',
   'plans.waiting': 'Waiting for the payment on the Stripe page…',

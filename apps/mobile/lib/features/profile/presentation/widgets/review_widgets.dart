@@ -7,6 +7,8 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/widgets/star_rating.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
+import 'package:lawbid/features/translation/data/content_translation_repository.dart';
+import 'package:lawbid/features/translation/presentation/translatable_text.dart';
 
 /// "4.5" in the interface language, or "—" when there are no reviews
 /// (docs/03 §4.2 "вместо числа прочерк").
@@ -62,6 +64,8 @@ class ReviewCard extends ConsumerWidget {
       createdAt: review.createdAt,
       edited: review.isEdited,
       body: review.body,
+      // Owner 2026-10-05: «Перевести» on other people's reviews.
+      translatable: onEdit == null,
       photos: review.photos,
       badges: [
         if (review.fromCase)
@@ -908,6 +912,7 @@ class MapsReviewTile extends ConsumerStatefulWidget {
     this.badges = const [],
     this.edited = false,
     this.body,
+    this.translatable = false,
     this.photos = const [],
     this.helpfulCount = 0,
     this.helpfulByMe = false,
@@ -930,6 +935,10 @@ class MapsReviewTile extends ConsumerStatefulWidget {
   final DateTime createdAt;
   final bool edited;
   final String? body;
+
+  /// Owner 2026-10-05: shows «Перевести» (reviews zone); [id] is then a
+  /// review id.
+  final bool translatable;
   final List<ReviewPhoto> photos;
   final int helpfulCount;
   final bool helpfulByMe;
@@ -1111,12 +1120,18 @@ class _MapsReviewTileState extends ConsumerState<MapsReviewTile> {
             const SizedBox(height: AppSpacing.sm),
             Padding(
               padding: const EdgeInsetsDirectional.only(end: AppSpacing.sm),
-              child: Text(
-                body,
-                maxLines: _expanded ? null : 5,
-                overflow:
-                    _expanded ? TextOverflow.visible : TextOverflow.ellipsis,
-                style: type.body.copyWith(color: colors.text, height: 1.4),
+              child: TranslatableText(
+                kind: TranslatableKind.review,
+                id: w.id,
+                text: body,
+                enabled: w.translatable,
+                builder: (context, text) => Text(
+                  text,
+                  maxLines: _expanded ? null : 5,
+                  overflow:
+                      _expanded ? TextOverflow.visible : TextOverflow.ellipsis,
+                  style: type.body.copyWith(color: colors.text, height: 1.4),
+                ),
               ),
             ),
             if (long && !_expanded)

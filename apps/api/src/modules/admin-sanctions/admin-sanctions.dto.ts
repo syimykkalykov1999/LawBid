@@ -73,12 +73,12 @@ export class CreateBanDto {
   @MaxLength(200)
   value!: string;
 
-  @ApiProperty({ minLength: 5, maxLength: 500 })
+  @ApiPropertyOptional({ type: String, maxLength: 500 })
+  @IsOptional()
   @Transform(trim)
   @IsString()
-  @MinLength(5)
   @MaxLength(500)
-  reason!: string;
+  reason = '';
 
   @ApiPropertyOptional({
     minimum: 1,
@@ -93,21 +93,21 @@ export class CreateBanDto {
 }
 
 export class LiftBanDto {
-  @ApiProperty({ minLength: 3, maxLength: 500 })
+  @ApiPropertyOptional({ type: String, maxLength: 500 })
+  @IsOptional()
   @Transform(trim)
   @IsString()
-  @MinLength(3)
   @MaxLength(500)
-  reason!: string;
+  reason = '';
 }
 
 export class BlockUserDto {
-  @ApiProperty({ minLength: 5, maxLength: 500 })
+  @ApiPropertyOptional({ type: String, maxLength: 500 })
+  @IsOptional()
   @Transform(trim)
   @IsString()
-  @MinLength(5)
   @MaxLength(500)
-  reason!: string;
+  reason = '';
 
   @ApiPropertyOptional({
     minimum: 1,

@@ -8,8 +8,8 @@ part of 'admin_remove_member_dto.dart';
 
 AdminRemoveMemberDto _$AdminRemoveMemberDtoFromJson(
   Map<String, dynamic> json,
-) => AdminRemoveMemberDto(reason: json['reason'] as String);
+) => AdminRemoveMemberDto(reason: json['reason'] as String?);
 
 Map<String, dynamic> _$AdminRemoveMemberDtoToJson(
   AdminRemoveMemberDto instance,
-) => <String, dynamic>{'reason': instance.reason};
+) => <String, dynamic>{'reason': ?instance.reason};

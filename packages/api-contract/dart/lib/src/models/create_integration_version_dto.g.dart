@@ -10,8 +10,14 @@ CreateIntegrationVersionDto _$CreateIntegrationVersionDtoFromJson(
   Map<String, dynamic> json,
 ) => CreateIntegrationVersionDto(
   values: Map<String, String>.from(json['values'] as Map),
+  slot: json['slot'] as String?,
+  label: json['label'] as String?,
 );
 
 Map<String, dynamic> _$CreateIntegrationVersionDtoToJson(
   CreateIntegrationVersionDto instance,
-) => <String, dynamic>{'values': instance.values};
+) => <String, dynamic>{
+  'values': instance.values,
+  'slot': ?instance.slot,
+  'label': ?instance.label,
+};

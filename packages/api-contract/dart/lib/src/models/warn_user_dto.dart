@@ -8,7 +8,7 @@ part 'warn_user_dto.g.dart';
 
 @JsonSerializable()
 class WarnUserDto {
-  const WarnUserDto({required this.reason});
+  const WarnUserDto({this.reason = ''});
 
   factory WarnUserDto.fromJson(Map<String, Object?> json) =>
       _$WarnUserDtoFromJson(json);

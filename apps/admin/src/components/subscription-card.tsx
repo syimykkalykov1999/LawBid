@@ -4,6 +4,7 @@ import { ArrowSquareOut, CalendarPlus, Handshake } from '@phosphor-icons/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { GrantDialog, invalidateBilling } from '@/components/billing/grant-dialog';
+import { SubscriptionActions } from '@/components/billing/subscription-actions';
 import { daysLeft, elapsed, formatDate, ProgressBar, useBillingRole } from '@/components/billing/shared';
 import { ErrorNote } from '@/components/page-header';
 import { useReason } from '@/components/reason-dialog';
@@ -36,20 +37,24 @@ export function SubscriptionCard({ userId }: { userId: string }) {
   const extend = useMutation({
     mutationFn: async () => {
       const n = Number(days);
+      const trial = q.data?.subscription?.status === 'trialing';
       if (!Number.isInteger(n) || n < 1 || n > 90) throw new Error('Укажите от 1 до 90 дней');
       const a = await ask({
-        title: `Продлить подписку на ${n} дн.`,
-        description: 'Компенсация (например, подтверждённая жалоба на контакт). Причина обязательна и пишется в аудит.',
+        title: trial ? `Продлить пробный период на ${n} дн.` : `Продлить подписку на ${n} дн.`,
+        description: trial
+          ? 'Адвокат пользуется бесплатно дольше; первое списание сдвинется на эти дни. Причина пишется в аудит.'
+          : 'Компенсация (например, подтверждённая жалоба на контакт). Причина пишется в аудит.',
         label: 'Причина',
+        area: 'money',
         confirm: 'Продлить',
       });
       if (!a) return null;
       await api.POST('/admin/subscriptions/{userId}/extend', { params: { path: { userId } }, body: { days: n, reason: a.text } });
-      return n;
+      return { n, trial };
     },
-    onSuccess: (n) => {
-      if (n == null) return;
-      toast.success(`Подписка продлена на ${n} дн.`);
+    onSuccess: (r) => {
+      if (r == null) return;
+      toast.success(r.trial ? `Пробный период продлён на ${r.n} дн.` : `Подписка продлена на ${r.n} дн.`);
       invalidateBilling(qc, userId);
     },
     onError: (e) => toast.error(e instanceof Error && !('status' in e) ? e.message : e),
@@ -139,10 +144,11 @@ export function SubscriptionCard({ userId }: { userId: string }) {
                 <Input type="number" min={1} max={90} aria-label="Дней" className="h-8 w-20" value={days} onChange={(e) => setDays(e.target.value)} />
                 <span className="text-xs text-muted">дн.</span>
                 <Button size="sm" variant="outline" type="submit" loading={extend.isPending} disabled={extend.isPending}>
-                  <CalendarPlus size={14} /> Продлить
+                  <CalendarPlus size={14} /> {s.status === 'trialing' ? 'Продлить пробный' : 'Продлить'}
                 </Button>
               </form>
             ) : null}
+            {canExtend ? <SubscriptionActions userId={userId} status={s.status} cancelAtPeriodEnd={s.cancelAtPeriodEnd} periodEnd={s.currentPeriodEnd} /> : null}
           </>
         )}
 

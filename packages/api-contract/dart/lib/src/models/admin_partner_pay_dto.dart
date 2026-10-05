@@ -8,7 +8,7 @@ part 'admin_partner_pay_dto.g.dart';
 
 @JsonSerializable()
 class AdminPartnerPayDto {
-  const AdminPartnerPayDto({required this.reason, this.payoutRef, this.period});
+  const AdminPartnerPayDto({this.payoutRef, this.period, this.reason = ''});
 
   factory AdminPartnerPayDto.fromJson(Map<String, Object?> json) =>
       _$AdminPartnerPayDtoFromJson(json);

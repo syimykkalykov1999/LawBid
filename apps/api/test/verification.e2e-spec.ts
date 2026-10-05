@@ -23,8 +23,9 @@ import { SELF_ATTESTED_NOTE } from '../src/modules/verification/services/verific
  * number in the same state by another attorney → LICENSE_ALREADY_REGISTERED.
  * 3.4 acceptance: with no flags a request passes fully by hand; every
  * document view and decision is in audit_log; a role without verifier
- * permission gets 403; suspend removes the profile from search (public
- * profile 404) and moves active bids to withdrawn.
+ * permission gets 404 (owner 2026-10-05: hidden, was 403); suspend
+ * removes the profile from search (public profile 404) and moves active
+ * bids to withdrawn.
  */
 jest.setTimeout(90_000);
 
@@ -585,13 +586,13 @@ describe('Verification (e2e) — docs/03 stages 3.3–3.4', () => {
   // ---------------------------------------------------------------- 3.4
 
   describe('stage 3.4 — verifier admin API', () => {
-    it('denies attorneys, admins without a profile and non-verifier roles (403)', async () => {
+    it('denies attorneys, admins without a profile and non-verifier roles (401/404)', async () => {
       const a = await attorney();
       const bare = await admin(null);
       const moderator = await admin('moderator');
       const support = await admin('support');
       // A mobile token (attorney) and no token at all (an admin without a
-      // profile can't even sign in) are 401; the wrong admin role is 403.
+      // profile can't even sign in) are 401; the wrong admin role is 404.
       for (const who of [a, bare]) {
         await api()
           .get('/api/v1/admin/verification/requests')
@@ -602,8 +603,8 @@ describe('Verification (e2e) — docs/03 stages 3.3–3.4', () => {
         const res = await api()
           .get('/api/v1/admin/verification/requests')
           .set(who.auth)
-          .expect(403);
-        expect((res.body as Body).error?.code).toBe('FORBIDDEN');
+          .expect(404);
+        expect((res.body as Body).error?.code).toBe('NOT_FOUND');
       }
       const sup = await admin('super_admin');
       await api()
@@ -862,11 +863,8 @@ describe('Verification (e2e) — docs/03 stages 3.3–3.4', () => {
         .expect(200);
 
       const verifier = await admin('verifier');
-      await api()
-        .post(`/api/v1/admin/verification/attorneys/${a.userId}/suspend`)
-        .set(verifier.auth)
-        .send({})
-        .expect(400);
+      // Owner 2026-10-05: the reason is required only in the sections the
+      // owner switched on (verification is off by default).
       const res = await api()
         .post(`/api/v1/admin/verification/attorneys/${a.userId}/suspend`)
         .set(verifier.auth)

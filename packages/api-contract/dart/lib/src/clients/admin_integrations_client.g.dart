@@ -188,6 +188,7 @@ class _AdminIntegrationsClient implements AdminIntegrationsClient {
   @override
   Future<IntegrationVersionEnvelope> rollbackIntegration({
     required String provider,
+    SlotBodyDto? body,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
@@ -195,7 +196,8 @@ class _AdminIntegrationsClient implements AdminIntegrationsClient {
     final queryParameters = <String, dynamic>{};
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};
-    const Map<String, dynamic>? _data = null;
+    final _data = <String, dynamic>{};
+    _data.addAll(body?.toJson() ?? <String, dynamic>{});
     final _options = _setStreamType<IntegrationVersionEnvelope>(
       Options(method: 'POST', headers: _headers, extra: _extra)
           .compose(
@@ -235,6 +237,118 @@ class _AdminIntegrationsClient implements AdminIntegrationsClient {
           .compose(
             _dio.options,
             '/admin/integrations/${provider}',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    await _dio.fetch<void>(_options);
+  }
+
+  @override
+  Future<void> updateIntegrationSlot({
+    required String provider,
+    required String slot,
+    required UpdateIntegrationSlotDto body,
+    Map<String, dynamic>? extras,
+  }) async {
+    final _extra = <String, dynamic>{};
+    _extra.addAll(extras ?? <String, dynamic>{});
+    final queryParameters = <String, dynamic>{};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{};
+    final _data = <String, dynamic>{};
+    _data.addAll(body.toJson());
+    final _options = _setStreamType<void>(
+      Options(method: 'PATCH', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/admin/integrations/${provider}/slots/${slot}',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    await _dio.fetch<void>(_options);
+  }
+
+  @override
+  Future<void> reorderIntegrationSlots({
+    required String provider,
+    required ReorderIntegrationSlotsDto body,
+    Map<String, dynamic>? extras,
+  }) async {
+    final _extra = <String, dynamic>{};
+    _extra.addAll(extras ?? <String, dynamic>{});
+    final queryParameters = <String, dynamic>{};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{};
+    final _data = <String, dynamic>{};
+    _data.addAll(body.toJson());
+    final _options = _setStreamType<void>(
+      Options(method: 'PUT', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/admin/integrations/${provider}/order',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    await _dio.fetch<void>(_options);
+  }
+
+  @override
+  Future<CustomIntegrationCreatedEnvelope> createCustomIntegration({
+    required CreateCustomIntegrationDto body,
+    Map<String, dynamic>? extras,
+  }) async {
+    final _extra = <String, dynamic>{};
+    _extra.addAll(extras ?? <String, dynamic>{});
+    final queryParameters = <String, dynamic>{};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{};
+    final _data = <String, dynamic>{};
+    _data.addAll(body.toJson());
+    final _options = _setStreamType<CustomIntegrationCreatedEnvelope>(
+      Options(method: 'POST', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/admin/integrations/custom',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late CustomIntegrationCreatedEnvelope _value;
+    try {
+      _value = CustomIntegrationCreatedEnvelope.fromJson(_result.data!);
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
+  @override
+  Future<void> deleteCustomIntegration({
+    required String provider,
+    required RemoveIntegrationDto body,
+    Map<String, dynamic>? extras,
+  }) async {
+    final _extra = <String, dynamic>{};
+    _extra.addAll(extras ?? <String, dynamic>{});
+    final queryParameters = <String, dynamic>{};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{};
+    final _data = <String, dynamic>{};
+    _data.addAll(body.toJson());
+    final _options = _setStreamType<void>(
+      Options(method: 'DELETE', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/admin/integrations/custom/${provider}',
             queryParameters: queryParameters,
             data: _data,
           )

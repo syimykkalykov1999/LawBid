@@ -83,6 +83,7 @@ export default function UserCardPage() {
         title: 'Причина просмотра контактов',
         description: 'Записывается в журнал аудита (docs/06 §2.1).',
         label: 'Причина',
+        required: true,
         confirm: 'Показать',
       });
       if (!r) return null;

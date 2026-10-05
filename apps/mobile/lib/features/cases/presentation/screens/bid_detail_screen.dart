@@ -19,6 +19,8 @@ import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
 import 'package:lawbid/features/cases/presentation/widgets/negotiation_timeline.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
+import 'package:lawbid/features/translation/data/content_translation_repository.dart';
+import 'package:lawbid/features/translation/presentation/translatable_text.dart';
 
 /// docs/04 §5.2 bid detail + §6 negotiation, for both parties. Actions are
 /// offered only to the side whose turn it is (§6.3); the server re-checks.
@@ -400,9 +402,16 @@ class _BidBody extends StatelessWidget {
           ),
         DetailSection(
           title: t.t('cases.bid.message'),
-          child: Text(
-            bid.message,
-            style: typography.body.copyWith(color: colors.text),
+          // Owner 2026-10-05: «Перевести» for the client (cases zone).
+          child: TranslatableText(
+            kind: TranslatableKind.bid,
+            id: bid.id,
+            text: bid.message,
+            enabled: viewer == PartyRole.client,
+            builder: (context, text) => Text(
+              text,
+              style: typography.body.copyWith(color: colors.text),
+            ),
           ),
         ),
         DetailSection(

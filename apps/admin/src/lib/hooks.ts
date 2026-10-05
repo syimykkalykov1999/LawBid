@@ -16,6 +16,8 @@ export interface Me {
   canManageAdmins: boolean;
   hasSecurityQuestion: boolean;
   securityQuestion: string | null;
+  /** Owner 2026-10-05: sections where this admin must write a reason. */
+  reasonRequiredAreas?: string[];
 }
 
 export function useMe() {

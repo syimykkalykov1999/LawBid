@@ -16,6 +16,9 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { AuditLogService } from '../admin-access/audit-log.service';
 import type { AdminActor } from '../admin-auth/admin-auth.decorators';
+import type { AdminBulkResultDto } from '../admin-content/admin-content.dto';
+import { createdWindow } from '../admin-content/admin-content.service';
+import { eachId } from '../admin-content/bulk.util';
 import { OtpService } from '../auth/services/otp.service';
 import { RateLimitService } from '../auth/services/rate-limit.service';
 import { SessionRevocationService } from '../auth/services/session-revocation.service';
@@ -28,6 +31,7 @@ import type {
   AdminUserContactsDto,
   AdminUserListItemDto,
   AdminUsersPage,
+  AdminUsersBulkDto,
   AdminUsersQueryDto,
   SanctionResultDto,
   PhoneChangedDto,
@@ -139,6 +143,23 @@ export class AdminUsersService {
       ...byQuery,
       ...(q.role ? { role: q.role } : {}),
       ...(q.status ? { status: q.status } : {}),
+      ...createdWindow(q),
+      ...(q.stateCode
+        ? {
+            AND: [
+              {
+                OR: [
+                  { client_profile: { state_code: q.stateCode } },
+                  {
+                    attorney_profile: {
+                      licenses: { some: { state_code: q.stateCode } },
+                    },
+                  },
+                ],
+              },
+            ],
+          }
+        : {}),
       ...(cursor
         ? {
             OR: [
@@ -550,6 +571,21 @@ export class AdminUsersService {
       archivedCases: 0,
       withdrawnBids: 0,
     };
+  }
+
+  /**
+   * Owner 2026-10-04: suspend / restore / end sessions for many users at
+   * once. Each user goes through the single action (same checks, same audit
+   * row per user); one that can't change is skipped, never fails the batch.
+   */
+  bulk(admin: AdminActor, dto: AdminUsersBulkDto): Promise<AdminBulkResultDto> {
+    return eachId(dto.ids, (id) =>
+      dto.action === 'suspend'
+        ? this.suspend(admin, id, dto.reason)
+        : dto.action === 'restore'
+          ? this.restore(admin, id)
+          : this.revokeSessions(admin, id),
+    );
   }
 
   /** §3.4 suspension. */

@@ -1,4 +1,4 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import { HttpException } from '@nestjs/common';
 import type { AdminBulkResultDto } from './admin-content.dto';
 
 /**
@@ -21,10 +21,11 @@ export async function eachId(
     } catch (e) {
       skipped.push({
         id,
-        reason:
-          e instanceof ConflictException
+        reason: !(e instanceof HttpException)
+          ? 'failed'
+          : e.getStatus() === 409
             ? 'invalid_state'
-            : e instanceof NotFoundException
+            : e.getStatus() === 404
               ? 'not_found'
               : 'failed',
       });

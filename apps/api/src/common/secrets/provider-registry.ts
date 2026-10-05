@@ -111,9 +111,9 @@ export const PROVIDERS: ProviderDefinition[] = [
   },
   {
     id: 'google_translate',
-    label: 'Google Translate (chat translation)',
+    label: 'Google Translate',
     description:
-      'The "Translate" button under chat messages. Also turn on the chat_translate flag.',
+      'The "Translate" button in chats, the feed, cases and bids, reviews and profiles. Where it works is set on this card (all zones or chosen ones); the chat_translate flag turns it on.',
     fields: [
       {
         name: 'apiKey',

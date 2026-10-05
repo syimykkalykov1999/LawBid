@@ -6,10 +6,12 @@ import {
   HttpStatus,
   Inject,
   Injectable,
+  Optional,
   ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { Prisma, type AdminRole } from '@prisma/client';
 import type Redis from 'ioredis';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
@@ -102,6 +104,7 @@ export class AdminAuthService {
     private readonly rateLimit: RateLimitService,
     private readonly audit: AuditLogService,
     config: ConfigService,
+    @Optional() private readonly settings?: AppSettingsService,
   ) {
     const key = config.get<string>('ADMIN_TOTP_ENC_KEY');
     this.cipher = key ? new SecretCipher(key) : null;
@@ -371,6 +374,10 @@ export class AdminAuthService {
       canManageAdmins:
         role === 'super_admin' ||
         readManageAdmins(user.admin_profile?.permissions),
+      reasonRequiredAreas:
+        role === 'super_admin' || !this.settings
+          ? []
+          : await this.settings.stringList('admin.reason_required_areas'),
       hasSecurityQuestion: Boolean(c?.security_answer_hash),
       securityQuestion:
         role === 'super_admin' ? (c?.security_question ?? null) : null,

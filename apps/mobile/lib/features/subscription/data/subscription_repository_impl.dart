@@ -48,6 +48,7 @@ class ApiSubscriptionRepository implements SubscriptionRepository {
           seatCents: d.prices.seatCents,
           yearlyCents: d.prices.yearlyCents,
           maxSeats: d.prices.maxSeats,
+          trialDays: d.prices.trialDays,
         ),
         plan: d.plan == null ? null : PlanMappers.plan(d.plan!),
         plans: PlanMappers.plans(d.plans),

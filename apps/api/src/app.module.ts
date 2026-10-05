@@ -36,6 +36,7 @@ import { PartnersModule } from './modules/partners/partners.module';
 import { ClientBadgeModule } from './modules/client-badge/client-badge.module';
 import { SearchModule } from './modules/search/search.module';
 import { ChatModule } from './modules/chat/chat.module';
+import { TranslationModule } from './modules/translation/translation.module';
 import { CallsModule } from './modules/calls/calls.module';
 import { MentionsModule } from './modules/mentions/mentions.module';
 import { NotificationsApiModule } from './modules/notifications/notifications-api.module';
@@ -66,6 +67,7 @@ import { AdminContentModule } from './modules/admin-content/admin-content.module
 import { AdminMediaModule } from './modules/admin-media/admin-media.module';
 import { DocumentTemplatesModule } from './modules/document-templates/document-templates.module';
 import { AdminBillingModule } from './modules/admin-billing/admin-billing.module';
+import { AdminPayrollModule } from './modules/admin-payroll/admin-payroll.module';
 import { SupportModule } from './modules/support/support.module';
 import { AdminEmailTemplatesModule } from './modules/admin-email-templates/admin-email-templates.module';
 import { PrivacyModule } from './modules/privacy/privacy.module';
@@ -113,6 +115,16 @@ export const pinoHttpOptions: PinoHttpOptions = {
       // Device attestation blobs (DeviceAttestationGuard) — opaque,
       // large, and replayable within their validity window.
       'req.headers["x-device-attestation"]',
+      // Owner 2026-10-05: keys, passwords and tokens never reach the logs.
+      'req.body.values',
+      'req.body.password',
+      'req.body.currentPassword',
+      'req.body.newPassword',
+      'req.body.totp',
+      'req.body.token',
+      'req.body.secret',
+      'req.body.apiKey',
+      'req.headers["stripe-signature"]',
     ],
     censor: '[REDACTED]',
   },
@@ -181,6 +193,7 @@ const isDev =
     AdminMediaModule,
     DocumentTemplatesModule,
     AdminBillingModule,
+    AdminPayrollModule,
     // Owner 2026-10-02: support tickets + transactional email editor.
     SupportModule,
     AdminEmailTemplatesModule,
@@ -222,6 +235,7 @@ const isDev =
     RealtimeModule,
     RealtimeGatewayModule,
     ChatModule,
+    TranslationModule,
     CallsModule,
     MentionsModule,
     // docs/05 §9-§10 notifications REST, badges, push tokens.

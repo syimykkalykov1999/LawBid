@@ -7,7 +7,7 @@ part of 'warn_user_dto.dart';
 // **************************************************************************
 
 WarnUserDto _$WarnUserDtoFromJson(Map<String, dynamic> json) =>
-    WarnUserDto(reason: json['reason'] as String);
+    WarnUserDto(reason: json['reason'] as String? ?? '');
 
 Map<String, dynamic> _$WarnUserDtoToJson(WarnUserDto instance) =>
     <String, dynamic>{'reason': instance.reason};

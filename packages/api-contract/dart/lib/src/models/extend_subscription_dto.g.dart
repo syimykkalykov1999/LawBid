@@ -10,7 +10,7 @@ ExtendSubscriptionDto _$ExtendSubscriptionDtoFromJson(
   Map<String, dynamic> json,
 ) => ExtendSubscriptionDto(
   days: (json['days'] as num).toInt(),
-  reason: json['reason'] as String,
+  reason: json['reason'] as String? ?? '',
 );
 
 Map<String, dynamic> _$ExtendSubscriptionDtoToJson(

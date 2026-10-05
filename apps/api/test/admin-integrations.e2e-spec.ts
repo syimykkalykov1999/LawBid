@@ -225,7 +225,7 @@ describe('Admin integrations & API keys (e2e, owner 2026-10-01)', () => {
 
   it('only super admins; app users never reach it', async () => {
     const support = await adminSession(base, prisma, 'support');
-    await api().get('/api/v1/admin/integrations').set(support.auth).expect(403);
+    await api().get('/api/v1/admin/integrations').set(support.auth).expect(404);
     const user = await prisma.user.create({ data: { role: 'client' } });
     const t = tokens.signAccessToken({
       sub: user.id,

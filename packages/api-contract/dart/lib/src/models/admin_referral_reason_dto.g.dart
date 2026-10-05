@@ -8,7 +8,7 @@ part of 'admin_referral_reason_dto.dart';
 
 AdminReferralReasonDto _$AdminReferralReasonDtoFromJson(
   Map<String, dynamic> json,
-) => AdminReferralReasonDto(reason: json['reason'] as String);
+) => AdminReferralReasonDto(reason: json['reason'] as String? ?? '');
 
 Map<String, dynamic> _$AdminReferralReasonDtoToJson(
   AdminReferralReasonDto instance,

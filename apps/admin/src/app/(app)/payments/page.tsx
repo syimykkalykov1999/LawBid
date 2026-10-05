@@ -13,6 +13,7 @@ import {
   UserCell,
   useBillingRole,
 } from '@/components/billing/shared';
+import { CsvButton } from '@/components/csv-button';
 import { ErrorNote, PageHeader } from '@/components/page-header';
 import { DateField } from '@/components/date-field';
 import { Button } from '@/components/ui/button';
@@ -37,6 +38,7 @@ export default function PaymentsPage() {
         eyebrow="Деньги"
         title="Платежи и возвраты"
         subtitle="Все оплаты подписок через Stripe. Отсюда можно вернуть деньги целиком или частично — возврат пишется в журнал аудита."
+        actions={<CsvButton entity="payments" />}
       />
       <div className="mb-4">
         <Tabs
