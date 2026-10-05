@@ -7,7 +7,6 @@ import {
   IsIn,
   IsISO8601,
   IsInt,
-  IsNotEmpty,
   IsOptional,
   IsString,
   IsUUID,
@@ -15,7 +14,6 @@ import {
   Matches,
   MaxLength,
   Min,
-  MinLength,
 } from 'class-validator';
 
 const trim = ({ value }: { value: unknown }) =>
@@ -101,25 +99,26 @@ export class AdminUserIdParamDto {
 }
 
 export class WarnUserDto {
-  @ApiProperty({
+  @ApiPropertyOptional({
+    type: String,
     maxLength: SANCTION_TEXT_MAX,
     description:
       'Internal reason (audit + moderation_actions); the user gets the moderation_notice template.',
   })
+  @IsOptional()
   @Transform(trim)
   @IsString()
-  @IsNotEmpty()
   @MaxLength(SANCTION_TEXT_MAX)
-  reason!: string;
+  reason = '';
 }
 
 export class SuspendUserDto {
-  @ApiProperty({ maxLength: SANCTION_TEXT_MAX })
+  @ApiPropertyOptional({ type: String, maxLength: SANCTION_TEXT_MAX })
+  @IsOptional()
   @Transform(trim)
   @IsString()
-  @IsNotEmpty()
   @MaxLength(SANCTION_TEXT_MAX)
-  reason!: string;
+  reason = '';
 }
 
 export const USERS_BULK_ACTIONS = ['suspend', 'restore', 'logout'] as const;
@@ -137,12 +136,12 @@ export class AdminUsersBulkDto {
   @IsUUID('all', { each: true })
   ids!: string[];
 
-  @ApiProperty({ minLength: 10, maxLength: SANCTION_TEXT_MAX })
+  @ApiPropertyOptional({ type: String, maxLength: SANCTION_TEXT_MAX })
+  @IsOptional()
   @Transform(trim)
   @IsString()
-  @MinLength(10)
   @MaxLength(SANCTION_TEXT_MAX)
-  reason!: string;
+  reason = '';
 }
 
 // ---- responses ----------------------------------------------------------
@@ -313,12 +312,12 @@ export class ChangeUserPhoneDto {
   @Matches(/^\+[1-9]\d{7,14}$/)
   phone!: string;
 
-  @ApiProperty({ maxLength: SANCTION_TEXT_MAX })
+  @ApiPropertyOptional({ type: String, maxLength: SANCTION_TEXT_MAX })
+  @IsOptional()
   @Transform(trim)
   @IsString()
-  @IsNotEmpty()
   @MaxLength(SANCTION_TEXT_MAX)
-  reason!: string;
+  reason = '';
 }
 
 export class PhoneChangedDto {

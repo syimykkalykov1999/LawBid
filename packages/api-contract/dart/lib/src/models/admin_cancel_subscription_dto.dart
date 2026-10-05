@@ -12,8 +12,8 @@ part 'admin_cancel_subscription_dto.g.dart';
 @JsonSerializable()
 class AdminCancelSubscriptionDto {
   const AdminCancelSubscriptionDto({
-    required this.reason,
     required this.whenValue,
+    this.reason = '',
     this.refund = AdminSubscriptionCancelRefund.none,
   });
 

@@ -8,7 +8,7 @@ part 'lift_ban_dto.g.dart';
 
 @JsonSerializable()
 class LiftBanDto {
-  const LiftBanDto({required this.reason});
+  const LiftBanDto({this.reason = ''});
 
   factory LiftBanDto.fromJson(Map<String, Object?> json) =>
       _$LiftBanDtoFromJson(json);

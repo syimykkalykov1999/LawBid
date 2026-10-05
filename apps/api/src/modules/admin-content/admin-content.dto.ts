@@ -16,7 +16,6 @@ import {
   Max,
   MaxLength,
   Min,
-  MinLength,
 } from 'class-validator';
 
 const trim = ({ value }: { value: unknown }) =>
@@ -119,12 +118,12 @@ export class AdminBidsQueryDto extends AdminListQueryDto {
 }
 
 export class AdminRemoveDto {
-  @ApiProperty({ maxLength: 500 })
+  @ApiPropertyOptional({ type: String, maxLength: 500 })
+  @IsOptional()
   @Transform(trim)
   @IsString()
-  @IsNotEmpty()
   @MaxLength(500)
-  reason!: string;
+  reason = '';
 }
 
 export class AdminRemoveCommentDto extends AdminRemoveDto {
@@ -346,12 +345,12 @@ export class AdminOverviewDto {
 
 /** A moderation reason for the audit log (10–500 characters). */
 export class AdminReasonDto {
-  @ApiProperty({ minLength: 10, maxLength: 500 })
+  @ApiPropertyOptional({ type: String, maxLength: 500 })
+  @IsOptional()
   @Transform(trim)
   @IsString()
-  @MinLength(10)
   @MaxLength(500)
-  reason!: string;
+  reason = '';
 }
 
 export class AdminClientReviewsQueryDto extends AdminContentFilterQueryDto {

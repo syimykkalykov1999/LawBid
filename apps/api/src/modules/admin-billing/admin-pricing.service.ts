@@ -1,4 +1,11 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import {
+  HttpException,
+  Inject,
+  Injectable,
+  Logger,
+  ServiceUnavailableException,
+} from '@nestjs/common';
+import { ErrorCode } from '../../common/errors/error-code.enum';
 import type { PlanPrice, SubscriptionStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
@@ -138,10 +145,23 @@ export class AdminPricingService {
     if (!this.provider.replaceItemPrice) {
       return { moved: 0, skipped: 0, failed: 0 };
     }
-    const target = await this.pricing.requirePriceId(kind);
-    const from = (await this.pricing.knownPriceIds(kind)).filter(
-      (id) => id !== target,
-    );
+    // A Stripe key problem is a clear 503 PAYMENTS_NOT_CONFIGURED for the
+    // admin, never a bare 500 ("server did not answer").
+    let target: string;
+    let from: string[];
+    try {
+      target = await this.pricing.requirePriceId(kind);
+      from = (await this.pricing.knownPriceIds(kind)).filter(
+        (id) => id !== target,
+      );
+    } catch (e) {
+      if (e instanceof HttpException) throw e;
+      this.logger.warn(`move ${kind}: Stripe not reachable: ${String(e)}`);
+      throw new ServiceUnavailableException({
+        code: ErrorCode.PAYMENTS_NOT_CONFIGURED,
+        message: 'Stripe did not answer; check the Stripe key.',
+      });
+    }
     const amounts = await this.pricing.amounts();
     const subs = await this.targets(kind);
     let moved = 0;

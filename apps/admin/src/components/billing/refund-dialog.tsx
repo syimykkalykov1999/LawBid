@@ -25,7 +25,7 @@ function RefundForm({ payment, onClose }: { payment: AdminPayment; onClose: () =
   const [key] = useState(() => crypto.randomUUID());
   const cents = dollarsToCents(amount);
   const tooMuch = cents != null && cents > payment.refundableCents;
-  const ok = cents != null && !tooMuch && reason.trim().length >= 10;
+  const ok = cents != null && !tooMuch;
 
   const refund = useMutation({
     mutationFn: async () =>
@@ -74,7 +74,7 @@ function RefundForm({ payment, onClose }: { payment: AdminPayment; onClose: () =
         >
           <Input id="refund-amount" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} />
         </Field>
-        <Field label="Причина" htmlFor="refund-reason" hint={reason.trim().length < 10 ? `не короче 10 символов, ещё ${10 - reason.trim().length}` : 'пишется в журнал аудита'}>
+        <Field label="Причина" htmlFor="refund-reason" hint="необязательно, пишется в журнал аудита">
           <Textarea id="refund-reason" rows={3} maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} />
         </Field>
         <div className="flex items-start gap-2 rounded-xl bg-warning-soft px-3.5 py-2.5 text-sm text-warning">

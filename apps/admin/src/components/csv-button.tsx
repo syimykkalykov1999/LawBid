@@ -58,6 +58,7 @@ export function CsvButton({
         title: 'Причина выгрузки',
         description: 'В файле есть контакты пользователей. Причина записывается в журнал аудита.',
         label: 'Причина',
+        required: true,
         confirm: 'Скачать',
       });
       if (!r) return;

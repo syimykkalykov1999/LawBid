@@ -166,12 +166,12 @@ export class RejectRequestDto {
 }
 
 export class SuspendAttorneyDto {
-  @ApiProperty({ type: String, maxLength: SUSPEND_REASON_MAX })
+  @ApiPropertyOptional({ type: String, maxLength: SUSPEND_REASON_MAX })
+  @IsOptional()
   @Transform(trim)
   @IsString()
-  @IsNotEmpty()
   @MaxLength(SUSPEND_REASON_MAX)
-  reason!: string;
+  reason = '';
 }
 
 // ---- responses ----------------------------------------------------------

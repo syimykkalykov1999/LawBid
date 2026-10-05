@@ -425,7 +425,12 @@ describe('Bulk moderation + broadcast states (e2e)', () => {
     await api()
       .post('/api/v1/admin/content/bulk')
       .set(admin.auth)
-      .send({ action: 'remove', type: 'post', ids: [post], reason: 'short' })
+      .send({
+        action: 'remove',
+        type: 'post',
+        ids: [post],
+        reason: 'x'.repeat(501),
+      })
       .expect(400);
     await api()
       .post('/api/v1/admin/content/bulk')

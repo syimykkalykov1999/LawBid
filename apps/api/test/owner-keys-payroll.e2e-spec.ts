@@ -292,7 +292,7 @@ describe('Key sets + payroll (e2e)', () => {
     await api()
       .post(`/api/v1/admin/payroll/payouts/${bobRow.id}/cancel`)
       .set(finance.auth)
-      .send({ reason: 'short' })
+      .send({ reason: 'x'.repeat(501) })
       .expect(400);
     await api()
       .post(`/api/v1/admin/payroll/payouts/${bobRow.id}/cancel`)

@@ -37,6 +37,9 @@ export class StripePaymentProvider implements PaymentProvider {
     this.stripe = new Stripe(secretKey, {
       typescript: true,
       maxNetworkRetries: 2,
+      // A hung Stripe call fails in seconds, not minutes: the admin sees a
+      // clear "check the Stripe key" instead of a timed-out request.
+      timeout: 20_000,
     });
     this.live = /^(sk|rk)_live_/.test(secretKey);
   }

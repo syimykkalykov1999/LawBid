@@ -15,7 +15,6 @@ import {
   Max,
   MaxLength,
   Min,
-  MinLength,
 } from 'class-validator';
 
 class CursorDto {
@@ -234,14 +233,14 @@ export class AdminCasesQueryDto extends CursorDto {
 }
 
 export class AdminCaseActionDto {
-  @ApiProperty({ minLength: 10, maxLength: 500 })
+  @ApiPropertyOptional({ type: String, maxLength: 500 })
+  @IsOptional()
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.trim() : value,
   )
   @IsString()
-  @MinLength(10)
   @MaxLength(500)
-  reason!: string;
+  reason = '';
 }
 
 export const CASES_BULK_ACTIONS = [

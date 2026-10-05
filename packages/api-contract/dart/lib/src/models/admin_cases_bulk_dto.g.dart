@@ -8,9 +8,9 @@ part of 'admin_cases_bulk_dto.dart';
 
 AdminCasesBulkDto _$AdminCasesBulkDtoFromJson(Map<String, dynamic> json) =>
     AdminCasesBulkDto(
-      reason: json['reason'] as String,
       action: AdminCasesBulkAction.fromJson(json['action'] as String),
       ids: (json['ids'] as List<dynamic>).map((e) => e as String).toList(),
+      reason: json['reason'] as String? ?? '',
     );
 
 Map<String, dynamic> _$AdminCasesBulkDtoToJson(AdminCasesBulkDto instance) =>

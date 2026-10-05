@@ -282,7 +282,7 @@ function DaysDialog({
   const n = Number(days);
   const daysOk = Number.isInteger(n) && n >= 1 && n <= 365;
   const caseOk = mode === 'extend' || /^[0-9a-f-]{36}$/i.test(caseId.trim());
-  const reasonOk = reason.trim().length >= 10;
+  const reasonOk = true;
 
   const save = useMutation({
     mutationFn: async () => {
@@ -334,7 +334,7 @@ function DaysDialog({
         <Field label="Дней" htmlFor="pr-days" hint="От 1 до 365.">
           <Input id="pr-days" type="number" min={1} max={365} value={days} onChange={(e) => setDays(e.target.value)} className="w-32" />
         </Field>
-        <Field label="Причина" htmlFor="pr-reason" hint="Не короче 10 символов. Попадёт в журнал аудита.">
+        <Field label="Причина" htmlFor="pr-reason" hint="Необязательно. Попадёт в журнал аудита.">
           <Textarea id="pr-reason" rows={3} maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} />
         </Field>
         <div className="flex justify-end gap-2">

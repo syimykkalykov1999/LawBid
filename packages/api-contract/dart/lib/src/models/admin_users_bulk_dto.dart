@@ -13,7 +13,7 @@ class AdminUsersBulkDto {
   const AdminUsersBulkDto({
     required this.action,
     required this.ids,
-    required this.reason,
+    this.reason = '',
   });
 
   factory AdminUsersBulkDto.fromJson(Map<String, Object?> json) =>

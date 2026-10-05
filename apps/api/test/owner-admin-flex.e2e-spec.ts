@@ -126,7 +126,7 @@ describe('Admin flexibility: user filters + bulk users / cases (e2e)', () => {
       .expect(200);
     expect(logout.body.data.done).toHaveLength(2);
 
-    // Rights: view-only users admins can't act in bulk; short reason is rejected.
+    // Rights: view-only users admins can't act in bulk; an over-long reason is rejected (a reason is optional).
     const viewer = await adminSession(base, prisma, 'moderator', undefined, {
       users: 'view',
     });
@@ -138,7 +138,7 @@ describe('Admin flexibility: user filters + bulk users / cases (e2e)', () => {
     await api()
       .post('/api/v1/admin/users/bulk')
       .set(admin.auth)
-      .send({ action: 'suspend', ids: [a.id], reason: 'short' })
+      .send({ action: 'suspend', ids: [a.id], reason: 'x'.repeat(501) })
       .expect(400);
   });
 

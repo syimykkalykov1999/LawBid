@@ -3,7 +3,6 @@ import { Transform, Type } from 'class-transformer';
 import {
   IsIn,
   IsInt,
-  IsNotEmpty,
   IsOptional,
   IsString,
   IsUUID,
@@ -89,15 +88,16 @@ export class ModerationActionDto {
   @IsIn(MODERATION_ACTIONS)
   action!: ModerationActionName;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
+    type: String,
     maxLength: 500,
-    description: 'Required for every action (§3.2).',
+    description: 'Optional (owner 2026-10-05).',
   })
+  @IsOptional()
   @Transform(trim)
   @IsString()
-  @IsNotEmpty()
   @MaxLength(500)
-  reason!: string;
+  reason = '';
 }
 
 // ---- responses ----------------------------------------------------------

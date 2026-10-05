@@ -11,9 +11,9 @@ part 'admin_cases_bulk_dto.g.dart';
 @JsonSerializable()
 class AdminCasesBulkDto {
   const AdminCasesBulkDto({
-    required this.reason,
     required this.action,
     required this.ids,
+    this.reason = '',
   });
 
   factory AdminCasesBulkDto.fromJson(Map<String, Object?> json) =>

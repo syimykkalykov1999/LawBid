@@ -166,7 +166,7 @@ describe('Admin cancels a subscription (e2e, fake provider)', () => {
     await api()
       .post(`/api/v1/admin/subscriptions/${userId}/cancel`)
       .set(admin.auth)
-      .send({ when: 'now', reason: 'short' })
+      .send({ when: 'now', reason: 'x'.repeat(501) })
       .expect(400);
   });
 });

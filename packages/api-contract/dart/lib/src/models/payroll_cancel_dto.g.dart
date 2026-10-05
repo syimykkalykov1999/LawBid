@@ -7,7 +7,7 @@ part of 'payroll_cancel_dto.dart';
 // **************************************************************************
 
 PayrollCancelDto _$PayrollCancelDtoFromJson(Map<String, dynamic> json) =>
-    PayrollCancelDto(reason: json['reason'] as String);
+    PayrollCancelDto(reason: json['reason'] as String? ?? '');
 
 Map<String, dynamic> _$PayrollCancelDtoToJson(PayrollCancelDto instance) =>
     <String, dynamic>{'reason': instance.reason};

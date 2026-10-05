@@ -10,7 +10,6 @@ import {
   IsString,
   IsUUID,
   MaxLength,
-  MinLength,
 } from 'class-validator';
 
 const trim = ({ value }: { value: unknown }) =>
@@ -190,12 +189,12 @@ export class AdminClientBadgeApproveDto {
 }
 
 export class AdminClientBadgeReasonDto {
-  @ApiProperty({ minLength: 3, maxLength: 500 })
+  @ApiPropertyOptional({ type: String, maxLength: 500 })
+  @IsOptional()
   @Transform(trim)
   @IsString()
-  @MinLength(3)
   @MaxLength(500)
-  reason!: string;
+  reason = '';
 }
 
 export class AdminClientBadgeBulkApproveDto extends AdminClientBadgeApproveDto {

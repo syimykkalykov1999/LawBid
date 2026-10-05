@@ -8,7 +8,7 @@ part 'payroll_cancel_dto.g.dart';
 
 @JsonSerializable()
 class PayrollCancelDto {
-  const PayrollCancelDto({required this.reason});
+  const PayrollCancelDto({this.reason = ''});
 
   factory PayrollCancelDto.fromJson(Map<String, Object?> json) =>
       _$PayrollCancelDtoFromJson(json);

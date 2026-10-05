@@ -52693,14 +52693,13 @@
           },
           "reason": {
             "type": "string",
-            "minLength": 10,
+            "default": "",
             "maxLength": 500
           }
         },
         "required": [
           "action",
-          "ids",
-          "reason"
+          "ids"
         ]
       },
       "AdminBulkResultEnvelope": {
@@ -52792,12 +52791,12 @@
           },
           "reason": {
             "type": "string",
+            "default": "",
             "maxLength": 500
           }
         },
         "required": [
-          "phone",
-          "reason"
+          "phone"
         ]
       },
       "PhoneChangedEnvelope": {
@@ -52819,25 +52818,21 @@
         "properties": {
           "reason": {
             "type": "string",
+            "default": "",
             "maxLength": 500,
             "description": "Internal reason (audit + moderation_actions); the user gets the moderation_notice template."
           }
-        },
-        "required": [
-          "reason"
-        ]
+        }
       },
       "SuspendUserDto": {
         "type": "object",
         "properties": {
           "reason": {
             "type": "string",
+            "default": "",
             "maxLength": 500
           }
-        },
-        "required": [
-          "reason"
-        ]
+        }
       },
       "VerificationStatus": {
         "type": "string",
@@ -53998,12 +53993,10 @@
         "properties": {
           "reason": {
             "type": "string",
+            "default": "",
             "maxLength": 500
           }
-        },
-        "required": [
-          "reason"
-        ]
+        }
       },
       "AttorneyVerificationStatusEnvelope": {
         "type": "object",
@@ -54944,7 +54937,7 @@
           },
           "reason": {
             "type": "string",
-            "minLength": 5,
+            "default": "",
             "maxLength": 500
           },
           "days": {
@@ -54956,8 +54949,7 @@
         },
         "required": [
           "kind",
-          "value",
-          "reason"
+          "value"
         ]
       },
       "AdminBanEnvelope": {
@@ -54979,13 +54971,10 @@
         "properties": {
           "reason": {
             "type": "string",
-            "minLength": 3,
+            "default": "",
             "maxLength": 500
           }
-        },
-        "required": [
-          "reason"
-        ]
+        }
       },
       "BlockResultDto": {
         "type": "object",
@@ -55010,7 +54999,7 @@
         "properties": {
           "reason": {
             "type": "string",
-            "minLength": 5,
+            "default": "",
             "maxLength": 500
           },
           "days": {
@@ -55032,10 +55021,7 @@
             "default": false,
             "description": "Every device the user signed in from."
           }
-        },
-        "required": [
-          "reason"
-        ]
+        }
       },
       "BlockResultEnvelope": {
         "type": "object",
@@ -56022,7 +56008,7 @@
         "properties": {
           "reason": {
             "type": "string",
-            "minLength": 10,
+            "default": "",
             "maxLength": 500
           },
           "action": {
@@ -56043,7 +56029,6 @@
           }
         },
         "required": [
-          "reason",
           "action",
           "ids"
         ]
@@ -56053,13 +56038,10 @@
         "properties": {
           "reason": {
             "type": "string",
-            "minLength": 10,
+            "default": "",
             "maxLength": 500
           }
-        },
-        "required": [
-          "reason"
-        ]
+        }
       },
       "DataRequestDto": {
         "type": "object",
@@ -57432,13 +57414,13 @@
           },
           "reason": {
             "type": "string",
+            "default": "",
             "maxLength": 500,
-            "description": "Required (§1.6): e.g. the confirmed contact issue."
+            "description": "Optional: e.g. the confirmed contact issue."
           }
         },
         "required": [
-          "days",
-          "reason"
+          "days"
         ]
       },
       "PublicPricingDto": {
@@ -58720,10 +58702,7 @@
             "type": "string",
             "maxLength": 500
           }
-        },
-        "required": [
-          "reason"
-        ]
+        }
       },
       "AdminSeatLimitDto": {
         "type": "object",
@@ -64087,12 +64066,10 @@
         "properties": {
           "reason": {
             "type": "string",
+            "default": "",
             "maxLength": 500
           }
-        },
-        "required": [
-          "reason"
-        ]
+        }
       },
       "AdminCommentRowDto": {
         "type": "object",
@@ -64181,6 +64158,7 @@
         "properties": {
           "reason": {
             "type": "string",
+            "default": "",
             "maxLength": 500
           },
           "thread": {
@@ -64192,7 +64170,6 @@
           }
         },
         "required": [
-          "reason",
           "thread"
         ]
       },
@@ -64275,13 +64252,10 @@
         "properties": {
           "reason": {
             "type": "string",
-            "minLength": 10,
+            "default": "",
             "maxLength": 500
           }
-        },
-        "required": [
-          "reason"
-        ]
+        }
       },
       "AdminClientReviewRowDto": {
         "type": "object",
@@ -64407,7 +64381,7 @@
         "properties": {
           "reason": {
             "type": "string",
-            "minLength": 10,
+            "default": "",
             "maxLength": 500
           },
           "ids": {
@@ -64436,7 +64410,6 @@
           }
         },
         "required": [
-          "reason",
           "ids",
           "action",
           "type"
@@ -64937,20 +64910,17 @@
         "properties": {
           "reason": {
             "type": "string",
-            "minLength": 10,
+            "default": "",
             "maxLength": 500
           }
-        },
-        "required": [
-          "reason"
-        ]
+        }
       },
       "AdminBulkReasonDto": {
         "type": "object",
         "properties": {
           "reason": {
             "type": "string",
-            "minLength": 10,
+            "default": "",
             "maxLength": 500
           },
           "ids": {
@@ -64964,7 +64934,6 @@
           }
         },
         "required": [
-          "reason",
           "ids"
         ]
       },
@@ -65667,13 +65636,10 @@
         "properties": {
           "reason": {
             "type": "string",
-            "minLength": 10,
+            "default": "",
             "maxLength": 500
           }
-        },
-        "required": [
-          "reason"
-        ]
+        }
       },
       "PromoAudience": {
         "type": "string",
@@ -66208,7 +66174,7 @@
         "properties": {
           "reason": {
             "type": "string",
-            "minLength": 10,
+            "default": "",
             "maxLength": 500
           },
           "paymentId": {
@@ -66223,7 +66189,6 @@
           }
         },
         "required": [
-          "reason",
           "paymentId",
           "amountCents"
         ]
@@ -66609,13 +66574,10 @@
         "properties": {
           "reason": {
             "type": "string",
-            "minLength": 10,
+            "default": "",
             "maxLength": 300
           }
-        },
-        "required": [
-          "reason"
-        ]
+        }
       },
       "MovePlanSubscribersResultEnvelope": {
         "type": "object",
@@ -66959,7 +66921,7 @@
         "properties": {
           "reason": {
             "type": "string",
-            "minLength": 10,
+            "default": "",
             "maxLength": 500
           },
           "when": {
@@ -66981,7 +66943,6 @@
           }
         },
         "required": [
-          "reason",
           "when"
         ]
       },
@@ -67559,13 +67520,10 @@
         "properties": {
           "reason": {
             "type": "string",
-            "minLength": 10,
+            "default": "",
             "maxLength": 500
           }
-        },
-        "required": [
-          "reason"
-        ]
+        }
       },
       "PayrollPayoutEnvelope": {
         "type": "object",
@@ -69750,13 +69708,13 @@
           },
           "reason": {
             "type": "string",
+            "default": "",
             "maxLength": 500,
-            "description": "Required for every action (§3.2)."
+            "description": "Optional (owner 2026-10-05)."
           }
         },
         "required": [
-          "action",
-          "reason"
+          "action"
         ]
       },
       "ModerationActionResultEnvelope": {
@@ -71924,14 +71882,13 @@
           },
           "reason": {
             "type": "string",
-            "minLength": 10,
+            "default": "",
             "maxLength": 300
           }
         },
         "required": [
           "userId",
-          "code",
-          "reason"
+          "code"
         ]
       },
       "AdminReferralCodeRowEnvelope": {
@@ -71953,13 +71910,10 @@
         "properties": {
           "reason": {
             "type": "string",
-            "minLength": 10,
+            "default": "",
             "maxLength": 300
           }
-        },
-        "required": [
-          "reason"
-        ]
+        }
       },
       "AdminReferralRowEnvelope": {
         "type": "object",
@@ -72459,14 +72413,13 @@
           },
           "reason": {
             "type": "string",
-            "minLength": 10,
+            "default": "",
             "maxLength": 500
           }
         },
         "required": [
           "caseId",
-          "days",
-          "reason"
+          "days"
         ]
       },
       "AdminPromotionActionResultEnvelope": {
@@ -72488,13 +72441,10 @@
         "properties": {
           "reason": {
             "type": "string",
-            "minLength": 10,
+            "default": "",
             "maxLength": 500
           }
-        },
-        "required": [
-          "reason"
-        ]
+        }
       },
       "AdminExtendPromotionDto": {
         "type": "object",
@@ -72506,13 +72456,12 @@
           },
           "reason": {
             "type": "string",
-            "minLength": 10,
+            "default": "",
             "maxLength": 500
           }
         },
         "required": [
-          "days",
-          "reason"
+          "days"
         ]
       },
       "ClientBadgeStatus": {
@@ -72830,7 +72779,7 @@
         "properties": {
           "reason": {
             "type": "string",
-            "minLength": 3,
+            "default": "",
             "maxLength": 500
           },
           "ids": {
@@ -72844,7 +72793,6 @@
           }
         },
         "required": [
-          "reason",
           "ids"
         ]
       },
@@ -72982,13 +72930,10 @@
         "properties": {
           "reason": {
             "type": "string",
-            "minLength": 3,
+            "default": "",
             "maxLength": 500
           }
-        },
-        "required": [
-          "reason"
-        ]
+        }
       },
       "ConversationCounterpartDto": {
         "type": "object",

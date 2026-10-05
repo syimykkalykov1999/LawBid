@@ -4,7 +4,6 @@ import {
   IsBoolean,
   IsIn,
   IsInt,
-  IsNotEmpty,
   IsOptional,
   IsString,
   IsUUID,
@@ -285,15 +284,16 @@ export class ExtendSubscriptionDto {
   @Max(90)
   days!: number;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
+    type: String,
     maxLength: 500,
-    description: 'Required (§1.6): e.g. the confirmed contact issue.',
+    description: 'Optional: e.g. the confirmed contact issue.',
   })
+  @IsOptional()
   @Transform(trim)
   @IsString()
-  @IsNotEmpty()
   @MaxLength(500)
-  reason!: string;
+  reason = '';
 }
 
 export class AdminSubscriptionDto {

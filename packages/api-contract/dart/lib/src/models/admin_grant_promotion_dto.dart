@@ -11,7 +11,7 @@ class AdminGrantPromotionDto {
   const AdminGrantPromotionDto({
     required this.caseId,
     required this.days,
-    required this.reason,
+    this.reason = '',
   });
 
   factory AdminGrantPromotionDto.fromJson(Map<String, Object?> json) =>

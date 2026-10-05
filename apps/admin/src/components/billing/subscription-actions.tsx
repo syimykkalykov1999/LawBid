@@ -131,7 +131,7 @@ function CancelDialog({
   const [when, setWhen] = useState<When>(defaultWhen);
   const [refund, setRefund] = useState<Refund>('none');
   const [reason, setReason] = useState('');
-  const ok = reason.trim().length >= 10;
+  const ok = true;
 
   const cancel = useMutation({
     mutationFn: async () => {
@@ -173,7 +173,7 @@ function CancelDialog({
             </Select>
           </Field>
         ) : null}
-        <Field label="Причина" htmlFor="cancel-reason" hint={ok ? 'пишется в журнал аудита' : `не короче 10 символов, ещё ${10 - reason.trim().length}`}>
+        <Field label="Причина" htmlFor="cancel-reason" hint="необязательно, пишется в журнал аудита">
           <Textarea id="cancel-reason" rows={3} maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} />
         </Field>
         <p data-testid="cancel-summary" className="flex items-start gap-2 rounded-xl bg-warning-soft px-3.5 py-2.5 text-sm text-warning">

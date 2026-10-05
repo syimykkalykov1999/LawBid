@@ -9,7 +9,6 @@ import {
   IsOptional,
   IsString,
   IsUUID,
-  Length,
   Matches,
   Max,
   MaxLength,
@@ -70,11 +69,12 @@ export class AdminBillingUserDto {
 
 /** A reason for a money / access action (audited). */
 export class AdminBillingReasonDto {
-  @ApiProperty({ minLength: 10, maxLength: 500 })
+  @ApiPropertyOptional({ type: String, maxLength: 500 })
+  @IsOptional()
   @Transform(trim)
   @IsString()
-  @Length(10, 500)
-  reason!: string;
+  @MaxLength(500)
+  reason = '';
 }
 
 // ---- contract grants ---------------------------------------------------------

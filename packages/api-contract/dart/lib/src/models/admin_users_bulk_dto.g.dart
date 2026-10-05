@@ -10,7 +10,7 @@ AdminUsersBulkDto _$AdminUsersBulkDtoFromJson(Map<String, dynamic> json) =>
     AdminUsersBulkDto(
       action: AdminUsersBulkAction.fromJson(json['action'] as String),
       ids: (json['ids'] as List<dynamic>).map((e) => e as String).toList(),
-      reason: json['reason'] as String,
+      reason: json['reason'] as String? ?? '',
     );
 
 Map<String, dynamic> _$AdminUsersBulkDtoToJson(AdminUsersBulkDto instance) =>

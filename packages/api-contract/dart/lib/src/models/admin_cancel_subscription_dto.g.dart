@@ -9,8 +9,8 @@ part of 'admin_cancel_subscription_dto.dart';
 AdminCancelSubscriptionDto _$AdminCancelSubscriptionDtoFromJson(
   Map<String, dynamic> json,
 ) => AdminCancelSubscriptionDto(
-  reason: json['reason'] as String,
   whenValue: AdminSubscriptionCancelWhen.fromJson(json['when'] as String),
+  reason: json['reason'] as String? ?? '',
   refund: json['refund'] == null
       ? AdminSubscriptionCancelRefund.none
       : AdminSubscriptionCancelRefund.fromJson(json['refund'] as String),
