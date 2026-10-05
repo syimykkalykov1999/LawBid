@@ -95,6 +95,12 @@ export class DemoDatabaseService implements OnApplicationBootstrap {
   onApplicationBootstrap(): void {
     // Detached on purpose: the first run replays ~100 migrations and seeds
     // the world (tens of seconds); the API must not wait for it.
+    // A stubbed PrismaService (unit/e2e harness) has no routing handle.
+    if (!routingOf(this.prisma)) return;
+    // Test runs prepare the demo world only when a test asks for it.
+    if (process.env.NODE_ENV === 'test' && !process.env.DEMO_DATABASE_URL) {
+      return;
+    }
     void this.prepare();
   }
 
