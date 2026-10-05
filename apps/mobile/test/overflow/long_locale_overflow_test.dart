@@ -75,6 +75,7 @@ void main() {
     base = [
       sharedPreferencesProvider.overrideWithValue(prefs),
       referralOffOverride,
+      partnerOffOverride,
     ];
   });
 

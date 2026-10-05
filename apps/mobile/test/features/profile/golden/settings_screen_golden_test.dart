@@ -28,6 +28,7 @@ void main() {
           overrides: [
             sharedPreferencesProvider.overrideWithValue(prefs),
             referralOffOverride,
+            partnerOffOverride,
             l10nDatabaseProvider.overrideWithValue(l10nDb),
             activityStatusProvider.overrideWith(_ActivityOn.new),
           ],
