@@ -24,6 +24,7 @@ import '../models/trust_hold_list_item_list_envelope.dart';
 import '../models/trust_note_dto.dart';
 import '../models/trust_preset_dto.dart';
 import '../models/trust_queue_item_list_envelope.dart';
+import '../models/trust_release_dto.dart';
 import '../models/trust_set_status_dto.dart';
 import '../models/trust_settings_dto.dart';
 import '../models/trust_settings_envelope.dart';
@@ -200,7 +201,7 @@ abstract class AdminTrustClient {
   @POST('/admin/trust/attorneys/{attorneyId}/release')
   Future<AdminTrustCardEnvelope> releaseTrust({
     @Path('attorneyId') required String attorneyId,
-    @Body() required TrustHoldDto body,
+    @Body() required TrustReleaseDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

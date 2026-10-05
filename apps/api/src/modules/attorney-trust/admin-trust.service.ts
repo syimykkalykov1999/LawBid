@@ -31,6 +31,7 @@ import type {
   TrustQueueItemDto,
   TrustAttorneyListItemDto,
   TrustHoldDto,
+  TrustReleaseDto,
   TrustHoldListItemDto,
   TrustSetStatusDto,
   TrustSettingsDto,
@@ -809,22 +810,23 @@ export class AdminTrustService {
   async release(
     admin: AdminActor,
     attorneyId: string,
-    dto: TrustHoldDto,
+    dto: TrustReleaseDto,
   ): Promise<AdminTrustCardDto> {
     await this.exists(attorneyId);
     const before = await this.trust.snapshot(attorneyId);
-    await this.trust.release(
-      attorneyId,
-      { payments: dto.payments, bids: dto.bids, note: dto.note ?? null },
-      actorOf(admin),
-    );
+    const input = {
+      payments: dto.payments ?? true,
+      bids: dto.bids ?? true,
+      note: dto.note ?? null,
+    };
+    await this.trust.release(attorneyId, input, actorOf(admin));
     await this.audit.record({
       adminId: admin.id,
       action: TRUST_AUDIT_ACTION.release,
       targetType: 'attorney_profile',
       targetId: attorneyId,
       before: before ? { ...toHolds(before) } : null,
-      after: { payments: dto.payments, bids: dto.bids, note: dto.note ?? null },
+      after: input,
       ip: admin.ip,
     });
     return this.card(attorneyId);

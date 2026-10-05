@@ -1140,6 +1140,7 @@ export 'models/bulk_trust_result_dto.dart';
 export 'models/bulk_trust_dto.dart';
 export 'models/bulk_trust_result_envelope.dart';
 export 'models/trust_hold_dto.dart';
+export 'models/trust_release_dto.dart';
 export 'models/bar_number_block_event_dto.dart';
 export 'models/bar_number_block_dto.dart';
 export 'models/bar_number_block_list_envelope.dart';

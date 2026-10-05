@@ -44,6 +44,7 @@ import {
   StaffDecisionsQueryDto,
   TrustAttorneyIdParamDto,
   TrustHoldDto,
+  TrustReleaseDto,
   TrustHoldListItemDto,
   TrustNoteDto,
   TrustSettingsDto,
@@ -339,7 +340,7 @@ export class AdminTrustController {
   releaseTrust(
     @CurrentAdmin() admin: AdminActor,
     @Param() p: TrustAttorneyIdParamDto,
-    @Body() dto: TrustHoldDto,
+    @Body() dto: TrustReleaseDto,
   ): Promise<AdminTrustCardDto> {
     return this.admin.release(admin, p.attorneyId, dto);
   }

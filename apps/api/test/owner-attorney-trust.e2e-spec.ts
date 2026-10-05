@@ -756,7 +756,7 @@ describe('Attorney trust levels (e2e, owner 2026-10-05)', () => {
     await api()
       .get('/api/v1/admin/trust/settings')
       .set(support.auth)
-      .expect(403);
+      .expect(404); // #50: a section outside the role's rights is hidden
     await resetSettings();
   });
 

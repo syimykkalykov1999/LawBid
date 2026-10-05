@@ -368,6 +368,25 @@ export class AttorneyTrustService {
     return tx ? run(tx) : withTxRetry(this.prisma, run);
   }
 
+  /** The rule-change notice was already sent in the last 10 minutes (a
+   * settings save and a preset both recompute everyone). */
+  private async recentlyToldRequirements(attorneyId: string): Promise<boolean> {
+    const since = new Date(Date.now() - 10 * 60 * 1000);
+    const row = await this.prisma.notification.findFirst({
+      where: {
+        user_id: attorneyId,
+        type: 'verification_update',
+        created_at: { gte: since },
+        payload: {
+          path: ['kind'],
+          equals: TRUST_NOTIFICATION_KIND.requirementsChanged,
+        },
+      },
+      select: { id: true },
+    });
+    return row !== null;
+  }
+
   /** Nightly safety net and the admin's "recompute everyone". */
   async recomputeAll(
     batch = 200,
@@ -398,7 +417,8 @@ export class AttorneyTrustService {
             opts.notifyNewlyRequired &&
             r.trust_badge &&
             !snap.badge &&
-            snap.missing.length > 0
+            snap.missing.length > 0 &&
+            !(await this.recentlyToldRequirements(r.user_id))
           ) {
             await this.notifications.emit({
               type: 'verification_update',

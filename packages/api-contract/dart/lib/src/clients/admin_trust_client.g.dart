@@ -735,7 +735,7 @@ class _AdminTrustClient implements AdminTrustClient {
   @override
   Future<AdminTrustCardEnvelope> releaseTrust({
     required String attorneyId,
-    required TrustHoldDto body,
+    required TrustReleaseDto body,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};

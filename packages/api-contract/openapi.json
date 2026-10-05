@@ -60888,7 +60888,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/TrustHoldDto"
+                "$ref": "#/components/schemas/TrustReleaseDto"
               }
             }
           }
@@ -94698,6 +94698,23 @@
           "payments",
           "bids"
         ]
+      },
+      "TrustReleaseDto": {
+        "type": "object",
+        "properties": {
+          "note": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "payments": {
+            "type": "boolean",
+            "description": "Resume payments (default true)."
+          },
+          "bids": {
+            "type": "boolean",
+            "description": "Resume bids (default true)."
+          }
+        }
       },
       "BarNumberBlockEventDto": {
         "type": "object",

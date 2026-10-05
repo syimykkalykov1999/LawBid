@@ -1176,6 +1176,19 @@ export class TrustNoteDto {
   note?: string;
 }
 
+/** Release: with no flags both holds are lifted («Снять холд»). */
+export class TrustReleaseDto extends TrustNoteDto {
+  @ApiPropertyOptional({ description: 'Resume payments (default true).' })
+  @IsOptional()
+  @IsBoolean()
+  payments?: boolean;
+
+  @ApiPropertyOptional({ description: 'Resume bids (default true).' })
+  @IsOptional()
+  @IsBoolean()
+  bids?: boolean;
+}
+
 export class TrustHoldDto extends TrustNoteDto {
   @ApiProperty({ description: 'Pause / resume receiving payments.' })
   @IsBoolean()
