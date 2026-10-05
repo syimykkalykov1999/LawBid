@@ -234,13 +234,9 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
     super.dispose();
   }
 
-  /// The inner page; the reel waits paused and plays on when back.
-  Future<void> _openInside(Post p) async {
-    final wasPaused = _paused;
-    setState(() => _paused = true);
-    await ReelDetailScreen.open(context, p);
-    if (mounted) setState(() => _paused = wasPaused);
-  }
+  /// The inner page; the reel waits paused and plays on when back (see
+  /// `covered` in [build]).
+  Future<void> _openInside(Post p) => ReelDetailScreen.open(context, p);
 
   @override
   Widget build(BuildContext context) {
@@ -260,6 +256,10 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
       }
     }
 
+    // Owner 2026-10-05: anything opened over the reel (comments, the
+    // share sheet, the "⋯" menu, the author's profile, the inside) pauses
+    // it; back on the reel it plays on, unless the viewer paused it.
+    final covered = !(ModalRoute.of(context)?.isCurrent ?? true);
     final video = p.video;
     final caption = [
       if ((p.title ?? '').trim().isNotEmpty) p.title!.trim(),
@@ -319,7 +319,7 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                     video: video,
                     active: widget.active && video.ready,
                     muted: widget.muted,
-                    paused: _paused,
+                    paused: _paused || covered,
                     onProgress: (v) => _progress.value = v,
                   ),
                 if (video != null && !video.ready)
@@ -377,11 +377,12 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                         () => run(() => actions.toggleLike(p)),
                         color: p.likedByMe ? colors.danger : null,
                       ),
-                      rail(AppIcons.modeCommentOutlined, t.t('post.comments'),
-                          p.commentCount, () {
-                        setState(() => _paused = true);
-                        context.push(SocialRoutes.post(p.id));
-                      }),
+                      rail(
+                        AppIcons.modeCommentOutlined,
+                        t.t('post.comments'),
+                        p.commentCount,
+                        () => context.push(SocialRoutes.post(p.id)),
+                      ),
                       rail(
                         AppIcons.sendOutlined,
                         t.t('post.share'),
@@ -397,11 +398,12 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                         () => run(() => actions.toggleSave(p)),
                         color: p.savedByMe ? colors.gold : null,
                       ),
-                      rail(AppIcons.moreHorizRounded, t.t('post.menu'), null,
-                          () {
-                        setState(() => _paused = true);
-                        showPostMenu(context, ref, p);
-                      }),
+                      rail(
+                        AppIcons.moreHorizRounded,
+                        t.t('post.menu'),
+                        null,
+                        () => showPostMenu(context, ref, p),
+                      ),
                     ],
                   ),
                 ),
@@ -415,53 +417,74 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Semantics(
-                        button: true,
-                        label: t.t(
-                          'post.author.open',
-                          {'name': p.author.displayName},
-                        ),
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: () {
-                            setState(() => _paused = true);
-                            openAuthorProfile(context, ref, p.author);
-                          },
-                          child: Row(
-                            children: [
-                              CircleAvatar(
-                                radius: 16,
-                                backgroundColor: Colors.white24,
-                                backgroundImage: p.author.avatarUrl == null
-                                    ? null
-                                    : CachedNetworkImageProvider(
-                                        p.author.avatarUrl!,
+                      // Owner 2026-10-05: «Подписаться» right after the
+                      // author's name, like the feed card.
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Semantics(
+                              button: true,
+                              label: t.t(
+                                'post.author.open',
+                                {'name': p.author.displayName},
+                              ),
+                              child: GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: () =>
+                                    openAuthorProfile(context, ref, p.author),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    CircleAvatar(
+                                      radius: 16,
+                                      backgroundColor: Colors.white24,
+                                      backgroundImage:
+                                          p.author.avatarUrl == null
+                                              ? null
+                                              : CachedNetworkImageProvider(
+                                                  p.author.avatarUrl!,
+                                                ),
+                                    ),
+                                    const SizedBox(width: AppSpacing.sm),
+                                    Flexible(
+                                      child: Text(
+                                        p.author.displayName,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: type.body.copyWith(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w700,
+                                          shadows: shadow,
+                                        ),
                                       ),
-                              ),
-                              const SizedBox(width: AppSpacing.sm),
-                              Flexible(
-                                child: Text(
-                                  p.author.displayName,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: type.body.copyWith(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w700,
-                                    shadows: shadow,
-                                  ),
+                                    ),
+                                    // Attorneys blue, clients gold — as on
+                                    // the feed card.
+                                    if (p.author.verified) ...[
+                                      const SizedBox(width: 4),
+                                      VerifiedCheck(
+                                        label: t.t('post.verified'),
+                                        gold: p.author.isClient,
+                                      ),
+                                    ],
+                                  ],
                                 ),
                               ),
-                              if (p.author.verified) ...[
-                                const SizedBox(width: 4),
-                                AppIcon(
-                                  AppIcons.verifiedRounded,
-                                  size: 16,
-                                  color: colors.gold,
-                                ),
-                              ],
-                            ],
+                            ),
                           ),
-                        ),
+                          if (!p.isMine) ...[
+                            const SizedBox(width: AppSpacing.sm),
+                            // Capped so a long translation can't squeeze
+                            // the name away.
+                            ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 140),
+                              child: ReelFollowButton(
+                                attorneyId: p.author.id,
+                                initial: p.author.isFollowing,
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                       if (p.locationName != null) ...[
                         const SizedBox(height: AppSpacing.xs),
@@ -533,6 +556,86 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Owner 2026-10-05: «Подписаться» on a reel — a white outline that reads
+/// on any video; after a tap it shows the check and «Вы подписаны» (tap
+/// again to unfollow). Same follow state as the feed card's button.
+class ReelFollowButton extends ConsumerWidget {
+  const ReelFollowButton({
+    required this.attorneyId,
+    required this.initial,
+    super.key,
+  });
+
+  final String attorneyId;
+  final bool initial;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final following =
+        ref.watch(followOverridesProvider.select((m) => m[attorneyId])) ??
+            initial;
+    final label = t.t(following ? 'follow.following' : 'follow.follow');
+    return Semantics(
+      button: true,
+      toggled: following,
+      label: label,
+      excludeSemantics: true,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () async {
+          final error = await ref
+              .read(socialActionsProvider)
+              .setFollowing(attorneyId, !following);
+          if (error != null && context.mounted) {
+            showAppSnackBar(context, errorText(t, error));
+          }
+        },
+        // A 40 dp tap target around a 28 dp pill.
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Container(
+            height: 28,
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+            decoration: BoxDecoration(
+              color: following
+                  ? Colors.white.withValues(alpha: 0.18)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.white70),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (following) ...[
+                  const AppIcon(
+                    AppIcons.checkRounded,
+                    size: 14,
+                    color: Colors.white,
+                  ),
+                  const SizedBox(width: 4),
+                ],
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: type.caption.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
