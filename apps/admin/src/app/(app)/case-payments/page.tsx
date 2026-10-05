@@ -646,13 +646,13 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
               </Select>
             </Field>
             {feeType === 'fixed' ? (
-              <Field label="Сумма за платёж, $" htmlFor="cp-fixed" hint="0 — без комиссии.">
+              <Field label="Сумма за платёж, $" htmlFor="cp-fixed" hint="0 — платформа ничего не берёт.">
                 <Input id="cp-fixed" inputMode="decimal" value={feeFixed} disabled={!canEdit} onChange={(e) => setFeeFixed(e.target.value)} />
               </Field>
             ) : (
               <div />
             )}
-            <Field label="Кто платит комиссию" htmlFor="cp-payer">
+            <Field label="Кто платит плату платформы" htmlFor="cp-payer">
               <Select id="cp-payer" value={feePayer} disabled={!canEdit || feeType === 'none'} onChange={(e) => setFeePayer(e.target.value as Settings['feePayer'])}>
                 {(Object.keys(PAYMENT_FEE_PAYER) as Settings['feePayer'][]).map((k) => (
                   <option key={k} value={k}>{PAYMENT_FEE_PAYER[k]}</option>

@@ -291,7 +291,7 @@ class FeePayerChips extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.xs),
         Text(
-          t.t('cpay.feePayer.$current.hint'),
+          '${t.t('cpay.feePayer.$current.hint')}. ${t.t('cpay.fee.noShare')}',
           style: type.caption.copyWith(color: colors.textSecondary),
         ),
       ],

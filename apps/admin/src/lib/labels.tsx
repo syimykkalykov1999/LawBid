@@ -239,7 +239,7 @@ export const PAYOUT_ACCOUNT_STATUS: Record<string, string> = {
 };
 
 export const PAYMENT_FEE_TYPE: Record<string, string> = {
-  none: 'без комиссии',
+  none: 'нет (платформа ничего не берёт)',
   fixed: 'фиксированная плата за платёж',
 };
 

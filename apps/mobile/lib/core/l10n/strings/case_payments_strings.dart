@@ -115,7 +115,7 @@ const casePaymentsRu = <String, String>{
   'cpay.fee.accept': 'Принять',
   'cpay.fee.counter': 'Предложить своё',
   'cpay.fee.payAccepts': 'Оплата = согласие с предложением адвоката',
-  'cpay.fee.sheet.title': 'Кто платит комиссию Stripe',
+  'cpay.fee.sheet.title': 'Кто платит комиссию платёжной системы Stripe',
   'cpay.fee.sheet.sub':
       'Как с бидами: предложите вариант, другая сторона примет или ответит своим. LawBid в этом не участвует.',
   'cpay.fee.sheet.send': 'Отправить предложение',
@@ -130,7 +130,9 @@ const casePaymentsRu = <String, String>{
   'notif.list.case_payment_disputed': 'Платёж оспорен',
   'notif.list.payout_account_status': 'Статус приёма оплат изменился',
   'cpay.kind.invoice': 'Счёт от адвоката',
-  'cpay.sheet.stripeFee': 'Комиссия Stripe (оценка): {amount}',
+  'cpay.sheet.stripeFee':
+      'Комиссия платёжной системы Stripe, 2.9% + 30¢ (оценка): {amount}',
+  'cpay.fee.noShare': 'LawBid с этой оплаты ничего не получает',
   'cpay.sheet.attorneyReceives': 'Адвокат получит ≈ {amount}',
   'cpay.receiptPdf': 'PDF',
   'cpay.csv.export': 'Выгрузить CSV',
@@ -163,7 +165,8 @@ const casePaymentsRu = <String, String>{
   'cpay.req.sheet.sendPlan': 'Отправить {count} счетов',
   'cpay.req.sheet.sent': 'Счёт отправлен клиенту',
   'cpay.req.sheet.needDescription': 'Напишите, за что счёт',
-  'cpay.req.sheet.feePayer': 'Комиссия Stripe по этому счёту',
+  'cpay.req.sheet.feePayer':
+      'Комиссия платёжной системы Stripe (2.9% + 30¢) по этому счёту',
   'cpay.req.sheet.feePreview': 'Клиент заплатит {total}, вы получите ≈ {net}',
   'cpay.req.breakdown.client': 'Итого {total}, включая комиссию Stripe {fee}',
   'cpay.req.breakdown.attorney': 'Комиссия Stripe на вас, вы получите ≈ {net}',
@@ -175,7 +178,8 @@ const casePaymentsRu = <String, String>{
   'cpay.feePayer.client.hint': 'Комиссия Stripe добавляется к сумме счёта',
   'cpay.feePayer.attorney.hint': 'Комиссия Stripe вычитается из вашей суммы',
   'cpay.feePayer.split.hint': 'Половину комиссии — клиент, половину — вы',
-  'cpay.payout.feePayer.title': 'Кто платит комиссию Stripe',
+  'cpay.payout.feePayer.title':
+      'Кто платит комиссию платёжной системы Stripe (2.9% + 30¢)',
   'cpay.payout.feePayer.sub':
       'Ваш выбор по умолчанию для новых счетов; на каждом счёте можно поменять. LawBid в этом не участвует.',
   'cpay.payout.feePayer.saved': 'Сохранено',
@@ -308,7 +312,7 @@ const casePaymentsEn = <String, String>{
   'cpay.fee.accept': 'Accept',
   'cpay.fee.counter': 'Counter-offer',
   'cpay.fee.payAccepts': "Paying accepts the attorney's proposal",
-  'cpay.fee.sheet.title': 'Who covers the Stripe fee',
+  'cpay.fee.sheet.title': 'Who covers the Stripe payment-processing fee',
   'cpay.fee.sheet.sub':
       'Like bids: propose an option, the other side accepts or answers with theirs. LawBid takes no part in this.',
   'cpay.fee.sheet.send': 'Send proposal',
@@ -322,7 +326,9 @@ const casePaymentsEn = <String, String>{
   'notif.list.case_payment_disputed': 'Payment disputed',
   'notif.list.payout_account_status': 'Your payout account status changed',
   'cpay.kind.invoice': 'Attorney invoice',
-  'cpay.sheet.stripeFee': 'Stripe fee (estimate): {amount}',
+  'cpay.sheet.stripeFee':
+      'Stripe payment-processing fee, 2.9% + 30¢ (estimate): {amount}',
+  'cpay.fee.noShare': 'LawBid receives nothing from this payment',
   'cpay.sheet.attorneyReceives': 'Attorney receives ≈ {amount}',
   'cpay.receiptPdf': 'PDF',
   'cpay.csv.export': 'Export CSV',
@@ -355,7 +361,8 @@ const casePaymentsEn = <String, String>{
   'cpay.req.sheet.sendPlan': 'Send {count} invoices',
   'cpay.req.sheet.sent': 'Invoice sent to the client',
   'cpay.req.sheet.needDescription': 'Say what the invoice is for',
-  'cpay.req.sheet.feePayer': 'Stripe fee on this invoice',
+  'cpay.req.sheet.feePayer':
+      'Stripe payment-processing fee (2.9% + 30¢) on this invoice',
   'cpay.req.sheet.feePreview': 'The client pays {total}, you receive ≈ {net}',
   'cpay.req.breakdown.client': 'Total {total}, including Stripe fee {fee}',
   'cpay.req.breakdown.attorney':
@@ -368,7 +375,8 @@ const casePaymentsEn = <String, String>{
   'cpay.feePayer.client.hint': "Stripe's fee is added on top of the invoice",
   'cpay.feePayer.attorney.hint': "Stripe's fee comes out of your amount",
   'cpay.feePayer.split.hint': 'Half of the fee each',
-  'cpay.payout.feePayer.title': 'Who covers the Stripe fee',
+  'cpay.payout.feePayer.title':
+      'Who covers the Stripe payment-processing fee (2.9% + 30¢)',
   'cpay.payout.feePayer.sub':
       'Your default for new invoices; each invoice can override it. LawBid takes no part in this.',
   'cpay.payout.feePayer.saved': 'Saved',

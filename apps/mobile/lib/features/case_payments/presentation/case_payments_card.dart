@@ -664,6 +664,10 @@ class _PaySheetState extends ConsumerState<PaySheet> {
                 style: type.caption.copyWith(color: colors.textSecondary),
               ),
               _Line(
+                text: t.t('cpay.fee.noShare'),
+                style: type.caption.copyWith(color: colors.textSecondary),
+              ),
+              _Line(
                 text: t.t('cpay.sheet.youPay', {
                   'amount': f.currencyFromCents(q.clientTotalCents),
                 }),

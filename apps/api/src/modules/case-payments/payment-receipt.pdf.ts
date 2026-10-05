@@ -151,7 +151,7 @@ export function renderPaymentReceiptPdf(input: ReceiptInput): Promise<Buffer> {
     }
     if (p.processingFeeCents > 0) {
       line(
-        'Card processing (Stripe), paid by client / Комиссия Stripe с клиента',
+        'Stripe payment-processing fee, client share / Комиссия платёжной системы Stripe, доля клиента',
         money(p.processingFeeCents),
       );
     }
@@ -160,10 +160,19 @@ export function renderPaymentReceiptPdf(input: ReceiptInput): Promise<Buffer> {
       money(p.clientTotalCents),
       true,
     );
+    if (p.platformFeeCents === 0) {
+      doc
+        .fontSize(8)
+        .fillColor(MUTED)
+        .text(
+          'LawBid receives nothing from this payment / LawBid с этой оплаты ничего не получает',
+        )
+        .fillColor(NAVY);
+    }
     if (input.forAttorney) {
       doc.moveDown(0.3);
       line(
-        'Stripe fee (estimate) / Комиссия Stripe (оценка)',
+        'Stripe payment-processing fee, 2.9% + 30¢ (estimate) / Комиссия платёжной системы Stripe (оценка)',
         `− ${money(q.stripeFeeEstimateCents)}`,
       );
       line(
