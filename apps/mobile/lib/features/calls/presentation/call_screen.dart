@@ -388,10 +388,8 @@ class _RoundButton extends StatelessWidget {
               ),
             ),
             const SizedBox(height: AppSpacing.sm),
-            Text(
+            FitText(
               label,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
               style: type.caption
                   .copyWith(color: Colors.white.withValues(alpha: 0.85)),

@@ -30,6 +30,7 @@ CaseDetailForAttorneyDto _$CaseDetailForAttorneyDtoFromJson(
   shareCount: (json['shareCount'] as num).toInt(),
   isSaved: json['isSaved'] as bool,
   promoted: json['promoted'] as bool,
+  dossier: CaseDossierDto.fromJson(json['dossier'] as Map<String, dynamic>),
   description: json['description'] as String,
   photos: (json['photos'] as List<dynamic>)
       .map((e) => CasePhotoDto.fromJson(e as Map<String, dynamic>))
@@ -38,6 +39,10 @@ CaseDetailForAttorneyDto _$CaseDetailForAttorneyDtoFromJson(
   inMyPractice: json['inMyPractice'] as bool,
   bidAllowed: json['bidAllowed'] as bool,
   city: json['city'] as String?,
+  coverKey: json['coverKey'] as String?,
+  urgency: json['urgency'] == null
+      ? null
+      : CaseUrgency.fromJson(json['urgency'] as String),
   ownBidId: json['ownBidId'] as String?,
   completionRequestedBy: json['completionRequestedBy'] == null
       ? null
@@ -58,6 +63,8 @@ Map<String, dynamic> _$CaseDetailForAttorneyDtoToJson(
   'city': ?instance.city,
   'status': instance.status.toJson(),
   'budget': instance.budget.toJson(),
+  'coverKey': ?instance.coverKey,
+  'urgency': ?instance.urgency?.toJson(),
   'viewCount': instance.viewCount,
   'bidsCount': instance.bidsCount,
   'createdAt': instance.createdAt.toIso8601String(),
@@ -67,6 +74,7 @@ Map<String, dynamic> _$CaseDetailForAttorneyDtoToJson(
   'shareCount': instance.shareCount,
   'isSaved': instance.isSaved,
   'promoted': instance.promoted,
+  'dossier': instance.dossier.toJson(),
   'description': instance.description,
   'ownBidId': ?instance.ownBidId,
   'completionRequestedBy': ?instance.completionRequestedBy?.toJson(),

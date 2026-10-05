@@ -10,10 +10,12 @@ import { Button } from '@/components/ui/button';
 import { Badge, Card } from '@/components/ui/card';
 import { Dialog } from '@/components/ui/dialog';
 import { EmptyState } from '@/components/ui/empty';
-import { Field, Input, Select, Textarea } from '@/components/ui/input';
+import { Field, Input, Label, Select, Textarea } from '@/components/ui/input';
 import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { useToast } from '@/components/ui/toast';
+import { StatesPicker } from '@/components/states-picker';
 import { api, errorText } from '@/lib/api/client';
+import { statesText } from '@/lib/us-states';
 import { cn, formatDateTime } from '@/lib/utils';
 
 type Audience = 'all' | 'attorneys' | 'clients' | 'assistants';
@@ -37,7 +39,8 @@ const BODY_MAX = 1000;
 
 /**
  * Owner 2026-09-30 — broadcasts: a push and an in-app notification from
- * the LawBid team to an audience (optionally one state).
+ * the LawBid team to an audience. Owner 2026-10-04: all states or any
+ * set of them.
  */
 export default function BroadcastsPage() {
   const qc = useQueryClient();
@@ -45,7 +48,8 @@ export default function BroadcastsPage() {
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [audience, setAudience] = useState<Audience>('all');
-  const [state, setState] = useState('');
+  const [stateMode, setStateMode] = useState<'all' | 'pick'>('all');
+  const [states, setStates] = useState<string[]>([]);
   const [confirming, setConfirming] = useState(false);
   const history = useQuery({
     queryKey: ['admin-broadcasts'],
@@ -58,7 +62,7 @@ export default function BroadcastsPage() {
           title: title.trim(),
           body: body.trim(),
           audience,
-          stateCode: state.trim().toUpperCase() || undefined,
+          stateCodes: picked,
         },
       });
       if (r.error) throw r.error;
@@ -77,10 +81,10 @@ export default function BroadcastsPage() {
     },
   });
 
-  const stateCode = state.trim().toUpperCase();
-  const stateOk = !stateCode || /^[A-Z]{2}$/.test(stateCode);
+  const picked = stateMode === 'pick' ? states : [];
+  const stateOk = stateMode === 'all' || states.length > 0;
   const ready = !!title.trim() && !!body.trim() && stateOk;
-  const audienceText = `${AUDIENCE[audience]}${stateCode && stateOk ? ` из штата ${stateCode}` : ''}`;
+  const audienceText = `${AUDIENCE[audience]}${picked.length ? ` ${statesText(picked)}` : ', все штаты'}`;
   const rows = history.data ?? [];
 
   return (
@@ -114,7 +118,7 @@ export default function BroadcastsPage() {
                   className="min-h-32 resize-y"
                 />
               </Field>
-              <div className="grid gap-4 sm:grid-cols-[1fr_140px]">
+              <div className="grid gap-4">
                 <Field label="Кому" htmlFor="ba">
                   <Select id="ba" value={audience} onChange={(e) => setAudience(e.target.value as Audience)}>
                     {(Object.keys(AUDIENCE) as Audience[]).map((v) => (
@@ -124,17 +128,10 @@ export default function BroadcastsPage() {
                     ))}
                   </Select>
                 </Field>
-                <Field label="Штат (необяз.)" htmlFor="bs">
-                  <Input
-                    id="bs"
-                    value={state}
-                    maxLength={2}
-                    placeholder="IL"
-                    onChange={(e) => setState(e.target.value)}
-                    aria-invalid={!stateOk}
-                    className={cn('uppercase', !stateOk && 'border-danger')}
-                  />
-                </Field>
+                <div className="space-y-1.5">
+                  <Label>Штаты</Label>
+                  <StatesPicker mode={stateMode} onMode={setStateMode} value={states} onChange={setStates} />
+                </div>
               </div>
               <div className="flex items-start gap-3 rounded-xl border border-line bg-surface-2 px-4 py-3">
                 <UsersThree size={18} weight="light" className="mt-0.5 shrink-0 text-gold-600" />
@@ -142,11 +139,11 @@ export default function BroadcastsPage() {
                   <div className="font-medium text-ink">Получат: {audienceText}</div>
                   <div className="text-xs text-muted">
                     {AUDIENCE_HINT[audience]}
-                    {stateCode && stateOk ? ` Только с штатом ${stateCode} в профиле.` : ''} Пуш придёт тем, у кого включены уведомления; в приложении уведомление увидят все.
+                    {picked.length ? ' Только те, у кого в профиле или лицензиях один из выбранных штатов.' : ''} Пуш придёт тем, у кого включены уведомления; в приложении уведомление увидят все.
                   </div>
                 </div>
               </div>
-              {!stateOk ? <p className="text-xs text-danger">Штат — две латинские буквы, например IL.</p> : null}
+              {!stateOk ? <p className="text-xs text-danger">Выберите хотя бы один штат или включите «Все штаты».</p> : null}
               <ErrorNote text={send.error ? errorText(send.error) : null} />
               <div className="flex flex-wrap items-center justify-end gap-3 pt-1">
                 {send.data ? (
@@ -199,7 +196,7 @@ export default function BroadcastsPage() {
                 </Td>
                 <Td className="text-xs">
                   {AUDIENCE[b.audience as Audience] ?? b.audience}
-                  {b.stateCode ? `, ${b.stateCode}` : ''}
+                  {b.stateCodes.length ? `, ${b.stateCodes.join(', ')}` : b.stateCode ? `, ${b.stateCode}` : ''}
                 </Td>
                 <Td className="tabular-nums">{b.recipients.toLocaleString('ru-RU')}</Td>
                 <Td className="whitespace-nowrap text-xs">{formatDateTime(b.createdAt)}</Td>

@@ -48,7 +48,7 @@ class AttorneyTile extends ConsumerWidget {
           children: [
             GoldRingAvatar(
               url: row.avatarUrl,
-              initials: row.displayName.substring(0, 1).toUpperCase(),
+              initials: avatarInitials(row.displayName),
               size: 52,
               ring: row.verified,
             ),
@@ -158,7 +158,7 @@ class ClientTile extends ConsumerWidget {
           children: [
             GoldRingAvatar(
               url: row.avatarUrl,
-              initials: row.displayName.substring(0, 1).toUpperCase(),
+              initials: avatarInitials(row.displayName),
               size: 52,
             ),
             const SizedBox(width: AppSpacing.md),

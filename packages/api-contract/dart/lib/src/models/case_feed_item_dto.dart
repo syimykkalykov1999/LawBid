@@ -5,8 +5,10 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'case_budget_dto.dart';
+import 'case_dossier_dto.dart';
 import 'case_practice_area_dto.dart';
 import 'case_status.dart';
+import 'case_urgency.dart';
 
 part 'case_feed_item_dto.g.dart';
 
@@ -30,7 +32,10 @@ class CaseFeedItemDto {
     required this.shareCount,
     required this.isSaved,
     required this.promoted,
+    required this.dossier,
     this.city,
+    this.coverKey,
+    this.urgency,
   });
 
   factory CaseFeedItemDto.fromJson(Map<String, Object?> json) =>
@@ -47,6 +52,12 @@ class CaseFeedItemDto {
   final String? city;
   final CaseStatus status;
   final CaseBudgetDto budget;
+
+  /// Owner 2026-10-04: `art:0..3` / `icon:<name>`; null = from the id.
+  final String? coverKey;
+
+  /// Owner 2026-10-04: flexible | soon | urgent; null on older cases.
+  final CaseUrgency? urgency;
   final int viewCount;
   final int bidsCount;
   final DateTime createdAt;
@@ -68,6 +79,9 @@ class CaseFeedItemDto {
 
   /// Promoted by its client right now.
   final bool promoted;
+
+  /// Owner 2026-10-05: how complete the case is (counts only).
+  final CaseDossierDto dossier;
 
   Map<String, Object?> toJson() => _$CaseFeedItemDtoToJson(this);
 }

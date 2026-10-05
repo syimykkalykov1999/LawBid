@@ -24,6 +24,14 @@ AdminLicenseDto _$AdminLicenseDtoFromJson(Map<String, dynamic> json) =>
           ? null
           : DateTime.parse(json['verifiedAt'] as String),
       decidedBy: json['decidedBy'] as String?,
+      registryFlag: json['registryFlag'] == null
+          ? null
+          : AdminLicenseDtoRegistryFlag.fromJson(
+              json['registryFlag'] as String,
+            ),
+      registryFlaggedAt: json['registryFlaggedAt'] == null
+          ? null
+          : DateTime.parse(json['registryFlaggedAt'] as String),
     );
 
 Map<String, dynamic> _$AdminLicenseDtoToJson(AdminLicenseDto instance) =>
@@ -40,4 +48,6 @@ Map<String, dynamic> _$AdminLicenseDtoToJson(AdminLicenseDto instance) =>
       'rejectionNote': ?instance.rejectionNote,
       'verifiedAt': ?instance.verifiedAt?.toIso8601String(),
       'decidedBy': ?instance.decidedBy,
+      'registryFlag': ?instance.registryFlag?.toJson(),
+      'registryFlaggedAt': ?instance.registryFlaggedAt?.toIso8601String(),
     };

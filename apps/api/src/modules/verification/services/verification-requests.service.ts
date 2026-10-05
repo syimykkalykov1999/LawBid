@@ -39,10 +39,7 @@ import {
   SUBMISSION_WINDOW_MS,
   syncProfileStatus,
 } from '../verification.helpers';
-import {
-  SELF_ATTESTED_NOTE,
-  VerificationChecksService,
-} from './verification-checks.service';
+import { VerificationChecksService } from './verification-checks.service';
 
 type Tx = Prisma.TransactionClient;
 
@@ -484,7 +481,9 @@ export class VerificationRequestsService {
           'verification.self_attestation_auto_approve',
         ));
       if (selfAttested) {
-        await this.checks.approve(requestId, SELF_ATTESTED_NOTE);
+        // Owner 2026-10-05: then the state registries that are switched on
+        // check the numbers and flag differences for an admin.
+        await this.checks.approveSelfAttested(requestId);
       } else {
         await this.checks.runOnSubmit(requestId);
       }

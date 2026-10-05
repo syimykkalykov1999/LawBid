@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -95,8 +97,13 @@ class PracticeArt extends StatelessWidget {
     required this.categoryCode,
     this.practiceCode,
     this.imageUrl,
+    this.cover,
     super.key,
   });
+
+  /// Owner 2026-10-04: a case's own cover (CaseCover) in place of the
+  /// practice photo; [imageUrl] still wins.
+  final Widget? cover;
 
   final String? categoryCode;
 
@@ -149,13 +156,14 @@ class PracticeArt extends StatelessWidget {
             fit: BoxFit.cover,
             errorBuilder: (_, __, ___) => fallback(),
           )
-        : asset != null
-            ? Image.asset(
-                asset,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => fallback(),
-              )
-            : fallback();
+        : cover ??
+            (asset != null
+                ? Image.asset(
+                    asset,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => fallback(),
+                  )
+                : fallback());
 
     // Fade: transparent at the text side, visible at the right edge.
     return ExcludeSemantics(
@@ -184,11 +192,18 @@ class PracticePhoto extends StatelessWidget {
   const PracticePhoto({
     required this.categoryCode,
     this.practiceCode,
+    this.seed,
     super.key,
   });
 
   final String? categoryCode;
   final String? practiceCode;
+
+  /// Owner 2026-10-04: a case id. Each practice may have up to
+  /// [kPracticePhotoVariants] photos (`<code>.jpg`, `<code>_2.jpg`,
+  /// `<code>_3.jpg`); the id picks one so the feed does not repeat the
+  /// same picture. A variant not bundled falls back to `<code>.jpg`.
+  final String? seed;
 
   @override
   Widget build(BuildContext context) {
@@ -197,30 +212,77 @@ class PracticePhoto extends StatelessWidget {
       (c) => c != null && kPracticeArtAssets.contains(c),
       orElse: () => null,
     );
-    final panel = DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [colors.navy, colors.navy.withValues(alpha: 0.85)],
+    // Owner 2026-10-05: without a photo, a calm brand pattern with a
+    // small gold medallion — no giant glyph on flat navy.
+    final panel = Stack(
+      fit: StackFit.expand,
+      children: [
+        BrandPattern(seed: seed),
+        LayoutBuilder(
+          builder: (context, box) {
+            final side = box.biggest.shortestSide.isFinite
+                ? box.biggest.shortestSide
+                : 160.0;
+            final disc = math.min<double>(math.max(side * 0.3, 28), 64);
+            return Center(
+              child: Container(
+                width: disc,
+                height: disc,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      colors.gold.withValues(alpha: 0.22),
+                      colors.gold.withValues(alpha: 0.04),
+                    ],
+                  ),
+                  border: Border.all(
+                    color: colors.gold.withValues(alpha: 0.8),
+                    width: 1.2,
+                  ),
+                ),
+                child: Center(
+                  child: AppIcon(
+                    practiceGlyph(categoryCode),
+                    size: disc * 0.48,
+                    color: colors.goldLight,
+                  ),
+                ),
+              ),
+            );
+          },
         ),
-      ),
-      child: Center(
-        child: AppIcon(
-          practiceGlyph(categoryCode),
-          size: 72,
-          color: colors.goldLight,
-        ),
-      ),
+      ],
     );
     return ExcludeSemantics(
-      child: artKey == null
-          ? panel
-          : Image.asset(
-              'assets/practice_art/$artKey.jpg',
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => panel,
-            ),
+      child: artKey == null ? panel : _variant(artKey, panel),
     );
   }
+
+  Widget _variant(String artKey, Widget panel) {
+    Widget base() => Image.asset(
+          'assets/practice_art/$artKey.jpg',
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => panel,
+        );
+    final n = seed == null ? 0 : practicePhotoVariant(seed!);
+    if (n == 0) return base();
+    return Image.asset(
+      'assets/practice_art/${artKey}_${n + 1}.jpg',
+      fit: BoxFit.cover,
+      errorBuilder: (_, __, ___) => base(),
+    );
+  }
+}
+
+/// Photos per practice (the base one plus `_2`, `_3`).
+const int kPracticePhotoVariants = 3;
+
+/// FNV-1a over the id: the same case shows the same photo on every device.
+int practicePhotoVariant(String seed) {
+  var h = 0x811c9dc5;
+  for (final c in seed.codeUnits) {
+    h = ((h ^ c) * 0x01000193) & 0xffffffff;
+  }
+  return h % kPracticePhotoVariants;
 }

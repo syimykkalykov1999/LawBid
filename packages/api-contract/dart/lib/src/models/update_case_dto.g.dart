@@ -20,6 +20,13 @@ UpdateCaseDto _$UpdateCaseDtoFromJson(Map<String, dynamic> json) =>
           ? null
           : BudgetMode.fromJson(json['budgetMode'] as String),
       budgetAmountDollars: (json['budgetAmountDollars'] as num?)?.toInt(),
+      coverKey: json['coverKey'] as String?,
+      urgency: json['urgency'] == null
+          ? null
+          : CaseUrgency.fromJson(json['urgency'] as String),
+      photoFileIds: (json['photoFileIds'] as List<dynamic>?)
+          ?.map((e) => e as String)
+          .toList(),
     );
 
 Map<String, dynamic> _$UpdateCaseDtoToJson(UpdateCaseDto instance) =>
@@ -32,4 +39,7 @@ Map<String, dynamic> _$UpdateCaseDtoToJson(UpdateCaseDto instance) =>
       'city': ?instance.city,
       'budgetMode': ?instance.budgetMode?.toJson(),
       'budgetAmountDollars': ?instance.budgetAmountDollars,
+      'coverKey': ?instance.coverKey,
+      'urgency': ?instance.urgency?.toJson(),
+      'photoFileIds': ?instance.photoFileIds,
     };

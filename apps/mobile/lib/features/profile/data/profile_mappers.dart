@@ -38,7 +38,12 @@ abstract final class ProfileMappers {
         nameEn: d.nameEn,
         children: [
           for (final c in d.children)
-            PracticeLeaf(id: c.id, i18nKey: c.i18nKey, nameEn: c.nameEn),
+            PracticeLeaf(
+              id: c.id,
+              i18nKey: c.i18nKey,
+              nameEn: c.nameEn,
+              code: c.code,
+            ),
         ],
       );
 

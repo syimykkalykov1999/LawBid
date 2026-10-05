@@ -7818,6 +7818,297 @@
         ]
       }
     },
+    "/admin/verification/registry-flags": {
+      "get": {
+        "operationId": "listRegistryFlags",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegistryFlagItemListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Verified licenses the state registry disagreed with",
+        "tags": [
+          "admin-verification"
+        ]
+      }
+    },
+    "/admin/verification/licenses/{licenseId}/registry-check": {
+      "post": {
+        "operationId": "checkLicenseInRegistry",
+        "parameters": [
+          {
+            "name": "licenseId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegistryCheckEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Look the license up in its state's registry now (no status change)",
+        "tags": [
+          "admin-verification"
+        ]
+      }
+    },
+    "/admin/verification/licenses/{licenseId}/registry-flag/clear": {
+      "post": {
+        "operationId": "clearRegistryFlag",
+        "parameters": [
+          {
+            "name": "licenseId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminLicenseEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Keep the license; remove its registry flag",
+        "tags": [
+          "admin-verification"
+        ]
+      }
+    },
     "/admin/verification/attorneys/{attorneyId}/suspend": {
       "post": {
         "operationId": "suspendAttorney",
@@ -8059,6 +8350,440 @@
           }
         ],
         "summary": "Restore a suspended attorney",
+        "tags": [
+          "admin-verification"
+        ]
+      }
+    },
+    "/admin/verification/registries": {
+      "get": {
+        "operationId": "listStateRegistries",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StateRegistriesOverviewEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Every state with its registry settings",
+        "tags": [
+          "admin-verification"
+        ]
+      }
+    },
+    "/admin/verification/registries/{stateCode}": {
+      "put": {
+        "operationId": "saveStateRegistry",
+        "parameters": [
+          {
+            "name": "stateCode",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "minLength": 2,
+              "maxLength": 2,
+              "example": "NY",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveStateRegistryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StateRegistryEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable: INTEGRATIONS_NOT_CONFIGURED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Save a state's registry (needs step-up)",
+        "tags": [
+          "admin-verification"
+        ]
+      }
+    },
+    "/admin/verification/registries/{stateCode}/test": {
+      "post": {
+        "operationId": "testStateRegistry",
+        "parameters": [
+          {
+            "name": "stateCode",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "minLength": 2,
+              "maxLength": 2,
+              "example": "NY",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TestStateRegistryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegistryTestResultEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Look up a sample bar number with the saved settings",
+        "tags": [
+          "admin-verification"
+        ]
+      }
+    },
+    "/admin/verification/registries/{stateCode}/copy": {
+      "post": {
+        "operationId": "copyStateRegistry",
+        "parameters": [
+          {
+            "name": "stateCode",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "minLength": 2,
+              "maxLength": 2,
+              "example": "NY",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CopyStateRegistryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CopyStateRegistryResultEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Copy a state's registry and key to other states (needs step-up)",
         "tags": [
           "admin-verification"
         ]
@@ -24137,6 +24862,36 @@
             }
           },
           {
+            "name": "authorId",
+            "required": false,
+            "in": "query",
+            "description": "Only this author.",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "description": "Created at or after (inclusive).",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "description": "Created before (exclusive).",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
             "name": "kind",
             "required": false,
             "in": "query",
@@ -24354,6 +25109,36 @@
             }
           },
           {
+            "name": "authorId",
+            "required": false,
+            "in": "query",
+            "description": "Only this author.",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "description": "Created at or after (inclusive).",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "description": "Created before (exclusive).",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
             "name": "thread",
             "required": false,
             "in": "query",
@@ -24555,6 +25340,36 @@
             "in": "query",
             "schema": {
               "maxLength": 300,
+              "type": "string"
+            }
+          },
+          {
+            "name": "authorId",
+            "required": false,
+            "in": "query",
+            "description": "Only this author.",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "description": "Created at or after (inclusive).",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "description": "Created before (exclusive).",
+            "schema": {
+              "format": "date-time",
               "type": "string"
             }
           }
@@ -25206,6 +26021,36 @@
             }
           },
           {
+            "name": "authorId",
+            "required": false,
+            "in": "query",
+            "description": "Only this author.",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "description": "Created at or after (inclusive).",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "description": "Created before (exclusive).",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
             "name": "status",
             "required": false,
             "in": "query",
@@ -25532,6 +26377,103 @@
           }
         ],
         "summary": "Show a hidden / removed review of a client",
+        "tags": [
+          "admin-content"
+        ]
+      }
+    },
+    "/admin/content/bulk": {
+      "post": {
+        "operationId": "bulkAdminContent",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminBulkContentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBulkResultEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Remove, hide or restore many posts / comments / reviews with one reason (authors notified; one audit row per batch)",
         "tags": [
           "admin-content"
         ]
@@ -26211,6 +27153,26 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "description": "Uploaded at or after (inclusive).",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "description": "Uploaded before (exclusive).",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -26488,6 +27450,103 @@
           }
         ],
         "summary": "Take a video down: its post is removed (author told why), the asset deleted",
+        "tags": [
+          "admin-media"
+        ]
+      }
+    },
+    "/admin/media/videos/bulk-takedown": {
+      "post": {
+        "operationId": "bulkTakedownAdminVideos",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminBulkReasonDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBulkResultEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Take many videos down with one reason (posts removed, authors told why)",
         "tags": [
           "admin-media"
         ]
@@ -26841,6 +27900,200 @@
           }
         ],
         "summary": "A pack with its stickers and image links",
+        "tags": [
+          "admin-media"
+        ]
+      }
+    },
+    "/admin/media/sticker-packs/bulk-hide": {
+      "post": {
+        "operationId": "bulkHideAdminStickerPacks",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminBulkReasonDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBulkResultEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Hide many packs with one reason (authors told why)",
+        "tags": [
+          "admin-media"
+        ]
+      }
+    },
+    "/admin/media/sticker-packs/bulk-unhide": {
+      "post": {
+        "operationId": "bulkUnhideAdminStickerPacks",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminBulkReasonDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBulkResultEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Make many hidden packs available again",
         "tags": [
           "admin-media"
         ]
@@ -48431,6 +49684,21 @@
             "type": "string",
             "nullable": true,
             "format": "uuid"
+          },
+          "registryFlag": {
+            "nullable": true,
+            "enum": [
+              "name_mismatch",
+              "not_found",
+              "not_active"
+            ],
+            "type": "string",
+            "description": "Owner 2026-10-05: the state registry disagreed with this verified license (it stays verified)."
+          },
+          "registryFlaggedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
           }
         },
         "required": [
@@ -48445,7 +49713,9 @@
           "rejectionCode",
           "rejectionNote",
           "verifiedAt",
-          "decidedBy"
+          "decidedBy",
+          "registryFlag",
+          "registryFlaggedAt"
         ]
       },
       "ScanStatus": {
@@ -48900,6 +50170,97 @@
           "data"
         ]
       },
+      "RegistryFlagItemDto": {
+        "type": "object",
+        "properties": {
+          "attorney": {
+            "$ref": "#/components/schemas/AdminAttorneySummaryDto"
+          },
+          "license": {
+            "$ref": "#/components/schemas/AdminLicenseDto"
+          },
+          "latestRequestId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid",
+            "description": "The attorney's latest verification request (its card)."
+          }
+        },
+        "required": [
+          "attorney",
+          "license",
+          "latestRequestId"
+        ]
+      },
+      "RegistryFlagItemListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RegistryFlagItemDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "RegistryCheckDto": {
+        "type": "object",
+        "properties": {
+          "license": {
+            "$ref": "#/components/schemas/AdminLicenseDto"
+          },
+          "result": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CheckResult"
+              }
+            ]
+          },
+          "details": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "required": [
+          "license",
+          "result",
+          "details"
+        ]
+      },
+      "RegistryCheckEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/RegistryCheckDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AdminLicenseEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminLicenseDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
       "AttorneyVerificationStatusDto": {
         "type": "object",
         "properties": {
@@ -48942,6 +50303,364 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/AttorneyVerificationStatusDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "RegistryFieldDescriptorDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "placeholder": {
+            "type": "string"
+          },
+          "help": {
+            "type": "string"
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "name",
+          "label",
+          "required"
+        ]
+      },
+      "RegistryAdapterDescriptorDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "enum": [
+              "manual",
+              "ny_open_data",
+              "socrata",
+              "generic_rest"
+            ],
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RegistryFieldDescriptorDto"
+            }
+          },
+          "secret": {
+            "enum": [
+              "none",
+              "optional",
+              "required"
+            ],
+            "type": "string"
+          },
+          "secretLabel": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "label",
+          "description",
+          "fields",
+          "secret"
+        ]
+      },
+      "StateRegistryDto": {
+        "type": "object",
+        "properties": {
+          "stateCode": {
+            "type": "string",
+            "example": "NY"
+          },
+          "stateName": {
+            "type": "string",
+            "example": "New York"
+          },
+          "adapter": {
+            "enum": [
+              "manual",
+              "ny_open_data",
+              "socrata",
+              "generic_rest"
+            ],
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Licenses of this state are checked automatically."
+          },
+          "config": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Non-secret settings of the adapter."
+          },
+          "hasSecret": {
+            "type": "boolean"
+          },
+          "secretMasked": {
+            "type": "string",
+            "nullable": true,
+            "example": "••••a1b2"
+          },
+          "testBarNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastTestAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "lastTestResult": {
+            "type": "object",
+            "additionalProperties": true,
+            "nullable": true
+          },
+          "updatedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "stateCode",
+          "stateName",
+          "adapter",
+          "enabled",
+          "config",
+          "hasSecret",
+          "secretMasked",
+          "testBarNumber",
+          "lastTestAt",
+          "lastTestResult",
+          "updatedAt"
+        ]
+      },
+      "StateRegistriesOverviewDto": {
+        "type": "object",
+        "properties": {
+          "secretsEnabled": {
+            "type": "boolean",
+            "description": "The server can store keys (master key set)."
+          },
+          "adapterTypes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RegistryAdapterDescriptorDto"
+            }
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StateRegistryDto"
+            }
+          }
+        },
+        "required": [
+          "secretsEnabled",
+          "adapterTypes",
+          "items"
+        ]
+      },
+      "StateRegistriesOverviewEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/StateRegistriesOverviewDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "SaveStateRegistryDto": {
+        "type": "object",
+        "properties": {
+          "adapter": {
+            "enum": [
+              "manual",
+              "ny_open_data",
+              "socrata",
+              "generic_rest"
+            ],
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "config": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "secret": {
+            "type": "string",
+            "maxLength": 4000,
+            "description": "A new key; empty keeps the saved one."
+          },
+          "clearSecret": {
+            "type": "boolean"
+          },
+          "testBarNumber": {
+            "type": "string",
+            "maxLength": 40
+          }
+        },
+        "required": [
+          "adapter",
+          "enabled"
+        ]
+      },
+      "StateRegistryEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/StateRegistryDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "RegistryTestResultDto": {
+        "type": "object",
+        "properties": {
+          "result": {
+            "enum": [
+              "pass",
+              "fail",
+              "manual_review",
+              "error"
+            ],
+            "type": "string"
+          },
+          "details": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "testedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "result",
+          "details",
+          "error",
+          "testedAt"
+        ]
+      },
+      "TestStateRegistryDto": {
+        "type": "object",
+        "properties": {
+          "barNumber": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40,
+            "example": "1234567"
+          },
+          "firstName": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "lastName": {
+            "type": "string",
+            "maxLength": 100
+          }
+        },
+        "required": [
+          "barNumber"
+        ]
+      },
+      "RegistryTestResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/RegistryTestResultDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "CopyStateRegistryResultDto": {
+        "type": "object",
+        "properties": {
+          "copied": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "copied"
+        ]
+      },
+      "CopyStateRegistryDto": {
+        "type": "object",
+        "properties": {
+          "states": {
+            "maxItems": 51,
+            "example": [
+              "CA",
+              "TX"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 2,
+              "minLength": 2
+            }
+          }
+        },
+        "required": [
+          "states"
+        ]
+      },
+      "CopyStateRegistryResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CopyStateRegistryResultDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
@@ -50157,6 +51876,32 @@
             "type": "boolean",
             "description": "A paid / granted promotion is running."
           },
+          "imagesCount": {
+            "type": "integer",
+            "description": "Owner 2026-10-05: the case dossier (\"4 of 6\")."
+          },
+          "documentsCount": {
+            "type": "integer"
+          },
+          "dossierScore": {
+            "type": "integer",
+            "description": "Filled-in items, 0–6."
+          },
+          "dossierMissing": {
+            "type": "array",
+            "description": "Dossier items the client has not filled in.",
+            "items": {
+              "type": "string",
+              "enum": [
+                "description",
+                "city",
+                "urgency",
+                "budget",
+                "documents",
+                "photos"
+              ]
+            }
+          },
           "lastActivityAt": {
             "type": "string",
             "format": "date-time"
@@ -50180,6 +51925,10 @@
           "viewCount",
           "openReports",
           "promoted",
+          "imagesCount",
+          "documentsCount",
+          "dossierScore",
+          "dossierMissing",
           "lastActivityAt",
           "createdAt"
         ]
@@ -50323,6 +52072,32 @@
             "type": "boolean",
             "description": "A paid / granted promotion is running."
           },
+          "imagesCount": {
+            "type": "integer",
+            "description": "Owner 2026-10-05: the case dossier (\"4 of 6\")."
+          },
+          "documentsCount": {
+            "type": "integer"
+          },
+          "dossierScore": {
+            "type": "integer",
+            "description": "Filled-in items, 0–6."
+          },
+          "dossierMissing": {
+            "type": "array",
+            "description": "Dossier items the client has not filled in.",
+            "items": {
+              "type": "string",
+              "enum": [
+                "description",
+                "city",
+                "urgency",
+                "budget",
+                "documents",
+                "photos"
+              ]
+            }
+          },
           "lastActivityAt": {
             "type": "string",
             "format": "date-time"
@@ -50424,6 +52199,10 @@
           "viewCount",
           "openReports",
           "promoted",
+          "imagesCount",
+          "documentsCount",
+          "dossierScore",
+          "dossierMissing",
           "lastActivityAt",
           "createdAt",
           "description",
@@ -54129,6 +55908,15 @@
           "clarify_later"
         ]
       },
+      "CaseUrgency": {
+        "type": "string",
+        "enum": [
+          "flexible",
+          "soon",
+          "urgent"
+        ],
+        "description": "Owner 2026-10-04: flexible | soon | urgent; null on older cases."
+      },
       "CaseStatus": {
         "type": "string",
         "enum": [
@@ -54180,6 +55968,21 @@
           "budgetCents": {
             "type": "integer",
             "nullable": true
+          },
+          "coverKey": {
+            "type": "string",
+            "nullable": true,
+            "description": "Owner 2026-10-04: `art:0..3` / `icon:<name>`; null = from the id.",
+            "example": "art:2"
+          },
+          "urgency": {
+            "nullable": true,
+            "description": "Owner 2026-10-04: flexible | soon | urgent; null on older cases.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CaseUrgency"
+              }
+            ]
           },
           "status": {
             "allOf": [
@@ -54303,6 +56106,22 @@
           "clientContactSharingConsent": {
             "type": "boolean",
             "description": "Must be true unless the client already granted client_contact_sharing on an earlier case."
+          },
+          "coverKey": {
+            "type": "string",
+            "nullable": true,
+            "description": "`art:0`-`art:3` (practice cover variant) or `icon:<name>`.",
+            "pattern": "^(art:[0-3]|icon:[a-z_]{2,32})$",
+            "example": "art:2"
+          },
+          "urgency": {
+            "nullable": true,
+            "description": "Owner 2026-10-04: how soon the client needs an attorney.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CaseUrgency"
+              }
+            ]
           }
         },
         "required": [
@@ -54374,6 +56193,32 @@
             "type": "integer",
             "minimum": 1,
             "maximum": 10000000
+          },
+          "coverKey": {
+            "type": "string",
+            "nullable": true,
+            "description": "`art:0`-`art:3` (practice cover variant) or `icon:<name>`.",
+            "pattern": "^(art:[0-3]|icon:[a-z_]{2,32})$",
+            "example": "art:2"
+          },
+          "urgency": {
+            "nullable": true,
+            "description": "Owner 2026-10-04: how soon the client needs an attorney.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CaseUrgency"
+              }
+            ]
+          },
+          "photoFileIds": {
+            "description": "Full set of clean case_photo / case_attachment file ids (0-9), display order.",
+            "uniqueItems": true,
+            "maxItems": 9,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
           }
         }
       },
@@ -54450,6 +56295,21 @@
           "budgetCents": {
             "type": "integer",
             "nullable": true
+          },
+          "coverKey": {
+            "type": "string",
+            "nullable": true,
+            "description": "Owner 2026-10-04: `art:0..3` / `icon:<name>`; null = from the id.",
+            "example": "art:2"
+          },
+          "urgency": {
+            "nullable": true,
+            "description": "Owner 2026-10-04: flexible | soon | urgent; null on older cases.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CaseUrgency"
+              }
+            ]
           },
           "bidsCount": {
             "type": "integer"
@@ -54555,6 +56415,28 @@
           "mode"
         ]
       },
+      "CaseDossierDto": {
+        "type": "object",
+        "properties": {
+          "imagesCount": {
+            "type": "integer",
+            "description": "Attached photos (image/*)."
+          },
+          "documentsCount": {
+            "type": "integer",
+            "description": "Attached documents (PDF, Word…)."
+          },
+          "descriptionLength": {
+            "type": "integer",
+            "description": "Length of the full description, in characters."
+          }
+        },
+        "required": [
+          "imagesCount",
+          "documentsCount",
+          "descriptionLength"
+        ]
+      },
       "CaseFeedItemDto": {
         "type": "object",
         "properties": {
@@ -54599,6 +56481,21 @@
           "budget": {
             "$ref": "#/components/schemas/CaseBudgetDto"
           },
+          "coverKey": {
+            "type": "string",
+            "nullable": true,
+            "description": "Owner 2026-10-04: `art:0..3` / `icon:<name>`; null = from the id.",
+            "example": "art:2"
+          },
+          "urgency": {
+            "nullable": true,
+            "description": "Owner 2026-10-04: flexible | soon | urgent; null on older cases.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CaseUrgency"
+              }
+            ]
+          },
           "viewCount": {
             "type": "integer"
           },
@@ -54632,6 +56529,14 @@
           "promoted": {
             "type": "boolean",
             "description": "Promoted by its client right now."
+          },
+          "dossier": {
+            "description": "Owner 2026-10-05: how complete the case is (counts only).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CaseDossierDto"
+              }
+            ]
           }
         },
         "required": [
@@ -54651,7 +56556,8 @@
           "commentCount",
           "shareCount",
           "isSaved",
-          "promoted"
+          "promoted",
+          "dossier"
         ]
       },
       "CaseFeedItemListEnvelope": {
@@ -54745,6 +56651,21 @@
           "budget": {
             "$ref": "#/components/schemas/CaseBudgetDto"
           },
+          "coverKey": {
+            "type": "string",
+            "nullable": true,
+            "description": "Owner 2026-10-04: `art:0..3` / `icon:<name>`; null = from the id.",
+            "example": "art:2"
+          },
+          "urgency": {
+            "nullable": true,
+            "description": "Owner 2026-10-04: flexible | soon | urgent; null on older cases.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CaseUrgency"
+              }
+            ]
+          },
           "viewCount": {
             "type": "integer"
           },
@@ -54778,6 +56699,14 @@
           "promoted": {
             "type": "boolean",
             "description": "Promoted by its client right now."
+          },
+          "dossier": {
+            "description": "Owner 2026-10-05: how complete the case is (counts only).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CaseDossierDto"
+              }
+            ]
           },
           "description": {
             "type": "string"
@@ -54834,6 +56763,7 @@
           "shareCount",
           "isSaved",
           "promoted",
+          "dossier",
           "description",
           "photos",
           "photosCount",
@@ -55378,6 +57308,21 @@
           "budgetCents": {
             "type": "integer",
             "nullable": true
+          },
+          "coverKey": {
+            "type": "string",
+            "nullable": true,
+            "description": "Owner 2026-10-04: `art:0..3` / `icon:<name>`; null = from the id.",
+            "example": "art:2"
+          },
+          "urgency": {
+            "nullable": true,
+            "description": "Owner 2026-10-04: flexible | soon | urgent; null on older cases.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CaseUrgency"
+              }
+            ]
           },
           "status": {
             "allOf": [
@@ -58207,8 +60152,17 @@
             "type": "string",
             "nullable": true
           },
+          "attorneyId": {
+            "type": "string",
+            "format": "uuid"
+          },
           "attorneyName": {
             "type": "string"
+          },
+          "clientId": {
+            "type": "string",
+            "description": "The review's author.",
+            "format": "uuid"
           },
           "clientName": {
             "type": "string"
@@ -58233,7 +60187,9 @@
         "required": [
           "id",
           "rating",
+          "attorneyId",
           "attorneyName",
+          "clientId",
           "clientName",
           "status",
           "createdAt"
@@ -58360,6 +60316,123 @@
             "items": {
               "$ref": "#/components/schemas/AdminClientReviewRowDto"
             }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AdminBulkSkippedDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "not_found",
+              "invalid_state",
+              "failed"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "reason"
+        ]
+      },
+      "AdminBulkResultDto": {
+        "type": "object",
+        "properties": {
+          "done": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "skipped": {
+            "description": "Ids that were missing or not in a state to change.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminBulkSkippedDto"
+            }
+          }
+        },
+        "required": [
+          "done",
+          "skipped"
+        ]
+      },
+      "AdminBulkContentAction": {
+        "type": "string",
+        "enum": [
+          "remove",
+          "hide",
+          "restore"
+        ],
+        "description": "remove: posts and comments (the author is told why); hide: any type (the author is told why); restore: back to visible."
+      },
+      "AdminBulkContentType": {
+        "type": "string",
+        "enum": [
+          "post",
+          "comment",
+          "case_comment",
+          "review",
+          "client_review"
+        ]
+      },
+      "AdminBulkContentDto": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 500
+          },
+          "ids": {
+            "minItems": 1,
+            "maxItems": 500,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "action": {
+            "description": "remove: posts and comments (the author is told why); hide: any type (the author is told why); restore: back to visible.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AdminBulkContentAction"
+              }
+            ]
+          },
+          "type": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AdminBulkContentType"
+              }
+            ]
+          }
+        },
+        "required": [
+          "reason",
+          "ids",
+          "action",
+          "type"
+        ]
+      },
+      "AdminBulkResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminBulkResultDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
@@ -58562,6 +60635,13 @@
             "type": "string",
             "nullable": true
           },
+          "stateCodes": {
+            "description": "The chosen states (empty = every state).",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "recipients": {
             "type": "integer"
           },
@@ -58574,6 +60654,7 @@
           "title",
           "body",
           "audience",
+          "stateCodes",
           "recipients",
           "createdAt"
         ]
@@ -58626,7 +60707,21 @@
             "type": "string",
             "pattern": "^[A-Z]{2}$",
             "example": "IL",
-            "description": "Only this state."
+            "description": "Only this state (older clients; prefer stateCodes)."
+          },
+          "stateCodes": {
+            "maxItems": 60,
+            "example": [
+              "IL",
+              "NY",
+              "CA"
+            ],
+            "description": "Owner 2026-10-04: only these states (empty or missing = every state). Wins over stateCode.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Z]{2}$"
+            }
           }
         },
         "required": [
@@ -58848,6 +60943,29 @@
         },
         "required": [
           "reason"
+        ]
+      },
+      "AdminBulkReasonDto": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 500
+          },
+          "ids": {
+            "minItems": 1,
+            "maxItems": 500,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "required": [
+          "reason",
+          "ids"
         ]
       },
       "AdminStickerPackRowDto": {

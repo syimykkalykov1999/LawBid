@@ -175,7 +175,7 @@ class _CommentTileState extends ConsumerState<CommentTile> {
                     url: a.avatarUrl,
                     initials: a.displayName.isEmpty
                         ? '?'
-                        : a.displayName.substring(0, 1).toUpperCase(),
+                        : avatarInitials(a.displayName),
                     size: avatarSize,
                     ring: a.verified,
                   ),
@@ -233,49 +233,55 @@ class _CommentTileState extends ConsumerState<CommentTile> {
                         mentions: _c.mentions,
                         height: 1.4,
                       ),
-                      // Wrap: "Reply" and "Show replies (n)" move to two
-                      // lines when a translation doesn't fit on one.
-                      Wrap(
-                        spacing: AppSpacing.lg,
+                      // One row; long translations shrink, nothing moves.
+                      Row(
                         children: [
-                          TextButton(
-                            onPressed: () => widget.onReply(
-                              (
-                                parentId: _c.parentId ?? _c.id,
-                                name: a.username ?? a.displayName,
+                          Flexible(
+                            child: TextButton(
+                              onPressed: () => widget.onReply(
+                                (
+                                  parentId: _c.parentId ?? _c.id,
+                                  name: a.username ?? a.displayName,
+                                ),
                               ),
-                            ),
-                            style: TextButton.styleFrom(
-                              padding: EdgeInsets.zero,
-                              minimumSize: const Size(0, AppSizes.touchTarget),
-                              foregroundColor: colors.textSecondary,
-                            ),
-                            child: Text(t.t('comment.reply')),
-                          ),
-                          if (!widget.isReply && _c.replyCount > 0)
-                            TextButton(
-                              onPressed: () =>
-                                  setState(() => _showReplies = !_showReplies),
                               style: TextButton.styleFrom(
                                 padding: EdgeInsets.zero,
                                 minimumSize:
                                     const Size(0, AppSizes.touchTarget),
                                 foregroundColor: colors.textSecondary,
                               ),
-                              child: Text(
-                                t.t(
-                                  _showReplies
-                                      ? 'comment.hideReplies'
-                                      : 'comment.showReplies',
-                                  {
-                                    'count': SocialFormat.count(
-                                      ref.watch(l10nFormatsProvider),
-                                      _c.replyCount,
-                                    ),
-                                  },
+                              child: FitText(t.t('comment.reply')),
+                            ),
+                          ),
+                          if (!widget.isReply && _c.replyCount > 0) ...[
+                            const SizedBox(width: AppSpacing.lg),
+                            Flexible(
+                              child: TextButton(
+                                onPressed: () => setState(
+                                  () => _showReplies = !_showReplies,
+                                ),
+                                style: TextButton.styleFrom(
+                                  padding: EdgeInsets.zero,
+                                  minimumSize:
+                                      const Size(0, AppSizes.touchTarget),
+                                  foregroundColor: colors.textSecondary,
+                                ),
+                                child: FitText(
+                                  t.t(
+                                    _showReplies
+                                        ? 'comment.hideReplies'
+                                        : 'comment.showReplies',
+                                    {
+                                      'count': SocialFormat.count(
+                                        ref.watch(l10nFormatsProvider),
+                                        _c.replyCount,
+                                      ),
+                                    },
+                                  ),
                                 ),
                               ),
                             ),
+                          ],
                         ],
                       ),
                     ],

@@ -21,6 +21,12 @@ AdminCaseRowDto _$AdminCaseRowDtoFromJson(Map<String, dynamic> json) =>
       viewCount: (json['viewCount'] as num).toInt(),
       openReports: (json['openReports'] as num).toInt(),
       promoted: json['promoted'] as bool,
+      imagesCount: (json['imagesCount'] as num).toInt(),
+      documentsCount: (json['documentsCount'] as num).toInt(),
+      dossierScore: (json['dossierScore'] as num).toInt(),
+      dossierMissing: (json['dossierMissing'] as List<dynamic>)
+          .map((e) => AdminCaseRowDtoDossierMissing.fromJson(e as String))
+          .toList(),
       lastActivityAt: DateTime.parse(json['lastActivityAt'] as String),
       createdAt: DateTime.parse(json['createdAt'] as String),
     );
@@ -40,6 +46,10 @@ Map<String, dynamic> _$AdminCaseRowDtoToJson(AdminCaseRowDto instance) =>
       'viewCount': instance.viewCount,
       'openReports': instance.openReports,
       'promoted': instance.promoted,
+      'imagesCount': instance.imagesCount,
+      'documentsCount': instance.documentsCount,
+      'dossierScore': instance.dossierScore,
+      'dossierMissing': instance.dossierMissing.map((e) => e.toJson()).toList(),
       'lastActivityAt': instance.lastActivityAt.toIso8601String(),
       'createdAt': instance.createdAt.toIso8601String(),
     };

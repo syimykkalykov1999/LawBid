@@ -231,11 +231,23 @@ describe('AdminCaseManagementService.list', () => {
       view_count: 5,
       last_activity_at: new Date('2026-10-01T00:00:00Z'),
       created_at: new Date('2026-10-01T00:00:00Z'),
+      description: 'Short story.',
+      city: 'Chicago',
+      urgency: 'soon',
+      budget_mode: 'amount',
+      budget_cents: 100000,
       client: { first_name: 'Ann', last_name: 'Lee' },
       practice_area: { name_en: 'Family law' },
     };
     const prisma = {
       case: { findMany: jest.fn().mockResolvedValue([row]) },
+      casePhoto: {
+        findMany: jest.fn().mockResolvedValue([
+          { case_id: CASE_ID, file: { mime: 'image/jpeg' } },
+          { case_id: CASE_ID, file: { mime: 'application/pdf' } },
+          { case_id: CASE_ID, file: { mime: 'application/pdf' } },
+        ]),
+      },
       report: {
         findMany: jest.fn().mockResolvedValue([{ target_id: CASE_ID }]),
         groupBy: jest
@@ -274,6 +286,11 @@ describe('AdminCaseManagementService.list', () => {
       practiceAreaName: 'Family law',
       openReports: 3,
       promoted: true,
+      // Owner 2026-10-05: the dossier — only the short description misses.
+      imagesCount: 1,
+      documentsCount: 2,
+      dossierScore: 5,
+      dossierMissing: ['description'],
     });
     expect(page.nextCursor).toBeNull();
   });

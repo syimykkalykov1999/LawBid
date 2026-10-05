@@ -13,7 +13,10 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { withDeleted } from '../../prisma/soft-delete.extension';
 import { AuditLogService } from '../admin-access/audit-log.service';
 import type { AdminActor } from '../admin-auth/admin-auth.decorators';
-import { AdminContentService } from '../admin-content/admin-content.service';
+import {
+  AdminContentService,
+  createdWindow,
+} from '../admin-content/admin-content.service';
 import { VideosService } from '../videos/videos.service';
 import type {
   AdminVideoRowDto,
@@ -51,12 +54,14 @@ export class AdminVideosService {
     status?: AdminVideoStatus,
     ownerId?: string,
     cursor?: string,
+    window: { from?: string; to?: string } = {},
   ): Promise<Page<AdminVideoRowDto>> {
     const c = cursor ? decodeCursor(cursor) : undefined;
     // withDeleted: the admin sees taken-down / deleted assets too.
     const where: Prisma.VideoAssetWhereInput = withDeleted({
       ...(status ? { status } : {}),
       ...(ownerId ? { owner_user_id: ownerId } : {}),
+      ...createdWindow(window),
       ...(c
         ? {
             OR: [

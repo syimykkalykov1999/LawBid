@@ -15,6 +15,10 @@ abstract final class CaseLimits {
   static const budgetMaxDollars = 10000000;
 }
 
+/// Owner 2026-10-04: what the urgency control shows (and sends) until the
+/// client picks.
+const String kDefaultCaseUrgency = 'flexible';
+
 /// The case wizard's working copy (docs/04 §3.1). Stored only locally
 /// until published — there are no server drafts.
 @immutable
@@ -31,7 +35,19 @@ class CaseDraft {
     this.budgetIsAmount = false,
     this.budgetDollars,
     this.step = 0,
+    this.practiceCode,
+    this.coverKey,
+    this.urgency,
   });
+
+  /// The leaf code (`family_law.divorce`) — previews the covers.
+  final String? practiceCode;
+
+  /// Owner 2026-10-04: `art:N` / `icon:<name>`; null = automatic.
+  final String? coverKey;
+
+  /// Owner 2026-10-04: flexible | soon | urgent (API values).
+  final String? urgency;
 
   final String? practiceAreaId;
   final String? practiceI18nKey;
@@ -90,6 +106,10 @@ class CaseDraft {
     int? budgetDollars,
     bool clearBudgetDollars = false,
     int? step,
+    String? practiceCode,
+    String? coverKey,
+    bool clearCoverKey = false,
+    String? urgency,
   }) =>
       CaseDraft(
         practiceAreaId: practiceAreaId ?? this.practiceAreaId,
@@ -104,6 +124,9 @@ class CaseDraft {
         budgetDollars:
             clearBudgetDollars ? null : (budgetDollars ?? this.budgetDollars),
         step: step ?? this.step,
+        practiceCode: practiceCode ?? this.practiceCode,
+        coverKey: clearCoverKey ? null : (coverKey ?? this.coverKey),
+        urgency: urgency ?? this.urgency,
       );
 
   Map<String, Object?> toJson() => {
@@ -118,6 +141,9 @@ class CaseDraft {
         'budgetIsAmount': budgetIsAmount,
         'budgetDollars': budgetDollars,
         'step': step,
+        'practiceCode': practiceCode,
+        'coverKey': coverKey,
+        'urgency': urgency,
       };
 
   String encode() => jsonEncode(toJson());
@@ -141,6 +167,9 @@ class CaseDraft {
         budgetIsAmount: (m['budgetIsAmount'] as bool?) ?? false,
         budgetDollars: m['budgetDollars'] as int?,
         step: (m['step'] as int?) ?? 0,
+        practiceCode: m['practiceCode'] as String?,
+        coverKey: m['coverKey'] as String?,
+        urgency: m['urgency'] as String?,
       );
     } on Object {
       return null; // A corrupt draft is dropped, never crashes the wizard.

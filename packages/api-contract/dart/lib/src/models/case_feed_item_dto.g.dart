@@ -29,7 +29,12 @@ CaseFeedItemDto _$CaseFeedItemDtoFromJson(Map<String, dynamic> json) =>
       shareCount: (json['shareCount'] as num).toInt(),
       isSaved: json['isSaved'] as bool,
       promoted: json['promoted'] as bool,
+      dossier: CaseDossierDto.fromJson(json['dossier'] as Map<String, dynamic>),
       city: json['city'] as String?,
+      coverKey: json['coverKey'] as String?,
+      urgency: json['urgency'] == null
+          ? null
+          : CaseUrgency.fromJson(json['urgency'] as String),
     );
 
 Map<String, dynamic> _$CaseFeedItemDtoToJson(CaseFeedItemDto instance) =>
@@ -43,6 +48,8 @@ Map<String, dynamic> _$CaseFeedItemDtoToJson(CaseFeedItemDto instance) =>
       'city': ?instance.city,
       'status': instance.status.toJson(),
       'budget': instance.budget.toJson(),
+      'coverKey': ?instance.coverKey,
+      'urgency': ?instance.urgency?.toJson(),
       'viewCount': instance.viewCount,
       'bidsCount': instance.bidsCount,
       'createdAt': instance.createdAt.toIso8601String(),
@@ -52,4 +59,5 @@ Map<String, dynamic> _$CaseFeedItemDtoToJson(CaseFeedItemDto instance) =>
       'shareCount': instance.shareCount,
       'isSaved': instance.isSaved,
       'promoted': instance.promoted,
+      'dossier': instance.dossier.toJson(),
     };

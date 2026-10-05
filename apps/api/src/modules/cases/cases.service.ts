@@ -22,6 +22,7 @@ import { BidStateMachine } from '../bids/domain/bid-state-machine';
 import { NotificationsService } from '../notifications/notifications.service';
 import { OnboardingService } from '../users/services/onboarding.service';
 import { CaseStateMachine, caseNotFound } from './domain/case-state-machine';
+import type { CaseUrgency } from './domain/case-cover';
 import {
   validateCaseStates,
   type CaseStateInput,
@@ -149,6 +150,8 @@ function toCaseDto(kase: CaseWithDetails): CaseDto {
     city: kase.city,
     budgetMode: kase.budget_mode,
     budgetCents: kase.budget_cents,
+    coverKey: kase.cover_key,
+    urgency: kase.urgency as CaseUrgency | null,
     status: kase.status,
     viewCount: kase.view_count,
     bidsCount: kase.bids_count,
@@ -179,6 +182,8 @@ function toSummaryDto(kase: CaseWithPracticeAndStates): CaseSummaryDto {
     status: kase.status,
     budgetMode: kase.budget_mode,
     budgetCents: kase.budget_cents,
+    coverKey: kase.cover_key,
+    urgency: kase.urgency as CaseUrgency | null,
     bidsCount: kase.bids_count,
     createdAt: kase.created_at.toISOString(),
     lastActivityAt: kase.last_activity_at.toISOString(),
@@ -258,6 +263,8 @@ export class CasesService {
           city: dto.city ?? null,
           budget_mode: dto.budgetMode,
           budget_cents: budgetCents,
+          cover_key: dto.coverKey ?? null,
+          urgency: dto.urgency ?? null,
           status: 'open',
           last_activity_at: now,
         },
@@ -341,15 +348,25 @@ export class CasesService {
     const practiceArea = hasPracticeChange
       ? await this.assertLeafPracticeArea(dto.practiceAreaId as string)
       : null;
+    // Owner 2026-10-05: files can be added/removed while the case is open.
+    if (dto.photoFileIds) {
+      await this.photos.assertAttachable(user.sub, dto.photoFileIds);
+    }
 
     const updated = await withTxRetry(this.prisma, async (tx) => {
       const current = await tx.case.findUnique({
         where: { id: caseId },
         include: {
           states: { select: { state_code: true, is_primary: true } },
+          photos: { orderBy: { position: 'asc' }, select: { file_id: true } },
         },
       });
       if (!current || current.client_id !== user.sub) throw caseNotFound();
+      const currentFiles = current.photos.map((p) => p.file_id);
+      const filesChanged =
+        dto.photoFileIds !== undefined &&
+        (dto.photoFileIds.length !== currentFiles.length ||
+          dto.photoFileIds.some((id, i) => id !== currentFiles[i]));
       if ((hasPracticeChange || hasStatesChange) && current.bids_count > 0) {
         throw statesLocked();
       }
@@ -408,6 +425,15 @@ export class CasesService {
           };
         }
       }
+      // Owner 2026-10-04: cover and urgency; null clears.
+      if (dto.coverKey !== undefined && dto.coverKey !== current.cover_key) {
+        extra.cover_key = dto.coverKey;
+        diff.coverKey = { old: current.cover_key, new: dto.coverKey };
+      }
+      if (dto.urgency !== undefined && dto.urgency !== current.urgency) {
+        extra.urgency = dto.urgency;
+        diff.urgency = { old: current.urgency, new: dto.urgency };
+      }
       if (
         hasPracticeChange &&
         dto.practiceAreaId !== current.practice_area_id
@@ -416,6 +442,12 @@ export class CasesService {
         diff.practiceAreaId = {
           old: current.practice_area_id,
           new: dto.practiceAreaId,
+        };
+      }
+      if (filesChanged) {
+        diff.files = {
+          old: currentFiles.length,
+          new: dto.photoFileIds!.length,
         };
       }
       if (states) {
@@ -434,6 +466,11 @@ export class CasesService {
         action: 'client_edit',
         extra,
       });
+
+      if (filesChanged) {
+        await tx.casePhoto.deleteMany({ where: { case_id: caseId } });
+        await this.photos.attach(tx, caseId, dto.photoFileIds!);
+      }
 
       if (states) {
         await tx.caseState.deleteMany({ where: { case_id: caseId } });

@@ -4,6 +4,9 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_actions_bar.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_cover.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_dossier.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_facts.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
@@ -195,6 +198,7 @@ class FeedCaseCard extends StatelessWidget {
   });
 
   final FeedCase item;
+
   final Translator t;
   final L10nFormats formats;
   final VoidCallback onTap;
@@ -220,6 +224,42 @@ class FeedCaseCard extends StatelessWidget {
     );
     final budget = CaseFormat.budget(t, formats, item.budget);
     final radius = BorderRadius.circular(AppRadii.card + 2);
+    // Owner 2026-10-04: state, urgency and budget, large.
+    final extraStates = item.additionalStateCodes.length;
+    final facts = CaseKeyFacts(
+      t: t,
+      stateCode: item.primaryStateCode,
+      stateSub: [
+        if (item.city != null && item.city!.trim().isNotEmpty)
+          item.city!.trim(),
+        if (extraStates > 0) '+$extraStates',
+      ].join(' · '),
+      urgency: item.urgency,
+      budget: item.budget.isClarifyLater
+          ? null
+          : CaseFormat.money(formats, item.budget.amountCents!),
+    );
+    final urgency = CaseKeyFacts.urgencyLabel(t, item.urgency);
+    final dossier = CaseDossierScore.of(item);
+    final dossierLabel = [
+      '${t.t('cases.dossier.title')} ${dossier.score(t)}',
+      dossier.files(t),
+      if (item.status == CaseStatus.open) t.t('cases.dossier.ruleShort'),
+    ].join(', ');
+    Widget stats() => Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _IconStat(
+              icon: AppIcons.visibilityOutlined,
+              value: SocialFormat.count(formats, item.viewCount),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            _IconStat(
+              icon: AppIcons.gavelRounded,
+              value: SocialFormat.count(formats, item.bidsCount),
+            ),
+          ],
+        );
 
     final semantics = [
       category,
@@ -227,7 +267,9 @@ class FeedCaseCard extends StatelessWidget {
       if (item.isNew) t.t('cases.card.new'),
       item.title,
       place,
+      urgency,
       budget,
+      dossierLabel,
       t.t('cases.card.bidsCount', {'count': '${item.bidsCount}'}),
       if (item.hasOwnBid) t.t('cases.card.youBid'),
     ].join(', ');
@@ -280,24 +322,12 @@ class FeedCaseCard extends StatelessWidget {
                           // "NEW" flush with the right edge (in line with
                           // the Save button below).
                           Expanded(
-                            child: Row(
-                              children: [
-                                Flexible(
-                                  flex: 6,
-                                  child: _GoldChip(
-                                    icon: practiceGlyph(item.practice.artCode),
-                                    label: category,
-                                  ),
-                                ),
-                                const SizedBox(width: AppSpacing.sm),
-                                Flexible(
-                                  flex: 3,
-                                  child: _PlainChip(
-                                    icon: AppIcons.placeOutlined,
-                                    label: place,
-                                  ),
-                                ),
-                              ],
+                            child: Align(
+                              alignment: AlignmentDirectional.centerStart,
+                              child: _GoldChip(
+                                icon: practiceGlyph(item.practice.artCode),
+                                label: category,
+                              ),
                             ),
                           ),
                           if (item.promoted || item.isNew) ...[
@@ -329,10 +359,12 @@ class FeedCaseCard extends StatelessWidget {
                         item.title,
                         maxLines: 3,
                         overflow: TextOverflow.ellipsis,
+                        // Owner 2026-10-04: smaller type, more of the story.
                         style: typography.titleMedium.copyWith(
                           fontFamily: typography.body.fontFamily,
                           color: colors.text,
                           fontWeight: FontWeight.w700,
+                          fontSize: 20,
                           height: 1.25,
                         ),
                       ),
@@ -340,70 +372,53 @@ class FeedCaseCard extends StatelessWidget {
                         const SizedBox(height: AppSpacing.sm),
                         Text(
                           item.excerpt,
-                          maxLines: 3,
+                          maxLines: 6,
                           overflow: TextOverflow.ellipsis,
                           style: typography.body.copyWith(
                             color: colors.text,
-                            height: 1.45,
+                            fontSize: 15,
+                            height: 1.4,
                           ),
                         ),
                       ],
                       const SizedBox(height: AppSpacing.md),
+                      facts,
+                      // Owner 2026-10-05: how complete the case is and
+                      // when its files open.
+                      const SizedBox(height: AppSpacing.md),
+                      CaseDossierStrip(kase: item, t: t),
+                      const SizedBox(height: AppSpacing.sm),
                       Row(
                         children: [
-                          AppIcon(
-                            AppIcons.paymentsOutlined,
-                            size: AppSizes.iconSm,
-                            color: colors.goldDark,
-                          ),
-                          const SizedBox(width: AppSpacing.xs),
                           Expanded(
-                            child: Text(
-                              budget,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: typography.body.copyWith(
-                                color: colors.text,
-                                fontWeight: FontWeight.w600,
-                              ),
+                            child: Wrap(
+                              spacing: AppSpacing.sm,
+                              runSpacing: AppSpacing.sm,
+                              children: [
+                                if (item.status != CaseStatus.open)
+                                  CaseStatusPill(status: item.status, t: t),
+                                if (item.hasOwnBid)
+                                  StatusPill(
+                                    label: t.t('cases.card.youBid'),
+                                    tone: StatusTone.gold,
+                                  ),
+                              ],
                             ),
                           ),
-                          _IconStat(
-                            icon: AppIcons.visibilityOutlined,
-                            value: SocialFormat.count(formats, item.viewCount),
-                          ),
-                          const SizedBox(width: AppSpacing.md),
-                          _IconStat(
-                            icon: AppIcons.gavelRounded,
-                            value: SocialFormat.count(formats, item.bidsCount),
-                          ),
+                          stats(),
                         ],
                       ),
-                      if (item.hasOwnBid || item.status != CaseStatus.open) ...[
-                        const SizedBox(height: AppSpacing.sm),
-                        Wrap(
-                          spacing: AppSpacing.sm,
-                          runSpacing: AppSpacing.sm,
-                          children: [
-                            if (item.status != CaseStatus.open)
-                              CaseStatusPill(status: item.status, t: t),
-                            if (item.hasOwnBid)
-                              StatusPill(
-                                label: t.t('cases.card.youBid'),
-                                tone: StatusTone.gold,
-                              ),
-                          ],
-                        ),
-                      ],
                     ],
                   ),
                 ),
                 // Our photo for the practice; the client's own case
                 // photos are private until a bid is accepted (OQ-031).
                 Expanded(
-                  child: PracticePhoto(
+                  child: CaseCover(
                     categoryCode: item.practice.artCode,
                     practiceCode: item.practice.code,
+                    coverKey: item.coverKey,
+                    seed: item.id,
                   ),
                 ),
                 // OQ-034: comments, share, time, Save — like a post.
@@ -415,6 +430,197 @@ class FeedCaseCard extends StatelessWidget {
       );
     }
 
+    final light = Theme.of(context).brightness == Brightness.light;
+    final champagneLo = Color.lerp(colors.surface, colors.gold, 0.12)!;
+    final badge = item.promoted || item.isNew
+        ? t.t(item.promoted ? 'cases.card.promoted' : 'cases.card.new')
+        : null;
+    // Facts in one line with gold hairlines.
+    final urgencyColor = switch (item.urgency) {
+      CaseUrgency.urgent => colors.danger,
+      CaseUrgency.soon => light ? colors.goldDark : colors.gold,
+      _ => colors.textSecondary,
+    };
+    final money = item.budget.isClarifyLater
+        ? t.t('cases.facts.negotiable')
+        : CaseFormat.money(formats, item.budget.amountCents!);
+    final serif = typography.titleMedium.fontFamily;
+    Widget inlineFacts() {
+      Widget col(
+        String label,
+        String value, {
+        String? sub,
+        Color? tone,
+        bool wrap = false,
+      }) =>
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  label.toUpperCase(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: typography.caption.copyWith(
+                    color: light ? colors.goldDark : colors.gold,
+                    fontSize: 10,
+                    letterSpacing: 1.2,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                if (wrap)
+                  Text(
+                    value,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: typography.titleMedium.copyWith(
+                      fontFamily: serif,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: tone ?? colors.text,
+                      height: 1.15,
+                    ),
+                  )
+                else
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      value,
+                      maxLines: 1,
+                      style: typography.titleMedium.copyWith(
+                        fontFamily: serif,
+                        fontSize: 19,
+                        fontWeight: FontWeight.w700,
+                        color: tone ?? colors.text,
+                        height: 1.1,
+                      ),
+                    ),
+                  ),
+                if (sub != null && sub.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    sub,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: typography.caption
+                        .copyWith(color: colors.textSecondary),
+                  ),
+                ],
+              ],
+            ),
+          );
+      final line = Container(
+        width: 1,
+        margin: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+        color: colors.gold.withValues(alpha: 0.4),
+      );
+      return IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            col(
+              t.t('cases.facts.state'),
+              item.primaryStateCode,
+              sub: item.city?.trim(),
+            ),
+            line,
+            col(
+              t.t('cases.facts.urgency'),
+              urgency,
+              tone: urgencyColor,
+              wrap: true,
+            ),
+            line,
+            col(
+              t.t('cases.facts.budget'),
+              money,
+              tone: light ? colors.goldDark : colors.goldLight,
+            ),
+          ],
+        ),
+      );
+    }
+
+    Widget smallCaps(String text) => Text(
+          text.toUpperCase(),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: typography.caption.copyWith(
+            color: light ? colors.goldDark : colors.gold,
+            fontSize: 11,
+            letterSpacing: 1.6,
+            fontWeight: FontWeight.w700,
+          ),
+        );
+    Widget serifTitle({Color? color, double size = 20}) => Text(
+          item.title,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: typography.titleMedium.copyWith(
+            fontFamily: serif,
+            fontSize: size,
+            fontWeight: FontWeight.w700,
+            color: color ?? colors.text,
+            height: 1.22,
+          ),
+        );
+    Widget excerpt({int lines = 3}) => item.excerpt.isEmpty
+        ? const SizedBox.shrink()
+        : Text(
+            item.excerpt,
+            maxLines: lines,
+            overflow: TextOverflow.ellipsis,
+            style: typography.bodySmall.copyWith(
+              color: colors.textSecondary,
+              height: 1.4,
+            ),
+          );
+    Widget medallion({double size = 44}) => Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: RadialGradient(
+              colors: [
+                colors.gold.withValues(alpha: 0.22),
+                colors.gold.withValues(alpha: 0.04),
+              ],
+            ),
+            border: Border.all(color: colors.gold, width: 1.2),
+          ),
+          child: AppIcon(
+            practiceGlyph(item.practice.artCode),
+            size: size * 0.48,
+            color: light ? colors.goldDark : colors.goldLight,
+          ),
+        );
+    Widget newMark() => badge == null
+        ? const SizedBox.shrink()
+        : Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: colors.gold,
+              borderRadius: BorderRadius.circular(AppRadii.pill),
+            ),
+            constraints: const BoxConstraints(maxWidth: 120),
+            child: Text(
+              badge,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: typography.caption.copyWith(
+                color: colors.navy,
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.8,
+              ),
+            ),
+          );
+    final ink = Color.lerp(colors.navy, Colors.black, 0.72)!;
+    final ivory = Color.lerp(colors.surface, colors.gold, 0.07)!;
+
     // Owner 2026-09-30 design: chips, bold title and a short excerpt on the
     // left, the practice artwork dissolving into the card on the right.
     return Semantics(
@@ -424,7 +630,9 @@ class FeedCaseCard extends StatelessWidget {
         if (item.isNew) t.t('cases.card.new'),
         item.title,
         place,
+        urgency,
         budget,
+        dossierLabel,
         t.t('cases.card.bidsCount', {'count': '${item.bidsCount}'}),
         if (item.hasOwnBid) t.t('cases.card.youBid'),
       ].join(', '),
@@ -450,147 +658,84 @@ class FeedCaseCard extends StatelessWidget {
           ),
           child: ClipRRect(
             borderRadius: radius,
-            child: Stack(
-              children: [
-                Positioned(
-                  top: 0,
-                  bottom: 0,
-                  right: 0,
-                  width: 190,
-                  child: PracticeArt(
-                    categoryCode: item.practice.artCode,
-                    practiceCode: item.practice.code,
+            // Owner 2026-10-04 picked the framed dossier: a double gold
+            // frame, serif type, facts in one line with gold hairlines.
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: light ? [ivory, champagneLo] : [colors.navy, ink],
+                ),
+              ),
+              child: Container(
+                margin: const EdgeInsets.all(6),
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.lg - 2,
+                  AppSpacing.md + 2,
+                  AppSpacing.lg - 2,
+                  AppSpacing.md,
+                ),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(AppRadii.card - 4),
+                  border: Border.all(
+                    color: colors.gold.withValues(alpha: 0.35),
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.all(AppSpacing.lg),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Row(
-                              children: [
-                                Flexible(
-                                  flex: 6,
-                                  child: _GoldChip(
-                                    icon: practiceGlyph(item.practice.artCode),
-                                    label: category,
-                                  ),
-                                ),
-                                const SizedBox(width: AppSpacing.sm),
-                                Flexible(
-                                  flex: 3,
-                                  child: _PlainChip(
-                                    icon: AppIcons.placeOutlined,
-                                    label: place,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          if (item.promoted || item.isNew) ...[
-                            const SizedBox(width: AppSpacing.sm),
-                            ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 120),
-                              child: Text(
-                                t.t(
-                                  item.promoted
-                                      ? 'cases.card.promoted'
-                                      : 'cases.card.new',
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: typography.caption.copyWith(
-                                  color: colors.goldDark,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                      const SizedBox(height: AppSpacing.md),
-                      Padding(
-                        padding: const EdgeInsets.only(right: 56),
-                        child: Text(
-                          item.title,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: typography.titleMedium.copyWith(
-                            fontFamily: typography.body.fontFamily,
-                            color: colors.text,
-                            fontWeight: FontWeight.w700,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        medallion(size: 40),
+                        const SizedBox(width: AppSpacing.sm + 2),
+                        Expanded(child: smallCaps(category)),
+                        newMark(),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    serifTitle(),
+                    const SizedBox(height: AppSpacing.xs + 2),
+                    excerpt(),
+                    const SizedBox(height: AppSpacing.md),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Container(
+                            height: 1,
+                            color: colors.gold.withValues(alpha: 0.4),
                           ),
                         ),
-                      ),
-                      if (item.excerpt.isNotEmpty) ...[
-                        const SizedBox(height: AppSpacing.xs),
                         Padding(
-                          padding: const EdgeInsets.only(right: 72),
-                          child: Text(
-                            item.excerpt,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: typography.bodySmall.copyWith(
-                              color: colors.textSecondary,
-                              height: 1.35,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.sm,
+                          ),
+                          child: Transform.rotate(
+                            angle: 0.785,
+                            child: Container(
+                              width: 6,
+                              height: 6,
+                              color: colors.gold,
                             ),
                           ),
                         ),
-                      ],
-                      const SizedBox(height: AppSpacing.md),
-                      Row(
-                        children: [
-                          AppIcon(
-                            AppIcons.paymentsOutlined,
-                            size: AppSizes.iconSm,
-                            color: colors.goldDark,
+                        Expanded(
+                          child: Container(
+                            height: 1,
+                            color: colors.gold.withValues(alpha: 0.4),
                           ),
-                          const SizedBox(width: AppSpacing.xs),
-                          Expanded(
-                            child: Text(
-                              budget,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: typography.body.copyWith(
-                                color: colors.text,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                          _IconStat(
-                            icon: AppIcons.visibilityOutlined,
-                            value: SocialFormat.count(formats, item.viewCount),
-                          ),
-                          const SizedBox(width: AppSpacing.md),
-                          _IconStat(
-                            icon: AppIcons.gavelRounded,
-                            value: SocialFormat.count(formats, item.bidsCount),
-                          ),
-                        ],
-                      ),
-                      if (item.hasOwnBid || item.status != CaseStatus.open) ...[
-                        const SizedBox(height: AppSpacing.sm),
-                        Wrap(
-                          spacing: AppSpacing.sm,
-                          runSpacing: AppSpacing.sm,
-                          children: [
-                            if (item.status != CaseStatus.open)
-                              CaseStatusPill(status: item.status, t: t),
-                            if (item.hasOwnBid)
-                              StatusPill(
-                                label: t.t('cases.card.youBid'),
-                                tone: StatusTone.gold,
-                              ),
-                          ],
                         ),
                       ],
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    inlineFacts(),
+                    const SizedBox(height: AppSpacing.md),
+                    CaseDossierStrip(kase: item, t: t),
+                    const SizedBox(height: AppSpacing.sm),
+                    Align(alignment: Alignment.centerRight, child: stats()),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ),
@@ -634,46 +779,6 @@ class _GoldChip extends StatelessWidget {
                 color: colors.text,
                 fontWeight: FontWeight.w600,
               ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Quiet chip with an icon (state / place).
-class _PlainChip extends StatelessWidget {
-  const _PlainChip({required this.icon, required this.label});
-
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.sm + 2,
-        vertical: AppSpacing.xs + 1,
-      ),
-      decoration: BoxDecoration(
-        color: colors.surface.withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(AppRadii.pill),
-        border: Border.all(color: colors.border),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          AppIcon(icon, size: 14, color: colors.textSecondary),
-          const SizedBox(width: AppSpacing.xs),
-          Flexible(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: typography.caption.copyWith(color: colors.textSecondary),
             ),
           ),
         ],
@@ -731,6 +836,8 @@ class ClientCaseCard extends StatelessWidget {
       ].join(', '),
       artCode: item.practice.artCode,
       practiceCode: item.practice.code,
+      coverKey: item.coverKey,
+      coverSeed: item.id,
       practiceLabel: practice,
       status: CaseStatusPill(status: item.status, t: t),
       title: item.title,
@@ -777,7 +884,14 @@ class _MineCardFrame extends StatelessWidget {
     required this.meta,
     required this.footer,
     this.note,
+    this.coverKey,
+    this.coverSeed,
   });
+
+  /// Owner 2026-10-04: the case's cover, as attorneys see it (client
+  /// cards); without a seed the practice photo.
+  final String? coverKey;
+  final String? coverSeed;
 
   final VoidCallback onTap;
   final String semanticLabel;
@@ -801,7 +915,12 @@ class _MineCardFrame extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          PracticePhoto(categoryCode: artCode, practiceCode: practiceCode),
+          CaseCover(
+            categoryCode: artCode,
+            practiceCode: practiceCode,
+            coverKey: coverKey,
+            seed: coverSeed,
+          ),
           DecoratedBox(
             decoration: BoxDecoration(
               gradient: LinearGradient(

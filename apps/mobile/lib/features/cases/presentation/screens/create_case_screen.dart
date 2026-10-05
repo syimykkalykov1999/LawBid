@@ -10,6 +10,8 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/cases/application/create_case_controller.dart';
+import 'package:lawbid/features/cases/domain/case_draft.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_cover_picker.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_photos.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_wizard_steps.dart';
@@ -278,10 +280,8 @@ class _DraftBanner extends StatelessWidget {
               constraints: const BoxConstraints(maxWidth: 140),
               child: TextButton(
                 onPressed: onStartOver,
-                child: Text(
+                child: FitText(
                   t.t('cases.create.startOver'),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,
                   style: typography.bodySmall.copyWith(
                     color: colors.goldDark,
@@ -482,7 +482,26 @@ class _ReviewStep extends ConsumerWidget {
                 3,
                 AppIcons.paymentsOutlined,
               ),
+              Divider(height: 1, color: colors.border),
+              row(
+                t.t('cases.field.urgency'),
+                t.t('cases.urgency.${d.urgency ?? kDefaultCaseUrgency}'),
+                3,
+                AppIcons.timerOutlined,
+              ),
             ],
+          ),
+        ),
+        // Owner 2026-10-04: what attorneys see instead of the client.
+        const SizedBox(height: AppSpacing.xl),
+        CaseCoverPicker(
+          t: t,
+          practiceCode: d.practiceCode,
+          selected: d.coverKey,
+          onChanged: (key) => c.update(
+            (x) => key == null
+                ? x.copyWith(clearCoverKey: true)
+                : x.copyWith(coverKey: key),
           ),
         ),
         const SizedBox(height: AppSpacing.lg),

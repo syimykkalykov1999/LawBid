@@ -4,6 +4,7 @@ import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
 import 'package:lawbid/core/design_system/theme/app_typography_tokens.dart';
 import 'package:lawbid/core/design_system/tokens/app_spacing.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_tap_target.dart';
+import 'package:lawbid/core/design_system/widgets/text/fit_text.dart';
 
 /// General-purpose pill chip (file 01 §15 component list). File 07 does not
 /// give this a standalone spec (only the phone screen's 52px-tall country
@@ -20,7 +21,12 @@ class AppChip extends StatelessWidget {
     this.selected = false,
     this.height = 36,
     this.expand = false,
+    this.fitLabel = false,
   });
+
+  /// One line whose font shrinks to the width the chip gets, so a chip in
+  /// a fixed row keeps its place in long languages instead of wrapping.
+  final bool fitLabel;
 
   /// Fill the given width (a filter sharing a row evenly); the label is
   /// ellipsised and the trailing icon sits at the end.
@@ -64,7 +70,14 @@ class AppChip extends StatelessWidget {
             mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
             children: [
               if (leading != null) ...[leading!, const SizedBox(width: 6)],
-              if (expand)
+              if (fitLabel)
+                Flexible(
+                  child: FitText(
+                    label,
+                    style: typography.bodySmall.copyWith(color: colors.text),
+                  ),
+                )
+              else if (expand)
                 Expanded(
                   child: Text(
                     label,

@@ -51,6 +51,23 @@ function keyset(cursor?: string) {
     : {};
 }
 
+/** Owner 2026-10-04 (bulk moderation): author + time window of a list. */
+export interface ContentFilter {
+  authorId?: string;
+  from?: string;
+  to?: string;
+}
+
+export function createdWindow(f: ContentFilter = {}) {
+  if (!f.from && !f.to) return {};
+  return {
+    created_at: {
+      ...(f.from ? { gte: new Date(f.from) } : {}),
+      ...(f.to ? { lt: new Date(f.to) } : {}),
+    },
+  };
+}
+
 function page<T extends { id: string; created_at: Date }, R>(
   rows: T[],
   map: (r: T) => R,
@@ -127,20 +144,27 @@ export class AdminContentService {
     kind?: 'post' | 'news',
     cursor?: string,
     onlyVideo = false,
+    filter: ContentFilter = {},
   ): Promise<Page<AdminPostRowDto>> {
     const rows = await this.prisma.post.findMany({
       where: {
         ...(kind ? { kind } : {}),
         ...(onlyVideo ? { video_asset_id: { not: null } } : {}),
-        ...(q
-          ? {
-              OR: [
-                { title: { contains: q, mode: 'insensitive' } },
-                { body: { contains: q, mode: 'insensitive' } },
-              ],
-            }
-          : {}),
-        ...keyset(cursor),
+        ...(filter.authorId ? { author_id: filter.authorId } : {}),
+        ...createdWindow(filter),
+        // Search and paging both need an OR: AND keeps them from
+        // overwriting each other.
+        AND: [
+          q
+            ? {
+                OR: [
+                  { title: { contains: q, mode: 'insensitive' } },
+                  { body: { contains: q, mode: 'insensitive' } },
+                ],
+              }
+            : {},
+          keyset(cursor),
+        ],
       },
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
       take: PAGE + 1,
@@ -188,9 +212,12 @@ export class AdminContentService {
     thread: 'post' | 'case',
     q?: string,
     cursor?: string,
+    filter: ContentFilter = {},
   ): Promise<Page<AdminCommentRowDto>> {
     const where = {
       ...(q ? { body: { contains: q, mode: 'insensitive' as const } } : {}),
+      ...(filter.authorId ? { author_id: filter.authorId } : {}),
+      ...createdWindow(filter),
       ...keyset(cursor),
     };
     if (thread === 'case') {
@@ -252,10 +279,19 @@ export class AdminContentService {
     if (authorId) await this.tellAuthor(authorId, reason, { commentId: id });
   }
 
-  async reviews(cursor?: string, q?: string): Promise<Page<AdminReviewRowDto>> {
+  async reviews(
+    cursor?: string,
+    q?: string,
+    filter: ContentFilter = {},
+  ): Promise<Page<AdminReviewRowDto>> {
     const rows = await this.prisma.review.findMany({
-      // Audit 2026-10-02: `q` was accepted but ignored.
-      where: { ...reviewSearch(q), ...keyset(cursor) },
+      // Audit 2026-10-02: `q` was accepted but ignored. The author of a
+      // review of an attorney is its client.
+      where: {
+        ...(filter.authorId ? { client_id: filter.authorId } : {}),
+        ...createdWindow(filter),
+        AND: [reviewSearch(q), keyset(cursor)],
+      },
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
       take: PAGE + 1,
       include: {
@@ -268,7 +304,9 @@ export class AdminContentService {
       id: r.id,
       rating: r.rating,
       body: r.body,
+      attorneyId: r.attorney_id,
       attorneyName: nameOf(r.attorney),
+      clientId: r.client_id,
       clientName: nameOf(r.client),
       // Owner 2026-10-01: open reviews have no case.
       caseTitle: r.case?.title ?? null,
@@ -405,6 +443,11 @@ export class AdminContentService {
       body: b.body,
       audience: b.audience,
       stateCode: b.state_code,
+      stateCodes: b.state_codes.length
+        ? b.state_codes
+        : b.state_code
+          ? [b.state_code]
+          : [],
       recipients: Number(b.recipients),
       createdAt: b.created_at.toISOString(),
     }));
@@ -418,8 +461,12 @@ export class AdminContentService {
     adminId: string,
     dto: CreateBroadcastDto,
   ): Promise<BroadcastDto> {
+    // stateCodes wins; a lone stateCode (older clients) still works.
+    const states = [
+      ...new Set(dto.stateCodes ?? (dto.stateCode ? [dto.stateCode] : [])),
+    ];
     const recipients = await this.prisma.user.count({
-      where: broadcastAudienceWhere(dto.audience, dto.stateCode),
+      where: broadcastAudienceWhere(dto.audience, states),
     });
     const b = await this.prisma.adminBroadcast.create({
       data: {
@@ -427,7 +474,8 @@ export class AdminContentService {
         title: dto.title,
         body: dto.body,
         audience: dto.audience,
-        state_code: dto.stateCode ?? null,
+        state_code: states[0] ?? null,
+        state_codes: states,
         recipients,
       },
     });
@@ -436,7 +484,8 @@ export class AdminContentService {
       title: dto.title,
       body: dto.body,
       audience: dto.audience,
-      stateCode: dto.stateCode ?? null,
+      stateCode: states[0] ?? null,
+      stateCodes: states,
     });
     return {
       id: b.id,
@@ -444,6 +493,7 @@ export class AdminContentService {
       body: b.body,
       audience: b.audience,
       stateCode: b.state_code,
+      stateCodes: states,
       recipients,
       createdAt: b.created_at.toISOString(),
     };

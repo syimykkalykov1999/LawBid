@@ -66,3 +66,18 @@ class AppAvatar extends StatelessWidget {
     );
   }
 }
+
+/// Owner 2026-10-05: the letters an avatar without a photo shows — the
+/// first letters of up to two words of the name ("Chris Walker" → "CW"),
+/// never the "@" of a bare handle ("@sima" → "S"); "?" when empty.
+String avatarInitials(String name) {
+  final words = name
+      .replaceAll('@', ' ')
+      .split(RegExp(r'[\s._-]+'))
+      .where((w) => w.isNotEmpty)
+      .toList();
+  if (words.isEmpty) return '?';
+  final first = words.first.characters.first;
+  final second = words.length > 1 ? words[1].characters.first : '';
+  return (first + second).toUpperCase();
+}

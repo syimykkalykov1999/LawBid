@@ -537,16 +537,13 @@ class _ContactAction extends StatelessWidget {
               children: [
                 AppIcon(icon, color: colors.goldDark, size: AppSizes.iconSm),
                 const SizedBox(height: AppSpacing.xs),
-                // Four actions share the row: let a long label take two
-                // lines instead of cutting it to a few letters.
+                // Four actions share the row: a long label shrinks to fit.
                 Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: AppSpacing.xs,
                   ),
-                  child: Text(
+                  child: FitText(
                     label,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.center,
                     style: typography.caption.copyWith(
                       color: colors.text,
