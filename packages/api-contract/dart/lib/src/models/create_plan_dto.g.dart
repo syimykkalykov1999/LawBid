@@ -34,6 +34,7 @@ CreatePlanDto _$CreatePlanDtoFromJson(
   sort: (json['sort'] as num?)?.toInt(),
   isDefault: json['isDefault'] as bool?,
   note: json['note'] as String?,
+  applyNow: json['applyNow'] as bool?,
 );
 
 Map<String, dynamic> _$CreatePlanDtoToJson(CreatePlanDto instance) =>
@@ -48,6 +49,7 @@ Map<String, dynamic> _$CreatePlanDtoToJson(CreatePlanDto instance) =>
       'sort': ?instance.sort,
       'isDefault': ?instance.isDefault,
       'note': ?instance.note,
+      'applyNow': ?instance.applyNow,
       'code': instance.code,
       'audience': instance.audience.toJson(),
       'interval': instance.interval.toJson(),

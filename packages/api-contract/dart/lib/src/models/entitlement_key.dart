@@ -22,6 +22,8 @@ enum EntitlementKey {
   videoCalls('video_calls'),
   @JsonValue('document_templates')
   documentTemplates('document_templates'),
+  @JsonValue('platform_payments')
+  platformPayments('platform_payments'),
   @JsonValue('trial_days')
   trialDays('trial_days'),
   @JsonValue('verified_badge')

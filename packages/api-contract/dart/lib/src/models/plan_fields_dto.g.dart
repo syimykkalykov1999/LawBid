@@ -31,6 +31,7 @@ PlanFieldsDto _$PlanFieldsDtoFromJson(
   sort: (json['sort'] as num?)?.toInt(),
   isDefault: json['isDefault'] as bool?,
   note: json['note'] as String?,
+  applyNow: json['applyNow'] as bool?,
 );
 
 Map<String, dynamic> _$PlanFieldsDtoToJson(PlanFieldsDto instance) =>
@@ -45,4 +46,5 @@ Map<String, dynamic> _$PlanFieldsDtoToJson(PlanFieldsDto instance) =>
       'sort': ?instance.sort,
       'isDefault': ?instance.isDefault,
       'note': ?instance.note,
+      'applyNow': ?instance.applyNow,
     };

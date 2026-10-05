@@ -28,6 +28,7 @@ class CreatePlanDto {
     this.sort,
     this.isDefault,
     this.note,
+    this.applyNow,
   });
 
   factory CreatePlanDto.fromJson(Map<String, Object?> json) =>
@@ -49,6 +50,9 @@ class CreatePlanDto {
   /// The plan legacy flows buy for this audience + interval.
   final bool? isDefault;
   final String? note;
+
+  /// Default true. Push changed entitlements/highlights to current subscribers at once (default). false keeps their frozen terms until "apply to subscribers". Prices never move here.
+  final bool? applyNow;
   final String code;
   final CreatePlanDtoAudience audience;
   final CreatePlanDtoInterval interval;

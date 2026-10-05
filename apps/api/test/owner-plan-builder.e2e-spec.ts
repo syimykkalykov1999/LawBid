@@ -14,8 +14,8 @@ import { adminSession } from './support/admin-login';
  * Owner 2026-10-05: the plan builder. The admin assembles plans out of
  * entitlements; EntitlementsService is the single gate; a client's plan
  * puts their cases first in the attorneys' feed; "offers in any state" is
- * a plan term; subscribers keep frozen terms until the admin applies a
- * change.
+ * a plan term; a toggle reaches subscribers at once, applyNow:false keeps
+ * their frozen terms until the admin applies the change.
  */
 jest.setTimeout(120_000);
 
@@ -240,7 +240,7 @@ describe('Plan builder (e2e, owner 2026-10-05)', () => {
     expect(dup.body.error.code).toBe('PLAN_CODE_EXISTS');
   });
 
-  it('a subscriber keeps frozen terms until the admin applies the change', async () => {
+  it('a toggle on the plan reaches subscribers at once; applyNow:false keeps frozen terms until the admin applies', async () => {
     const yearly = await planByCode('attorney_yearly');
     const a = await user('attorney');
     await prisma.subscription.update({
@@ -260,12 +260,26 @@ describe('Plan builder (e2e, owner 2026-10-05)', () => {
     expect(me.body.data.source).toBe('plan');
     expect(me.body.data.seats.included).toBe(6);
 
-    // The admin raises the included seats on the yearly plan.
+    // Default: the owner switches a feature off and it is off for everyone.
     const current = await planByCode('attorney_yearly');
+    const off = await api()
+      .put(`/api/v1/admin/billing/plans/${yearly.id}`)
+      .set(admin)
+      .send({
+        entitlements: { ...current.entitlements, priority_search: false },
+      });
+    expect(off.status).toBe(200);
+    me = await api().get('/api/v1/me/entitlements').set(a.auth);
+    expect(me.body.data.values.priority_search).toBe(false);
+
+    // applyNow:false raises the included seats only for new buyers.
     const edit = await api()
       .put(`/api/v1/admin/billing/plans/${yearly.id}`)
       .set(admin)
-      .send({ entitlements: { ...current.entitlements, included_seats: 8 } });
+      .send({
+        applyNow: false,
+        entitlements: { ...current.entitlements, included_seats: 8 },
+      });
     expect(edit.status).toBe(200);
     me = await api().get('/api/v1/me/entitlements').set(a.auth);
     expect(me.body.data.seats.included).toBe(6); // frozen

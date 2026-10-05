@@ -140,6 +140,7 @@ export const GROUPS: readonly SectionGroup[] = [
     label: 'Деньги',
     items: [
       { href: '/prices', label: 'Цены', icon: 'tag', area: 'super', hint: 'стоимость тарифов и галочки' },
+      { href: '/plans', label: 'Планы', icon: 'stack', area: 'super', hint: 'планы подписок и их возможности' },
       { href: '/subscriptions', label: 'Подписки', icon: 'crown-simple', area: 'super', hint: 'тарифы адвокатов' },
       { href: '/contracts', label: 'По договору', icon: 'handshake', area: 'super', hint: 'бесплатно блогерам 3–12 мес.' },
       { href: '/payments', label: 'Платежи и возвраты', icon: 'receipt', area: 'super' },

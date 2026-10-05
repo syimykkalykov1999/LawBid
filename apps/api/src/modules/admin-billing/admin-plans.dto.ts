@@ -132,6 +132,15 @@ export class PlanFieldsDto {
   @IsString()
   @MaxLength(300)
   note?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Default true. Push changed entitlements/highlights to current subscribers at once (default). ' +
+      'false keeps their frozen terms until "apply to subscribers". Prices never move here.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  applyNow?: boolean;
 }
 
 export class CreatePlanDto extends PlanFieldsDto {

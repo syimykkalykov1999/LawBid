@@ -53317,6 +53317,10 @@
             "type": "boolean",
             "nullable": true
           },
+          "platform_payments": {
+            "type": "boolean",
+            "nullable": true
+          },
           "trial_days": {
             "type": "integer",
             "nullable": true
@@ -53865,6 +53869,7 @@
           "priority_search",
           "video_calls",
           "document_templates",
+          "platform_payments",
           "trial_days",
           "verified_badge",
           "priority_feed",
@@ -63467,6 +63472,10 @@
             "type": "string",
             "maxLength": 300
           },
+          "applyNow": {
+            "type": "boolean",
+            "description": "Default true. Push changed entitlements/highlights to current subscribers at once (default). false keeps their frozen terms until \"apply to subscribers\". Prices never move here."
+          },
           "code": {
             "type": "string",
             "pattern": "^[a-z][a-z0-9_-]{1,63}$",
@@ -63557,6 +63566,10 @@
           "note": {
             "type": "string",
             "maxLength": 300
+          },
+          "applyNow": {
+            "type": "boolean",
+            "description": "Default true. Push changed entitlements/highlights to current subscribers at once (default). false keeps their frozen terms until \"apply to subscribers\". Prices never move here."
           }
         }
       },

@@ -164,6 +164,12 @@ export class AdminPlansService {
     await this.entitlements.invalidateAll();
     if (dto.isDefault && updated.kind === 'paid')
       await this.makeDefault(updated);
+    // The owner toggles a feature on or off and expects it to apply to
+    // everyone on the plan right away (default); prices never move here.
+    let applied = 0;
+    if (dto.applyNow !== false && dto.entitlements) {
+      applied = await this.pushTerms(updated, true);
+    }
     await this.audit.record({
       adminId: admin.id,
       action: 'billing.plan.update',
@@ -173,6 +179,7 @@ export class AdminPlansService {
       after: {
         entitlements: updated.entitlements,
         status: updated.status,
+        appliedToSubscribers: applied,
         ...(dto.amountCents !== undefined
           ? { amountCents: dto.amountCents }
           : {}),
@@ -245,6 +252,25 @@ export class AdminPlansService {
     reason: string,
   ): Promise<ApplyPlanResultDto> {
     const plan = await this.plans.byId(id);
+    const count = await this.pushTerms(plan, true);
+    await this.audit.record({
+      adminId: admin.id,
+      action: 'billing.plan.apply_to_subscribers',
+      targetType: 'plan',
+      targetId: id,
+      after: { updated: count },
+      ip: admin.ip,
+      justification: reason,
+    });
+    return { updated: count };
+  }
+
+  /**
+   * Replaces the frozen terms of everyone currently on the plan with the
+   * plan's live entitlements and tells them. Returns how many changed.
+   */
+  private async pushTerms(plan: Plan, notify: boolean): Promise<number> {
+    const id = plan.id;
     const snapshot = this.plans.entitlementsOf(plan) as Prisma.InputJsonObject;
     let recipients: string[] = [];
     if (plan.audience === 'attorney') {
@@ -269,25 +295,18 @@ export class AdminPlansService {
       recipients = rows.map((r) => r.user_id);
     }
     await this.entitlements.invalidateAll();
-    for (const userId of recipients) {
-      await this.notifications
-        ?.emit({
-          type: 'subscription_status',
-          recipientId: userId,
-          payload: { kind: 'plan_terms_updated', planCode: plan.code },
-        })
-        .catch(() => undefined);
+    if (notify) {
+      for (const userId of recipients) {
+        await this.notifications
+          ?.emit({
+            type: 'subscription_status',
+            recipientId: userId,
+            payload: { kind: 'plan_terms_updated', planCode: plan.code },
+          })
+          .catch(() => undefined);
+      }
     }
-    await this.audit.record({
-      adminId: admin.id,
-      action: 'billing.plan.apply_to_subscribers',
-      targetType: 'plan',
-      targetId: id,
-      after: { updated: recipients.length },
-      ip: admin.ip,
-      justification: reason,
-    });
-    return { updated: recipients.length };
+    return recipients.length;
   }
 
   // ------------------------------------------------------------------

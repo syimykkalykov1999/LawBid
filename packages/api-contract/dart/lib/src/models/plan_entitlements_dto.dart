@@ -17,6 +17,7 @@ class PlanEntitlementsDto {
     this.prioritySearch,
     this.videoCalls,
     this.documentTemplates,
+    this.platformPayments,
     this.trialDays,
     this.verifiedBadge,
     this.priorityFeed,
@@ -42,6 +43,8 @@ class PlanEntitlementsDto {
   final bool? videoCalls;
   @JsonKey(name: 'document_templates')
   final bool? documentTemplates;
+  @JsonKey(name: 'platform_payments')
+  final bool? platformPayments;
   @JsonKey(name: 'trial_days')
   final int? trialDays;
   @JsonKey(name: 'verified_badge')
