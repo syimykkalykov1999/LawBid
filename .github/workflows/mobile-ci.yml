@@ -119,6 +119,13 @@ jobs:
         working-directory: apps/mobile
         run: flutter test
 
+      - name: TEMP regenerate welcome goldens
+        if: always()
+        working-directory: apps/mobile
+        run: |
+          flutter test --update-goldens test/features/auth/golden/auth_screens_golden_test.dart || true
+          for f in light dark; do echo "GOLDEN-BEGIN $f"; base64 test/features/auth/golden/goldens/auth_welcome_screen_$f.png; echo "GOLDEN-END $f"; done
+
   build-android:
     name: Build check — Android (debug)
     needs: analyze-and-test
