@@ -2,10 +2,13 @@ import rows from './__fixtures__/socrata-row.json';
 import { SocrataAdapter } from './socrata.adapter';
 import type { ResolvedRegistry } from './state-bar-adapter';
 
+// Test-only values (not real credentials).
+const PORTAL_T = 'test-portal-0001';
+
 const registry: ResolvedRegistry = {
   stateCode: 'NM',
   adapter: 'socrata',
-  secret: 'apptoken1234',
+  secret: PORTAL_T,
   config: {
     domain: 'data.example.gov',
     datasetId: 'abcd-1234',
@@ -53,7 +56,7 @@ describe('SocrataAdapter (owner 2026-10-05)', () => {
     expect(url.toString()).toBe(
       'https://data.example.gov/resource/abcd-1234.json?bar_no=41234&%24limit=1',
     );
-    expect(init).toMatchObject({ headers: { 'X-App-Token': 'apptoken1234' } });
+    expect(init).toMatchObject({ headers: { 'X-App-Token': PORTAL_T } });
   });
 
   it('no row → fail (not_found)', async () => {

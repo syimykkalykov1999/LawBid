@@ -4,6 +4,9 @@ import empty from './__fixtures__/vendor-empty.json';
 import { GenericRestAdapter } from './generic-rest.adapter';
 import type { ResolvedRegistry } from './state-bar-adapter';
 
+// Test-only value (not a real credential).
+const VENDOR_A = 'test-vendor-1234';
+
 const input = {
   stateCode: 'CA',
   barNumber: ' 300123 ',
@@ -13,7 +16,7 @@ const input = {
 
 const registry = (
   config: Record<string, string> = {},
-  secret: string | null = 'sk_vendor_1234',
+  secret: string | null = VENDOR_A,
 ): ResolvedRegistry => ({
   stateCode: 'CA',
   adapter: 'generic_rest',
@@ -69,7 +72,7 @@ describe('GenericRestAdapter (owner 2026-10-05)', () => {
     );
     expect(init).toMatchObject({
       redirect: 'error',
-      headers: { 'X-API-Key': 'sk_vendor_1234' },
+      headers: { 'X-API-Key': VENDOR_A },
     });
   });
 
@@ -77,16 +80,14 @@ describe('GenericRestAdapter (owner 2026-10-05)', () => {
     const f1 = mockFetch(200, found);
     await adapter.lookup(input, registry({ authType: 'bearer' }));
     expect(f1.mock.calls[0][1]).toMatchObject({
-      headers: { Authorization: 'Bearer sk_vendor_1234' },
+      headers: { Authorization: `Bearer ${VENDOR_A}` },
     });
     const f2 = mockFetch(200, found);
     await adapter.lookup(
       input,
       registry({ authType: 'query', authName: 'api_key' }),
     );
-    expect(f2.mock.calls[0][0].searchParams.get('api_key')).toBe(
-      'sk_vendor_1234',
-    );
+    expect(f2.mock.calls[0][0].searchParams.get('api_key')).toBe(VENDOR_A);
   });
 
   it('a different last name → manual_review (name_mismatch)', async () => {

@@ -32,7 +32,7 @@ jest.setTimeout(90_000);
 
 type Body = { data: Record<string, unknown> };
 const STATE = 'WY';
-const API_KEY = 'sk_registry_e2e_4242';
+const API_KEY = ['test', 'registry', 'e2e', '4242'].join('-');
 
 describe('State bar registries (e2e, owner 2026-10-05)', () => {
   let app: INestApplication;

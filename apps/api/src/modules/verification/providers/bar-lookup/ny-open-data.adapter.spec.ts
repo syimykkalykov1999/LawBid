@@ -2,6 +2,11 @@ import type { SecretsService } from '../../../../common/secrets/secrets.service'
 import { NyOpenDataAdapter } from './ny-open-data.adapter';
 import { normalizeName } from './registry-http';
 
+// Test-only values (not real credentials).
+const OLD_T = 'test-old-0001';
+const ROW_T = 'test-row-0002';
+const APP_T = 'test-app-0003';
+
 const input = {
   stateCode: 'NY',
   barNumber: '6366132',
@@ -62,23 +67,23 @@ describe('NyOpenDataAdapter (owner 2026-10-04)', () => {
   });
 
   it("the NY row's token wins over the old integration key", async () => {
-    const { ny, fetchMock } = adapter([row], 'oldtoken12345');
+    const { ny, fetchMock } = adapter([row], OLD_T);
     await ny.lookup(input, {
       stateCode: 'NY',
       adapter: 'ny_open_data',
       config: {},
-      secret: 'rowtoken12345',
+      secret: ROW_T,
     });
     expect(fetchMock.mock.calls[0][1]).toMatchObject({
-      headers: { 'X-App-Token': 'rowtoken12345' },
+      headers: { 'X-App-Token': ROW_T },
     });
   });
 
   it('sends the optional app token', async () => {
-    const { ny, fetchMock } = adapter([row], 'abcdefghijkl');
+    const { ny, fetchMock } = adapter([row], APP_T);
     await ny.lookup(input);
     expect(fetchMock.mock.calls[0][1]).toMatchObject({
-      headers: { 'X-App-Token': 'abcdefghijkl' },
+      headers: { 'X-App-Token': APP_T },
     });
   });
 

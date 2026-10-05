@@ -4,6 +4,13 @@ import type { PrismaService } from '../../../prisma/prisma.service';
 import type { StateBarAdapter } from '../providers/bar-lookup/state-bar-adapter';
 import { StateRegistryService } from './state-registry.service';
 
+// Test-only values (not real credentials).
+const VENDOR_A = 'test-vendor-9876';
+const VENDOR_B = 'test-vendor-1111';
+const VENDOR_C = 'test-vendor-5678';
+const VENDOR_D = 'test-vendor-2222';
+const VENDOR_E = 'test-vendor-3333';
+
 const MASTER = 'k1:0123456789abcdef0123456789abcdef';
 
 function setup(opts: { secrets?: boolean; env?: string } = {}) {
@@ -88,7 +95,7 @@ describe('StateRegistryService (owner 2026-10-05)', () => {
         adapter: 'generic_rest',
         enabled: true,
         config: vendor,
-        secret: 'sk_live_vendor_9876',
+        secret: VENDOR_A,
       },
       'admin1',
     );
@@ -98,12 +105,12 @@ describe('StateRegistryService (owner 2026-10-05)', () => {
       hasSecret: true,
       secretMasked: '••••9876',
     });
-    expect(JSON.stringify(saved)).not.toContain('sk_live_vendor_9876');
+    expect(JSON.stringify(saved)).not.toContain(VENDOR_A);
     expect(s.rows.get('CA')!.secret_enc).toMatch(/^v2\.k1\./);
     const resolved = await s.service.resolve('CA');
     expect(resolved).toMatchObject({
       adapter: 'generic_rest',
-      secret: 'sk_live_vendor_9876',
+      secret: VENDOR_A,
       config: expect.objectContaining({ authName: 'X-API-Key' }) as unknown,
     });
     expect(await s.service.enabledStates()).toEqual(['CA']);
@@ -117,7 +124,7 @@ describe('StateRegistryService (owner 2026-10-05)', () => {
         adapter: 'generic_rest',
         enabled: true,
         config: vendor,
-        secret: 'sk_vendor_1111',
+        secret: VENDOR_B,
       },
       'a',
     );
@@ -139,19 +146,19 @@ describe('StateRegistryService (owner 2026-10-05)', () => {
         'a',
       );
     await expect(
-      save({ ...vendor, urlTemplate: '' }, 'k12345678'),
+      save({ ...vendor, urlTemplate: '' }, VENDOR_C),
     ).rejects.toThrow('Request URL');
     await expect(save(vendor)).rejects.toThrow('API key');
     await expect(
-      save({ ...vendor, lastNamePath: '' }, 'k12345678'),
+      save({ ...vendor, lastNamePath: '' }, VENDOR_C),
     ).rejects.toThrow('name path');
     await expect(
-      save({ ...vendor, authType: 'cookie' }, 'k12345678'),
+      save({ ...vendor, authType: 'cookie' }, VENDOR_C),
     ).rejects.toThrow('one of');
     await expect(
       save(
         { ...vendor, urlTemplate: 'https://127.0.0.1/{bar_number}' },
-        'k12345678',
+        VENDOR_C,
       ),
     ).rejects.toThrow('private');
     await expect(
@@ -168,7 +175,7 @@ describe('StateRegistryService (owner 2026-10-05)', () => {
           adapter: 'generic_rest',
           enabled: false,
           config: vendor,
-          secret: 'k12345678',
+          secret: VENDOR_C,
         },
         'a',
       ),
@@ -193,7 +200,7 @@ describe('StateRegistryService (owner 2026-10-05)', () => {
         adapter: 'generic_rest',
         enabled: true,
         config: vendor,
-        secret: 'sk_vendor_2222',
+        secret: VENDOR_D,
       },
       'a',
     );
@@ -201,7 +208,7 @@ describe('StateRegistryService (owner 2026-10-05)', () => {
       copied: ['TX'],
     });
     expect(s.rows.get('TX')!.secret_enc).not.toBe(s.rows.get('CA')!.secret_enc);
-    expect((await s.service.resolve('TX'))!.secret).toBe('sk_vendor_2222');
+    expect((await s.service.resolve('TX'))!.secret).toBe(VENDOR_D);
   });
 
   it('test runs the saved settings and reports errors as text', async () => {
@@ -212,7 +219,7 @@ describe('StateRegistryService (owner 2026-10-05)', () => {
         adapter: 'generic_rest',
         enabled: false,
         config: vendor,
-        secret: 'sk_vendor_3333',
+        secret: VENDOR_E,
       },
       'a',
     );
