@@ -141,42 +141,48 @@ class _TasksTabState extends ConsumerState<TasksTab> {
             AppSpacing.screenSide,
             0,
           ),
-          // A Wrap, not a Row with a scrolling strip: in long languages the
-          // filter chips and "Add a task" used to slide under each other;
-          // now whatever doesn't fit moves to the next line.
-          child: Align(
-            alignment: AlignmentDirectional.centerStart,
-            child: Wrap(
-              alignment: WrapAlignment.spaceBetween,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: AppSpacing.sm,
-              runSpacing: AppSpacing.sm,
-              children: [
-                Wrap(
-                  spacing: AppSpacing.sm,
-                  runSpacing: AppSpacing.sm,
+          // One row, everything in its place: in long languages the chips
+          // and "Add a task" shrink their text instead of sliding under each
+          // other or moving to another line (owner 2026-10-05).
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Flexible(
+                flex: 3,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    for (final (v, label) in [
+                    for (final (i, (v, label)) in [
                       (_TasksView.active, t.t('tasks.view.active')),
                       (_TasksView.done, t.t('tasks.view.done')),
                       if (assistant) (_TasksView.results, t.t('tasks.results')),
-                    ])
-                      AppChip(
-                        key: ValueKey('tasks-view-${v.name}'),
-                        label: label,
-                        selected: _view == v,
-                        onTap: () => setState(() => _view = v),
+                    ].indexed) ...[
+                      if (i > 0) const SizedBox(width: AppSpacing.sm),
+                      Flexible(
+                        child: AppChip(
+                          key: ValueKey('tasks-view-${v.name}'),
+                          label: label,
+                          fitLabel: true,
+                          selected: _view == v,
+                          onTap: () => setState(() => _view = v),
+                        ),
                       ),
+                    ],
                   ],
                 ),
-                if (canAdd)
-                  AddTaskButton(
+              ),
+              if (canAdd) ...[
+                const SizedBox(width: AppSpacing.sm),
+                Flexible(
+                  flex: 2,
+                  child: AddTaskButton(
                     key: const ValueKey('tasks-add'),
                     label: t.t('tasks.add'),
                     onTap: _add,
                   ),
+                ),
               ],
-            ),
+            ],
           ),
         ),
         const SizedBox(height: AppSpacing.sm),

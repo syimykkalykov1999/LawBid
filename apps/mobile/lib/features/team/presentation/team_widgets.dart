@@ -60,10 +60,8 @@ class AddTaskButton extends StatelessWidget {
               AppIcon(AppIcons.addRounded, size: 20, color: colors.onCtaBright),
               const SizedBox(width: 4),
               Flexible(
-                child: Text(
+                child: FitText(
                   label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                   style: typography.bodySmall.copyWith(
                     color: colors.onCtaBright,
                     fontWeight: FontWeight.w700,

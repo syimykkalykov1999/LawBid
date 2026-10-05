@@ -237,10 +237,8 @@ class _TextAction extends StatelessWidget {
               AppIcon(icon, size: AppSpacing.lg + 2, color: color),
               const SizedBox(width: AppSpacing.xs),
               Flexible(
-                child: Text(
+                child: FitText(
                   label,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
                   style: typography.button.copyWith(color: color),
                 ),
               ),

@@ -233,8 +233,17 @@ void main() {
           dir,
           extra: [teamRepositoryProvider.overrideWithValue(repo)],
         );
-        expect(find.byKey(const ValueKey('tasks-add')), findsOneWidget);
         expect(tester.takeException(), isNull);
+        // Owner 2026-10-05: nothing moves to another line; the chips and
+        // the button stay in one row and their text shrinks instead.
+        final add = tester.getCenter(find.byKey(const ValueKey('tasks-add')));
+        for (final k in ['tasks-view-active', 'tasks-view-done']) {
+          expect(
+            tester.getCenter(find.byKey(ValueKey(k))).dy,
+            moreOrLessEquals(add.dy, epsilon: 1),
+            reason: '$k and "Add a task" share one row',
+          );
+        }
       });
 
       final screens = <String, Widget>{

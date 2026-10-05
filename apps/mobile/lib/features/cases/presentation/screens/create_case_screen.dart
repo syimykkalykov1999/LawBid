@@ -278,10 +278,8 @@ class _DraftBanner extends StatelessWidget {
               constraints: const BoxConstraints(maxWidth: 140),
               child: TextButton(
                 onPressed: onStartOver,
-                child: Text(
+                child: FitText(
                   t.t('cases.create.startOver'),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,
                   style: typography.bodySmall.copyWith(
                     color: colors.goldDark,
