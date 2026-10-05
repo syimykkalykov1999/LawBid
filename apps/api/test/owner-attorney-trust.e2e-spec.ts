@@ -748,4 +748,179 @@ describe('Attorney trust levels (e2e, owner 2026-10-05)', () => {
       .expect(403);
     await resetSettings();
   });
+
+  it('owner 06:07: «Выключить всё» / presets / «Включить всё»; rules apply at once and tell the attorney', async () => {
+    const admin = await adminSession(base, prisma, 'super_admin');
+    const a = await attorney(); // self-attested only: nothing matched
+    const before = await api().get('/api/v1/trust/me').set(a.auth).expect(200);
+    expect(before.body.data.cleared).toBe(false);
+    expect(before.body.data.gates.payments.ok).toBe(false);
+
+    // Master switch off: the pre-trust mode — badge and payments at once.
+    const off = await api()
+      .post('/api/v1/admin/trust/settings/preset')
+      .set(admin.auth)
+      .send({ preset: 'off' })
+      .expect(200);
+    expect(off.body.data.enabled).toBe(false);
+    await trust.recompute(a.id);
+    const open = await api().get('/api/v1/trust/me').set(a.auth).expect(200);
+    expect(open.body.data).toMatchObject({
+      cleared: true,
+      badge: true,
+      missing: [],
+    });
+    expect(open.body.data.gates.payments.ok).toBe(true);
+    const stats = await api()
+      .get('/api/v1/admin/trust/stats')
+      .set(admin.auth)
+      .expect(200);
+    expect(stats.body.data.enabled).toBe(false);
+    expect(stats.body.data.inQueue).toBe(0);
+
+    // «Включить всё»: everything required again → the badge goes and the
+    // attorney is told what is missing now.
+    const all = await api()
+      .post('/api/v1/admin/trust/settings/preset')
+      .set(admin.auth)
+      .send({ preset: 'all' })
+      .expect(200);
+    expect(all.body.data).toMatchObject({
+      enabled: true,
+      manualReview: true,
+      requireRegistry: true,
+      requireIdentity: true,
+      requireDocuments: true,
+      bidsRequireCleared: true,
+    });
+    // The recompute runs in the background; do it here deterministically.
+    await trust.recomputeAll(200, { notifyNewlyRequired: true });
+    const strict = await api().get('/api/v1/trust/me').set(a.auth).expect(200);
+    expect(strict.body.data.cleared).toBe(false);
+    expect(strict.body.data.missing).toEqual([
+      'registry',
+      'identity',
+      'documents',
+    ]);
+    expect(strict.body.data.gates.bids.ok).toBe(false);
+    expect(
+      await prisma.notification.count({
+        where: {
+          user_id: a.id,
+          type: 'verification_update',
+          payload: { path: ['kind'], equals: 'trust_requirements_changed' },
+        },
+      }),
+    ).toBe(1);
+
+    // Staff review off: the documents requirement (staff-only) is ignored.
+    const auto = await api()
+      .put('/api/v1/admin/trust/settings')
+      .set(admin.auth)
+      .send({ ...all.body.data, manualReview: false })
+      .expect(200);
+    expect(auto.body.data.manualReview).toBe(false);
+    await trust.recompute(a.id);
+    const autoOnly = await api()
+      .get('/api/v1/trust/me')
+      .set(a.auth)
+      .expect(200);
+    expect(autoOnly.body.data.missing).toEqual(['registry', 'identity']);
+
+    // Presets are audited, and a bad preset is refused.
+    await api()
+      .post('/api/v1/admin/trust/settings/preset')
+      .set(admin.auth)
+      .send({ preset: 'medium' })
+      .expect(400);
+    expect(
+      await prisma.auditLog.count({
+        where: { admin_id: admin.userId, action: 'trust.preset' },
+      }),
+    ).toBeGreaterThanOrEqual(2);
+    await resetSettings();
+  });
+
+  it('«Галочки → Адвокаты»: every attorney with a status; a status set by hand needs a reason and is recorded', async () => {
+    const admin = await adminSession(base, prisma, 'verifier');
+    const a = await attorney();
+    const b = await attorney({ registry: 'pass' });
+    const list = await api()
+      .get('/api/v1/admin/trust/attorneys?limit=500')
+      .set(admin.auth)
+      .expect(200);
+    type Row = { attorney: { id: string }; badgeStatus: string };
+    const rows = list.body.data as Row[];
+    const rowA = rows.find((r) => r.attorney.id === a.id);
+    const rowB = rows.find((r) => r.attorney.id === b.id);
+    expect(rowA?.badgeStatus).toBe('self_declared');
+    expect(rowB?.badgeStatus).toBe('registry_matched');
+    const onlyRegistry = await api()
+      .get('/api/v1/admin/trust/attorneys?status=registry_matched&limit=500')
+      .set(admin.auth)
+      .expect(200);
+    expect(
+      (onlyRegistry.body.data as Row[]).every(
+        (r) => r.badgeStatus === 'registry_matched',
+      ),
+    ).toBe(true);
+
+    // No reason → refused; with one → cleared, recorded, audited.
+    await api()
+      .post(`/api/v1/admin/trust/attorneys/${a.id}/status`)
+      .set(admin.auth)
+      .send({ status: 'cleared' })
+      .expect(400);
+    const cleared = await api()
+      .post(`/api/v1/admin/trust/attorneys/${a.id}/status`)
+      .set(admin.auth)
+      .send({ status: 'cleared', note: 'Bar card checked by phone' })
+      .expect(200);
+    expect(cleared.body.data.badgeStatus).toBe('cleared');
+    expect(cleared.body.data.cleared).toBe(true);
+    const docs = await api()
+      .post(`/api/v1/admin/trust/attorneys/${b.id}/status`)
+      .set(admin.auth)
+      .send({ status: 'documents_requested', note: 'Send a selfie with ID' })
+      .expect(200);
+    expect(docs.body.data.badgeStatus).toBe('documents_requested');
+    const rejected = await api()
+      .post(`/api/v1/admin/trust/attorneys/${b.id}/status`)
+      .set(admin.auth)
+      .send({ status: 'rejected', note: 'Not the person on the bar card' })
+      .expect(200);
+    expect(rejected.body.data.badgeStatus).toBe('suspended');
+    expect(
+      await prisma.auditLog.count({
+        where: {
+          admin_id: admin.userId,
+          action: 'trust.set_status',
+          target_id: b.id,
+        },
+      }),
+    ).toBe(2);
+    expect(
+      await prisma.attorneyTrustEvent.count({
+        where: { attorney_id: a.id, kind: 'staff_cleared' },
+      }),
+    ).toBe(1);
+
+    // Per-employee stats honour the period.
+    const future = new Date(Date.now() + 3600_000).toISOString();
+    const none = await api()
+      .get(`/api/v1/admin/trust/staff-decisions?from=${future}`)
+      .set(admin.auth)
+      .expect(200);
+    type StatRow = { admin: { id: string } };
+    expect(
+      (none.body.data as StatRow[]).some((r) => r.admin.id === admin.userId),
+    ).toBe(false);
+    const some = await api()
+      .get('/api/v1/admin/trust/staff-decisions')
+      .set(admin.auth)
+      .expect(200);
+    expect(
+      (some.body.data as StatRow[]).some((r) => r.admin.id === admin.userId),
+    ).toBe(true);
+  });
 });

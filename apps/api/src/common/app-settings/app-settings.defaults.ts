@@ -173,6 +173,13 @@ export const OWNER_SEAT_SETTINGS = {
 // happens automatically. A hold (complaint, name mismatch) closes the
 // payment / bid gates whatever the level.
 export const OWNER_TRUST_SETTINGS = {
+  /** Owner 2026-10-05 06:07: the master switch. Off = the pre-trust mode:
+   * self-attested attorneys get the badge and payments at once, no holds,
+   * no queue. Everything below only counts while this is on. */
+  'trust.enabled': true,
+  /** Staff review on/off. Off = automatic checks only: the documents
+   * requirement is ignored and the queue is paused (kept, not lost). */
+  'trust.manual_review': true,
   /** Owner 2026-10-05 («Борьба с мошенниками»): what an attorney must pass
    * before the badge and in-app payments open. Each is a switch; whatever
    * can be checked automatically is, the rest lands in the staff queue, and

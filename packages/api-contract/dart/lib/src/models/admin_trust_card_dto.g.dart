@@ -13,6 +13,9 @@ AdminTrustCardDto _$AdminTrustCardDtoFromJson(
     json['attorney'] as Map<String, dynamic>,
   ),
   level: (json['level'] as num).toInt(),
+  badgeStatus: AdminTrustCardDtoBadgeStatus.fromJson(
+    json['badgeStatus'] as String,
+  ),
   badge: json['badge'] as bool,
   signals: TrustSignalsDto.fromJson(json['signals'] as Map<String, dynamic>),
   holds: TrustHoldsDto.fromJson(json['holds'] as Map<String, dynamic>),
@@ -69,6 +72,7 @@ Map<String, dynamic> _$AdminTrustCardDtoToJson(AdminTrustCardDto instance) =>
     <String, dynamic>{
       'attorney': instance.attorney.toJson(),
       'level': instance.level,
+      'badgeStatus': instance.badgeStatus.toJson(),
       'badge': instance.badge,
       'signals': instance.signals.toJson(),
       'holds': instance.holds.toJson(),

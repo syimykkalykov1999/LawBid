@@ -23,6 +23,8 @@
 
 | Ключ | По умолчанию | Что делает |
 |---|---|---|
+| `trust.enabled` | true | **мастер-тумблер** (владелец 06:07). Выкл = режим «как раньше»: заявленный адвокат сразу получает галочку и приём денег, холды ничего не закрывают, очередь пуста, автозащиты не срабатывают. Всё ниже действует только при вкл. |
+| `trust.manual_review` | true | ручная проверка сотрудниками. Выкл = только автопроверки: требование документов не действует, очередь на паузе (записи сохраняются), действия сотрудника остаются доступны владельцу |
 | `trust.require_registry` | true | номер совпал с реестром штата (или сотрудник подтвердил лицензию) |
 | `trust.require_identity` | true | Stripe KYC, где проверенный человек — адвокат (или представитель/владелец компании), либо подтверждённая связь с фирмой |
 | `trust.require_documents` | false | сотрудник проверил ID + селфи + bar card |
@@ -35,6 +37,10 @@
 | `trust.flag_duplicate_claims` | true | второй аккаунт с тем же номером → `registry_flag = 'duplicate_claim'` у владельца, в очередь |
 | `trust.firm_link_auto_registry` | true | фирма из реестра == `company.name` в Stripe → связь подтверждена автоматически |
 | `trust.firm_link_auto_email` | true | код на почту на домене фирмы (== домен `business_profile.url`) → связь подтверждена |
+
+Пресеты `POST /admin/trust/settings/preset {preset}`: `off` = «Выключить всё», `soft` (реестр, без задержки выплат, 3 жалобы), `standard` (значения по умолчанию), `strict` (всё требуется, биды ждут, 14 дней, 1 жалоба, связь с фирмой только вручную), `all` = «Включить всё». Каждое изменение правил пишется в аудит (`trust.settings` по ключам, `trust.preset`); требования пересчитываются сразу (`recomputeAll`), адвокаты, у которых галочка пропала, получают `trust_requirements_changed` со списком `missing`.
+
+**Статус галочки** (`badgeStatus`, «Галочки → Адвокаты», `GET /admin/trust/attorneys?status&q&limit`): `not_verified` → `self_declared` → `registry_matched` → `pending_review` / `documents_requested` → `cleared`; сбоку `rejected`, `suspended`. Ручная смена `POST …/attorneys/:id/status {status: cleared|self_declared|documents_requested|rejected, note}` — причина обязательна, пишется запись решения и аудит `trust.set_status`. Статистика сотрудников принимает `from`/`to`.
 
 `cleared` (`isCleared`) = заявлен и (сотрудник подтвердил `attorney_trust.staff_cleared_at` **или** все включённые требования выполнены); `missing` — список невыполненных. Галочка = `verified` && `cleared`; гейт оплат закрыт с `reason = 'requirements'` (403 `TRUST_LEVEL_REQUIRED`, details `{gate, missing, current}`) пока не cleared, `hold` при холде, `suspended`. Уровень 0–3 остаётся внутренней моделью и объяснением для клиента.
 

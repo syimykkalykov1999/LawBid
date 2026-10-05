@@ -192,6 +192,8 @@ const trustRu = <String, String>{
       'Связь с фирмой подтверждена.',
   'notif.verification.trust_cleared':
       'Проверка пройдена: галочка и приём оплат открыты',
+  'notif.verification.trust_requirements_changed':
+      'Правила проверки изменились: для галочки и приёма оплат нужно пройти ещё шаги. Откройте «Мой уровень доверия».',
 
   // Errors when an attorney bids while blocked.
   'error.api.TRUST_LEVEL_REQUIRED':
@@ -377,6 +379,8 @@ const trustEn = <String, String>{
   'notif.verification.trust_firm_link_confirmed': 'Firm link confirmed.',
   'notif.verification.trust_cleared':
       'Check passed: your badge and payments are open',
+  'notif.verification.trust_requirements_changed':
+      'The verification rules changed: a few more steps are needed for your badge and payments. Open "My trust level".',
   'error.api.TRUST_LEVEL_REQUIRED':
       'Requirements not met for this action: {missing}. Open "My trust level".',
   'error.api.TRUST_LEVEL_REQUIRED.plain':

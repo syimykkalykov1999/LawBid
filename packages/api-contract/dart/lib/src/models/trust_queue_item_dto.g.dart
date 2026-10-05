@@ -36,6 +36,9 @@ TrustQueueItemDto _$TrustQueueItemDtoFromJson(Map<String, dynamic> json) =>
       waitingSince: json['waitingSince'] == null
           ? null
           : DateTime.parse(json['waitingSince'] as String),
+      badgeStatus: TrustQueueItemDtoBadgeStatus.fromJson(
+        json['badgeStatus'] as String,
+      ),
     );
 
 Map<String, dynamic> _$TrustQueueItemDtoToJson(TrustQueueItemDto instance) =>
@@ -54,4 +57,5 @@ Map<String, dynamic> _$TrustQueueItemDtoToJson(TrustQueueItemDto instance) =>
       'documentsCount': instance.documentsCount,
       'documentsRequestedAt': ?instance.documentsRequestedAt?.toIso8601String(),
       'waitingSince': ?instance.waitingSince?.toIso8601String(),
+      'badgeStatus': instance.badgeStatus.toJson(),
     };

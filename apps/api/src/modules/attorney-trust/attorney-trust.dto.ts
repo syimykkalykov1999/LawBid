@@ -17,12 +17,18 @@ import {
   Min,
 } from 'class-validator';
 import {
+  BADGE_STATUSES,
   BULK_TRUST_ACTIONS,
   DOCUMENT_REQUEST_TEMPLATES,
+  MANUAL_BADGE_STATUSES,
   QUEUE_REASONS,
   TRUST_NOTE_MAX,
+  TRUST_PRESETS,
+  type BadgeStatus,
   type BulkTrustAction,
   type DocumentRequestTemplate,
+  type ManualBadgeStatus,
+  type TrustPreset,
 } from './attorney-trust.constants';
 
 const REQUIREMENTS = ['registry', 'identity', 'documents'] as const;
@@ -339,6 +345,12 @@ export class AdminTrustCardDto {
   @ApiProperty({ type: 'integer' })
   level!: number;
 
+  @ApiProperty({
+    enum: BADGE_STATUSES,
+    description: 'The badge as the admin manages it (owner 2026-10-05).',
+  })
+  badgeStatus!: BadgeStatus;
+
   @ApiProperty()
   badge!: boolean;
 
@@ -473,6 +485,14 @@ export class TrustLevelCountDto {
   attorneys!: number;
 }
 
+export class TrustStatusCountDto {
+  @ApiProperty({ enum: BADGE_STATUSES })
+  status!: BadgeStatus;
+
+  @ApiProperty({ type: 'integer' })
+  attorneys!: number;
+}
+
 export class TrustStatsDto {
   @ApiProperty({ type: [TrustLevelCountDto] })
   byLevel!: TrustLevelCountDto[];
@@ -503,6 +523,20 @@ export class TrustStatsDto {
     description: 'Waiting for a person in the staff queue.',
   })
   inQueue!: number;
+
+  @ApiProperty({ description: 'Master switch `trust.enabled`.' })
+  enabled!: boolean;
+
+  @ApiProperty({
+    description: 'Staff review `trust.manual_review`; false = queue paused.',
+  })
+  manualReview!: boolean;
+
+  @ApiProperty({
+    type: [TrustStatusCountDto],
+    description: 'Attorneys per badge status, same order as the enum.',
+  })
+  byStatus!: TrustStatusCountDto[];
 }
 
 export class StaffAdminDto {
@@ -598,6 +632,16 @@ export class ClearedByQueryDto {
   @ApiProperty({ format: 'uuid' })
   @IsUUID('all')
   adminId!: string;
+
+  @ApiPropertyOptional({ format: 'date-time' })
+  @IsOptional()
+  @IsString()
+  from?: string;
+
+  @ApiPropertyOptional({ format: 'date-time' })
+  @IsOptional()
+  @IsString()
+  to?: string;
 }
 
 /** One row of the staff queue («Борьба с мошенниками»). */
@@ -648,6 +692,102 @@ export class TrustQueueItemDto {
 
   @ApiProperty({ type: String, nullable: true, format: 'date-time' })
   waitingSince!: string | null;
+
+  @ApiProperty({ enum: BADGE_STATUSES })
+  badgeStatus!: BadgeStatus;
+}
+
+/** One row of «Галочки → Адвокаты»: every attorney with their badge status. */
+export class TrustAttorneyListItemDto {
+  @ApiProperty({ type: AdminTrustAttorneyDto })
+  attorney!: AdminTrustAttorneyDto;
+
+  @ApiProperty({ type: 'integer' })
+  level!: number;
+
+  @ApiProperty({ enum: BADGE_STATUSES })
+  badgeStatus!: BadgeStatus;
+
+  @ApiProperty({ description: 'Blue check shown in the app right now.' })
+  badge!: boolean;
+
+  @ApiProperty({ type: [String], enum: REQUIREMENTS })
+  missing!: RequirementName[];
+
+  @ApiProperty({ type: [String], enum: QUEUE_REASONS })
+  reasons!: string[];
+
+  @ApiProperty({ type: TrustHoldsDto })
+  holds!: TrustHoldsDto;
+
+  @ApiProperty({ type: String, nullable: true, format: 'date-time' })
+  staffClearedAt!: string | null;
+
+  @ApiProperty({ type: StaffAdminDto, nullable: true })
+  staffClearedBy!: StaffAdminDto | null;
+
+  @ApiProperty({ type: String, nullable: true, format: 'date-time' })
+  documentsRequestedAt!: string | null;
+
+  @ApiProperty({ type: 'integer' })
+  complaintsTotal!: number;
+}
+
+export class TrustAttorneyListQueryDto {
+  @ApiPropertyOptional({ enum: BADGE_STATUSES })
+  @IsOptional()
+  @IsIn([...BADGE_STATUSES])
+  status?: BadgeStatus;
+
+  @ApiPropertyOptional({ maxLength: 80 })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(80)
+  q?: string;
+
+  @ApiPropertyOptional({ type: 'integer', minimum: 1, maximum: 500 })
+  @IsOptional()
+  @Transform(({ value }) => (value === undefined ? undefined : Number(value)))
+  @IsInt()
+  @Min(1)
+  @Max(500)
+  limit?: number;
+}
+
+/** Manual badge status change (owner 2026-10-05): a reason is required. */
+export class TrustSetStatusDto {
+  @ApiProperty({ enum: MANUAL_BADGE_STATUSES })
+  @IsIn([...MANUAL_BADGE_STATUSES])
+  status!: ManualBadgeStatus;
+
+  @ApiProperty({ minLength: 3, maxLength: TRUST_NOTE_MAX })
+  @Transform(trim)
+  @IsString()
+  @Length(3, TRUST_NOTE_MAX)
+  note!: string;
+}
+
+export class TrustPresetDto {
+  @ApiProperty({
+    enum: TRUST_PRESETS,
+    description:
+      'off = «Выключить всё»; soft / standard / strict; all = «Включить всё».',
+  })
+  @IsIn([...TRUST_PRESETS])
+  preset!: TrustPreset;
+}
+
+export class StaffDecisionsQueryDto {
+  @ApiPropertyOptional({ format: 'date-time' })
+  @IsOptional()
+  @IsString()
+  from?: string;
+
+  @ApiPropertyOptional({ format: 'date-time' })
+  @IsOptional()
+  @IsString()
+  to?: string;
 }
 
 export class TrustQueueQueryDto {
@@ -711,6 +851,20 @@ export class BulkTrustResultDto {
 }
 
 export class TrustSettingsDto {
+  @ApiProperty({
+    description:
+      'Master switch. Off = self-attested attorneys get the badge and payments at once; no holds, no queue.',
+  })
+  @IsBoolean()
+  enabled!: boolean;
+
+  @ApiProperty({
+    description:
+      'Staff review. Off = automatic checks only; the documents requirement is ignored and the queue is paused, not lost.',
+  })
+  @IsBoolean()
+  manualReview!: boolean;
+
   @ApiProperty({
     description:
       'Require the bar number to match the state registry (or staff).',

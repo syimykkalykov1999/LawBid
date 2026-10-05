@@ -5,6 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'admin_trust_attorney_dto.dart';
+import 'admin_trust_card_dto_badge_status.dart';
 import 'admin_trust_card_dto_cleared_by.dart';
 import 'admin_trust_card_dto_missing.dart';
 import 'admin_trust_card_dto_queue_reasons.dart';
@@ -25,6 +26,7 @@ class AdminTrustCardDto {
   const AdminTrustCardDto({
     required this.attorney,
     required this.level,
+    required this.badgeStatus,
     required this.badge,
     required this.signals,
     required this.holds,
@@ -60,6 +62,9 @@ class AdminTrustCardDto {
 
   final AdminTrustAttorneyDto attorney;
   final int level;
+
+  /// The badge as the admin manages it (owner 2026-10-05).
+  final AdminTrustCardDtoBadgeStatus badgeStatus;
   final bool badge;
   final TrustSignalsDto signals;
   final TrustHoldsDto holds;

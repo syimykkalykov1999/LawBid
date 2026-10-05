@@ -160,6 +160,7 @@ const trustNotificationKinds = <String>{
   'trust_firm_link_required',
   'trust_firm_link_confirmed',
   'trust_cleared',
+  'trust_requirements_changed',
 };
 
 bool isTrustNotificationKind(String? kind) =>

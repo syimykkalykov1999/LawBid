@@ -22,6 +22,11 @@ import {
   RecomputeAllResultDto,
   TrustQueueItemDto,
   TrustQueueQueryDto,
+  TrustAttorneyListItemDto,
+  TrustAttorneyListQueryDto,
+  TrustPresetDto,
+  TrustSetStatusDto,
+  StaffDecisionsQueryDto,
   TrustAttorneyIdParamDto,
   TrustHoldDto,
   TrustHoldListItemDto,
@@ -148,6 +153,50 @@ export class AdminTrustController {
     return this.admin.confirmFirmLink(admin, p.attorneyId, dto.note ?? null);
   }
 
+  @Post('settings/preset')
+  @ApiOperation({
+    summary:
+      'Apply a preset: off («Выключить всё»), soft, standard, strict, all («Включить всё»)',
+  })
+  @ApiEnvelopeResponse(TrustSettingsDto)
+  @ApiErrors({ 400: [E.VALIDATION_ERROR], 403: [E.FORBIDDEN] })
+  applyTrustPreset(
+    @CurrentAdmin() admin: AdminActor,
+    @Body() dto: TrustPresetDto,
+  ): Promise<TrustSettingsDto> {
+    return this.admin.applyPreset(admin, dto.preset);
+  }
+
+  @Get('attorneys')
+  @ApiOperation({
+    summary: '«Галочки → Адвокаты»: every attorney with their badge status',
+  })
+  @ApiEnvelopeResponse(TrustAttorneyListItemDto, { isArray: true })
+  @ApiErrors({ 400: [E.VALIDATION_ERROR], 403: [E.FORBIDDEN] })
+  trustAttorneys(
+    @Query() q: TrustAttorneyListQueryDto,
+  ): Promise<TrustAttorneyListItemDto[]> {
+    return this.admin.list({
+      status: q.status ?? null,
+      q: q.q ?? null,
+      limit: q.limit,
+    });
+  }
+
+  @Post('attorneys/:attorneyId/status')
+  @ApiOperation({
+    summary: 'Set the badge status by hand (reason required, audited)',
+  })
+  @ApiEnvelopeResponse(AdminTrustCardDto)
+  @ApiErrors(ERRORS)
+  setTrustStatus(
+    @CurrentAdmin() admin: AdminActor,
+    @Param() p: TrustAttorneyIdParamDto,
+    @Body() dto: TrustSetStatusDto,
+  ): Promise<AdminTrustCardDto> {
+    return this.admin.setStatus(admin, p.attorneyId, dto);
+  }
+
   @Get('queue')
   @ApiOperation({
     summary: 'Staff queue: attorneys waiting for a person, oldest first',
@@ -164,8 +213,10 @@ export class AdminTrustController {
   })
   @ApiEnvelopeResponse(StaffDecisionStatsDto, { isArray: true })
   @ApiErrors({ 403: [E.FORBIDDEN] })
-  staffDecisions(): Promise<StaffDecisionStatsDto[]> {
-    return this.admin.staffDecisions();
+  staffDecisions(
+    @Query() q: StaffDecisionsQueryDto,
+  ): Promise<StaffDecisionStatsDto[]> {
+    return this.admin.staffDecisions(q);
   }
 
   @Get('cleared-by')
@@ -175,7 +226,7 @@ export class AdminTrustController {
   @ApiEnvelopeResponse(ClearedByItemDto, { isArray: true })
   @ApiErrors({ 400: [E.VALIDATION_ERROR], 403: [E.FORBIDDEN] })
   clearedBy(@Query() q: ClearedByQueryDto): Promise<ClearedByItemDto[]> {
-    return this.admin.clearedBy(q.adminId);
+    return this.admin.clearedBy(q.adminId, q);
   }
 
   @Post('attorneys/:attorneyId/clear')

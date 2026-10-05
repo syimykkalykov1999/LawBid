@@ -8,6 +8,8 @@ part of 'trust_settings_dto.dart';
 
 TrustSettingsDto _$TrustSettingsDtoFromJson(Map<String, dynamic> json) =>
     TrustSettingsDto(
+      enabled: json['enabled'] as bool,
+      manualReview: json['manualReview'] as bool,
       requireRegistry: json['requireRegistry'] as bool,
       requireIdentity: json['requireIdentity'] as bool,
       requireDocuments: json['requireDocuments'] as bool,
@@ -24,6 +26,8 @@ TrustSettingsDto _$TrustSettingsDtoFromJson(Map<String, dynamic> json) =>
 
 Map<String, dynamic> _$TrustSettingsDtoToJson(TrustSettingsDto instance) =>
     <String, dynamic>{
+      'enabled': instance.enabled,
+      'manualReview': instance.manualReview,
       'requireRegistry': instance.requireRegistry,
       'requireIdentity': instance.requireIdentity,
       'requireDocuments': instance.requireDocuments,

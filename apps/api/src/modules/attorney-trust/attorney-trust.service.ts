@@ -21,6 +21,7 @@ import {
   TRUST_ACTOR,
   TRUST_EVENT,
   TRUST_NOTIFICATION_KIND,
+  type BadgeStatus,
   type FirmLinkSource,
   type HoldCode,
   type NameCheck,
@@ -95,6 +96,8 @@ export interface TrustSnapshot {
   staffClearedAt: Date | null;
   staffClearedBy: string | null;
   staffStatus: StaffStatus;
+  /** The badge as the admin manages it («Галочки → Адвокаты»). */
+  badgeStatus: BadgeStatus;
   /** Why the attorney sits in the staff queue (empty when not). */
   queueReasons: string[];
   documentsRequestedAt: Date | null;
@@ -360,6 +363,7 @@ export class AttorneyTrustService {
   /** Nightly safety net and the admin's "recompute everyone". */
   async recomputeAll(
     batch = 200,
+    opts: { notifyNewlyRequired?: boolean } = {},
   ): Promise<{ attorneys: number; changed: number }> {
     let cursor: string | undefined;
     let attorneys = 0;
@@ -380,6 +384,23 @@ export class AttorneyTrustService {
           (snap.level !== r.trust_level || snap.badge !== r.trust_badge)
         ) {
           changed += 1;
+          // Owner 2026-10-05 06:07: the rules got stricter and this attorney
+          // lost the badge — tell them what is required now.
+          if (
+            opts.notifyNewlyRequired &&
+            r.trust_badge &&
+            !snap.badge &&
+            snap.missing.length > 0
+          ) {
+            await this.notifications.emit({
+              type: 'verification_update',
+              recipientId: r.user_id,
+              payload: {
+                kind: TRUST_NOTIFICATION_KIND.requirementsChanged,
+                missing: snap.missing,
+              },
+            });
+          }
         }
       }
       cursor = rows[rows.length - 1].user_id;
@@ -596,7 +617,7 @@ export class AttorneyTrustService {
         !isCompany &&
         nameCheck === NAME_CHECK.mismatch &&
         !trust.documents_verified_at &&
-        (await this.settings.boolean('trust.auto_hold_on_name_mismatch'))
+        (await this.on('trust.auto_hold_on_name_mismatch'))
       ) {
         await this.holdInTx(
           tx,
@@ -788,7 +809,7 @@ export class AttorneyTrustService {
       return;
     }
     const [autoHold, toSuspend, windowDays] = await Promise.all([
-      this.settings.boolean('trust.auto_hold_on_complaint'),
+      this.on('trust.auto_hold_on_complaint'),
       this.settings.number('trust.complaints_to_suspend'),
       this.settings.number('trust.complaint_window_days'),
     ]);
@@ -850,7 +871,7 @@ export class AttorneyTrustService {
     stateCode: string,
     barNumber: string,
   ): Promise<void> {
-    if (!(await this.settings.boolean('trust.flag_duplicate_claims'))) return;
+    if (!(await this.on('trust.flag_duplicate_claims'))) return;
     const actor: TrustActor = { type: TRUST_ACTOR.attorney, id: claimantId };
     await withTxRetry(this.prisma, async (tx) => {
       await this.ensureRow(tx, holderId);
@@ -968,14 +989,43 @@ export class AttorneyTrustService {
 
   // --- staff («Борьба с мошенниками») -----------------------------------
 
-  /** The owner's switches: what an attorney must pass. */
+  /** The owner's switches: what an attorney must pass. With the master
+   * switch off nothing is required; with staff review off the documents
+   * requirement (staff-only) is ignored. */
   async requirements(): Promise<TrustRequirements> {
-    const [registry, identity, documents] = await Promise.all([
-      this.settings.boolean('trust.require_registry'),
-      this.settings.boolean('trust.require_identity'),
-      this.settings.boolean('trust.require_documents'),
+    const [enabled, manualReview, registry, identity, documents] =
+      await Promise.all([
+        this.settings.boolean('trust.enabled'),
+        this.settings.boolean('trust.manual_review'),
+        this.settings.boolean('trust.require_registry'),
+        this.settings.boolean('trust.require_identity'),
+        this.settings.boolean('trust.require_documents'),
+      ]);
+    if (!enabled) return { registry: false, identity: false, documents: false };
+    return { registry, identity, documents: documents && manualReview };
+  }
+
+  /** The master switch and staff review («Выключить всё» / «Включить всё»). */
+  async rules(): Promise<{ enabled: boolean; manualReview: boolean }> {
+    const [enabled, manualReview] = await Promise.all([
+      this.settings.boolean('trust.enabled'),
+      this.settings.boolean('trust.manual_review'),
     ]);
-    return { registry, identity, documents };
+    return { enabled, manualReview };
+  }
+
+  /** A `trust.*` switch that only counts while the master switch is on. */
+  private async on(
+    key:
+      | 'trust.auto_hold_on_complaint'
+      | 'trust.auto_hold_on_name_mismatch'
+      | 'trust.flag_duplicate_claims',
+  ): Promise<boolean> {
+    const [enabled, value] = await Promise.all([
+      this.settings.boolean('trust.enabled'),
+      this.settings.boolean(key),
+    ]);
+    return enabled && value;
   }
 
   /**
@@ -1150,6 +1200,60 @@ export class AttorneyTrustService {
   }
 
   /**
+   * «Галочки → Адвокаты»: every attorney profile with its badge status,
+   * optionally one status and a name search. Newest profiles first.
+   */
+  async list(opts: {
+    status?: BadgeStatus | null;
+    q?: string | null;
+    limit?: number;
+  }): Promise<TrustSnapshot[]> {
+    const limit = opts.limit ?? 200;
+    const rows = await this.prisma.attorneyProfile.findMany({
+      where: opts.q
+        ? {
+            OR: [
+              { username_lower: { contains: opts.q.toLowerCase() } },
+              {
+                user: {
+                  OR: [
+                    { first_name: { contains: opts.q, mode: 'insensitive' } },
+                    { last_name: { contains: opts.q, mode: 'insensitive' } },
+                  ],
+                },
+              },
+            ],
+          }
+        : {},
+      select: PROFILE_SELECT,
+      orderBy: { user_id: 'desc' },
+      take: opts.status ? 5000 : limit,
+    });
+    const out: TrustSnapshot[] = [];
+    for (const row of rows) {
+      const snap = await this.snapshotOf(row);
+      if (opts.status && snap.badgeStatus !== opts.status) continue;
+      out.push(snap);
+      if (out.length >= limit) break;
+    }
+    return out;
+  }
+
+  /** How many attorneys sit in each badge status (for the KPI row). */
+  async countByStatus(): Promise<Map<BadgeStatus, number>> {
+    const rows = await this.prisma.attorneyProfile.findMany({
+      select: PROFILE_SELECT,
+      take: 20000,
+    });
+    const counts = new Map<BadgeStatus, number>();
+    for (const row of rows) {
+      const snap = await this.snapshotOf(row);
+      counts.set(snap.badgeStatus, (counts.get(snap.badgeStatus) ?? 0) + 1);
+    }
+    return counts;
+  }
+
+  /**
    * What only a person can settle: a firm link waiting, a name mismatch,
    * a registry difference / duplicate claim, a complaint hold, documents
    * the attorney uploaded (a submitted request with an ID / bar card), or
@@ -1214,11 +1318,13 @@ export class AttorneyTrustService {
   ): Promise<TrustSnapshot> {
     const trust = row.trust ?? emptyTrust(row.user_id);
     const s = signals ?? this.signalsOf({ ...row, trust });
-    const [requirements, bidsRequireCleared, delayDays] = await Promise.all([
-      this.requirements(),
-      this.settings.boolean('trust.bids_require_cleared'),
-      this.settings.number('trust.payout_delay_days'),
-    ]);
+    const [requirements, bidsRequireCleared, delayDays, enabled] =
+      await Promise.all([
+        this.requirements(),
+        this.settings.boolean('trust.bids_require_cleared'),
+        this.settings.number('trust.payout_delay_days'),
+        this.settings.boolean('trust.enabled'),
+      ]);
     const level = row.trust_level as TrustLevel;
     const suspended = row.verification_status === 'suspended';
     const staffCleared = trust.staff_cleared_at !== null;
@@ -1226,6 +1332,11 @@ export class AttorneyTrustService {
     const cleared = isCleared(s, requirements, staffCleared);
     const gate = (needsCleared: boolean, hold: string | null): TrustGate => {
       if (suspended) return closed('suspended', missing, level);
+      // Master switch off: the pre-trust mode — holds and requirements
+      // stay recorded but close nothing.
+      if (!enabled) {
+        return { ok: true, reason: null, missing: [], current: level, hold };
+      }
       if (hold) return { ...closed('hold', missing, level), hold };
       if (needsCleared && !cleared)
         return closed('requirements', missing, level);
@@ -1237,7 +1348,9 @@ export class AttorneyTrustService {
         hold: null,
       };
     };
-    const queueReasons = this.queueReasonsOf(row, trust, missing, cleared);
+    const queueReasons = enabled
+      ? this.queueReasonsOf(row, trust, missing, cleared)
+      : [];
     const staffStatus: StaffStatus = suspended
       ? 'suspended'
       : cleared
@@ -1273,6 +1386,13 @@ export class AttorneyTrustService {
       staffClearedAt: trust.staff_cleared_at,
       staffClearedBy: trust.staff_cleared_by,
       staffStatus,
+      badgeStatus: badgeStatusOf({
+        verificationStatus: row.verification_status,
+        signals: s,
+        cleared,
+        staffStatus,
+        documentsRequestedAt: trust.documents_requested_at,
+      }),
       queueReasons,
       documentsRequestedAt: trust.documents_requested_at,
       documentsRequestedTemplate: trust.documents_requested_template,
@@ -1527,9 +1647,12 @@ export class AttorneyTrustService {
    * minute reads as "approving without looking"), and how many attorneys
    * they cleared later drew a complaint or a suspension.
    */
-  async staffDecisions(): Promise<StaffDecisionRow[]> {
+  async staffDecisions(
+    period: { from?: Date; to?: Date } = {},
+  ): Promise<StaffDecisionRow[]> {
     const decisions = await this.prisma.attorneyTrustEvent.findMany({
       where: {
+        ...createdWithin(period),
         actor_type: TRUST_ACTOR.admin,
         kind: {
           in: [
@@ -1646,9 +1769,16 @@ export class AttorneyTrustService {
   }
 
   /** Attorneys one admin cleared, with what happened to them since. */
-  async clearedBy(adminId: string): Promise<ClearedByRow[]> {
+  async clearedBy(
+    adminId: string,
+    period: { from?: Date; to?: Date } = {},
+  ): Promise<ClearedByRow[]> {
     const events = await this.prisma.attorneyTrustEvent.findMany({
-      where: { kind: TRUST_EVENT.staffCleared, actor_id: adminId },
+      where: {
+        ...createdWithin(period),
+        kind: TRUST_EVENT.staffCleared,
+        actor_id: adminId,
+      },
       orderBy: { created_at: 'desc' },
       select: { attorney_id: true, created_at: true, details: true },
       take: 500,
@@ -1729,6 +1859,39 @@ export class AttorneyTrustService {
       'attorneyTrust' in db ? undefined : db,
     );
   }
+}
+
+/** Prisma `created_at` bounds for an optional period. */
+function createdWithin(period: { from?: Date; to?: Date }) {
+  if (!period.from && !period.to) return {};
+  return {
+    created_at: {
+      ...(period.from ? { gte: period.from } : {}),
+      ...(period.to ? { lte: period.to } : {}),
+    },
+  };
+}
+
+/**
+ * The badge as one word for the admin (owner 2026-10-05): not_verified →
+ * self_declared → registry_matched → pending_review / documents_requested →
+ * cleared; rejected and suspended on the side.
+ */
+export function badgeStatusOf(x: {
+  verificationStatus: string;
+  signals: TrustSignals;
+  cleared: boolean;
+  staffStatus: StaffStatus;
+  documentsRequestedAt: Date | null;
+}): BadgeStatus {
+  if (x.verificationStatus === 'suspended') return 'suspended';
+  if (x.verificationStatus === 'rejected') return 'rejected';
+  if (!x.signals.selfAttested) return 'not_verified';
+  if (x.cleared) return 'cleared';
+  if (x.documentsRequestedAt) return 'documents_requested';
+  if (x.staffStatus === 'needs_staff') return 'pending_review';
+  if (x.signals.licenseConfirmed) return 'registry_matched';
+  return 'self_declared';
 }
 
 function closed(

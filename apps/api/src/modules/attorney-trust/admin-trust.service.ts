@@ -6,10 +6,13 @@ import { AuditLogService } from '../admin-access/audit-log.service';
 import { AdminConfigService } from '../admin-config/admin-config.service';
 import type { AdminActor } from '../admin-auth/admin-auth.decorators';
 import {
+  BADGE_STATUSES,
   COMPLAINT_REASONS,
   TRUST_ACTOR,
   TRUST_AUDIT_ACTION,
   TRUST_LEVELS,
+  type BadgeStatus,
+  type TrustPreset,
 } from './attorney-trust.constants';
 import type { TrustSnapshot } from './attorney-trust.service';
 import type {
@@ -22,8 +25,10 @@ import type {
   DocumentRequestDto,
   RecomputeAllResultDto,
   TrustQueueItemDto,
+  TrustAttorneyListItemDto,
   TrustHoldDto,
   TrustHoldListItemDto,
+  TrustSetStatusDto,
   TrustSettingsDto,
   TrustStatsDto,
 } from './attorney-trust.dto';
@@ -40,6 +45,8 @@ import {
 
 /** app_config key ↔ settings DTO field. */
 const SETTING_KEYS = {
+  enabled: 'trust.enabled',
+  manualReview: 'trust.manual_review',
   requireRegistry: 'trust.require_registry',
   requireIdentity: 'trust.require_identity',
   requireDocuments: 'trust.require_documents',
@@ -68,6 +75,8 @@ export class AdminTrustService {
   async settingsDto(): Promise<TrustSettingsDto> {
     const s = this.settings;
     return {
+      enabled: await s.boolean(SETTING_KEYS.enabled),
+      manualReview: await s.boolean(SETTING_KEYS.manualReview),
       requireRegistry: await s.boolean(SETTING_KEYS.requireRegistry),
       requireIdentity: await s.boolean(SETTING_KEYS.requireIdentity),
       requireDocuments: await s.boolean(SETTING_KEYS.requireDocuments),
@@ -101,12 +110,44 @@ export class AdminTrustService {
       }
     }
     const gatesChanged = (
-      ['requireRegistry', 'requireIdentity', 'requireDocuments'] as const
+      [
+        'enabled',
+        'manualReview',
+        'requireRegistry',
+        'requireIdentity',
+        'requireDocuments',
+      ] as const
     ).some((f) => dto[f] !== before[f]);
     if (gatesChanged) {
-      void this.trust.recomputeAll();
+      // Owner 2026-10-05 06:07: rules apply at once; attorneys who now
+      // miss something are told.
+      void this.trust.recomputeAll(200, { notifyNewlyRequired: true });
     }
     return this.settingsDto();
+  }
+
+  /**
+   * One-click presets (owner 2026-10-05 06:07). `off` = «Выключить всё»:
+   * the pre-trust mode. `all` = «Включить всё»: every check and staff
+   * review on. The rest are graded sets; every key stays editable after.
+   */
+  async applyPreset(
+    admin: AdminActor,
+    preset: TrustPreset,
+  ): Promise<TrustSettingsDto> {
+    const before = await this.settingsDto();
+    const next = presetSettings(preset, before);
+    const after = await this.updateSettings(admin, next);
+    await this.audit.record({
+      adminId: admin.id,
+      action: TRUST_AUDIT_ACTION.preset,
+      targetType: 'app_config',
+      targetId: null,
+      before: { ...before },
+      after: { preset, ...after },
+      ip: admin.ip,
+    });
+    return after;
   }
 
   async stats(): Promise<TrustStatsDto> {
@@ -139,6 +180,10 @@ export class AdminTrustService {
         }),
         this.trust.queue({ limit: 1000 }).then((q) => q.length),
       ]);
+    const [rules, byStatus] = await Promise.all([
+      this.trust.rules(),
+      this.trust.countByStatus(),
+    ]);
     const counts = new Map(byLevel.map((r) => [r.trust_level, r._count._all]));
     return {
       byLevel: TRUST_LEVELS.map((level) => ({
@@ -152,7 +197,116 @@ export class AdminTrustService {
       // The badge follows clearance, so this is the cleared count.
       cleared: withBadge,
       inQueue,
+      enabled: rules.enabled,
+      manualReview: rules.manualReview,
+      byStatus: BADGE_STATUSES.map((status) => ({
+        status,
+        attorneys: byStatus.get(status) ?? 0,
+      })),
     };
+  }
+
+  /** «Галочки → Адвокаты»: every attorney with their badge status. */
+  async list(opts: {
+    status?: BadgeStatus | null;
+    q?: string | null;
+    limit?: number;
+  }): Promise<TrustAttorneyListItemDto[]> {
+    const snaps = await this.trust.list(opts);
+    if (snaps.length === 0) return [];
+    const [rows, admins] = await Promise.all([
+      this.prisma.attorneyProfile.findMany({
+        where: { user_id: { in: snaps.map((s) => s.attorneyId) } },
+        select: {
+          user_id: true,
+          username: true,
+          verification_status: true,
+          user: { select: { first_name: true, last_name: true } },
+        },
+      }),
+      this.admins(
+        snaps
+          .map((s) => s.staffClearedBy)
+          .filter((id): id is string => typeof id === 'string'),
+      ),
+    ]);
+    const byId = new Map(rows.map((r) => [r.user_id, r]));
+    const items: TrustAttorneyListItemDto[] = [];
+    for (const snap of snaps) {
+      const row = byId.get(snap.attorneyId);
+      if (!row) continue;
+      items.push({
+        attorney: {
+          id: row.user_id,
+          firstName: row.user.first_name,
+          lastName: row.user.last_name,
+          username: row.username,
+          verificationStatus: row.verification_status,
+        },
+        level: snap.level,
+        badgeStatus: snap.badgeStatus,
+        badge: snap.badge,
+        missing: snap.missing,
+        reasons: snap.queueReasons,
+        holds: toHolds(snap),
+        staffClearedAt: snap.staffClearedAt?.toISOString() ?? null,
+        staffClearedBy: snap.staffClearedBy
+          ? (admins.get(snap.staffClearedBy) ?? null)
+          : null,
+        documentsRequestedAt: snap.documentsRequestedAt?.toISOString() ?? null,
+        complaintsTotal: snap.complaintsTotal,
+      });
+    }
+    return items;
+  }
+
+  /**
+   * Manual badge status (owner 2026-10-05): the same staff actions, chosen
+   * by the status the admin wants, with a required reason; each one leaves
+   * its own decision record and audit row.
+   */
+  async setStatus(
+    admin: AdminActor,
+    attorneyId: string,
+    dto: TrustSetStatusDto,
+  ): Promise<AdminTrustCardDto> {
+    await this.exists(attorneyId);
+    const before = await this.trust.snapshot(attorneyId);
+    const actor = actorOf(admin);
+    let after: TrustSnapshot | null;
+    switch (dto.status) {
+      case 'cleared':
+        after = await this.trust.clearByStaff(attorneyId, actor, dto.note);
+        break;
+      case 'self_declared':
+        after = await this.trust.unclearByStaff(attorneyId, actor, dto.note);
+        break;
+      case 'documents_requested':
+        after = await this.trust.requestDocuments(
+          attorneyId,
+          actor,
+          'custom',
+          dto.note,
+        );
+        break;
+      case 'rejected':
+        after = await this.trust.rejectByStaff(attorneyId, actor, dto.note);
+        break;
+    }
+    await this.audit.record({
+      adminId: admin.id,
+      action: TRUST_AUDIT_ACTION.setStatus,
+      targetType: 'attorney_profile',
+      targetId: attorneyId,
+      before: { badgeStatus: before?.badgeStatus ?? null },
+      after: {
+        badgeStatus: after?.badgeStatus ?? null,
+        requested: dto.status,
+        note: dto.note,
+      },
+      ip: admin.ip,
+    });
+    return this.card(attorneyId);
   }
 
   /** The staff queue («Борьба с мошенниками»): who waits and why. */
@@ -211,6 +365,7 @@ export class AdminTrustService {
           verificationStatus: row.verification_status,
         },
         level: snap.level,
+        badgeStatus: snap.badgeStatus,
         reasons: snap.queueReasons,
         missing: snap.missing,
         signals: snap.signals,
@@ -474,6 +629,7 @@ export class AdminTrustService {
         verificationStatus: row.verification_status,
       },
       level: snap.level,
+      badgeStatus: snap.badgeStatus,
       badge: snap.badge,
       signals: snap.signals,
       holds: toHolds(snap),
@@ -672,8 +828,11 @@ export class AdminTrustService {
   }
 
   /** Owner 2026-10-05: who approved whom, per admin. */
-  async staffDecisions(): Promise<StaffDecisionStatsDto[]> {
-    const rows = await this.trust.staffDecisions();
+  async staffDecisions(period: {
+    from?: string;
+    to?: string;
+  }): Promise<StaffDecisionStatsDto[]> {
+    const rows = await this.trust.staffDecisions(datesOf(period));
     const admins = await this.admins(rows.map((r) => r.adminId));
     return rows.map((r) => ({
       admin: admins.get(r.adminId) ?? {
@@ -697,8 +856,11 @@ export class AdminTrustService {
   }
 
   /** The attorneys one admin cleared («кто одобрил» filter). */
-  async clearedBy(adminId: string): Promise<ClearedByItemDto[]> {
-    const rows = await this.trust.clearedBy(adminId);
+  async clearedBy(
+    adminId: string,
+    period: { from?: string; to?: string } = {},
+  ): Promise<ClearedByItemDto[]> {
+    const rows = await this.trust.clearedBy(adminId, datesOf(period));
     return rows.map((r) => ({
       attorney: r.attorney,
       level: r.level,
@@ -760,6 +922,102 @@ export class AdminTrustService {
       after: { level: afterLevel ?? null, note },
       ip: admin.ip,
     });
+  }
+}
+
+/** ISO strings → Dates; an unparsable bound is ignored. */
+function datesOf(p: { from?: string; to?: string }): {
+  from?: Date;
+  to?: Date;
+} {
+  const d = (v?: string) => {
+    if (!v) return undefined;
+    const t = new Date(v);
+    return Number.isNaN(t.getTime()) ? undefined : t;
+  };
+  return { from: d(p.from), to: d(p.to) };
+}
+
+/** The settings a preset writes; everything else keeps its value. */
+export function presetSettings(
+  preset: TrustPreset,
+  cur: TrustSettingsDto,
+): TrustSettingsDto {
+  switch (preset) {
+    case 'off':
+      return { ...cur, enabled: false };
+    case 'soft':
+      return {
+        ...cur,
+        enabled: true,
+        manualReview: true,
+        requireRegistry: true,
+        requireIdentity: false,
+        requireDocuments: false,
+        bidsRequireCleared: false,
+        payoutDelayDays: 0,
+        autoHoldOnComplaint: true,
+        complaintsToSuspend: 3,
+        complaintWindowDays: 90,
+        autoHoldOnNameMismatch: false,
+        flagDuplicateClaims: true,
+        firmLinkAutoRegistry: true,
+        firmLinkAutoEmail: true,
+      };
+    case 'standard':
+      return {
+        ...cur,
+        enabled: true,
+        manualReview: true,
+        requireRegistry: true,
+        requireIdentity: true,
+        requireDocuments: false,
+        bidsRequireCleared: false,
+        payoutDelayDays: 7,
+        autoHoldOnComplaint: true,
+        complaintsToSuspend: 2,
+        complaintWindowDays: 90,
+        autoHoldOnNameMismatch: true,
+        flagDuplicateClaims: true,
+        firmLinkAutoRegistry: true,
+        firmLinkAutoEmail: true,
+      };
+    case 'strict':
+      return {
+        ...cur,
+        enabled: true,
+        manualReview: true,
+        requireRegistry: true,
+        requireIdentity: true,
+        requireDocuments: true,
+        bidsRequireCleared: true,
+        payoutDelayDays: 14,
+        autoHoldOnComplaint: true,
+        complaintsToSuspend: 1,
+        complaintWindowDays: 180,
+        autoHoldOnNameMismatch: true,
+        flagDuplicateClaims: true,
+        firmLinkAutoRegistry: false,
+        firmLinkAutoEmail: false,
+      };
+    case 'all':
+      return {
+        ...cur,
+        enabled: true,
+        manualReview: true,
+        requireRegistry: true,
+        requireIdentity: true,
+        requireDocuments: true,
+        bidsRequireCleared: true,
+        payoutDelayDays: 14,
+        autoHoldOnComplaint: true,
+        complaintsToSuspend: 2,
+        complaintWindowDays: 90,
+        autoHoldOnNameMismatch: true,
+        flagDuplicateClaims: true,
+        firmLinkAutoRegistry: true,
+        firmLinkAutoEmail: true,
+      };
   }
 }
 

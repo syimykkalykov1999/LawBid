@@ -9,6 +9,8 @@ part 'trust_settings_dto.g.dart';
 @JsonSerializable()
 class TrustSettingsDto {
   const TrustSettingsDto({
+    required this.enabled,
+    required this.manualReview,
     required this.requireRegistry,
     required this.requireIdentity,
     required this.requireDocuments,
@@ -25,6 +27,12 @@ class TrustSettingsDto {
 
   factory TrustSettingsDto.fromJson(Map<String, Object?> json) =>
       _$TrustSettingsDtoFromJson(json);
+
+  /// Master switch. Off = self-attested attorneys get the badge and payments at once; no holds, no queue.
+  final bool enabled;
+
+  /// Staff review. Off = automatic checks only; the documents requirement is ignored and the queue is paused, not lost.
+  final bool manualReview;
 
   /// Require the bar number to match the state registry (or staff).
   final bool requireRegistry;

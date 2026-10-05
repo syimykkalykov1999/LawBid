@@ -7,6 +7,7 @@ import 'package:json_annotation/json_annotation.dart';
 import 'admin_trust_attorney_dto.dart';
 import 'registry_link_dto.dart';
 import 'trust_holds_dto.dart';
+import 'trust_queue_item_dto_badge_status.dart';
 import 'trust_queue_item_dto_missing.dart';
 import 'trust_queue_item_dto_reasons.dart';
 import 'trust_signals_dto.dart';
@@ -30,6 +31,7 @@ class TrustQueueItemDto {
     required this.documentsCount,
     required this.documentsRequestedAt,
     required this.waitingSince,
+    required this.badgeStatus,
   });
 
   factory TrustQueueItemDto.fromJson(Map<String, Object?> json) =>
@@ -53,6 +55,7 @@ class TrustQueueItemDto {
   final int documentsCount;
   final DateTime? documentsRequestedAt;
   final DateTime? waitingSince;
+  final TrustQueueItemDtoBadgeStatus badgeStatus;
 
   Map<String, Object?> toJson() => _$TrustQueueItemDtoToJson(this);
 }

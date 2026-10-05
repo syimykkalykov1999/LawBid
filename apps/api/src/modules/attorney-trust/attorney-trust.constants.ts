@@ -104,6 +104,39 @@ export const QUEUE_REASONS = [
   'complaint',
 ] as const;
 
+/** Owner 2026-10-05: the badge as the admin manages it — one word per
+ * attorney, derived from the facts (see `badgeStatusOf`). */
+export const BADGE_STATUSES = [
+  'not_verified',
+  'self_declared',
+  'registry_matched',
+  'pending_review',
+  'documents_requested',
+  'cleared',
+  'rejected',
+  'suspended',
+] as const;
+export type BadgeStatus = (typeof BADGE_STATUSES)[number];
+
+/** Statuses a person may set by hand (with a reason, audited). */
+export const MANUAL_BADGE_STATUSES = [
+  'cleared',
+  'self_declared',
+  'documents_requested',
+  'rejected',
+] as const;
+export type ManualBadgeStatus = (typeof MANUAL_BADGE_STATUSES)[number];
+
+/** Owner 2026-10-05 06:07: one-click presets for the rules. */
+export const TRUST_PRESETS = [
+  'off',
+  'soft',
+  'standard',
+  'strict',
+  'all',
+] as const;
+export type TrustPreset = (typeof TRUST_PRESETS)[number];
+
 export const BULK_TRUST_ACTIONS = [
   'clear',
   'request_documents',
@@ -133,6 +166,8 @@ export const TRUST_NOTIFICATION_KIND = {
   firmLinkRequired: 'trust_firm_link_required',
   firmLinkConfirmed: 'trust_firm_link_confirmed',
   cleared: 'trust_cleared',
+  /** The owner tightened the rules: something is required now. */
+  requirementsChanged: 'trust_requirements_changed',
 } as const;
 
 /** audit_log actions of the admin trust API. */
@@ -150,6 +185,8 @@ export const TRUST_AUDIT_ACTION = {
   requestDocuments: 'trust.request_documents',
   reject: 'trust.reject',
   bulk: 'trust.bulk',
+  preset: 'trust.preset',
+  setStatus: 'trust.set_status',
 } as const;
 
 /** Report reasons of a client that count as a trust complaint. */

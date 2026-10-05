@@ -13,10 +13,14 @@ import '../models/document_request_dto.dart';
 import '../models/reason.dart';
 import '../models/recompute_all_result_envelope.dart';
 import '../models/staff_decision_stats_list_envelope.dart';
+import '../models/status11.dart';
+import '../models/trust_attorney_list_item_list_envelope.dart';
 import '../models/trust_hold_dto.dart';
 import '../models/trust_hold_list_item_list_envelope.dart';
 import '../models/trust_note_dto.dart';
+import '../models/trust_preset_dto.dart';
 import '../models/trust_queue_item_list_envelope.dart';
+import '../models/trust_set_status_dto.dart';
 import '../models/trust_settings_dto.dart';
 import '../models/trust_settings_envelope.dart';
 import '../models/trust_stats_envelope.dart';
@@ -91,6 +95,30 @@ abstract class AdminTrustClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
+  /// Apply a preset: off («Выключить всё»), soft, standard, strict, all («Включить всё»)
+  @POST('/admin/trust/settings/preset')
+  Future<TrustSettingsEnvelope> applyTrustPreset({
+    @Body() required TrustPresetDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// «Галочки → Адвокаты»: every attorney with their badge status
+  @GET('/admin/trust/attorneys')
+  Future<TrustAttorneyListItemListEnvelope> trustAttorneys({
+    @Query('status') Status11? status,
+    @Query('q') String? q,
+    @Query('limit') int? limit,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Set the badge status by hand (reason required, audited)
+  @POST('/admin/trust/attorneys/{attorneyId}/status')
+  Future<AdminTrustCardEnvelope> setTrustStatus({
+    @Path('attorneyId') required String attorneyId,
+    @Body() required TrustSetStatusDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
   /// Staff queue: attorneys waiting for a person, oldest first
   @GET('/admin/trust/queue')
   Future<TrustQueueItemListEnvelope> trustQueue({
@@ -102,6 +130,8 @@ abstract class AdminTrustClient {
   /// Who approved whom: decisions per admin, speed, what came after
   @GET('/admin/trust/staff-decisions')
   Future<StaffDecisionStatsListEnvelope> staffDecisions({
+    @Query('from') DateTime? from,
+    @Query('to') DateTime? to,
     @Extras() Map<String, dynamic>? extras,
   });
 
@@ -109,6 +139,8 @@ abstract class AdminTrustClient {
   @GET('/admin/trust/cleared-by')
   Future<ClearedByItemListEnvelope> clearedBy({
     @Query('adminId') required String adminId,
+    @Query('from') DateTime? from,
+    @Query('to') DateTime? to,
     @Extras() Map<String, dynamic>? extras,
   });
 

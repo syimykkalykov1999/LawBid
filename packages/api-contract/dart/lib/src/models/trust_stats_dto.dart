@@ -5,6 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'trust_level_count_dto.dart';
+import 'trust_status_count_dto.dart';
 
 part 'trust_stats_dto.g.dart';
 
@@ -18,6 +19,9 @@ class TrustStatsDto {
     required this.complaints30d,
     required this.cleared,
     required this.inQueue,
+    required this.enabled,
+    required this.manualReview,
+    required this.byStatus,
   });
 
   factory TrustStatsDto.fromJson(Map<String, Object?> json) =>
@@ -40,6 +44,15 @@ class TrustStatsDto {
 
   /// Waiting for a person in the staff queue.
   final int inQueue;
+
+  /// Master switch `trust.enabled`.
+  final bool enabled;
+
+  /// Staff review `trust.manual_review`; false = queue paused.
+  final bool manualReview;
+
+  /// Attorneys per badge status, same order as the enum.
+  final List<TrustStatusCountDto> byStatus;
 
   Map<String, Object?> toJson() => _$TrustStatsDtoToJson(this);
 }
