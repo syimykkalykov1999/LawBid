@@ -120,6 +120,20 @@ variable "p95_target_ms" {
   type    = number
   default = 600
 }
+variable "monthly_budget_usd" {
+  type        = number
+  default     = 200
+  description = "Monthly AWS spend (USD): e-mails at 50/80/100 %, autoscaling capped at the minimum at 100 %."
+}
+variable "create_anomaly_monitor" {
+  type    = bool
+  default = true
+}
+variable "runbook_base_url" {
+  type        = string
+  default     = "https://github.com/syimykkalykov1999/LawBid/blob/main/docs/runbooks"
+  description = "Alert e-mails link the matching runbook here."
+}
 
 locals {
   name = "lawbid-${var.env}"
@@ -152,6 +166,7 @@ locals {
 }
 
 data "aws_region" "current" {}
+data "aws_caller_identity" "current" {}
 
 module "kms" {
   source = "../kms"
@@ -270,6 +285,17 @@ locals {
     # the secret, then switch these).
     SECRETS_ACTIVE_KID     = "k1"
     MESSAGE_ENC_ACTIVE_KID = "m1"
+    # Zero maintenance (owner 2026-10-05): admin «Здоровье системы» buttons
+    # and the worker's ops guard (src/common/ops/aws-ops.service.ts).
+    OPS_ECS_CLUSTER      = local.name
+    OPS_API_SERVICE      = "api"
+    OPS_WORKER_SERVICE   = "worker"
+    OPS_MIN_TASKS        = tostring(var.min_tasks)
+    OPS_API_MAX_TASKS    = tostring(var.api_max_tasks)
+    OPS_WORKER_MAX_TASKS = tostring(var.worker_max_tasks)
+    OPS_BUDGET_NAME      = "${local.name}-monthly"
+    OPS_AWS_ACCOUNT_ID   = data.aws_caller_identity.current.account_id
+    AWS_REGION           = data.aws_region.current.name
   }
   app_secret_arns = merge(
     { for k in local.secret_names : k => module.secrets.arns[k] },
@@ -331,11 +357,37 @@ data "aws_iam_policy_document" "task" {
       values   = [var.ses_from_address]
     }
   }
+  # Zero maintenance: restart the worker, cap / restore autoscaling, read
+  # this month's spend. Only these two services and this one budget.
+  statement {
+    actions   = ["ecs:UpdateService", "ecs:DescribeServices"]
+    resources = [module.ecs.api_service_arn, module.ecs.worker_service_arn]
+  }
+  statement {
+    actions = [
+      "application-autoscaling:RegisterScalableTarget",
+      "application-autoscaling:DescribeScalableTargets",
+    ]
+    resources = ["*"]
+  }
+  statement {
+    actions   = ["budgets:ViewBudget"]
+    resources = [module.budget.budget_arn]
+  }
 }
 
 resource "aws_iam_role_policy" "task" {
   role   = module.ecs.task_role_name
   policy = data.aws_iam_policy_document.task.json
+}
+
+module "budget" {
+  source                 = "../budget"
+  name                   = local.name
+  monthly_budget_usd     = var.monthly_budget_usd
+  alert_emails           = var.alert_emails
+  create_anomaly_monitor = var.create_anomaly_monitor
+  tags                   = local.tags
 }
 
 module "monitoring" {
@@ -352,6 +404,7 @@ module "monitoring" {
   api_log_group               = module.ecs.log_group_names["api"]
   worker_log_group            = module.ecs.log_group_names["worker"]
   p95_target_ms               = var.p95_target_ms
+  runbook_base_url            = var.runbook_base_url
   kms_key_arn                 = module.kms.key_arn
   tags                        = local.tags
 }
@@ -380,3 +433,4 @@ output "ses_dns" {
   }
 }
 output "alerts_topic_arn" { value = module.monitoring.alerts_topic_arn }
+output "budget_name" { value = module.budget.budget_name }

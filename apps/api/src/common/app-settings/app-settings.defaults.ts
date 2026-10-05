@@ -307,6 +307,40 @@ export const OWNER_REWARDS_SETTINGS = {
   'rewards.period': 'month',
 };
 
+/** Owner 2026-10-05: repeat accounts of blocked fraudsters and the
+ * client risk score (docs/CLIENT_FRAUD.md, Admin → Галочки → «Борьба с
+ * мошенниками» → «Клиенты»). Presets set the actions and thresholds. */
+export const OWNER_FRAUD_SETTINGS = {
+  /** Master switch. Off = nothing is recorded or checked. */
+  'fraud.enabled': true,
+  /** Automation principle: actions apply by themselves. Off = everything
+   * only lands in the staff queue. */
+  'fraud.auto': true,
+  /** A sign-in shares a phone, e-mail, Apple / Google account or card
+   * with a blocked account: 'block' | 'review' (restricted until staff
+   * look) | 'off'. */
+  'fraud.match_action': 'block',
+  /** The same for the phone (device) only: a phone can be sold or shared. */
+  'fraud.device_action': 'review',
+  /** Client risk score thresholds. */
+  'fraud.review_score': 30,
+  'fraud.restrict_score': 60,
+  'fraud.ban_score': 100,
+  /** Points per distinct attorney who dealt with the client and reported
+   * fraud / impersonation; per other report; per card chargeback. */
+  'fraud.weight_fraud_report': 25,
+  'fraud.weight_report': 8,
+  'fraud.weight_chargeback': 30,
+  /** Complaints and cancellations older than this do not count. */
+  'fraud.window_days': 180,
+  /** E-mail the verifiers when an account is blocked or queued. */
+  'fraud.notify_staff': true,
+  /** Hashes of ordinary accounts are deleted after this many days without
+   * use; those of blocked accounts are kept for the longer period. */
+  'fraud.fingerprint_retention_days': 365,
+  'fraud.blocked_retention_days': 1095,
+} as const;
+
 /** Owner 2026-10-05: countries (Система → Страны). People who asked to
  * be told get an e-mail by themselves when their country is switched on. */
 export const OWNER_COUNTRY_SETTINGS = {
@@ -350,6 +384,20 @@ export const OWNER_STORAGE_SETTINGS = {
   'storage.growth_alert_percent': 20,
 };
 
+/** Owner 2026-10-05: zero-maintenance operations (admin Система →
+ * Здоровье системы). Every automatic reaction has a switch, default on. */
+export const OWNER_OPS_SETTINGS = {
+  /** DB answers slower than ops.db_slow_ms → heavy background jobs pause
+   * for 15 minutes on their own (renewed while it stays slow). */
+  'ops.auto_pause_heavy_jobs': true,
+  'ops.db_slow_ms': 800,
+  /** AWS spend reached the monthly budget → api/worker autoscaling capped
+   * at the minimum until the next month (or until the owner lifts it). */
+  'ops.auto_scale_down_on_budget': true,
+  /** The newest CockroachDB Cloud backup older than this → alert. */
+  'ops.backup_max_age_hours': 26,
+};
+
 export const APP_SETTINGS = {
   ...FILE_03_SETTINGS,
   ...FILE_04_SETTINGS,
@@ -374,6 +422,8 @@ export const APP_SETTINGS = {
   ...OWNER_COUNTRY_SETTINGS,
   ...OWNER_RATE_LIMIT_SETTINGS,
   ...OWNER_STORAGE_SETTINGS,
+  ...OWNER_FRAUD_SETTINGS,
+  ...OWNER_OPS_SETTINGS,
 };
 
 export type AppSettingKey = keyof typeof APP_SETTINGS;

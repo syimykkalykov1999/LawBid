@@ -255,6 +255,18 @@ export class DashboardDto {
     description: 'Owner 2026-10-05: requests for more assistant seats.',
   })
   seatLimitRequests!: number;
+  @ApiProperty({
+    type: 'integer',
+    description:
+      'Owner 2026-10-05 (client fraud): accounts waiting for a check or restricted.',
+  })
+  fraudQueue!: number;
+  @ApiProperty({
+    type: 'integer',
+    description:
+      'Owner 2026-10-05: blocked fraudsters refused at sign-in + accounts blocked automatically, 7 days.',
+  })
+  fraudBlocked7d!: number;
 
   @ApiProperty({
     format: 'date-time',

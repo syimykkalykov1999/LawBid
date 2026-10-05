@@ -4,6 +4,7 @@ import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
 import { FilesController } from './files.controller';
 import { FilesService } from './files.service';
 import { filesCoreProviders } from './files-core.providers';
+import { S3StorageService } from './storage/s3-storage.service';
 import { FilesBootstrapService } from './storage/files-bootstrap.service';
 
 /**
@@ -23,6 +24,6 @@ import { FilesBootstrapService } from './storage/files-bootstrap.service';
     FilesService,
     FilesBootstrapService,
   ],
-  exports: [FilesService],
+  exports: [FilesService, S3StorageService],
 })
 export class FilesModule {}

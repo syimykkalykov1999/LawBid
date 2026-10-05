@@ -517,6 +517,38 @@ export const PROVIDERS: ProviderDefinition[] = [
       },
     ],
   },
+  // Owner 2026-10-05: zero maintenance — the worker checks every hour that
+  // CockroachDB Cloud made a fresh backup (Система → Здоровье системы).
+  {
+    id: 'cockroach_cloud',
+    label: 'CockroachDB Cloud (backup check)',
+    description:
+      'Read-only API key of the database cloud: the server checks every hour that a fresh backup exists.',
+    fields: [
+      {
+        name: 'apiKey',
+        label: 'API key (service account, read-only)',
+        secret: true,
+        required: true,
+        pattern: /^\S{20,}$/,
+        env: 'COCKROACH_CLOUD_API_KEY',
+      },
+      {
+        name: 'clusterId',
+        label: 'Cluster ID',
+        secret: false,
+        required: true,
+        pattern: /^[0-9a-f-]{36}$/,
+        patternHint: '00000000-0000-0000-0000-000000000000',
+        env: 'COCKROACH_CLUSTER_ID',
+      },
+    ],
+    test: (f) =>
+      probe(
+        `https://cockroachlabs.cloud/api/v1/clusters/${encodeURIComponent(f.clusterId)}`,
+        { headers: { Authorization: `Bearer ${f.apiKey}` } },
+      ),
+  },
 ];
 
 export function providerById(id: string): ProviderDefinition | undefined {

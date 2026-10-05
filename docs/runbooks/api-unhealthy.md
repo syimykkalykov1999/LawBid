@@ -1,5 +1,7 @@
 # api-unhealthy-hosts — tasks failing `/health/ready`
 
+> **Для владельца:** Ничего не делать: AWS заменяет такой сервер сам за пару минут. Все письма и кнопки: [OWNER.md](OWNER.md).
+
 `/health/ready` is 503 when the database or Redis is unreachable
 (security-hardening e2e); `/health/live` stays 200. The ALB stops routing
 to the task; ECS replaces tasks that fail the container health check.

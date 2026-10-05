@@ -66,6 +66,7 @@ import 'clients/follows_client.dart';
 import 'clients/search_client.dart';
 import 'clients/presence_client.dart';
 import 'clients/admin_integrations_client.dart';
+import 'clients/admin_ops_client.dart';
 import 'clients/referrals_client.dart';
 import 'clients/admin_referrals_client.dart';
 import 'clients/partners_client.dart';
@@ -86,6 +87,7 @@ import 'clients/admin_trust_client.dart';
 import 'clients/countries_client.dart';
 import 'clients/admin_countries_client.dart';
 import 'clients/reviews_client.dart';
+import 'clients/admin_fraud_client.dart';
 
 /// LawBid API `v0.1.0`.
 ///
@@ -160,6 +162,7 @@ class LawbidApi {
   SearchClient? _search;
   PresenceClient? _presence;
   AdminIntegrationsClient? _adminIntegrations;
+  AdminOpsClient? _adminOps;
   ReferralsClient? _referrals;
   AdminReferralsClient? _adminReferrals;
   PartnersClient? _partners;
@@ -180,6 +183,7 @@ class LawbidApi {
   CountriesClient? _countries;
   AdminCountriesClient? _adminCountries;
   ReviewsClient? _reviews;
+  AdminFraudClient? _adminFraud;
 
   ConfigClient get config => _config ??= ConfigClient(_dio, baseUrl: _baseUrl);
 
@@ -356,6 +360,9 @@ class LawbidApi {
   AdminIntegrationsClient get adminIntegrations =>
       _adminIntegrations ??= AdminIntegrationsClient(_dio, baseUrl: _baseUrl);
 
+  AdminOpsClient get adminOps =>
+      _adminOps ??= AdminOpsClient(_dio, baseUrl: _baseUrl);
+
   ReferralsClient get referrals =>
       _referrals ??= ReferralsClient(_dio, baseUrl: _baseUrl);
 
@@ -412,4 +419,7 @@ class LawbidApi {
 
   ReviewsClient get reviews =>
       _reviews ??= ReviewsClient(_dio, baseUrl: _baseUrl);
+
+  AdminFraudClient get adminFraud =>
+      _adminFraud ??= AdminFraudClient(_dio, baseUrl: _baseUrl);
 }

@@ -25,6 +25,9 @@ import { FeedRecoJob } from '../modules/feed/feed-reco.job';
 import { TrendingTagsJob } from '../modules/search/trending-tags.job';
 import { NotificationsRetentionJob } from './handlers/notifications-retention.job';
 import { OpsMetricsJob } from './handlers/ops-metrics.job';
+import { OpsGuardJob } from './handlers/ops-guard.job';
+import { HEAVY_CRON_JOBS } from '../common/ops/ops.constants';
+import { OpsStateService } from '../common/ops/ops-state.service';
 import {
   TaskArchivePurgeJob,
   TaskRemindersJob,
@@ -36,6 +39,7 @@ import { AccountAnonymizationService } from '../modules/privacy/account-anonymiz
 import { ExportsCleanupService } from '../modules/privacy/exports-cleanup.service';
 import { JournalIntegrityService } from '../modules/privacy/journal-integrity.service';
 import { AttorneyTrustService } from '../modules/attorney-trust/attorney-trust.service';
+import { ClientFraudService } from '../modules/client-fraud/client-fraud.service';
 import { JournalRetentionService } from '../modules/privacy/journal-retention.service';
 import { StorageCleanupService } from '../modules/storage/storage-cleanup.service';
 import { DataRetentionService } from '../modules/storage/data-retention.service';
@@ -77,14 +81,25 @@ export class CronProcessor {
     private readonly partners: PartnersService,
     private readonly caseDeadlineReminder: CaseDeadlineReminderJob,
     private readonly trust: AttorneyTrustService,
+    private readonly fraud: ClientFraudService,
     @Optional() private readonly supportDesk?: SupportDeskService,
     @Optional() private readonly rewards?: RewardsService,
     @Optional() private readonly storageCleanup?: StorageCleanupService,
     @Optional() private readonly dataRetention?: DataRetentionService,
     @Optional() private readonly storageStats?: StorageStatsService,
+    @Optional() private readonly opsGuard?: OpsGuardJob,
+    @Optional() private readonly opsState?: OpsStateService,
   ) {}
 
   async process(name: string): Promise<unknown> {
+    // Owner 2026-10-05: «Пауза тяжёлых задач» (owner button or automatic
+    // while the database is slow) — skip this tick, the next one runs.
+    if (
+      HEAVY_CRON_JOBS.includes(name) &&
+      (await this.opsState?.isHeavyPaused())
+    ) {
+      return { skipped: 'heavy jobs paused' };
+    }
     switch (name) {
       case CRON_JOBS.sessionsCleanup:
         return this.sessionsCleanup.run();
@@ -152,6 +167,8 @@ export class CronProcessor {
         return this.caseDeadlineReminder.run();
       case CRON_JOBS.trustRecompute:
         return this.trust.recomputeAll();
+      case CRON_JOBS.fraudSweep:
+        return this.fraud.sweep();
       case CRON_JOBS.supportSweep:
         return this.supportDesk?.sweep();
       case CRON_JOBS.storageCleanup:
@@ -162,6 +179,12 @@ export class CronProcessor {
         return this.storageStats?.snapshot() ?? null;
       case CRON_JOBS.rewardsAward:
         return this.rewards?.autoAward();
+      case CRON_JOBS.opsGuard:
+        return this.opsGuard?.guard();
+      case CRON_JOBS.opsCostCheck:
+        return this.opsGuard?.costCheck();
+      case CRON_JOBS.opsBackupCheck:
+        return this.opsGuard?.backupCheck();
       default:
         // A job left over from an older/newer release: fail it visibly
         // rather than "succeed" doing nothing.

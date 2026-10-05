@@ -7,8 +7,10 @@ import {
   Inject,
   Injectable,
   Module,
+  Optional,
   Post,
 } from '@nestjs/common';
+import { ClientFraudService } from '../client-fraud/client-fraud.service';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -89,6 +91,9 @@ export class ReportsService {
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     private readonly moderation: ModerationService,
     private readonly trust: AttorneyTrustService,
+    // Owner 2026-10-05 (docs/CLIENT_FRAUD.md): an attorney's complaint
+    // re-scores the client.
+    @Optional() private readonly fraud?: ClientFraudService,
   ) {}
 
   async create(userId: string, dto: CreateReportDto): Promise<void> {
@@ -128,6 +133,7 @@ export class ReportsService {
     if (dto.targetType === 'user') {
       await this.trust.onComplaint(userId, dto.targetId, dto.reason);
     }
+    await this.fraud?.onReport(dto.targetType, dto.targetId);
   }
 }
 

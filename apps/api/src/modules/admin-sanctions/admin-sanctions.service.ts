@@ -2,7 +2,9 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
+import { ClientFraudService } from '../client-fraud/client-fraud.service';
 import type { AccountBan } from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -44,6 +46,8 @@ export class AdminSanctionsService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditLogService,
     private readonly revocation: SessionRevocationService,
+    // Owner 2026-10-05 (docs/CLIENT_FRAUD.md): linked accounts re-scored.
+    @Optional() private readonly fraud?: ClientFraudService,
   ) {}
 
   async list(
@@ -219,6 +223,7 @@ export class AdminSanctionsService {
       userId,
       'admin_block',
     );
+    void this.fraud?.onBanned(userId);
     const now = new Date();
     return {
       bans: rows.map((r) => present(r, null, now)),

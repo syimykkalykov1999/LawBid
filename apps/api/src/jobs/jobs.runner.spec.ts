@@ -39,6 +39,7 @@ import type { CasePaymentsService } from '../modules/case-payments/case-payments
 import type { PromotionsService } from '../modules/promotions/promotions.service';
 import type { PartnersService } from '../modules/partners/partners.service';
 import type { AttorneyTrustService } from '../modules/attorney-trust/attorney-trust.service';
+import type { ClientFraudService } from '../modules/client-fraud/client-fraud.service';
 
 jest.mock('bullmq', () => {
   const queue = {
@@ -175,6 +176,11 @@ function processor() {
           Promise.resolve({ attorneys: 0, changed: 0 }),
         ),
       } as unknown as AttorneyTrustService,
+      {
+        sweep: jest.fn(() =>
+          Promise.resolve({ rescored: 0, propagated: 0, purged: 0 }),
+        ),
+      } as unknown as ClientFraudService,
     ),
   };
 }
@@ -208,12 +214,25 @@ describe('JobsRunner', () => {
     // Owner 2026-10-05: + nightly trust.recompute (anti-fraud).
     // Owner 2026-10-05: + daily cases.deadline-reminder,
     // + support.sweep every 5 min and the daily rewards.award.
-    // Owner 2026-10-05: + hourly storage.gc, nightly storage.retention and
-    // storage.snapshot (storage like Telegram).
-    expect(upserts).toHaveLength(38);
+    // Owner 2026-10-05 zero maintenance: + ops.guard every minute,
+    // hourly ops.cost-check and ops.backup-check.
+    // + nightly fraud.sweep (repeat accounts).
+    // + hourly storage.gc, nightly storage.retention and storage.snapshot
+    // (storage like Telegram).
+    expect(upserts).toHaveLength(42);
     const byName = Object.fromEntries(
       upserts.map((c: unknown[]) => [c[0], c[1]]),
     );
+    expect(byName[CRON_JOBS.opsGuard]).toEqual({
+      pattern: '* * * * *',
+      tz: 'UTC',
+    });
+    for (const name of [CRON_JOBS.opsCostCheck, CRON_JOBS.opsBackupCheck]) {
+      expect(byName[name]).toEqual({
+        pattern: expect.stringMatching(/^\d+ \* \* \* \*$/),
+        tz: 'UTC',
+      });
+    }
     // Daily = fixed minute+hour, any day; monthly = fixed day-of-month.
     expect(byName[CRON_JOBS.sessionsCleanup]).toEqual({
       pattern: expect.stringMatching(/^\d+ \d+ \* \* \*$/),
@@ -379,6 +398,25 @@ describe('CronProcessor', () => {
     ).resolves.toEqual({
       flushed: 1,
       reconciled: 2,
+    });
+  });
+
+  it('skips heavy jobs while «Пауза тяжёлых задач» is on (owner 2026-10-05)', async () => {
+    const p = processor();
+    Object.assign(p.processor as unknown as Record<string, unknown>, {
+      opsState: { isHeavyPaused: jest.fn(() => Promise.resolve(true)) },
+    });
+    await expect(
+      p.processor.process(CRON_JOBS.countersReconcile),
+    ).resolves.toEqual({
+      skipped: 'heavy jobs paused',
+    });
+    expect(p.countersRecon.run).not.toHaveBeenCalled();
+    // Light jobs (reminders, cleanups) keep running.
+    await expect(
+      p.processor.process(CRON_JOBS.sessionsCleanup),
+    ).resolves.toEqual({
+      deleted: 1,
     });
   });
 

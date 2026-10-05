@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/account_status/account_restricted.dart';
 import 'package:lawbid/core/account_status/account_suspended.dart';
 import 'package:lawbid/core/app_update/app_update_gate.dart';
 import 'package:lawbid/core/config/app_environment.dart';
@@ -70,7 +71,11 @@ class LawBidApp extends ConsumerWidget {
                         router: router,
                         child: RouterOfflineBannerHost(
                           router: router,
-                          child: child,
+                          // Owner 2026-10-05 (docs/CLIENT_FRAUD.md).
+                          child: AccountRestrictedHost(
+                            router: router,
+                            child: child,
+                          ),
                         ),
                       ),
               ),

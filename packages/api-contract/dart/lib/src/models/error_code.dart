@@ -166,6 +166,8 @@ enum ErrorCode {
   attorneySuspended('ATTORNEY_SUSPENDED'),
   @JsonValue('BAR_NUMBER_BLOCKED')
   barNumberBlocked('BAR_NUMBER_BLOCKED'),
+  @JsonValue('ACCOUNT_RESTRICTED')
+  accountRestricted('ACCOUNT_RESTRICTED'),
   @JsonValue('JUSTIFICATION_REQUIRED')
   justificationRequired('JUSTIFICATION_REQUIRED'),
   @JsonValue('REASON_REQUIRED')

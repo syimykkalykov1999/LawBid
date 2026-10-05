@@ -33,6 +33,7 @@ import { FeedRecoJob } from '../modules/feed/feed-reco.job';
 import { TrendingTagsJob } from '../modules/search/trending-tags.job';
 import { NotificationsRetentionJob } from './handlers/notifications-retention.job';
 import { OpsMetricsJob } from './handlers/ops-metrics.job';
+import { OpsGuardJob } from './handlers/ops-guard.job';
 import {
   TaskArchivePurgeJob,
   TaskRemindersJob,
@@ -106,6 +107,7 @@ export class JobsModule {
         TrendingTagsJob,
         NotificationsRetentionJob,
         OpsMetricsJob,
+        OpsGuardJob,
         // Owner 2026-10-05: the planner's reminders and archive cleanup.
         TaskRemindersJob,
         TaskArchivePurgeJob,

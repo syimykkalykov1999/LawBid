@@ -1,4 +1,5 @@
 import { Inject, Injectable, Optional } from '@nestjs/common';
+import { ClientFraudService } from '../client-fraud/client-fraud.service';
 import {
   CounterAggregator,
   profileEntity,
@@ -56,6 +57,9 @@ export class AccountAnonymizationService {
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     private readonly logger: PinoLogger,
     @Optional() private readonly counters?: CounterAggregator,
+    // Owner 2026-10-05 (docs/CLIENT_FRAUD.md): a blocked account deleted
+    // keeps its hashes blocking.
+    @Optional() private readonly fraud?: ClientFraudService,
   ) {
     this.logger.setContext(AccountAnonymizationService.name);
   }
@@ -200,6 +204,8 @@ export class AccountAnonymizationService {
         select: { anonymized_at: true },
       });
       if (!fresh || fresh.anonymized_at) return [] as string[];
+      if (user.status === 'suspended')
+        await this.fraud?.freezeBanned(userId, tx);
 
       await tx.user.update({
         where: { id: userId },

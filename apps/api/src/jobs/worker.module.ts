@@ -4,6 +4,7 @@ import { LoggerModule } from 'nestjs-pino';
 import { ConfigModule } from '../config/config.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { RedisModule } from '../redis/redis.module';
+import { OpsModule } from '../common/ops/ops.module';
 import { AppSettingsModule } from '../common/app-settings/app-settings.module';
 import { CostGuardModule } from '../common/cost-guard/cost-guard.module';
 import { JobsModule } from './jobs.module';
@@ -27,6 +28,7 @@ import { BroadcastFanoutModule } from '../modules/admin-content/broadcast-fanout
 import { SecretsModule } from '../common/secrets/secrets.module';
 import { AdminAuthModule } from '../modules/admin-auth/admin-auth.module';
 import { AttorneyTrustCoreModule } from '../modules/attorney-trust/attorney-trust.module';
+import { ClientFraudCoreModule } from '../modules/client-fraud/client-fraud.module';
 import { MentionsModule } from '../modules/mentions/mentions.module';
 import { ModerationModule } from '../modules/moderation/moderation.module';
 @Module({
@@ -43,6 +45,8 @@ import { ModerationModule } from '../modules/moderation/moderation.module';
     }),
     PrismaModule,
     RedisModule,
+    // Owner 2026-10-05: ops guard (DB probe, budget, backups) + heartbeat.
+    OpsModule,
     // LicenseExpiryJob: typed app_config reads + the notifications seam.
     AppSettingsModule,
     // Global paid-provider caps: FilesService (calls, client reviews in
@@ -57,6 +61,9 @@ import { ModerationModule } from '../modules/moderation/moderation.module';
     AdminAuthModule,
     // Owner 2026-10-05: nightly trust recompute (`trust.recompute`).
     AttorneyTrustCoreModule,
+    // Owner 2026-10-05: nightly `fraud.sweep` (repeat accounts, retention).
+    ClientFraudCoreModule,
+
     CountriesCoreModule,
     JobsModule.register({ mode: 'worker' }),
     // docs/03 stage 3.2: antivirus scan + image processing (`files` queue).

@@ -44,6 +44,15 @@ export const trustStatsQuery = queryOptions({
   queryFn: async () => (await api.GET('/admin/trust/stats')).data!.data,
 });
 
+/**
+ * «Борьба с мошенниками → Клиенты» counters. Not polled: the sidebar and the
+ * dashboard read the fraud queue size from the dashboard poll.
+ */
+export const fraudStatsQuery = queryOptions({
+  queryKey: ['fraud-stats'],
+  queryFn: async () => (await api.GET('/admin/fraud/stats')).data!.data,
+});
+
 export const workspaceQuery = queryOptions({
   queryKey: ['workspace'],
   queryFn: async () => (await api.GET('/admin/workspace')).data!.data,
