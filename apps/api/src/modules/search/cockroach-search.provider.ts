@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { attorneysWithEntitlementSql } from '../plans/entitlements.service';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { urgencyFilterSql } from '../cases/domain/case-urgency';
 import {
   buildPracticeCasesSql,
   buildVisibleCasesSql,
@@ -185,7 +186,8 @@ export class CockroachSearchProvider implements SearchProvider {
           ${p.budgetMinCents !== undefined ? Prisma.sql`AND c.budget_cents >= ${p.budgetMinCents}` : Prisma.empty}
           ${p.budgetMaxCents !== undefined ? Prisma.sql`AND c.budget_cents <= ${p.budgetMaxCents}` : Prisma.empty}
           ${p.budgetUnknown ? Prisma.sql`AND c.budget_mode = 'clarify_later'` : Prisma.empty}
-          ${p.noBids ? Prisma.sql`AND c.bids_count = 0` : Prisma.empty}`;
+          ${p.noBids ? Prisma.sql`AND c.bids_count = 0` : Prisma.empty}
+          ${urgencyFilterSql(p.minUrgency, p.hasDeadline, p.urgencyThresholds)}`;
     // Audit 2026-10-01: a qualification in search works like the feed's
     // topic — any qualification (category → its subcategories) in the
     // attorney's licensed states, not only their own practices.

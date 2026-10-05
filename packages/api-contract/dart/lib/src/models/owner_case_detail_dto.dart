@@ -6,10 +6,12 @@ import 'package:json_annotation/json_annotation.dart';
 
 import 'budget_mode.dart';
 import 'case_bid_item_dto.dart';
+import 'case_deadline_kind.dart';
 import 'case_photo_dto.dart';
 import 'case_state_dto.dart';
 import 'case_status.dart';
 import 'case_urgency.dart';
+import 'case_urgency_level.dart';
 import 'practice_area_ref_dto.dart';
 
 part 'owner_case_detail_dto.g.dart';
@@ -34,6 +36,9 @@ class OwnerCaseDetailDto {
     this.budgetCents,
     this.coverKey,
     this.urgency,
+    this.urgencyLevel,
+    this.deadlineAt,
+    this.deadlineKind,
     this.archivedAt,
     this.clientCompletedAt,
     this.attorneyConfirmedAt,
@@ -61,8 +66,19 @@ class OwnerCaseDetailDto {
   /// Owner 2026-10-04: `art:0..3` / `icon:<name>`; null = from the id.
   final String? coverKey;
 
-  /// Owner 2026-10-04: flexible | soon | urgent; null on older cases.
+  /// Owner 2026-10-04/05: the client's choice — a level, or `by_date`.
+  /// (see deadlineAt); null when not set.
   final CaseUrgency? urgency;
+
+  /// Owner 2026-10-05: the level the case reads as today (a dated case's.
+  /// level follows from the days left; `overdue` once the date passed).
+  final CaseUrgencyLevel? urgencyLevel;
+
+  /// Owner 2026-10-05: the date the client needs it by (YYYY-MM-DD).
+  final DateTime? deadlineAt;
+
+  /// Owner 2026-10-05: what the date is (court hearing, filing…).
+  final CaseDeadlineKind? deadlineKind;
   final CaseStatus status;
   final int viewCount;
   final int bidsCount;

@@ -71,6 +71,8 @@ class _FiltersSheetState extends ConsumerState<_FiltersSheet> {
     Object? budgetMax = _keep,
     bool? budgetUnknown,
     bool? noBids,
+    Object? minUrgency = _keep,
+    bool? hasDeadline,
     Object? caseStatus = _keep,
     bool? withPhotos,
     PostSort? postSort,
@@ -92,6 +94,8 @@ class _FiltersSheetState extends ConsumerState<_FiltersSheet> {
       budgetMax: pick(budgetMax, _f.budgetMax),
       budgetUnknown: budgetUnknown ?? _f.budgetUnknown,
       noBids: noBids ?? _f.noBids,
+      minUrgency: pick(minUrgency, _f.minUrgency),
+      hasDeadline: hasDeadline ?? _f.hasDeadline,
       caseStatus: pick(caseStatus, _f.caseStatus),
       withPhotos: withPhotos ?? _f.withPhotos,
       postSort: postSort ?? _f.postSort,
@@ -384,6 +388,25 @@ class _FiltersSheetState extends ConsumerState<_FiltersSheet> {
             t.t('search.filter.noBids'),
             _f.noBids,
             (v) => _set((_) => _with(noBids: v)),
+          ),
+          // Owner 2026-10-05: "urgent and above", "with a date".
+          section(
+            t.t('search.filter.urgency'),
+            choices<String?>(
+              [
+                (null, any),
+                ('soon', t.t('search.filter.urgency.soon')),
+                ('urgent', t.t('search.filter.urgency.urgent')),
+                ('very_urgent', t.t('search.filter.urgency.very_urgent')),
+              ],
+              _f.minUrgency,
+              (u) => _set((_) => _with(minUrgency: u)),
+            ),
+          ),
+          toggle(
+            t.t('search.filter.hasDeadline'),
+            _f.hasDeadline,
+            (v) => _set((_) => _with(hasDeadline: v)),
           ),
         ],
       SearchFilterKind.myCases => [

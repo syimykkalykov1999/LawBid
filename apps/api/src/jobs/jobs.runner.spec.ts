@@ -25,6 +25,7 @@ import {
   CaseCompletionReminderJob,
   CaseStalePromptJob,
 } from './handlers/case-lifecycle.jobs';
+import type { CaseDeadlineReminderJob } from './handlers/case-deadline-reminder.job';
 import { CountersReconcileJob } from './handlers/counters-reconcile.job';
 import { FeedRecoJob } from '../modules/feed/feed-reco.job';
 import { TrendingTagsJob } from '../modules/search/trending-tags.job';
@@ -109,6 +110,7 @@ function processor() {
   const archive = caseJob();
   const autoClose = caseJob();
   const completion = caseJob();
+  const deadline = caseJob();
   return {
     countersRecon,
     stale,
@@ -167,6 +169,7 @@ function processor() {
           Promise.resolve({ approved: 0, reversed: 0, monthlyBase: 0 }),
         ),
       } as unknown as PartnersService,
+      deadline as unknown as CaseDeadlineReminderJob,
       {
         recomputeAll: jest.fn(() =>
           Promise.resolve({ attorneys: 0, changed: 0 }),
@@ -203,8 +206,9 @@ describe('JobsRunner', () => {
     // + daily partners.sweep, case-payments.expire every 10 min and the
     // daily case-payments.remind.
     // Owner 2026-10-05: + nightly trust.recompute (anti-fraud).
+    // Owner 2026-10-05: + daily cases.deadline-reminder,
     // + support.sweep every 5 min and the daily rewards.award.
-    expect(upserts).toHaveLength(34);
+    expect(upserts).toHaveLength(35);
     const byName = Object.fromEntries(
       upserts.map((c: unknown[]) => [c[0], c[1]]),
     );

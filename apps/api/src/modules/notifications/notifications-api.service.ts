@@ -270,6 +270,7 @@ export class NotificationsApiService {
       where: { user_id: userId },
       select: {
         new_case_alerts_custom: true,
+        new_case_alerts_urgent_only: true,
         practice_areas: { select: { practice_area_id: true } },
         new_case_alert_practices: { select: { practice_area_id: true } },
       },
@@ -286,6 +287,7 @@ export class NotificationsApiService {
         (x) => x.practice_area_id,
       ),
       profilePracticeAreaIds: p.practice_areas.map((x) => x.practice_area_id),
+      urgentOnly: p.new_case_alerts_urgent_only,
     };
   }
 
@@ -309,7 +311,12 @@ export class NotificationsApiService {
     await this.prisma.$transaction([
       this.prisma.attorneyProfile.update({
         where: { user_id: userId },
-        data: { new_case_alerts_custom: !dto.useProfile },
+        data: {
+          new_case_alerts_custom: !dto.useProfile,
+          ...(dto.urgentOnly === undefined
+            ? {}
+            : { new_case_alerts_urgent_only: dto.urgentOnly }),
+        },
       }),
       // The custom list is kept even while "as in my profile" is on, so
       // switching back restores it.

@@ -17,11 +17,13 @@ import '../models/create_case_dto.dart';
 import '../models/create_contact_issue_dto.dart';
 import '../models/dispute_case_dto.dart';
 import '../models/filter.dart';
+import '../models/min_urgency.dart';
 import '../models/period.dart';
 import '../models/saved_item_dto.dart';
 import '../models/scope.dart';
 import '../models/sort.dart';
 import '../models/update_case_dto.dart';
+import '../models/update_case_urgency_dto.dart';
 
 part 'cases_client.g.dart';
 
@@ -57,6 +59,10 @@ abstract class CasesClient {
   /// [budgetUnknown] - Only cases with "clarify later".
   ///
   /// [noBids] - Only cases nobody has bid on yet.
+  ///
+  /// [minUrgency] - Owner 2026-10-05: only cases at least this urgent today (a dated case by its days left; past dates excluded).
+  ///
+  /// [hasDeadline] - Owner 2026-10-05: only cases with a date (court hearing, filing deadline…) still ahead.
   @GET('/cases')
   Future<CaseFeedItemListEnvelope> listCaseFeed({
     @Query('limit') int? limit = 20,
@@ -71,6 +77,8 @@ abstract class CasesClient {
     @Query('budgetMax') num? budgetMax,
     @Query('budgetUnknown') bool? budgetUnknown,
     @Query('noBids') bool? noBids,
+    @Query('minUrgency') MinUrgency? minUrgency,
+    @Query('hasDeadline') bool? hasDeadline,
     @Extras() Map<String, dynamic>? extras,
   });
 
@@ -93,6 +101,14 @@ abstract class CasesClient {
   @GET('/cases/{id}')
   Future<CaseDetailForAttorneyEnvelope> getCaseDetail({
     @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Change how urgent a case is or its date — the client (open or hired) or the hired attorney; the other side is told (owner 2026-10-05)
+  @PATCH('/cases/{id}/urgency')
+  Future<CaseEnvelope> updateCaseUrgency({
+    @Path('id') required String id,
+    @Body() required UpdateCaseUrgencyDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

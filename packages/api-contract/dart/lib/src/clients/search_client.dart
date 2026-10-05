@@ -8,6 +8,7 @@ import 'package:retrofit/retrofit.dart';
 import '../models/attorney_list_item_list_envelope.dart';
 import '../models/case_feed_item_list_envelope.dart';
 import '../models/latest_posts_sort.dart';
+import '../models/min_urgency.dart';
 import '../models/period.dart';
 import '../models/person_item_list_envelope.dart';
 import '../models/post_kind.dart';
@@ -72,6 +73,10 @@ abstract class SearchClient {
   /// [budgetUnknown] - Only cases with "clarify later".
   ///
   /// [noBids] - Only cases nobody has bid on yet.
+  ///
+  /// [minUrgency] - Owner 2026-10-05: only cases at least this urgent today (a dated case by its days left; past dates excluded).
+  ///
+  /// [hasDeadline] - Owner 2026-10-05: only cases with a date (court hearing, filing deadline…) still ahead.
   @GET('/search/cases')
   Future<CaseFeedItemListEnvelope> cases({
     @Query('q') required String q,
@@ -84,6 +89,8 @@ abstract class SearchClient {
     @Query('budgetMax') num? budgetMax,
     @Query('budgetUnknown') bool? budgetUnknown,
     @Query('noBids') bool? noBids,
+    @Query('minUrgency') MinUrgency? minUrgency,
+    @Query('hasDeadline') bool? hasDeadline,
     @Extras() Map<String, dynamic>? extras,
   });
 

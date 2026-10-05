@@ -685,6 +685,8 @@ ExploreCasesKey _casesKey(SearchFilters f) => (
         budgetMax: f.budgetMax,
         budgetUnknown: f.budgetUnknown,
         noBids: f.noBids,
+        minUrgency: f.minUrgency,
+        hasDeadline: f.hasDeadline,
       ),
     );
 

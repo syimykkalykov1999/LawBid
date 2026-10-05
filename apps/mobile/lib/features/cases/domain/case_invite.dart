@@ -38,6 +38,7 @@ class CaseInvite {
     this.attorney,
     this.caseCity,
     this.caseUrgency,
+    this.caseUrgencyDetail,
     this.caseBudget = const CaseBudget(mode: BudgetMode.clarifyLater),
     this.caseDossier = CaseDossier.empty,
   });
@@ -69,6 +70,11 @@ class CaseInvite {
   /// attorney's invite card (counts only; files open after acceptance).
   final String? caseCity;
   final CaseUrgency? caseUrgency;
+
+  /// Owner 2026-10-05: the level today and the date.
+  final CaseUrgencyInfo? caseUrgencyDetail;
+  CaseUrgencyInfo get caseUrgencyInfo =>
+      caseUrgencyDetail ?? CaseUrgencyInfo(choice: caseUrgency);
   final CaseBudget caseBudget;
   final CaseDossier caseDossier;
 

@@ -9,6 +9,7 @@ import { LoadMore } from '@/components/billing/shared';
 import { DossierBadge } from '@/components/cases/dossier';
 import { BulkBar, bulkData, PageSelectBox, RowSelectBox, useBulkRun, useSelection } from '@/components/bulk/bulk-controls';
 import { CsvButton } from '@/components/csv-button';
+import { UrgencyBadge } from '@/components/cases/urgency';
 import { ErrorNote } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/card';
@@ -40,7 +41,7 @@ const ACTION_TEXT: Record<BulkAction, { verb: string; done: string; describe: st
   restore: { verb: 'Вернуть', done: 'Возвращено', icon: ArrowCounterClockwise, describe: 'Кейсы из архива снова станут открытыми. Остальные пропустим.' },
 };
 
-/** All cases: status tabs, title search (Enter), "has reports" toggle, state filter. */
+/** All cases: status tabs, title search (Enter), "has reports" and "with a date" toggles, state filter. */
 export function CaseList() {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>('all');
@@ -49,11 +50,12 @@ export function CaseList() {
   const [hasReports, setHasReports] = useState(false);
   const [stateDraft, setStateDraft] = useState('');
   const [stateCode, setStateCode] = useState('');
+  const [withDeadline, setWithDeadline] = useState(false);
 
   const qc = useQueryClient();
   const { data: me } = useMe();
   const canWrite = can(me, 'cases', 'manage');
-  const sel = useSelection(`${tab}|${q}|${hasReports}|${stateCode}`);
+  const sel = useSelection(`${tab}|${q}|${hasReports}|${stateCode}|${withDeadline}`);
   const bulk = useBulkRun();
   const fetchPage = async (cursor?: string) =>
     (
@@ -65,6 +67,7 @@ export function CaseList() {
             q: q || undefined,
             hasReports: hasReports || undefined,
             stateCode: stateCode || undefined,
+            withDeadline: withDeadline || undefined,
           },
         },
       })
@@ -87,13 +90,13 @@ export function CaseList() {
   };
 
   const list = useInfiniteQuery({
-    queryKey: ['admin-cases', tab, q, hasReports, stateCode],
+    queryKey: ['admin-cases', tab, q, hasReports, stateCode, withDeadline],
     initialPageParam: undefined as string | undefined,
     queryFn: ({ pageParam }) => fetchPage(pageParam),
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
   });
   const rows = list.data?.pages.flatMap((p) => p.data) ?? [];
-  const filtered = tab !== 'all' || !!q || hasReports || !!stateCode;
+  const filtered = tab !== 'all' || !!q || hasReports || !!stateCode || withDeadline;
 
   return (
     <>
@@ -133,6 +136,10 @@ export function CaseList() {
           <label className="flex items-center gap-2 text-sm text-muted">
             <Switch checked={hasReports} onChange={setHasReports} label="Только с жалобами" />
             Только с жалобами
+          </label>
+          <label className="flex items-center gap-2 text-sm text-muted">
+            <Switch checked={withDeadline} onChange={setWithDeadline} label="С датой (суд, срок подачи)" />
+            С датой (суд, срок подачи)
           </label>
           <CsvButton entity="cases" />
         </div>
@@ -200,6 +207,7 @@ export function CaseList() {
                     </Link>
                     <div className="mt-1 flex flex-wrap items-center gap-1.5">
                       <span className="text-xs text-faint">{c.practiceAreaName}</span>
+                      <UrgencyBadge c={c} />
                       <DossierBadge c={c} />
                       {c.openReports > 0 ? (
                         <Badge tone="danger">

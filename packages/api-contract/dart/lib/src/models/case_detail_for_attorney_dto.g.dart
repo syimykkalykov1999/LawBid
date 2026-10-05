@@ -9,7 +9,7 @@ part of 'case_detail_for_attorney_dto.dart';
 CaseDetailForAttorneyDto _$CaseDetailForAttorneyDtoFromJson(
   Map<String, dynamic> json,
 ) => CaseDetailForAttorneyDto(
-  id: json['id'] as String,
+  createdAt: DateTime.parse(json['createdAt'] as String),
   title: json['title'] as String,
   excerpt: json['excerpt'] as String,
   practiceArea: CasePracticeAreaDto.fromJson(
@@ -21,37 +21,46 @@ CaseDetailForAttorneyDto _$CaseDetailForAttorneyDtoFromJson(
       .toList(),
   status: CaseStatus.fromJson(json['status'] as String),
   budget: CaseBudgetDto.fromJson(json['budget'] as Map<String, dynamic>),
+  id: json['id'] as String,
   viewCount: (json['viewCount'] as num).toInt(),
   bidsCount: (json['bidsCount'] as num).toInt(),
-  createdAt: DateTime.parse(json['createdAt'] as String),
+  isSaved: json['isSaved'] as bool,
   isNew: json['isNew'] as bool,
   hasOwnBid: json['hasOwnBid'] as bool,
   commentCount: (json['commentCount'] as num).toInt(),
   shareCount: (json['shareCount'] as num).toInt(),
-  isSaved: json['isSaved'] as bool,
+  bidAllowed: json['bidAllowed'] as bool,
   promoted: json['promoted'] as bool,
   priorityClient: json['priorityClient'] as bool,
   dossier: CaseDossierDto.fromJson(json['dossier'] as Map<String, dynamic>),
   description: json['description'] as String,
-  acceptedBidIsMine: json['acceptedBidIsMine'] as bool,
+  inMyLicensedStates: json['inMyLicensedStates'] as bool,
   photos: (json['photos'] as List<dynamic>)
       .map((e) => CasePhotoDto.fromJson(e as Map<String, dynamic>))
       .toList(),
-  photosCount: json['photosCount'] as num,
+  acceptedBidIsMine: json['acceptedBidIsMine'] as bool,
   inMyPractice: json['inMyPractice'] as bool,
-  inMyLicensedStates: json['inMyLicensedStates'] as bool,
-  bidAllowed: json['bidAllowed'] as bool,
-  city: json['city'] as String?,
-  coverKey: json['coverKey'] as String?,
-  urgency: json['urgency'] == null
-      ? null
-      : CaseUrgency.fromJson(json['urgency'] as String),
+  photosCount: json['photosCount'] as num,
   ownBidId: json['ownBidId'] as String?,
+  deadlineKind: json['deadlineKind'] == null
+      ? null
+      : CaseDeadlineKind.fromJson(json['deadlineKind'] as String),
   completionRequestedBy: json['completionRequestedBy'] == null
       ? null
       : CaseDetailForAttorneyDtoCompletionRequestedBy.fromJson(
           json['completionRequestedBy'] as String,
         ),
+  deadlineAt: json['deadlineAt'] == null
+      ? null
+      : DateTime.parse(json['deadlineAt'] as String),
+  urgency: json['urgency'] == null
+      ? null
+      : CaseUrgency.fromJson(json['urgency'] as String),
+  coverKey: json['coverKey'] as String?,
+  city: json['city'] as String?,
+  urgencyLevel: json['urgencyLevel'] == null
+      ? null
+      : CaseUrgencyLevel.fromJson(json['urgencyLevel'] as String),
 );
 
 Map<String, dynamic> _$CaseDetailForAttorneyDtoToJson(
@@ -68,6 +77,9 @@ Map<String, dynamic> _$CaseDetailForAttorneyDtoToJson(
   'budget': instance.budget.toJson(),
   'coverKey': ?instance.coverKey,
   'urgency': ?instance.urgency?.toJson(),
+  'urgencyLevel': ?instance.urgencyLevel?.toJson(),
+  'deadlineAt': ?instance.deadlineAt?.toIso8601String(),
+  'deadlineKind': ?instance.deadlineKind?.toJson(),
   'viewCount': instance.viewCount,
   'bidsCount': instance.bidsCount,
   'createdAt': instance.createdAt.toIso8601String(),

@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   Inject,
   Injectable,
+  Optional,
 } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { createHash } from 'node:crypto';
@@ -13,6 +14,8 @@ import {
   encodeCursor,
 } from '../../common/pagination/cursor.util';
 import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import { loadUrgencyThresholds } from '../cases/domain/case-urgency';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
@@ -130,6 +133,7 @@ export class SearchService {
     private readonly clients: ClientProfilesService,
     private readonly blocks: BlocksService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    @Optional() private readonly settings?: AppSettingsService,
   ) {}
 
   /**
@@ -239,6 +243,11 @@ export class SearchService {
         dto.budgetMax === undefined ? undefined : dto.budgetMax * 100,
       budgetUnknown: dto.budgetUnknown,
       noBids: dto.noBids,
+      minUrgency: dto.minUrgency,
+      hasDeadline: dto.hasDeadline,
+      urgencyThresholds: dto.minUrgency
+        ? await loadUrgencyThresholds(this.settings)
+        : undefined,
     });
     const page = rows.slice(0, PAGE);
     // §7.6: the provider's rows still pass the single access check.

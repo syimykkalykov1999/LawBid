@@ -11,9 +11,11 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/cases/application/create_case_controller.dart';
 import 'package:lawbid/features/cases/domain/case_draft.dart';
+import 'package:lawbid/features/cases/domain/case_urgency.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_cover_picker.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_photos.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_urgency_picker.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_wizard_steps.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
 
@@ -485,7 +487,7 @@ class _ReviewStep extends ConsumerWidget {
               Divider(height: 1, color: colors.border),
               row(
                 t.t('cases.field.urgency'),
-                t.t('cases.urgency.${d.urgency ?? kDefaultCaseUrgency}'),
+                _urgencySummary(t, formats, d),
                 3,
                 AppIcons.timerOutlined,
               ),
@@ -650,4 +652,18 @@ class _ConsentBox extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The urgency line of the review step: the level, or the date with
+/// what it is (`Court hearing · Nov 3, 2026`).
+String _urgencySummary(Translator t, L10nFormats f, CaseDraft d) {
+  final day = parseIsoDay(d.deadlineAt);
+  if (d.urgency == 'by_date' && day != null) {
+    final kind = d.deadlineKind;
+    return [
+      if (kind != null) CaseUrgencyText.kindLabel(t, kind),
+      f.dateLong(day),
+    ].join(' · ');
+  }
+  return t.t('cases.urgency.${d.urgency ?? kDefaultCaseUrgency}');
 }

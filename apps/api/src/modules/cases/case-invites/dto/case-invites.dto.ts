@@ -11,7 +11,14 @@ import {
 } from 'class-validator';
 import { BID_AMOUNT_MAX_CENTS } from '../../../bids/dto/bid-requests.dto';
 import { BidAttorneySummaryDto } from '../../case-bids/dto/case-bids.dto';
-import { CASE_URGENCIES, type CaseUrgency } from '../../domain/case-cover';
+import {
+  CASE_DEADLINE_KINDS,
+  CASE_URGENCIES,
+  CASE_URGENCY_LEVELS,
+  type CaseDeadlineKind,
+  type CaseUrgency,
+  type CaseUrgencyLevel,
+} from '../../domain/case-urgency';
 import { CaseBudgetDto, CaseDossierDto } from '../../dto/cases-feed.dto';
 
 export const INVITE_MESSAGE_MAX = 1000;
@@ -167,6 +174,24 @@ export class CaseInviteDto {
     nullable: true,
   })
   caseUrgency!: CaseUrgency | null;
+
+  /** Owner 2026-10-05: the level the case reads as today. */
+  @ApiPropertyOptional({
+    enum: CASE_URGENCY_LEVELS,
+    enumName: 'CaseUrgencyLevel',
+    nullable: true,
+  })
+  caseUrgencyLevel!: CaseUrgencyLevel | null;
+
+  @ApiPropertyOptional({ type: String, format: 'date', nullable: true })
+  caseDeadlineAt!: string | null;
+
+  @ApiPropertyOptional({
+    enum: CASE_DEADLINE_KINDS,
+    enumName: 'CaseDeadlineKind',
+    nullable: true,
+  })
+  caseDeadlineKind!: CaseDeadlineKind | null;
 
   @ApiProperty({ type: CaseBudgetDto })
   caseBudget!: CaseBudgetDto;

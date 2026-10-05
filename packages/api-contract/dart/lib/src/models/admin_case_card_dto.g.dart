@@ -8,7 +8,7 @@ part of 'admin_case_card_dto.dart';
 
 AdminCaseCardDto _$AdminCaseCardDtoFromJson(Map<String, dynamic> json) =>
     AdminCaseCardDto(
-      promoted: json['promoted'] as bool,
+      imagesCount: (json['imagesCount'] as num).toInt(),
       title: json['title'] as String,
       status: AdminCaseCardDtoStatus.fromJson(json['status'] as String),
       clientId: json['clientId'] as String,
@@ -20,23 +20,33 @@ AdminCaseCardDto _$AdminCaseCardDtoFromJson(Map<String, dynamic> json) =>
       commentCount: (json['commentCount'] as num).toInt(),
       viewCount: (json['viewCount'] as num).toInt(),
       openReports: (json['openReports'] as num).toInt(),
+      promoted: json['promoted'] as bool,
       id: json['id'] as String,
-      imagesCount: (json['imagesCount'] as num).toInt(),
       documentsCount: (json['documentsCount'] as num).toInt(),
       dossierScore: (json['dossierScore'] as num).toInt(),
       dossierMissing: (json['dossierMissing'] as List<dynamic>)
           .map((e) => AdminCaseCardDtoDossierMissing.fromJson(e as String))
           .toList(),
+      urgency: json['urgency'] == null
+          ? null
+          : CaseUrgency.fromJson(json['urgency'] as String),
+      urgencyLevel: json['urgencyLevel'] == null
+          ? null
+          : CaseUrgencyLevel.fromJson(json['urgencyLevel'] as String),
+      deadlineAt: json['deadlineAt'] == null
+          ? null
+          : DateTime.parse(json['deadlineAt'] as String),
+      deadlineKind: json['deadlineKind'] == null
+          ? null
+          : CaseDeadlineKind.fromJson(json['deadlineKind'] as String),
       lastActivityAt: DateTime.parse(json['lastActivityAt'] as String),
       createdAt: DateTime.parse(json['createdAt'] as String),
       description: json['description'] as String,
       city: json['city'] as String?,
-      budgetMode: AdminCaseCardDtoBudgetMode.fromJson(
-        json['budgetMode'] as String,
-      ),
       promotedUntil: json['promotedUntil'] == null
           ? null
           : DateTime.parse(json['promotedUntil'] as String),
+      budgetCents: (json['budgetCents'] as num?)?.toInt(),
       client: AdminPartyDto.fromJson(json['client'] as Map<String, dynamic>),
       states: (json['states'] as List<dynamic>)
           .map((e) => AdminCaseStateDto.fromJson(e as Map<String, dynamic>))
@@ -64,7 +74,9 @@ AdminCaseCardDto _$AdminCaseCardDtoFromJson(Map<String, dynamic> json) =>
       closedAt: json['closedAt'] == null
           ? null
           : DateTime.parse(json['closedAt'] as String),
-      budgetCents: (json['budgetCents'] as num?)?.toInt(),
+      budgetMode: AdminCaseCardDtoBudgetMode.fromJson(
+        json['budgetMode'] as String,
+      ),
     );
 
 Map<String, dynamic> _$AdminCaseCardDtoToJson(AdminCaseCardDto instance) =>
@@ -86,6 +98,10 @@ Map<String, dynamic> _$AdminCaseCardDtoToJson(AdminCaseCardDto instance) =>
       'documentsCount': instance.documentsCount,
       'dossierScore': instance.dossierScore,
       'dossierMissing': instance.dossierMissing.map((e) => e.toJson()).toList(),
+      'urgency': ?instance.urgency?.toJson(),
+      'urgencyLevel': ?instance.urgencyLevel?.toJson(),
+      'deadlineAt': ?instance.deadlineAt?.toIso8601String(),
+      'deadlineKind': ?instance.deadlineKind?.toJson(),
       'lastActivityAt': instance.lastActivityAt.toIso8601String(),
       'createdAt': instance.createdAt.toIso8601String(),
       'description': instance.description,

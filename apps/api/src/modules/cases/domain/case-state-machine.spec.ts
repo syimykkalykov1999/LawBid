@@ -55,6 +55,10 @@ const ALLOWED: [CaseStatus, CaseAction, CaseStatus, string][] = [
   // In-place (§3.5, §10.2): edit / keep-alive only while open; delete only
   // from open or archived.
   ['open', 'client_edit', 'open', 'updated'],
+  // Owner 2026-10-05: the urgency / date also after an attorney is hired.
+  ['open', 'set_urgency', 'open', 'updated'],
+  ['in_progress', 'set_urgency', 'in_progress', 'updated'],
+  ['pending_completion', 'set_urgency', 'pending_completion', 'updated'],
   ['open', 'client_keep_alive', 'open', 'updated'],
   ['open', 'system_stale_prompt', 'open', 'updated'],
   ['open', 'client_delete', 'open', 'deleted'],
@@ -81,9 +85,9 @@ describe('CaseStateMachine (docs/04 §10.1)', () => {
     CASE_ACTIONS.map((a) => [s, a] as const),
   );
 
-  it('covers every status × action pair (6 × 21)', () => {
-    expect(CASE_ACTIONS).toHaveLength(21);
-    expect(pairs).toHaveLength(126);
+  it('covers every status × action pair (6 × 22)', () => {
+    expect(CASE_ACTIONS).toHaveLength(22);
+    expect(pairs).toHaveLength(132);
   });
 
   it.each(pairs)('%s + %s', (from, action) => {

@@ -1,3 +1,4 @@
+import { urgencyFields } from '../cases/domain/case-urgency';
 import { statusOf } from '../cases/case-invites/case-invites.service';
 import { Injectable } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
@@ -82,6 +83,8 @@ const ROW = {
   description: true,
   city: true,
   urgency: true,
+  deadline_at: true,
+  deadline_kind: true,
   budget_mode: true,
   budget_cents: true,
   client: { select: { first_name: true, last_name: true } },
@@ -127,6 +130,12 @@ export class AdminCaseManagementService {
       and.push(
         q.hasReports ? { id: { in: reported } } : { id: { notIn: reported } },
       );
+    }
+    // Owner 2026-10-05: dated cases (newest-first paging like the rest).
+    if (q.withDeadline) {
+      const today = new Date();
+      today.setUTCHours(0, 0, 0, 0);
+      and.push({ deadline_at: { gte: today } });
     }
     if (c) {
       and.push({
@@ -536,6 +545,7 @@ function toRow(
     documentsCount: files.documents,
     dossierScore: DOSSIER_ITEMS.length - missing.length,
     dossierMissing: missing,
+    ...urgencyFields(r),
     lastActivityAt: r.last_activity_at.toISOString(),
     createdAt: r.created_at.toISOString(),
   };

@@ -4,15 +4,20 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-/// Owner 2026-10-04: flexible | soon | urgent; null on older cases.
 @JsonEnum()
 enum CaseUrgency {
   @JsonValue('flexible')
   flexible('flexible'),
+  @JsonValue('within_month')
+  withinMonth('within_month'),
   @JsonValue('soon')
   soon('soon'),
   @JsonValue('urgent')
   urgent('urgent'),
+  @JsonValue('very_urgent')
+  veryUrgent('very_urgent'),
+  @JsonValue('by_date')
+  byDate('by_date'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

@@ -5,6 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'budget_mode.dart';
+import 'case_deadline_kind.dart';
 import 'case_urgency.dart';
 
 part 'create_case_dto.g.dart';
@@ -24,6 +25,8 @@ class CreateCaseDto {
     this.clientContactSharingConsent,
     this.coverKey,
     this.urgency,
+    this.deadlineAt,
+    this.deadlineKind,
   });
 
   factory CreateCaseDto.fromJson(Map<String, Object?> json) =>
@@ -52,8 +55,16 @@ class CreateCaseDto {
   /// `art:0`-`art:3` (practice cover variant) or `icon:<name>`.
   final String? coverKey;
 
-  /// Owner 2026-10-04: how soon the client needs an attorney.
+  /// Owner 2026-10-04/05: how soon the client needs an attorney — a.
+  /// level, or `by_date` with deadlineAt (a date alone means `by_date`).
+  /// A level clears the date; null clears both.
   final CaseUrgency? urgency;
+
+  /// Owner 2026-10-05: the date it is needed by (today … 2 years).
+  final DateTime? deadlineAt;
+
+  /// Owner 2026-10-05: what the date is; only with a date.
+  final CaseDeadlineKind? deadlineKind;
 
   Map<String, Object?> toJson() => _$CreateCaseDtoToJson(this);
 }

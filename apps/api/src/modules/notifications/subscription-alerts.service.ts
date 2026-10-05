@@ -1,4 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import {
+  effectiveUrgency,
+  loadUrgencyThresholds,
+  URGENT_LEVELS,
+} from '../cases/domain/case-urgency';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from './notifications.service';
 
@@ -21,6 +27,7 @@ export class SubscriptionAlertsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
+    @Optional() private readonly settings?: AppSettingsService,
   ) {}
 
   /** A published post / news of [authorId]. */
@@ -56,6 +63,20 @@ export class SubscriptionAlertsService {
    * they hold a verified license.
    */
   async attorneysForCase(caseId: string): Promise<number> {
+    // Owner 2026-10-05: an urgent case says so in the push, and is the
+    // only kind that reaches attorneys who chose "urgent cases only".
+    const kase = await this.prisma.case.findUnique({
+      where: { id: caseId },
+      select: { urgency: true, deadline_at: true },
+    });
+    if (!kase) return 0;
+    const level = effectiveUrgency(
+      kase.urgency,
+      kase.deadline_at,
+      new Date(),
+      await loadUrgencyThresholds(this.settings),
+    );
+    const urgent = level !== null && URGENT_LEVELS.includes(level);
     const rows = await this.prisma.$queryRaw<{ id: string }[]>`
       WITH c AS (
         SELECT c.id, c.client_id, c.practice_area_id, pa.parent_id, pa.code
@@ -85,6 +106,7 @@ export class SubscriptionAlertsService {
                            WHERE code = 'general_practice.general_practice'))
       JOIN attorney_profiles p ON p.user_id = ch.attorney_id
        AND p.verification_status = 'verified'
+       AND (NOT p.new_case_alerts_urgent_only OR ${urgent})
       JOIN case_states cs ON cs.case_id = c.id
       JOIN attorney_licenses l ON l.attorney_id = ch.attorney_id
        AND l.state_code = cs.state_code AND l.license_status = 'verified'
@@ -100,7 +122,7 @@ export class SubscriptionAlertsService {
       LIMIT ${ALERT_FANOUT_MAX}`;
     for (const r of rows) {
       await this.notifications.emit({
-        type: 'new_case',
+        type: urgent ? 'new_urgent_case' : 'new_case',
         recipientId: r.id,
         payload: { caseId },
       });

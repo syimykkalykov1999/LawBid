@@ -41,6 +41,8 @@ class CaseFeedExtras {
     this.budgetMax,
     this.budgetUnknown = false,
     this.noBids = false,
+    this.minUrgency,
+    this.hasDeadline = false,
   });
 
   /// `24h` · `7d` · `30d` · null = all.
@@ -50,9 +52,16 @@ class CaseFeedExtras {
   final bool budgetUnknown;
   final bool noBids;
 
+  /// Owner 2026-10-05: `soon` · `urgent` · `very_urgent` (at least), or
+  /// null; and only cases with a date still ahead.
+  final String? minUrgency;
+  final bool hasDeadline;
+
   @override
   bool operator ==(Object other) =>
       other is CaseFeedExtras &&
+      other.minUrgency == minUrgency &&
+      other.hasDeadline == hasDeadline &&
       other.period == period &&
       other.budgetMin == budgetMin &&
       other.budgetMax == budgetMax &&
@@ -60,8 +69,15 @@ class CaseFeedExtras {
       other.noBids == noBids;
 
   @override
-  int get hashCode =>
-      Object.hash(period, budgetMin, budgetMax, budgetUnknown, noBids);
+  int get hashCode => Object.hash(
+        period,
+        budgetMin,
+        budgetMax,
+        budgetUnknown,
+        noBids,
+        minUrgency,
+        hasDeadline,
+      );
 }
 
 /// docs/04 cases & bids for the app (§3–§12). Throws [ApiException].
@@ -81,6 +97,15 @@ abstract interface class CasesRepository {
   /// Owner 2026-10-05: the full set of the case's photos and documents
   /// (display order) — the client completes the dossier after publishing.
   Future<void> setCaseFiles(String caseId, List<String> fileIds);
+
+  /// Owner 2026-10-05: the urgency or the date alone — also after an
+  /// attorney is hired (client or hired attorney); the other side is told.
+  Future<void> setCaseUrgency(
+    String caseId, {
+    required String urgency,
+    DateTime? deadline,
+    String? deadlineKind,
+  });
   Future<CursorPage<CaseSummary>> myCases(
     MyCasesFilter filter, {
     String? cursor,
@@ -195,6 +220,12 @@ class ApiCasesRepository implements CasesRepository {
           urgency: api.CaseUrgency.fromJson(
             draft.urgency ?? kDefaultCaseUrgency,
           ),
+          // Owner 2026-10-05: the day itself (a local calendar date).
+          deadlineAt:
+              draft.urgency == 'by_date' ? parseIsoDay(draft.deadlineAt) : null,
+          deadlineKind: draft.urgency == 'by_date' && draft.deadlineKind != null
+              ? api.CaseDeadlineKind.fromJson(draft.deadlineKind!)
+              : null,
         ),
         extras: _createsResource,
       ),
@@ -240,6 +271,41 @@ class ApiCasesRepository implements CasesRepository {
               draft.urgency != null && draft.urgency != original.urgency?.json
                   ? api.CaseUrgency.fromJson(draft.urgency!)
                   : null,
+          // Owner 2026-10-05: a level clears the date on the server.
+          deadlineAt: draft.urgency == 'by_date' &&
+                  draft.deadlineAt != null &&
+                  parseIsoDay(draft.deadlineAt) != original.urgencyInfo.deadline
+              ? parseIsoDay(draft.deadlineAt)
+              : null,
+          deadlineKind: draft.urgency == 'by_date' &&
+                  draft.deadlineKind != null &&
+                  draft.deadlineKind != original.urgencyInfo.kind?.json
+              ? api.CaseDeadlineKind.fromJson(draft.deadlineKind!)
+              : null,
+        ),
+      ),
+    );
+  }
+
+  @override
+  Future<void> setCaseUrgency(
+    String caseId, {
+    required String urgency,
+    DateTime? deadline,
+    String? deadlineKind,
+  }) async {
+    final dated = urgency == 'by_date';
+    await guardApiCall(
+      () => _cases.updateCaseUrgency(
+        id: caseId,
+        body: api.UpdateCaseUrgencyDto(
+          urgency: api.CaseUrgency.fromJson(urgency),
+          deadlineAt: dated && deadline != null
+              ? DateTime(deadline.year, deadline.month, deadline.day)
+              : null,
+          deadlineKind: dated && deadlineKind != null
+              ? api.CaseDeadlineKind.fromJson(deadlineKind)
+              : null,
         ),
       ),
     );
@@ -404,6 +470,10 @@ class ApiCasesRepository implements CasesRepository {
         budgetMax: extras.budgetMax,
         budgetUnknown: extras.budgetUnknown ? true : null,
         noBids: extras.noBids ? true : null,
+        minUrgency: extras.minUrgency == null
+            ? null
+            : api.MinUrgency.fromJson(extras.minUrgency!),
+        hasDeadline: extras.hasDeadline ? true : null,
       ),
     );
     return CursorPage(

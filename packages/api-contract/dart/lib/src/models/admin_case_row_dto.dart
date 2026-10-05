@@ -6,6 +6,9 @@ import 'package:json_annotation/json_annotation.dart';
 
 import 'admin_case_row_dto_dossier_missing.dart';
 import 'admin_case_row_dto_status.dart';
+import 'case_deadline_kind.dart';
+import 'case_urgency.dart';
+import 'case_urgency_level.dart';
 
 part 'admin_case_row_dto.g.dart';
 
@@ -29,6 +32,10 @@ class AdminCaseRowDto {
     required this.documentsCount,
     required this.dossierScore,
     required this.dossierMissing,
+    required this.urgency,
+    required this.urgencyLevel,
+    required this.deadlineAt,
+    required this.deadlineKind,
     required this.lastActivityAt,
     required this.createdAt,
   });
@@ -61,6 +68,10 @@ class AdminCaseRowDto {
 
   /// Dossier items the client has not filled in.
   final List<AdminCaseRowDtoDossierMissing> dossierMissing;
+  final CaseUrgency? urgency;
+  final CaseUrgencyLevel? urgencyLevel;
+  final DateTime? deadlineAt;
+  final CaseDeadlineKind? deadlineKind;
   final DateTime lastActivityAt;
   final DateTime createdAt;
 

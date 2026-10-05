@@ -1,9 +1,11 @@
 import { MineFilterFields } from '../mine/mine-filters';
+import { CASE_COVER_RE } from '../domain/case-cover';
 import {
-  CASE_COVER_RE,
+  CASE_DEADLINE_KINDS,
   CASE_URGENCIES,
+  type CaseDeadlineKind,
   type CaseUrgency,
-} from '../domain/case-cover';
+} from '../domain/case-urgency';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { BudgetMode } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
@@ -158,7 +160,9 @@ export class CreateCaseDto {
   @Matches(CASE_COVER_RE)
   coverKey?: string | null;
 
-  /** Owner 2026-10-04: how soon the client needs an attorney. */
+  /** Owner 2026-10-04/05: how soon the client needs an attorney — a
+   * level, or `by_date` with deadlineAt (a date alone means `by_date`).
+   * A level clears the date; null clears both. */
   @ApiPropertyOptional({
     enum: CASE_URGENCIES,
     enumName: 'CaseUrgency',
@@ -167,6 +171,29 @@ export class CreateCaseDto {
   @IsOptional()
   @IsIn(CASE_URGENCIES)
   urgency?: CaseUrgency | null;
+
+  /** Owner 2026-10-05: the date it is needed by (today … 2 years). */
+  @ApiPropertyOptional({
+    type: String,
+    format: 'date',
+    nullable: true,
+    example: '2026-11-03',
+  })
+  @IsOptional()
+  // A date, or an ISO date-time whose date part is used (the generated
+  // Dart client sends DateTime.toIso8601String()).
+  @Matches(/^\d{4}-\d{2}-\d{2}(T[\d:.]+(Z|[+-]\d{2}:?\d{2})?)?$/)
+  deadlineAt?: string | null;
+
+  /** Owner 2026-10-05: what the date is; only with a date. */
+  @ApiPropertyOptional({
+    enum: CASE_DEADLINE_KINDS,
+    enumName: 'CaseDeadlineKind',
+    nullable: true,
+  })
+  @IsOptional()
+  @IsIn(CASE_DEADLINE_KINDS)
+  deadlineKind?: CaseDeadlineKind | null;
 }
 
 /** PATCH /cases/:id (docs/04 §3.5). Every field is optional; at least one
@@ -251,7 +278,9 @@ export class UpdateCaseDto {
   @Matches(CASE_COVER_RE)
   coverKey?: string | null;
 
-  /** Owner 2026-10-04: how soon the client needs an attorney. */
+  /** Owner 2026-10-04/05: how soon the client needs an attorney — a
+   * level, or `by_date` with deadlineAt (a date alone means `by_date`).
+   * A level clears the date; null clears both. */
   @ApiPropertyOptional({
     enum: CASE_URGENCIES,
     enumName: 'CaseUrgency',
@@ -260,6 +289,29 @@ export class UpdateCaseDto {
   @IsOptional()
   @IsIn(CASE_URGENCIES)
   urgency?: CaseUrgency | null;
+
+  /** Owner 2026-10-05: the date it is needed by (today … 2 years). */
+  @ApiPropertyOptional({
+    type: String,
+    format: 'date',
+    nullable: true,
+    example: '2026-11-03',
+  })
+  @IsOptional()
+  // A date, or an ISO date-time whose date part is used (the generated
+  // Dart client sends DateTime.toIso8601String()).
+  @Matches(/^\d{4}-\d{2}-\d{2}(T[\d:.]+(Z|[+-]\d{2}:?\d{2})?)?$/)
+  deadlineAt?: string | null;
+
+  /** Owner 2026-10-05: what the date is; only with a date. */
+  @ApiPropertyOptional({
+    enum: CASE_DEADLINE_KINDS,
+    enumName: 'CaseDeadlineKind',
+    nullable: true,
+  })
+  @IsOptional()
+  @IsIn(CASE_DEADLINE_KINDS)
+  deadlineKind?: CaseDeadlineKind | null;
 
   /** Owner 2026-10-05: the full desired set of the case's photos and
    * documents (0–9, display order) — so a client can complete the dossier
@@ -315,4 +367,44 @@ export class ListMyCasesQueryDto extends MineFilterFields {
   @Min(1)
   @Max(MY_CASES_PAGE_MAX)
   limit?: number;
+}
+
+/** PATCH /cases/:id/urgency (owner 2026-10-05): the urgency or the date
+ * alone — also after an attorney is hired (a court date moves), by the
+ * client or by the hired attorney; the other side is told. */
+export class UpdateCaseUrgencyDto {
+  /** Owner 2026-10-04/05: how soon the client needs an attorney — a
+   * level, or `by_date` with deadlineAt (a date alone means `by_date`).
+   * A level clears the date; null clears both. */
+  @ApiPropertyOptional({
+    enum: CASE_URGENCIES,
+    enumName: 'CaseUrgency',
+    nullable: true,
+  })
+  @IsOptional()
+  @IsIn(CASE_URGENCIES)
+  urgency?: CaseUrgency | null;
+
+  /** Owner 2026-10-05: the date it is needed by (today … 2 years). */
+  @ApiPropertyOptional({
+    type: String,
+    format: 'date',
+    nullable: true,
+    example: '2026-11-03',
+  })
+  @IsOptional()
+  // A date, or an ISO date-time whose date part is used (the generated
+  // Dart client sends DateTime.toIso8601String()).
+  @Matches(/^\d{4}-\d{2}-\d{2}(T[\d:.]+(Z|[+-]\d{2}:?\d{2})?)?$/)
+  deadlineAt?: string | null;
+
+  /** Owner 2026-10-05: what the date is; only with a date. */
+  @ApiPropertyOptional({
+    enum: CASE_DEADLINE_KINDS,
+    enumName: 'CaseDeadlineKind',
+    nullable: true,
+  })
+  @IsOptional()
+  @IsIn(CASE_DEADLINE_KINDS)
+  deadlineKind?: CaseDeadlineKind | null;
 }

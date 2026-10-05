@@ -69,6 +69,8 @@ abstract class AdminCasesClient {
   /// [stateCode] - Any state of the case.
   ///
   /// [hasReports] - Only cases with / without open reports.
+  ///
+  /// [withDeadline] - Owner 2026-10-05: only cases with a date (court hearing, filing…) from today on.
   @GET('/admin/cases')
   Future<AdminCaseRowListEnvelope> listAdminCases({
     @Query('limit') int? limit = 20,
@@ -79,6 +81,7 @@ abstract class AdminCasesClient {
     @Query('practiceAreaId') String? practiceAreaId,
     @Query('stateCode') String? stateCode,
     @Query('hasReports') bool? hasReports,
+    @Query('withDeadline') bool? withDeadline,
     @Extras() Map<String, dynamic>? extras,
   });
 

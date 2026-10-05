@@ -58,12 +58,14 @@ class _Repo implements NotificationsRepository {
   Future<NewCaseAlerts> setNewCaseAlerts({
     required bool useProfile,
     List<String>? practiceAreaIds,
+    bool? urgentOnly,
   }) async {
     calls.add('set:$useProfile:${practiceAreaIds?.join(',')}');
     return alerts = NewCaseAlerts(
       useProfile: useProfile,
       practiceAreaIds: practiceAreaIds ?? alerts.practiceAreaIds,
       profilePracticeAreaIds: alerts.profilePracticeAreaIds,
+      urgentOnly: urgentOnly ?? alerts.urgentOnly,
     );
   }
 

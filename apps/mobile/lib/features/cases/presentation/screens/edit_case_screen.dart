@@ -76,7 +76,7 @@ class _EditFormState extends ConsumerState<_EditForm> {
         0 => _draft.practiceValid,
         1 => _draft.titleValid && _draft.descriptionValid,
         2 => _draft.placeValid,
-        _ => _draft.budgetValid,
+        _ => _draft.budgetValid && _draft.urgencyValid,
       };
 
   void _change(CaseDraft Function(CaseDraft d) f) => setState(() {

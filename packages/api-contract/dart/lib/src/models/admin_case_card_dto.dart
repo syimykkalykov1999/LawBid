@@ -12,13 +12,16 @@ import 'admin_case_invite_dto.dart';
 import 'admin_case_state_dto.dart';
 import 'admin_journal_entry_dto.dart';
 import 'admin_party_dto.dart';
+import 'case_deadline_kind.dart';
+import 'case_urgency.dart';
+import 'case_urgency_level.dart';
 
 part 'admin_case_card_dto.g.dart';
 
 @JsonSerializable()
 class AdminCaseCardDto {
   const AdminCaseCardDto({
-    required this.promoted,
+    required this.imagesCount,
     required this.title,
     required this.status,
     required this.clientId,
@@ -30,17 +33,21 @@ class AdminCaseCardDto {
     required this.commentCount,
     required this.viewCount,
     required this.openReports,
+    required this.promoted,
     required this.id,
-    required this.imagesCount,
     required this.documentsCount,
     required this.dossierScore,
     required this.dossierMissing,
+    required this.urgency,
+    required this.urgencyLevel,
+    required this.deadlineAt,
+    required this.deadlineKind,
     required this.lastActivityAt,
     required this.createdAt,
     required this.description,
     required this.city,
-    required this.budgetMode,
     required this.promotedUntil,
+    required this.budgetCents,
     required this.client,
     required this.states,
     required this.photosCount,
@@ -52,7 +59,7 @@ class AdminCaseCardDto {
     required this.contactIssueIds,
     required this.archivedAt,
     required this.closedAt,
-    required this.budgetCents,
+    required this.budgetMode,
   });
 
   factory AdminCaseCardDto.fromJson(Map<String, Object?> json) =>
@@ -83,6 +90,10 @@ class AdminCaseCardDto {
 
   /// Dossier items the client has not filled in.
   final List<AdminCaseCardDtoDossierMissing> dossierMissing;
+  final CaseUrgency? urgency;
+  final CaseUrgencyLevel? urgencyLevel;
+  final DateTime? deadlineAt;
+  final CaseDeadlineKind? deadlineKind;
   final DateTime lastActivityAt;
   final DateTime createdAt;
   final String description;

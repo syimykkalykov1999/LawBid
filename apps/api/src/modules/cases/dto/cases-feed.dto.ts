@@ -1,4 +1,13 @@
-import { CASE_URGENCIES, type CaseUrgency } from '../domain/case-cover';
+import {
+  CASE_DEADLINE_KINDS,
+  CASE_MIN_URGENCIES,
+  CASE_URGENCIES,
+  CASE_URGENCY_LEVELS,
+  type CaseDeadlineKind,
+  type CaseMinUrgency,
+  type CaseUrgency,
+  type CaseUrgencyLevel,
+} from '../domain/case-urgency';
 import { CasePhotoDto } from './case-responses.dto';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { BudgetMode, CaseStatus, SavedItemType } from '@prisma/client';
@@ -145,6 +154,31 @@ export class ListCasesFeedQueryDto {
   )
   @IsBoolean()
   noBids?: boolean;
+
+  @ApiPropertyOptional({
+    enum: CASE_MIN_URGENCIES,
+    enumName: 'MinUrgency',
+    description:
+      'Owner 2026-10-05: only cases at least this urgent today (a dated case by its days left; past dates excluded).',
+  })
+  @IsOptional()
+  @IsIn(CASE_MIN_URGENCIES)
+  minUrgency?: CaseMinUrgency;
+
+  @ApiPropertyOptional({
+    description:
+      'Owner 2026-10-05: only cases with a date (court hearing, filing deadline…) still ahead.',
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === true || value === 'true'
+      ? true
+      : value === false || value === 'false'
+        ? false
+        : value,
+  )
+  @IsBoolean()
+  hasDeadline?: boolean;
 }
 
 /** POST/DELETE /saved-items (docs/04 §4.3, §11.2, §15). Only itemType
@@ -257,13 +291,40 @@ export class CaseFeedItemDto {
   @ApiPropertyOptional({ type: String, nullable: true, example: 'art:2' })
   coverKey?: string | null;
 
-  /** Owner 2026-10-04: flexible | soon | urgent; null on older cases. */
+  /** Owner 2026-10-04/05: the client's choice — a level, or `by_date`
+   * (see deadlineAt); null when not set. */
   @ApiPropertyOptional({
     enum: CASE_URGENCIES,
     enumName: 'CaseUrgency',
     nullable: true,
   })
   urgency?: CaseUrgency | null;
+
+  /** Owner 2026-10-05: the level the case reads as today (a dated case's
+   * level follows from the days left; `overdue` once the date passed). */
+  @ApiPropertyOptional({
+    enum: CASE_URGENCY_LEVELS,
+    enumName: 'CaseUrgencyLevel',
+    nullable: true,
+  })
+  urgencyLevel?: CaseUrgencyLevel | null;
+
+  /** Owner 2026-10-05: the date the client needs it by (YYYY-MM-DD). */
+  @ApiPropertyOptional({
+    type: String,
+    format: 'date',
+    nullable: true,
+    example: '2026-11-03',
+  })
+  deadlineAt?: string | null;
+
+  /** Owner 2026-10-05: what the date is (court hearing, filing…). */
+  @ApiPropertyOptional({
+    enum: CASE_DEADLINE_KINDS,
+    enumName: 'CaseDeadlineKind',
+    nullable: true,
+  })
+  deadlineKind?: CaseDeadlineKind | null;
 
   @ApiProperty({ type: 'integer' })
   viewCount!: number;

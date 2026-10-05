@@ -81,8 +81,16 @@ String? notificationRoute({
     // Owner 2026-09-30 (opt-in alerts).
     case 'followed_post':
       return postId == null ? null : SocialRoutes.post(postId);
-    case 'new_case':
+    case 'new_case' || 'new_urgent_case':
       return caseId == null ? null : AppRoutes.caseDetail(caseId);
+    // Owner 2026-10-05: a case's date (court hearing…) is near, today,
+    // passed, or was moved by the other side.
+    case 'case_deadline_soon' ||
+          'case_deadline_today' ||
+          'case_deadline_passed' ||
+          'case_deadline_changed':
+      if (caseId == null) return null;
+      return attorney ? AppRoutes.workCase(caseId) : AppRoutes.myCase(caseId);
     // Audit 2026-10-04: the attorney answered the client's review.
     case 'review_received'
         when _flag(payload['reply']) &&
@@ -263,6 +271,13 @@ String notificationText(Translator t, AppNotification n) {
       if (body is String) body,
     ].join(' — ');
   }
+  // Owner 2026-10-05: "N days until the case's date".
+  if (n.type == 'case_deadline_soon') {
+    final days = n.payload['days'];
+    return days is num
+        ? t.plural('notif.list.case_deadline_soon', days)
+        : t.t('notif.list.case_deadline_today', {'name': ''});
+  }
   // Owner 2026-10-05: "N finished tasks will be removed in D days".
   if (n.type == 'task_purge_soon') {
     return t.t('notif.list.task_purge_soon', {
@@ -330,6 +345,12 @@ IconData _icon(AppNotification n) => switch (n.type) {
       'task_reminder' => AppIcons.notificationsActiveOutlined,
       'task_purge_soon' => AppIcons.inventory2Outlined,
       'assistant_joined' || 'assistant_result' => AppIcons.supportAgentRounded,
+      'case_deadline_soon' ||
+      'case_deadline_today' ||
+      'case_deadline_passed' ||
+      'case_deadline_changed' =>
+        AppIcons.eventOutlined,
+      'new_urgent_case' => AppIcons.timerOutlined,
       _ => switch (n.category) {
           NotifCategory.bids => AppIcons.gavelRounded,
           NotifCategory.cases => AppIcons.folderRounded,

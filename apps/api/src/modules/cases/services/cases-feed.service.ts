@@ -1,5 +1,10 @@
 import { CasePhotosService } from './case-photos.service';
-import type { CaseUrgency } from '../domain/case-cover';
+import {
+  loadUrgencyThresholds,
+  urgencyFields,
+  urgencyFilterSql,
+} from '../domain/case-urgency';
+import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
 import { ForbiddenException, Injectable, Optional } from '@nestjs/common';
 import { Prisma, type Case, type PracticeArea } from '@prisma/client';
 import {
@@ -77,6 +82,7 @@ export class CasesFeedService {
     @Optional() private readonly photos?: CasePhotosService,
     @Optional() private readonly counters?: CounterAggregator,
     @Optional() private readonly entitlements?: EntitlementsService,
+    @Optional() private readonly settings?: AppSettingsService,
   ) {}
 
   /** GET /cases (docs/04 §4.2). Empty page, not an error, for a caller
@@ -109,7 +115,10 @@ export class CasesFeedService {
             ? 30 * 24 * 3600e3
             : null;
     const since = spanMs ? new Date(Date.now() - spanMs) : undefined;
+    // Owner 2026-10-05: "urgent and above" / "with a date" filters.
+    const thresholds = await loadUrgencyThresholds(this.settings);
     const extra = Prisma.sql`
+      ${urgencyFilterSql(query.minUrgency, query.hasDeadline, thresholds)}
       ${query.budgetMin !== undefined ? Prisma.sql`AND c.budget_cents >= ${query.budgetMin * 100}` : Prisma.empty}
       ${query.budgetMax !== undefined ? Prisma.sql`AND c.budget_cents <= ${query.budgetMax * 100}` : Prisma.empty}
       ${query.budgetUnknown ? Prisma.sql`AND c.budget_mode = 'clarify_later'` : Prisma.empty}
@@ -366,6 +375,7 @@ export class CasesFeedService {
     );
     const byId = new Map(rows.map((r) => [r.id, r]));
     const now = Date.now();
+    const thresholds = await loadUrgencyThresholds(this.settings);
     const items: CaseFeedItemDto[] = [];
     for (const id of ids) {
       const c = byId.get(id);
@@ -398,7 +408,7 @@ export class CasesFeedService {
         status: c.status,
         budget: { mode: c.budget_mode, amountCents: c.budget_cents },
         coverKey: c.cover_key,
-        urgency: c.urgency as CaseUrgency | null,
+        ...urgencyFields(c, new Date(now), thresholds),
         viewCount: c.view_count,
         bidsCount: c.bids_count,
         createdAt: c.created_at.toISOString(),

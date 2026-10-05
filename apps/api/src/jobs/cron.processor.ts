@@ -19,6 +19,7 @@ import {
   CaseCompletionReminderJob,
   CaseStalePromptJob,
 } from './handlers/case-lifecycle.jobs';
+import { CaseDeadlineReminderJob } from './handlers/case-deadline-reminder.job';
 import { CountersReconcileJob } from './handlers/counters-reconcile.job';
 import { FeedRecoJob } from '../modules/feed/feed-reco.job';
 import { TrendingTagsJob } from '../modules/search/trending-tags.job';
@@ -71,6 +72,7 @@ export class CronProcessor {
     private readonly taskArchivePurge: TaskArchivePurgeJob,
     private readonly casePayments: CasePaymentsService,
     private readonly partners: PartnersService,
+    private readonly caseDeadlineReminder: CaseDeadlineReminderJob,
     private readonly trust: AttorneyTrustService,
     @Optional() private readonly supportDesk?: SupportDeskService,
     @Optional() private readonly rewards?: RewardsService,
@@ -140,6 +142,8 @@ export class CronProcessor {
         return this.casePayments.remind();
       case CRON_JOBS.partnersSweep:
         return this.partners.sweep();
+      case CRON_JOBS.caseDeadlineReminder:
+        return this.caseDeadlineReminder.run();
       case CRON_JOBS.trustRecompute:
         return this.trust.recomputeAll();
       case CRON_JOBS.supportSweep:

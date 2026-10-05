@@ -25,6 +25,7 @@ import {
   CaseCompletionReminderJob,
   CaseStalePromptJob,
 } from './handlers/case-lifecycle.jobs';
+import { CaseDeadlineReminderJob } from './handlers/case-deadline-reminder.job';
 import { CountersReconcileJob } from './handlers/counters-reconcile.job';
 import { FeedRecoJob } from '../modules/feed/feed-reco.job';
 import { TrendingTagsJob } from '../modules/search/trending-tags.job';
@@ -94,6 +95,7 @@ export class JobsModule {
         CaseAutoArchiveJob,
         CaseAutoCloseJob,
         CaseCompletionReminderJob,
+        CaseDeadlineReminderJob,
         CountersReconcileJob,
         FeedRecoJob,
         TrendingTagsJob,

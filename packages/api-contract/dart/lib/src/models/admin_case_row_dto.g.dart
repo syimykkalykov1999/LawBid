@@ -27,6 +27,18 @@ AdminCaseRowDto _$AdminCaseRowDtoFromJson(Map<String, dynamic> json) =>
       dossierMissing: (json['dossierMissing'] as List<dynamic>)
           .map((e) => AdminCaseRowDtoDossierMissing.fromJson(e as String))
           .toList(),
+      urgency: json['urgency'] == null
+          ? null
+          : CaseUrgency.fromJson(json['urgency'] as String),
+      urgencyLevel: json['urgencyLevel'] == null
+          ? null
+          : CaseUrgencyLevel.fromJson(json['urgencyLevel'] as String),
+      deadlineAt: json['deadlineAt'] == null
+          ? null
+          : DateTime.parse(json['deadlineAt'] as String),
+      deadlineKind: json['deadlineKind'] == null
+          ? null
+          : CaseDeadlineKind.fromJson(json['deadlineKind'] as String),
       lastActivityAt: DateTime.parse(json['lastActivityAt'] as String),
       createdAt: DateTime.parse(json['createdAt'] as String),
     );
@@ -50,6 +62,10 @@ Map<String, dynamic> _$AdminCaseRowDtoToJson(AdminCaseRowDto instance) =>
       'documentsCount': instance.documentsCount,
       'dossierScore': instance.dossierScore,
       'dossierMissing': instance.dossierMissing.map((e) => e.toJson()).toList(),
+      'urgency': ?instance.urgency?.toJson(),
+      'urgencyLevel': ?instance.urgencyLevel?.toJson(),
+      'deadlineAt': ?instance.deadlineAt?.toIso8601String(),
+      'deadlineKind': ?instance.deadlineKind?.toJson(),
       'lastActivityAt': instance.lastActivityAt.toIso8601String(),
       'createdAt': instance.createdAt.toIso8601String(),
     };

@@ -41,6 +41,12 @@ abstract final class CasesMappers {
         lastActivityAt: _date(c.lastActivityAt),
         coverKey: c.coverKey,
         urgency: _urgency(c.urgency),
+        urgencyDetail: CaseUrgencyInfo.of(
+          urgency: c.urgency,
+          level: c.urgencyLevel,
+          deadlineAt: c.deadlineAt,
+          kind: c.deadlineKind,
+        ),
       );
 
   static OwnerCase ownerCase(api.OwnerCaseDetailDto c) => OwnerCase(
@@ -71,6 +77,12 @@ abstract final class CasesMappers {
         stalePromptSentAt: _dateOrNull(c.stalePromptSentAt),
         coverKey: c.coverKey,
         urgency: _urgency(c.urgency),
+        urgencyDetail: CaseUrgencyInfo.of(
+          urgency: c.urgency,
+          level: c.urgencyLevel,
+          deadlineAt: c.deadlineAt,
+          kind: c.deadlineKind,
+        ),
       );
 
   static CasePhoto casePhoto(api.CasePhotoDto p) => CasePhoto(
@@ -170,6 +182,12 @@ abstract final class CasesMappers {
         priorityClient: c.priorityClient,
         coverKey: c.coverKey,
         urgency: _urgency(c.urgency),
+        urgencyDetail: CaseUrgencyInfo.of(
+          urgency: c.urgency,
+          level: c.urgencyLevel,
+          deadlineAt: c.deadlineAt,
+          kind: c.deadlineKind,
+        ),
         dossier: dossier(c.dossier),
       );
 
@@ -209,6 +227,12 @@ abstract final class CasesMappers {
         acceptedBidIsMine: c.acceptedBidIsMine,
         coverKey: c.coverKey,
         urgency: _urgency(c.urgency),
+        urgencyDetail: CaseUrgencyInfo.of(
+          urgency: c.urgency,
+          level: c.urgencyLevel,
+          deadlineAt: c.deadlineAt,
+          kind: c.deadlineKind,
+        ),
         dossier: dossier(c.dossier),
       );
 

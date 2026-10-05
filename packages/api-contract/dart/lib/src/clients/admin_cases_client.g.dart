@@ -170,6 +170,7 @@ class _AdminCasesClient implements AdminCasesClient {
     String? practiceAreaId,
     String? stateCode,
     bool? hasReports,
+    bool? withDeadline,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
@@ -183,6 +184,7 @@ class _AdminCasesClient implements AdminCasesClient {
       r'practiceAreaId': practiceAreaId,
       r'stateCode': stateCode,
       r'hasReports': hasReports,
+      r'withDeadline': withDeadline,
     };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};
