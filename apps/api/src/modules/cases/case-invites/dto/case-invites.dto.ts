@@ -11,6 +11,8 @@ import {
 } from 'class-validator';
 import { BID_AMOUNT_MAX_CENTS } from '../../../bids/dto/bid-requests.dto';
 import { BidAttorneySummaryDto } from '../../case-bids/dto/case-bids.dto';
+import { CASE_URGENCIES, type CaseUrgency } from '../../domain/case-cover';
+import { CaseBudgetDto, CaseDossierDto } from '../../dto/cases-feed.dto';
 
 export const INVITE_MESSAGE_MAX = 1000;
 export const INVITE_DECLINE_REASON_MAX = 500;
@@ -152,6 +154,25 @@ export class CaseInviteDto {
 
   @ApiProperty({ type: String, isArray: true })
   caseStateCodes!: string[];
+
+  /** Owner 2026-10-05: the dossier ("Case file 4 of 6") on the invite, so
+   * the attorney sees what the client filled in before answering. Counts
+   * only — the files open once the client accepts the attorney's bid. */
+  @ApiPropertyOptional({ type: String, nullable: true })
+  caseCity!: string | null;
+
+  @ApiPropertyOptional({
+    enum: CASE_URGENCIES,
+    enumName: 'CaseUrgency',
+    nullable: true,
+  })
+  caseUrgency!: CaseUrgency | null;
+
+  @ApiProperty({ type: CaseBudgetDto })
+  caseBudget!: CaseBudgetDto;
+
+  @ApiProperty({ type: CaseDossierDto })
+  caseDossier!: CaseDossierDto;
 
   @ApiProperty({
     type: BidAttorneySummaryDto,
