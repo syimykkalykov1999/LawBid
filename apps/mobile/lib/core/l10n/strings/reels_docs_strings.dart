@@ -30,6 +30,7 @@ const reelsDocsRu = <String, String>{
   'call.videoLabel': 'Видеозвонок LawBid',
   'call.camera': 'Камера',
   'call.flipCamera': 'Повернуть',
+  'reels.compressing': 'Сжимаем видео {percent}%',
 };
 
 const reelsDocsEn = <String, String>{
@@ -59,4 +60,5 @@ const reelsDocsEn = <String, String>{
   'call.videoLabel': 'LawBid video call',
   'call.camera': 'Camera',
   'call.flipCamera': 'Flip',
+  'reels.compressing': 'Compressing video {percent}%',
 };

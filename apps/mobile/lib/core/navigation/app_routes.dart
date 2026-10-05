@@ -135,6 +135,9 @@ abstract final class AppRoutes {
 
   /// Owner 2026-10-02: the client's paid gold badge (verify my account).
   static const clientBadge = '/profile/settings/verify-account';
+  // Owner 2026-10-05: the document templates library.
+  static const templates = '/profile/settings/templates';
+
   // Owner 2026-10-02: Help & support (tickets to the LawBid team).
   static const support = '/profile/settings/support';
   static const supportNew = '/profile/settings/support/new';

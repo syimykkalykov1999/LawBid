@@ -5,14 +5,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
+import 'package:go_router/go_router.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/features/chat/application/voice_recorder.dart'
     show voiceClock;
+import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
+import 'package:lawbid/features/plans/presentation/plan_offer.dart';
+import 'package:lawbid/features/subscription/presentation/paywall_screen.dart';
 
 /// OQ-041: the full-screen call — navy with gold, the other member's
 /// photo with pulsing rings while it rings, the status or the running
@@ -63,6 +68,23 @@ class _CallScreenState extends ConsumerState<CallScreen>
       if (phase == CallPhase.idle && mounted) {
         Navigator.of(context).maybePop();
       }
+    });
+    // Owner 2026-10-05 (plan builder): the plan has no video calls — the
+    // call screen gives way to the plans.
+    ref.listen(callControllerProvider, (prev, next) {
+      if (prev?.phase == CallPhase.ended ||
+          next.phase != CallPhase.ended ||
+          next.errorCode != ApiErrorCodes.entitlementRequired ||
+          !mounted) {
+        return;
+      }
+      final router = GoRouter.of(context);
+      final path = planOfferPath(
+        ref.read(currentUserRoleProvider),
+        PaywallReason.videoCall,
+      );
+      Navigator.of(context).maybePop();
+      unawaited(router.push(path));
     });
     final peer = s.peer ?? s.call?.peer;
     final name = peer?.name ?? '';
@@ -383,6 +405,8 @@ String callStatusText(Translator t, CallSession s) {
           return t.t('call.subscription');
         case 'CALL_IN_PROGRESS':
           return t.t('call.inProgress');
+        case ApiErrorCodes.entitlementRequired:
+          return t.t('paywall.videoCall.title');
         // Audit 2026-10-02: the other refusals the server sends.
         case 'ASSISTANT_NOT_ALLOWED':
         case 'USER_BLOCKED':
