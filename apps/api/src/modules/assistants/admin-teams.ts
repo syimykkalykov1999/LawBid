@@ -39,7 +39,7 @@ import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { SEATS_HARD_CAP } from '../billing/billing.constants';
-import { seatLimitFor } from '../billing/seat-limit';
+import { getAssistantLimit } from '../billing/seat-limit';
 import {
   AdminEndpoint,
   CurrentAdmin,
@@ -334,7 +334,7 @@ export class AdminTeamsService {
       }),
       findActiveGrant(this.prisma, attorneyId),
     ]);
-    const seatLimit = await seatLimitFor(
+    const seatLimit = await getAssistantLimit(
       this.prisma,
       attorneyId,
       this.settings,

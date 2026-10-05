@@ -14,7 +14,7 @@ import {
 } from '../../common/pagination/cursor.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
-import { seatLimitFor } from '../billing/seat-limit';
+import { getAssistantLimit } from '../billing/seat-limit';
 import { AssistantContextService } from '../auth/assistant/assistant-context';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { AssistantCodeService } from '../auth/assistant/assistant-code.service';
@@ -229,7 +229,7 @@ export class AssistantsService {
     const seats = effectiveSeats(
       paidSeats(
         sub,
-        await seatLimitFor(this.prisma, attorneyId, this.settings),
+        await getAssistantLimit(this.prisma, attorneyId, this.settings),
       ),
       grant?.assistant_seats ?? null,
     );

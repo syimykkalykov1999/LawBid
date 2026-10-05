@@ -13,9 +13,12 @@ export async function maxAssistantSeats(
   return Math.min(SEATS_HARD_CAP, Math.max(1, Math.floor(raw)));
 }
 
-/** Owner 2026-10-05: the attorney's own limit (an admin approved a
- * request), else the global setting. */
-export async function seatLimitFor(
+/** Owner 2026-10-05: THE one place that answers "how many assistants may
+ * this attorney add": the attorney's own limit (an admin approved a request
+ * or set it on Teams), else the global setting. The plan builder will swap
+ * the source to the attorney's plan here, so callers never read the limit
+ * any other way. */
+export async function getAssistantLimit(
   prisma: Pick<PrismaService, 'attorneyProfile'>,
   attorneyId: string,
   settings?: AppSettingsService,

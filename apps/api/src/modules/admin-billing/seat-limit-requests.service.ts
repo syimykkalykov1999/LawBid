@@ -14,7 +14,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AuditLogService } from '../admin-access/audit-log.service';
 import type { AdminActor } from '../admin-auth/admin-auth.decorators';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
-import { seatLimitFor } from '../billing/seat-limit';
+import { getAssistantLimit } from '../billing/seat-limit';
 import { NotificationsService } from '../notifications/notifications.service';
 import {
   ADMIN_BILLING_PAGE,
@@ -57,7 +57,7 @@ export class SeatLimitRequestsService {
         message: 'Only the attorney asks for more assistant seats.',
       });
     }
-    const limit = await seatLimitFor(this.prisma, user.sub, this.settings);
+    const limit = await getAssistantLimit(this.prisma, user.sub, this.settings);
     if (dto.seats <= limit) {
       throw new BadRequestException({
         code: ErrorCode.VALIDATION_ERROR,
@@ -96,7 +96,7 @@ export class SeatLimitRequestsService {
         where: { user_id: attorneyId },
         select: { assistant_seat_limit: true },
       }),
-      seatLimitFor(this.prisma, attorneyId, this.settings),
+      getAssistantLimit(this.prisma, attorneyId, this.settings),
     ]);
     return {
       limit,
@@ -128,7 +128,10 @@ export class SeatLimitRequestsService {
       Promise.all(
         ids.map(
           async (id) =>
-            [id, await seatLimitFor(this.prisma, id, this.settings)] as const,
+            [
+              id,
+              await getAssistantLimit(this.prisma, id, this.settings),
+            ] as const,
         ),
       ),
     ]);
