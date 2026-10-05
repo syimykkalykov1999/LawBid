@@ -188,6 +188,22 @@ describe('Storage like Telegram (e2e)', () => {
     expect((await row(unused)).deleted_reason).toBe('orphan');
     expect((await row(used)).deleted_at).toBeNull();
 
+    // A row in a bucket that does not exist (old data, other tests) never
+    // blocks the rest of the cleanup.
+    await prisma.file.create({
+      data: {
+        owner_user_id: a.id,
+        purpose: 'post_image',
+        s3_bucket: `no-such-bucket-${randomUUID().slice(0, 8)}`,
+        s3_key: `gone/${randomUUID()}`,
+        mime: 'image/jpeg',
+        size_bytes: 1n,
+        sha256: 'c'.repeat(64),
+        deleted_at: new Date(Date.now() - 30 * 24 * 3600 * 1000),
+        deleted_reason: 'released',
+      },
+    });
+
     const key = (await row(unused)).s3_key;
     const bucket = (await row(unused)).s3_bucket;
     await prisma.file.update({

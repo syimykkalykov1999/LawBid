@@ -93,25 +93,39 @@ export class FileReleaseService {
       byBucket.set(r.s3_bucket, keys);
     }
     let removed = 0;
+    // A bucket that fails (S3 down, permissions) keeps its rows unpurged
+    // for the next run; one bad bucket never stops the others.
+    const failed = new Set<string>();
     if (this.storage.configured) {
       for (const [bucket, keys] of byBucket) {
         const objects = [...keys].flatMap((k) => [
           k,
           ...ALL_VARIANT_PX.map((px) => variantKey(k, px)),
         ]);
-        for (let i = 0; i < objects.length; i += KEYS_PER_CALL) {
-          await this.storage.remove(
-            bucket,
-            objects.slice(i, i + KEYS_PER_CALL),
-          );
+        try {
+          for (let i = 0; i < objects.length; i += KEYS_PER_CALL) {
+            await this.storage.remove(
+              bucket,
+              objects.slice(i, i + KEYS_PER_CALL),
+            );
+          }
+          removed += keys.size;
+        } catch (err) {
+          // No such bucket: nothing of it can be left to remove.
+          if (!isNoSuchBucket(err)) {
+            failed.add(bucket);
+            this.logger.error({ err, bucket }, 'storage objects not removed');
+          }
         }
-        removed += keys.size;
       }
     }
-    await this.prisma.file.updateMany({
-      where: { id: { in: rows.map((r) => r.id) }, purged_at: null },
-      data: { purged_at: now },
-    });
+    const done = rows.filter((r) => !failed.has(r.s3_bucket));
+    if (done.length > 0) {
+      await this.prisma.file.updateMany({
+        where: { id: { in: done.map((r) => r.id) }, purged_at: null },
+        data: { purged_at: now },
+      });
+    }
     if (removed > 0) {
       this.logger.info(
         { removed, rows: rows.length },
@@ -120,4 +134,14 @@ export class FileReleaseService {
     }
     return removed;
   }
+}
+
+/** S3 / MinIO "NoSuchBucket" (the bucket is gone or never existed). */
+export function isNoSuchBucket(err: unknown): boolean {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    ((err as { name?: string }).name === 'NoSuchBucket' ||
+      (err as { Code?: string }).Code === 'NoSuchBucket')
+  );
 }

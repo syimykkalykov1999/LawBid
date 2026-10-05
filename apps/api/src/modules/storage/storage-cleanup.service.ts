@@ -8,7 +8,10 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { withDeleted } from '../../prisma/soft-delete.extension';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { CLEANUP_EXEMPT_PURPOSES } from '../files/files.policy';
-import { FileReleaseService } from '../files/storage/file-release.service';
+import {
+  FileReleaseService,
+  isNoSuchBucket,
+} from '../files/storage/file-release.service';
 import { S3StorageService } from '../files/storage/s3-storage.service';
 import { PENDING_UPLOADS_KEY } from '../files/storage/pending-uploads';
 
@@ -152,6 +155,7 @@ export class StorageCleanupService {
       if (ids.length < BATCH) break;
     }
 
+    const seen = new Set<string>();
     for (let i = 0; i < MAX_BATCHES; i += 1) {
       const due = await this.prisma.file.findMany({
         where: { deleted_at: { lt: purgeCutoff }, purged_at: null },
@@ -159,7 +163,9 @@ export class StorageCleanupService {
         orderBy: { deleted_at: 'asc' },
         take: BATCH,
       });
-      if (due.length === 0) break;
+      // Rows whose bucket failed stay unpurged; never loop over them.
+      if (due.every((f) => seen.has(f.id))) break;
+      for (const f of due) seen.add(f.id);
       // What this cleanup set aside is checked once more before removal.
       const ours = due
         .filter(
@@ -329,18 +335,28 @@ export class StorageCleanupService {
         ).map((f) => f.id),
       );
       const byBucket = new Map<string, string[]>();
+      const kept = new Set<string>();
       for (const p of parsed) {
         if (confirmed.has(p.id) || !p.bucket || !p.key) continue;
         byBucket.set(p.bucket, [...(byBucket.get(p.bucket) ?? []), p.key]);
       }
       if (this.storage.configured) {
         for (const [bucket, keys] of byBucket) {
-          await this.storage.remove(bucket, keys);
-          removed += keys.length;
+          try {
+            await this.storage.remove(bucket, keys);
+            removed += keys.length;
+          } catch (err) {
+            if (isNoSuchBucket(err)) continue;
+            // Kept in the set: the next run tries again.
+            this.logger.error({ err, bucket }, 'abandoned uploads not removed');
+            for (const p of parsed) if (p.bucket === bucket) kept.add(p.id);
+          }
         }
       }
-      await this.redis.zrem(PENDING_UPLOADS_KEY, ...members);
-      if (members.length < BATCH) break;
+      const done = members.filter((m) => !kept.has(m.split('|')[0]));
+      if (done.length > 0) await this.redis.zrem(PENDING_UPLOADS_KEY, ...done);
+      // A failing bucket stays for the next run instead of looping here.
+      if (members.length < BATCH || kept.size > 0) break;
     }
     return removed;
   }
