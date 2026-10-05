@@ -244,7 +244,7 @@ describe('Outreach (e2e)', () => {
       .post('/api/v1/admin/outreach/leads/assign')
       .set(owner.auth)
       .send({ leadIds: [ivan.id], partnerId })
-      .expect(201);
+      .expect(200);
     expect(assigned.body.data).toEqual({ updated: 1 });
     const empList = await api()
       .get(`/api/v1/admin/outreach/leads?q=${tag}`)
@@ -294,7 +294,7 @@ describe('Outreach (e2e)', () => {
       .post(`/api/v1/admin/outreach/leads/${ivan.id}/email`)
       .set(emp.auth)
       .send({ templateId })
-      .expect(201);
+      .expect(200);
     expect(mail.body.data.subject).toBe(
       'Hello Ivan, clients are waiting on LawBid',
     );
@@ -330,7 +330,7 @@ describe('Outreach (e2e)', () => {
       .post(`/api/v1/admin/outreach/leads/${anna.id}/email`)
       .set(emp.auth)
       .send({ templateId })
-      .expect(201);
+      .expect(200);
     expect(
       (await prisma.outreachLead.findUniqueOrThrow({ where: { id: anna.id } }))
         .partner_id,
