@@ -182,6 +182,7 @@ export class AuthService {
     // A code requested before the method was switched off must not still
     // mint a session afterwards.
     await this.loginMethods.assertEnabled(dto.channel);
+    await this.loginMethods.assertPlatformAllowed(dto.deviceInfo?.platform);
     const identifier = this.normalize(dto.channel, dto.identifier);
     const deviceInfo: DeviceInfo = dto.deviceInfo ?? {};
 
@@ -264,6 +265,7 @@ export class AuthService {
     meta: RequestMeta,
   ): Promise<AuthTokensResult> {
     await this.loginMethods.assertEnabled('email');
+    await this.loginMethods.assertPlatformAllowed(dto.deviceInfo?.platform);
     const deviceInfo: DeviceInfo = dto.deviceInfo ?? {};
     const perIp = meta.ip
       ? await this.rateLimit.consumeFixedWindow(
@@ -436,6 +438,7 @@ export class AuthService {
       identifier: string;
       deviceInfo: DeviceInfo;
     };
+    await this.loginMethods.assertPlatformAllowed(p.deviceInfo.platform);
     const user = await this.prisma.user.findUniqueOrThrow({
       where: { id: p.userId },
     });
@@ -695,6 +698,12 @@ export class AuthService {
         HttpStatus.TOO_MANY_REQUESTS,
       );
     }
+
+    // Turning `web_client` off also ends web sessions: the rotated token is
+    // never handed out, so the browser is signed out on its next refresh.
+    await this.loginMethods.assertPlatformAllowed(
+      outcome.session.platform ?? undefined,
+    );
 
     // withDeleted: the session row, not users.deleted_at, decides whether
     // a refresh is valid (account deletion revokes sessions); keep seeing

@@ -193,13 +193,15 @@ export class CaseAutoCloseJob {
 }
 
 interface ReminderRow extends KeyRow {
-  attorney_id: string;
+  /** The party who has NOT marked "Done" yet. */
+  recipient_id: string;
 }
 
 /**
  * §10.2 "Напоминание адвокату" (hourly): pending_completion with ≤ 24 h
- * left and no reminder yet → `completion_reminder` to the accepted
- * attorney, at most once: an atomic Redis claim per case whose TTL (48 h)
+ * left and no reminder yet → `completion_reminder` to the party who has
+ * not marked "Done" (the accepted attorney, or the client when the
+ * attorney marked first), at most once: an atomic Redis claim per case whose TTL (48 h)
  * outlives the 24 h window (no notifications scan per case — load review).
  */
 @Injectable()
@@ -227,7 +229,10 @@ export class CaseCompletionReminderJob {
         for (;;) {
           const rows = await this.prisma.$queryRaw<ReminderRow[]>(Prisma.sql`
             SELECT c.id::STRING AS id, c.auto_close_at AS at,
-                   b.attorney_id::STRING AS attorney_id
+                   (CASE WHEN c.attorney_confirmed_at IS NOT NULL
+                              AND c.client_completed_at IS NULL
+                         THEN c.client_id ELSE b.attorney_id END
+                   )::STRING AS recipient_id
             FROM cases AS c
             JOIN bids AS b ON b.id = c.accepted_bid_id
             WHERE c.status = 'pending_completion' AND c.deleted_at IS NULL
@@ -245,7 +250,7 @@ export class CaseCompletionReminderJob {
                 () =>
                   this.notifications.emit({
                     type: 'completion_reminder',
-                    recipientId: row.attorney_id,
+                    recipientId: row.recipient_id,
                     payload: {
                       caseId: row.id,
                       autoCloseAt: row.at.toISOString(),

@@ -51,9 +51,31 @@ class _SupportTicketScreenState extends ConsumerState<SupportTicketScreen> {
     });
   }
 
-  Future<void> _close() => _run(
-        () => ref.read(supportRepositoryProvider).close(widget.ticketId),
-      );
+  /// Audit 2026-10-04: closing is permanent — confirm first.
+  Future<void> _close() async {
+    final t = ref.read(translatorProvider);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        content: Text(t.t('support.close.confirm')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(t.t('common.cancel')),
+          ),
+          TextButton(
+            key: const ValueKey('support-close-confirm'),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(t.t('support.close')),
+          ),
+        ],
+      ),
+    );
+    if (!(ok ?? false) || !mounted) return;
+    await _run(
+      () => ref.read(supportRepositoryProvider).close(widget.ticketId),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {

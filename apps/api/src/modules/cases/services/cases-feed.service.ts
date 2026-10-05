@@ -230,7 +230,7 @@ export class CasesFeedService {
         where: {
           case_id_attorney_id: { case_id: caseId, attorney_id: attorneyId },
         },
-        select: { id: true },
+        select: { id: true, status: true },
       }),
     ]);
     const media = this.photos
@@ -241,6 +241,7 @@ export class CasesFeedService {
       description: row.description,
       isSaved: !!saved,
       ownBidId: ownBid?.id ?? null,
+      acceptedBidIsMine: ownBid?.status === 'accepted',
       completionRequestedBy:
         row.status !== 'pending_completion'
           ? null

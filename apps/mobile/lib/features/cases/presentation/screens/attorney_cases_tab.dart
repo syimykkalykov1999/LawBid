@@ -25,8 +25,8 @@ final myPracticesProvider = FutureProvider.autoDispose<List<SelectedPractice>>(
 );
 
 /// docs/04 §4.2 — Feed → "Кейсы" (attorneys only): cards newest first,
-/// filters by own practice / own licensed state, and the gate states:
-/// not verified, no practices, no verified license.
+/// filters by practice / state (or all own licensed states), gated only
+/// on attorney verification.
 class AttorneyCasesTab extends ConsumerStatefulWidget {
   const AttorneyCasesTab({super.key});
 
@@ -47,54 +47,27 @@ class _AttorneyCasesTabState extends ConsumerState<AttorneyCasesTab> {
         reason: VerificationGateReason.cases,
       );
     }
-    final practices = ref.watch(myPracticesProvider);
     final profile = ref.watch(ownAttorneyProfileProvider);
     final formats = ref.watch(l10nFormatsProvider);
 
-    final loading = practices.isLoading || profile.isLoading;
-    final error = practices.error ?? profile.error;
-    if (error != null && !loading) {
+    if (profile.hasError && !profile.isLoading) {
       return CasesErrorView(
-        error: error,
+        error: profile.error!,
         t: t,
-        onRetry: () => ref
-          ..invalidate(myPracticesProvider)
-          ..invalidate(ownAttorneyProfileProvider),
+        onRetry: () => ref.invalidate(ownAttorneyProfileProvider),
       );
     }
-    if (!practices.hasValue || !profile.hasValue) {
+    if (!profile.hasValue) {
       return const CasesListSkeleton();
     }
 
-    final myPractices = practices.requireValue;
+    // Audit 2026-10-04: no full-screen gate for missing licences or
+    // practices — the "All" feed works without them; with no verified
+    // licence the "All my licensed states" option is just hidden.
     final licensed = [
       for (final l in profile.requireValue.licenses)
         if (l.status == LicenseState.verified) l.state.code,
     ];
-    if (licensed.isEmpty) {
-      return AppEmptyState(
-        icon: AppIcons.workspacePremiumOutlined,
-        title: t.t('cases.feed.noLicenseTitle'),
-        message: t.t('cases.feed.noLicenseMessage'),
-        action: AppButton(
-          label: t.t('cases.feed.openVerification'),
-          height: AppSizes.touchTarget,
-          onPressed: () => context.push(AppRoutes.verification),
-        ),
-      );
-    }
-    if (myPractices.isEmpty) {
-      return AppEmptyState(
-        icon: AppIcons.balanceRounded,
-        title: t.t('cases.feed.noPracticesTitle'),
-        message: t.t('cases.feed.noPracticesMessage'),
-        action: AppButton(
-          label: t.t('cases.feed.choosePractices'),
-          height: AppSizes.touchTarget,
-          onPressed: () => context.push(AppRoutes.practices),
-        ),
-      );
-    }
 
     final mine = _state == kMyLicensedStates;
     final filter = (
@@ -116,7 +89,7 @@ class _AttorneyCasesTabState extends ConsumerState<AttorneyCasesTab> {
           onState: (v) => setState(() => _state = v),
           showNews: false,
           showNotSure: true,
-          allowedStates: licensed,
+          allowedStates: licensed.isEmpty ? null : licensed,
         ),
         Expanded(
           child: LayoutBuilder(
@@ -146,7 +119,9 @@ class _AttorneyCasesTabState extends ConsumerState<AttorneyCasesTab> {
                             _category == kNotSureTopic
                                 ? t.t('feed.topics.notSure')
                                 : topicName(ref, _category!),
-                          if (_state != null)
+                          if (_state == kMyLicensedStates)
+                            t.t('cases.feed.allLicensedStates')
+                          else if (_state != null)
                             usStateByCode(_state)?.name ?? _state!,
                         ].join(' · '),
                         action: AppButton(

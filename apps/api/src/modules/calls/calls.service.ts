@@ -14,6 +14,7 @@ import { SecretsService } from '../../common/secrets/secrets.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { BlocksService } from '../blocks/blocks.service';
+import { caseWorkOngoing } from '../blocks/block-guard';
 import { ChatService } from '../chat/chat.service';
 import { FilesService } from '../files/files.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -151,7 +152,10 @@ export class CallsService {
     }
     const callee =
       user.sub === conv.attorney_id ? conv.client_id : conv.attorney_id;
-    await this.blocks.assertNotBlocked(user.sub, callee);
+    // OQ-028: except the chat of a case in progress.
+    if (!(await caseWorkOngoing(this.prisma, conv))) {
+      await this.blocks.assertNotBlocked(user.sub, callee);
+    }
     // Plan term (owner 2026-10-05): the admin can switch calls off per plan.
     if (
       this.entitlements &&

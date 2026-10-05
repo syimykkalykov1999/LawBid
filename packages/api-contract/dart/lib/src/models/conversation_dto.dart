@@ -27,6 +27,7 @@ class ConversationDto {
     required this.kind,
     required this.requestStatus,
     required this.requestedByMe,
+    required this.blocked,
     this.caseId,
     this.caseTitle,
     this.lastMessage,
@@ -71,6 +72,9 @@ class ConversationDto {
 
   /// The viewer sent this message request.
   final bool requestedByMe;
+
+  /// Either side blocked the other. Messages and calls still work in a case chat while the accepted case is not closed.
+  final bool blocked;
 
   Map<String, Object?> toJson() => _$ConversationDtoToJson(this);
 }

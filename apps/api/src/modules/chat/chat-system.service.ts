@@ -6,7 +6,12 @@ import { RealtimePublisher } from '../realtime/realtime-publisher.service';
 
 /** docs/05 §8.2 system messages; the app localizes `chat.system.<key>`. */
 export type ChatSystemKey =
-  'offer_accepted' | 'no_agreement' | 'case_closed' | 'accepted_by_other';
+  | 'offer_accepted'
+  | 'no_agreement'
+  | 'case_closed'
+  | 'accepted_by_other'
+  // Owner 2026-10-04: one side disputed the completion.
+  | 'case_disputed';
 
 /** A conversation changed inside a transaction; published after commit. */
 export interface ChatChange {

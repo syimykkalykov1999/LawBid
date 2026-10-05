@@ -32,6 +32,7 @@ export const REASON_TEXT: Record<string, string> = {
   // videos
   missing_at_provider: 'Видео пропало у провайдера',
   too_long: 'Видео слишком длинное',
+  too_large: 'Видео слишком большое',
   encoding_failed: 'Не удалось обработать видео',
   // refunds
   requested_by_customer: 'По просьбе клиента',

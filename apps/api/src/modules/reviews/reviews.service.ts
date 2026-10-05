@@ -121,21 +121,50 @@ export class ReviewsService {
         }
         const existing = await tx.review.findUnique({
           where: { case_id: caseId },
-          select: { id: true },
+          select: { id: true, status: true },
         });
-        if (existing) throw alreadyExists();
-
-        const created = await tx.review.create({
-          data: {
-            case_id: caseId,
-            client_id: user.sub,
-            attorney_id: bid.attorney_id,
-            rating: dto.rating,
-            body: dto.body ?? null,
-            photo_ids: photoIds,
-          },
-          include: { client: CLIENT_NAME },
-        });
+        // A review its author deleted is absent: writing again revives the
+        // row (UQ reviews.case_id). One moderation removed stays removed.
+        if (
+          existing &&
+          (existing.status !== 'removed' ||
+            (await removedByModeration(tx, existing.id)))
+        ) {
+          throw alreadyExists();
+        }
+        const fields = {
+          rating: dto.rating,
+          body: dto.body ?? null,
+          photo_ids: photoIds,
+        };
+        if (existing) {
+          await tx.reviewHelpfulVote.deleteMany({
+            where: { review_id: existing.id },
+          });
+        }
+        const created = existing
+          ? await tx.review.update({
+              where: { id: existing.id },
+              data: {
+                ...fields,
+                status: 'published',
+                edited_at: null,
+                reply: null,
+                reply_at: null,
+                helpful_count: 0,
+                created_at: new Date(),
+              },
+              include: { client: CLIENT_NAME },
+            })
+          : await tx.review.create({
+              data: {
+                case_id: caseId,
+                client_id: user.sub,
+                attorney_id: bid.attorney_id,
+                ...fields,
+              },
+              include: { client: CLIENT_NAME },
+            });
         await recalcAttorneyRating(tx, bid.attorney_id);
         await this.notifications.emit(
           {
@@ -176,6 +205,7 @@ export class ReviewsService {
     });
     if (
       !review ||
+      review.status === 'removed' ||
       review.client_id !== user.sub ||
       review.case?.client_id !== user.sub
     ) {
@@ -464,7 +494,13 @@ export class ReviewsService {
   ): Promise<PublicReviewDto> {
     const r = await this.prisma.review.findFirst({
       where: { id: reviewId, attorney_id: user.sub, status: 'published' },
-      select: { id: true, client_id: true },
+      select: {
+        id: true,
+        client_id: true,
+        attorney: {
+          select: { attorney_profile: { select: { username: true } } },
+        },
+      },
     });
     if (!r) throw notFound('Review');
     const updated = await this.prisma.review.update({
@@ -478,7 +514,15 @@ export class ReviewsService {
       await this.notifications.emit({
         type: 'review_received',
         recipientId: r.client_id,
-        payload: { reviewId, reply: true, actorId: user.sub },
+        payload: {
+          reviewId,
+          reply: true,
+          actorId: user.sub,
+          // Opens the attorney's profile, where the reply is.
+          ...(r.attorney.attorney_profile?.username
+            ? { actorUsername: r.attorney.attorney_profile.username }
+            : {}),
+        },
       });
     }
     return (await this.withViewer([updated], user.sub))[0];
@@ -558,6 +602,22 @@ export class ReviewsService {
     const photoIds = await this.checkPhotos(user.sub, dto.photoIds);
     const windowDays = await this.settings.number('review.edit_window_days');
     const review = await withTxRetry(this.prisma, async (tx) => {
+      // One counted review per author and attorney: a case review already
+      // speaks for this author (edit that one instead).
+      const caseReview = await tx.review.findFirst({
+        where: {
+          attorney_id: attorneyId,
+          client_id: user.sub,
+          case_id: { not: null },
+          status: { not: 'removed' },
+        },
+        select: { id: true },
+      });
+      if (caseReview) {
+        throw alreadyExists(
+          'You already reviewed this attorney for a case: edit that review.',
+        );
+      }
       const existing = await tx.review.findFirst({
         where: {
           attorney_id: attorneyId,
@@ -750,7 +810,8 @@ export class ReviewsService {
   }
 
   /**
-   * §7.3: "Оцените работу адвоката" to the client when a case closes.
+   * §7.3: "Оцените работу адвоката" to the client when a case closes
+   * (and "review the client" to the attorney).
    * Called by file 04's case-closing transaction (docs/04, stage 4.x) with
    * its `tx`; the one reminder after review.reminder_after_days is sent by
    * jobs/handlers/review-reminder.job.ts.
@@ -766,6 +827,20 @@ export class ReviewsService {
         payload: {
           caseId: input.caseId,
           attorneyId: input.attorneyId,
+          reminder: false,
+        },
+      },
+      tx,
+    );
+    // Audit 2026-10-04: symmetric — the attorney reviews the client too.
+    await this.notifications.emit(
+      {
+        type: 'review_requested',
+        recipientId: input.attorneyId,
+        payload: {
+          caseId: input.caseId,
+          clientId: input.clientId,
+          clientReview: true,
           reminder: false,
         },
       },
@@ -792,6 +867,22 @@ export class ReviewsService {
       throw notFound('Attorney');
     }
   }
+}
+
+/** The review's latest admin action (moderation or content screen, both
+ * audited) left it `removed` — the author's own delete is not audited. */
+export async function removedByModeration(
+  tx: Prisma.TransactionClient | PrismaService,
+  reviewId: string,
+  targetType: 'review' | 'client_review' = 'review',
+): Promise<boolean> {
+  const last = await tx.auditLog.findFirst({
+    where: { target_type: targetType, target_id: reviewId },
+    orderBy: { created_at: 'desc' },
+    select: { after: true },
+  });
+  const after = last?.after as { status?: unknown } | null | undefined;
+  return after?.status === 'removed';
 }
 
 export function editableUntil(createdAt: Date, windowDays: number): Date {
@@ -848,10 +939,12 @@ function notFound(what: string): NotFoundException {
   });
 }
 
-function alreadyExists(): ConflictException {
+function alreadyExists(
+  message = 'This case has already been reviewed.',
+): ConflictException {
   return new ConflictException({
     code: ErrorCode.REVIEW_ALREADY_EXISTS,
-    message: 'This case has already been reviewed.',
+    message,
   });
 }
 

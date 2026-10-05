@@ -14,7 +14,11 @@ import 'package:lawbid/shared/domain/user_role.dart';
 /// new case (docs/04) or a post. Attorneys (owner 2026-09-30): a post or
 /// News in a qualification.
 class CreateScreen extends ConsumerStatefulWidget {
-  const CreateScreen({super.key});
+  const CreateScreen({this.startWithCase = false, super.key});
+
+  /// Audit 2026-10-04: `/create?kind=case` (Mine → "Create case") opens the
+  /// case form directly instead of the chooser.
+  final bool startWithCase;
 
   @override
   ConsumerState<CreateScreen> createState() => _CreateScreenState();
@@ -25,7 +29,7 @@ class CreateScreen extends ConsumerStatefulWidget {
 enum _Kind { caseKind, post, task }
 
 class _CreateScreenState extends ConsumerState<CreateScreen> {
-  _Kind? _kind;
+  late _Kind? _kind = widget.startWithCase ? _Kind.caseKind : null;
 
   @override
   Widget build(BuildContext context) {

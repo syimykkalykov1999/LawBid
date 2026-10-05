@@ -66,6 +66,7 @@ export class SocialAuthService {
     // (AUTH_SOCIAL_LIMIT_PER_IP_PER_HOUR) — both before the verifier's
     // JWKS work and any DB write.
     await this.loginMethods.assertEnabled(dto.provider);
+    await this.loginMethods.assertPlatformAllowed(dto.deviceInfo?.platform);
     await this.assertIpLimit(meta);
 
     const verifier = dto.provider === 'apple' ? this.apple : this.google;
