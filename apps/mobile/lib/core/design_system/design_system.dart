@@ -29,6 +29,7 @@ export 'widgets/display/app_content_card.dart';
 export 'widgets/display/app_icon_medallion.dart';
 export 'widgets/display/app_list_row.dart';
 export 'widgets/display/brand_glyphs.dart';
+export 'widgets/display/brand_pattern.dart';
 export 'widgets/display/photo_gallery.dart';
 export 'widgets/display/role_card.dart';
 export 'widgets/display/scales_logo.dart';

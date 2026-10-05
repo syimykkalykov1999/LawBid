@@ -57,7 +57,7 @@ class BlockedUsersScreen extends ConsumerWidget {
                           url: u.avatarUrl,
                           initials: u.displayName.isEmpty
                               ? '?'
-                              : u.displayName.substring(0, 1).toUpperCase(),
+                              : avatarInitials(u.displayName),
                           size: 44,
                         ),
                         const SizedBox(width: AppSpacing.md),

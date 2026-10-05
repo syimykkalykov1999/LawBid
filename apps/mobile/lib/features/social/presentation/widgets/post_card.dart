@@ -149,6 +149,9 @@ class PostCard extends ConsumerWidget {
                         .map(topicCategory)
                         .firstWhere((c) => c != null, orElse: () => null),
                 practiceCode: p.practice?.code,
+                // Owner 2026-10-05: no practice photo → the pattern this
+                // post id picks (the same one its grid cover uses).
+                seed: p.id,
               );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
