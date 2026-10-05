@@ -110,6 +110,14 @@ export const OWNER_LAWYER_VERIFICATION_SETTINGS = {
   'verification.self_attestation_auto_approve': true,
 } as const;
 
+// Owner 2026-10-05: the planner's archive — finished tasks are kept this
+// many days (files with them), then removed automatically unless kept
+// forever; notices go out 30 and 7 days before. Off = never removed.
+export const OWNER_TASKS_SETTINGS = {
+  'tasks.archive_retention_days': 365,
+  'tasks.archive_auto_purge': true,
+} as const;
+
 /** Every typed app_config tunable with its spec default. */
 export const APP_SETTINGS = {
   ...FILE_03_SETTINGS,
@@ -120,6 +128,7 @@ export const APP_SETTINGS = {
   ...OWNER_SUPPORT_SETTINGS,
   ...OWNER_BADGE_SETTINGS,
   ...OWNER_LAWYER_VERIFICATION_SETTINGS,
+  ...OWNER_TASKS_SETTINGS,
 };
 
 export type AppSettingKey = keyof typeof APP_SETTINGS;

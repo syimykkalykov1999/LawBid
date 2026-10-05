@@ -35,12 +35,17 @@ import {
   AssistantMeDto,
   AssistantPhoneDto,
   AssistantRequestDto,
+  BulkTasksDto,
+  BulkTasksResultDto,
   CreateAssistantRequestDto,
   CreateTaskDto,
   DecideRequestDto,
   JoinVerifyDto,
   RequestsQueryDto,
   TaskDto,
+  TaskPeopleQueryDto,
+  TaskPersonSuggestionDto,
+  TaskPlaceSuggestionDto,
   TasksQueryDto,
   TaskStepInputDto,
   TaskStepParamDto,
@@ -242,7 +247,12 @@ export class AssistantsController {
   @Post('tasks')
   @ApiOperation({ summary: 'Set a task for the attorney' })
   @ApiEnvelopeResponse(TaskDto)
-  @ApiErrors({ 403: [E.ASSISTANT_NOT_ALLOWED], 422: [E.FILE_NOT_ATTACHABLE] })
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    403: [E.ASSISTANT_NOT_ALLOWED],
+    404: [E.NOT_FOUND],
+    422: [E.FILE_NOT_ATTACHABLE],
+  })
   createTask(
     @CurrentUser() user: RequestUser,
     @Body() dto: CreateTaskDto,
@@ -258,6 +268,43 @@ export class AssistantsController {
     @Query() q: TasksQueryDto,
   ): Promise<TaskDto[]> {
     return this.tasks.list(user, q);
+  }
+
+  // Owner 2026-10-05: declared before `tasks/:id` (literal segments).
+  @Get('tasks/places')
+  @ApiOperation({ summary: 'Addresses already used in this planner' })
+  @ApiEnvelopeResponse(TaskPlaceSuggestionDto, { isArray: true })
+  taskPlaces(
+    @CurrentUser() user: RequestUser,
+  ): Promise<TaskPlaceSuggestionDto[]> {
+    return this.tasks.places(user);
+  }
+
+  @Get('tasks/people')
+  @ApiOperation({
+    summary: 'People to add to a task (team, chats, contacts, attorneys)',
+  })
+  @ApiEnvelopeResponse(TaskPersonSuggestionDto, { isArray: true })
+  taskPeople(
+    @CurrentUser() user: RequestUser,
+    @Query() q: TaskPeopleQueryDto,
+  ): Promise<TaskPersonSuggestionDto[]> {
+    return this.tasks.peopleSuggestions(user, q.q);
+  }
+
+  @Post('tasks/bulk')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Many tasks at once: delete, archive, return, keep forever, assign, status, priority',
+  })
+  @ApiEnvelopeResponse(BulkTasksResultDto)
+  @ApiErrors({ 403: [E.ASSISTANT_NOT_ALLOWED], 404: [E.NOT_FOUND] })
+  bulkTasks(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: BulkTasksDto,
+  ): Promise<BulkTasksResultDto> {
+    return this.tasks.bulk(user, dto);
   }
 
   @Get('tasks/:id')

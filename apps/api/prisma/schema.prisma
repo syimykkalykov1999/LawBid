@@ -449,6 +449,11 @@ enum NotificationType {
   assistant_task
   assistant_joined
   assistant_result
+  // Owner 2026-10-05: the planner — a reminder, a task assigned to an
+  // assistant, archived tasks about to be removed.
+  task_reminder
+  task_assigned
+  task_purge_soon
   admin_broadcast
   referral_reward
   promotion_started
@@ -701,6 +706,7 @@ model User {
   assistant_team              AssistantMembership[]          @relation("AssistantAttorney")
   assistant_memberships       AssistantMembership[]          @relation("AssistantUser")
   attorney_tasks              AttorneyTask[]                 @relation("AttorneyTasks")
+  task_people                 AttorneyTaskPerson[]           @relation("TaskPeople")
   bid_drafts                  BidDraft[]                     @relation("BidDrafts")
   liability_acceptances       AssistantLiabilityAcceptance[] @relation("AssistantLiability")
   client_review_appeals       ClientReviewAppeal[]           @relation("ClientReviewAppellant")
@@ -2393,7 +2399,8 @@ model AssistantMembership {
 
   activity              AssistantActivity[]
   requests              AssistantRequest[]
-  tasks                 AttorneyTask[]
+  tasks                 AttorneyTask[]                 @relation("CreatedTasks")
+  assigned_tasks        AttorneyTask[]                 @relation("AssignedTasks")
   liability_acceptances AssistantLiabilityAcceptance[]
 
   @@index([attorney_id, status])
@@ -2486,33 +2493,115 @@ enum AttorneyTaskStatus {
   @@map("attorney_task_status")
 }
 
+/// Owner 2026-10-05: how urgent a task is (sorting, the card's mark).
+enum AttorneyTaskPriority {
+  low
+  normal
+  high
+  urgent
+
+  @@map("attorney_task_priority")
+}
+
+/// Owner 2026-10-05: a repeating task — when one is finished the next
+/// one appears at the next time.
+enum AttorneyTaskRepeat {
+  none
+  daily
+  weekdays
+  weekly
+  monthly
+  yearly
+
+  @@map("attorney_task_repeat")
+}
+
 model AttorneyTask {
   id                       String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   attorney_id              String               @db.Uuid
   attorney                 User                 @relation("AttorneyTasks", fields: [attorney_id], references: [id], onDelete: Cascade)
   created_by_membership_id String?              @db.Uuid
-  created_by               AssistantMembership? @relation(fields: [created_by_membership_id], references: [id], onDelete: SetNull, map: "attorney_tasks_membership_fkey")
+  created_by               AssistantMembership? @relation("CreatedTasks", fields: [created_by_membership_id], references: [id], onDelete: SetNull, map: "attorney_tasks_membership_fkey")
+  /// Owner 2026-10-05: the assistant the task is assigned to (they see
+  /// and check it off even without the tasks duty).
+  assignee_membership_id   String?              @db.Uuid
+  assignee                 AssistantMembership? @relation("AssignedTasks", fields: [assignee_membership_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "attorney_tasks_assignee_fkey")
   kind                     AttorneyTaskKind
   title                    String
   notes                    String?
   due_at                   DateTime?            @db.Timestamptz
-  location                 String?
   case_id                  String?              @db.Uuid
   case                     Case?                @relation(fields: [case_id], references: [id], onDelete: SetNull)
-  contact_name             String?
-  contact_phone            String?
-  contact_email            String?              @db.String(254)
+  /// Owner 2026-10-05: the chat the task came from (bare uuid: a chat is
+  /// never deleted, and the link is only a shortcut).
+  conversation_id          String?              @db.Uuid
   file_ids                 String[]             @default([]) @db.Uuid
   status                   AttorneyTaskStatus   @default(open)
+  priority                 AttorneyTaskPriority @default(normal)
+  repeat                   AttorneyTaskRepeat   @default(none)
+  repeat_until             DateTime?            @db.Timestamptz
+  /// The next task of a repeating series was created from this one.
+  repeated_at              DateTime?            @db.Timestamptz
+  /// Minutes before due_at for the reminder push (0 = at the time).
+  remind_before_min        Int?
+  remind_at                DateTime?            @db.Timestamptz
+  reminded_at              DateTime?            @db.Timestamptz
   outcome_note             String?
   rescheduled_to           DateTime?            @db.Timestamptz
   done_at                  DateTime?            @db.Timestamptz
+  /// Owner 2026-10-05: finished tasks go to the archive; the archive is
+  /// cleaned after tasks.archive_retention_days unless kept forever.
+  archived_at              DateTime?            @db.Timestamptz
+  keep_forever             Boolean              @default(false)
+  /// Days-before-removal of the last "will be removed" notice (30, 7).
+  purge_notice_days        Int?
   created_at               DateTime             @default(now()) @db.Timestamptz
   updated_at               DateTime             @default(now()) @updatedAt @db.Timestamptz
   steps                    AttorneyTaskStep[]
+  places                   AttorneyTaskPlace[]
+  people                   AttorneyTaskPerson[]
 
   @@index([attorney_id, status, due_at])
+  @@index([remind_at], map: "attorney_tasks_remind_idx")
+  @@index([archived_at], map: "attorney_tasks_archived_idx")
   @@map("attorney_tasks")
+}
+
+/// Owner 2026-10-05: any number of addresses on a task, each opened in
+/// Google / Apple Maps by a plain link (no maps API).
+model AttorneyTaskPlace {
+  id         String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  task_id    String       @db.Uuid
+  task       AttorneyTask @relation(fields: [task_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "attorney_task_places_task_fkey")
+  position   Int          @default(0)
+  label      String?      @db.String(80)
+  address    String       @db.String(300)
+  created_at DateTime     @default(now()) @db.Timestamptz
+
+  @@index([task_id, position], map: "attorney_task_places_task_idx")
+  @@map("attorney_task_places")
+}
+
+/// Owner 2026-10-05: people on a task — someone from the app (client,
+/// assistant, attorney: opens the chat) or an outside contact with a
+/// phone (call) and an email (write).
+model AttorneyTaskPerson {
+  id         String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  task_id    String       @db.Uuid
+  task       AttorneyTask @relation(fields: [task_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "attorney_task_people_task_fkey")
+  position   Int          @default(0)
+  user_id    String?      @db.Uuid
+  user       User?        @relation("TaskPeople", fields: [user_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "attorney_task_people_user_fkey")
+  /// What the person is to the task ("witness", "judge"), free text.
+  role       String?      @db.String(60)
+  name       String       @db.String(120)
+  phone      String?      @db.String(20)
+  email      String?      @db.String(254)
+  created_at DateTime     @default(now()) @db.Timestamptz
+
+  @@index([task_id, position], map: "attorney_task_people_task_idx")
+  @@index([user_id], map: "attorney_task_people_user_idx")
+  @@map("attorney_task_people")
 }
 
 /// Owner 2026-10-01: a checklist step inside a task — any number per task,

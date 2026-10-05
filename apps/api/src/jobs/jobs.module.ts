@@ -26,6 +26,11 @@ import { FeedRecoJob } from '../modules/feed/feed-reco.job';
 import { TrendingTagsJob } from '../modules/search/trending-tags.job';
 import { NotificationsRetentionJob } from './handlers/notifications-retention.job';
 import { OpsMetricsJob } from './handlers/ops-metrics.job';
+import {
+  TaskArchivePurgeJob,
+  TaskRemindersJob,
+} from './handlers/tasks-planner.jobs';
+import { S3StorageService } from '../modules/files/storage/s3-storage.service';
 import { CallsModule } from '../modules/calls/calls.module';
 import { ClientReviewsCoreModule } from '../modules/client-reviews/client-reviews.module';
 import { CaseLifecycleModule } from '../modules/cases/lifecycle/case-lifecycle.module';
@@ -83,6 +88,10 @@ export class JobsModule {
         TrendingTagsJob,
         NotificationsRetentionJob,
         OpsMetricsJob,
+        // Owner 2026-10-05: the planner's reminders and archive cleanup.
+        TaskRemindersJob,
+        TaskArchivePurgeJob,
+        S3StorageService,
         CronProcessor,
         JobsRunner,
       ],
@@ -95,6 +104,8 @@ export class JobsModule {
         RatingReconcileJob,
         LicenseExpiryJob,
         BidSubscriptionLapseJob,
+        TaskRemindersJob,
+        TaskArchivePurgeJob,
       ],
     };
   }

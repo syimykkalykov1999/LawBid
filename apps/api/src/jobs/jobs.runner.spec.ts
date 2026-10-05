@@ -4,6 +4,10 @@ import type { PinoLogger } from 'nestjs-pino';
 import { Queue, Worker } from 'bullmq';
 import { JobsRunner, CRON_JOB_TEMPLATE_OPTS } from './jobs.runner';
 import { CronProcessor } from './cron.processor';
+import type {
+  TaskArchivePurgeJob,
+  TaskRemindersJob,
+} from './handlers/tasks-planner.jobs';
 import { CRON_JOBS, CRON_QUEUE, CRON_SCHEDULES } from './jobs.constants';
 import type { SessionsCleanupJob } from './handlers/sessions-cleanup.job';
 import type { OtpCleanupJob } from './handlers/otp-cleanup.job';
@@ -150,6 +154,8 @@ function processor() {
       {
         expire: jest.fn(() => Promise.resolve({ finished: 0, abandoned: 0 })),
       } as unknown as PromotionsService,
+      { run: jest.fn() } as unknown as TaskRemindersJob,
+      { run: jest.fn() } as unknown as TaskArchivePurgeJob,
     ),
   };
 }
@@ -176,8 +182,9 @@ describe('JobsRunner', () => {
     // OQ-041: + calls.sweep every minute; owner 2026-09-30: + the hourly
     // review-appeal sweep; owner 2026-10-01: + videos.sweep every 5 min;
     // owner 2026-10-02: + promotions.expire every 5 min; owner 2026-10-04:
-    // + monthly licenses.registry-recheck.
-    expect(upserts).toHaveLength(26);
+    // + monthly licenses.registry-recheck; owner 2026-10-05: + the
+    // planner's reminders (every minute) and archive cleanup (daily).
+    expect(upserts).toHaveLength(28);
     const byName = Object.fromEntries(
       upserts.map((c: unknown[]) => [c[0], c[1]]),
     );

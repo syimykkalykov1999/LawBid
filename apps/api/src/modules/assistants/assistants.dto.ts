@@ -2,11 +2,13 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
+  ArrayMinSize,
   ArrayUnique,
   IsArray,
   IsBoolean,
   IsEmail,
   IsIn,
+  IsInt,
   IsISO8601,
   IsObject,
   IsOptional,
@@ -14,7 +16,9 @@ import {
   IsUUID,
   Length,
   Matches,
+  Max,
   MaxLength,
+  Min,
   MinLength,
   ValidateIf,
   ValidateNested,
@@ -402,7 +406,264 @@ export class TaskStepDto {
     string | null;
 }
 
-export class CreateTaskDto {
+export const TASK_PRIORITIES = ['low', 'normal', 'high', 'urgent'] as const;
+export const TASK_REPEATS = [
+  'none',
+  'daily',
+  'weekdays',
+  'weekly',
+  'monthly',
+  'yearly',
+] as const;
+/** Owner 2026-10-05: addresses / people per task (technical caps). */
+export const MAX_TASK_PLACES = 20;
+export const MAX_TASK_PEOPLE = 30;
+
+/** Owner 2026-10-05: one address on a task (opens in the maps app). */
+export class TaskPlaceInputDto {
+  @ApiPropertyOptional({
+    maxLength: 80,
+    description: 'What the place is ("Court", "Client\'s home").',
+  })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(80)
+  label?: string;
+
+  @ApiProperty({ minLength: 1, maxLength: 300 })
+  @Transform(trim)
+  @IsString()
+  @MinLength(1)
+  @MaxLength(300)
+  address!: string;
+}
+
+/**
+ * Owner 2026-10-05: one person on a task — someone from the app
+ * (`userId`: client, assistant, attorney; the chat opens) or an outside
+ * contact (name + phone and/or email).
+ */
+export class TaskPersonInputDto {
+  @ApiPropertyOptional({ format: 'uuid', description: 'A person in the app.' })
+  @IsOptional()
+  @IsUUID('all')
+  userId?: string;
+
+  @ApiPropertyOptional({
+    maxLength: 120,
+    description: 'Required for an outside contact; app people get theirs.',
+  })
+  @ValidateIf((o: TaskPersonInputDto) => !o.userId || o.name !== undefined)
+  @Transform(trim)
+  @IsString()
+  @MinLength(1)
+  @MaxLength(120)
+  name?: string;
+
+  @ApiPropertyOptional({ maxLength: 60, description: '"Witness", "Judge"…' })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(60)
+  role?: string;
+
+  @ApiPropertyOptional({ example: '+13125550123' })
+  @IsOptional()
+  @Transform(normalizeContactPhone)
+  @Matches(/^(\+[1-9]\d{7,14})?$/)
+  phone?: string;
+
+  @ApiPropertyOptional({ maxLength: 254 })
+  @IsOptional()
+  @Transform(trim)
+  @ValidateIf((_, v) => v !== '')
+  @IsEmail()
+  @MaxLength(254)
+  email?: string;
+}
+
+export class TaskPlaceDto {
+  @ApiProperty({ format: 'uuid' }) id!: string;
+  @ApiPropertyOptional({ type: String, nullable: true }) label!: string | null;
+  @ApiProperty() address!: string;
+}
+
+export class TaskPersonDto {
+  @ApiProperty({ format: 'uuid' }) id!: string;
+  @ApiPropertyOptional({ type: String, nullable: true, format: 'uuid' })
+  userId!: string | null;
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    enum: ['attorney', 'client', 'assistant'],
+    description: 'Who the app person is (null: an outside contact).',
+  })
+  userRole!: 'attorney' | 'client' | 'assistant' | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) avatarUrl!:
+    string | null;
+  @ApiProperty() name!: string;
+  @ApiPropertyOptional({ type: String, nullable: true }) role!: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) phone!: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) email!: string | null;
+}
+
+/** GET /tasks/places: addresses already used in this planner. */
+export class TaskPlaceSuggestionDto {
+  @ApiProperty() address!: string;
+  @ApiPropertyOptional({ type: String, nullable: true }) label!: string | null;
+  @ApiProperty() uses!: number;
+}
+
+/** GET /tasks/people: whom the planner can add (team, chats, contacts). */
+export class TaskPersonSuggestionDto {
+  @ApiPropertyOptional({ type: String, nullable: true, format: 'uuid' })
+  userId!: string | null;
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    format: 'uuid',
+    description: 'An assistant of this team: the membership to assign.',
+  })
+  membershipId!: string | null;
+  @ApiProperty({ enum: ['assistant', 'client', 'attorney', 'contact'] })
+  source!: 'assistant' | 'client' | 'attorney' | 'contact';
+  @ApiProperty() name!: string;
+  @ApiPropertyOptional({ type: String, nullable: true }) avatarUrl!:
+    string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) role!: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) phone!: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) email!: string | null;
+}
+
+export class TaskPeopleQueryDto {
+  @ApiPropertyOptional({ maxLength: 80 })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(80)
+  q?: string;
+}
+
+/** Owner 2026-10-05: one action on many tasks at once. */
+export const TASK_BULK_ACTIONS = [
+  'delete',
+  'archive',
+  'unarchive',
+  'keep',
+  'unkeep',
+  'assign',
+  'unassign',
+  'status',
+  'priority',
+] as const;
+
+export class BulkTasksDto {
+  @ApiProperty({ type: [String], minItems: 1, maxItems: 500 })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(500)
+  @ArrayUnique()
+  @IsUUID('all', { each: true })
+  ids!: string[];
+
+  @ApiProperty({ enum: TASK_BULK_ACTIONS, enumName: 'TaskBulkAction' })
+  @IsIn(TASK_BULK_ACTIONS)
+  action!: (typeof TASK_BULK_ACTIONS)[number];
+
+  @ApiPropertyOptional({ enum: ['open', 'taken', 'done', 'cancelled'] })
+  @ValidateIf((o: BulkTasksDto) => o.action === 'status')
+  @IsIn(['open', 'taken', 'done', 'cancelled'])
+  status?: 'open' | 'taken' | 'done' | 'cancelled';
+
+  @ApiPropertyOptional({ enum: TASK_PRIORITIES, enumName: 'TaskPriority' })
+  @ValidateIf((o: BulkTasksDto) => o.action === 'priority')
+  @IsIn(TASK_PRIORITIES)
+  priority?: (typeof TASK_PRIORITIES)[number];
+
+  @ApiPropertyOptional({ format: 'uuid' })
+  @ValidateIf((o: BulkTasksDto) => o.action === 'assign')
+  @IsUUID('all')
+  assigneeMembershipId?: string;
+}
+
+export class BulkTasksResultDto {
+  @ApiProperty({ description: 'Tasks changed.' }) affected!: number;
+  @ApiProperty({
+    description:
+      'Tasks left as they were (not yours to change, or already so).',
+  })
+  skipped!: number;
+}
+
+/** The planner fields shared by create and edit. */
+class TaskPlanFieldsDto {
+  @ApiPropertyOptional({ type: [TaskPlaceInputDto], maxItems: MAX_TASK_PLACES })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(MAX_TASK_PLACES)
+  @ValidateNested({ each: true })
+  @Type(() => TaskPlaceInputDto)
+  places?: TaskPlaceInputDto[];
+
+  @ApiPropertyOptional({
+    type: [TaskPersonInputDto],
+    maxItems: MAX_TASK_PEOPLE,
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(MAX_TASK_PEOPLE)
+  @ValidateNested({ each: true })
+  @Type(() => TaskPersonInputDto)
+  people?: TaskPersonInputDto[];
+
+  @ApiPropertyOptional({ enum: TASK_PRIORITIES, enumName: 'TaskPriority' })
+  @IsOptional()
+  @IsIn(TASK_PRIORITIES)
+  priority?: (typeof TASK_PRIORITIES)[number];
+
+  @ApiPropertyOptional({ enum: TASK_REPEATS, enumName: 'TaskRepeat' })
+  @IsOptional()
+  @IsIn(TASK_REPEATS)
+  repeat?: (typeof TASK_REPEATS)[number];
+
+  @ApiPropertyOptional({ format: 'date-time', description: 'Repeat until.' })
+  @IsOptional()
+  @IsISO8601()
+  repeatUntil?: string;
+
+  @ApiPropertyOptional({
+    minimum: 0,
+    maximum: 20160,
+    description: 'Reminder this many minutes before the time (0 = at it).',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(20160)
+  remindBeforeMin?: number;
+
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: 'Assign to an assistant of the team.',
+  })
+  @IsOptional()
+  @IsUUID('all')
+  assigneeMembershipId?: string;
+
+  @ApiPropertyOptional({ format: 'uuid', description: 'The chat it is about.' })
+  @IsOptional()
+  @IsUUID('all')
+  conversationId?: string;
+
+  @ApiPropertyOptional({ description: 'Never removed from the archive.' })
+  @IsOptional()
+  @IsBoolean()
+  keepForever?: boolean;
+}
+
+export class CreateTaskDto extends TaskPlanFieldsDto {
   @ApiProperty({ enum: TASK_KINDS, enumName: 'AttorneyTaskKind' })
   @IsIn(TASK_KINDS)
   kind!: (typeof TASK_KINDS)[number];
@@ -480,7 +741,7 @@ export class CreateTaskDto {
 }
 
 /** Owner 2026-10-01: edit a task (any field; "" clears an optional one). */
-export class UpdateTaskDto {
+export class UpdateTaskDto extends TaskPlanFieldsDto {
   @ApiPropertyOptional({ enum: TASK_KINDS, enumName: 'AttorneyTaskKind' })
   @IsOptional()
   @IsIn(TASK_KINDS)
@@ -521,6 +782,27 @@ export class UpdateTaskDto {
   @IsOptional()
   @IsBoolean()
   clearCaseId?: boolean;
+
+  /** Owner 2026-10-05: no reminder / no assignee / no chat / no end. */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  clearRemind?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  clearAssignee?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  clearConversation?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  clearRepeatUntil?: boolean;
 
   @ApiPropertyOptional({ maxLength: 200 })
   @IsOptional()
@@ -615,17 +897,94 @@ export class TaskDto {
   @ApiProperty() createdAt!: string;
   @ApiPropertyOptional({ type: String, nullable: true }) doneAt!: string | null;
   @ApiProperty({ type: [TaskStepDto] }) steps!: TaskStepDto[];
+  // Owner 2026-10-05: the planner.
+  @ApiProperty({ type: [TaskPlaceDto] }) places!: TaskPlaceDto[];
+  @ApiProperty({ type: [TaskPersonDto] }) people!: TaskPersonDto[];
+  @ApiProperty({ enum: TASK_PRIORITIES, enumName: 'TaskPriority' })
+  priority!: (typeof TASK_PRIORITIES)[number];
+  @ApiProperty({ enum: TASK_REPEATS, enumName: 'TaskRepeat' })
+  repeat!: (typeof TASK_REPEATS)[number];
+  @ApiPropertyOptional({ type: String, nullable: true }) repeatUntil!:
+    string | null;
+  @ApiPropertyOptional({ type: Number, nullable: true })
+  remindBeforeMin!: number | null;
+  @ApiPropertyOptional({ type: String, nullable: true, format: 'uuid' })
+  assigneeMembershipId!: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) assigneeName!:
+    string | null;
+  @ApiProperty({ description: 'Assigned to the assistant looking at it.' })
+  assignedToMe!: boolean;
+  @ApiPropertyOptional({ type: String, nullable: true, format: 'uuid' })
+  conversationId!: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) archivedAt!:
+    string | null;
+  @ApiProperty() keepForever!: boolean;
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description: 'When the archive cleanup removes it (null: never).',
+  })
+  purgeAt!: string | null;
+  @ApiProperty({ description: 'The viewer may check it off.' })
+  canComplete!: boolean;
+  @ApiProperty({ description: 'The viewer may edit it.' })
+  canEdit!: boolean;
 }
 
 export class TasksQueryDto {
   @ApiPropertyOptional({
-    enum: ['active', 'done', 'all'],
+    enum: ['active', 'done', 'all', 'archive'],
     enumName: 'TasksView',
     default: 'active',
+    description: '`done` and `archive` both list the archive.',
   })
   @IsOptional()
-  @IsIn(['active', 'done', 'all'])
-  view?: 'active' | 'done' | 'all';
+  @IsIn(['active', 'done', 'all', 'archive'])
+  view?: 'active' | 'done' | 'all' | 'archive';
+
+  /** Owner 2026-10-05: planner filters. */
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID('all')
+  caseId?: string;
+
+  @ApiPropertyOptional({
+    description: 'An assistant membership id, `me` or `none`.',
+  })
+  @IsOptional()
+  @Matches(/^(me|none|[0-9a-fA-F-]{36})$/)
+  assignee?: string;
+
+  @ApiPropertyOptional({ format: 'date-time', description: 'Due from.' })
+  @IsOptional()
+  @IsISO8601()
+  dueFrom?: string;
+
+  @ApiPropertyOptional({ format: 'date-time', description: 'Due before.' })
+  @IsOptional()
+  @IsISO8601()
+  dueTo?: string;
+
+  @ApiPropertyOptional({ description: 'Only the ones past their time.' })
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  overdue?: boolean;
+
+  @ApiPropertyOptional({ maxLength: 80, description: 'Search the text.' })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(80)
+  q?: string;
+
+  @ApiPropertyOptional({
+    enum: ['due', 'priority', 'created', 'updated'],
+    enumName: 'TasksSort',
+  })
+  @IsOptional()
+  @IsIn(['due', 'priority', 'created', 'updated'])
+  sort?: 'due' | 'priority' | 'created' | 'updated';
 
   @ApiPropertyOptional({
     description: 'Assistant: only the tasks they set (their Results).',

@@ -242,6 +242,31 @@ export const NOTIFICATION_TEMPLATES: Partial<
       body: 'Откройте «Результаты», чтобы увидеть решение.',
     },
   },
+  // Owner 2026-10-05: the planner (no task text in a push: docs/05 §9.5).
+  task_reminder: {
+    group: 'cases',
+    en: { title: 'Task reminder', body: 'A task in your planner is due.' },
+    ru: {
+      title: 'Напоминание о задаче',
+      body: 'Подошло время задачи в вашем планировщике.',
+    },
+  },
+  task_assigned: {
+    group: 'cases',
+    en: { title: 'Task for you', body: 'The attorney assigned you a task.' },
+    ru: { title: 'Задача для вас', body: 'Адвокат назначил вам задачу.' },
+  },
+  task_purge_soon: {
+    group: 'system',
+    en: {
+      title: 'Archived tasks will be removed',
+      body: 'Finished tasks older than a year are removed soon. Open the archive to keep the ones you need.',
+    },
+    ru: {
+      title: 'Архив задач скоро очистится',
+      body: 'Выполненные задачи старше года скоро удалятся. Откройте архив и сохраните нужные.',
+    },
+  },
   referral_reward: {
     group: 'system',
     en: {

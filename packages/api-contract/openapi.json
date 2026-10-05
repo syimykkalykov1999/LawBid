@@ -14793,6 +14793,16 @@
               }
             }
           },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
             "content": {
@@ -14805,6 +14815,16 @@
           },
           "403": {
             "description": "Forbidden: ASSISTANT_NOT_ALLOWED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
             "content": {
               "application/json": {
                 "schema": {
@@ -14871,8 +14891,76 @@
             "name": "view",
             "required": false,
             "in": "query",
+            "description": "`done` and `archive` both list the archive.",
             "schema": {
               "$ref": "#/components/schemas/TasksView"
+            }
+          },
+          {
+            "name": "caseId",
+            "required": false,
+            "in": "query",
+            "description": "Owner 2026-10-05: planner filters.",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "assignee",
+            "required": false,
+            "in": "query",
+            "description": "An assistant membership id, `me` or `none`.",
+            "schema": {
+              "pattern": "^(me|none|[0-9a-fA-F-]{36})$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "dueFrom",
+            "required": false,
+            "in": "query",
+            "description": "Due from.",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "name": "dueTo",
+            "required": false,
+            "in": "query",
+            "description": "Due before.",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "name": "overdue",
+            "required": false,
+            "in": "query",
+            "description": "Only the ones past their time.",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "Search the text.",
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TasksSort"
             }
           },
           {
@@ -14966,6 +15054,247 @@
           }
         ],
         "summary": "The attorney's tasks (calendar order)",
+        "tags": [
+          "assistants"
+        ]
+      }
+    },
+    "/tasks/places": {
+      "get": {
+        "operationId": "taskPlaces",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskPlaceSuggestionListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Addresses already used in this planner",
+        "tags": [
+          "assistants"
+        ]
+      }
+    },
+    "/tasks/people": {
+      "get": {
+        "operationId": "taskPeople",
+        "parameters": [
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskPersonSuggestionListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "People to add to a task (team, chats, contacts, attorneys)",
+        "tags": [
+          "assistants"
+        ]
+      }
+    },
+    "/tasks/bulk": {
+      "post": {
+        "operationId": "bulkTasks",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkTasksDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkTasksResultEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ASSISTANT_NOT_ALLOWED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Many tasks at once: delete, archive, return, keep forever, assign, status, priority",
         "tags": [
           "assistants"
         ]
@@ -53019,6 +53348,93 @@
           "status"
         ]
       },
+      "TaskPlaceDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "label": {
+            "type": "string",
+            "nullable": true
+          },
+          "address": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "address"
+        ]
+      },
+      "TaskPersonDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "userId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "userRole": {
+            "nullable": true,
+            "enum": [
+              "attorney",
+              "client",
+              "assistant"
+            ],
+            "type": "string",
+            "description": "Who the app person is (null: an outside contact)."
+          },
+          "avatarUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "nullable": true
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ]
+      },
+      "TaskPriority": {
+        "type": "string",
+        "enum": [
+          "low",
+          "normal",
+          "high",
+          "urgent"
+        ]
+      },
+      "TaskRepeat": {
+        "type": "string",
+        "enum": [
+          "none",
+          "daily",
+          "weekdays",
+          "weekly",
+          "monthly",
+          "yearly"
+        ]
+      },
       "TaskDto": {
         "type": "object",
         "properties": {
@@ -53109,6 +53525,78 @@
             "items": {
               "$ref": "#/components/schemas/TaskStepDto"
             }
+          },
+          "places": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskPlaceDto"
+            }
+          },
+          "people": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskPersonDto"
+            }
+          },
+          "priority": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TaskPriority"
+              }
+            ]
+          },
+          "repeat": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TaskRepeat"
+              }
+            ]
+          },
+          "repeatUntil": {
+            "type": "string",
+            "nullable": true
+          },
+          "remindBeforeMin": {
+            "type": "number",
+            "nullable": true
+          },
+          "assigneeMembershipId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "assigneeName": {
+            "type": "string",
+            "nullable": true
+          },
+          "assignedToMe": {
+            "type": "boolean",
+            "description": "Assigned to the assistant looking at it."
+          },
+          "conversationId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "archivedAt": {
+            "type": "string",
+            "nullable": true
+          },
+          "keepForever": {
+            "type": "boolean"
+          },
+          "purgeAt": {
+            "type": "string",
+            "nullable": true,
+            "description": "When the archive cleanup removes it (null: never)."
+          },
+          "canComplete": {
+            "type": "boolean",
+            "description": "The viewer may check it off."
+          },
+          "canEdit": {
+            "type": "boolean",
+            "description": "The viewer may edit it."
           }
         },
         "required": [
@@ -53119,8 +53607,65 @@
           "status",
           "canDelete",
           "createdAt",
-          "steps"
+          "steps",
+          "places",
+          "people",
+          "priority",
+          "repeat",
+          "assignedToMe",
+          "keepForever",
+          "canComplete",
+          "canEdit"
         ]
+      },
+      "TaskPlaceInputDto": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "maxLength": 80,
+            "description": "What the place is (\"Court\", \"Client's home\")."
+          },
+          "address": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          }
+        },
+        "required": [
+          "address"
+        ]
+      },
+      "TaskPersonInputDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "A person in the app."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "description": "Required for an outside contact; app people get theirs."
+          },
+          "role": {
+            "type": "string",
+            "maxLength": 60,
+            "description": "\"Witness\", \"Judge\"…"
+          },
+          "phone": {
+            "type": "string",
+            "pattern": "^(\\+[1-9]\\d{7,14})?$",
+            "example": "+13125550123"
+          },
+          "email": {
+            "type": "string",
+            "maxLength": 254,
+            "format": "email"
+          }
+        }
       },
       "TaskStepInputDto": {
         "type": "object",
@@ -53166,6 +53711,59 @@
       "CreateTaskDto": {
         "type": "object",
         "properties": {
+          "places": {
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskPlaceInputDto"
+            }
+          },
+          "people": {
+            "maxItems": 30,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskPersonInputDto"
+            }
+          },
+          "priority": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TaskPriority"
+              }
+            ]
+          },
+          "repeat": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TaskRepeat"
+              }
+            ]
+          },
+          "repeatUntil": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Repeat until."
+          },
+          "remindBeforeMin": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 20160,
+            "description": "Reminder this many minutes before the time (0 = at it)."
+          },
+          "assigneeMembershipId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Assign to an assistant of the team."
+          },
+          "conversationId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The chat it is about."
+          },
+          "keepForever": {
+            "type": "boolean",
+            "description": "Never removed from the archive."
+          },
           "kind": {
             "allOf": [
               {
@@ -53249,7 +53847,17 @@
         "enum": [
           "active",
           "done",
-          "all"
+          "all",
+          "archive"
+        ]
+      },
+      "TasksSort": {
+        "type": "string",
+        "enum": [
+          "due",
+          "priority",
+          "created",
+          "updated"
         ]
       },
       "TaskListEnvelope": {
@@ -53260,6 +53868,198 @@
             "items": {
               "$ref": "#/components/schemas/TaskDto"
             }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "TaskPlaceSuggestionDto": {
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string",
+            "nullable": true
+          },
+          "uses": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "address",
+          "uses"
+        ]
+      },
+      "TaskPlaceSuggestionListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskPlaceSuggestionDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "TaskPersonSuggestionDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "membershipId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid",
+            "description": "An assistant of this team: the membership to assign."
+          },
+          "source": {
+            "enum": [
+              "assistant",
+              "client",
+              "attorney",
+              "contact"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "avatarUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "role": {
+            "type": "string",
+            "nullable": true
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "source",
+          "name"
+        ]
+      },
+      "TaskPersonSuggestionListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskPersonSuggestionDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "BulkTasksResultDto": {
+        "type": "object",
+        "properties": {
+          "affected": {
+            "type": "number",
+            "description": "Tasks changed."
+          },
+          "skipped": {
+            "type": "number",
+            "description": "Tasks left as they were (not yours to change, or already so)."
+          }
+        },
+        "required": [
+          "affected",
+          "skipped"
+        ]
+      },
+      "TaskBulkAction": {
+        "type": "string",
+        "enum": [
+          "delete",
+          "archive",
+          "unarchive",
+          "keep",
+          "unkeep",
+          "assign",
+          "unassign",
+          "status",
+          "priority"
+        ]
+      },
+      "BulkTasksDto": {
+        "type": "object",
+        "properties": {
+          "ids": {
+            "uniqueItems": true,
+            "minItems": 1,
+            "maxItems": 500,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "action": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TaskBulkAction"
+              }
+            ]
+          },
+          "status": {
+            "enum": [
+              "open",
+              "taken",
+              "done",
+              "cancelled"
+            ],
+            "type": "string"
+          },
+          "priority": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TaskPriority"
+              }
+            ]
+          },
+          "assigneeMembershipId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "ids",
+          "action"
+        ]
+      },
+      "BulkTasksResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/BulkTasksResultDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
@@ -53299,6 +54099,59 @@
       "UpdateTaskDto": {
         "type": "object",
         "properties": {
+          "places": {
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskPlaceInputDto"
+            }
+          },
+          "people": {
+            "maxItems": 30,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskPersonInputDto"
+            }
+          },
+          "priority": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TaskPriority"
+              }
+            ]
+          },
+          "repeat": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TaskRepeat"
+              }
+            ]
+          },
+          "repeatUntil": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Repeat until."
+          },
+          "remindBeforeMin": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 20160,
+            "description": "Reminder this many minutes before the time (0 = at it)."
+          },
+          "assigneeMembershipId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Assign to an assistant of the team."
+          },
+          "conversationId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The chat it is about."
+          },
+          "keepForever": {
+            "type": "boolean",
+            "description": "Never removed from the archive."
+          },
           "kind": {
             "allOf": [
               {
@@ -53332,6 +54185,19 @@
           "clearCaseId": {
             "type": "boolean",
             "description": "Unlink the case."
+          },
+          "clearRemind": {
+            "type": "boolean",
+            "description": "Owner 2026-10-05: no reminder / no assignee / no chat / no end."
+          },
+          "clearAssignee": {
+            "type": "boolean"
+          },
+          "clearConversation": {
+            "type": "boolean"
+          },
+          "clearRepeatUntil": {
+            "type": "boolean"
           },
           "location": {
             "type": "string",
