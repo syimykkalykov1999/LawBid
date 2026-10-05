@@ -142,6 +142,12 @@ abstract final class ApiErrorCodes {
   static const contactIssueAlreadyOpen = 'CONTACT_ISSUE_ALREADY_OPEN';
   static const contactIssueInvalidState = 'CONTACT_ISSUE_INVALID_STATE';
   static const bidAlreadyExists = 'BID_ALREADY_EXISTS';
+  // Owner 2026-10-05: client → attorney case invites.
+  static const inviteNotFound = 'INVITE_NOT_FOUND';
+  static const inviteInvalidState = 'INVITE_INVALID_STATE';
+  static const inviteAlreadyPending = 'INVITE_ALREADY_PENDING';
+  static const inviteAttorneyUnavailable = 'INVITE_ATTORNEY_UNAVAILABLE';
+  static const inviteLimitReached = 'INVITE_LIMIT_REACHED';
   // Case creation and management (docs/04 §3, stage 4.2)
   static const caseContainsContactInfo = 'CASE_CONTAINS_CONTACT_INFO';
   static const clientContactSharingConsentRequired =
@@ -306,6 +312,11 @@ abstract final class ApiErrorCodes {
     contactIssueAlreadyOpen,
     contactIssueInvalidState,
     bidAlreadyExists,
+    inviteNotFound,
+    inviteInvalidState,
+    inviteAlreadyPending,
+    inviteAttorneyUnavailable,
+    inviteLimitReached,
     caseContainsContactInfo,
     clientContactSharingConsentRequired,
     paymentsNotConfigured,
