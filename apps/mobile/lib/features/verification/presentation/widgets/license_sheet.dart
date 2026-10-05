@@ -58,7 +58,7 @@ class _AddLicenseSheetState extends ConsumerState<AddLicenseSheet> {
       context,
       title: t.t('verification.license.state'),
       options: [
-        for (final s in kUsStates)
+        for (final s in kRegions)
           if (!widget.takenStates.contains(s.code))
             PickerOption(value: s.code, label: s.name, sublabel: s.code),
       ],
@@ -113,7 +113,7 @@ class _AddLicenseSheetState extends ConsumerState<AddLicenseSheet> {
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final t = ref.watch(translatorProvider);
     final stateName =
-        kUsStates.where((s) => s.code == _state).map((s) => s.name).firstOrNull;
+        kRegions.where((s) => s.code == _state).map((s) => s.name).firstOrNull;
     final expires = _expires;
 
     return Padding(

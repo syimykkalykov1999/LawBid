@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-131 tables.
+133 tables.
 
 ```mermaid
 erDiagram
@@ -32,6 +32,7 @@ erDiagram
     String full_name_lower "nullable"
     DateTime created_at
     DateTime updated_at
+    String country_code FK
   }
   files {
     String id PK
@@ -164,10 +165,34 @@ erDiagram
     Int version
     DateTime updated_at
   }
+  countries {
+    String code PK
+    String name
+    Boolean is_enabled
+    String calling_code
+    String currency
+    String language
+    String region_kind
+    String timezone "nullable"
+    Boolean stripe_supported
+    Int sort
+    DateTime enabled_at "nullable"
+    DateTime updated_at
+  }
+  country_waitlist {
+    String id PK
+    String country_code FK
+    String email
+    String locale
+    DateTime created_at
+    DateTime notified_at "nullable"
+  }
   states {
     String code PK
     String name
     Boolean is_active
+    String country_code FK
+    String iso_code "nullable"
   }
   practice_areas {
     String id PK
@@ -1354,6 +1379,7 @@ erDiagram
     String resolved_by "nullable"
     DateTime sla_due_at "nullable"
     DateTime sla_breached_at "nullable"
+    String country_code
   }
   support_messages {
     String id PK
@@ -1672,6 +1698,7 @@ erDiagram
     DateTime updated_at
   }
   users }o--o| files : "avatar_file_id"
+  users }o--|| countries : "country_code"
   files }o--|| users : "owner_user_id"
   user_identifiers }o--|| users : "user_id"
   sessions }o--|| users : "user_id"
@@ -1683,6 +1710,8 @@ erDiagram
   i18n_translations }o--|| i18n_keys : "key_id"
   i18n_translations }o--|| i18n_languages : "lang"
   i18n_bundle_versions |o--|| i18n_languages : "lang"
+  country_waitlist }o--|| countries : "country_code"
+  states }o--|| countries : "country_code"
   practice_areas }o--o| practice_areas : "parent_id"
   client_profiles |o--|| users : "user_id"
   client_profiles }o--|| states : "state_code"

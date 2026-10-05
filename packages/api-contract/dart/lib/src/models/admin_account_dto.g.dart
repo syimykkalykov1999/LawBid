@@ -19,6 +19,9 @@ AdminAccountDto _$AdminAccountDtoFromJson(Map<String, dynamic> json) =>
         (k, e) => MapEntry(k, PermissionsPermissions.fromJson(e as String)),
       ),
       canManageAdmins: json['canManageAdmins'] as bool,
+      countries: (json['countries'] as List<dynamic>)
+          .map((e) => e as String)
+          .toList(),
       lastLoginAt: json['lastLoginAt'] == null
           ? null
           : DateTime.parse(json['lastLoginAt'] as String),
@@ -37,6 +40,7 @@ Map<String, dynamic> _$AdminAccountDtoToJson(
   'hasPassword': instance.hasPassword,
   'permissions': instance.permissions.map((k, e) => MapEntry(k, e.toJson())),
   'canManageAdmins': instance.canManageAdmins,
+  'countries': instance.countries,
   'lastLoginAt': ?instance.lastLoginAt?.toIso8601String(),
   'createdAt': instance.createdAt.toIso8601String(),
 };

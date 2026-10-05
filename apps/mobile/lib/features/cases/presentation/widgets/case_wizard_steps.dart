@@ -483,7 +483,7 @@ class _EssenceStepState extends ConsumerState<EssenceStep> {
 // --- Step 3: place ----------------------------------------------------------
 
 String stateName(String code) =>
-    kUsStates.where((s) => s.code == code).map((s) => s.name).firstOrNull ??
+    kRegions.where((s) => s.code == code).map((s) => s.name).firstOrNull ??
     code;
 
 /// Searchable state list in a sheet (50 states + DC).
@@ -517,7 +517,7 @@ class _StatePickerSheetState extends State<_StatePickerSheet> {
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final q = _q.trim().toLowerCase();
     final list = [
-      for (final s in kUsStates)
+      for (final s in kRegions)
         if (!widget.exclude.contains(s.code) &&
             (q.isEmpty ||
                 s.name.toLowerCase().contains(q) ||

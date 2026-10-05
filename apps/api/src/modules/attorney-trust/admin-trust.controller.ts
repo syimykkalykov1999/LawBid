@@ -111,9 +111,10 @@ export class AdminTrustController {
   @ApiEnvelopeResponse(AdminTrustCardDto)
   @ApiErrors(ERRORS)
   getTrustCard(
+    @CurrentAdmin() admin: AdminActor,
     @Param() p: TrustAttorneyIdParamDto,
   ): Promise<AdminTrustCardDto> {
-    return this.admin.card(p.attorneyId);
+    return this.admin.card(p.attorneyId, admin.countries);
   }
 
   @Post('attorneys/:attorneyId/confirm-license')
@@ -195,12 +196,14 @@ export class AdminTrustController {
   @ApiEnvelopeResponse(TrustAttorneyListItemDto, { isArray: true })
   @ApiErrors({ 400: [E.VALIDATION_ERROR], 403: [E.FORBIDDEN] })
   trustAttorneys(
+    @CurrentAdmin() admin: AdminActor,
     @Query() q: TrustAttorneyListQueryDto,
   ): Promise<TrustAttorneyListItemDto[]> {
     return this.admin.list({
       status: q.status ?? null,
       q: q.q ?? null,
       limit: q.limit,
+      countries: admin.countries,
     });
   }
 
@@ -225,8 +228,15 @@ export class AdminTrustController {
   })
   @ApiEnvelopeResponse(TrustQueueItemDto, { isArray: true })
   @ApiErrors({ 400: [E.VALIDATION_ERROR], 403: [E.FORBIDDEN] })
-  trustQueue(@Query() q: TrustQueueQueryDto): Promise<TrustQueueItemDto[]> {
-    return this.admin.queue({ reason: q.reason ?? null, q: q.q ?? null });
+  trustQueue(
+    @CurrentAdmin() admin: AdminActor,
+    @Query() q: TrustQueueQueryDto,
+  ): Promise<TrustQueueItemDto[]> {
+    return this.admin.queue({
+      reason: q.reason ?? null,
+      q: q.q ?? null,
+      countries: admin.countries,
+    });
   }
 
   @Get('staff-decisions')

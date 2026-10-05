@@ -26,8 +26,10 @@ import {
 } from './admin-auth.decorators';
 import {
   canAccess,
+  effectiveCountries,
   levelForMethod,
   parsePermissions,
+  readCountries,
   readManageAdmins,
   routeArea,
   VIEW_AUDITED_AREAS,
@@ -204,6 +206,10 @@ export class AdminAuthGuard implements CanActivate {
         : readJustification(req.header('x-justification'));
     }
 
+    const assignedCountries =
+      adminRole === 'super_admin'
+        ? []
+        : readCountries(user.admin_profile.permissions);
     req.admin = {
       id: claims.sub,
       adminRole,
@@ -211,6 +217,12 @@ export class AdminAuthGuard implements CanActivate {
       justification,
       permissions,
       manageAdmins,
+      assignedCountries,
+      countries: effectiveCountries(
+        adminRole === 'super_admin',
+        assignedCountries,
+        req.header('x-admin-country'),
+      ),
     };
     // Last action shown in the sessions overview (fire and forget).
     void this.sessions.noteActivity(

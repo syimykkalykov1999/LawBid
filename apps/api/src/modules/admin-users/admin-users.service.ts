@@ -1,4 +1,9 @@
 import {
+  countryInScope,
+  type CountryScope,
+  userInScope,
+} from '../countries/country-scope';
+import {
   ConflictException,
   ForbiddenException,
   HttpException,
@@ -92,6 +97,7 @@ const LIST_SELECT = {
   email: true,
   avatar_file_id: true,
   created_at: true,
+  country_code: true,
   attorney_profile: { select: { username: true, verification_status: true } },
 } as const;
 type ListRow = Prisma.UserGetPayload<{ select: typeof LIST_SELECT }>;
@@ -119,7 +125,10 @@ export class AdminUsersService {
     private readonly rateLimit: RateLimitService,
   ) {}
 
-  async search(q: AdminUsersQueryDto): Promise<AdminUsersPage> {
+  async search(
+    q: AdminUsersQueryDto,
+    countries: CountryScope = null,
+  ): Promise<AdminUsersPage> {
     const limit = q.limit ?? LIST_DEFAULT;
     const cursor = q.cursor ? decodeCursor(q.cursor) : undefined;
     const parsed = parseUserQuery(q.q);
@@ -139,8 +148,16 @@ export class AdminUsersService {
               : parsed.kind === 'name'
                 ? { full_name_lower: { contains: parsed.needle } }
                 : {};
+    // Owner 2026-10-05: staff of one country see only its people; the
+    // country filter narrows inside that.
+    const country: Prisma.UserWhereInput = q.countryCode
+      ? countryInScope(countries, q.countryCode)
+        ? { country_code: q.countryCode }
+        : { id: { in: [] } }
+      : userInScope(countries);
     const where: Prisma.UserWhereInput = {
       ...byQuery,
+      ...country,
       ...(q.role ? { role: q.role } : {}),
       ...(q.status ? { status: q.status } : {}),
       ...createdWindow(q),
@@ -189,9 +206,12 @@ export class AdminUsersService {
     };
   }
 
-  async card(id: string): Promise<AdminUserCardDto> {
-    const u = await this.prisma.user.findUnique({
-      where: { id },
+  async card(
+    id: string,
+    countries: CountryScope = null,
+  ): Promise<AdminUserCardDto> {
+    const u = await this.prisma.user.findFirst({
+      where: { id, ...userInScope(countries) },
       select: {
         ...LIST_SELECT,
         suspended_reason: true,
@@ -381,9 +401,12 @@ export class AdminUsersService {
   }
 
   /** The justified view (the interceptor writes the audit row). */
-  async contacts(id: string): Promise<AdminUserContactsDto> {
-    const u = await this.prisma.user.findUnique({
-      where: { id },
+  async contacts(
+    id: string,
+    countries: CountryScope = null,
+  ): Promise<AdminUserContactsDto> {
+    const u = await this.prisma.user.findFirst({
+      where: { id, ...userInScope(countries) },
       select: {
         email: true,
         email_verified_at: true,
@@ -745,6 +768,7 @@ function presentListItem(r: ListRow, avatars: Avatars): AdminUserListItemDto {
     firstName: r.first_name,
     lastName: r.last_name,
     email: r.email,
+    countryCode: r.country_code,
     username: r.attorney_profile?.username ?? null,
     verificationStatus: r.attorney_profile?.verification_status ?? null,
     avatarUrl: avatarOf(r.avatar_file_id, avatars),

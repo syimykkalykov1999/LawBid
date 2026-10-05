@@ -26,10 +26,10 @@ void main() {
     );
   });
 
-  test('non-US +1 country keeps the country message', () {
+  test('a country LawBid is not open in says so', () {
     expect(
       apiErrorText(t, phone('country_not_allowed')),
-      contains('этой страны'),
+      contains('не работает в этой стране'),
     );
     expect(apiErrorText(t, phone(null)), contains('этой страны'));
   });

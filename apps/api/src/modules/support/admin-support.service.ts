@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { countryInScope, type CountryScope } from '../countries/country-scope';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import type { Prisma, SupportMessage, SupportTicket } from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -58,8 +63,11 @@ export class AdminSupportService {
   async list(
     adminId: string,
     q: AdminSupportTicketsQueryDto,
+    countries: CountryScope = null,
   ): Promise<Page<AdminSupportTicketRowDto>> {
     const where: Prisma.SupportTicketWhereInput = {
+      // Owner 2026-10-05: support staff of one country see its tickets.
+      ...(countries ? { country_code: { in: countries } } : {}),
       ...(q.status ? { status: q.status } : {}),
       ...(q.category ? { category: q.category } : {}),
       ...(q.priority ? { priority: q.priority } : {}),
@@ -155,8 +163,17 @@ export class AdminSupportService {
     };
   }
 
-  async get(id: string): Promise<AdminSupportTicketDetailDto> {
+  async get(
+    id: string,
+    countries: CountryScope = null,
+  ): Promise<AdminSupportTicketDetailDto> {
     const ticket = await this.ticket(id);
+    if (!countryInScope(countries, ticket.country_code)) {
+      throw new NotFoundException({
+        code: ErrorCode.NOT_FOUND,
+        message: 'Ticket not found.',
+      });
+    }
     const [messages, user] = await Promise.all([
       this.prisma.supportMessage.findMany({
         where: { ticket_id: id },

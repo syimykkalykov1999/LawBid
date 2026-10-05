@@ -66,8 +66,11 @@ export class AdminUsersController {
   })
   @ApiEnvelopeResponse(AdminUserListItemDto, { isArray: true })
   @ApiErrors({ 400: [E.VALIDATION_ERROR] })
-  searchUsers(@Query() query: AdminUsersQueryDto): Promise<AdminUsersPage> {
-    return this.users.search(query);
+  searchUsers(
+    @CurrentAdmin() admin: AdminActor,
+    @Query() query: AdminUsersQueryDto,
+  ): Promise<AdminUsersPage> {
+    return this.users.search(query, admin.countries);
   }
 
   // Audit 2026-10-02: read-only for finance (subscriptions) and verifiers
@@ -77,8 +80,11 @@ export class AdminUsersController {
   @ApiOperation({ summary: 'User card (no contacts)' })
   @ApiEnvelopeResponse(AdminUserCardDto)
   @ApiErrors(TARGET_ERRORS)
-  getUserCard(@Param() params: AdminUserIdParamDto): Promise<AdminUserCardDto> {
-    return this.users.card(params.id);
+  getUserCard(
+    @CurrentAdmin() admin: AdminActor,
+    @Param() params: AdminUserIdParamDto,
+  ): Promise<AdminUserCardDto> {
+    return this.users.card(params.id, admin.countries);
   }
 
   @Get(':id/contacts')
@@ -89,9 +95,10 @@ export class AdminUsersController {
   @ApiEnvelopeResponse(AdminUserContactsDto)
   @ApiErrors(TARGET_ERRORS)
   getUserContacts(
+    @CurrentAdmin() admin: AdminActor,
     @Param() params: AdminUserIdParamDto,
   ): Promise<AdminUserContactsDto> {
-    return this.users.contacts(params.id);
+    return this.users.contacts(params.id, admin.countries);
   }
 
   @Post('bulk')

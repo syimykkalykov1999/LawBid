@@ -75,7 +75,7 @@ class _TemplatesScreenState extends ConsumerState<TemplatesScreen> {
                 label: t.t('templates.allStates'),
                 onTap: () => Navigator.of(sheet).pop(''),
               ),
-              for (final s in kUsStates)
+              for (final s in kRegions)
                 AppListRow(
                   label: s.name,
                   trailingText: s.code,
@@ -114,7 +114,7 @@ class _TemplatesScreenState extends ConsumerState<TemplatesScreen> {
     final notifier = ref.read(templatesProvider(_query).notifier);
     final stateName = _query.state == null
         ? t.t('templates.allStates')
-        : kUsStates
+        : kRegions
             .firstWhere(
               (s) => s.code == _query.state,
               orElse: () => UsState(_query.state!, _query.state!),

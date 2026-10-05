@@ -8,6 +8,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import type { Me } from '@/lib/hooks';
 import { ROLE_LABEL, groupFor, sectionFor } from '@/lib/rbac';
+import { CountrySwitcher } from './country-switcher';
 import { ThemeChoice, ThemeToggle } from './theme-toggle';
 
 export function Topbar({ me, onMenu, onSearch }: { me: Me | undefined; onMenu: () => void; onSearch: () => void }) {
@@ -78,6 +79,7 @@ export function Topbar({ me, onMenu, onSearch }: { me: Me | undefined; onMenu: (
       >
         <MagnifyingGlass size={18} />
       </button>
+      <CountrySwitcher me={me} />
       <ThemeToggle />
       <div ref={ref} className="relative">
         <button

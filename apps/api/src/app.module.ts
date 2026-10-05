@@ -78,6 +78,10 @@ import { AdminPayrollModule } from './modules/admin-payroll/admin-payroll.module
 import { SupportModule } from './modules/support/support.module';
 import { RewardsModule } from './modules/rewards/rewards.module';
 import { WorkspaceModule } from './modules/workspace/workspace.module';
+import {
+  CountriesCoreModule,
+  CountriesModule,
+} from './modules/countries/countries.module';
 import { AdminEmailTemplatesModule } from './modules/admin-email-templates/admin-email-templates.module';
 import { PrivacyModule } from './modules/privacy/privacy.module';
 import { CostGuardModule } from './common/cost-guard/cost-guard.module';
@@ -269,6 +273,9 @@ const isDev =
     // the blue check).
     AttorneyTrustCoreModule,
     AttorneyTrustModule,
+    // Owner 2026-10-05: countries (Система → Страны).
+    CountriesCoreModule,
+    CountriesModule,
     FilesModule,
     ProfilesModule,
     ReviewsModule,

@@ -46,9 +46,10 @@ export class AdminModerationController {
   @ApiEnvelopeResponse(ModerationQueueItemDto, { isArray: true })
   @ApiErrors({ 400: [E.VALIDATION_ERROR] })
   moderationQueue(
+    @CurrentAdmin() admin: AdminActor,
     @Query() query: ModerationQueueQueryDto,
   ): Promise<ModerationQueuePage> {
-    return this.moderation.queue(query);
+    return this.moderation.queue(query, admin.countries);
   }
 
   @Get('targets/:type/:id')

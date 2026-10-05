@@ -22,6 +22,7 @@ class AdminAccountDto {
     required this.hasPassword,
     required this.permissions,
     required this.canManageAdmins,
+    required this.countries,
     required this.lastLoginAt,
     required this.createdAt,
   });
@@ -44,6 +45,9 @@ class AdminAccountDto {
 
   /// May create and manage other admins.
   final bool canManageAdmins;
+
+  /// Countries this admin works with (ISO 3166-1 alpha-2); empty = every country.
+  final List<String> countries;
   final DateTime? lastLoginAt;
   final DateTime createdAt;
 

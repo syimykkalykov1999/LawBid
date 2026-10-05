@@ -1,6 +1,7 @@
 'use client';
 
-import { DownloadSimple, FileArrowUp, Translate } from '@phosphor-icons/react';
+import { DownloadSimple, FileArrowUp, GlobeHemisphereWest, Translate } from '@phosphor-icons/react';
+import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useConfirm } from '@/components/legacy/confirm';
@@ -105,12 +106,18 @@ export default function I18nPage() {
         title="Локализация"
         subtitle="Языки приложения, импорт переводов xlsx/csv (сначала проверка с отчётом, затем применение) и экспорт."
         actions={
-          // A file download from a route handler, not an app page.
-          // eslint-disable-next-line @next/next/no-html-link-for-pages
+          <>
+          <Link href="/countries" className={buttonVariants({ variant: 'outline' })}>
+            <GlobeHemisphereWest size={16} weight="light" />
+            Страны
+          </Link>
+          {/* A file download from a route handler, not an app page. */}
+          {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
           <a href="/api/proxy/i18n/export" className={buttonVariants({ variant: 'outline' })}>
             <DownloadSimple size={16} weight="light" />
             Экспорт xlsx
           </a>
+          </>
         }
       />
       <ErrorNote text={langs.error ? errorText(langs.error) : null} />

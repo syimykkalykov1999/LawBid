@@ -1,3 +1,4 @@
+import type { CountryScope } from '../countries/country-scope';
 import {
   ConflictException,
   Injectable,
@@ -59,7 +60,10 @@ export class AdminModerationService {
     private readonly notifications: NotificationsService,
   ) {}
 
-  async queue(q: ModerationQueueQueryDto): Promise<ModerationQueuePage> {
+  async queue(
+    q: ModerationQueueQueryDto,
+    countries: CountryScope = null,
+  ): Promise<ModerationQueuePage> {
     const limit = q.limit ?? QUEUE_DEFAULT;
     const status = q.status ?? 'open';
     const cursor = q.cursor ? decodeCursor(q.cursor) : undefined;
@@ -73,6 +77,13 @@ export class AdminModerationService {
       FROM reports
       WHERE status = ${status}::report_status
         ${q.targetType ? Prisma.sql`AND target_type = ${q.targetType}::report_target_type` : Prisma.empty}
+        ${
+          // Owner 2026-10-05: moderators of one country see reports
+          // made by people of that country.
+          countries
+            ? Prisma.sql`AND reporter_id IN (SELECT id FROM users WHERE country_code::STRING = ANY(${countries}::STRING[]))`
+            : Prisma.empty
+        }
       GROUP BY target_type, target_id
       ${
         cursor

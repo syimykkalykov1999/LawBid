@@ -1,3 +1,4 @@
+import { notAvailable } from '../../countries/countries.service';
 import { HttpStatus, Injectable } from '@nestjs/common';
 import {
   Prisma,
@@ -222,10 +223,14 @@ export class VerificationRequestsService {
     await this.requireActiveAttorney(userId);
     const state = await this.prisma.state.findUnique({
       where: { code: dto.stateCode },
-      select: { code: true },
+      select: { code: true, country_code: true, country: true },
     });
     if (!state) {
       throw validationError('Unknown state.', { field: 'stateCode' });
+    }
+    // Owner 2026-10-05: licenses only in switched-on countries.
+    if (state.country && !state.country.is_enabled) {
+      throw notAvailable(state.country_code);
     }
     // Owner 2026-10-05 07:00: a rejected / blocked bar number (or the
     // contacts of a blocked account) cannot register again — 403.
