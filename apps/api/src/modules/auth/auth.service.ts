@@ -644,7 +644,7 @@ export class AuthService {
     });
 
     // Hashes of this sign-in's signals + re-score (never fails the login).
-    void this.fraud?.recordSignIn(user.id, fraudSignals);
+    await this.fraud?.recordSignIn(user.id, fraudSignals);
 
     return {
       accessToken,

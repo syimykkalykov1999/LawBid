@@ -298,6 +298,21 @@ describe('ClientFraudService — complaint score', () => {
     expect(w.users.get('client')!.status).toBe('active');
   });
 
+  it('the same case text from many accounts never restricts anyone by itself', async () => {
+    const w = world();
+    const text =
+      'I need a lawyer for a dispute with my landlord about the deposit and repairs.';
+    const ids = Array.from({ length: 12 }, (_, i) => `c${i}`);
+    for (const id of ids) {
+      w.addUser(id);
+      await w.svc.onCaseCreated(id, text);
+    }
+    await w.svc.recompute('c0');
+    expect(w.profiles.get('c0')?.score).toBe(20);
+    expect(w.profiles.get('c0')?.status).toBe('ok');
+    expect(ids.every((id) => w.users.get(id)!.status === 'active')).toBe(true);
+  });
+
   it('two complaints restrict, they do not block', async () => {
     const w = world();
     w.addUser('client');

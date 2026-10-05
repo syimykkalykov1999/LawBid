@@ -256,7 +256,7 @@ export class SocialAuthService {
       meta: { provider: dto.provider, isNewDevice },
     });
 
-    void this.fraud?.recordSignIn(user.id, fraudSignals);
+    await this.fraud?.recordSignIn(user.id, fraudSignals);
 
     // docs/01 §10.6 new-device alert: audit row inline, delivery detached.
     await this.newDevice.onLogin({

@@ -391,7 +391,8 @@ export class CasesService {
     } catch {
       // Referral bookkeeping never breaks case creation.
     }
-    void this.fraud?.onCaseCreated(
+    // Never throws; awaited so it does not outlive the request.
+    await this.fraud?.onCaseCreated(
       user.sub,
       `${dto.title}\n${dto.description}`,
     );

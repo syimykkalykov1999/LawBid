@@ -141,6 +141,9 @@ export const WEIGHTS = {
   /** Accounts on one device before it starts to count. */
   accountsPerDeviceAllowance: 2,
   duplicateText: 10,
+  /** Same case text as at most this many other accounts counts: a common
+   * template alone never gets past the score where a person looks. */
+  duplicateTextMaxAccounts: 2,
   /** No signal adds more than this many points. */
   signalCap: 200,
 } as const;

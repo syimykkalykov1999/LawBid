@@ -350,8 +350,13 @@ export class ClientFraudService {
     try {
       const cfg = await this.config();
       if (!cfg.enabled) return 0;
+      // Only real links spread a ban: a shared case text or network
+      // address is never enough to block someone else.
       const own = await this.prisma.identityFingerprint.findMany({
-        where: { user_id: userId },
+        where: {
+          user_id: userId,
+          kind: { in: [...STRONG_KINDS, ...DEVICE_KINDS] },
+        },
         select: { kind: true, hash: true },
       });
       if (own.length === 0) return 0;
@@ -643,7 +648,11 @@ export class ClientFraudService {
         deviceOthers.size + 1 - WEIGHTS.accountsPerDeviceAllowance,
         WEIGHTS.manyAccountsOnDevice,
       );
-      push(SIGNALS.duplicateText, textOthers.size, WEIGHTS.duplicateText);
+      push(
+        SIGNALS.duplicateText,
+        Math.min(textOthers.size, WEIGHTS.duplicateTextMaxAccounts),
+        WEIGHTS.duplicateText,
+      );
     }
 
     if (isClient) {
