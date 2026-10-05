@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/media/photo_limits.dart';
 import 'package:lawbid/features/profile/data/client_reviews_repository.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart'
     show ReviewPhoto;
@@ -122,9 +124,11 @@ class _SheetState extends ConsumerState<_Sheet> {
     final t = ref.read(translatorProvider);
     final room = _maxPhotos - _photos.length - _uploading;
     if (room <= 0) return;
+    final limits = photoLimitsOf(ref.read(featureFlagsControllerProvider));
     final picked = await ImagePicker().pickMultiImage(
-      imageQuality: 85,
-      maxWidth: 2048,
+      imageQuality: limits.quality,
+      maxWidth: limits.maxPx,
+      maxHeight: limits.maxPx,
       limit: room,
     );
     for (final x in picked.take(room)) {

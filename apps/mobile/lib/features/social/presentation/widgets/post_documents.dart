@@ -7,6 +7,7 @@ import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/media/photo_limits.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_photos.dart'
     show openCaseDocument;
 import 'package:lawbid/features/chat/presentation/attachment_widgets.dart'
@@ -57,17 +58,9 @@ String documentExtension(String name) {
   );
 }
 
-/// Owner 2026-10-05: photos of posts and reels are shrunk on the phone
-/// before upload — the admin's `media.photo_max_px` (longest side) and
-/// `media.photo_quality` (JPEG), kept within sane bounds.
-({double maxPx, int quality}) postPhotoLimits(WidgetRef ref) {
-  final flags = ref.read(featureFlagsControllerProvider);
-  return (
-    maxPx:
-        flags.configInt('media.photo_max_px', 2048).clamp(640, 4096).toDouble(),
-    quality: flags.configInt('media.photo_quality', 85).clamp(50, 100),
-  );
-}
+/// Owner 2026-10-05: the admin's photo compression for posts and reels.
+PhotoLimits postPhotoLimits(WidgetRef ref) =>
+    photoLimitsOf(ref.read(featureFlagsControllerProvider));
 
 /// The documents of a post or a reel being written: pick (PDF, Word,
 /// text), upload with progress, retry, remove. The server checks the same
