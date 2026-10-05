@@ -26,6 +26,7 @@ import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
+import { trustStatsQuery } from '@/lib/live';
 import type { components } from '@/lib/api/schema';
 import { useMe } from '@/lib/hooks';
 import { can } from '@/lib/rbac';
@@ -65,10 +66,7 @@ export default function AntiFraudPage() {
   const { confirm, dialog: confirmDialog } = useConfirm();
   const [tab, setTab] = useState<Tab>('attorneys');
 
-  const stats = useQuery({
-    queryKey: ['trust-stats'],
-    queryFn: async () => (await api.GET('/admin/trust/stats')).data!.data,
-  });
+  const stats = useQuery(trustStatsQuery);
   const recomputeAll = useMutation({
     mutationFn: async () => {
       const ok = await confirm({

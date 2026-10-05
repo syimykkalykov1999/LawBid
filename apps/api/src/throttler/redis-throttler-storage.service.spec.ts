@@ -81,6 +81,35 @@ describe('RedisThrottlerStorageService', () => {
     );
   });
 
+  it('drops a stale block longer than the current blockDuration', async () => {
+    const redis = new FakeRedis();
+    const storage = new RedisThrottlerStorageService(redis as never, logger());
+    // Left by builds that wrote blockDuration * 1000 ms (~16.7 h).
+    await redis.set('throttle-block:default:admin-x', '1', 'PX', 60_000_000);
+
+    const rec = await storage.increment('admin-x', 60_000, 5, 5_000, 'default');
+
+    expect(rec.isBlocked).toBe(false);
+    expect(rec.totalHits).toBe(1);
+    expect(await redis.pttl('throttle-block:default:admin-x')).toBeLessThan(0);
+  });
+
+  it('a short block ends after blockDuration, not hours later', async () => {
+    const redis = new FakeRedis();
+    const storage = new RedisThrottlerStorageService(redis as never, logger());
+
+    let last: Awaited<ReturnType<typeof storage.increment>> | undefined;
+    for (let i = 0; i < 3; i += 1) {
+      last = await storage.increment('admin-y', 60_000, 2, 5_000, 'default');
+    }
+
+    expect(last!.isBlocked).toBe(true);
+    expect(last!.timeToBlockExpire).toBe(5);
+    expect(
+      await redis.pttl('throttle-block:default:admin-y'),
+    ).toBeLessThanOrEqual(5_000);
+  });
+
   it('fails open with a throttler_unavailable warning when Redis errors', async () => {
     const down = new Error('ECONNREFUSED');
     const redis = {

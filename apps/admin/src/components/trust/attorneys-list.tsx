@@ -18,6 +18,7 @@ import { Input, Select } from '@/components/ui/input';
 import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
+import { trustStatsQuery } from '@/lib/live';
 import type { components } from '@/lib/api/schema';
 import {
   attorneyName,
@@ -59,10 +60,7 @@ export function AttorneysList({ canManage }: { canManage: boolean }) {
   const search = useDebounced(text.trim(), 300);
   const sel = useSelection(`${status}|${search}`);
 
-  const stats = useQuery({
-    queryKey: ['trust-stats'],
-    queryFn: async () => (await api.GET('/admin/trust/stats')).data!.data,
-  });
+  const stats = useQuery(trustStatsQuery);
   const counts = new Map((stats.data?.byStatus ?? []).map((x) => [x.status, x.attorneys] as const));
   const total = (stats.data?.byStatus ?? []).reduce((n, x) => n + x.attorneys, 0);
 

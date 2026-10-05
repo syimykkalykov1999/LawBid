@@ -16,7 +16,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
             staleTime: 30_000,
             refetchOnWindowFocus: false,
             retry: (count, error) =>
-              // Never retry a 4xx (401 redirects, 403 is final).
+              // Never retry a 4xx (401 redirects, 403 is final, 429 would only
+              // dig the rate-limit hole deeper — lib/live.ts backs off instead).
               !(error instanceof ApiError && error.status < 500) && count < 2,
           },
         },
