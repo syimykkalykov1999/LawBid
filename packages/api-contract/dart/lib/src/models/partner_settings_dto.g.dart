@@ -16,11 +16,15 @@ PartnerSettingsDto _$PartnerSettingsDtoFromJson(Map<String, dynamic> json) =>
       texts: PartnerTextsByLangDto.fromJson(
         json['texts'] as Map<String, dynamic>,
       ),
+      joinMode: json['joinMode'] == null
+          ? null
+          : PartnerJoinMode.fromJson(json['joinMode'] as String),
     );
 
 Map<String, dynamic> _$PartnerSettingsDtoToJson(PartnerSettingsDto instance) =>
     <String, dynamic>{
       'enabled': instance.enabled,
+      'joinMode': ?instance.joinMode?.toJson(),
       'attorneyRateCents': instance.attorneyRateCents,
       'clientRateCents': instance.clientRateCents,
       'clientRule': instance.clientRule.toJson(),

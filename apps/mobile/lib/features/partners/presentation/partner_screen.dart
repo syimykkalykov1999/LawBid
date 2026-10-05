@@ -57,12 +57,22 @@ class PartnerScreen extends ConsumerWidget {
             onRetry: () => ref.invalidate(partnerMeProvider),
           ),
           data: (me) {
-            if (!me.isPartner) {
+            if (!me.enabled) {
               return AppEmptyState(
                 icon: AppIcons.handshakeOutlined,
-                title: t.t('partner.off.title'),
-                message: t.t('partner.off.message'),
+                title: t.t('partner.disabled.title'),
+                message: t.t('partner.disabled.message'),
               );
+            }
+            if (!me.isPartner) {
+              if (!me.canJoin) {
+                return AppEmptyState(
+                  icon: AppIcons.handshakeOutlined,
+                  title: t.t('partner.off.title'),
+                  message: t.t('partner.off.message'),
+                );
+              }
+              return _JoinIntro(me: me, t: t, f: f);
             }
             return RefreshIndicator(
               color: colors.gold,
@@ -83,16 +93,29 @@ class PartnerScreen extends ConsumerWidget {
                       style:
                           type.body.copyWith(color: colors.text, height: 1.4),
                     ),
-                  if (me.status == 'paused' || me.status == 'ended') ...[
+                  if (me.status == 'pending' ||
+                      me.status == 'paused' ||
+                      me.status == 'ended') ...[
                     const SizedBox(height: AppSpacing.md),
-                    _Notice(text: t.t('partner.status.${me.status}')),
+                    _Notice(
+                      key: ValueKey('partner-status-${me.status}'),
+                      text: t.t('partner.status.${me.status}'),
+                    ),
                   ],
                   const SizedBox(height: AppSpacing.lg),
-                  _LinkCard(me: me, t: t),
-                  const SizedBox(height: AppSpacing.lg),
-                  _Totals(totals: me.totals, t: t, f: f),
-                  const SizedBox(height: AppSpacing.lg),
-                  _Rates(rates: me.rates, t: t, f: f),
+                  // A pending request has no working link yet.
+                  if (!me.isPending) ...[
+                    _LinkCard(me: me, t: t),
+                    const SizedBox(height: AppSpacing.lg),
+                    _Totals(totals: me.totals, t: t, f: f),
+                    const SizedBox(height: AppSpacing.lg),
+                  ],
+                  _Rates(
+                    rates: me.rates,
+                    t: t,
+                    f: f,
+                    title: me.isPending ? t.t('partner.join.rates') : null,
+                  ),
                   const SizedBox(height: AppSpacing.xl),
                   Text(
                     t.t('partner.referred.title'),
@@ -211,7 +234,7 @@ class PartnerScreen extends ConsumerWidget {
 }
 
 class _Notice extends StatelessWidget {
-  const _Notice({required this.text});
+  const _Notice({required this.text, super.key});
 
   final String text;
 
@@ -361,12 +384,105 @@ class _Totals extends StatelessWidget {
   }
 }
 
+/// Owner 2026-10-05: "в профилях тоже нужно сделать" — anyone the owner
+/// allows reads what the program pays and joins with one tap; the link
+/// appears right away.
+class _JoinIntro extends ConsumerStatefulWidget {
+  const _JoinIntro({required this.me, required this.t, required this.f});
+
+  final PartnerMe me;
+  final Translator t;
+  final L10nFormats f;
+
+  @override
+  ConsumerState<_JoinIntro> createState() => _JoinIntroState();
+}
+
+class _JoinIntroState extends ConsumerState<_JoinIntro> {
+  bool _busy = false;
+
+  Future<void> _join() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      final after = await ref.read(partnersRepositoryProvider).join();
+      if (!mounted) return;
+      showAppSnackBar(
+        context,
+        widget.t.t(
+          after.isPending ? 'partner.join.sent' : 'partner.join.done',
+        ),
+      );
+      ref.invalidate(partnerMeProvider);
+    } catch (e) {
+      if (!mounted) return;
+      showAppSnackBar(context, errorText(widget.t, e));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final me = widget.me;
+    final t = widget.t;
+    return ListView(
+      padding: const EdgeInsets.all(AppSpacing.screenSide),
+      children: [
+        if (me.title.isNotEmpty) ...[
+          Text(
+            me.title,
+            style: type.titleMedium.copyWith(color: colors.text),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+        ],
+        if (me.summary.isNotEmpty)
+          Text(
+            me.summary,
+            style: type.body.copyWith(color: colors.text, height: 1.4),
+          ),
+        const SizedBox(height: AppSpacing.lg),
+        _Rates(
+          rates: me.rates,
+          t: t,
+          f: widget.f,
+          title: t.t('partner.join.rates'),
+        ),
+        const SizedBox(height: AppSpacing.xl),
+        AppButton(
+          key: const ValueKey('partner-join'),
+          label: t.t('partner.join.button'),
+          isLoading: _busy,
+          onPressed: _join,
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Text(
+          t.t(
+            me.joinMode == 'approval'
+                ? 'partner.join.note.approval'
+                : 'partner.join.note',
+          ),
+          style: type.caption.copyWith(color: colors.textSecondary),
+        ),
+      ],
+    );
+  }
+}
+
 class _Rates extends StatelessWidget {
-  const _Rates({required this.rates, required this.t, required this.f});
+  const _Rates({
+    required this.rates,
+    required this.t,
+    required this.f,
+    this.title,
+  });
 
   final PartnerRates rates;
   final Translator t;
   final L10nFormats f;
+  final String? title;
 
   @override
   Widget build(BuildContext context) {
@@ -394,7 +510,7 @@ class _Rates extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          t.t('partner.rates.title'),
+          title ?? t.t('partner.rates.title'),
           style: type.titleMedium.copyWith(color: colors.text),
         ),
         if (rates.attorneyRateCents > 0)

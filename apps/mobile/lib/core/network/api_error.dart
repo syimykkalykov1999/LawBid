@@ -220,6 +220,10 @@ abstract final class ApiErrorCodes {
   static const entitlementRequired = 'ENTITLEMENT_REQUIRED';
   // Owner 2026-10-05: partner program.
   static const partnerInvalidState = 'PARTNER_INVALID_STATE';
+  // Owner 2026-10-05: outreach (cold calls and emails).
+  static const outreachImportInvalid = 'OUTREACH_IMPORT_INVALID';
+  static const outreachInvalidState = 'OUTREACH_INVALID_STATE';
+  static const outreachEmailLimit = 'OUTREACH_EMAIL_LIMIT';
 
   /// Every server code, in enum order.
   static const all = <String>[
@@ -395,6 +399,9 @@ abstract final class ApiErrorCodes {
     planInUse,
     entitlementRequired,
     partnerInvalidState,
+    outreachImportInvalid,
+    outreachInvalidState,
+    outreachEmailLimit,
   ];
 }
 
