@@ -47,6 +47,14 @@ export const REFERRAL_AUDIT = {
 
 type Page<T> = { items: T[]; nextCursor: string | null };
 
+/** True when neither side's reward snapshot carries any value. */
+function nothingIssued(r: Referral): boolean {
+  return [r.referrer_reward, r.referee_reward].every((raw) => {
+    const s = snapshotOf(raw);
+    return !s || s.value <= 0;
+  });
+}
+
 function invalidState(message: string): ConflictException {
   return new ConflictException({
     code: ErrorCode.REFERRAL_INVALID_STATE,
@@ -250,14 +258,22 @@ export class AdminReferralsService {
     reason: string,
   ): Promise<AdminReferralRowDto> {
     const before = await this.mustFind(id);
-    if (before.status !== 'pending' && before.status !== 'qualified') {
+    // Owner 2026-10-05: a "rewarded" referral that issued nothing of value
+    // (a partner's referral, or a program with zero rewards) can still be
+    // rejected: there is nothing to claw back, only the partner's
+    // commission to reverse.
+    const rejectable: Referral['status'][] = ['pending', 'qualified'];
+    if (before.status === 'rewarded' && nothingIssued(before)) {
+      rejectable.push('rewarded');
+    }
+    if (!rejectable.includes(before.status)) {
       throw invalidState(
         'Only a pending or qualified referral can be rejected.',
       );
     }
     const after = await withTxRetry(this.prisma, async (tx) => {
       const res = await tx.referral.updateMany({
-        where: { id, status: { in: ['pending', 'qualified'] } },
+        where: { id, status: { in: rejectable } },
         data: { status: 'rejected', rejected_reason: reason },
       });
       if (res.count === 0)

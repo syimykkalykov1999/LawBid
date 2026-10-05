@@ -312,15 +312,17 @@ describe('Partner program (e2e)', () => {
       .expect(403); // program off and the partner ended
   });
 
-  it('support reads, finance writes, moderator is refused', async () => {
-    const support = await adminSession(base, prisma, 'support');
-    await api().get('/api/v1/admin/partners').set(support.auth).expect(200);
-    await api()
-      .post('/api/v1/admin/partners')
-      .set(support.auth)
-      .send({ userId: randomUUID(), reason: REASON })
-      .expect(403);
-    const moderator = await adminSession(base, prisma, 'moderator');
-    await api().get('/api/v1/admin/partners').set(moderator.auth).expect(403);
+  it('partners are a money area: only the super admin reaches them', async () => {
+    // Same rule as referrals and billing (admin-permissions SUPER_ONLY_AREAS):
+    // support and finance are refused whatever their toggles say.
+    for (const role of ['support', 'finance', 'moderator'] as const) {
+      const s = await adminSession(base, prisma, role);
+      await api().get('/api/v1/admin/partners').set(s.auth).expect(403);
+      await api()
+        .post('/api/v1/admin/partners')
+        .set(s.auth)
+        .send({ userId: randomUUID(), reason: REASON })
+        .expect(403);
+    }
   });
 });
