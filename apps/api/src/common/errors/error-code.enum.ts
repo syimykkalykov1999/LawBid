@@ -400,7 +400,17 @@ export enum ErrorCode {
   OUTREACH_IMPORT_INVALID = 'OUTREACH_IMPORT_INVALID',
   OUTREACH_INVALID_STATE = 'OUTREACH_INVALID_STATE',
   OUTREACH_EMAIL_LIMIT = 'OUTREACH_EMAIL_LIMIT',
+  // Owner 2026-10-05 (legal) — outreach compliance. 409: a call/email to
+  // this lead is not allowed now (do-not-contact, outside the local call
+  // window, client leads switched off); 409: client (consumer) leads are
+  // switched off in Outreach → Settings (TCPA / Do-Not-Call).
+  OUTREACH_CONTACT_BLOCKED = 'OUTREACH_CONTACT_BLOCKED',
+  OUTREACH_CLIENTS_DISABLED = 'OUTREACH_CLIENTS_DISABLED',
   // Owner 2026-10-05 — countries. 403: LawBid is not switched on in this
   // country yet (sign-up, profile, new case); details.countryCode.
   COUNTRY_NOT_AVAILABLE = 'COUNTRY_NOT_AVAILABLE',
+  // Owner 2026-10-05 (legal) — DMCA. 409: the notice is not in a state
+  // the action allows (counter-notice before a removal, deciding twice,
+  // restoring what was never removed).
+  DMCA_INVALID_STATE = 'DMCA_INVALID_STATE',
 }

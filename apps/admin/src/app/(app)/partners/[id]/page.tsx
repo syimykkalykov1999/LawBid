@@ -31,6 +31,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/empty";
 import { Field, Input, Select, Textarea } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { Table, TableEmpty, Td, Th } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
 import { growthError } from "@/components/growth/errors";
@@ -122,6 +123,8 @@ export default function PartnerPage() {
   }
   const { partner: p, referred, commissions } = q.data;
   const title = p.label || p.user.name || p.user.email || "Партнёр";
+  // Owner 2026-10-05 (legal): no payout without a W-9 while the program requires one.
+  const w9Missing = (settings.data?.requireW9 ?? true) && !p.w9ReceivedAt;
 
   return (
     <>
@@ -148,8 +151,9 @@ export default function PartnerPage() {
             {canWrite ? (
               <Button
                 variant="gold"
-                disabled={p.totals.approvedCents <= 0 || pay.isPending}
+                disabled={p.totals.approvedCents <= 0 || pay.isPending || w9Missing}
                 loading={pay.isPending}
+                title={w9Missing ? "Сначала отметьте W-9 полученным (раздел «Условия партнёра»)" : undefined}
                 onClick={() => pay.mutate()}
               >
                 <Coins size={16} /> Выплатить {usd(p.totals.approvedCents)}
@@ -180,6 +184,7 @@ export default function PartnerPage() {
         defaults={settings.data ?? null}
         onSaved={refresh}
       />
+      <ComplianceCard partner={p} canEdit={canWrite} requireW9={settings.data?.requireW9 ?? true} onSaved={refresh} />
 
       {canWrite ? (
         <>
@@ -373,6 +378,63 @@ function PartnerForm({
           </Button>
         </div>
       ) : null}
+    </Card>
+  );
+}
+
+/** Owner 2026-10-05 (legal): the partner rules acceptance (recorded by the
+ * app) and the W-9 on file (ticked by the admin, unblocks payouts). */
+function ComplianceCard({
+  partner: p,
+  canEdit,
+  requireW9,
+  onSaved,
+}: {
+  partner: PartnerRow;
+  canEdit: boolean;
+  requireW9: boolean;
+  onSaved: () => void;
+}) {
+  const toast = useToast();
+  const w9 = useMutation({
+    mutationFn: async (value: boolean) =>
+      (
+        await api.PATCH("/admin/partners/{id}", {
+          params: { path: { id: p.id } },
+          body: { w9Received: value, reason: value ? "W-9 получен" : "Отметка W-9 снята" },
+        })
+      ).data!.data,
+    onSuccess: (r) => {
+      toast.success(r.w9ReceivedAt ? "W-9 отмечен полученным" : "Отметка W-9 снята");
+      onSaved();
+    },
+    onError: (e) => toast.error(growthError(e)),
+  });
+  return (
+    <Card className="mt-4 p-5">
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="flex items-start gap-3">
+          <Switch checked={!!p.w9ReceivedAt} disabled={!canEdit || w9.isPending} onChange={(v) => w9.mutate(v)} label="W-9 получен" />
+          <div>
+            <p className="text-sm font-medium text-heading">W-9 получен</p>
+            <p className="mt-1 text-xs text-muted">
+              {p.w9ReceivedAt
+                ? `получен ${formatDateTime(p.w9ReceivedAt)}`
+                : requireW9
+                  ? "не получен — выплаты заблокированы (форма W-9, для нерезидентов W-8)"
+                  : "не получен; программа сейчас не требует форму"}
+            </p>
+          </div>
+        </div>
+        <div>
+          <p className="text-sm font-medium text-heading">Правила партнёра</p>
+          <p className="mt-1 text-xs text-muted">
+            {p.termsAcceptedAt
+              ? `Правила приняты: версия ${p.termsVersion ?? "—"} / ${formatDateTime(p.termsAcceptedAt)}`
+              : "не приняты — приложение покажет правила и кнопку «Принять» при следующем входе"}
+          </p>
+        </div>
+      </div>
     </Card>
   );
 }

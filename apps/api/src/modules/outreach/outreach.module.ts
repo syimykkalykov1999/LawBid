@@ -10,7 +10,19 @@ import { AdminOutreachController } from './admin-outreach.controller';
 import { AdminOutreachService } from './admin-outreach.service';
 import { NyRegistrySource } from './ny-registry.source';
 import { OutreachController } from './outreach.controller';
+import { OutreachRetentionService } from './outreach-retention.service';
 import { OUTREACH_EMAIL, OutreachService } from './outreach.service';
+
+/**
+ * Owner 2026-10-05 (legal): the daily `outreach.retention` job only
+ * needs Prisma + the logger, so it has its own small module that the
+ * worker (JobsModule) can import without the auth/email stack.
+ */
+@Module({
+  providers: [OutreachRetentionService],
+  exports: [OutreachRetentionService],
+})
+export class OutreachRetentionModule {}
 
 /** The outreach service alone — imported by ReferralsCoreModule (a lead
  * registers with the partner code) and PartnersCoreModule's consumers

@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-133 tables.
+135 tables.
 
 ```mermaid
 erDiagram
@@ -33,6 +33,7 @@ erDiagram
     DateTime created_at
     DateTime updated_at
     String country_code FK
+    Int copyright_strikes
   }
   files {
     String id PK
@@ -699,6 +700,30 @@ erDiagram
     DateTime created_at
     DateTime updated_at
   }
+  dmca_notices {
+    String id PK
+    String report_id FK "nullable"
+    enum_ReportTargetType target_type "nullable"
+    String target_id "nullable"
+    String infringing_url "nullable"
+    String complainant_name
+    String complainant_email
+    String complainant_address
+    String complainant_phone "nullable"
+    String work_description
+    Boolean good_faith
+    Boolean accuracy_sworn
+    String signature
+    String status
+    String submitted_by_user_id FK "nullable"
+    String author_user_id "nullable"
+    Json counter "nullable"
+    String decided_by "nullable"
+    DateTime decided_at "nullable"
+    String decision_note "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
   moderation_actions {
     String id PK
     String report_id FK "nullable"
@@ -1268,6 +1293,10 @@ erDiagram
     DateTime created_at
     DateTime updated_at
     DateTime ended_at "nullable"
+    DateTime terms_accepted_at "nullable"
+    String terms_version "nullable"
+    String terms_ip "nullable"
+    DateTime w9_received_at "nullable"
   }
   partner_commissions {
     String id PK
@@ -1313,6 +1342,11 @@ erDiagram
     DateTime last_activity_at "nullable"
     DateTime next_action_at "nullable"
     String note "nullable"
+    DateTime do_not_contact_at "nullable"
+    String do_not_contact_reason "nullable"
+    String source_note "nullable"
+    Int emails_sent
+    DateTime last_email_at "nullable"
     String created_by
     DateTime created_at
     DateTime updated_at
@@ -1338,6 +1372,14 @@ erDiagram
     String created_by
     DateTime created_at
     DateTime updated_at
+  }
+  outreach_suppressions {
+    String id PK
+    String kind
+    String value
+    String note "nullable"
+    String created_by
+    DateTime created_at
   }
   case_promotions {
     String id PK
@@ -1805,6 +1847,8 @@ erDiagram
   payments }o--|| users : "user_id"
   reports }o--|| users : "reporter_id"
   reports }o--o| users : "handled_by"
+  dmca_notices }o--o| reports : "report_id"
+  dmca_notices }o--o| users : "submitted_by_user_id"
   moderation_actions }o--o| reports : "report_id"
   moderation_actions }o--|| users : "admin_id"
   admin_profiles |o--|| users : "user_id"

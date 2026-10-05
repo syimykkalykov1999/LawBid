@@ -112,6 +112,10 @@ export const ERROR_TEXT: Record<string, string> = {
   PLAN_CODE_EXISTS: 'План с таким кодом уже есть.',
   PLAN_IN_USE: 'У плана есть подписчики — его можно только архивировать.',
   RATE_LIMITED: 'Слишком много запросов. Попробуйте позже.',
+  // Owner 2026-10-05 (legal): outreach compliance (TCPA / Do-Not-Call).
+  OUTREACH_CONTACT_BLOCKED: 'Связь с этим контактом сейчас запрещена (часы звонков, «не беспокоить» или выключенные клиенты-физлица).',
+  OUTREACH_CLIENTS_DISABLED: 'Работа с клиентами-физлицами выключена в настройках Привлечения',
+  DMCA_INVALID_STATE: 'Действие недоступно для этого уведомления DMCA в его текущем статусе',
   UNAUTHORIZED: 'Сессия завершена. Войдите снова.',
 };
 

@@ -105,6 +105,7 @@ export class AdminPartnersService {
       clientRateCents: dto.clientRateCents,
       clientRule: dto.clientRule,
       holdDays: dto.holdDays,
+      requireW9: dto.requireW9 ?? current.requireW9,
       texts: { en: { ...dto.texts.en }, ru: { ...dto.texts.ru } },
     };
     const value = toJson(next);
@@ -313,6 +314,12 @@ export class AdminPartnersService {
       data.monthly_base_cents = dto.monthlyBaseCents;
     if (dto.clientRule !== undefined) data.client_rule = dto.clientRule;
     if (dto.holdDays !== undefined) data.hold_days = dto.holdDays;
+    // Owner 2026-10-05 (legal): the tax form arrived (or was cleared).
+    if (dto.w9Received !== undefined) {
+      data.w9_received_at = dto.w9Received
+        ? (before.w9_received_at ?? new Date())
+        : null;
+    }
     if (dto.status !== undefined && dto.status !== before.status) {
       data.status = dto.status;
       data.ended_at = dto.status === 'ended' ? new Date() : null;
@@ -768,6 +775,9 @@ export class AdminPartnersService {
         totals: await this.partners.totals(p.id),
         createdAt: p.created_at.toISOString(),
         endedAt: p.ended_at?.toISOString() ?? null,
+        termsAcceptedAt: p.terms_accepted_at?.toISOString() ?? null,
+        termsVersion: p.terms_version,
+        w9ReceivedAt: p.w9_received_at?.toISOString() ?? null,
       });
     }
     return out;

@@ -1,4 +1,12 @@
-import { Controller, Get, Param, Res } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Post,
+  Res,
+} from '@nestjs/common';
 import { ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { Public } from '../auth/decorators/public.decorator';
@@ -41,5 +49,24 @@ export class OutreachController {
               'This unsubscribe link is unknown or already used.',
             ),
       );
+  }
+
+  /**
+   * Owner 2026-10-05 (legal): RFC 8058 one-click unsubscribe — mail
+   * clients POST `List-Unsubscribe=One-Click` to the List-Unsubscribe
+   * URL; any 2xx means done. Same handler, no page.
+   */
+  @Public()
+  @SkipVersionCheck()
+  @Post('unsubscribe/:token')
+  @HttpCode(HttpStatus.OK)
+  @ApiExcludeEndpoint()
+  async outreachUnsubscribeOneClick(
+    @Param('token') token: string,
+    @Res() res: Response,
+  ): Promise<void> {
+    const ok = await this.outreach.unsubscribe(token);
+    res.setHeader('Cache-Control', 'no-store');
+    res.status(ok ? 200 : 404).send(ok ? 'unsubscribed' : 'not found');
   }
 }

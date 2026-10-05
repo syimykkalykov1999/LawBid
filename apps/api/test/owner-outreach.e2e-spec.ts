@@ -144,6 +144,14 @@ describe('Outreach (e2e)', () => {
         fromName: 'LawBid',
         footerAddress: '1106 N Plum Grove Rd, Schaumburg IL 60173',
         apiPublicUrl: 'https://api.lawbid.test',
+        clientLeadsEnabled: false,
+        dncConfirmed: false,
+        dncSan: '',
+        callHoursStart: 8,
+        callHoursEnd: 21,
+        maxEmailsPerLead: 2,
+        emailCooldownDays: 14,
+        leadRetentionDays: 365,
       })
       .expect(404); // a section outside the admin's rights looks absent
     await api()
@@ -154,6 +162,15 @@ describe('Outreach (e2e)', () => {
         fromName: 'LawBid',
         footerAddress: '1106 N Plum Grove Rd, Schaumburg IL 60173',
         apiPublicUrl: 'https://api.lawbid.test/',
+        // Owner 2026-10-05 (legal): TCPA / DNC settings.
+        clientLeadsEnabled: false,
+        dncConfirmed: false,
+        dncSan: '',
+        callHoursStart: 0,
+        callHoursEnd: 24,
+        maxEmailsPerLead: 0,
+        emailCooldownDays: 0,
+        leadRetentionDays: 365,
       })
       .expect(200);
 
@@ -165,7 +182,9 @@ describe('Outreach (e2e)', () => {
       'No,Contact,Nothing,TX,,',
     ].join('\n');
     const dry = await api()
-      .post('/api/v1/admin/outreach/leads/import?kind=attorney')
+      .post(
+        '/api/v1/admin/outreach/leads/import?kind=attorney&sourceNote=Bar+directory',
+      )
       .set(owner.auth)
       .attach('file', Buffer.from(csv), 'leads.csv')
       .expect(201);
@@ -180,22 +199,34 @@ describe('Outreach (e2e)', () => {
       await prisma.outreachLead.count({ where: { email: email(1) } }),
     ).toBe(0);
     const applied = await api()
-      .post('/api/v1/admin/outreach/leads/import?kind=attorney&mode=apply')
+      .post(
+        '/api/v1/admin/outreach/leads/import?kind=attorney&mode=apply&sourceNote=Bar+directory',
+      )
       .set(owner.auth)
       .attach('file', Buffer.from(csv), 'leads.csv')
       .expect(201);
     expect(applied.body.data).toMatchObject({ mode: 'apply', created: 2 });
     const again = await api()
-      .post('/api/v1/admin/outreach/leads/import?kind=attorney&mode=apply')
+      .post(
+        '/api/v1/admin/outreach/leads/import?kind=attorney&mode=apply&sourceNote=Bar+directory',
+      )
       .set(owner.auth)
       .attach('file', Buffer.from(csv), 'leads.csv')
       .expect(201);
     expect(again.body.data).toMatchObject({ created: 0, duplicates: 2 });
     // A file without contacts is refused; an employee may not import.
     await api()
-      .post('/api/v1/admin/outreach/leads/import?mode=apply')
+      .post(
+        '/api/v1/admin/outreach/leads/import?mode=apply&sourceNote=Bar+directory',
+      )
       .set(owner.auth)
       .attach('file', Buffer.from('name,city\nA,B\n'), 'x.csv')
+      .expect(400);
+    // Owner 2026-10-05 (legal): the source/consent note is required.
+    await api()
+      .post('/api/v1/admin/outreach/leads/import?mode=apply')
+      .set(owner.auth)
+      .attach('file', Buffer.from(csv), 'leads.csv')
       .expect(400);
     await api()
       .post('/api/v1/admin/outreach/leads/import?mode=apply')

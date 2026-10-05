@@ -21,6 +21,7 @@ UpdatePartnerDto _$UpdatePartnerDtoFromJson(Map<String, dynamic> json) =>
       status: json['status'] == null
           ? null
           : PartnerStatus.fromJson(json['status'] as String),
+      w9Received: json['w9Received'] as bool?,
     );
 
 Map<String, dynamic> _$UpdatePartnerDtoToJson(UpdatePartnerDto instance) =>
@@ -33,5 +34,6 @@ Map<String, dynamic> _$UpdatePartnerDtoToJson(UpdatePartnerDto instance) =>
       'clientRule': ?instance.clientRule?.toJson(),
       'holdDays': ?instance.holdDays,
       'status': ?instance.status?.toJson(),
+      'w9Received': ?instance.w9Received,
       'reason': instance.reason,
     };

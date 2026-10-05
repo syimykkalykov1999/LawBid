@@ -69,6 +69,8 @@ import 'clients/referrals_client.dart';
 import 'clients/admin_referrals_client.dart';
 import 'clients/partners_client.dart';
 import 'clients/admin_partners_client.dart';
+import 'clients/legal_client.dart';
+import 'clients/admin_legal_client.dart';
 import 'clients/admin_outreach_client.dart';
 import 'clients/promotions_client.dart';
 import 'clients/admin_promotions_client.dart';
@@ -162,6 +164,8 @@ class LawbidApi {
   AdminReferralsClient? _adminReferrals;
   PartnersClient? _partners;
   AdminPartnersClient? _adminPartners;
+  LegalClient? _legal;
+  AdminLegalClient? _adminLegal;
   AdminOutreachClient? _adminOutreach;
   PromotionsClient? _promotions;
   AdminPromotionsClient? _adminPromotions;
@@ -362,6 +366,11 @@ class LawbidApi {
 
   AdminPartnersClient get adminPartners =>
       _adminPartners ??= AdminPartnersClient(_dio, baseUrl: _baseUrl);
+
+  LegalClient get legal => _legal ??= LegalClient(_dio, baseUrl: _baseUrl);
+
+  AdminLegalClient get adminLegal =>
+      _adminLegal ??= AdminLegalClient(_dio, baseUrl: _baseUrl);
 
   AdminOutreachClient get adminOutreach =>
       _adminOutreach ??= AdminOutreachClient(_dio, baseUrl: _baseUrl);

@@ -19,6 +19,7 @@ PartnerSettingsDto _$PartnerSettingsDtoFromJson(Map<String, dynamic> json) =>
       joinMode: json['joinMode'] == null
           ? null
           : PartnerJoinMode.fromJson(json['joinMode'] as String),
+      requireW9: json['requireW9'] as bool?,
     );
 
 Map<String, dynamic> _$PartnerSettingsDtoToJson(PartnerSettingsDto instance) =>
@@ -29,5 +30,6 @@ Map<String, dynamic> _$PartnerSettingsDtoToJson(PartnerSettingsDto instance) =>
       'clientRateCents': instance.clientRateCents,
       'clientRule': instance.clientRule.toJson(),
       'holdDays': instance.holdDays,
+      'requireW9': ?instance.requireW9,
       'texts': instance.texts.toJson(),
     };

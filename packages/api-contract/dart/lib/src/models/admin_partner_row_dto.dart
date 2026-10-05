@@ -30,6 +30,9 @@ class AdminPartnerRowDto {
     this.clientRule,
     this.holdDays,
     this.endedAt,
+    this.termsAcceptedAt,
+    this.termsVersion,
+    this.w9ReceivedAt,
   });
 
   factory AdminPartnerRowDto.fromJson(Map<String, Object?> json) =>
@@ -54,6 +57,13 @@ class AdminPartnerRowDto {
   final PartnerTotalsDto totals;
   final DateTime createdAt;
   final DateTime? endedAt;
+
+  /// When the partner accepted the rules in the app.
+  final DateTime? termsAcceptedAt;
+  final String? termsVersion;
+
+  /// W-9 (or W-8) received; null blocks payouts while requireW9 is on.
+  final DateTime? w9ReceivedAt;
 
   Map<String, Object?> toJson() => _$AdminPartnerRowDtoToJson(this);
 }

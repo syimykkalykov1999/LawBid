@@ -2,6 +2,7 @@ import { PostsModule } from '../modules/posts/posts.module';
 import { CasePaymentsCoreModule } from '../modules/case-payments/case-payments.module';
 import { PromotionsCoreModule } from '../modules/promotions/promotions.module';
 import { PartnersCoreModule } from '../modules/partners/partners.module';
+import { OutreachRetentionModule } from '../modules/outreach/outreach.module';
 import { RewardsModule } from '../modules/rewards/rewards.module';
 import { SupportModule } from '../modules/support/support.module';
 import { DynamicModule, Module } from '@nestjs/common';
@@ -76,6 +77,8 @@ export class JobsModule {
         RewardsModule,
         // Owner 2026-10-04: `licenses.registry-recheck`.
         VerificationModule,
+        // Owner 2026-10-05 (legal): `outreach.retention`.
+        OutreachRetentionModule,
       ],
       providers: [
         { provide: JOBS_OPTIONS, useValue: options },

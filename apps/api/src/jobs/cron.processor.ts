@@ -37,6 +37,7 @@ import { ExportsCleanupService } from '../modules/privacy/exports-cleanup.servic
 import { JournalIntegrityService } from '../modules/privacy/journal-integrity.service';
 import { AttorneyTrustService } from '../modules/attorney-trust/attorney-trust.service';
 import { JournalRetentionService } from '../modules/privacy/journal-retention.service';
+import { OutreachRetentionService } from '../modules/outreach/outreach-retention.service';
 
 /** Routes a `cron` queue job to its handler by job name. The return value
  * becomes the BullMQ job's `returnvalue` (visible in queue dashboards). */
@@ -76,6 +77,8 @@ export class CronProcessor {
     private readonly trust: AttorneyTrustService,
     @Optional() private readonly supportDesk?: SupportDeskService,
     @Optional() private readonly rewards?: RewardsService,
+    // Owner 2026-10-05 (legal): `outreach.retention`.
+    @Optional() private readonly outreachRetention?: OutreachRetentionService,
   ) {}
 
   async process(name: string): Promise<unknown> {
@@ -150,6 +153,8 @@ export class CronProcessor {
         return this.supportDesk?.sweep();
       case CRON_JOBS.rewardsAward:
         return this.rewards?.autoAward();
+      case CRON_JOBS.outreachRetention:
+        return this.outreachRetention?.run();
       default:
         // A job left over from an older/newer release: fail it visibly
         // rather than "succeed" doing nothing.

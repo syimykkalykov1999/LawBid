@@ -21,6 +21,7 @@ class UpdatePartnerDto {
     this.clientRule,
     this.holdDays,
     this.status,
+    this.w9Received,
   });
 
   factory UpdatePartnerDto.fromJson(Map<String, Object?> json) =>
@@ -36,6 +37,9 @@ class UpdatePartnerDto {
   final PartnerClientRule? clientRule;
   final int? holdDays;
   final PartnerStatus? status;
+
+  /// true = W-9 received now; false = clear it.
+  final bool? w9Received;
   final String reason;
 
   Map<String, Object?> toJson() => _$UpdatePartnerDtoToJson(this);
