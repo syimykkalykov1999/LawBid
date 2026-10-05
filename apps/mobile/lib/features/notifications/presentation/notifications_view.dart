@@ -57,6 +57,11 @@ String? notificationRoute({
           'contact_issue_update':
       if (caseId == null) return null;
       return attorney ? AppRoutes.workCase(caseId) : AppRoutes.myCase(caseId);
+    // Owner 2026-10-05: a client offered a case / an attorney declined.
+    case 'case_invite_received':
+      return AppRoutes.invites;
+    case 'case_invite_declined':
+      return caseId == null ? null : AppRoutes.myCase(caseId);
     case 'review_requested':
       return caseId == null ? null : AppRoutes.reviewFormFor(caseId);
     // Owner 2026-09-30 (opt-in alerts).
