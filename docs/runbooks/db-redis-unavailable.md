@@ -1,5 +1,7 @@
 # Database / Redis unavailable
 
+> **Для владельца:** Приложение переподключится само. Откройте CockroachDB Cloud: авария там чинится провайдером. Все письма и кнопки: [OWNER.md](OWNER.md).
+
 `/health/ready` returns 503 (readiness probes DB and Redis); the ALB drains
 tasks (api-unhealthy-hosts), the worker logs connection errors.
 

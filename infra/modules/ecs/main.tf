@@ -204,7 +204,7 @@ resource "aws_ecs_task_definition" "api" {
     name         = "api"
     image        = var.api_image
     essential    = true
-    command      = ["node", "dist/main.js"]
+    command      = ["node", "dist/src/main.js"]
     portMappings = [{ containerPort = 3000, protocol = "tcp" }]
     environment  = concat(local.api_environment, [{ name = "PORT", value = "3000" }, { name = "JOBS_ENABLED", value = "false" }])
     secrets      = local.api_secrets
@@ -230,13 +230,23 @@ resource "aws_ecs_task_definition" "worker" {
   execution_role_arn       = aws_iam_role.execution.arn
   task_role_arn            = aws_iam_role.task.arn
   container_definitions = jsonencode([{
-    name             = "worker"
-    image            = var.api_image
-    essential        = true
-    command          = ["node", "dist/worker.js"]
-    environment      = local.api_environment
-    secrets          = local.api_secrets
-    stopTimeout      = 120
+    name        = "worker"
+    image       = var.api_image
+    essential   = true
+    command     = ["node", "dist/src/worker.js"]
+    environment = local.api_environment
+    secrets     = local.api_secrets
+    stopTimeout = 120
+    # Zero maintenance (owner 2026-10-05): the worker touches this file every
+    # 30 s while its job loop runs (src/jobs/jobs.runner.ts); a hung or
+    # stopped worker is replaced by ECS without anybody noticing.
+    healthCheck = {
+      command     = ["CMD-SHELL", "find /tmp/lawbid-worker-heartbeat -mmin -2 | grep -q . || exit 1"]
+      interval    = 30
+      timeout     = 5
+      retries     = 3
+      startPeriod = 120
+    }
     logConfiguration = local.log_config["worker"]
   }])
   tags = var.tags
@@ -398,8 +408,9 @@ resource "aws_appautoscaling_policy" "cpu" {
   scalable_dimension = each.value.scalable_dimension
   resource_id        = each.value.resource_id
   target_tracking_scaling_policy_configuration {
-    target_value       = 60
-    scale_in_cooldown  = 300
+    target_value = 60
+    # Out fast (60 s), in slowly (10 min): no flapping on short spikes.
+    scale_in_cooldown  = 600
     scale_out_cooldown = 60
     predefined_metric_specification {
       predefined_metric_type = "ECSServiceAverageCPUUtilization"
@@ -412,6 +423,8 @@ output "cluster_arn" { value = aws_ecs_cluster.this.arn }
 output "task_role_name" { value = aws_iam_role.task.name }
 output "task_role_arn" { value = aws_iam_role.task.arn }
 output "api_service_name" { value = aws_ecs_service.api.name }
+output "api_service_arn" { value = aws_ecs_service.api.id }
+output "worker_service_arn" { value = aws_ecs_service.worker.id }
 output "worker_service_name" { value = aws_ecs_service.worker.name }
 output "admin_service_name" { value = aws_ecs_service.admin.name }
 output "migrate_task_definition_arn" { value = aws_ecs_task_definition.migrate.arn }
@@ -427,7 +440,7 @@ resource "aws_appautoscaling_policy" "api_requests" {
   resource_id        = aws_appautoscaling_target.svc["api"].resource_id
   target_tracking_scaling_policy_configuration {
     target_value       = var.api_requests_per_task
-    scale_in_cooldown  = 300
+    scale_in_cooldown  = 600
     scale_out_cooldown = 60
     predefined_metric_specification {
       predefined_metric_type = "ALBRequestCountPerTarget"

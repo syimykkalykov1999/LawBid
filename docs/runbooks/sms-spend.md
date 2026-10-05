@@ -1,5 +1,7 @@
 # sms-spend — SMS volume spike
 
+> **Для владельца:** Это защита от больших счетов: лишние SMS не уходят. Проверьте Twilio → Usage; поднять лимит — Система → Настройки. Все письма и кнопки: [OWNER.md](OWNER.md).
+
 Also fired by `cost-budget` (CostGuard `alert: cost_budget`, OQ-001c): a
 budget window of SMS, email, ID checks or storage is exhausted — the same
 checks apply; raise the `budget.*` keys in the admin config editor only

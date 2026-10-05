@@ -1,5 +1,7 @@
 # tx-retries — spike of serialization retries (SQLSTATE 40001)
 
+> **Для владельца:** Ничего не делать: система повторяет запросы и ставит тяжёлые задачи на паузу сама. Каждый день — напишите Claude. Все письма и кнопки: [OWNER.md](OWNER.md).
+
 `withTxRetry` logs `transaction retried` per retry (docs/02 §1.1: up to 5
 attempts with jitter). Some retries are normal; a spike means two hot
 paths touch the same rows (bid accept on one case, counters).

@@ -63,6 +63,9 @@ module "stack" {
   nat_per_az          = var.nat_per_az
   interface_endpoints = var.interface_endpoints
   admin_allowed_cidrs = var.admin_allowed_cidrs
+
+  monthly_budget_usd     = var.monthly_budget_usd
+  create_anomaly_monitor = var.create_anomaly_monitor
 }
 
 output "stack" { value = module.stack }

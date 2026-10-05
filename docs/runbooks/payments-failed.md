@@ -1,5 +1,7 @@
 # payments-failed — spike of failed subscription charges
 
+> **Для владельца:** Stripe Dashboard → Payments. Напоминания людям идут сами. Все письма и кнопки: [OWNER.md](OWNER.md).
+
 `subscription payment failed` per failed invoice (past_due + 3-day grace,
 docs/06 §1.2–1.5). > 20 per hour is unusual for the current volume.
 

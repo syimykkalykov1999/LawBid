@@ -65,6 +65,7 @@ import 'clients/follows_client.dart';
 import 'clients/search_client.dart';
 import 'clients/presence_client.dart';
 import 'clients/admin_integrations_client.dart';
+import 'clients/admin_ops_client.dart';
 import 'clients/referrals_client.dart';
 import 'clients/admin_referrals_client.dart';
 import 'clients/partners_client.dart';
@@ -158,6 +159,7 @@ class LawbidApi {
   SearchClient? _search;
   PresenceClient? _presence;
   AdminIntegrationsClient? _adminIntegrations;
+  AdminOpsClient? _adminOps;
   ReferralsClient? _referrals;
   AdminReferralsClient? _adminReferrals;
   PartnersClient? _partners;
@@ -350,6 +352,9 @@ class LawbidApi {
 
   AdminIntegrationsClient get adminIntegrations =>
       _adminIntegrations ??= AdminIntegrationsClient(_dio, baseUrl: _baseUrl);
+
+  AdminOpsClient get adminOps =>
+      _adminOps ??= AdminOpsClient(_dio, baseUrl: _baseUrl);
 
   ReferralsClient get referrals =>
       _referrals ??= ReferralsClient(_dio, baseUrl: _baseUrl);
