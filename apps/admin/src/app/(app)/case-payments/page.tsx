@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowsClockwise, Bank, CurrencyDollar, HandCoins, Receipt, ShieldWarning, Warning } from '@phosphor-icons/react';
+import { ArrowsClockwise, Bank, CurrencyDollar, HandCoins, Receipt, ShieldWarning } from '@phosphor-icons/react';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'motion/react';
 import Link from 'next/link';
@@ -426,7 +426,6 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
   const toast = useToast();
   const [feeType, setFeeType] = useState(initial.feeType);
   const [feeFixed, setFeeFixed] = useState((initial.feeFixedCents / 100).toFixed(2));
-  const [feePercent, setFeePercent] = useState(String(initial.feePercent));
   const [feePayer, setFeePayer] = useState(initial.feePayer);
   const [passProcessing, setPassProcessing] = useState(initial.passProcessingFeeToClient);
   const [procPercent, setProcPercent] = useState(String(initial.processingFeePercent));
@@ -436,9 +435,10 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
   const [allowCustom, setAllowCustom] = useState(initial.allowCustomAmount);
   const [allowPartial, setAllowPartial] = useState(initial.allowPartial);
   const [refundDays, setRefundDays] = useState(String(initial.refundWindowDays));
+  const [disclaimerEn, setDisclaimerEn] = useState(initial.disclaimerEn);
+  const [disclaimerRu, setDisclaimerRu] = useState(initial.disclaimerRu);
 
   const fixedCents = feeFixed.trim() === '' || Number(feeFixed) === 0 ? 0 : dollarsToCents(feeFixed);
-  const pct = Number(feePercent);
   const pp = Number(procPercent);
   const pf = Number(procFixed);
   const minC = dollarsToCents(minAmount);
@@ -446,15 +446,15 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
   const rd = Number(refundDays);
   const valid =
     fixedCents != null && fixedCents >= 0 && fixedCents <= 100_000 &&
-    Number.isFinite(pct) && pct >= 0 && pct <= 50 &&
     Number.isFinite(pp) && pp >= 0 && pp <= 15 &&
     Number.isInteger(pf) && pf >= 0 && pf <= 500 &&
     minC != null && maxC != null && minC >= 50 && maxC >= minC &&
-    Number.isInteger(rd) && rd >= 0 && rd <= 365;
+    Number.isInteger(rd) && rd >= 0 && rd <= 365 &&
+    disclaimerEn.trim().length > 0 && disclaimerEn.length <= 4000 &&
+    disclaimerRu.trim().length > 0 && disclaimerRu.length <= 4000;
   const body = {
     feeType,
     feeFixedCents: fixedCents ?? 0,
-    feePercent: pct,
     feePayer,
     passProcessingFeeToClient: passProcessing,
     processingFeePercent: pp,
@@ -464,6 +464,8 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
     allowCustomAmount: allowCustom,
     allowPartial,
     refundWindowDays: rd,
+    disclaimerEn: disclaimerEn.trim(),
+    disclaimerRu: disclaimerRu.trim(),
   };
   const dirty = (Object.keys(body) as (keyof typeof body)[]).some((k) => body[k] !== initial[k]);
 
@@ -477,7 +479,7 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
   });
 
   const example = 100_000;
-  const platformFee = feeType === 'fixed' ? (fixedCents ?? 0) : feeType === 'percent' ? Math.round((example * pct) / 100) : 0;
+  const platformFee = feeType === 'fixed' ? (fixedCents ?? 0) : 0;
   const base = example + (feePayer === 'client' ? platformFee : 0);
   const processing = passProcessing ? Math.max(0, Math.ceil((base + pf) / (1 - pp / 100)) - base) : 0;
   const clientTotal = base + processing;
@@ -496,7 +498,7 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
             <div>
               <h3 className="font-medium text-heading">Оплата адвокату через платформу</h3>
               <p className="mt-1 text-sm text-muted">
-                Включается флагом <span className="font-mono">payments_in_app</span> в разделе «Флаги» и работает, когда сохранены ключи Stripe (Система → Ключи и сервисы, поле «Connect webhook»).
+                Платформа не делит гонорар адвоката: комиссии в процентах нет вовсе, по умолчанию комиссии нет совсем. Включается флагом <span className="font-mono">payments_in_app</span> в разделе «Флаги» и работает, когда сохранены ключи Stripe (Система → Ключи и сервисы, поле «Connect webhook»).
               </p>
             </div>
             <div className="flex gap-2">
@@ -505,14 +507,6 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
             </div>
           </div>
 
-          {feeType === 'percent' ? (
-            <div className="mt-4 flex gap-3 rounded-[var(--radius-md)] border border-warning/40 bg-warning/10 p-3 text-sm text-ink">
-              <Warning size={20} weight="light" className="shrink-0 text-warning" />
-              <div>
-                <b>Процент от гонорара адвоката — риск «fee sharing».</b> Правило 5.4 ABA (и правила большинства штатов) запрещают адвокату делить гонорар с не-юристами; процентная комиссия с гонорара может трактоваться именно так. Безопаснее фиксированная плата за сервис или подписка адвоката. Согласуйте с юристом перед включением.
-              </div>
-            </div>
-          ) : null}
 
           <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <Field label="Комиссия платформы" htmlFor="cp-type">
@@ -525,10 +519,6 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
             {feeType === 'fixed' ? (
               <Field label="Сумма за платёж, $" htmlFor="cp-fixed" hint="0 — без комиссии.">
                 <Input id="cp-fixed" inputMode="decimal" value={feeFixed} disabled={!canEdit} onChange={(e) => setFeeFixed(e.target.value)} />
-              </Field>
-            ) : feeType === 'percent' ? (
-              <Field label="Процент, %" htmlFor="cp-pct" hint="0–50.">
-                <Input id="cp-pct" inputMode="decimal" value={feePercent} disabled={!canEdit} onChange={(e) => setFeePercent(e.target.value)} />
               </Field>
             ) : (
               <div />
@@ -583,6 +573,19 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
           <div className="mt-4 rounded-[var(--radius-md)] bg-surface-2 p-3 text-sm text-muted">
             Пример на {usd(example)}: клиент платит <b className="text-ink">{usd(clientTotal, 2)}</b>, платформа получает <b className="text-ink">{usd(platformFee, 2)}</b>, адвокат — <b className="text-ink">{usd(attorneyNet, 2)}</b>
             {passProcessing ? ' (минус плата Stripe, которую покрывает надбавка)' : ' минус плата Stripe'}.
+          </div>
+
+          <div className="mt-4 border-t border-line pt-4">
+            <h4 className="text-sm font-medium text-heading">Юридический текст (дисклеймер)</h4>
+            <p className="mt-1 text-sm text-muted">Клиент видит его перед оплатой, адвокат — при подключении Stripe, обе стороны — в записи о платеже. Поправьте после проверки юристом.</p>
+            <div className="mt-3 grid gap-4 lg:grid-cols-2">
+              <Field label="English" htmlFor="cp-disc-en">
+                <Textarea id="cp-disc-en" rows={6} maxLength={4000} value={disclaimerEn} disabled={!canEdit} onChange={(e) => setDisclaimerEn(e.target.value)} />
+              </Field>
+              <Field label="Русский" htmlFor="cp-disc-ru">
+                <Textarea id="cp-disc-ru" rows={6} maxLength={4000} value={disclaimerRu} disabled={!canEdit} onChange={(e) => setDisclaimerRu(e.target.value)} />
+              </Field>
+            </div>
           </div>
 
           {canEdit ? (

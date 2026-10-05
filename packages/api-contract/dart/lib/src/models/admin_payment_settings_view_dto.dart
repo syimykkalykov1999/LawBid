@@ -14,7 +14,6 @@ class AdminPaymentSettingsViewDto {
   const AdminPaymentSettingsViewDto({
     required this.feeType,
     required this.feeFixedCents,
-    required this.feePercent,
     required this.feePayer,
     required this.passProcessingFeeToClient,
     required this.processingFeePercent,
@@ -24,9 +23,10 @@ class AdminPaymentSettingsViewDto {
     required this.allowCustomAmount,
     required this.allowPartial,
     required this.refundWindowDays,
+    required this.disclaimerEn,
+    required this.disclaimerRu,
     required this.flagEnabled,
     required this.stripeConfigured,
-    required this.feeSharingWarning,
   });
 
   factory AdminPaymentSettingsViewDto.fromJson(Map<String, Object?> json) =>
@@ -34,7 +34,6 @@ class AdminPaymentSettingsViewDto {
 
   final PaymentFeeType feeType;
   final int feeFixedCents;
-  final num feePercent;
   final PaymentFeePayer feePayer;
   final bool passProcessingFeeToClient;
   final num processingFeePercent;
@@ -45,14 +44,17 @@ class AdminPaymentSettingsViewDto {
   final bool allowPartial;
   final int refundWindowDays;
 
+  /// Legal disclaimer, English.
+  final String disclaimerEn;
+
+  /// Legal disclaimer, Russian.
+  final String disclaimerRu;
+
   /// The payments_in_app flag.
   final bool flagEnabled;
 
   /// Stripe keys are configured.
   final bool stripeConfigured;
-
-  /// feeType = percent: a share of an attorney fee may be fee-sharing (ABA 5.4).
-  final bool feeSharingWarning;
 
   Map<String, Object?> toJson() => _$AdminPaymentSettingsViewDtoToJson(this);
 }

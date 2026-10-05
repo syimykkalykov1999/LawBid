@@ -6,12 +6,10 @@ import 'package:json_annotation/json_annotation.dart';
 
 @JsonEnum()
 enum PaymentFeeType {
-  @JsonValue('fixed')
-  fixed('fixed'),
-  @JsonValue('percent')
-  percent('percent'),
   @JsonValue('none')
   none('none'),
+  @JsonValue('fixed')
+  fixed('fixed'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

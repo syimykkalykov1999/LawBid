@@ -12,7 +12,6 @@ PaymentSettingsPublicDto _$PaymentSettingsPublicDtoFromJson(
   enabled: json['enabled'] as bool,
   feeType: PaymentFeeType.fromJson(json['feeType'] as String),
   feeFixedCents: (json['feeFixedCents'] as num).toInt(),
-  feePercent: json['feePercent'] as num,
   feePayer: PaymentFeePayer.fromJson(json['feePayer'] as String),
   passProcessingFeeToClient: json['passProcessingFeeToClient'] as bool,
   minAmountCents: (json['minAmountCents'] as num).toInt(),
@@ -20,6 +19,8 @@ PaymentSettingsPublicDto _$PaymentSettingsPublicDtoFromJson(
   allowCustomAmount: json['allowCustomAmount'] as bool,
   allowPartial: json['allowPartial'] as bool,
   refundWindowDays: (json['refundWindowDays'] as num).toInt(),
+  disclaimerEn: json['disclaimerEn'] as String,
+  disclaimerRu: json['disclaimerRu'] as String,
 );
 
 Map<String, dynamic> _$PaymentSettingsPublicDtoToJson(
@@ -28,7 +29,6 @@ Map<String, dynamic> _$PaymentSettingsPublicDtoToJson(
   'enabled': instance.enabled,
   'feeType': instance.feeType.toJson(),
   'feeFixedCents': instance.feeFixedCents,
-  'feePercent': instance.feePercent,
   'feePayer': instance.feePayer.toJson(),
   'passProcessingFeeToClient': instance.passProcessingFeeToClient,
   'minAmountCents': instance.minAmountCents,
@@ -36,4 +36,6 @@ Map<String, dynamic> _$PaymentSettingsPublicDtoToJson(
   'allowCustomAmount': instance.allowCustomAmount,
   'allowPartial': instance.allowPartial,
   'refundWindowDays': instance.refundWindowDays,
+  'disclaimerEn': instance.disclaimerEn,
+  'disclaimerRu': instance.disclaimerRu,
 };

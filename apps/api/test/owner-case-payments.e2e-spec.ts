@@ -684,7 +684,7 @@ describe('owner — client → attorney payments (e2e, fake provider)', () => {
     ).toBe('canceled');
   });
 
-  it('admin: settings (fee-sharing warning on percent), list + filters, stats, payout accounts, refund, CSV', async () => {
+  it('admin: settings (no percent fee, editable disclaimer), list + filters, stats, payout accounts, refund, CSV', async () => {
     const root = await adminSession(baseUrl, prisma, 'super_admin');
     const att = await attorney();
     const cli = await client();
@@ -701,37 +701,37 @@ describe('owner — client → attorney payments (e2e, fake provider)', () => {
       .set(root.auth)
       .expect(200);
     expect((s0.body as Body).data).toMatchObject({
-      feeType: 'fixed',
+      feeType: 'none',
       feeFixedCents: 0,
       feePayer: 'client',
       flagEnabled: true,
-      feeSharingWarning: false,
     });
     const body = { ...(s0.body as Body).data } as Record<string, unknown>;
     delete body.flagEnabled;
     delete body.stripeConfigured;
-    delete body.feeSharingWarning;
     const s1 = await api()
       .put('/api/v1/admin/case-payments/settings')
       .set(root.auth)
       .send({
         ...body,
-        feeType: 'percent',
-        feePercent: 5,
+        feeType: 'fixed',
+        feeFixedCents: 500,
         feePayer: 'attorney',
+        disclaimerEn: 'Custom disclaimer EN',
       })
       .expect(200);
     expect((s1.body as Body).data).toMatchObject({
-      feeType: 'percent',
-      feeSharingWarning: true,
+      feeType: 'fixed',
+      disclaimerEn: 'Custom disclaimer EN',
     });
     const pub = await api()
       .get('/api/v1/payments/settings')
       .set(cli.auth)
       .expect(200);
     expect((pub.body as Body).data).toMatchObject({
-      feeType: 'percent',
-      feePercent: 5,
+      feeType: 'fixed',
+      feeFixedCents: 500,
+      disclaimerEn: 'Custom disclaimer EN',
     });
     const q = await api()
       .get('/api/v1/payments/quote?amountCents=10000')

@@ -14,7 +14,6 @@ class AdminPaymentSettingsDto {
   const AdminPaymentSettingsDto({
     required this.feeType,
     required this.feeFixedCents,
-    required this.feePercent,
     required this.feePayer,
     required this.passProcessingFeeToClient,
     required this.processingFeePercent,
@@ -24,6 +23,8 @@ class AdminPaymentSettingsDto {
     required this.allowCustomAmount,
     required this.allowPartial,
     required this.refundWindowDays,
+    required this.disclaimerEn,
+    required this.disclaimerRu,
   });
 
   factory AdminPaymentSettingsDto.fromJson(Map<String, Object?> json) =>
@@ -31,7 +32,6 @@ class AdminPaymentSettingsDto {
 
   final PaymentFeeType feeType;
   final int feeFixedCents;
-  final num feePercent;
   final PaymentFeePayer feePayer;
   final bool passProcessingFeeToClient;
   final num processingFeePercent;
@@ -41,6 +41,12 @@ class AdminPaymentSettingsDto {
   final bool allowCustomAmount;
   final bool allowPartial;
   final int refundWindowDays;
+
+  /// Legal disclaimer, English.
+  final String disclaimerEn;
+
+  /// Legal disclaimer, Russian.
+  final String disclaimerRu;
 
   Map<String, Object?> toJson() => _$AdminPaymentSettingsDtoToJson(this);
 }

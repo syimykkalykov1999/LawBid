@@ -4,30 +4,29 @@
  * GET/PUT /admin/case-payments/settings; missing fields fall back to the
  * defaults below.
  *
- * Legal note (ABA Model Rule 5.4 and the state rules): a lawyer may not
- * share legal fees with a non-lawyer. A platform commission that is a
- * PERCENTAGE of the attorney's fee is therefore risky (Avvo Legal
- * Services shut down over it). A flat service / processing charge the
- * client pays on top of the fee, plus the attorney's own subscription,
- * is the usual safe shape. The default is the safe one: a fixed
- * platform fee of $0 and Stripe's card-processing cost passed to the
- * client; the owner changes it in the admin, which warns on `percent`.
+ * Owner's decision 2026-10-05: the platform does NOT share the
+ * attorney's fee (ABA Model Rule 5.4: a lawyer may not share legal fees
+ * with a non-lawyer, and a percentage commission reads as exactly
+ * that). There is no percent option at all; the default is `none`. A
+ * flat service charge per payment exists as an admin option, off by
+ * default. Stripe's own card cost is passed to the client by default so
+ * the attorney receives the full amount. The disclaimer below is shown
+ * to the client before paying, to the attorney when connecting Stripe
+ * and on the payment record; the owner's lawyer can edit it in the admin.
  */
 export const PAYMENT_SETTINGS_KEY = 'payments.settings';
 export const PAYMENTS_FLAG = 'payments_in_app';
 
-export const FEE_TYPES = ['fixed', 'percent', 'none'] as const;
+export const FEE_TYPES = ['none', 'fixed'] as const;
 export type FeeType = (typeof FEE_TYPES)[number];
 export const FEE_PAYERS = ['client', 'attorney'] as const;
 export type FeePayer = (typeof FEE_PAYERS)[number];
 
 export interface PaymentSettings {
-  /** fixed = a flat platform fee per payment; percent = a share of the
-   * attorney's fee (fee-sharing risk); none = no platform fee. */
+  /** none = no platform fee (default); fixed = a flat service charge per
+   * payment. Never a share of the attorney's fee. */
   feeType: FeeType;
   feeFixedCents: number;
-  /** Whole-percent share, 0–50 (used only with feeType = percent). */
-  feePercent: number;
   /** client = charged on top of the attorney's fee; attorney = deducted
    * from what the attorney receives. */
   feePayer: FeePayer;
@@ -45,12 +44,19 @@ export interface PaymentSettings {
   allowPartial: boolean;
   /** How long after a payment the attorney may refund it from the app. */
   refundWindowDays: number;
+  /** Legal disclaimer shown to the client, the attorney and on records. */
+  disclaimerEn: string;
+  disclaimerRu: string;
 }
 
+export const DEFAULT_DISCLAIMER_EN =
+  "LawBid only provides the technical means to pay. Your payment goes directly to the attorney's own Stripe account; LawBid is not a party to the agreement between you and the attorney, receives no share of the attorney's fee, is not a law firm and does not provide legal services. Payment terms, refunds and disputes are between you and the attorney. Payments are processed by Stripe under Stripe's terms.";
+export const DEFAULT_DISCLAIMER_RU =
+  'LawBid только предоставляет техническую возможность оплаты. Платёж идёт напрямую адвокату на его счёт в Stripe; LawBid не является стороной соглашения между вами и адвокатом, не получает долю гонорара, не является юридической фирмой и не оказывает юридических услуг. Условия оплаты, возвраты и споры решаются между вами и адвокатом. Обработку платежей выполняет Stripe по его условиям.';
+
 export const DEFAULT_PAYMENT_SETTINGS: PaymentSettings = {
-  feeType: 'fixed',
+  feeType: 'none',
   feeFixedCents: 0,
-  feePercent: 0,
   feePayer: 'client',
   passProcessingFeeToClient: true,
   processingFeePercent: 2.9,
@@ -60,6 +66,8 @@ export const DEFAULT_PAYMENT_SETTINGS: PaymentSettings = {
   allowCustomAmount: true,
   allowPartial: true,
   refundWindowDays: 180,
+  disclaimerEn: DEFAULT_DISCLAIMER_EN,
+  disclaimerRu: DEFAULT_DISCLAIMER_RU,
 };
 
 /** Stripe's smallest USD charge. */
@@ -96,6 +104,10 @@ const num = (v: unknown, min: number, max: number): number | null =>
   typeof v === 'number' && Number.isFinite(v) && v >= min && v <= max
     ? Math.round(v * 100) / 100
     : null;
+const text = (v: unknown): string | null =>
+  typeof v === 'string' && v.trim().length > 0 && v.length <= 4000
+    ? v.trim()
+    : null;
 const bool = (v: unknown, d: boolean): boolean =>
   typeof v === 'boolean' ? v : d;
 const oneOf = <T extends string>(v: unknown, all: readonly T[], d: T): T =>
@@ -116,7 +128,6 @@ export function parsePaymentSettings(raw: unknown): PaymentSettings {
   return {
     feeType: oneOf(r.feeType, FEE_TYPES, d.feeType),
     feeFixedCents: int(r.feeFixedCents, 0, 100_000) ?? d.feeFixedCents,
-    feePercent: num(r.feePercent, 0, 50) ?? d.feePercent,
     feePayer: oneOf(r.feePayer, FEE_PAYERS, d.feePayer),
     passProcessingFeeToClient: bool(
       r.passProcessingFeeToClient,
@@ -131,6 +142,8 @@ export function parsePaymentSettings(raw: unknown): PaymentSettings {
     allowCustomAmount: bool(r.allowCustomAmount, d.allowCustomAmount),
     allowPartial: bool(r.allowPartial, d.allowPartial),
     refundWindowDays: int(r.refundWindowDays, 0, 365) ?? d.refundWindowDays,
+    disclaimerEn: text(r.disclaimerEn) ?? d.disclaimerEn,
+    disclaimerRu: text(r.disclaimerRu) ?? d.disclaimerRu,
   };
 }
 
@@ -160,10 +173,7 @@ export function quotePayment(
   amountCents: number,
   s: PaymentSettings,
 ): PaymentQuote {
-  let platformFeeCents = 0;
-  if (s.feeType === 'fixed') platformFeeCents = s.feeFixedCents;
-  else if (s.feeType === 'percent')
-    platformFeeCents = Math.round((amountCents * s.feePercent) / 100);
+  let platformFeeCents = s.feeType === 'fixed' ? s.feeFixedCents : 0;
   // A fee the attorney pays cannot exceed the payment itself.
   if (s.feePayer === 'attorney')
     platformFeeCents = Math.min(platformFeeCents, amountCents);

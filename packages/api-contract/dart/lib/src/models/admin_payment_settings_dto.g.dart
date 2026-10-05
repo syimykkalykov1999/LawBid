@@ -11,7 +11,6 @@ AdminPaymentSettingsDto _$AdminPaymentSettingsDtoFromJson(
 ) => AdminPaymentSettingsDto(
   feeType: PaymentFeeType.fromJson(json['feeType'] as String),
   feeFixedCents: (json['feeFixedCents'] as num).toInt(),
-  feePercent: json['feePercent'] as num,
   feePayer: PaymentFeePayer.fromJson(json['feePayer'] as String),
   passProcessingFeeToClient: json['passProcessingFeeToClient'] as bool,
   processingFeePercent: json['processingFeePercent'] as num,
@@ -21,6 +20,8 @@ AdminPaymentSettingsDto _$AdminPaymentSettingsDtoFromJson(
   allowCustomAmount: json['allowCustomAmount'] as bool,
   allowPartial: json['allowPartial'] as bool,
   refundWindowDays: (json['refundWindowDays'] as num).toInt(),
+  disclaimerEn: json['disclaimerEn'] as String,
+  disclaimerRu: json['disclaimerRu'] as String,
 );
 
 Map<String, dynamic> _$AdminPaymentSettingsDtoToJson(
@@ -28,7 +29,6 @@ Map<String, dynamic> _$AdminPaymentSettingsDtoToJson(
 ) => <String, dynamic>{
   'feeType': instance.feeType.toJson(),
   'feeFixedCents': instance.feeFixedCents,
-  'feePercent': instance.feePercent,
   'feePayer': instance.feePayer.toJson(),
   'passProcessingFeeToClient': instance.passProcessingFeeToClient,
   'processingFeePercent': instance.processingFeePercent,
@@ -38,4 +38,6 @@ Map<String, dynamic> _$AdminPaymentSettingsDtoToJson(
   'allowCustomAmount': instance.allowCustomAmount,
   'allowPartial': instance.allowPartial,
   'refundWindowDays': instance.refundWindowDays,
+  'disclaimerEn': instance.disclaimerEn,
+  'disclaimerRu': instance.disclaimerRu,
 };

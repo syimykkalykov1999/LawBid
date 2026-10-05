@@ -70,7 +70,6 @@ export class AdminCasePaymentsService {
     const next: PaymentSettings = parsePaymentSettings({
       feeType: dto.feeType,
       feeFixedCents: dto.feeFixedCents,
-      feePercent: dto.feePercent,
       feePayer: dto.feePayer,
       passProcessingFeeToClient: dto.passProcessingFeeToClient,
       processingFeePercent: dto.processingFeePercent,
@@ -80,6 +79,8 @@ export class AdminCasePaymentsService {
       allowCustomAmount: dto.allowCustomAmount,
       allowPartial: dto.allowPartial,
       refundWindowDays: dto.refundWindowDays,
+      disclaimerEn: dto.disclaimerEn,
+      disclaimerRu: dto.disclaimerRu,
     });
     const value = next as unknown as Prisma.InputJsonValue;
     await withTxRetry(this.prisma, async (tx) => {
@@ -116,7 +117,6 @@ export class AdminCasePaymentsService {
       ...s,
       flagEnabled,
       stripeConfigured,
-      feeSharingWarning: s.feeType === 'percent',
     };
   }
 

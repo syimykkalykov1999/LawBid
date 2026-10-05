@@ -195,7 +195,6 @@ export class CasePaymentsService {
       enabled,
       feeType: s.feeType,
       feeFixedCents: s.feeFixedCents,
-      feePercent: s.feePercent,
       feePayer: s.feePayer,
       passProcessingFeeToClient: s.passProcessingFeeToClient,
       minAmountCents: s.minAmountCents,
@@ -203,6 +202,8 @@ export class CasePaymentsService {
       allowCustomAmount: s.allowCustomAmount,
       allowPartial: s.allowPartial,
       refundWindowDays: s.refundWindowDays,
+      disclaimerEn: s.disclaimerEn,
+      disclaimerRu: s.disclaimerRu,
     };
   }
 

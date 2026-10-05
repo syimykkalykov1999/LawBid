@@ -229,9 +229,8 @@ export const PAYOUT_ACCOUNT_STATUS: Record<string, string> = {
 };
 
 export const PAYMENT_FEE_TYPE: Record<string, string> = {
-  fixed: 'фиксированная за платёж',
-  percent: 'процент от суммы',
   none: 'без комиссии',
+  fixed: 'фиксированная плата за платёж',
 };
 
 export const PAYMENT_FEE_PAYER: Record<string, string> = {

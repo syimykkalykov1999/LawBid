@@ -15,7 +15,6 @@ class PaymentSettingsPublicDto {
     required this.enabled,
     required this.feeType,
     required this.feeFixedCents,
-    required this.feePercent,
     required this.feePayer,
     required this.passProcessingFeeToClient,
     required this.minAmountCents,
@@ -23,6 +22,8 @@ class PaymentSettingsPublicDto {
     required this.allowCustomAmount,
     required this.allowPartial,
     required this.refundWindowDays,
+    required this.disclaimerEn,
+    required this.disclaimerRu,
   });
 
   factory PaymentSettingsPublicDto.fromJson(Map<String, Object?> json) =>
@@ -32,7 +33,6 @@ class PaymentSettingsPublicDto {
   final bool enabled;
   final PaymentFeeType feeType;
   final int feeFixedCents;
-  final num feePercent;
   final PaymentFeePayer feePayer;
   final bool passProcessingFeeToClient;
   final int minAmountCents;
@@ -40,6 +40,12 @@ class PaymentSettingsPublicDto {
   final bool allowCustomAmount;
   final bool allowPartial;
   final int refundWindowDays;
+
+  /// Legal disclaimer, English.
+  final String disclaimerEn;
+
+  /// Legal disclaimer, Russian.
+  final String disclaimerRu;
 
   Map<String, Object?> toJson() => _$PaymentSettingsPublicDtoToJson(this);
 }

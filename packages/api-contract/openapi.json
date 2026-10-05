@@ -67917,9 +67917,8 @@
       "PaymentFeeType": {
         "type": "string",
         "enum": [
-          "fixed",
-          "percent",
-          "none"
+          "none",
+          "fixed"
         ]
       },
       "PaymentFeePayer": {
@@ -67946,9 +67945,6 @@
           "feeFixedCents": {
             "type": "integer"
           },
-          "feePercent": {
-            "type": "number"
-          },
           "feePayer": {
             "allOf": [
               {
@@ -67973,20 +67969,29 @@
           },
           "refundWindowDays": {
             "type": "integer"
+          },
+          "disclaimerEn": {
+            "type": "string",
+            "description": "Legal disclaimer, English."
+          },
+          "disclaimerRu": {
+            "type": "string",
+            "description": "Legal disclaimer, Russian."
           }
         },
         "required": [
           "enabled",
           "feeType",
           "feeFixedCents",
-          "feePercent",
           "feePayer",
           "passProcessingFeeToClient",
           "minAmountCents",
           "maxAmountCents",
           "allowCustomAmount",
           "allowPartial",
-          "refundWindowDays"
+          "refundWindowDays",
+          "disclaimerEn",
+          "disclaimerRu"
         ]
       },
       "PaymentSettingsPublicEnvelope": {
@@ -68855,11 +68860,6 @@
             "minimum": 0,
             "maximum": 100000
           },
-          "feePercent": {
-            "type": "number",
-            "minimum": 0,
-            "maximum": 50
-          },
           "feePayer": {
             "allOf": [
               {
@@ -68901,6 +68901,16 @@
             "minimum": 0,
             "maximum": 365
           },
+          "disclaimerEn": {
+            "type": "string",
+            "maxLength": 4000,
+            "description": "Legal disclaimer, English."
+          },
+          "disclaimerRu": {
+            "type": "string",
+            "maxLength": 4000,
+            "description": "Legal disclaimer, Russian."
+          },
           "flagEnabled": {
             "type": "boolean",
             "description": "The payments_in_app flag."
@@ -68908,16 +68918,11 @@
           "stripeConfigured": {
             "type": "boolean",
             "description": "Stripe keys are configured."
-          },
-          "feeSharingWarning": {
-            "type": "boolean",
-            "description": "feeType = percent: a share of an attorney fee may be fee-sharing (ABA 5.4)."
           }
         },
         "required": [
           "feeType",
           "feeFixedCents",
-          "feePercent",
           "feePayer",
           "passProcessingFeeToClient",
           "processingFeePercent",
@@ -68927,9 +68932,10 @@
           "allowCustomAmount",
           "allowPartial",
           "refundWindowDays",
+          "disclaimerEn",
+          "disclaimerRu",
           "flagEnabled",
-          "stripeConfigured",
-          "feeSharingWarning"
+          "stripeConfigured"
         ]
       },
       "AdminPaymentSettingsViewEnvelope": {
@@ -68961,11 +68967,6 @@
             "minimum": 0,
             "maximum": 100000
           },
-          "feePercent": {
-            "type": "number",
-            "minimum": 0,
-            "maximum": 50
-          },
           "feePayer": {
             "allOf": [
               {
@@ -69006,12 +69007,21 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 365
+          },
+          "disclaimerEn": {
+            "type": "string",
+            "maxLength": 4000,
+            "description": "Legal disclaimer, English."
+          },
+          "disclaimerRu": {
+            "type": "string",
+            "maxLength": 4000,
+            "description": "Legal disclaimer, Russian."
           }
         },
         "required": [
           "feeType",
           "feeFixedCents",
-          "feePercent",
           "feePayer",
           "passProcessingFeeToClient",
           "processingFeePercent",
@@ -69020,7 +69030,9 @@
           "maxAmountCents",
           "allowCustomAmount",
           "allowPartial",
-          "refundWindowDays"
+          "refundWindowDays",
+          "disclaimerEn",
+          "disclaimerRu"
         ]
       },
       "AdminPayoutAccountRowDto": {

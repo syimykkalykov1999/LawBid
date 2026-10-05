@@ -11,7 +11,6 @@ AdminPaymentSettingsViewDto _$AdminPaymentSettingsViewDtoFromJson(
 ) => AdminPaymentSettingsViewDto(
   feeType: PaymentFeeType.fromJson(json['feeType'] as String),
   feeFixedCents: (json['feeFixedCents'] as num).toInt(),
-  feePercent: json['feePercent'] as num,
   feePayer: PaymentFeePayer.fromJson(json['feePayer'] as String),
   passProcessingFeeToClient: json['passProcessingFeeToClient'] as bool,
   processingFeePercent: json['processingFeePercent'] as num,
@@ -21,9 +20,10 @@ AdminPaymentSettingsViewDto _$AdminPaymentSettingsViewDtoFromJson(
   allowCustomAmount: json['allowCustomAmount'] as bool,
   allowPartial: json['allowPartial'] as bool,
   refundWindowDays: (json['refundWindowDays'] as num).toInt(),
+  disclaimerEn: json['disclaimerEn'] as String,
+  disclaimerRu: json['disclaimerRu'] as String,
   flagEnabled: json['flagEnabled'] as bool,
   stripeConfigured: json['stripeConfigured'] as bool,
-  feeSharingWarning: json['feeSharingWarning'] as bool,
 );
 
 Map<String, dynamic> _$AdminPaymentSettingsViewDtoToJson(
@@ -31,7 +31,6 @@ Map<String, dynamic> _$AdminPaymentSettingsViewDtoToJson(
 ) => <String, dynamic>{
   'feeType': instance.feeType.toJson(),
   'feeFixedCents': instance.feeFixedCents,
-  'feePercent': instance.feePercent,
   'feePayer': instance.feePayer.toJson(),
   'passProcessingFeeToClient': instance.passProcessingFeeToClient,
   'processingFeePercent': instance.processingFeePercent,
@@ -41,7 +40,8 @@ Map<String, dynamic> _$AdminPaymentSettingsViewDtoToJson(
   'allowCustomAmount': instance.allowCustomAmount,
   'allowPartial': instance.allowPartial,
   'refundWindowDays': instance.refundWindowDays,
+  'disclaimerEn': instance.disclaimerEn,
+  'disclaimerRu': instance.disclaimerRu,
   'flagEnabled': instance.flagEnabled,
   'stripeConfigured': instance.stripeConfigured,
-  'feeSharingWarning': instance.feeSharingWarning,
 };

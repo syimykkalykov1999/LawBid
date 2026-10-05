@@ -7,6 +7,7 @@ import {
   IsInt,
   IsNumber,
   IsOptional,
+  IsNotEmpty,
   IsString,
   IsUUID,
   Length,
@@ -77,7 +78,6 @@ export class PaymentSettingsPublicDto {
   @ApiProperty({ enum: FEE_TYPES, enumName: 'PaymentFeeType' })
   feeType!: FeeType;
   @ApiProperty({ type: 'integer' }) feeFixedCents!: number;
-  @ApiProperty() feePercent!: number;
   @ApiProperty({ enum: FEE_PAYERS, enumName: 'PaymentFeePayer' })
   feePayer!: FeePayer;
   @ApiProperty() passProcessingFeeToClient!: boolean;
@@ -86,6 +86,10 @@ export class PaymentSettingsPublicDto {
   @ApiProperty() allowCustomAmount!: boolean;
   @ApiProperty() allowPartial!: boolean;
   @ApiProperty({ type: 'integer' }) refundWindowDays!: number;
+  @ApiProperty({ description: 'Legal disclaimer, English.' })
+  disclaimerEn!: string;
+  @ApiProperty({ description: 'Legal disclaimer, Russian.' })
+  disclaimerRu!: string;
 }
 
 export class PaymentQuoteQueryDto {
@@ -305,12 +309,6 @@ export class AdminPaymentSettingsDto {
   @Max(100_000)
   feeFixedCents!: number;
 
-  @ApiProperty({ minimum: 0, maximum: 50 })
-  @IsNumber()
-  @Min(0)
-  @Max(50)
-  feePercent!: number;
-
   @ApiProperty({ enum: FEE_PAYERS, enumName: 'PaymentFeePayer' })
   @IsIn(FEE_PAYERS)
   feePayer!: FeePayer;
@@ -356,6 +354,18 @@ export class AdminPaymentSettingsDto {
   @Min(0)
   @Max(365)
   refundWindowDays!: number;
+
+  @ApiProperty({ maxLength: 4000, description: 'Legal disclaimer, English.' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(4000)
+  disclaimerEn!: string;
+
+  @ApiProperty({ maxLength: 4000, description: 'Legal disclaimer, Russian.' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(4000)
+  disclaimerRu!: string;
 }
 
 export class AdminPaymentSettingsViewDto extends AdminPaymentSettingsDto {
@@ -363,11 +373,6 @@ export class AdminPaymentSettingsViewDto extends AdminPaymentSettingsDto {
   flagEnabled!: boolean;
   @ApiProperty({ description: 'Stripe keys are configured.' })
   stripeConfigured!: boolean;
-  @ApiProperty({
-    description:
-      'feeType = percent: a share of an attorney fee may be fee-sharing (ABA 5.4).',
-  })
-  feeSharingWarning!: boolean;
 }
 
 export class AdminCasePaymentsQueryDto extends CasePaymentsCursorQueryDto {
