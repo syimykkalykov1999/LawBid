@@ -84,9 +84,10 @@ Widget grid({required bool compact}) => GridView.count(
       childAspectRatio: compact ? 1 : 0.8,
       children: [
         for (final p in posts)
-          compact
-              ? PostTextCover(post: p, density: PostCoverDensity.compact)
-              : SearchPostTile(post: p),
+          if (compact)
+            PostTextCover(post: p, density: PostCoverDensity.compact)
+          else
+            SearchPostTile(post: p),
       ],
     );
 
