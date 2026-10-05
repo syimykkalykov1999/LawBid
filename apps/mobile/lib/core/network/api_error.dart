@@ -196,6 +196,13 @@ abstract final class ApiErrorCodes {
   static const refundProviderFailed = 'REFUND_PROVIDER_FAILED';
   static const contentInvalidState = 'CONTENT_INVALID_STATE';
   static const stickerPackNameTaken = 'STICKER_PACK_NAME_TAKEN';
+  // Owner 2026-10-05: plan builder.
+  static const bidLimitReached = 'BID_LIMIT_REACHED';
+  static const caseLimitReached = 'CASE_LIMIT_REACHED';
+  static const planNotAvailable = 'PLAN_NOT_AVAILABLE';
+  static const planCodeExists = 'PLAN_CODE_EXISTS';
+  static const planInUse = 'PLAN_IN_USE';
+  static const entitlementRequired = 'ENTITLEMENT_REQUIRED';
 
   /// Every server code, in enum order.
   static const all = <String>[
@@ -351,6 +358,12 @@ abstract final class ApiErrorCodes {
     refundProviderFailed,
     contentInvalidState,
     stickerPackNameTaken,
+    bidLimitReached,
+    caseLimitReached,
+    planNotAvailable,
+    planCodeExists,
+    planInUse,
+    entitlementRequired,
   ];
 }
 

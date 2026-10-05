@@ -6,6 +6,10 @@
 // apps/api/prisma/seed/translations_seed.xlsx.
 
 const planRu = <String, String>{
+  'error.api.ENTITLEMENT_REQUIRED': 'Эта возможность не входит в ваш план.',
+  'error.api.BID_LIMIT_REACHED': 'Достигнут лимит активных ставок вашего плана.',
+  'error.api.CASE_LIMIT_REACHED': 'Достигнут лимит открытых кейсов вашего плана.',
+  'error.api.PLAN_NOT_AVAILABLE': 'Этот план сейчас недоступен. Обновите экран.',
   'plan.free': 'Бесплатно',
   'plan.status.yours': 'Ваш план',
   'plan.pay.trialDays': 'Начать {n} дней бесплатно',
@@ -68,6 +72,10 @@ const planRu = <String, String>{
 };
 
 const planEn = <String, String>{
+  'error.api.ENTITLEMENT_REQUIRED': 'This feature is not part of your plan.',
+  'error.api.BID_LIMIT_REACHED': "You've reached your plan's limit of active offers.",
+  'error.api.CASE_LIMIT_REACHED': "You've reached your plan's limit of open cases.",
+  'error.api.PLAN_NOT_AVAILABLE': 'This plan is not available right now. Refresh the screen.',
   'plan.free': 'Free',
   'plan.status.yours': 'Your plan',
   'plan.pay.trialDays': 'Start {n} days free',
