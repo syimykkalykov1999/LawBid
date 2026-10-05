@@ -18,6 +18,7 @@ import { useMe } from '@/lib/hooks';
 import { DOC_TYPE } from '@/lib/labels';
 import { can, ROLE_LABEL, type AdminRole } from '@/lib/rbac';
 import {
+  BadgeStatusChip,
   BUSINESS_TYPE_RU,
   CLEARED_BY_RU,
   DOC_TEMPLATE_RU,
@@ -273,6 +274,7 @@ export function TrustPanel({ attorneyId }: { attorneyId: string }) {
         <CardHeader className="flex-wrap">
           <CardTitle>Борьба с мошенниками</CardTitle>
           <div className="flex flex-wrap items-center gap-2">
+            <BadgeStatusChip status={c.badgeStatus} />
             <Badge tone={status.tone} dot>
               {status.text}
             </Badge>

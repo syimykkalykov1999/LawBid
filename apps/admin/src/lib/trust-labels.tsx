@@ -57,6 +57,70 @@ export const STAFF_STATUS_RU: Record<string, { text: string; tone: Tone }> = {
   suspended: { text: 'Приостановлен', tone: 'danger' },
 };
 
+/**
+ * `badgeStatus` — the one status the owner manages in «Адвокаты» (what the
+ * blue check means right now), in enum order.
+ */
+export const BADGE_STATUSES = [
+  'not_verified',
+  'self_declared',
+  'registry_matched',
+  'pending_review',
+  'documents_requested',
+  'cleared',
+  'rejected',
+  'suspended',
+] as const;
+export type BadgeStatus = (typeof BADGE_STATUSES)[number];
+
+export const BADGE_STATUS_RU: Record<BadgeStatus, { text: string; hint: string }> = {
+  not_verified: { text: 'Не проверено', hint: 'Адвокат ещё не назвал штат и номер лицензии.' },
+  self_declared: { text: 'Указано адвокатом', hint: 'Штат и номер со слов адвоката, под присягой; проверки ещё идут.' },
+  registry_matched: { text: 'Сверено с реестром', hint: 'Номер лицензии совпал с реестром штата.' },
+  pending_review: { text: 'В ожидании проверки', hint: 'Ждёт сотрудника в очереди.' },
+  documents_requested: { text: 'Документы запрошены', hint: 'Сотрудник запросил документы, адвокат ещё не загрузил.' },
+  cleared: { text: 'Проверено', hint: 'Подтверждён: галочка и приём денег открыты насовсем.' },
+  rejected: { text: 'Отклонено', hint: 'Отклонён сотрудником, аккаунт приостановлен.' },
+  suspended: { text: 'Приостановлено', hint: 'Профиль приостановлен — по жалобам или администратором.' },
+};
+
+export function badgeStatusTone(status: string | null | undefined): Tone {
+  switch (status) {
+    case 'cleared':
+      return 'success';
+    case 'registry_matched':
+      return 'gold';
+    case 'pending_review':
+    case 'documents_requested':
+      return 'warning';
+    case 'rejected':
+    case 'suspended':
+      return 'danger';
+    default:
+      return 'neutral';
+  }
+}
+
+/** Chip with the badge status in Russian (lists, queue, the attorney card). */
+export function BadgeStatusChip({ status }: { status: string | null | undefined }) {
+  if (!status) return <span className="text-faint">—</span>;
+  return (
+    <Badge tone={badgeStatusTone(status)} dot>
+      {BADGE_STATUS_RU[status as BadgeStatus]?.text ?? status}
+    </Badge>
+  );
+}
+
+/** `TrustSetStatusDto.status` — statuses a person may set by hand. */
+export const MANUAL_STATUSES = ['cleared', 'self_declared', 'documents_requested', 'rejected'] as const;
+export type ManualStatus = (typeof MANUAL_STATUSES)[number];
+export const MANUAL_STATUS_RU: Record<ManualStatus, { text: string; hint: string }> = {
+  cleared: { text: 'Проверено (подтвердить)', hint: 'Галочка и приём денег открываются насовсем, перепроверок не будет.' },
+  self_declared: { text: 'Указано адвокатом (снять подтверждение)', hint: 'Адвокат снова проходит требования как все.' },
+  documents_requested: { text: 'Документы запрошены', hint: 'Адвокат получит запрос документов; ждём загрузки.' },
+  rejected: { text: 'Отклонено (приостановить)', hint: 'Аккаунт приостанавливается, ставки отзываются.' },
+};
+
 export const CLEARED_BY_RU: Record<string, string> = {
   auto: 'автоматически',
   staff: 'сотрудником',

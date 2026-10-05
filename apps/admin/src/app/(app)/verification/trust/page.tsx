@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useState } from 'react';
 import { Kpi, KpiSkeletons } from '@/components/billing/kpi';
+import { AttorneysList } from '@/components/trust/attorneys-list';
 import { BulkBar, PageSelectBox, RowSelectBox, useSelection } from '@/components/bulk/bulk-controls';
 import { useConfirm } from '@/components/legacy/confirm';
 import { MotionRow } from '@/components/legacy/fade-in';
@@ -28,6 +29,7 @@ import { useMe } from '@/lib/hooks';
 import { can } from '@/lib/rbac';
 import {
   attorneyName,
+  BadgeStatusChip,
   BUSINESS_TYPE_RU,
   HOLD_RU,
   missingText,
@@ -38,11 +40,13 @@ import {
   type DocTemplate,
   type QueueReason,
 } from '@/lib/trust-labels';
-import { formatDateTime, formatDuration } from '@/lib/utils';
+import { cn, formatDateTime, formatDuration } from '@/lib/utils';
 
 type Settings = components['schemas']['TrustSettingsDto'];
 type QueueItem = components['schemas']['TrustQueueItemDto'];
-type Tab = 'queue' | 'rules' | 'holds' | 'staff';
+type Stats = components['schemas']['TrustStatsDto'];
+type Preset = components['schemas']['TrustPresetDto']['preset'];
+type Tab = 'attorneys' | 'queue' | 'rules' | 'holds' | 'staff';
 
 const ATTORNEYS = ['адвокат', 'адвоката', 'адвокатов'] as const;
 
@@ -57,7 +61,7 @@ export default function AntiFraudPage() {
   const { data: me } = useMe();
   const canManage = me ? can(me, 'verification', 'manage') : false;
   const { confirm, dialog: confirmDialog } = useConfirm();
-  const [tab, setTab] = useState<Tab>('queue');
+  const [tab, setTab] = useState<Tab>('attorneys');
 
   const stats = useQuery({
     queryKey: ['trust-stats'],
@@ -118,6 +122,7 @@ export default function AntiFraudPage() {
           value={tab}
           onChange={setTab}
           items={[
+            { value: 'attorneys', label: 'Адвокаты' },
             { value: 'queue', label: 'Очередь', count: stats.data?.inQueue },
             { value: 'rules', label: 'Правила' },
             { value: 'holds', label: 'Холды', count: stats.data?.held },
@@ -126,7 +131,8 @@ export default function AntiFraudPage() {
         />
       </div>
 
-      {tab === 'queue' ? <Queue canManage={canManage} /> : null}
+      {tab === 'attorneys' ? <AttorneysList canManage={canManage} /> : null}
+      {tab === 'queue' ? <Queue canManage={canManage} stats={stats.data} /> : null}
       {tab === 'rules' ? <Rules canManage={canManage} /> : null}
       {tab === 'holds' ? <Holds canManage={canManage} /> : null}
       {tab === 'staff' ? <StaffDecisions /> : null}
@@ -136,7 +142,7 @@ export default function AntiFraudPage() {
 
 // --- Очередь ---------------------------------------------------------------
 
-function Queue({ canManage }: { canManage: boolean }) {
+function Queue({ canManage, stats }: { canManage: boolean; stats: Stats | undefined }) {
   const qc = useQueryClient();
   const toast = useToast();
   const { ask, dialog } = useReason();
@@ -253,6 +259,15 @@ function Queue({ canManage }: { canManage: boolean }) {
       {dialog}
       {docDialog}
       {confirmDialog}
+      {stats && !stats.enabled ? (
+        <p className="mb-3 max-w-3xl rounded-xl bg-surface-2 px-3.5 py-2.5 text-sm text-muted">
+          Защита выключена: очередь пуста, все адвокаты с присягой подтверждены автоматически.
+        </p>
+      ) : stats && !stats.manualReview ? (
+        <p className="mb-3 max-w-3xl rounded-xl bg-warning-soft px-3.5 py-2.5 text-sm text-warning">
+          Ручная проверка выключена — очередь на паузе. Записи сохраняются; включите ручную проверку в «Правилах», чтобы продолжить.
+        </p>
+      ) : null}
       <p className="mb-3 max-w-3xl text-sm text-muted">
         Адвокаты, которых надо посмотреть человеку: загрузили документы, нужна связь с фирмой, имя в Stripe не совпало, номер заявлен дважды, реестр не
         подтвердил, пришла жалоба. Старые сверху.
@@ -329,6 +344,7 @@ function Queue({ canManage }: { canManage: boolean }) {
                   </Link>
                   <div className="text-xs text-faint">@{r.attorney.username}</div>
                   <div className="mt-1 flex flex-wrap items-center gap-1">
+                    <BadgeStatusChip status={r.badgeStatus} />
                     <TrustLevelChip level={r.level} />
                     {r.holds.payments ? <Badge tone="danger">платежи: {HOLD_RU[r.holds.payments] ?? r.holds.payments}</Badge> : null}
                     {r.holds.bids ? <Badge tone="danger">ставки: {HOLD_RU[r.holds.bids] ?? r.holds.bids}</Badge> : null}
@@ -424,9 +440,49 @@ type BoolKey = {
   [K in keyof Settings]: Settings[K] extends boolean ? K : never;
 }[keyof Settings];
 
+/** Owner's one-click sets (`POST /admin/trust/settings/preset`); fixed-width buttons. */
+const PRESETS: { value: Preset; label: string; title: string; description: string; danger?: boolean }[] = [
+  {
+    value: 'off',
+    label: 'Выключить всё',
+    title: 'Выключить всю защиту?',
+    description:
+      'Защита и ручная проверка выключаются, все требования и автоматические холды снимаются. Адвокаты с присягой получают галочку и приём оплат сразу; очередь пустеет, холды ничего не закрывают.',
+    danger: true,
+  },
+  {
+    value: 'soft',
+    label: 'Мягко',
+    title: 'Применить набор «Мягко»?',
+    description:
+      'Защита включена, ручной проверки нет: только автоматические проверки (реестр штата), документы не требуются, ставки и чат открыты сразу. Холды по жалобам остаются.',
+  },
+  {
+    value: 'standard',
+    label: 'Стандарт',
+    title: 'Применить набор «Стандарт»?',
+    description:
+      'Защита и ручная проверка включены: реестр и личность (Stripe KYC или связь с фирмой) обязательны, документы — нет; ставки открыты, автоматические холды работают.',
+  },
+  {
+    value: 'strict',
+    label: 'Строго',
+    title: 'Применить набор «Строго»?',
+    description: 'Реестр, личность и документы обязательны; ставки только после подтверждения; задержка выплат и все автоматические холды включены.',
+  },
+  {
+    value: 'all',
+    label: 'Включить всё',
+    title: 'Включить все меры защиты?',
+    description:
+      'Каждый переключатель включается: защита, ручная проверка, все требования, ставки только после подтверждения, все автоматические холды и связи с фирмой.',
+  },
+];
+
 function RulesForm({ initial, canEdit }: { initial: Settings; canEdit: boolean }) {
   const qc = useQueryClient();
   const toast = useToast();
+  const { confirm, dialog: confirmDialog } = useConfirm();
   const [s, setS] = useState<Settings>(initial);
   const [payout, setPayout] = useState(String(initial.payoutDelayDays));
   const [toSuspend, setToSuspend] = useState(String(initial.complaintsToSuspend));
@@ -460,6 +516,22 @@ function RulesForm({ initial, canEdit }: { initial: Settings; canEdit: boolean }
     },
     onError: (e) => toast.error(e),
   });
+  const preset = useMutation({
+    mutationFn: async (p: (typeof PRESETS)[number]) => {
+      const ok = await confirm({ title: p.title, description: p.description, confirm: p.label, danger: p.danger });
+      if (!ok) return null;
+      return (await api.POST('/admin/trust/settings/preset', { body: { preset: p.value } })).data!.data;
+    },
+    onSuccess: (r) => {
+      if (!r) return;
+      toast.success('Правила применены; адвокаты пересчитываются, кому что-то стало требоваться — получат уведомление');
+      void qc.invalidateQueries({ queryKey: ['trust-settings'] });
+      void qc.invalidateQueries({ queryKey: ['trust-attorneys'] });
+      invalidateTrust(qc);
+    },
+    onError: (e) => toast.error(e),
+  });
+  const busy = save.isPending || preset.isPending;
 
   const toggle = (k: BoolKey, title: string, on: string, off: string) => (
     <div key={k} className="flex items-start justify-between gap-4 rounded-xl bg-surface-2 px-3.5 py-3">
@@ -472,114 +544,170 @@ function RulesForm({ initial, canEdit }: { initial: Settings; canEdit: boolean }
   );
 
   return (
-    <Card className="p-5">
-      <h3 className="font-medium text-heading">Что требовать от адвоката для галочки и приёма денег</h3>
-      <p className="mt-1 text-sm text-muted">
-        Что можно проверить автоматически — проверяется само (реестр штата, Stripe KYC, e-mail фирмы). Что нельзя — попадает в очередь к сотруднику. После
-        «Подтвердить» адвокат больше не перепроверяется.
-      </p>
-      <div className="mt-4 grid gap-3 lg:grid-cols-3">
-        {toggle(
-          'requireRegistry',
-          'Реестр штата',
-          'Включено: номер лицензии должен совпасть с реестром штата; где нет API — сотрудник проверяет по ссылке коллегии (очередь).',
-          'Выключено: достаточно присяги — номер со слов адвоката.',
-        )}
-        {toggle(
-          'requireIdentity',
-          'Личность',
-          'Включено: нужен Stripe KYC на самого адвоката (имя совпало) или подтверждённая связь с фирмой, если аккаунт на компанию.',
-          'Выключено: кто стоит за аккаунтом Stripe, не проверяется.',
-        )}
-        {toggle(
-          'requireDocuments',
-          'Документы',
-          'Включено: адвокат загружает удостоверение, селфи и карточку адвоката, сотрудник сверяет их в очереди.',
-          'Выключено: документы не требуются (можно запросить вручную у подозрительных).',
-        )}
-      </div>
-
-      <h4 className="mt-6 text-sm font-medium text-heading">Что открыто до подтверждения</h4>
-      <div className="mt-3 grid gap-3 lg:grid-cols-2">
-        {toggle(
-          'bidsRequireCleared',
-          'Ставки только после подтверждения',
-          'Включено: пока требования не пройдены, адвокат не может откликаться на кейсы и писать клиентам.',
-          'Выключено: ставки и чат открыты сразу, закрыты только галочка и приём денег.',
-        )}
-        <div className="rounded-xl bg-surface-2 px-3.5 py-3">
-          <Field label="Задержка выплат Stripe, дней" htmlFor="ts-payout" hint="0–30; 0 — стандартный график Stripe. Деньги клиента ждут на балансе, пока адвокат не подтверждён.">
-            <Input id="ts-payout" inputMode="numeric" className="w-28" value={payout} disabled={!canEdit} onChange={(e) => setPayout(e.target.value.replace(/\D/g, ''))} />
-          </Field>
+    <>
+      {confirmDialog}
+      <Card className="mb-4 p-5">
+        <h3 className="font-medium text-heading">Главные выключатели</h3>
+        <p className="mt-1 text-sm text-muted">Всё ниже можно выключить одним движением и включить обратно — ничего не теряется.</p>
+        <div className="mt-4 grid gap-3 lg:grid-cols-2">
+          <div className={cn('flex items-start justify-between gap-4 rounded-xl px-3.5 py-3', s.enabled ? 'bg-accent-soft' : 'bg-danger-soft/40')}>
+            <div className="min-w-0">
+              <div className="text-sm font-medium text-ink">Защита включена</div>
+              <p className="mt-0.5 text-xs text-muted">
+                {s.enabled
+                  ? 'Включено: требования, очередь и холды работают по правилам ниже.'
+                  : 'Выключено (режим до защиты): адвокаты с присягой получают галочку и приём оплат сразу, холды ничего не закрывают, очередь пуста.'}
+              </p>
+            </div>
+            <Switch checked={s.enabled} onChange={(v) => set('enabled', v)} disabled={!canEdit} label="Защита включена" className="mt-0.5" />
+          </div>
+          <div className={cn('flex items-start justify-between gap-4 rounded-xl px-3.5 py-3', s.manualReview ? 'bg-accent-soft' : 'bg-surface-2')}>
+            <div className="min-w-0">
+              <div className="text-sm font-medium text-ink">Ручная проверка сотрудниками</div>
+              <p className="mt-0.5 text-xs text-muted">
+                {s.manualReview
+                  ? 'Включено: что нельзя проверить автоматически, ждёт человека в очереди; документы сверяет сотрудник.'
+                  : 'Выключено: только автоматические проверки. Очередь на паузе, требование документов не действует; ничего не теряется.'}
+              </p>
+            </div>
+            <Switch checked={s.manualReview} onChange={(v) => set('manualReview', v)} disabled={!canEdit} label="Ручная проверка сотрудниками" className="mt-0.5" />
+          </div>
         </div>
-      </div>
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          {PRESETS.map((p) => (
+            <Button
+              key={p.value}
+              size="sm"
+              variant={p.value === 'off' ? 'danger-soft' : p.value === 'all' ? 'gold' : 'outline'}
+              className="w-36 shrink-0"
+              disabled={!canEdit || busy}
+              loading={preset.isPending && preset.variables?.value === p.value}
+              onClick={() => preset.mutate(p)}
+            >
+              {p.label}
+            </Button>
+          ))}
+          <span className="text-xs text-faint">Набор применяется сразу, без «Сохранить».</span>
+        </div>
+      </Card>
 
-      <h4 className="mt-6 text-sm font-medium text-heading">Автоматические защиты</h4>
-      <p className="mt-1 text-xs text-muted">Каждую можно выключить отдельно; выключенная ничего не делает сама — решает сотрудник.</p>
-      <div className="mt-3 grid gap-3 lg:grid-cols-2">
-        {toggle(
-          'autoHoldOnComplaint',
-          'Холд при жалобе на мошенничество',
-          'Включено: жалоба клиента «мошенничество» или «самозванец» сразу ставит холд на платежи и ставки и отправляет адвоката в очередь.',
-          'Выключено: жалоба уходит в модерацию, адвокат работает, пока сотрудник не поставит холд вручную.',
-        )}
-        {toggle(
-          'autoHoldOnNameMismatch',
-          'Холд при несовпадении имени в Stripe',
-          'Включено: имя из Stripe KYC не совпало с профилем и реестром — платежи на холд, адвокат в очереди.',
-          'Выключено: несовпадение только отмечается в карточке; платежи продолжаются.',
-        )}
-        {toggle(
-          'flagDuplicateClaims',
-          'Отмечать повторные заявки номера',
-          'Включено: кто-то регистрируется с занятым номером — владелец номера попадает в очередь на сверку с реестром.',
-          'Выключено: повторная заявка отклоняется без отметки у владельца.',
-        )}
-        <div className="rounded-xl bg-surface-2 px-3.5 py-3">
-          <div className="text-sm font-medium text-ink">Автоприостановка по жалобам</div>
-          <p className="mt-0.5 text-xs text-muted">Столько разных клиентов пожаловались за окно — профиль приостанавливается до разбора.</p>
-          <div className="mt-3 grid grid-cols-2 gap-3">
-            <Field label="Жалоб" htmlFor="ts-cts" hint="1–20">
-              <Input id="ts-cts" inputMode="numeric" value={toSuspend} disabled={!canEdit} onChange={(e) => setToSuspend(e.target.value.replace(/\D/g, ''))} />
-            </Field>
-            <Field label="Окно, дней" htmlFor="ts-win" hint="1–3650">
-              <Input id="ts-win" inputMode="numeric" value={windowDays} disabled={!canEdit} onChange={(e) => setWindowDays(e.target.value.replace(/\D/g, ''))} />
+      <Card className="p-5">
+        {!s.enabled ? (
+          <p className="mb-4 rounded-xl bg-danger-soft/40 px-3.5 py-2.5 text-sm text-danger">
+            Защита выключена: все адвокаты с присягой получают галочку и приём оплат сразу.
+          </p>
+        ) : null}
+        <div className={cn('transition-opacity duration-300', !s.enabled && 'opacity-50')}>
+        <h3 className="font-medium text-heading">Что требовать от адвоката для галочки и приёма денег</h3>
+        <p className="mt-1 text-sm text-muted">
+          Что можно проверить автоматически — проверяется само (реестр штата, Stripe KYC, e-mail фирмы). Что нельзя — попадает в очередь к сотруднику. После
+          «Подтвердить» адвокат больше не перепроверяется.
+        </p>
+        <div className="mt-4 grid gap-3 lg:grid-cols-3">
+          {toggle(
+            'requireRegistry',
+            'Реестр штата',
+            'Включено: номер лицензии должен совпасть с реестром штата; где нет API — сотрудник проверяет по ссылке коллегии (очередь).',
+            'Выключено: достаточно присяги — номер со слов адвоката.',
+          )}
+          {toggle(
+            'requireIdentity',
+            'Личность',
+            'Включено: нужен Stripe KYC на самого адвоката (имя совпало) или подтверждённая связь с фирмой, если аккаунт на компанию.',
+            'Выключено: кто стоит за аккаунтом Stripe, не проверяется.',
+          )}
+          {toggle(
+            'requireDocuments',
+            'Документы',
+            'Включено: адвокат загружает удостоверение, селфи и карточку адвоката, сотрудник сверяет их в очереди.',
+            'Выключено: документы не требуются (можно запросить вручную у подозрительных).',
+          )}
+        </div>
+
+        <h4 className="mt-6 text-sm font-medium text-heading">Что открыто до подтверждения</h4>
+        <div className="mt-3 grid gap-3 lg:grid-cols-2">
+          {toggle(
+            'bidsRequireCleared',
+            'Ставки только после подтверждения',
+            'Включено: пока требования не пройдены, адвокат не может откликаться на кейсы и писать клиентам.',
+            'Выключено: ставки и чат открыты сразу, закрыты только галочка и приём денег.',
+          )}
+          <div className="rounded-xl bg-surface-2 px-3.5 py-3">
+            <Field label="Задержка выплат Stripe, дней" htmlFor="ts-payout" hint="0–30; 0 — стандартный график Stripe. Деньги клиента ждут на балансе, пока адвокат не подтверждён.">
+              <Input id="ts-payout" inputMode="numeric" className="w-28" value={payout} disabled={!canEdit} onChange={(e) => setPayout(e.target.value.replace(/\D/g, ''))} />
             </Field>
           </div>
         </div>
-      </div>
 
-      <h4 className="mt-6 text-sm font-medium text-heading">Связь с фирмой (Stripe-аккаунт компании)</h4>
-      <p className="mt-1 text-xs text-muted">
-        Если аккаунт Stripe оформлен на компанию, где адвокат не владелец и не представитель, личность засчитывается после подтверждения связи с фирмой:
-        автоматически одним из способов ниже или сотрудником по письму на бланке.
-      </p>
-      <div className="mt-3 grid gap-3 lg:grid-cols-2">
-        {toggle(
-          'firmLinkAutoRegistry',
-          'Связь по реестру штата',
-          'Включено: фирма в реестре штата совпала с названием компании в Stripe — связь подтверждается сама.',
-          'Выключено: совпадение с реестром не засчитывается — нужен e-mail фирмы или сотрудник.',
-        )}
-        {toggle(
-          'firmLinkAutoEmail',
-          'Связь по e-mail фирмы',
-          'Включено: адвокат подтверждает кодом адрес на домене сайта компании из Stripe — связь засчитывается сама.',
-          'Выключено: e-mail не засчитывается — только реестр или сотрудник.',
-        )}
-      </div>
-
-      {canEdit ? (
-        <div className="mt-5 flex items-center justify-end gap-3">
-          {!valid ? <span className="text-xs text-danger">Проверьте числа: они вне допустимых границ.</span> : null}
-          <Button className="w-36" disabled={!valid} loading={save.isPending} onClick={() => save.mutate()}>
-            Сохранить
-          </Button>
+        <h4 className="mt-6 text-sm font-medium text-heading">Автоматические защиты</h4>
+        <p className="mt-1 text-xs text-muted">Каждую можно выключить отдельно; выключенная ничего не делает сама — решает сотрудник.</p>
+        <div className="mt-3 grid gap-3 lg:grid-cols-2">
+          {toggle(
+            'autoHoldOnComplaint',
+            'Холд при жалобе на мошенничество',
+            'Включено: жалоба клиента «мошенничество» или «самозванец» сразу ставит холд на платежи и ставки и отправляет адвоката в очередь.',
+            'Выключено: жалоба уходит в модерацию, адвокат работает, пока сотрудник не поставит холд вручную.',
+          )}
+          {toggle(
+            'autoHoldOnNameMismatch',
+            'Холд при несовпадении имени в Stripe',
+            'Включено: имя из Stripe KYC не совпало с профилем и реестром — платежи на холд, адвокат в очереди.',
+            'Выключено: несовпадение только отмечается в карточке; платежи продолжаются.',
+          )}
+          {toggle(
+            'flagDuplicateClaims',
+            'Отмечать повторные заявки номера',
+            'Включено: кто-то регистрируется с занятым номером — владелец номера попадает в очередь на сверку с реестром.',
+            'Выключено: повторная заявка отклоняется без отметки у владельца.',
+          )}
+          <div className="rounded-xl bg-surface-2 px-3.5 py-3">
+            <div className="text-sm font-medium text-ink">Автоприостановка по жалобам</div>
+            <p className="mt-0.5 text-xs text-muted">Столько разных клиентов пожаловались за окно — профиль приостанавливается до разбора.</p>
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <Field label="Жалоб" htmlFor="ts-cts" hint="1–20">
+                <Input id="ts-cts" inputMode="numeric" value={toSuspend} disabled={!canEdit} onChange={(e) => setToSuspend(e.target.value.replace(/\D/g, ''))} />
+              </Field>
+              <Field label="Окно, дней" htmlFor="ts-win" hint="1–3650">
+                <Input id="ts-win" inputMode="numeric" value={windowDays} disabled={!canEdit} onChange={(e) => setWindowDays(e.target.value.replace(/\D/g, ''))} />
+              </Field>
+            </div>
+          </div>
         </div>
-      ) : (
-        <p className="mt-5 text-xs text-faint">Менять правила может верификатор с правом «управление» или супер-админ.</p>
-      )}
-    </Card>
+
+        <h4 className="mt-6 text-sm font-medium text-heading">Связь с фирмой (Stripe-аккаунт компании)</h4>
+        <p className="mt-1 text-xs text-muted">
+          Если аккаунт Stripe оформлен на компанию, где адвокат не владелец и не представитель, личность засчитывается после подтверждения связи с фирмой:
+          автоматически одним из способов ниже или сотрудником по письму на бланке.
+        </p>
+        <div className="mt-3 grid gap-3 lg:grid-cols-2">
+          {toggle(
+            'firmLinkAutoRegistry',
+            'Связь по реестру штата',
+            'Включено: фирма в реестре штата совпала с названием компании в Stripe — связь подтверждается сама.',
+            'Выключено: совпадение с реестром не засчитывается — нужен e-mail фирмы или сотрудник.',
+          )}
+          {toggle(
+            'firmLinkAutoEmail',
+            'Связь по e-mail фирмы',
+            'Включено: адвокат подтверждает кодом адрес на домене сайта компании из Stripe — связь засчитывается сама.',
+            'Выключено: e-mail не засчитывается — только реестр или сотрудник.',
+          )}
+        </div>
+
+        </div>
+
+        {canEdit ? (
+          <div className="mt-5 flex items-center justify-end gap-3">
+            {!valid ? <span className="text-xs text-danger">Проверьте числа: они вне допустимых границ.</span> : null}
+            <Button className="w-36" disabled={!valid || busy} loading={save.isPending} onClick={() => save.mutate()}>
+              Сохранить
+            </Button>
+          </div>
+        ) : (
+          <p className="mt-5 text-xs text-faint">Менять правила может верификатор с правом «управление» или супер-админ.</p>
+        )}
+      </Card>
+    </>
   );
 }
 

@@ -76,7 +76,7 @@
 
 ## 7. Миграции
 
-`20261005080000_owner_trust_enums` (`report_reason` += `fraud`), `20261005080100_owner_attorney_trust` (`attorney_profiles.trust_level/trust_badge`, `attorney_trust`, `attorney_trust_events`), `20261005080200_owner_trust_staff_clearance` (`staff_cleared_*`, `documents_requested_*`). После деплоя один раз `POST /admin/trust/recompute-all` (или дождаться ночного job), чтобы заполнить уровни существующим адвокатам.
+`20261005130000_owner_trust_enums` (`report_reason` += `fraud`), `20261005130100_owner_attorney_trust` (`attorney_profiles.trust_level/trust_badge`, `attorney_trust`, `attorney_trust_events`), `20261005130200_owner_trust_staff_clearance` (`staff_cleared_*`, `documents_requested_*`). После деплоя один раз `POST /admin/trust/recompute-all` (или дождаться ночного job), чтобы заполнить уровни существующим адвокатам.
 
 ## 8. Юридические тексты
 

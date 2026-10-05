@@ -3,10 +3,12 @@
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useState } from 'react';
+import { DateField } from '@/components/date-field';
 import { MotionRow } from '@/components/legacy/fade-in';
 import { ErrorNote, SectionTitle } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/card';
+import { Label } from '@/components/ui/input';
 import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { api, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
@@ -19,6 +21,16 @@ type Stats = components['schemas']['StaffDecisionStatsDto'];
 
 const FAST_SECONDS = 60;
 
+/** «С» / «По» (type="date") → ISO bounds: start of the first day, end of the last. */
+type Period = { from: string; to: string };
+type Bounds = { from?: string; to?: string };
+function periodQuery(p: Period): Bounds {
+  return {
+    ...(p.from ? { from: new Date(`${p.from}T00:00:00`).toISOString() } : {}),
+    ...(p.to ? { to: new Date(`${p.to}T23:59:59.999`).toISOString() } : {}),
+  };
+}
+
 /**
  * Owner 2026-10-05 — «Решения сотрудников»: who pressed «Подтвердить» /
  * «Отклонить», how fast, and what happened to the attorneys they cleared.
@@ -26,9 +38,11 @@ const FAST_SECONDS = 60;
  */
 export function StaffDecisions() {
   const [adminId, setAdminId] = useState<string | null>(null);
+  const [period, setPeriod] = useState<Period>({ from: '', to: '' });
+  const bounds = periodQuery(period);
   const q = useQuery({
-    queryKey: ['trust-staff-decisions'],
-    queryFn: async () => (await api.GET('/admin/trust/staff-decisions')).data!.data,
+    queryKey: ['trust-staff-decisions', bounds.from ?? '', bounds.to ?? ''],
+    queryFn: async () => (await api.GET('/admin/trust/staff-decisions', { params: { query: bounds } })).data!.data,
   });
   const rows = q.data ?? [];
   const picked = rows.find((r) => r.admin.id === adminId) ?? null;
@@ -38,6 +52,19 @@ export function StaffDecisions() {
       <p className="mb-3 max-w-3xl rounded-xl bg-accent-soft px-3.5 py-2.5 text-sm text-gold-600">
         Записи решений неизменяемы: кто, когда, с какого IP, какие документы и автопроверки видел. Удалить их нельзя, даже владельцу.
       </p>
+      <div className="mb-4 flex flex-wrap items-end gap-3">
+        <div className="space-y-1">
+          <Label htmlFor="sd-from">С</Label>
+          <DateField id="sd-from" value={period.from} max={period.to || undefined} onChange={(e) => setPeriod({ ...period, from: e.target.value })} />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="sd-to">По</Label>
+          <DateField id="sd-to" value={period.to} min={period.from || undefined} onChange={(e) => setPeriod({ ...period, to: e.target.value })} />
+        </div>
+        <Button size="sm" variant="ghost" className="w-28 shrink-0" disabled={!period.from && !period.to} onClick={() => setPeriod({ from: '', to: '' })}>
+          За всё время
+        </Button>
+      </div>
       <ErrorNote text={q.error ? errorText(q.error) : null} />
       <Table>
         <thead>
@@ -120,16 +147,16 @@ export function StaffDecisions() {
           )}
         </tbody>
       </Table>
-      {picked ? <ClearedBy admin={picked} /> : null}
+      {picked ? <ClearedBy admin={picked} bounds={bounds} /> : null}
     </>
   );
 }
 
-function ClearedBy({ admin }: { admin: Stats }) {
+function ClearedBy({ admin, bounds }: { admin: Stats; bounds: Bounds }) {
   const adminId = admin.admin.id;
   const q = useQuery({
-    queryKey: ['trust-cleared-by', adminId],
-    queryFn: async () => (await api.GET('/admin/trust/cleared-by', { params: { query: { adminId } } })).data!.data,
+    queryKey: ['trust-cleared-by', adminId, bounds.from ?? '', bounds.to ?? ''],
+    queryFn: async () => (await api.GET('/admin/trust/cleared-by', { params: { query: { adminId, ...bounds } } })).data!.data,
   });
   const rows = q.data ?? [];
   return (
