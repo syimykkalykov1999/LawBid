@@ -18,6 +18,7 @@ class AdminSupportMessageDto {
     required this.internal,
     required this.body,
     required this.createdAt,
+    this.auto,
   });
 
   factory AdminSupportMessageDto.fromJson(Map<String, Object?> json) =>
@@ -28,6 +29,9 @@ class AdminSupportMessageDto {
   final String authorId;
   final String authorName;
   final bool internal;
+
+  /// Owner 2026-10-05: an automatic answer (after hours).
+  final bool? auto;
   final String body;
   final DateTime createdAt;
 

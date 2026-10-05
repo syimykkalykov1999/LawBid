@@ -25,6 +25,15 @@ class SupportRepository {
     return out;
   }
 
+  Future<SupportInfo> info() async {
+    final d = (await guardApiCall(_api.getSupportInfo)).data;
+    return SupportInfo(
+      open: d.open,
+      expectedReplyMinutes: d.expectedReplyMinutes.round(),
+      opensAt: d.opensAt,
+    );
+  }
+
   Future<SupportTicket> ticket(String id) async =>
       _detail((await guardApiCall(() => _api.getMySupportTicket(id: id))).data);
 

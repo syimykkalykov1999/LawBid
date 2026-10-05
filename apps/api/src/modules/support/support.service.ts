@@ -6,8 +6,10 @@ import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { RateLimitService } from '../auth/services/rate-limit.service';
+import { SupportDeskService } from './support-desk.service';
 import type {
   CreateSupportTicketDto,
+  SupportInfoDto,
   SupportCategory,
   SupportMessageDto,
   SupportStatus,
@@ -48,12 +50,16 @@ export function presentUserMessage(
   m: SupportMessage,
   adminFirstNames: ReadonlyMap<string, string | null>,
 ): SupportMessageDto {
-  const fromSupport = m.author_admin_id !== null;
+  // Owner 2026-10-05: an automatic answer has no author and reads as
+  // the team.
+  const fromSupport = m.author_admin_id !== null || m.auto;
   return {
     id: m.id,
     author: fromSupport ? 'support' : 'me',
     authorName: fromSupport
-      ? supportAuthorName(adminFirstNames.get(m.author_admin_id ?? ''))
+      ? supportAuthorName(
+          m.author_admin_id ? adminFirstNames.get(m.author_admin_id) : null,
+        )
       : null,
     body: m.body,
     createdAt: m.created_at.toISOString(),
@@ -71,7 +77,13 @@ export class SupportService {
     private readonly prisma: PrismaService,
     private readonly rateLimit: RateLimitService,
     private readonly settings: AppSettingsService,
+    private readonly desk: SupportDeskService,
   ) {}
+
+  /** Owner 2026-10-05: hours and the usual answer time, for the app. */
+  info(): Promise<SupportInfoDto> {
+    return this.desk.info();
+  }
 
   async create(
     userId: string,
@@ -83,7 +95,7 @@ export class SupportService {
       'rate_limit.support_ticket_per_hour',
     );
     const now = new Date();
-    const { ticket, message } = await withTxRetry(this.prisma, async (tx) => {
+    const { ticket, messages } = await withTxRetry(this.prisma, async (tx) => {
       const t = await tx.supportTicket.create({
         data: {
           user_id: userId,
@@ -98,11 +110,25 @@ export class SupportService {
       const m = await tx.supportMessage.create({
         data: { ticket_id: t.id, author_user_id: userId, body: dto.body },
       });
-      return { ticket: t, message: m };
+      // Owner 2026-10-05: SLA clock, an agent on shift, after-hours answer.
+      const lang = await tx.user.findUnique({
+        where: { id: userId },
+        select: { ui_language: true },
+      });
+      const autoId = await this.desk.onCreated(
+        tx,
+        t,
+        lang?.ui_language ?? 'en',
+        now,
+      );
+      const auto = autoId
+        ? await tx.supportMessage.findUnique({ where: { id: autoId } })
+        : null;
+      return { ticket: t, messages: auto ? [m, auto] : [m] };
     });
     return {
       ...presentTicket(ticket),
-      messages: [presentUserMessage(message, new Map())],
+      messages: messages.map((m) => presentUserMessage(m, new Map())),
     };
   }
 
@@ -158,6 +184,7 @@ export class SupportService {
       const m = await tx.supportMessage.create({
         data: { ticket_id: id, author_user_id: userId, body },
       });
+      await this.desk.onUserMessage(tx, t, now);
       await tx.supportTicket.update({
         where: { id },
         data: {

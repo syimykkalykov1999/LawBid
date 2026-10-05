@@ -18,6 +18,7 @@ AdminSupportMessageDto _$AdminSupportMessageDtoFromJson(
   internal: json['internal'] as bool,
   body: json['body'] as String,
   createdAt: DateTime.parse(json['createdAt'] as String),
+  auto: json['auto'] as bool?,
 );
 
 Map<String, dynamic> _$AdminSupportMessageDtoToJson(
@@ -28,6 +29,7 @@ Map<String, dynamic> _$AdminSupportMessageDtoToJson(
   'authorId': instance.authorId,
   'authorName': instance.authorName,
   'internal': instance.internal,
+  'auto': ?instance.auto,
   'body': instance.body,
   'createdAt': instance.createdAt.toIso8601String(),
 };

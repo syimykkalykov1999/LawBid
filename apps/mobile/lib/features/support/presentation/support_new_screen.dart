@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
+import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/support/application/support_providers.dart';
@@ -123,6 +124,7 @@ class _SupportNewScreenState extends ConsumerState<SupportNewScreen> {
                     onChanged: (_) => setState(() {}),
                   ),
                   const SizedBox(height: AppSpacing.sm),
+                  const _ReplyTime(),
                   Text(
                     t.t('support.hint'),
                     style: type.caption.copyWith(color: colors.textSecondary),
@@ -142,6 +144,46 @@ class _SupportNewScreenState extends ConsumerState<SupportNewScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// "We usually reply within 1 h" / "We're offline now, back Mon 9:00 AM".
+/// Hidden while loading or when the info can't be read.
+class _ReplyTime extends ConsumerWidget {
+  const _ReplyTime();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final info = ref.watch(supportInfoProvider).value;
+    if (info == null) return const SizedBox.shrink();
+    final t = ref.watch(translatorProvider);
+    final f = ref.watch(l10nFormatsProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final m = info.expectedReplyMinutes;
+    final time = m < 60
+        ? t.t('support.eta.minutes', {'n': '$m'})
+        : t.t('support.eta.hours', {'n': '${(m / 60).ceil()}'});
+    final opensAt = info.opensAt;
+    final text = info.open || opensAt == null
+        ? t.t('support.eta.open', {'time': time})
+        : t.t('support.eta.closed', {'when': f.dateTime(opensAt)});
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(AppIcons.scheduleRounded, size: 16, color: colors.goldDark),
+          const SizedBox(width: AppSpacing.xs),
+          Expanded(
+            child: Text(
+              text,
+              style: type.caption.copyWith(color: colors.text),
+            ),
+          ),
+        ],
       ),
     );
   }

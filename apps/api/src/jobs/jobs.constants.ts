@@ -70,6 +70,11 @@ export const CRON_JOBS = {
   partnersSweep: 'partners.sweep',
   /** Owner 2026-10-05: reminders before a case's date; date passed. */
   caseDeadlineReminder: 'cases.deadline-reminder',
+  /** Owner 2026-10-05: support 24/7 — late answers flagged and escalated,
+   * resolved tickets closed after N days. */
+  supportSweep: 'support.sweep',
+  /** Owner 2026-10-05: «Лучший сотрудник» of the finished period. */
+  rewardsAward: 'rewards.award',
   /** Owner 2026-10-05: nightly safety net — attorney trust levels follow
    * the facts (registry flags, Stripe, decisions) even if a hook was missed. */
   trustRecompute: 'trust.recompute',
@@ -128,6 +133,9 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.partnersSweep, pattern: '20 3 * * *' },
   // 15:10 UTC = morning across the US: a reminder, not a night push.
   { name: CRON_JOBS.caseDeadlineReminder, pattern: '10 15 * * *' },
+  { name: CRON_JOBS.supportSweep, pattern: '1-56/5 * * * *' },
+  // 14:30 UTC ≈ 07:30 Pacific: the day after a period ends.
+  { name: CRON_JOBS.rewardsAward, pattern: '30 14 * * *' },
   { name: CRON_JOBS.trustRecompute, pattern: '45 3 * * *' },
 ];
 

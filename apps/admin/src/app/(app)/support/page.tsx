@@ -1,12 +1,13 @@
 'use client';
 
 import {
-  ArrowClockwise, ChatCircleDots, CheckCircle, HourglassMedium, Lifebuoy, MagnifyingGlass, Timer, UserCircleDashed,
+  ArrowClockwise, ChatCircleDots, CheckCircle, HourglassMedium, Lifebuoy, MagnifyingGlass, Siren, Timer, UserCircleDashed,
 } from '@phosphor-icons/react';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { ErrorNote, PageHeader } from '@/components/page-header';
 import { KpiChip } from '@/components/support/kpi-chip';
+import { NextTicketButton, SupportNav } from '@/components/support/support-nav';
 import {
   CATEGORIES, minutesText, PRIORITIES, type TicketCategory, type TicketPriority, type TicketStatus,
 } from '@/components/support/support-labels';
@@ -22,6 +23,7 @@ import { cn } from '@/lib/utils';
 
 type StatusTab = 'all' | TicketStatus;
 type AssigneeTab = 'all' | 'me' | 'unassigned';
+type SlaFilter = '' | 'breached';
 
 /** Support inbox — user tickets, latest activity first, refreshed every 30 s. */
 export default function SupportInboxPage() {
@@ -31,13 +33,14 @@ export default function SupportInboxPage() {
   const [priority, setPriority] = useState<'' | TicketPriority>('');
   const [draftQ, setDraftQ] = useState('');
   const [q, setQ] = useState('');
+  const [sla, setSla] = useState<SlaFilter>('');
 
   const stats = useQuery({
     queryKey: ['support-stats'],
     queryFn: async () => (await api.GET('/admin/support/stats')).data!.data,
     refetchInterval: 30_000,
   });
-  const filters = { status, assignee, category, priority, q };
+  const filters = { status, assignee, category, priority, q, sla };
   const list = useInfiniteQuery({
     queryKey: ['support-tickets', filters],
     initialPageParam: undefined as string | undefined,
@@ -52,6 +55,7 @@ export default function SupportInboxPage() {
               category: category || undefined,
               priority: priority || undefined,
               q: q || undefined,
+              sla: sla || undefined,
             },
           },
         })
@@ -61,15 +65,21 @@ export default function SupportInboxPage() {
   });
   const rows = list.data?.pages.flatMap((p) => p.data) ?? [];
   const s = stats.data;
-  const filtered = assignee !== 'all' || category || priority || q;
+  const filtered = assignee !== 'all' || category || priority || q || sla;
 
   return (
     <>
       <PageHeader
         eyebrow="Связь"
         title="Поддержка"
-        subtitle="Обращения пользователей из приложения. Список обновляется каждые 30 секунд."
+        subtitle={
+          s?.openNow === false
+            ? 'Сейчас нерабочее время: пользователи получают автоответ. Список обновляется каждые 30 секунд.'
+            : 'Обращения пользователей из приложения. Список обновляется каждые 30 секунд.'
+        }
         actions={
+          <div className="flex flex-wrap gap-2">
+          <NextTicketButton />
           <Button
             variant="outline"
             size="sm"
@@ -82,10 +92,12 @@ export default function SupportInboxPage() {
             {list.isRefetching ? null : <ArrowClockwise size={15} weight="light" />}
             Обновить
           </Button>
+          </div>
         }
       />
+      <SupportNav />
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         {s ? (
           <>
             <KpiChip i={0} icon={ChatCircleDots} label="Открыто" value={s.byStatus.open} accent={s.byStatus.open > 0} onClick={() => setStatus('open')} />
@@ -102,10 +114,21 @@ export default function SupportInboxPage() {
                 setAssignee('unassigned');
               }}
             />
-            <KpiChip i={4} icon={Timer} label="Первый ответ, 30 дн." text={minutesText(s.avgFirstResponseMinutes30d)} />
+            <KpiChip
+              i={4}
+              icon={Siren}
+              label="Просрочено"
+              value={s.slaBreached ?? 0}
+              accent={(s.slaBreached ?? 0) > 0}
+              onClick={() => {
+                setStatus('open');
+                setSla('breached');
+              }}
+            />
+            <KpiChip i={5} icon={Timer} label="Первый ответ, 30 дн." text={minutesText(s.avgFirstResponseMinutes30d)} />
           </>
         ) : (
-          Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-[66px] rounded-[var(--radius-lg)]" />)
+          Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-[66px] rounded-[var(--radius-lg)]" />)
         )}
       </div>
       <ErrorNote text={stats.error ? errorText(stats.error) : null} />
@@ -177,6 +200,14 @@ export default function SupportInboxPage() {
             </option>
           ))}
         </Select>
+        <Button
+          variant={sla ? 'soft' : 'outline'}
+          size="sm"
+          aria-pressed={!!sla}
+          onClick={() => setSla(sla ? '' : 'breached')}
+        >
+          <Siren size={15} weight="light" /> Просроченные
+        </Button>
         {filtered ? (
           <Button
             variant="ghost"
@@ -187,6 +218,7 @@ export default function SupportInboxPage() {
               setPriority('');
               setDraftQ('');
               setQ('');
+              setSla('');
             }}
           >
             Сбросить

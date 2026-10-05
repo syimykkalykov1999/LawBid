@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { FileText } from '@phosphor-icons/react';
 import { useConfirm } from '@/components/legacy/confirm';
 import { FadeIn, MotionRow } from '@/components/legacy/fade-in';
@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/empty';
 import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { useToast } from '@/components/ui/toast';
+import { FocusBar, useNextVerification } from '@/components/workspace/queue-next';
 import { api, errorText } from '@/lib/api/client';
 import { useMe } from '@/lib/hooks';
 import { canOpen } from '@/lib/rbac';
@@ -49,6 +50,14 @@ export default function VerificationCardPage() {
   const { ask, dialog } = useReason();
   const { confirm, dialog: confirmDialog } = useConfirm();
   const toast = useToast();
+  const router = useRouter();
+  // Focus mode (from «Рабочее место»): a decision opens the next request.
+  const focus = useSearchParams().get('focus') === '1';
+  const next = useNextVerification(id);
+  const decided = (text: string) => {
+    done(text);
+    if (focus) next.mutate();
+  };
 
   const q = useQuery({
     queryKey: ['verification', id],
@@ -82,7 +91,7 @@ export default function VerificationCardPage() {
       if (!ok) return null;
       return api.POST('/admin/verification/requests/{id}/approve', p);
     },
-    onSuccess: (x) => x && done('Заявка одобрена'),
+    onSuccess: (x) => x && decided('Заявка одобрена'),
     onError,
   });
   const requestInfo = useMutation({
@@ -91,7 +100,7 @@ export default function VerificationCardPage() {
       if (!a) return null;
       return api.POST('/admin/verification/requests/{id}/request-info', { ...p, body: { message: a.text } });
     },
-    onSuccess: (x) => x && done('Запрос отправлен адвокату'),
+    onSuccess: (x) => x && decided('Запрос отправлен адвокату'),
     onError,
   });
   const reject = useMutation({
@@ -112,7 +121,7 @@ export default function VerificationCardPage() {
         body: { rejectionCode: a.choice as never, ...(a.text ? { comment: a.text } : {}) },
       });
     },
-    onSuccess: (x) => x && done('Заявка отклонена'),
+    onSuccess: (x) => x && decided('Заявка отклонена'),
     onError,
   });
   const decide = useMutation({
@@ -198,7 +207,7 @@ export default function VerificationCardPage() {
   if (!r) {
     return (
       <>
-        <PageHeader eyebrow="Люди · Верификация" title="Заявка" />
+        <PageHeader eyebrow="Галочки · Адвокаты" title="Заявка" />
         <ErrorNote text={q.error ? errorText(q.error) : null} />
         {q.isPending ? (
           <div className="grid gap-4 lg:grid-cols-3">
@@ -218,8 +227,16 @@ export default function VerificationCardPage() {
     <>
       {dialog}
       {confirmDialog}
+      {focus ? (
+        <FocusBar
+          text="Режим очереди: после решения откроется следующая заявка."
+          busy={next.isPending}
+          onSkip={() => next.mutate()}
+          onExit={() => router.push(`/verification/${id}`)}
+        />
+      ) : null}
       <PageHeader
-        eyebrow="Люди · Верификация"
+        eyebrow="Галочки · Адвокаты"
         title={name}
         subtitle={
           <span className="inline-flex flex-wrap items-center gap-2">

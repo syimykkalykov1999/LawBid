@@ -35,6 +35,8 @@ export interface AccrueInput {
   period: string;
   kind?: 'commission' | 'bonus' | 'adjustment';
   note?: string | null;
+  /** Job title when this creates the payroll entry (default «Партнёр»). */
+  roleTitle?: string;
 }
 
 export interface AccrueResult {
@@ -186,12 +188,23 @@ export class PayrollAccrualsService {
       where: { user_id: input.userId },
     });
     if (found) return found;
+    // Owner 2026-10-05: an admin already on payroll (linked by their admin
+    // account) gets their bonus on the same entry.
+    const staff = await this.prisma.payrollEmployee.findFirst({
+      where: { admin_user_id: input.userId, user_id: null },
+    });
+    if (staff) {
+      return this.prisma.payrollEmployee.update({
+        where: { id: staff.id },
+        data: { user_id: input.userId },
+      });
+    }
     try {
       return await this.prisma.payrollEmployee.create({
         data: {
           user_id: input.userId,
           name: input.name.slice(0, 120) || 'Partner',
-          role_title: 'Партнёр',
+          role_title: input.roleTitle ?? 'Партнёр',
           amount_cents: 0,
           currency: input.currency ?? 'usd',
           email: input.email ?? null,

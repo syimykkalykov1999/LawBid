@@ -100,6 +100,33 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Where the translator works: all = every zone, zones = only the switched-on translate.<zone> keys.',
     pattern: /^(all|zones)$/,
   };
+  // Owner 2026-10-05: support 24/7 and «Лучший сотрудник».
+  out['support.open_days'] = {
+    ...out['support.open_days'],
+    description: 'Support working days, 1 = Monday … 7 = Sunday.',
+    min: 1,
+    max: 7,
+  };
+  out['support.open_from_hour'] = {
+    ...out['support.open_from_hour'],
+    min: 0,
+    max: 23,
+  };
+  out['support.open_to_hour'] = {
+    ...out['support.open_to_hour'],
+    min: 1,
+    max: 24,
+  };
+  out['support.timezone'] = {
+    ...out['support.timezone'],
+    description: 'IANA time zone of the support hours, e.g. America/Chicago.',
+    pattern: /^[A-Za-z_]+(\/[A-Za-z0-9_+-]+){0,2}$/,
+  };
+  out['rewards.period'] = {
+    ...out['rewards.period'],
+    description: '«Лучший сотрудник» period: month or week.',
+    pattern: /^(month|week)$/,
+  };
   out['sms.allowed_country_codes'] = {
     type: 'string[]',
     defaultValue: ['US'],

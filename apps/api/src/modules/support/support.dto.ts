@@ -1,8 +1,14 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  IsArray,
   IsBoolean,
   IsIn,
+  IsInt,
+  IsISO8601,
+  Max,
+  Min,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -160,6 +166,15 @@ export class AdminSupportTicketsQueryDto extends SupportCursorQueryDto {
   @IsOptional()
   @IsUUID('all')
   userId?: string;
+
+  @ApiPropertyOptional({
+    enum: ['breached', 'waiting'],
+    description:
+      'Owner 2026-10-05: `breached` = the answer is late (SLA missed); `waiting` = an answer is due (oldest deadline first).',
+  })
+  @IsOptional()
+  @IsIn(['breached', 'waiting'])
+  sla?: 'breached' | 'waiting';
 }
 
 export class AdminSupportReplyDto extends SupportMessageBodyDto {
@@ -179,6 +194,14 @@ export class AdminSupportReplyDto extends SupportMessageBodyDto {
   @IsOptional()
   @IsIn(SUPPORT_STATUSES)
   status?: SupportStatus;
+
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: 'The ready answer this reply was made from (counted).',
+  })
+  @IsOptional()
+  @IsUUID('all')
+  macroId?: string;
 }
 
 export class AdminUpdateSupportTicketDto {
@@ -227,6 +250,19 @@ export class AdminSupportTicketRowDto {
   @ApiProperty({ format: 'date-time' }) createdAt!: string;
   @ApiPropertyOptional({ format: 'date-time', nullable: true })
   resolvedAt!: string | null;
+  @ApiPropertyOptional({
+    format: 'date-time',
+    nullable: true,
+    description:
+      'Owner 2026-10-05: the answer is due by then (null = nothing due).',
+  })
+  slaDueAt?: string | null;
+  @ApiPropertyOptional({
+    description: 'The SLA was missed for the current wait.',
+  })
+  slaBreached?: boolean;
+  @ApiPropertyOptional({ format: 'date-time', nullable: true })
+  firstResponseAt?: string | null;
 }
 
 export class AdminSupportMessageDto {
@@ -235,6 +271,10 @@ export class AdminSupportMessageDto {
   @ApiProperty({ format: 'uuid' }) authorId!: string;
   @ApiProperty() authorName!: string;
   @ApiProperty() internal!: boolean;
+  @ApiPropertyOptional({
+    description: 'Owner 2026-10-05: an automatic answer (after hours).',
+  })
+  auto?: boolean;
   @ApiProperty() body!: string;
   @ApiProperty({ format: 'date-time' }) createdAt!: string;
 }
@@ -294,4 +334,267 @@ export class AdminSupportStatsDto {
       'Average minutes to the first public admin reply, tickets created in the last 30 days (null = no data).',
   })
   avgFirstResponseMinutes30d!: number | null;
+  @ApiPropertyOptional({
+    description: 'Owner 2026-10-05: tickets whose answer is late right now.',
+  })
+  slaBreached?: number;
+  @ApiPropertyOptional({ description: 'Support agents on shift now.' })
+  onShift?: number;
+  @ApiPropertyOptional({
+    description: 'The team works now (24/7 or within the hours).',
+  })
+  openNow?: boolean;
+}
+
+// --- support desk (owner 2026-10-05: support 24/7) ----------------------------
+
+export class SupportInfoDto {
+  @ApiProperty({ description: 'The team works now.' }) open!: boolean;
+  @ApiProperty() alwaysOpen!: boolean;
+  @ApiProperty({ description: 'Usual first answer time, minutes.' })
+  expectedReplyMinutes!: number;
+  @ApiPropertyOptional({
+    format: 'date-time',
+    nullable: true,
+    description: 'When the team is back (null while open).',
+  })
+  opensAt!: string | null;
+}
+
+export class SupportDeskSettingsDto {
+  @ApiProperty({
+    description: 'New tickets go to agents on shift by themselves.',
+  })
+  autoAssign!: boolean;
+  @ApiProperty({ minimum: 5, maximum: 2880 }) slaFirstResponseMinutes!: number;
+  @ApiProperty({
+    minimum: 5,
+    maximum: 2880,
+    description: 'High and urgent tickets.',
+  })
+  slaUrgentMinutes!: number;
+  @ApiProperty({
+    description: 'Tell the team (e-mail) when an answer is late.',
+  })
+  slaAlerts!: boolean;
+  @ApiProperty({ description: 'A late ticket goes one priority up.' })
+  escalateOnBreach!: boolean;
+  @ApiProperty({ description: '24/7; off = the hours below.' })
+  alwaysOpen!: boolean;
+  @ApiProperty({
+    type: Number,
+    isArray: true,
+    description: '1 = Monday … 7 = Sunday.',
+  })
+  openDays!: number[];
+  @ApiProperty({ minimum: 0, maximum: 23 }) openFromHour!: number;
+  @ApiProperty({ minimum: 1, maximum: 24 }) openToHour!: number;
+  @ApiProperty({ example: 'America/Chicago' }) timeZone!: string;
+  @ApiProperty({ description: 'Answer automatically outside the hours.' })
+  autoReply!: boolean;
+  @ApiProperty({
+    minimum: 0,
+    maximum: 90,
+    description: 'Resolved → closed after N days (0 = never).',
+  })
+  autoCloseResolvedDays!: number;
+}
+
+export class UpdateSupportDeskSettingsDto {
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() autoAssign?: boolean;
+  @ApiPropertyOptional({ minimum: 5, maximum: 2880 })
+  @IsOptional()
+  @IsInt()
+  @Min(5)
+  @Max(2880)
+  slaFirstResponseMinutes?: number;
+  @ApiPropertyOptional({ minimum: 5, maximum: 2880 })
+  @IsOptional()
+  @IsInt()
+  @Min(5)
+  @Max(2880)
+  slaUrgentMinutes?: number;
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() slaAlerts?: boolean;
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() escalateOnBreach?: boolean;
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() alwaysOpen?: boolean;
+  @ApiPropertyOptional({ type: Number, isArray: true })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(7)
+  @IsInt({ each: true })
+  @Min(1, { each: true })
+  @Max(7, { each: true })
+  openDays?: number[];
+  @ApiPropertyOptional({ minimum: 0, maximum: 23 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(23)
+  openFromHour?: number;
+  @ApiPropertyOptional({ minimum: 1, maximum: 24 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(24)
+  openToHour?: number;
+  @ApiPropertyOptional({ example: 'America/Chicago' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  timeZone?: string;
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() autoReply?: boolean;
+  @ApiPropertyOptional({ minimum: 0, maximum: 90 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(90)
+  autoCloseResolvedDays?: number;
+}
+
+export class SupportMacroDto {
+  @ApiProperty({ format: 'uuid' }) id!: string;
+  @ApiProperty() title!: string;
+  @ApiProperty({ description: '`{name}` becomes the user first name.' })
+  body!: string;
+  @ApiPropertyOptional({ enum: SUPPORT_CATEGORIES, nullable: true })
+  category!: SupportCategory | null;
+  @ApiProperty() active!: boolean;
+  @ApiProperty() uses!: number;
+  @ApiProperty({ format: 'date-time' }) updatedAt!: string;
+}
+
+export class CreateSupportMacroDto {
+  @ApiProperty({ minLength: 1, maxLength: 120 })
+  @Transform(trim)
+  @IsString()
+  @Length(1, 120)
+  title!: string;
+
+  @ApiProperty({ minLength: 1, maxLength: SUPPORT_BODY_MAX })
+  @Transform(trim)
+  @IsString()
+  @Length(1, SUPPORT_BODY_MAX)
+  body!: string;
+
+  @ApiPropertyOptional({ enum: SUPPORT_CATEGORIES, nullable: true })
+  @IsOptional()
+  @ValidateIf((_o, v) => v !== null)
+  @IsIn(SUPPORT_CATEGORIES)
+  category?: SupportCategory | null;
+
+  @ApiPropertyOptional({ default: true })
+  @IsOptional()
+  @IsBoolean()
+  active?: boolean;
+}
+
+export class UpdateSupportMacroDto {
+  @ApiPropertyOptional({ minLength: 1, maxLength: 120 })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @Length(1, 120)
+  title?: string;
+
+  @ApiPropertyOptional({ minLength: 1, maxLength: SUPPORT_BODY_MAX })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @Length(1, SUPPORT_BODY_MAX)
+  body?: string;
+
+  @ApiPropertyOptional({ enum: SUPPORT_CATEGORIES, nullable: true })
+  @IsOptional()
+  @ValidateIf((_o, v) => v !== null)
+  @IsIn(SUPPORT_CATEGORIES)
+  category?: SupportCategory | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  active?: boolean;
+}
+
+export class SupportMacroIdParamDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID('all')
+  id!: string;
+}
+
+export class SupportAgentDto {
+  @ApiProperty({ format: 'uuid' }) adminId!: string;
+  @ApiProperty() name!: string;
+  @ApiProperty() onShift!: boolean;
+  @ApiProperty({
+    description: 'Auto-assignment skips the agent at this many open tickets.',
+  })
+  maxOpen!: number;
+  @ApiProperty({ description: 'Open tickets assigned now.' })
+  openTickets!: number;
+}
+
+export class UpdateSupportAgentDto {
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() onShift?: boolean;
+  @ApiPropertyOptional({ minimum: 1, maximum: 500 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(500)
+  maxOpen?: number;
+}
+
+export class SupportAgentIdParamDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID('all')
+  adminId!: string;
+}
+
+export class SupportStaffStatsQueryDto {
+  @ApiPropertyOptional({ format: 'date-time' })
+  @IsOptional()
+  @IsISO8601()
+  from?: string;
+
+  @ApiPropertyOptional({ format: 'date-time' })
+  @IsOptional()
+  @IsISO8601()
+  to?: string;
+}
+
+export class SupportStaffStatsDto {
+  @ApiProperty({ format: 'uuid' }) adminId!: string;
+  @ApiProperty() name!: string;
+  @ApiProperty({ description: 'Public answers written.' }) replies!: number;
+  @ApiProperty({ description: 'Tickets answered first by this agent.' })
+  firstResponses!: number;
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'Median minutes to their first answers.',
+  })
+  medianFirstResponseMinutes!: number | null;
+  @ApiProperty({ description: 'Tickets this agent resolved or closed.' })
+  resolved!: number;
+  @ApiProperty({ description: 'Their tickets whose answer was late.' })
+  slaBreaches!: number;
+  @ApiProperty({ description: 'Open tickets assigned now.' }) openNow!: number;
+  @ApiProperty() onShift!: boolean;
+}
+
+export class SupportNextTicketDto {
+  @ApiPropertyOptional({
+    type: AdminSupportTicketDetailDto,
+    nullable: true,
+    description: 'null = the queue is empty.',
+  })
+  ticket!: AdminSupportTicketDetailDto | null;
+}
+
+export class SupportMacrosQueryDto {
+  @ApiPropertyOptional({
+    description: 'Include switched-off answers (management).',
+  })
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  all?: boolean;
 }

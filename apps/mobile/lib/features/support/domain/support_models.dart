@@ -86,3 +86,20 @@ class SupportTicket {
   bool get isOpen =>
       status == SupportStatus.open || status == SupportStatus.waitingUser;
 }
+
+/// Owner 2026-10-05 — support 24/7: when the team answers. Shown on the
+/// new-request screen ("usually within 1 h" / "back Monday 9:00").
+@immutable
+class SupportInfo {
+  const SupportInfo({
+    required this.open,
+    required this.expectedReplyMinutes,
+    this.opensAt,
+  });
+
+  final bool open;
+  final int expectedReplyMinutes;
+
+  /// When the team is back (null while open).
+  final DateTime? opensAt;
+}

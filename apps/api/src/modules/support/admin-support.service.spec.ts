@@ -6,6 +6,7 @@ import type { SubscriptionAccessService } from '../subscriptions/subscription-ac
 import { ADMIN_ROLES_KEY } from '../admin-auth/admin-auth.decorators';
 import { AdminSupportController } from './admin-support.controller';
 import { AdminSupportService } from './admin-support.service';
+import type { SupportDeskService } from './support-desk.service';
 
 const T0 = new Date('2026-10-01T10:00:00Z');
 const USER = '11111111-1111-4111-8111-111111111111';
@@ -27,6 +28,12 @@ function ticket(over: Partial<SupportTicket> = {}): SupportTicket {
     resolved_at: null,
     created_at: T0,
     updated_at: T0,
+    assigned_at: null,
+    first_response_at: null,
+    first_response_by: null,
+    resolved_by: null,
+    sla_due_at: null,
+    sla_breached_at: null,
     ...over,
   };
 }
@@ -42,6 +49,7 @@ function setup(found: SupportTicket | null = ticket()) {
           Promise.resolve(ticket({ ...found, ...data })),
         ),
     },
+    supportMacro: { updateMany: jest.fn() },
     supportMessage: {
       findMany: jest.fn().mockResolvedValue([]),
       create: jest.fn().mockImplementation(({ data }) =>
@@ -72,6 +80,9 @@ function setup(found: SupportTicket | null = ticket()) {
     prisma as unknown as PrismaService,
     notifications as unknown as NotificationsService,
     subs as unknown as SubscriptionAccessService,
+    {
+      info: jest.fn().mockResolvedValue({ open: true }),
+    } as unknown as SupportDeskService,
   );
   return { service, prisma, notifications };
 }

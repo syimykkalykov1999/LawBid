@@ -7,12 +7,13 @@ import { AnimatePresence, motion } from 'motion/react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import type { Me } from '@/lib/hooks';
-import { ROLE_LABEL, sectionFor } from '@/lib/rbac';
+import { ROLE_LABEL, groupFor, sectionFor } from '@/lib/rbac';
 import { ThemeChoice, ThemeToggle } from './theme-toggle';
 
 export function Topbar({ me, onMenu, onSearch }: { me: Me | undefined; onMenu: () => void; onSearch: () => void }) {
   const pathname = usePathname();
   const section = sectionFor(pathname);
+  const group = groupFor(pathname);
   const [menu, setMenu] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const router = useRouter();
@@ -50,6 +51,12 @@ export function Topbar({ me, onMenu, onSearch }: { me: Me | undefined; onMenu: (
         {section && section.href !== '/' ? (
           <>
             <span className="mx-2 hidden text-faint sm:inline">/</span>
+            {group && group.label !== section.label ? (
+              <>
+                <span className="hidden sm:inline">{group.label}</span>
+                <span className="mx-2 hidden text-faint sm:inline">/</span>
+              </>
+            ) : null}
             <span className="font-medium text-ink">{section.label}</span>
           </>
         ) : null}
