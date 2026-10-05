@@ -3,6 +3,7 @@ import { type Plan, Prisma } from '@prisma/client';
 import type Redis from 'ioredis';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
+import { SEATS_HARD_CAP } from '../billing/billing.constants';
 import { clientBadgeActive } from '../client-badge/client-badge.util';
 import {
   findActiveGrant,
@@ -132,10 +133,12 @@ export class EntitlementsService {
   }
 
   /** Attorney: the entitlements the plan [plan] gives, with the seats a
-   * subscription with [extraSeats] has. Used by checkout quotes. */
+   * subscription with [extraSeats] has; with [attorneyId], that attorney's
+   * personal limit from the admin counts too. Used by checkout quotes. */
   async forPlan(
     plan: Plan,
     extraSeats = 0,
+    attorneyId?: string,
   ): Promise<{ values: Entitlements; seats: SeatSummary }> {
     const audience = plan.audience as Audience;
     const values = mergeEntitlements(
@@ -143,7 +146,15 @@ export class EntitlementsService {
       await this.plans.baselineEntitlements(audience),
       this.plans.entitlementsOf(plan),
     );
-    return { values, seats: seatsOf(values, extraSeats) };
+    const own = attorneyId
+      ? ((
+          await this.prisma.attorneyProfile.findUnique({
+            where: { user_id: attorneyId },
+            select: { assistant_seat_limit: true },
+          })
+        )?.assistant_seat_limit ?? null)
+      : null;
+    return { values, seats: seatsOf(values, extraSeats, own) };
   }
 
   private async version(): Promise<string> {
@@ -162,7 +173,7 @@ export class EntitlementsService {
   private async computeAttorney(userId: string): Promise<ResolvedEntitlements> {
     const audience: Audience = 'attorney';
     const baseline = await this.plans.baselineEntitlements(audience);
-    const [sub, grant] = await Promise.all([
+    const [sub, grant, profile] = await Promise.all([
       this.prisma.subscription.findUnique({
         where: { user_id: userId },
         select: {
@@ -175,7 +186,29 @@ export class EntitlementsService {
         },
       }),
       findActiveGrant(this.prisma, userId),
+      this.prisma.attorneyProfile.findUnique({
+        where: { user_id: userId },
+        select: { assistant_seat_limit: true },
+      }),
     ]);
+    // Owner 2026-10-05: an admin's personal limit (seat request approved
+    // or set on Teams) replaces the plan's `max_seats` for this attorney.
+    const own = profile?.assistant_seat_limit ?? null;
+    const present = (
+      source: EntitlementSource,
+      plan: Plan | null,
+      values: Entitlements,
+      seats: SeatSummary,
+      isPaid: boolean,
+    ) =>
+      presentResolved(
+        audience,
+        source,
+        plan,
+        values,
+        withPersonalLimit(seats, own),
+        isPaid,
+      );
     const active = subscriptionRowIsActive(sub);
     if (active && sub) {
       const plan = sub.plan_id ? await this.safePlan(sub.plan_id) : null;
@@ -189,9 +222,9 @@ export class EntitlementsService {
           plan ? this.plans.entitlementsOf(plan) : null,
           snapshot,
         );
-        const seats = seatsOf(values, sub.assistant_seats);
+        const seats = seatsOf(values, sub.assistant_seats, own);
         if (grant) seats.total = Math.max(seats.total, grant.assistant_seats);
-        return present(audience, 'plan', plan, values, seats, true);
+        return present('plan', plan, values, seats, true);
       }
       // A row from before plans existed: the audience's default plan of
       // its interval; the seats it bought are what it has.
@@ -204,14 +237,18 @@ export class EntitlementsService {
         baseline,
         legacy ? this.plans.entitlementsOf(legacy) : null,
       );
-      const total = Math.max(paidSeats(sub), grant?.assistant_seats ?? 0);
+      const yearlySeats = entitlementNumber(values, 'included_seats');
+      const total = Math.max(
+        paidSeats(sub, yearlySeats),
+        grant?.assistant_seats ?? 0,
+      );
       const seats: SeatSummary = {
-        included: sub.plan === 'yearly' ? paidSeats(sub) : 0,
+        included: sub.plan === 'yearly' ? paidSeats(sub, yearlySeats) : 0,
         extra: sub.plan === 'yearly' ? 0 : sub.assistant_seats,
         total,
         max: Math.max(total, entitlementNumber(values, 'max_seats')),
       };
-      return present(audience, 'legacy', legacy, values, seats, true);
+      return present('legacy', legacy, values, seats, true);
     }
     if (grant) {
       // Owner 2026-10-02: a free subscription under a contract = the
@@ -231,15 +268,14 @@ export class EntitlementsService {
           entitlementNumber(values, 'max_seats'),
         ),
       };
-      return present(audience, 'grant', plan, values, seats, true);
+      return present('grant', plan, values, seats, true);
     }
     const plan = await this.plans.baseline(audience);
     return present(
-      audience,
       'baseline',
       plan,
       baseline,
-      seatsOf(baseline, 0),
+      seatsOf(baseline, 0, own),
       false,
     );
   }
@@ -276,12 +312,19 @@ export class EntitlementsService {
           : null,
       );
       if (legacyBadge) values.verified_badge = true;
-      return present(audience, 'plan', plan, values, null, true);
+      return presentResolved(audience, 'plan', plan, values, null, true);
     }
     const plan = await this.plans.baseline(audience);
     const values = { ...baseline };
     if (legacyBadge) values.verified_badge = true;
-    return present(audience, 'baseline', plan, values, null, legacyBadge);
+    return presentResolved(
+      audience,
+      'baseline',
+      plan,
+      values,
+      null,
+      legacyBadge,
+    );
   }
 
   private async safePlan(id: string): Promise<Plan | null> {
@@ -308,14 +351,41 @@ export function clientSubscriptionActive(
   );
 }
 
-export function seatsOf(values: Entitlements, extra: number): SeatSummary {
+/** The plan's seats with [extra] bought; [own] = an admin's personal
+ * limit for this attorney, which replaces the plan's `max_seats`. */
+export function seatsOf(
+  values: Entitlements,
+  extra: number,
+  own: number | null = null,
+): SeatSummary {
   const included = entitlementNumber(values, 'included_seats');
-  const max = Math.max(included, entitlementNumber(values, 'max_seats'));
+  const planMax = Math.max(included, entitlementNumber(values, 'max_seats'));
+  const max =
+    own != null && own > 0
+      ? Math.min(SEATS_HARD_CAP, Math.max(included, own))
+      : planMax;
   const safeExtra = Math.max(0, Math.min(extra, max - included));
   return { included, extra: safeExtra, total: included + safeExtra, max };
 }
 
-function present(
+/** The admin's personal limit for one attorney wins over the plan's cap
+ * (never below the seats the plan includes; within the hard cap). */
+export function withPersonalLimit(
+  seats: SeatSummary,
+  own: number | null,
+): SeatSummary {
+  if (own == null || own <= 0) return seats;
+  const max = Math.min(SEATS_HARD_CAP, Math.max(seats.included, own));
+  const extra = Math.max(0, Math.min(seats.extra, max - seats.included));
+  return {
+    ...seats,
+    extra,
+    total: Math.max(seats.included + extra, seats.total),
+    max,
+  };
+}
+
+function presentResolved(
   audience: Audience,
   source: EntitlementSource,
   plan: Plan | null,

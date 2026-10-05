@@ -8,6 +8,7 @@ import 'admin_case_bid_dto.dart';
 import 'admin_case_card_dto_budget_mode.dart';
 import 'admin_case_card_dto_dossier_missing.dart';
 import 'admin_case_card_dto_status.dart';
+import 'admin_case_invite_dto.dart';
 import 'admin_case_state_dto.dart';
 import 'admin_journal_entry_dto.dart';
 import 'admin_party_dto.dart';
@@ -17,7 +18,7 @@ part 'admin_case_card_dto.g.dart';
 @JsonSerializable()
 class AdminCaseCardDto {
   const AdminCaseCardDto({
-    required this.openReports,
+    required this.promoted,
     required this.title,
     required this.status,
     required this.clientId,
@@ -28,8 +29,8 @@ class AdminCaseCardDto {
     required this.bidsCount,
     required this.commentCount,
     required this.viewCount,
+    required this.openReports,
     required this.id,
-    required this.promoted,
     required this.imagesCount,
     required this.documentsCount,
     required this.dossierScore,
@@ -38,19 +39,20 @@ class AdminCaseCardDto {
     required this.createdAt,
     required this.description,
     required this.city,
+    required this.budgetMode,
     required this.promotedUntil,
-    required this.budgetCents,
     required this.client,
     required this.states,
     required this.photosCount,
     required this.acceptedBidId,
     required this.bids,
+    required this.invites,
     required this.journal,
     required this.disputeIds,
     required this.contactIssueIds,
     required this.archivedAt,
     required this.closedAt,
-    required this.budgetMode,
+    required this.budgetCents,
   });
 
   factory AdminCaseCardDto.fromJson(Map<String, Object?> json) =>
@@ -94,6 +96,9 @@ class AdminCaseCardDto {
 
   /// Newest first (≤100).
   final List<AdminCaseBidDto> bids;
+
+  /// Owner 2026-10-05: invites the client sent, newest first.
+  final List<AdminCaseInviteDto> invites;
 
   /// case_journal, newest first (last 50).
   final List<AdminJournalEntryDto> journal;

@@ -5,7 +5,10 @@
 import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
+import '../models/create_seat_limit_request_dto.dart';
 import '../models/promo_validation_envelope.dart';
+import '../models/seat_limit_request_envelope.dart';
+import '../models/seat_limit_state_envelope.dart';
 import '../models/validate_promo_dto.dart';
 
 part 'billing_client.g.dart';
@@ -18,6 +21,19 @@ abstract class BillingClient {
   @POST('/billing/promo/validate')
   Future<PromoValidationEnvelope> validatePromoCode({
     @Body() required ValidatePromoDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Ask the admins for a higher assistant limit
+  @POST('/billing/seat-limit-requests')
+  Future<SeatLimitRequestEnvelope> createSeatLimitRequest({
+    @Body() required CreateSeatLimitRequestDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// The attorney's seat limit and latest request
+  @GET('/billing/seat-limit-requests/latest')
+  Future<SeatLimitStateEnvelope> seatLimitState({
     @Extras() Map<String, dynamic>? extras,
   });
 }

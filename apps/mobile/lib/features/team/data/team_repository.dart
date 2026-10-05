@@ -14,17 +14,22 @@ abstract interface class TeamRepository {
   // The assistant themself.
   Future<AssistantMe> assistantMe();
   Future<AssistantMe> acceptInvite();
-  Future<void> requestJoinCode(String attorneyPhone);
-  Future<AssistantMe> verifyJoinCode(String attorneyPhone, String code);
+
+  /// Owner 2026-10-04: join with the attorney's one-time code (no SMS).
+  Future<AssistantMe> joinWithCode(String code);
 
   // The attorney's team.
   Future<TeamInfo> team();
-  Future<TeamInfo> addAssistant(
-    String phone, {
+
+  /// Takes a seat and gives it a new one-time code (in the answer).
+  Future<TeamInfo> addAssistant({
     String? name,
     Set<AssistantDuty>? duties,
     bool acceptLiability = false,
   });
+
+  /// A new code for the seat; the old one stops working.
+  Future<TeamInfo> regenerateCode(String id);
 
   /// OQ-049: [acceptLiability] — the attorney accepted responsibility for
   /// the newly switched-on duties (required by the server).
@@ -141,6 +146,8 @@ class ApiTeamRepository implements TeamRepository {
               approval: m.approval.json ?? 'attorney_added',
               duties: AssistantDuty.parseAll(m.duties),
               joinedAt: _date(m.joinedAt),
+              joinCode: m.joinCode,
+              joinCodeExpiresAt: _date(m.joinCodeExpiresAt),
               liabilityAcceptedAt: _date(m.liabilityAcceptedAt),
               createdAt: _date(m.createdAt) ?? DateTime.now(),
             ),
@@ -257,22 +264,9 @@ class ApiTeamRepository implements TeamRepository {
       _me((await guardApiCall(_api.acceptAssistantInvite)).data);
 
   @override
-  Future<void> requestJoinCode(String attorneyPhone) => guardApiCall(
-        () => _api.requestAssistantCode(
-          body: api.AssistantPhoneDto(phone: attorneyPhone),
-        ),
-      );
-
-  @override
-  Future<AssistantMe> verifyJoinCode(String attorneyPhone, String code) async =>
-      _me(
+  Future<AssistantMe> joinWithCode(String code) async => _me(
         (await guardApiCall(
-          () => _api.verifyAssistantCode(
-            body: api.JoinVerifyDto(
-              attorneyPhone: attorneyPhone,
-              code: code,
-            ),
-          ),
+          () => _api.joinWithCode(body: api.JoinCodeDto(code: code)),
         ))
             .data,
       );
@@ -282,8 +276,7 @@ class ApiTeamRepository implements TeamRepository {
       _team((await guardApiCall(_api.getTeam)).data);
 
   @override
-  Future<TeamInfo> addAssistant(
-    String phone, {
+  Future<TeamInfo> addAssistant({
     String? name,
     Set<AssistantDuty>? duties,
     bool acceptLiability = false,
@@ -292,7 +285,6 @@ class ApiTeamRepository implements TeamRepository {
         (await guardApiCall(
           () => _api.addAssistant(
             body: api.AddAssistantDto(
-              phone: phone,
               name: name,
               acceptLiability: acceptLiability ? true : null,
               duties: _duties(duties)
@@ -325,6 +317,11 @@ class ApiTeamRepository implements TeamRepository {
           ),
         ))
             .data,
+      );
+
+  @override
+  Future<TeamInfo> regenerateCode(String id) async => _team(
+        (await guardApiCall(() => _api.regenerateAssistantCode(id: id))).data,
       );
 
   @override

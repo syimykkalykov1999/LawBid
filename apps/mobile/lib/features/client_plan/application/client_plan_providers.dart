@@ -12,8 +12,8 @@ final clientPlanRepositoryProvider = Provider<ClientPlanRepository>(
 );
 
 /// `GET /client-plans/me` behind Settings → «Подписка клиента».
-final clientPlanProvider = AsyncNotifierProvider.autoDispose<
-    ClientPlanController, ClientPlanOverview>(
+final clientPlanProvider =
+    AsyncNotifierProvider.autoDispose<ClientPlanController, ClientPlanOverview>(
   ClientPlanController.new,
   retry: _noRetry,
 );
@@ -78,8 +78,8 @@ class ClientCheckoutState {
 /// Mirrors the attorney's `subscribeWeb`: open Stripe's page in the
 /// browser, then poll `checkout/complete` with the session id until the
 /// subscription is active (15 min max; the client may stop waiting).
-final clientCheckoutControllerProvider = NotifierProvider.autoDispose<
-    ClientCheckoutController, ClientCheckoutState>(
+final clientCheckoutControllerProvider =
+    NotifierProvider.autoDispose<ClientCheckoutController, ClientCheckoutState>(
   ClientCheckoutController.new,
 );
 

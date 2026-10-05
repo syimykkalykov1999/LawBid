@@ -87,8 +87,6 @@ class PlanPicker extends StatefulWidget {
 class _PlanPickerState extends State<PlanPicker> {
   SubscriptionPlan _plan = SubscriptionPlan.monthly;
   int _seats = 0;
-  final List<TextEditingController> _phones = [];
-  bool _tried = false;
 
   /// Owner 2026-10-02: a validated promo code (null = none).
   String? _promo;
@@ -99,8 +97,10 @@ class _PlanPickerState extends State<PlanPicker> {
   PlanPrices get _p => widget.overview.prices;
 
   /// Plans of the plan builder that can be bought; empty → legacy tiers.
-  List<PlanOffer> get _offers =>
-      [for (final p in widget.overview.plans) if (p.purchasable) p];
+  List<PlanOffer> get _offers => [
+        for (final p in widget.overview.plans)
+          if (p.purchasable) p
+      ];
   bool get _dynamic => _offers.isNotEmpty;
 
   PlanOffer? get _offer {
@@ -134,7 +134,6 @@ class _PlanPickerState extends State<PlanPicker> {
       _planCode = plan.code;
       _plan = legacyPlanOf(plan);
       _seats = _seats.clamp(0, plan.extraSeatsAllowed);
-      _trimPhones();
     });
   }
 
@@ -142,16 +141,7 @@ class _PlanPickerState extends State<PlanPicker> {
     HapticFeedback.selectionClick();
     setState(() {
       _seats = seats.clamp(0, _offer?.extraSeatsAllowed ?? 0);
-      _trimPhones();
     });
-  }
-
-  @override
-  void dispose() {
-    for (final c in _phones) {
-      c.dispose();
-    }
-    super.dispose();
   }
 
   String _price(int cents) => subscriptionPrice(widget.formats, cents);
@@ -159,49 +149,24 @@ class _PlanPickerState extends State<PlanPicker> {
   void _setPlan(SubscriptionPlan plan) {
     if (plan == _plan) return;
     HapticFeedback.selectionClick();
-    setState(() {
-      _plan = plan;
-      _trimPhones();
-    });
+    setState(() => _plan = plan);
   }
 
   void _setSeats(int seats) {
     HapticFeedback.selectionClick();
-    setState(() {
-      _seats = seats.clamp(0, _p.maxSeats);
-      _trimPhones();
-    });
+    setState(() => _seats = seats.clamp(0, _p.maxSeats));
   }
 
-  /// Fewer seats than phone rows: empty rows go first.
-  void _trimPhones() {
-    while (_phones.length > _seatLimit) {
-      final i = _phones.lastIndexWhere((c) => c.text.trim().isEmpty);
-      _phones.removeAt(i >= 0 ? i : _phones.length - 1).dispose();
-    }
-  }
-
-  String? _phoneError(TextEditingController c) {
-    if (!_tried) return null;
-    final v = c.text.trim();
-    if (v.isEmpty) return null;
-    return phoneE164.hasMatch(v) ? null : widget.t.t('plans.phones.invalid');
-  }
-
+  /// Owner 2026-10-04: no assistant phones at checkout — each seat gets a
+  /// one-time code in Subscription → "Your assistants" after payment.
   void _pay() {
-    setState(() => _tried = true);
-    final phones = [
-      for (final c in _phones)
-        if (c.text.trim().isNotEmpty) c.text.trim(),
-    ];
-    if (phones.any((p) => !phoneE164.hasMatch(p))) return;
     final offer = _offer;
     if (offer != null) {
       widget.onPay(
         (
           plan: legacyPlanOf(offer),
           seats: _seats,
-          phones: phones.toSet().toList(),
+          phones: const [],
           promoCode: _promo,
           planCode: offer.code,
         ),
@@ -212,7 +177,7 @@ class _PlanPickerState extends State<PlanPicker> {
       (
         plan: _plan,
         seats: _plan == SubscriptionPlan.yearly ? _p.maxSeats : _seats,
-        phones: phones.toSet().toList(),
+        phones: const [],
         promoCode: _promo,
         planCode: null,
       ),
@@ -382,15 +347,17 @@ class _PlanPickerState extends State<PlanPicker> {
           child: _seatLimit > 0
               ? Padding(
                   padding: const EdgeInsets.only(top: AppSpacing.lg),
-                  child: _PhonesSection(
-                    t: t,
-                    controllers: _phones,
-                    limit: _seatLimit,
-                    errorOf: _phoneError,
-                    onAdd: () =>
-                        setState(() => _phones.add(TextEditingController())),
-                    onRemove: (i) =>
-                        setState(() => _phones.removeAt(i).dispose()),
+                  child: Text(
+                    t.t('plans.seatCodes.hint'),
+                    key: const ValueKey('plan-seat-codes'),
+                    style: Theme.of(context)
+                        .extension<AppTypographyTokens>()!
+                        .caption
+                        .copyWith(
+                          color: Theme.of(context)
+                              .extension<AppColorTokens>()!
+                              .textSecondary,
+                        ),
                   ),
                 )
               : const SizedBox(width: double.infinity),
@@ -483,85 +450,6 @@ class _PlanPickerState extends State<PlanPicker> {
           textAlign: TextAlign.center,
           style: typography.caption.copyWith(color: colors.textSecondary),
         ),
-      ],
-    );
-  }
-}
-
-class _PhonesSection extends StatelessWidget {
-  const _PhonesSection({
-    required this.t,
-    required this.controllers,
-    required this.limit,
-    required this.errorOf,
-    required this.onAdd,
-    required this.onRemove,
-  });
-
-  final Translator t;
-  final List<TextEditingController> controllers;
-  final int limit;
-  final String? Function(TextEditingController) errorOf;
-  final VoidCallback onAdd;
-  final ValueChanged<int> onRemove;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(
-          t.t('plans.phones'),
-          style: typography.body.copyWith(
-            color: colors.text,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: AppSpacing.xs),
-        Text(
-          t.t('plans.phones.hint'),
-          style: typography.caption.copyWith(color: colors.textSecondary),
-        ),
-        for (final (i, c) in controllers.indexed) ...[
-          const SizedBox(height: AppSpacing.sm),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: AppTextField(
-                  key: ValueKey('plan-phone-$i'),
-                  controller: c,
-                  hintText: '+13125550123',
-                  keyboardType: TextInputType.phone,
-                  errorText: errorOf(c),
-                  inputFormatters: [
-                    FilteringTextInputFormatter.allow(RegExp('[+0-9]')),
-                  ],
-                  leading: const AppIcon(AppIcons.phoneOutlined),
-                ),
-              ),
-              AppIconButton(
-                icon: const AppIcon(AppIcons.closeRounded),
-                semanticLabel: t.t('common.delete'),
-                onPressed: () => onRemove(i),
-              ),
-            ],
-          ),
-        ],
-        if (controllers.length < limit) ...[
-          const SizedBox(height: AppSpacing.xs),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton.icon(
-              key: const ValueKey('plan-phone-add'),
-              onPressed: onAdd,
-              icon: const AppIcon(AppIcons.addRounded),
-              label: Text(t.t('plans.phones.add')),
-            ),
-          ),
-        ],
       ],
     );
   }

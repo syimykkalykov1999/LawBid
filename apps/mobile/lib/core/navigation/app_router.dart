@@ -17,6 +17,7 @@ import 'package:lawbid/features/cases/presentation/screens/bid_form_screen.dart'
 import 'package:lawbid/features/cases/presentation/screens/case_comments_screen.dart';
 import 'package:lawbid/features/cases/presentation/screens/case_history_screens.dart';
 import 'package:lawbid/features/cases/presentation/screens/edit_case_screen.dart';
+import 'package:lawbid/features/cases/presentation/screens/invites_screen.dart';
 import 'package:lawbid/features/cases/presentation/screens/mine_views.dart';
 import 'package:lawbid/features/cases/presentation/screens/owner_case_screen.dart';
 import 'package:lawbid/features/cases/presentation/screens/work_case_screen.dart';
@@ -258,8 +259,17 @@ GoRouter appRouter(Ref ref) {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          BidFormScreen(caseId: state.pathParameters['id'] ?? ''),
+          BidFormScreen(
+            caseId: state.pathParameters['id'] ?? '',
+            initialAmountCents: state.extra is int ? state.extra! as int : null,
+          ),
         ),
+      ),
+      GoRoute(
+        path: AppRoutes.invites,
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            AppPageTransitions.push(state, const InvitesScreen()),
       ),
       GoRoute(
         path: AppRoutes.workCasePattern,

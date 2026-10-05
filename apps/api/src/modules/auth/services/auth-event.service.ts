@@ -18,6 +18,9 @@ export const AUTH_EVENT_TYPES = {
   OTP_LOCKED: 'otp_locked',
   SOCIAL_LOGIN_SUCCESS: 'social_login_success',
   SOCIAL_LOGIN_FAILED: 'social_login_failed',
+  // Owner 2026-10-04: an assistant signed in with the attorney's code.
+  ASSISTANT_CODE_LOGIN: 'assistant_code_login',
+  ASSISTANT_CODE_FAILED: 'assistant_code_failed',
   TOKEN_REFRESHED: 'token_refreshed',
   REFRESH_REUSE_DETECTED: 'refresh_reuse_detected',
   SESSION_REVOKED: 'session_revoked',

@@ -13,6 +13,7 @@ function build(opts: {
   badge?: Record<string, unknown> | null;
   grant?: Record<string, unknown> | null;
   plans?: Partial<Plan>[];
+  seatLimit?: number | null;
 }) {
   const now = new Date();
   const plans: Plan[] = (opts.plans ?? seedPlans()).map(
@@ -51,6 +52,10 @@ function build(opts: {
     },
     contractGrant: {
       findMany: () => Promise.resolve(opts.grant ? [opts.grant] : []),
+    },
+    attorneyProfile: {
+      findUnique: () =>
+        Promise.resolve({ assistant_seat_limit: opts.seatLimit ?? null }),
     },
   } as unknown as PrismaService;
   const redis = {
@@ -95,7 +100,7 @@ describe('EntitlementsService (owner 2026-10-05)', () => {
     const r = await service.forUser('u1');
     expect(r.source).toBe('plan');
     expect(r.planCode).toBe(monthly.code);
-    expect(r.seats).toEqual({ included: 0, extra: 2, total: 2, max: 6 });
+    expect(r.seats).toEqual({ included: 0, extra: 2, total: 2, max: 10 });
   });
 
   it('the frozen snapshot wins over the plan as edited later', async () => {
@@ -116,7 +121,7 @@ describe('EntitlementsService (owner 2026-10-05)', () => {
     expect(r.seats?.total).toBe(10);
   });
 
-  it('a pre-plan yearly row keeps its 6 seats via the default yearly plan', async () => {
+  it("a pre-plan yearly row gets the default yearly plan's seats", async () => {
     const { service } = build({
       role: 'attorney',
       subscription: {
@@ -131,8 +136,43 @@ describe('EntitlementsService (owner 2026-10-05)', () => {
     const r = await service.forUser('u1');
     expect(r.source).toBe('legacy');
     expect(r.planCode).toBe('attorney_yearly');
-    expect(r.seats).toEqual({ included: 6, extra: 0, total: 6, max: 6 });
+    // Owner 2026-10-05: the yearly plan now includes the admin's 10 seats.
+    expect(r.seats).toEqual({ included: 10, extra: 0, total: 10, max: 10 });
     expect(r.values.priority_search).toBe(true);
+  });
+
+  it("an admin's personal seat limit replaces the plan's cap", async () => {
+    const { service } = build({
+      role: 'attorney',
+      subscription: {
+        status: 'active',
+        grace_ends_at: null,
+        plan: 'monthly',
+        assistant_seats: 12,
+        plan_id: planByCode(seedAsPlans(), 'attorney_monthly').id,
+        entitlements: null,
+      },
+      seatLimit: 15,
+    });
+    const r = await service.forUser('u1');
+    expect(r.seats).toEqual({ included: 0, extra: 12, total: 12, max: 15 });
+  });
+
+  it('a personal limit never drops below the seats the plan includes', async () => {
+    const { service } = build({
+      role: 'attorney',
+      subscription: {
+        status: 'active',
+        grace_ends_at: null,
+        plan: 'yearly',
+        assistant_seats: 10,
+        plan_id: null,
+        entitlements: null,
+      },
+      seatLimit: 3,
+    });
+    const r = await service.forUser('u1');
+    expect(r.seats).toEqual({ included: 10, extra: 0, total: 10, max: 10 });
   });
 
   it('an expired subscription falls back to the baseline', async () => {

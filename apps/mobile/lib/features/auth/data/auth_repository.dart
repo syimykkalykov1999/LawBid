@@ -46,6 +46,12 @@ abstract interface class AuthRepository {
     required String verifier,
   });
 
+  /// Owner 2026-10-04: an assistant signs in with the one-time code the
+  /// attorney got for their seat (`POST /auth/assistant/code`, no SMS).
+  /// Applies the session on success; a wrong / used / expired code is
+  /// `.invalid()`.
+  Future<OtpVerifyResult> signInWithAssistantCode(String code);
+
   /// Verifies [code] for [identifier] on [channel]; applies the session on
   /// success.
   Future<OtpVerifyResult> verifyOtp({

@@ -2,8 +2,6 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
-  HttpException,
-  HttpStatus,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -16,8 +14,7 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { AssistantContextService } from '../auth/assistant/assistant-context';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
-import { OtpService } from '../auth/services/otp.service';
-import { RateLimitService } from '../auth/services/rate-limit.service';
+import { AssistantCodeService } from '../auth/assistant/assistant-code.service';
 import { CaseCommentsService } from '../case-comments/case-comments.service';
 import { CommentsService } from '../comments/comments.service';
 import { FilesService } from '../files/files.service';
@@ -42,13 +39,19 @@ import type {
   TeamDto,
   UpdateAssistantDto,
 } from './assistants.dto';
-import {} from '../subscriptions/contract-grant.util';
+import {
+  formatJoinCode,
+  hashJoinCode,
+  JOIN_CODE_TTL_MS,
+  JoinCodeCipher,
+  newJoinCode,
+} from './join-code';
 
 const PAGE = 30;
 
 type MemberNames = {
   display_name: string | null;
-  phone_e164: string;
+  phone_e164: string | null;
   assistant_user: {
     first_name: string | null;
     last_name: string | null;
@@ -57,10 +60,12 @@ type MemberNames = {
 
 /**
  * Owner 2026-09-30 (OQ-048): attorney assistants.
- * - Seats come from the subscription (monthly: bought seats; yearly: 6).
- * - Joining: a phone the attorney added (at purchase or in Team) joins
- *   right away; otherwise the attorney's phone gets a code the attorney
- *   tells the assistant.
+ * - Seats come from the subscription (monthly: bought seats; yearly: the
+ *   admin's seat limit `billing.max_assistant_seats`).
+ * - Joining (owner 2026-10-04, no SMS): every seat the attorney adds gets
+ *   a one-time code (join-code.ts) shown in Team / Subscription; the
+ *   assistant signs in with it (POST /auth/assistant/code). "New code"
+ *   signs the same assistant in on a new phone; removal voids it.
  * - An active assistant works inside the attorney's account
  *   (JwtAuthGuard), never bids, and publishes through approval requests.
  * - Every action lands in the activity log the assistant can't see.
@@ -69,7 +74,8 @@ type MemberNames = {
 export class AssistantsService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly otp: OtpService,
+    private readonly codes: AssistantCodeService,
+    private readonly cipher: JoinCodeCipher,
     private readonly context: AssistantContextService,
     private readonly access: SubscriptionAccessService,
     private readonly entitlements: EntitlementsService,
@@ -79,7 +85,6 @@ export class AssistantsService {
     private readonly caseComments: CaseCommentsService,
     private readonly profiles: AttorneyProfilesService,
     private readonly files: FilesService,
-    private readonly rateLimit: RateLimitService,
   ) {}
 
   // --- the assistant themself ------------------------------------------
@@ -163,110 +168,21 @@ export class AssistantsService {
     return this.me(user);
   }
 
-  /** POST /assistants/join/request-code — a code to the attorney's phone. */
-  async requestCode(user: RequestUser, attorneyPhone: string): Promise<void> {
-    await this.assertCanJoin(user.sub);
-    await this.limitCodeRequests(user.sub, attorneyPhone);
-    const attorney = await this.attorneyByPhone(attorneyPhone);
-    await this.assertFreeSeat(attorney.id);
-    await this.otp.requestOtp('phone', attorneyPhone, 'assistant');
-  }
-
   /**
-   * Security audit 2026-10-01: every join code is a paid SMS to someone
-   * else's phone — 3 an hour and 6 a day per account, plus the same
-   * per-number window the sign-in OTP uses (5/hour), so nobody can spam an
-   * attorney or burn the SMS budget.
+   * POST /assistants/join/code — a signed-in account without a team (e.g.
+   * removed from one) joins with the attorney's one-time code.
    */
-  private async limitCodeRequests(
-    userId: string,
-    attorneyPhone: string,
-  ): Promise<void> {
-    const results = [
-      await this.rateLimit.consumeFixedWindow(
-        ['assist-code', 'user', userId, 'h'],
-        3,
-        3600,
-      ),
-      await this.rateLimit.consumeFixedWindow(
-        ['assist-code', 'user', userId, 'd'],
-        6,
-        86_400,
-      ),
-      await this.rateLimit.consumeSlidingWindow(
-        ['otp-req', 'id', this.rateLimit.hashIdentifier(attorneyPhone)],
-        5,
-        3600,
-      ),
-    ];
-    const blocked = results.filter((r) => !r.allowed);
-    if (blocked.length > 0) {
-      throw new HttpException(
-        {
-          code: ErrorCode.AUTH_OTP_REQUEST_LIMIT,
-          message: 'Too many code requests. Try again later.',
-          details: {
-            retryAfterSeconds: Math.max(
-              ...blocked.map((r) => r.retryAfterSeconds),
-            ),
-          },
-        },
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
-    }
-  }
-
-  /** POST /assistants/join/verify — the code the attorney told them. */
-  async verifyCode(
-    user: RequestUser,
-    attorneyPhone: string,
-    code: string,
-  ): Promise<AssistantMeDto> {
+  async joinWithCode(user: RequestUser, code: string): Promise<AssistantMeDto> {
     await this.assertCanJoin(user.sub);
-    const result = await this.otp.verifyOtp(
-      'phone',
-      attorneyPhone,
-      code,
-      'assistant',
-    );
-    if (result !== 'ok') {
-      throw new BadRequestException({
-        code:
-          result === 'expired'
-            ? ErrorCode.AUTH_OTP_EXPIRED
-            : result === 'locked'
-              ? ErrorCode.AUTH_OTP_LOCKED
-              : ErrorCode.AUTH_OTP_INVALID,
-        message: 'The code is not valid.',
+    const seat = await this.codes.find(code);
+    if (seat.assistant_user_id && seat.assistant_user_id !== user.sub) {
+      // A sign-in code of another assistant: only POST /auth/assistant/code.
+      throw new ConflictException({
+        code: ErrorCode.ASSISTANT_PHONE_TAKEN,
+        message: 'This code belongs to another assistant.',
       });
     }
-    const attorney = await this.attorneyByPhone(attorneyPhone);
-    await this.assertFreeSeat(attorney.id);
-    const me = await this.prisma.user.findUnique({
-      where: { id: user.sub },
-      select: { phone_e164: true },
-    });
-    if (!me?.phone_e164) {
-      throw new BadRequestException({
-        code: ErrorCode.VALIDATION_ERROR,
-        message: 'Sign in with your phone first.',
-      });
-    }
-    // A stale invite for this phone (another attorney) gives way.
-    await this.prisma.assistantMembership.updateMany({
-      where: { phone_e164: me.phone_e164, status: 'invited' },
-      data: { status: 'removed', removed_at: new Date() },
-    });
-    const m = await this.prisma.assistantMembership.create({
-      data: {
-        attorney_id: attorney.id,
-        phone_e164: me.phone_e164,
-        approval: 'attorney_otp',
-        status: 'invited',
-        duties: [...DEFAULT_DUTIES],
-      },
-    });
-    await this.activate(user.sub, m.id, attorney.id);
+    await this.codes.claim(seat, user.sub);
     return this.me(user);
   }
 
@@ -291,26 +207,6 @@ export class AssistantsService {
         message: 'You already work in an attorney team.',
       });
     }
-  }
-
-  private async attorneyByPhone(phone: string) {
-    const a = await this.prisma.user.findFirst({
-      where: {
-        phone_e164: phone,
-        role: 'attorney',
-        deleted_at: null,
-        status: 'active',
-      },
-      select: { id: true },
-    });
-    // Same answer for "no such attorney" and "no free seat": no probing.
-    if (!a || !(await this.access.isActive(a.id))) {
-      throw new NotFoundException({
-        code: ErrorCode.ASSISTANT_NO_FREE_SEAT,
-        message: 'This attorney has no free assistant seat.',
-      });
-    }
-    return a;
   }
 
   private async seatsOf(attorneyId: string) {
@@ -385,7 +281,7 @@ export class AssistantsService {
     const s = await this.seatsOf(user.sub);
     return {
       members: rows.map((m) => ({
-        ...memberDto(m),
+        ...memberDto(m, this.codeOf(m)),
         liabilityAcceptedAt:
           m.liability_acceptances[0]?.created_at.toISOString() ?? null,
       })),
@@ -395,22 +291,28 @@ export class AssistantsService {
     };
   }
 
-  /** Added by the attorney: joins without a code. */
+  /**
+   * Owner 2026-10-04: "Add assistant" takes a seat and gives it a new
+   * one-time code (shown right away and in Team / Subscription). A phone
+   * is optional (older apps): that phone may also join without the code.
+   */
   async add(
     user: RequestUser,
     dto: AddAssistantDto,
     meta?: RequestMeta,
   ): Promise<TeamDto> {
     await this.assertFreeSeat(user.sub);
-    const taken = await this.prisma.assistantMembership.findFirst({
-      where: { phone_e164: dto.phone, status: { not: 'removed' } },
-      select: { id: true },
-    });
-    if (taken) {
-      throw new ConflictException({
-        code: ErrorCode.ASSISTANT_PHONE_TAKEN,
-        message: 'This phone is already in a team.',
+    if (dto.phone) {
+      const taken = await this.prisma.assistantMembership.findFirst({
+        where: { phone_e164: dto.phone, status: { not: 'removed' } },
+        select: { id: true },
       });
+      if (taken) {
+        throw new ConflictException({
+          code: ErrorCode.ASSISTANT_PHONE_TAKEN,
+          message: 'This phone is already in a team.',
+        });
+      }
     }
     const duties = dto.duties ?? [...DEFAULT_DUTIES];
     const granted = liabilityDiff([], duties).granted;
@@ -418,15 +320,65 @@ export class AssistantsService {
     const m = await this.prisma.assistantMembership.create({
       data: {
         attorney_id: user.sub,
-        phone_e164: dto.phone,
+        phone_e164: dto.phone ?? null,
         display_name: dto.name ?? null,
         approval: 'attorney_added',
         status: 'invited',
         duties,
       },
     });
+    await this.issueCode(m.id);
     await this.recordLiability(user, m.id, granted, [], meta);
     return this.team(user);
+  }
+
+  /**
+   * POST /team/:id/code — a new one-time code for this seat; the old one
+   * stops working. For a joined assistant it is the code to sign in on a
+   * new phone (the old phone is signed out when it is used).
+   */
+  async regenerateCode(user: RequestUser, id: string): Promise<TeamDto> {
+    await this.own(user, id);
+    await this.issueCode(id);
+    return this.team(user);
+  }
+
+  private async issueCode(membershipId: string): Promise<void> {
+    // ~59 random bits: a clash with another live code is practically
+    // impossible; the unique index turns one into a retry, never a share.
+    for (let attempt = 0; ; attempt++) {
+      const code = newJoinCode();
+      try {
+        await this.prisma.assistantMembership.update({
+          where: { id: membershipId },
+          data: {
+            join_code_hash: hashJoinCode(code),
+            join_code_enc: this.cipher.seal(code, membershipId),
+            join_code_expires_at: new Date(Date.now() + JOIN_CODE_TTL_MS),
+          },
+        });
+        return;
+      } catch (e) {
+        if (attempt >= 2 || (e as { code?: string }).code !== 'P2002') {
+          throw e;
+        }
+      }
+    }
+  }
+
+  /** The seat's code while it can still be used (shown to the attorney). */
+  private codeOf(m: AssistantMembership): {
+    code: string | null;
+    expiresAt: Date | null;
+  } {
+    const live =
+      m.join_code_enc &&
+      m.join_code_expires_at &&
+      m.join_code_expires_at.getTime() > Date.now();
+    const code = live ? this.cipher.open(m.join_code_enc!, m.id) : null;
+    return code
+      ? { code: formatJoinCode(code), expiresAt: m.join_code_expires_at }
+      : { code: null, expiresAt: null };
   }
 
   /**
@@ -496,7 +448,13 @@ export class AssistantsService {
     const m = await this.own(user, id);
     await this.prisma.assistantMembership.update({
       where: { id },
-      data: { status: 'removed', removed_at: new Date() },
+      data: {
+        status: 'removed',
+        removed_at: new Date(),
+        join_code_hash: null,
+        join_code_enc: null,
+        join_code_expires_at: null,
+      },
     });
     await this.context.invalidate(m.assistant_user_id);
     return this.team(user);
@@ -858,7 +816,8 @@ export function nameOf(m: MemberNames): string {
     ([m.assistant_user?.first_name, m.assistant_user?.last_name]
       .filter(Boolean)
       .join(' ') ||
-      m.phone_e164)
+      m.phone_e164 ||
+      'Assistant')
   );
 }
 
@@ -869,6 +828,7 @@ function memberDto(
       last_name: string | null;
     } | null;
   },
+  joinCode: { code: string | null; expiresAt: Date | null },
 ): AssistantMemberDto {
   const named =
     [m.assistant_user?.first_name, m.assistant_user?.last_name]
@@ -884,6 +844,8 @@ function memberDto(
     joinedAt: m.joined_at?.toISOString() ?? null,
     createdAt: m.created_at.toISOString(),
     liabilityAcceptedAt: null,
+    joinCode: joinCode.code,
+    joinCodeExpiresAt: joinCode.expiresAt?.toISOString() ?? null,
   };
 }
 

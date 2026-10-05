@@ -7,9 +7,12 @@
 
 const planRu = <String, String>{
   'error.api.ENTITLEMENT_REQUIRED': 'Эта возможность не входит в ваш план.',
-  'error.api.BID_LIMIT_REACHED': 'Достигнут лимит активных ставок вашего плана.',
-  'error.api.CASE_LIMIT_REACHED': 'Достигнут лимит открытых кейсов вашего плана.',
-  'error.api.PLAN_NOT_AVAILABLE': 'Этот план сейчас недоступен. Обновите экран.',
+  'error.api.BID_LIMIT_REACHED':
+      'Достигнут лимит активных ставок вашего плана.',
+  'error.api.CASE_LIMIT_REACHED':
+      'Достигнут лимит открытых кейсов вашего плана.',
+  'error.api.PLAN_NOT_AVAILABLE':
+      'Этот план сейчас недоступен. Обновите экран.',
   'plan.free': 'Бесплатно',
   'plan.status.yours': 'Ваш план',
   'plan.pay.trialDays': 'Начать {n} дней бесплатно',
@@ -40,7 +43,8 @@ const planRu = <String, String>{
   'plan.seats.limit': 'Можно добавить ещё: {n}',
   'plan.current.title': 'Ваш план',
   'plan.current.includes': 'Что входит',
-  'plan.seats.summary': 'Помощники: {total} · включено {included}, доп. {extra}',
+  'plan.seats.summary':
+      'Помощники: {total} · включено {included}, доп. {extra}',
   'plan.seats.summary.max': 'Максимум мест: {max}',
   'plan.client.title': 'Подписка клиента',
   'plan.client.hint': 'Галочка, приоритет в ленте, лимиты кейсов',
@@ -73,9 +77,12 @@ const planRu = <String, String>{
 
 const planEn = <String, String>{
   'error.api.ENTITLEMENT_REQUIRED': 'This feature is not part of your plan.',
-  'error.api.BID_LIMIT_REACHED': "You've reached your plan's limit of active offers.",
-  'error.api.CASE_LIMIT_REACHED': "You've reached your plan's limit of open cases.",
-  'error.api.PLAN_NOT_AVAILABLE': 'This plan is not available right now. Refresh the screen.',
+  'error.api.BID_LIMIT_REACHED':
+      "You've reached your plan's limit of active offers.",
+  'error.api.CASE_LIMIT_REACHED':
+      "You've reached your plan's limit of open cases.",
+  'error.api.PLAN_NOT_AVAILABLE':
+      'This plan is not available right now. Refresh the screen.',
   'plan.free': 'Free',
   'plan.status.yours': 'Your plan',
   'plan.pay.trialDays': 'Start {n} days free',
@@ -106,7 +113,8 @@ const planEn = <String, String>{
   'plan.seats.limit': 'You can add {n} more',
   'plan.current.title': 'Your plan',
   'plan.current.includes': "What's included",
-  'plan.seats.summary': 'Assistants: {total} · {included} included, {extra} extra',
+  'plan.seats.summary':
+      'Assistants: {total} · {included} included, {extra} extra',
   'plan.seats.summary.max': 'Seat limit: {max}',
   'plan.client.title': 'Client subscription',
   'plan.client.hint': 'Badge, priority in the feed, case limits',

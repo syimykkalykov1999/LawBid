@@ -247,6 +247,7 @@ export class CasesFeedService {
               : null,
       ...media,
       inMyPractice: access.inPractice,
+      inMyLicensedStates: access.inLicensedState,
       bidAllowed: access.kind !== 'attorney_browser',
       priorityClient: item.priorityClient,
     };

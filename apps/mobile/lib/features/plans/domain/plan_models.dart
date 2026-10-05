@@ -95,8 +95,7 @@ enum PlanAudience {
   attorney,
   client;
 
-  static PlanAudience parse(String? raw) =>
-      raw == 'client' ? client : attorney;
+  static PlanAudience parse(String? raw) => raw == 'client' ? client : attorney;
 }
 
 /// Billing interval of a paid plan; [none] for a baseline (no price).

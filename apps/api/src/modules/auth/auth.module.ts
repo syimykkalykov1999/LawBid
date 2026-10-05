@@ -18,6 +18,7 @@ import { SessionRevocationService } from './services/session-revocation.service'
 import { AuthEventService } from './services/auth-event.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { AssistantContextService } from './assistant/assistant-context';
+import { AssistantCodeService } from './assistant/assistant-code.service';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { ReauthGuard } from './guards/reauth.guard';
 import { ReauthVerifier } from './services/reauth-verifier.service';
@@ -105,6 +106,7 @@ import { resolveSmsProvider } from '../../config/provider-selection';
     ReauthGuard,
     ReauthVerifier,
     LoginMethodPolicy,
+    AssistantCodeService,
     // docs/01 §10.6 new-device alert: one entry per delivery channel.
     EmailLoginNotificationChannel,
     PushLoginNotificationChannel,
@@ -180,6 +182,8 @@ import { resolveSmsProvider } from '../../config/provider-selection';
     RateLimitService,
     // OQ-048: the assistant module drops the cache on team changes.
     AssistantContextService,
+    // Owner 2026-10-04: joining a team with the attorney's code.
+    AssistantCodeService,
   ],
 })
 export class AuthModule {}

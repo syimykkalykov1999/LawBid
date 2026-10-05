@@ -181,7 +181,7 @@ class _AddLicenseSheetState extends ConsumerState<AddLicenseSheet> {
               ),
               if (expires != null)
                 Align(
-                  alignment: Alignment.centerLeft,
+                  alignment: AlignmentDirectional.centerStart,
                   child: TextButton(
                     onPressed: () => setState(() => _expires = null),
                     child: Text(

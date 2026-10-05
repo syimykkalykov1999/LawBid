@@ -38,6 +38,7 @@ CaseDetailForAttorneyDto _$CaseDetailForAttorneyDtoFromJson(
       .toList(),
   photosCount: json['photosCount'] as num,
   inMyPractice: json['inMyPractice'] as bool,
+  inMyLicensedStates: json['inMyLicensedStates'] as bool,
   bidAllowed: json['bidAllowed'] as bool,
   city: json['city'] as String?,
   coverKey: json['coverKey'] as String?,
@@ -83,5 +84,6 @@ Map<String, dynamic> _$CaseDetailForAttorneyDtoToJson(
   'photos': instance.photos.map((e) => e.toJson()).toList(),
   'photosCount': instance.photosCount,
   'inMyPractice': instance.inMyPractice,
+  'inMyLicensedStates': instance.inMyLicensedStates,
   'bidAllowed': instance.bidAllowed,
 };

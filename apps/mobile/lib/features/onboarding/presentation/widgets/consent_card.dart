@@ -81,7 +81,8 @@ class ConsentCard extends StatelessWidget {
                     ),
                     const SizedBox(height: AppSpacing.xs),
                     Padding(
-                      padding: const EdgeInsets.only(right: AppSpacing.xl),
+                      padding:
+                          const EdgeInsetsDirectional.only(end: AppSpacing.xl),
                       child: Text(
                         description,
                         style: typography.bodySmall
@@ -91,8 +92,8 @@ class ConsentCard extends StatelessWidget {
                   ],
                 ),
               ),
-              Positioned(
-                right: AppSpacing.md,
+              PositionedDirectional(
+                end: AppSpacing.md,
                 bottom: AppSpacing.md,
                 child: AnimatedContainer(
                   duration: context.reduceMotion

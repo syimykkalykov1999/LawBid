@@ -11,9 +11,11 @@ import '../models/admin_payment_list_envelope.dart';
 import '../models/admin_plan_prices_envelope.dart';
 import '../models/admin_plan_result_envelope.dart';
 import '../models/admin_plans_envelope.dart';
+import '../models/admin_seat_limit_request_list_envelope.dart';
 import '../models/admin_set_plan_price_result_envelope.dart';
 import '../models/apply_plan_dto.dart';
 import '../models/apply_plan_result_envelope.dart';
+import '../models/approve_seat_limit_dto.dart';
 import '../models/billing_overview_envelope.dart';
 import '../models/contract_grant_envelope.dart';
 import '../models/contract_grant_list_envelope.dart';
@@ -35,6 +37,9 @@ import '../models/promo_code_list_envelope.dart';
 import '../models/promo_redemption_list_envelope.dart';
 import '../models/refund_envelope.dart';
 import '../models/refund_list_envelope.dart';
+import '../models/reject_seat_limit_dto.dart';
+import '../models/seat_limit_request_envelope.dart';
+import '../models/seat_limit_request_status.dart';
 import '../models/seats.dart';
 import '../models/set_plan_price_dto.dart';
 import '../models/status7.dart';
@@ -62,7 +67,7 @@ abstract class AdminBillingClient {
   ///
   /// [trialEndsWithinDays] - Trial ends within N days (trialing only).
   ///
-  /// [seats] - Paid assistant seats: none (0), some (1-5), full (6).
+  /// [seats] - Paid assistant seats: none (0), some, full (the admin seat limit or the yearly plan).
   ///
   /// [cancelAtPeriodEnd] - Only (not) set to cancel at period end.
   ///
@@ -267,6 +272,32 @@ abstract class AdminBillingClient {
   Future<ApplyPlanResultEnvelope> adminApplyPlanToSubscribers({
     @Path('id') required String id,
     @Body() required ApplyPlanDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Requests for more assistant seats, newest first.
+  ///
+  /// [cursor] - meta.nextCursor of the previous page.
+  @GET('/admin/billing/seat-limit-requests')
+  Future<AdminSeatLimitRequestListEnvelope> listSeatLimitRequests({
+    @Query('status') SeatLimitRequestStatus? status,
+    @Query('cursor') String? cursor,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Approve: set the attorney's own seat limit
+  @POST('/admin/billing/seat-limit-requests/{id}/approve')
+  Future<SeatLimitRequestEnvelope> approveSeatLimitRequest({
+    @Path('id') required String id,
+    @Body() required ApproveSeatLimitDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Reject a seat limit request
+  @POST('/admin/billing/seat-limit-requests/{id}/reject')
+  Future<SeatLimitRequestEnvelope> rejectSeatLimitRequest({
+    @Path('id') required String id,
+    @Body() required RejectSeatLimitDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 }

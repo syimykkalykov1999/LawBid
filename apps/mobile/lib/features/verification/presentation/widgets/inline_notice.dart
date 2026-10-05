@@ -38,7 +38,7 @@ class InlineNotice extends StatelessWidget {
         decoration: BoxDecoration(
           color: bg,
           borderRadius: BorderRadius.circular(AppRadii.field),
-          border: Border(left: BorderSide(color: fg, width: 3)),
+          border: BorderDirectional(start: BorderSide(color: fg, width: 3)),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,

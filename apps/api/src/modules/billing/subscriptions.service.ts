@@ -28,7 +28,7 @@ import {
   TRIAL_DAYS,
   TRIAL_REMINDER_DAYS_BEFORE,
   TRIAL_REMINDER_JOB,
-  MAX_ASSISTANT_SEATS,
+  SEATS_HARD_CAP,
 } from './billing.constants';
 import {
   type PlanAmounts,
@@ -143,6 +143,7 @@ export class SubscriptionsService {
     const terms = await this.entitlements.forPlan(
       planRow,
       req.assistantSeats ?? 0,
+      user.sub,
     );
     if ((req.assistantSeats ?? 0) > terms.seats.extra) {
       throw new BadRequestException({
@@ -363,9 +364,12 @@ export class SubscriptionsService {
       ? await this.plans.byId(session.metadata.planId).catch(() => null)
       : null;
     const seats = planRow
-      ? Math.max(0, Math.min(50, Number(session.metadata.seats ?? 0) || 0))
+      ? Math.max(
+          0,
+          Math.min(SEATS_HARD_CAP, Number(session.metadata.seats ?? 0) || 0),
+        )
       : Math.min(
-          MAX_ASSISTANT_SEATS,
+          SEATS_HARD_CAP,
           Math.max(0, Number(session.metadata.seats ?? 0) || 0),
         );
     const quoted = Number(session.metadata.priceCents);
@@ -535,7 +539,7 @@ export class SubscriptionsService {
       data: {
         plan: 'yearly',
         // With a plan the included seats come from it; none bought extra.
-        assistant_seats: yearly ? 0 : MAX_ASSISTANT_SEATS,
+        assistant_seats: yearly ? 0 : await this.pricing.maxSeats(user.sub),
         price_cents:
           (await this.pricing.amountOf(yearlyKind)) ??
           (await this.pricing.amount('yearly')),
@@ -763,7 +767,7 @@ export class SubscriptionsService {
         monthlyCents: amounts.monthly,
         seatCents: amounts.seat,
         yearlyCents: amounts.yearly,
-        maxSeats: MAX_ASSISTANT_SEATS,
+        maxSeats: await this.pricing.maxSeats(user.sub),
       },
     };
   }

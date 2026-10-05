@@ -7,28 +7,27 @@ abstract final class PlanMappers {
   static LocalizedText text(api.LocalizedTextDto? d) =>
       d == null ? LocalizedText.empty : LocalizedText(en: d.en, ru: d.ru);
 
-  static PlanEntitlements entitlements(api.PlanEntitlementsDto? d) =>
-      d == null
-          ? PlanEntitlements.none
-          : PlanEntitlements(
-              includedSeats: d.includedSeats,
-              maxSeats: d.maxSeats,
-              extraSeatPriceCents: d.extraSeatPriceCents,
-              bidsAnyState: d.bidsAnyState,
-              maxActiveBids: d.maxActiveBids,
-              prioritySearch: d.prioritySearch,
-              calls: d.calls,
-              chatTranslate: d.chatTranslate,
-              translationsPerDay: d.translationsPerDay,
-              videoPosts: d.videoPosts,
-              postsPerDay: d.postsPerDay,
-              videosPerDay: d.videosPerDay,
-              casePromotion: d.casePromotion,
-              trialDays: d.trialDays,
-              verifiedBadge: d.verifiedBadge,
-              priorityFeed: d.priorityFeed,
-              maxActiveCases: d.maxActiveCases,
-            );
+  static PlanEntitlements entitlements(api.PlanEntitlementsDto? d) => d == null
+      ? PlanEntitlements.none
+      : PlanEntitlements(
+          includedSeats: d.includedSeats,
+          maxSeats: d.maxSeats,
+          extraSeatPriceCents: d.extraSeatPriceCents,
+          bidsAnyState: d.bidsAnyState,
+          maxActiveBids: d.maxActiveBids,
+          prioritySearch: d.prioritySearch,
+          calls: d.calls,
+          chatTranslate: d.chatTranslate,
+          translationsPerDay: d.translationsPerDay,
+          videoPosts: d.videoPosts,
+          postsPerDay: d.postsPerDay,
+          videosPerDay: d.videosPerDay,
+          casePromotion: d.casePromotion,
+          trialDays: d.trialDays,
+          verifiedBadge: d.verifiedBadge,
+          priorityFeed: d.priorityFeed,
+          maxActiveCases: d.maxActiveCases,
+        );
 
   static PlanOffer plan(api.PublicPlanDto d) => PlanOffer(
         id: d.id,

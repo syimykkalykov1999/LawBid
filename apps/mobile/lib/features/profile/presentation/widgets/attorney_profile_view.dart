@@ -13,8 +13,10 @@ import 'package:lawbid/features/blocks/presentation/block_actions.dart';
 import 'package:lawbid/features/cases/presentation/widgets/client_review_sheet.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
     show showConfirmSheet;
+import 'package:lawbid/features/cases/presentation/widgets/offer_case_sheet.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/chat/presentation/open_direct_chat.dart';
+import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_avatar.dart';
@@ -28,6 +30,7 @@ import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart'
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/social/social_routes.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
+import 'package:lawbid/shared/domain/user_role.dart';
 import 'package:lawbid/shared/presentation/share_sheet.dart';
 
 // Owner 2026-09-30: News — the attorney's news posts, apart.
@@ -257,6 +260,26 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
           onMessage: () => openDirectChat(context, ref, p.id),
           onShare: () => _share(t),
         ),
+        // Owner 2026-10-05: a client offers one of their cases directly.
+        if (!p.isSelf &&
+            !(p.isBlocked || p.hasBlockedMe) &&
+            ref.watch(currentUserRoleProvider) == UserRole.client) ...[
+          const SizedBox(height: AppSpacing.sm),
+          AppButton(
+            key: const ValueKey('profile-offer-case'),
+            label: t.t('invite.offer.button'),
+            icon: AppIcons.workOutlineRounded,
+            height: 40,
+            onPressed: () => showOfferCaseSheet(
+              context,
+              attorneyId: p.id,
+              attorneyName:
+                  p.fullName.trim().isEmpty ? '@${p.username}' : p.fullName,
+              licensedStateCodes: {for (final s in p.licensedStates) s.code},
+              practiceIds: {for (final x in p.practices) x.id},
+            ),
+          ),
+        ],
         const SizedBox(height: AppSpacing.md),
         _Tabs(
           selected: _tab,

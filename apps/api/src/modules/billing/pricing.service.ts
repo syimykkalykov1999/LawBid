@@ -8,9 +8,11 @@ import {
 import { ConfigService } from '@nestjs/config';
 import type { PlanPrice } from '@prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import { maxAssistantSeats, getAssistantLimit } from './seat-limit';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { SecretsService } from '../../common/secrets/secrets.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { EntitlementsService } from '../plans/entitlements.service';
 import {
   ASSISTANT_SEAT_PRICE_CENTS,
   PAYMENT_PROVIDER,
@@ -93,6 +95,7 @@ export class PricingService {
     private readonly config: ConfigService,
     @Optional() private readonly secrets?: SecretsService,
     @Optional() private readonly settings?: AppSettingsService,
+    @Optional() private readonly entitlements?: EntitlementsService,
   ) {}
 
   /** The active row of every kind that has one (legacy kinds and plans). */
@@ -126,6 +129,19 @@ export class PricingService {
       yearly: rows.get('yearly')?.amount_cents ?? d.yearly,
       client_badge: rows.get('client_badge')?.amount_cents ?? d.client_badge,
     };
+  }
+
+  /** Owner 2026-10-05: the admin's assistant seat limit; with
+   * [attorneyId], that attorney's own limit when an admin set one. */
+  maxSeats(attorneyId?: string): Promise<number> {
+    return attorneyId
+      ? getAssistantLimit(
+          this.prisma,
+          attorneyId,
+          this.settings,
+          this.entitlements,
+        )
+      : maxAssistantSeats(this.settings);
   }
 
   /** The amounts used while the admin has set none. */

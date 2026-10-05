@@ -40,6 +40,7 @@ class CaseDetailForAttorneyDto {
     required this.photos,
     required this.photosCount,
     required this.inMyPractice,
+    required this.inMyLicensedStates,
     required this.bidAllowed,
     this.city,
     this.coverKey,
@@ -113,7 +114,11 @@ class CaseDetailForAttorneyDto {
   /// otherwise "Bid" warns that the client will be told.
   final bool inMyPractice;
 
-  /// Owner 2026-10-04: false when the attorney may only view the case (no verified licence in its states): no offer button.
+  /// Owner 2026-10-04: the attorney holds a verified licence in one of.
+  /// the case's states — otherwise "Bid" notes that the client will see it.
+  final bool inMyLicensedStates;
+
+  /// Owner 2026-10-04: an attorney may bid on any open case (any state, any practice); kept for older apps, always true.
   final bool bidAllowed;
 
   Map<String, Object?> toJson() => _$CaseDetailForAttorneyDtoToJson(this);

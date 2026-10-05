@@ -110,6 +110,9 @@ abstract final class AppRoutes {
   static String placeBid(String id) => '/case/${Uri.encodeComponent(id)}/bid';
 
   /// "В работе" case: contacts, completion (docs/04 §8, §11.2).
+  /// Owner 2026-10-05: cases clients offered to the attorney.
+  static const invites = '/mine/invites';
+
   static const workCasePattern = '/mine/work/:id';
   static String workCase(String id) => '/mine/work/${Uri.encodeComponent(id)}';
 

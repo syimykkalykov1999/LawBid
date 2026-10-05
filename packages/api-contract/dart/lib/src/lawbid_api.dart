@@ -31,6 +31,7 @@ import 'clients/comments_client.dart';
 import 'clients/case_comments_client.dart';
 import 'clients/cases_client.dart';
 import 'clients/mine_client.dart';
+import 'clients/invites_client.dart';
 import 'clients/admin_contact_issues_client.dart';
 import 'clients/admin_case_disputes_client.dart';
 import 'clients/users_client.dart';
@@ -108,6 +109,7 @@ class LawbidApi {
   CaseCommentsClient? _caseComments;
   CasesClient? _cases;
   MineClient? _mine;
+  InvitesClient? _invites;
   AdminContactIssuesClient? _adminContactIssues;
   AdminCaseDisputesClient? _adminCaseDisputes;
   UsersClient? _users;
@@ -218,6 +220,9 @@ class LawbidApi {
   CasesClient get cases => _cases ??= CasesClient(_dio, baseUrl: _baseUrl);
 
   MineClient get mine => _mine ??= MineClient(_dio, baseUrl: _baseUrl);
+
+  InvitesClient get invites =>
+      _invites ??= InvitesClient(_dio, baseUrl: _baseUrl);
 
   AdminContactIssuesClient get adminContactIssues =>
       _adminContactIssues ??= AdminContactIssuesClient(_dio, baseUrl: _baseUrl);

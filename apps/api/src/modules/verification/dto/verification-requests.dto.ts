@@ -98,6 +98,15 @@ export class AddLicenseDto {
   @IsDateString({ strict: true })
   @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'expiresAt must be YYYY-MM-DD' })
   expiresAt?: string | null;
+
+  @ApiPropertyOptional({
+    description:
+      'True to renew a license that is still verified (a new expiry date). ' +
+      'Without it a state that is already verified is refused.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  renewal?: boolean;
 }
 
 /** POST /verification/requests/:id/documents — attach a `clean` uploaded
