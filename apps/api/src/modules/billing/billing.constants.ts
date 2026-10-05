@@ -49,4 +49,10 @@ export const HANDLED_STRIPE_EVENTS = new Set([
   'charge.refunded',
   // Owner 2026-10-02: hosted checkout paid (subscription or case promotion).
   'checkout.session.completed',
+  // Owner 2026-10-05: Stripe Connect — an attorney's account changed, a
+  // client's payment was disputed / the dispute closed.
+  'account.updated',
+  'charge.dispute.created',
+  'charge.dispute.updated',
+  'charge.dispute.closed',
 ]);

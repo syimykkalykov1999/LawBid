@@ -289,6 +289,12 @@ export const envSchema = z
       /^whsec_[A-Za-z0-9]+$/,
       'STRIPE_WEBHOOK_SECRET must start with whsec_',
     ),
+    // Owner 2026-10-05: the Connect webhook endpoint (client → attorney
+    // payments) signs with its own secret.
+    STRIPE_CONNECT_WEBHOOK_SECRET: optionalMatching(
+      /^whsec_[A-Za-z0-9]+$/,
+      'STRIPE_CONNECT_WEBHOOK_SECRET must start with whsec_',
+    ),
     STRIPE_PRICE_ID: optionalMatching(
       /^price_[A-Za-z0-9]+$/,
       'STRIPE_PRICE_ID must start with price_',

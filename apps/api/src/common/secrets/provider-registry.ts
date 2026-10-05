@@ -154,6 +154,16 @@ export const PROVIDERS: ProviderDefinition[] = [
         env: 'STRIPE_WEBHOOK_SECRET',
       },
       {
+        name: 'connectWebhookSecret',
+        // Owner 2026-10-05: client → attorney payments (Stripe Connect):
+        // the "Connect" webhook endpoint has its own signing secret.
+        label: 'Connect webhook signing secret (client → attorney payments)',
+        secret: true,
+        required: false,
+        pattern: /^whsec_[A-Za-z0-9]{10,}$/,
+        env: 'STRIPE_CONNECT_WEBHOOK_SECRET',
+      },
+      {
         name: 'priceId',
         // Owner 2026-10-03: optional — Billing → Prices creates the Stripe
         // prices itself; these ids are only the fallback.

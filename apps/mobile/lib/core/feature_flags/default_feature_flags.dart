@@ -24,6 +24,7 @@ const Map<String, bool> defaultFeatureFlags = {
   'persona_verification': false,
   'auto_bar_check': false,
   'chat_translate': false,
+  'payments_in_app': false,
   // Owner 2026-10-05: on only with TURN configured (bootstrap gate).
   'video_calls': false,
   // Owner 2026-10-05: the document templates library (on).

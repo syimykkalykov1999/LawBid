@@ -626,6 +626,54 @@ export class AdminContentService {
         p.failure_code,
         p.created_at.toISOString(),
       ]);
+    } else if (entity === 'case_payments') {
+      // Owner 2026-10-05: client → attorney payments (Stripe Connect).
+      const ps = await this.prisma.casePayment.findMany({
+        take: LIMIT,
+        orderBy: { created_at: 'desc' },
+      });
+      header = [
+        'id',
+        'case_id',
+        'client_id',
+        'attorney_id',
+        'kind',
+        'status',
+        'amount_cents',
+        'platform_fee_cents',
+        'processing_fee_cents',
+        'client_total_cents',
+        'attorney_net_cents',
+        'refunded_cents',
+        'fee_type',
+        'fee_payer',
+        'currency',
+        'dispute_status',
+        'stripe_payment_intent_id',
+        'paid_at',
+        'created_at',
+      ];
+      rows = ps.map((p) => [
+        p.id,
+        p.case_id,
+        p.client_id,
+        p.attorney_id,
+        p.kind,
+        p.status,
+        p.amount_cents,
+        p.platform_fee_cents,
+        p.processing_fee_cents,
+        p.client_total_cents,
+        p.attorney_net_cents,
+        p.refunded_cents,
+        p.fee_type,
+        p.fee_payer,
+        p.currency,
+        p.dispute_status,
+        p.stripe_payment_intent_id,
+        p.paid_at?.toISOString(),
+        p.created_at.toISOString(),
+      ]);
     } else if (entity === 'posts') {
       const ps = await this.prisma.post.findMany({
         take: LIMIT,
