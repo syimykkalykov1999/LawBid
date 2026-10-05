@@ -93,6 +93,32 @@ export class FeedService implements FeedProvider {
     const authorIds = followees.map((f) => f.followee_id);
     if (viewer.role === 'attorney') authorIds.push(viewer.sub);
 
+    // Once the "everything else" tail has started, the followed stream and
+    // the recommendations were already exhausted: keep paging the tail.
+    if (!first && cursor.l) {
+      const tail = await this.latestTail(
+        viewer,
+        authorIds,
+        cursor.v,
+        cursor.l,
+        [],
+        limit,
+      );
+      const last = tail[tail.length - 1];
+      return {
+        items: await this.presenter.present(tail, viewer.sub),
+        nextCursor:
+          tail.length < limit || !last
+            ? null
+            : encodeFeedCursor({
+                f: null,
+                r: cursor.r,
+                v: cursor.v,
+                l: { t: last.created_at.toISOString(), id: last.id },
+              }),
+      };
+    }
+
     // Followed stream (+ own posts): from the top on the first page, after
     // cursor.f later; cursor.f === null on a later page = exhausted.
     const streamOpen = authorIds.length > 0 && (first || cursor.f !== null);
@@ -144,6 +170,24 @@ export class FeedService implements FeedProvider {
     const followingIds = new Set(following.map((p) => p.id));
     const usedFollowing = page.filter((p) => followingIds.has(p.id));
     const usedReco = page.filter((p) => !followingIds.has(p.id));
+    // Owner 2026-10-05: "All" must show every post, also to a brand-new
+    // account that follows nobody. Recommendations only cover the last 14
+    // days and only exist once FeedRecoJob has run, so when followed posts
+    // and recommendations can't fill the page, every other visible post
+    // follows, newest first (the same posts the topic filters list).
+    const tail =
+      page.length < limit
+        ? await this.latestTail(
+            viewer,
+            authorIds,
+            reco.version,
+            null,
+            page.map((p) => p.id),
+            limit - page.length,
+          )
+        : [];
+    page.push(...tail);
+    const lastL = tail[tail.length - 1];
     const lastF = usedFollowing[usedFollowing.length - 1];
     const next: FeedCursor = {
       // More followed posts exist only if some fetched ones were not used.
@@ -153,6 +197,7 @@ export class FeedService implements FeedProvider {
           : null,
       r: reco.next(usedReco.length),
       v: reco.version,
+      l: lastL ? { t: lastL.created_at.toISOString(), id: lastL.id } : null,
     };
     const nextCursor = page.length < limit ? null : encodeFeedCursor(next);
 
@@ -207,14 +252,7 @@ export class FeedService implements FeedProvider {
     const seen = new Set(ids.filter((_, i) => scores[i] !== null));
     const exclude = new Set(excludeAuthors);
     // Audit 2026-10-01: no recommended posts of people blocked either way.
-    const blocks = await this.prisma.userBlock.findMany({
-      where: { OR: [{ blocker_id: viewer.sub }, { blocked_id: viewer.sub }] },
-      select: { blocker_id: true, blocked_id: true },
-      take: 5000,
-    });
-    for (const b of blocks) {
-      exclude.add(b.blocker_id === viewer.sub ? b.blocked_id : b.blocker_id);
-    }
+    for (const id of await this.blockedAuthors(viewer)) exclude.add(id);
     const rows = await this.prisma.post.findMany({
       where: {
         ...VISIBLE_POST_WHERE,
@@ -239,6 +277,60 @@ export class FeedService implements FeedProvider {
           ? offset + (picked.length === 0 ? ids.length : (pickedIdx[0] ?? 0))
           : offset + pickedIdx[used - 1] + 1,
     };
+  }
+
+  /** Every other visible post, newest first, after [after]: not by a
+   * followed/own author (their stream already ran out), not in the
+   * recommendation snapshot (served there), not on this page and not by
+   * anyone blocked either way. */
+  private async latestTail(
+    viewer: RequestUser,
+    excludeAuthors: string[],
+    version: string | null,
+    after: { t: string; id: string } | null,
+    excludeIds: string[],
+    take: number,
+  ): Promise<Post[]> {
+    if (take <= 0) return [];
+    const authors = new Set(excludeAuthors);
+    for (const id of await this.blockedAuthors(viewer)) authors.add(id);
+    const ids = new Set(excludeIds);
+    if (version) {
+      const snapshot = await this.redis.zrevrange(recoKey(version), 0, -1);
+      for (const id of snapshot) ids.add(id);
+    }
+    return this.prisma.post.findMany({
+      where: {
+        AND: [
+          VISIBLE_POST_WHERE,
+          ...(authors.size > 0 ? [{ author_id: { notIn: [...authors] } }] : []),
+          ...(ids.size > 0 ? [{ id: { notIn: [...ids] } }] : []),
+          ...(after
+            ? [
+                {
+                  OR: [
+                    { created_at: { lt: new Date(after.t) } },
+                    { created_at: new Date(after.t), id: { lt: after.id } },
+                  ],
+                },
+              ]
+            : []),
+        ],
+      },
+      orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+      take,
+    });
+  }
+
+  private async blockedAuthors(viewer: RequestUser): Promise<string[]> {
+    const blocks = await this.prisma.userBlock.findMany({
+      where: { OR: [{ blocker_id: viewer.sub }, { blocked_id: viewer.sub }] },
+      select: { blocker_id: true, blocked_id: true },
+      take: 5000,
+    });
+    return blocks.map((b) =>
+      b.blocker_id === viewer.sub ? b.blocked_id : b.blocker_id,
+    );
   }
 
   private async markSeen(uid: string, ids: string[]): Promise<void> {
