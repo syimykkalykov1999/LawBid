@@ -127,12 +127,54 @@ export function readManageAdmins(raw: unknown): boolean {
   return (raw as Record<string, unknown>)[MANAGE_ADMINS_KEY] === true;
 }
 
+/** Key inside `admin_profiles.permissions` for the countries an employee
+ * works with (owner 2026-10-05): a verifier hired for Canada sees only
+ * Canadian people, cases and tickets. Absent or empty = every country. */
+export const COUNTRIES_KEY = 'countries';
+
+/** Stored JSON → the assigned country codes (empty = every country). */
+export function readCountries(raw: unknown): string[] {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return [];
+  const v = (raw as Record<string, unknown>)[COUNTRIES_KEY];
+  if (!Array.isArray(v)) return [];
+  return [
+    ...new Set(
+      v.filter(
+        (c): c is string => typeof c === 'string' && /^[A-Z]{2}$/.test(c),
+      ),
+    ),
+  ].sort();
+}
+
 /** The JSON stored in `admin_profiles.permissions`. */
 export function storePermissions(
   areas: AdminPermissions,
   manageAdmins: boolean,
-): Record<string, string | boolean> {
-  return manageAdmins ? { ...areas, [MANAGE_ADMINS_KEY]: true } : { ...areas };
+  countries: readonly string[] = [],
+): Record<string, string | boolean | string[]> {
+  const out: Record<string, string | boolean | string[]> = { ...areas };
+  if (manageAdmins) out[MANAGE_ADMINS_KEY] = true;
+  if (countries.length > 0) out[COUNTRIES_KEY] = [...countries];
+  return out;
+}
+
+/**
+ * The countries an admin's lists are limited to on this request, or null
+ * for every country. The super admin works everywhere; anyone else in
+ * the countries assigned to them (none assigned = everywhere). The
+ * country tab picked in the panel (`X-Admin-Country`) narrows it further
+ * when it is one of those.
+ */
+export function effectiveCountries(
+  isSuper: boolean,
+  assigned: readonly string[],
+  picked: string | undefined,
+): string[] | null {
+  const base = isSuper || assigned.length === 0 ? null : [...assigned];
+  const tab = (picked ?? '').trim().toUpperCase();
+  if (!/^[A-Z]{2}$/.test(tab)) return base;
+  if (base === null || base.includes(tab)) return [tab];
+  return base;
 }
 
 const LEVEL_RANK: Record<AccessLevel, number> = { view: 1, manage: 2 };

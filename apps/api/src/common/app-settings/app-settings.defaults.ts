@@ -307,6 +307,12 @@ export const OWNER_REWARDS_SETTINGS = {
   'rewards.period': 'month',
 };
 
+/** Owner 2026-10-05: countries (Система → Страны). People who asked to
+ * be told get an e-mail by themselves when their country is switched on. */
+export const OWNER_COUNTRY_SETTINGS = {
+  'countries.notify_waitlist': true,
+};
+
 export const APP_SETTINGS = {
   ...FILE_03_SETTINGS,
   ...FILE_04_SETTINGS,
@@ -328,6 +334,7 @@ export const APP_SETTINGS = {
   ...OWNER_TRANSLATE_SETTINGS,
   ...OWNER_SUPPORT_DESK_SETTINGS,
   ...OWNER_REWARDS_SETTINGS,
+  ...OWNER_COUNTRY_SETTINGS,
 };
 
 export type AppSettingKey = keyof typeof APP_SETTINGS;

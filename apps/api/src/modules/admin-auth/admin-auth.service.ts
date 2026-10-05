@@ -39,7 +39,11 @@ import {
   passwordProblem,
   verifySecret,
 } from './admin-password.util';
-import { parsePermissions, readManageAdmins } from './admin-permissions';
+import {
+  parsePermissions,
+  readCountries,
+  readManageAdmins,
+} from './admin-permissions';
 import {
   ADMIN_SESSION_TTL_SECONDS,
   AdminSessionService,
@@ -374,6 +378,10 @@ export class AdminAuthService {
       canManageAdmins:
         role === 'super_admin' ||
         readManageAdmins(user.admin_profile?.permissions),
+      countries:
+        role === 'super_admin'
+          ? []
+          : readCountries(user.admin_profile?.permissions),
       reasonRequiredAreas:
         role === 'super_admin' || !this.settings
           ? []

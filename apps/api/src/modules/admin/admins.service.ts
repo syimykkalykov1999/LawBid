@@ -16,6 +16,7 @@ import {
   defaultPermissionsForRole,
   intersect,
   parsePermissions,
+  readCountries,
   readManageAdmins,
   storePermissions,
 } from '../admin-auth/admin-permissions';
@@ -28,6 +29,7 @@ export const ADMINS_AUDIT = {
   enable: 'admins.enable',
   resetTotp: 'admins.reset_2fa',
   setPermissions: 'admins.set_permissions',
+  setCountries: 'admins.set_countries',
   remove: 'admins.delete',
 } as const;
 
@@ -123,6 +125,8 @@ export class AdminsService {
     const stored = storePermissions(
       perms,
       isSuper(actor) && role !== 'super_admin' && canManageAdmins === true,
+      // A manager who works with some countries hires for those.
+      isSuper(actor) ? [] : (actor.assignedCountries ?? []),
     );
     const normalized = email.trim().toLowerCase();
     const created = await withTxRetry(this.prisma, async (tx) => {
@@ -267,7 +271,11 @@ export class AdminsService {
         ? (canManageAdmins ??
           readManageAdmins(before.admin_profile?.permissions))
         : false;
-      const stored = storePermissions(next, manager);
+      const stored = storePermissions(
+        next,
+        manager,
+        readCountries(before.admin_profile?.permissions),
+      );
       const after = await tx.user.update({
         where: { id },
         data: { admin_profile: { update: { permissions: stored } } },
@@ -281,6 +289,71 @@ export class AdminsService {
           targetId: id,
           before: before.admin_profile?.permissions ?? {},
           after: stored,
+          ip: actor.ip,
+        },
+        tx,
+      );
+      return after;
+    });
+    return present(updated);
+  }
+
+  /** Owner 2026-10-05: the countries an employee works with (empty =
+   * every country). A manager limited to some countries can only hand out
+   * those. Read live on each request, so it applies at once. */
+  async setCountries(
+    actor: AdminActor,
+    id: string,
+    countries: string[],
+  ): Promise<AdminAccountDto> {
+    if (id === actor.id) throw cannotTargetSelf();
+    const next = [...new Set(countries.map((c) => c.toUpperCase()))].sort();
+    const own = isSuper(actor) ? [] : (actor.assignedCountries ?? []);
+    if (
+      own.length > 0 &&
+      (next.length === 0 || next.some((c) => !own.includes(c)))
+    ) {
+      throw outsideReach();
+    }
+    if (next.length > 0) {
+      const known = await this.prisma.country.count({
+        where: { code: { in: next } },
+      });
+      if (known !== next.length) {
+        throw new NotFoundException({
+          code: ErrorCode.NOT_FOUND,
+          message: 'Unknown country code.',
+        });
+      }
+    }
+    const updated = await withTxRetry(this.prisma, async (tx) => {
+      const before = await this.load(tx, id);
+      if (before.admin_profile?.admin_role === 'super_admin') {
+        throw new ForbiddenException({
+          code: ErrorCode.FORBIDDEN,
+          message: 'The super admin already works with every country.',
+        });
+      }
+      this.assertManageable(actor, before);
+      const raw = before.admin_profile?.permissions;
+      const stored = storePermissions(
+        parsePermissions(raw),
+        readManageAdmins(raw),
+        next,
+      );
+      const after = await tx.user.update({
+        where: { id },
+        data: { admin_profile: { update: { permissions: stored } } },
+        select: ADMIN_SELECT,
+      });
+      await this.audit.record(
+        {
+          adminId: actor.id,
+          action: ADMINS_AUDIT.setCountries,
+          targetType: 'admin',
+          targetId: id,
+          before: { countries: readCountries(raw) },
+          after: { countries: next },
           ip: actor.ip,
         },
         tx,
@@ -402,6 +475,7 @@ function present(u: AdminRow): AdminAccountDto {
     hasPassword: Boolean(u.admin_credential?.password_hash),
     permissions: parsePermissions(u.admin_profile?.permissions),
     canManageAdmins: readManageAdmins(u.admin_profile?.permissions),
+    countries: readCountries(u.admin_profile?.permissions),
     lastLoginAt: u.admin_credential?.last_login_at?.toISOString() ?? null,
     createdAt: u.created_at.toISOString(),
   };
@@ -417,6 +491,14 @@ function reaches(actor: AdminActor, target: AdminRow): boolean {
   const prof = target.admin_profile;
   if (!prof || prof.admin_role === 'super_admin') return false;
   if (readManageAdmins(prof.permissions)) return false;
+  // A manager limited to some countries reaches only staff of those.
+  const own = actor.assignedCountries ?? [];
+  if (own.length > 0) {
+    const theirs = readCountries(prof.permissions);
+    if (theirs.length === 0 || theirs.some((c) => !own.includes(c))) {
+      return false;
+    }
+  }
   return covers(actor.permissions ?? {}, parsePermissions(prof.permissions));
 }
 

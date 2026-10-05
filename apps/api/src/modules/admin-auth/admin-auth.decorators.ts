@@ -96,6 +96,12 @@ export interface RequestAdmin {
   permissions?: AdminPermissions;
   /** The super admin gave this admin the right to manage other admins. */
   manageAdmins?: boolean;
+  /** Owner 2026-10-05: countries this admin's lists are limited to on
+   * this request (assigned countries narrowed by the picked tab); null or
+   * absent = every country. */
+  countries?: string[] | null;
+  /** Countries assigned to this admin (empty = every country). */
+  assignedCountries?: string[];
 }
 
 /** The admin resolved by AdminAuthGuard plus the client IP (audit_log). */

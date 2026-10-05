@@ -207,6 +207,13 @@ export class AdminMeDto {
   })
   canManageAdmins!: boolean;
 
+  @ApiProperty({
+    type: [String],
+    description:
+      'Owner 2026-10-05: countries this admin works with (ISO 3166-1 alpha-2); empty = every country.',
+  })
+  countries!: string[];
+
   @ApiProperty({ type: String, nullable: true })
   securityQuestion!: string | null;
 
