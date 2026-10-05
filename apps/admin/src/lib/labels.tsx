@@ -202,6 +202,43 @@ export const PAYMENT_STATUS: Record<string, string> = {
   refunded: 'возвращён',
 };
 
+/** Owner 2026-10-05: client → attorney payments through the platform. */
+export const CASE_PAYMENT_STATUS: Record<string, string> = {
+  pending_payment: 'ожидает оплаты',
+  succeeded: 'оплачен',
+  failed: 'ошибка',
+  canceled: 'отменён',
+  refunded: 'возвращён',
+  partially_refunded: 'частичный возврат',
+  disputed: 'оспорен',
+};
+
+export const CASE_PAYMENT_KIND: Record<string, string> = {
+  bid: 'ставка целиком',
+  deposit: 'аванс',
+  balance: 'остаток',
+  custom: 'своя сумма',
+};
+
+export const PAYOUT_ACCOUNT_STATUS: Record<string, string> = {
+  pending: 'создан',
+  onboarding: 'заполняет данные',
+  active: 'активен',
+  restricted: 'нужны документы',
+  disabled: 'отключён Stripe',
+};
+
+export const PAYMENT_FEE_TYPE: Record<string, string> = {
+  fixed: 'фиксированная за платёж',
+  percent: 'процент от суммы',
+  none: 'без комиссии',
+};
+
+export const PAYMENT_FEE_PAYER: Record<string, string> = {
+  client: 'клиент, сверх суммы',
+  attorney: 'адвокат, из суммы',
+};
+
 export const REPORT_STATUS: Record<string, string> = {
   open: 'открыта',
   actioned: 'приняты меры',
@@ -317,6 +354,8 @@ export function toneFor(status: string | null | undefined): Tone {
     case 'pending':
     case 'past_due':
     case 'needs_more_info':
+    case 'onboarding':
+    case 'restricted':
     case 'open':
     case 'pending_payment':
     case 'manual_review':
@@ -328,6 +367,8 @@ export function toneFor(status: string | null | undefined): Tone {
     case 'removed':
     case 'failed':
     case 'fail':
+    case 'partially_refunded':
+      return 'warning';
     case 'canceled':
     case 'expired':
     case 'deleted':
