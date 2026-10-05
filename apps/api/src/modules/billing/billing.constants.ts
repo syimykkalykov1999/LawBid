@@ -10,7 +10,11 @@ export const ASSISTANT_SEAT_PRICE_CENTS = 10_000;
 export const MAX_ASSISTANT_SEATS = 10;
 export const SEATS_HARD_CAP = 50;
 export const YEARLY_PRICE_CENTS = 959_000;
+/** Owner 2026-10-05: the trial length is the admin setting
+ * `billing.trial_days` (PricingService.trialDays); TRIAL_DAYS is only the
+ * fallback when settings are unavailable. */
 export const TRIAL_DAYS = 7;
+export const TRIAL_DAYS_MAX = 365;
 /** §1.5: reminder "за 2 дня до окончания" of the trial. */
 export const TRIAL_REMINDER_DAYS_BEFORE = 2;
 
@@ -49,4 +53,10 @@ export const HANDLED_STRIPE_EVENTS = new Set([
   'charge.refunded',
   // Owner 2026-10-02: hosted checkout paid (subscription or case promotion).
   'checkout.session.completed',
+  // Owner 2026-10-05: Stripe Connect — an attorney's account changed, a
+  // client's payment was disputed / the dispute closed.
+  'account.updated',
+  'charge.dispute.created',
+  'charge.dispute.updated',
+  'charge.dispute.closed',
 ]);

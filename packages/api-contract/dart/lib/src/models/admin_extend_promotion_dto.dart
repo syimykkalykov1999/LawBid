@@ -8,7 +8,7 @@ part 'admin_extend_promotion_dto.g.dart';
 
 @JsonSerializable()
 class AdminExtendPromotionDto {
-  const AdminExtendPromotionDto({required this.days, required this.reason});
+  const AdminExtendPromotionDto({required this.days, this.reason = ''});
 
   factory AdminExtendPromotionDto.fromJson(Map<String, Object?> json) =>
       _$AdminExtendPromotionDtoFromJson(json);

@@ -11,7 +11,7 @@ AdminGrantPromotionDto _$AdminGrantPromotionDtoFromJson(
 ) => AdminGrantPromotionDto(
   caseId: json['caseId'] as String,
   days: (json['days'] as num).toInt(),
-  reason: json['reason'] as String,
+  reason: json['reason'] as String? ?? '',
 );
 
 Map<String, dynamic> _$AdminGrantPromotionDtoToJson(

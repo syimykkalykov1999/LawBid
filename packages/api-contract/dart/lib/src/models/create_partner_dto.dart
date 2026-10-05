@@ -12,7 +12,7 @@ part 'create_partner_dto.g.dart';
 class CreatePartnerDto {
   const CreatePartnerDto({
     required this.userId,
-    required this.reason,
+    this.reason = '',
     this.label,
     this.note,
     this.attorneyRateCents,

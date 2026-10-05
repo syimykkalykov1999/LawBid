@@ -36,6 +36,7 @@ import { useToast } from "@/components/ui/toast";
 import { growthError } from "@/components/growth/errors";
 import { api, errorText } from "@/lib/api/client";
 import { useMe } from "@/lib/hooks";
+import { REASON_MIN, useReasonRequired } from "@/lib/reason-policy";
 import {
   PARTNER_STATUS,
   REFERRED_STATUS,
@@ -377,13 +378,15 @@ function PartnerForm({
 }
 
 function AdjustmentForm({ partnerId, onDone }: { partnerId: string; onDone: () => void }) {
+  // Owner 2026-10-05: a reason only where «Обязательная причина» says so.
+  const reasonNeeded = useReasonRequired("money");
   const toast = useToast();
   const [amount, setAmount] = useState("");
   const [sign, setSign] = useState<"plus" | "minus">("plus");
   const [note, setNote] = useState("");
   const [reason, setReason] = useState("");
   const cents = textToCents(amount);
-  const valid = cents !== null && cents > 0 && note.trim().length >= 3 && reason.trim().length >= 10;
+  const valid = cents !== null && cents > 0 && note.trim().length >= 3 && (!reasonNeeded || reason.trim().length >= REASON_MIN);
   const add = useMutation({
     mutationFn: async () =>
       (
@@ -425,7 +428,7 @@ function AdjustmentForm({ partnerId, onDone }: { partnerId: string; onDone: () =
         <Field label="Комментарий партнёру" htmlFor="adj-note">
           <Input id="adj-note" value={note} maxLength={300} onChange={(e) => setNote(e.target.value)} placeholder="бонус за октябрь" />
         </Field>
-        <Field label="Причина для журнала" htmlFor="adj-reason" hint="не меньше 10 символов">
+        <Field label="Причина для журнала" htmlFor="adj-reason" hint={reasonNeeded ? `не меньше ${REASON_MIN} символов` : "необязательно"}>
           <Input id="adj-reason" value={reason} maxLength={300} onChange={(e) => setReason(e.target.value)} />
         </Field>
         <div className="flex items-end">

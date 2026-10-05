@@ -8,7 +8,7 @@ part of 'update_partner_dto.dart';
 
 UpdatePartnerDto _$UpdatePartnerDtoFromJson(Map<String, dynamic> json) =>
     UpdatePartnerDto(
-      reason: json['reason'] as String,
+      reason: json['reason'] as String? ?? '',
       label: json['label'] as String?,
       note: json['note'] as String?,
       attorneyRateCents: (json['attorneyRateCents'] as num?)?.toInt(),

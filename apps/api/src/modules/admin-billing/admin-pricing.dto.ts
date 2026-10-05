@@ -8,7 +8,6 @@ import {
   Max,
   MaxLength,
   Min,
-  MinLength,
 } from 'class-validator';
 import { PLAN_KINDS, type PlanKind } from '../billing/pricing.service';
 
@@ -42,12 +41,12 @@ export class SetPlanPriceDto {
 }
 
 export class MovePlanSubscribersDto {
-  @ApiProperty({ minLength: 10, maxLength: 300 })
+  @ApiPropertyOptional({ type: String, maxLength: 300 })
+  @IsOptional()
   @Transform(trim)
   @IsString()
-  @MinLength(10)
   @MaxLength(300)
-  reason!: string;
+  reason = '';
 }
 
 export class AdminPlanPriceItemDto {

@@ -107,6 +107,12 @@ const _keys = <String, String>{
   ApiErrorCodes.referralCodeInvalid: 'error.api.REFERRAL_CODE_INVALID',
   ApiErrorCodes.referralNotAllowed: 'error.api.REFERRAL_NOT_ALLOWED',
   ApiErrorCodes.promoCodeInvalid: 'error.api.PROMO_CODE_INVALID',
+  ApiErrorCodes.payoutAccountNotReady: 'error.api.PAYOUT_ACCOUNT_NOT_READY',
+  ApiErrorCodes.paymentInvalidState: 'error.api.PAYMENT_INVALID_STATE',
+  ApiErrorCodes.paymentAmountInvalid: 'error.api.PAYMENT_AMOUNT_INVALID',
+  ApiErrorCodes.paymentFeeMaxRoundsReached:
+      'error.api.PAYMENT_FEE_MAX_ROUNDS_REACHED',
+  ApiErrorCodes.refundNotAllowed: 'error.api.REFUND_NOT_ALLOWED',
   ApiErrorCodes.videoTooLong: 'error.api.VIDEO_TOO_LONG',
   ApiErrorCodes.videoNotReady: 'error.api.VIDEO_NOT_READY',
   ApiErrorCodes.commentsDisabled: 'error.api.COMMENTS_DISABLED',

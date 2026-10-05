@@ -30,7 +30,11 @@ export class DynamicPaymentProvider {
     const key = c?.fields.secretKey;
     if (key) {
       if (c.fingerprint !== this.fingerprint) {
-        this.current = new StripePaymentProvider(key, c.fields.webhookSecret);
+        this.current = new StripePaymentProvider(
+          key,
+          c.fields.webhookSecret,
+          c.fields.connectWebhookSecret,
+        );
         this.fingerprint = c.fingerprint;
       }
       return this.current;
@@ -102,6 +106,16 @@ const ASYNC_METHODS = new Set([
   'createOneTimeCheckout',
   'createPrice',
   'replaceItemPrice',
+  // Owner 2026-10-05: Stripe Connect (client → attorney payments).
+  'createConnectAccount',
+  'createAccountOnboardingLink',
+  'createAccountLoginLink',
+  'retrieveConnectAccount',
+  'updateConnectPayoutDelay',
+  'createConnectedCheckout',
+  'retrieveConnectedCheckout',
+  'refundConnected',
+  'retrieveConnectedCharge',
 ]);
 
 /** Refreshes a dynamic provider (no-op for a plain one). */

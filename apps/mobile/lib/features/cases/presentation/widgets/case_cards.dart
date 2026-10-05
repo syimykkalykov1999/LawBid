@@ -107,7 +107,7 @@ class CategoryBand extends StatelessWidget {
               ),
             ),
             if (isNew && newLabel != null)
-              Flexible(
+              AppTrailingCap(
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: AppSpacing.sm,

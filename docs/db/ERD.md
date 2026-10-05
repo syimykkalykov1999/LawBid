@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-114 tables.
+123 tables.
 
 ```mermaid
 erDiagram
@@ -973,6 +973,10 @@ erDiagram
     DateTime last_test_at "nullable"
     Boolean last_test_ok "nullable"
     String last_test_error "nullable"
+    String slot
+    String label "nullable"
+    Int priority
+    Boolean enabled
   }
   state_bar_registries {
     String state_code PK,FK
@@ -1071,6 +1075,15 @@ erDiagram
     String reason "nullable"
     Json details
     DateTime created_at
+  }
+  integration_custom_providers {
+    String id PK
+    String label
+    String description
+    Json fields
+    String created_by "nullable"
+    DateTime created_at
+    DateTime updated_at
   }
   video_assets {
     String id PK
@@ -1343,6 +1356,153 @@ erDiagram
     String created_by "nullable"
     DateTime created_at
   }
+  payroll_employees {
+    String id PK
+    String admin_user_id "nullable"
+    String user_id UK "nullable"
+    String name
+    String role_title
+    Int amount_cents
+    String currency
+    String method_note
+    String email "nullable"
+    String stripe_account_id "nullable"
+    Boolean stripe_payouts_enabled
+    Boolean active
+    String created_by "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  payroll_payouts {
+    String id PK
+    String employee_id FK
+    String batch_id
+    String period
+    Int amount_cents
+    String currency
+    String method
+    String status
+    Int base_cents
+    Int commission_cents
+    Int fee_cents
+    Int net_cents
+    String transfer_id "nullable"
+    String failure "nullable"
+    String note "nullable"
+    String cancel_reason "nullable"
+    String created_by "nullable"
+    DateTime created_at
+    DateTime canceled_at "nullable"
+  }
+  payroll_accruals {
+    String id PK
+    String employee_id FK
+    String source
+    String kind
+    String event_ref UK
+    Int amount_cents
+    String currency
+    String period
+    String note "nullable"
+    String status
+    String payout_id "nullable"
+    DateTime created_at
+    DateTime paid_at "nullable"
+    DateTime canceled_at "nullable"
+  }
+  payout_accounts {
+    String user_id PK
+    String provider
+    String stripe_account_id UK
+    String status
+    Boolean charges_enabled
+    Boolean payouts_enabled
+    Boolean details_submitted
+    String disabled_reason "nullable"
+    String country "nullable"
+    String processing_fee_payer "nullable"
+    DateTime last_synced_at "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  case_payments {
+    String id PK
+    String case_id
+    String bid_id "nullable"
+    String client_id
+    String attorney_id
+    String kind
+    String request_id "nullable"
+    String status
+    Int amount_cents
+    Int platform_fee_cents
+    Int processing_fee_cents
+    Int client_total_cents
+    Int attorney_net_cents
+    String fee_type
+    String fee_payer
+    String processing_fee_payer
+    String currency
+    String note "nullable"
+    String stripe_account_id "nullable"
+    String stripe_checkout_id UK "nullable"
+    String stripe_payment_intent_id UK "nullable"
+    String stripe_charge_id "nullable"
+    String receipt_url "nullable"
+    Int refunded_cents
+    String dispute_status "nullable"
+    DateTime disputed_at "nullable"
+    DateTime paid_at "nullable"
+    String canceled_reason "nullable"
+    String failure_code "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  payment_requests {
+    String id PK
+    String case_id
+    String attorney_id
+    String client_id
+    String created_by
+    Int amount_cents
+    String description
+    DateTime due_at "nullable"
+    String processing_fee_payer
+    String fee_payer_status
+    String fee_payer_by
+    Int fee_payer_rounds
+    DateTime fee_payer_agreed_at "nullable"
+    String status
+    String plan_id "nullable"
+    Int seq
+    Int total
+    String payment_id UK "nullable"
+    DateTime paid_at "nullable"
+    DateTime canceled_at "nullable"
+    DateTime last_reminded_at "nullable"
+    Int reminders_sent
+    DateTime created_at
+    DateTime updated_at
+  }
+  connected_customers {
+    String client_id PK
+    String stripe_account_id PK
+    String stripe_customer_id
+    DateTime created_at
+  }
+  case_payment_refunds {
+    String id PK
+    String payment_id
+    Int amount_cents
+    String reason
+    String initiated_by_type
+    String initiated_by "nullable"
+    String stripe_refund_id UK "nullable"
+    String status
+    String failure_reason "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
   document_templates {
     String id PK
     String file_id FK,UK
@@ -1558,6 +1718,8 @@ erDiagram
   user_recent_stickers }o--|| users : "user_id"
   user_recent_stickers }o--|| stickers : "sticker_id"
   client_verifications |o--|| users : "user_id"
+  payroll_payouts }o--|| payroll_employees : "employee_id"
+  payroll_accruals }o--|| payroll_employees : "employee_id"
   document_templates |o--|| files : "file_id"
   document_templates }o--o| practice_areas : "practice_area_id"
   client_subscriptions |o--|| users : "user_id"

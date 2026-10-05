@@ -25,6 +25,7 @@ import { useMe } from '@/lib/hooks';
 import { CASE_STATUS, label, PROMOTION_STATUS, StatusPill, usd } from '@/lib/labels';
 import { Reason } from '@/lib/reasons';
 import { formatDateTime } from '@/lib/utils';
+import { REASON_MIN, useReasonRequired } from '@/lib/reason-policy';
 
 type Promotion = components['schemas']['AdminPromotionRowDto'];
 type PromotionStatus = components['schemas']['CasePromotionStatus'];
@@ -282,7 +283,8 @@ function DaysDialog({
   const n = Number(days);
   const daysOk = Number.isInteger(n) && n >= 1 && n <= 365;
   const caseOk = mode === 'extend' || /^[0-9a-f-]{36}$/i.test(caseId.trim());
-  const reasonOk = reason.trim().length >= 10;
+  const needReason = useReasonRequired('money');
+  const reasonOk = !needReason || reason.trim().length >= REASON_MIN;
 
   const save = useMutation({
     mutationFn: async () => {
@@ -334,7 +336,7 @@ function DaysDialog({
         <Field label="Дней" htmlFor="pr-days" hint="От 1 до 365.">
           <Input id="pr-days" type="number" min={1} max={365} value={days} onChange={(e) => setDays(e.target.value)} className="w-32" />
         </Field>
-        <Field label="Причина" htmlFor="pr-reason" hint="Не короче 10 символов. Попадёт в журнал аудита.">
+        <Field label="Причина" htmlFor="pr-reason" hint={needReason ? `Обязательно, не короче ${REASON_MIN} символов.` : 'Необязательно. Попадёт в журнал аудита.'}>
           <Textarea id="pr-reason" rows={3} maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} />
         </Field>
         <div className="flex justify-end gap-2">

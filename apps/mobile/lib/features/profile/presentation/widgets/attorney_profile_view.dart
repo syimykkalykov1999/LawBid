@@ -30,6 +30,8 @@ import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart'
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/social/social_routes.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
+import 'package:lawbid/features/translation/data/content_translation_repository.dart';
+import 'package:lawbid/features/translation/presentation/translatable_text.dart';
 import 'package:lawbid/features/trust/presentation/trust_level_chip.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 import 'package:lawbid/shared/presentation/share_sheet.dart';
@@ -721,10 +723,17 @@ class _AboutSection extends ConsumerWidget {
         // the Reviews tab.
         if (bio != null && bio.isNotEmpty) ...[
           const SizedBox(height: AppSpacing.sm),
-          Text(
-            bio,
-            style:
-                typography.bodySmall.copyWith(color: colors.text, height: 1.4),
+          // Owner 2026-10-05: «Перевести» (profiles zone).
+          TranslatableText(
+            kind: TranslatableKind.profile,
+            id: profile.id,
+            text: bio,
+            enabled: !profile.isSelf,
+            builder: (context, text) => Text(
+              text,
+              style: typography.bodySmall
+                  .copyWith(color: colors.text, height: 1.4),
+            ),
           ),
         ],
       ],
@@ -877,11 +886,57 @@ class _ChipRows extends ConsumerWidget {
   void _showGroup(BuildContext context, PracticeChipGroup group) {
     showAppBottomSheet<void>(
       context: context,
-      builder: (sheetContext) {
-        final colors = Theme.of(sheetContext).extension<AppColorTokens>()!;
-        final typography =
-            Theme.of(sheetContext).extension<AppTypographyTokens>()!;
-        return SafeArea(
+      isScrollControlled: true,
+      builder: (_) => PracticeGroupSheet(group: group),
+    );
+  }
+}
+
+/// Subcategories of one practice area (owner 2026-10-05): the sheet grows
+/// up to most of the screen and the chips scroll, so 150 subcategories are
+/// all reachable; from [searchFrom] items on, a search field narrows them.
+class PracticeGroupSheet extends ConsumerStatefulWidget {
+  const PracticeGroupSheet({required this.group, super.key});
+
+  final PracticeChipGroup group;
+
+  /// A group this long gets a search field above the chips.
+  static const searchFrom = 12;
+
+  @override
+  ConsumerState<PracticeGroupSheet> createState() => _PracticeGroupSheetState();
+}
+
+class _PracticeGroupSheetState extends ConsumerState<PracticeGroupSheet> {
+  final _search = TextEditingController();
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ref.watch(translatorProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
+    final group = widget.group;
+    final query = _search.text.trim().toLowerCase();
+    final items = query.isEmpty
+        ? group.items
+        : [
+            for (final i in group.items)
+              if (i.toLowerCase().contains(query)) i,
+          ];
+    final media = MediaQuery.of(context);
+    return Padding(
+      padding: EdgeInsets.only(bottom: media.viewInsets.bottom),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: (media.size.height - media.viewInsets.bottom) * 0.9,
+        ),
+        child: SafeArea(
           top: false,
           child: Padding(
             padding: const EdgeInsets.fromLTRB(
@@ -898,21 +953,52 @@ class _ChipRows extends ConsumerWidget {
                 Semantics(
                   header: true,
                   child: Text(
-                    group.label,
+                    t.t(
+                      'profile.practices.group',
+                      {'name': group.label, 'count': '${group.items.length}'},
+                    ),
                     style: typography.titleMedium.copyWith(color: colors.text),
                   ),
                 ),
                 const SizedBox(height: AppSpacing.md),
-                Wrap(
-                  spacing: AppSpacing.sm,
-                  runSpacing: AppSpacing.sm,
-                  children: [for (final i in group.items) AppChip(label: i)],
+                if (group.items.length >= PracticeGroupSheet.searchFrom) ...[
+                  AppTextField(
+                    key: const ValueKey('practice-group-search'),
+                    controller: _search,
+                    hintText: t.t('practices.search'),
+                    semanticLabel: t.t('practices.search'),
+                    leading: AppIcon(
+                      AppIcons.searchRounded,
+                      color: colors.textSecondary,
+                      size: AppSizes.iconSm,
+                    ),
+                    textInputAction: TextInputAction.search,
+                    onChanged: (_) => setState(() {}),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                ],
+                Flexible(
+                  child: items.isEmpty
+                      ? Text(
+                          t.t('search.empty.title'),
+                          style: typography.body
+                              .copyWith(color: colors.textSecondary),
+                        )
+                      : SingleChildScrollView(
+                          child: Wrap(
+                            spacing: AppSpacing.sm,
+                            runSpacing: AppSpacing.sm,
+                            children: [
+                              for (final i in items) AppChip(label: i),
+                            ],
+                          ),
+                        ),
                 ),
               ],
             ),
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 }

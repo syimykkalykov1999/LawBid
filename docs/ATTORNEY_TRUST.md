@@ -82,7 +82,12 @@
 
 ## 6. Интеграция с оплатами (PR #48) и планами (PR #47)
 
-После слияния #48: в `CasePaymentsService.attorneyEntitled` → `trust.assertCanAcceptPayments(attorneyId)`; `syncAccount(account.updated)` → `trust.onStripeAccount(...)` с полями выше; при изменении уровня `desiredPayoutDelayDays` → `accounts.update({settings:{payouts:{schedule:{delay_days}}}})` и `markPayoutDelaySynced`. Виджет `TrustPaymentNotice` в приложении встраивается в лист оплаты. #47: `platform_payments` в entitlement проверяется до гейта доверия.
+Слито с #48 (оплаты) и #47 (планы); `AttorneyTrustService` подключён в `CasePaymentsService` как `@Optional()` (модуль `@Global()`):
+
+- **Гейт.** `GET /cases/:id/payments` → `canPay`/`canRequest` = false, пока `trust.paymentsGate(attorneyId).ok` = false (не cleared, холд, suspended). `POST /cases/:id/payments` и `POST /cases/:id/payment-requests` → после проверки entitlement (`platform_payments`, #47) вызывается `trust.assertCanAcceptPayments` → 403 `TRUST_LEVEL_REQUIRED` {gate, missing, current} / `ATTORNEY_ON_HOLD` {hold} / `ATTORNEY_SUSPENDED`. Онбординг Stripe открыт всегда — закрыты только деньги.
+- **Кто за аккаунтом.** `syncAccount(account.updated)` → `trust.onStripeAccount(userId, facts)`: провайдер (`retrieveConnectAccount`) теперь возвращает `businessType`, `legalFirstName/LastName` (individual), `companyName`, `companyUrl` и `people` (для company — `accounts.listPersons`: representative / owner / executive / director). Ошибка проверки доверия не ломает синк аккаунта (warn в лог).
+- **Задержка выплат.** `syncPayoutDelay(attorneyId, accountId)`: `trust.desiredPayoutDelayDays` (= `trust.payout_delay_days`, пока адвокат не cleared; `null` после) сравнивается с последним отправленным (`attorney_trust.payout_delay_days/_synced_at`); при разнице → `provider.updateConnectPayoutDelay` (Stripe `accounts.update({settings:{payouts:{schedule:{interval:'daily', delay_days}}}})`, `null` → `'minimum'`) и `trust.markPayoutDelaySynced`. Вызывается из `syncAccount` и из `GET /payout-account` (адвокат открыл экран выплат после «Подтвердить»). В e2e fake-провайдер хранит запросы в `payoutDelays`.
+- Виджет `TrustPaymentNotice` в приложении встраивается в лист оплаты. e2e: `test/owner-case-payments.e2e-spec.ts` «anti-fraud trust gate…» (не cleared → 7 дней + 403; clear → открыто и задержка снята; hold → 403 оплата и счёт; release → открыто).
 
 ## 7. Миграции
 

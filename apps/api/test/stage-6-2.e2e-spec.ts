@@ -29,7 +29,8 @@ interface Body {
  * code) signs in on its own, two-factor is optional (an admin who turned
  * it on is asked for the code), access works by per-area toggles, and an
  * admin the super admin allowed can manage other admins within their own
- * access.
+ * access. Owner 2026-10-05: a section the admin has no right to answers
+ * 404 (as if it did not exist) instead of 403.
  */
 describe('stage 6.2 — admin auth, RBAC, audit, admins, dashboard (e2e)', () => {
   let app: INestApplication;
@@ -257,7 +258,7 @@ describe('stage 6.2 — admin auth, RBAC, audit, admins, dashboard (e2e)', () =>
       .put('/api/v1/admin/auth/me/credentials')
       .set(mod.auth)
       .send({ newPassword: 'Another-pass-2026!' })
-      .expect(403);
+      .expect(404);
     const sup = await adminSession(baseUrl, prisma, 'super_admin');
     const login = `boss.${randomUUID().slice(0, 6)}`;
     await api()
@@ -294,7 +295,7 @@ describe('stage 6.2 — admin auth, RBAC, audit, admins, dashboard (e2e)', () =>
     });
     // An admin without the right cannot even list admins.
     const plain = await adminSession(baseUrl, prisma, 'support');
-    await api().get('/api/v1/admin/admins').set(plain.auth).expect(403);
+    await api().get('/api/v1/admin/admins').set(plain.auth).expect(404);
     await api().get('/api/v1/admin/admins').set(mgr.auth).expect(200);
 
     // Creates inside their own access…
@@ -359,7 +360,7 @@ describe('stage 6.2 — admin auth, RBAC, audit, admins, dashboard (e2e)', () =>
       .patch(`/api/v1/admin/admins/${staffId}/role`)
       .set(mgr.auth)
       .send({ role: 'moderator' })
-      .expect(403);
+      .expect(404);
 
     // They cannot touch the super admin, themselves, or another manager.
     await api()
@@ -376,16 +377,17 @@ describe('stage 6.2 — admin auth, RBAC, audit, admins, dashboard (e2e)', () =>
       .send({ permissions: {} })
       .expect(403);
 
-    // Money, keys, audit log and sessions stay closed whatever else they hold.
+    // Owner 2026-10-05: the trusted deputy reads money, the audit log and
+    // sessions; the keys stay closed (as if absent).
     for (const path of [
       '/api/v1/admin/billing/payments',
-      '/api/v1/admin/integrations',
       '/api/v1/admin/audit-log',
       '/api/v1/admin/sessions',
     ]) {
       const r = await api().get(path).set(mgr.auth);
-      expect(`${path} ${r.status}`).toBe(`${path} 403`);
+      expect(`${path} ${r.status}`).toBe(`${path} 200`);
     }
+    await api().get('/api/v1/admin/integrations').set(mgr.auth).expect(404);
 
     // They set the new colleague's login and password (fresh confirmation first).
     const colleagueLogin = `staff.${randomUUID().slice(0, 6)}`;
@@ -478,22 +480,22 @@ describe('stage 6.2 — admin auth, RBAC, audit, admins, dashboard (e2e)', () =>
     expect(cred.recovery_codes_hash).toHaveLength(9);
   });
 
-  it('applies the §2.2 matrix server-side (403 for a role without the right)', async () => {
+  it('applies the §2.2 matrix server-side (404 for a role without the right)', async () => {
     const moderator = await adminSession(baseUrl, prisma, 'moderator');
     const finance = await adminSession(baseUrl, prisma, 'finance');
     const sup = await adminSession(baseUrl, prisma, 'super_admin');
     const cells: Array<[string, Record<string, string>, number]> = [
       ['/api/v1/admin/dashboard', moderator.auth, 200],
       ['/api/v1/admin/dashboard', finance.auth, 200],
-      ['/api/v1/admin/admins', moderator.auth, 403],
-      ['/api/v1/admin/admins', finance.auth, 403],
+      ['/api/v1/admin/admins', moderator.auth, 404],
+      ['/api/v1/admin/admins', finance.auth, 404],
       ['/api/v1/admin/admins', sup.auth, 200],
-      ['/api/v1/admin/verification/requests', moderator.auth, 403],
+      ['/api/v1/admin/verification/requests', moderator.auth, 404],
       ['/api/v1/admin/verification/requests', sup.auth, 200],
-      ['/api/v1/admin/i18n/export?lang=en', moderator.auth, 403],
-      ['/api/v1/admin/audit-log', finance.auth, 403],
+      ['/api/v1/admin/i18n/export?lang=en', moderator.auth, 404],
+      ['/api/v1/admin/audit-log', finance.auth, 404],
       ['/api/v1/admin/audit-log', sup.auth, 200],
-      ['/api/v1/admin/billing/payments', finance.auth, 403],
+      ['/api/v1/admin/billing/payments', finance.auth, 404],
     ];
     for (const [path, auth, status] of cells) {
       const r = await api().get(path).set(auth);
@@ -560,7 +562,7 @@ describe('stage 6.2 — admin auth, RBAC, audit, admins, dashboard (e2e)', () =>
     await api()
       .get('/api/v1/admin/verification/requests')
       .set(relogin.auth)
-      .expect(403);
+      .expect(404);
 
     // Disable → 401 on the live session; sign-in impossible; enable restores.
     await api()
@@ -682,13 +684,13 @@ describe('stage 6.2 — admin auth, RBAC, audit, admins, dashboard (e2e)', () =>
     expect(await redis.ttl('adm:dashboard')).toBeGreaterThan(0);
   });
 
-  it('audit log: only the super admin reads it (filters, paging); other admins get 403', async () => {
+  it('audit log: only the super admin reads it (filters, paging); other admins get 404', async () => {
     const sup = await adminSession(baseUrl, prisma, 'super_admin');
     const mod = await adminSession(baseUrl, prisma, 'moderator');
     await api()
       .get(`/api/v1/admin/audit-log?adminId=${sup.userId}`)
       .set(mod.auth)
-      .expect(403);
+      .expect(404);
 
     const all = await api()
       .get(

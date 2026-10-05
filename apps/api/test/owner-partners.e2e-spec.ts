@@ -314,15 +314,16 @@ describe('Partner program (e2e)', () => {
 
   it('partners are a money area: only the super admin reaches them', async () => {
     // Same rule as referrals and billing (admin-permissions SUPER_ONLY_AREAS):
-    // support and finance are refused whatever their toggles say.
+    // support and finance are refused whatever their toggles say — and the
+    // section answers as if it didn't exist (owner 2026-10-05: 404).
     for (const role of ['support', 'finance', 'moderator'] as const) {
       const s = await adminSession(base, prisma, role);
-      await api().get('/api/v1/admin/partners').set(s.auth).expect(403);
+      await api().get('/api/v1/admin/partners').set(s.auth).expect(404);
       await api()
         .post('/api/v1/admin/partners')
         .set(s.auth)
         .send({ userId: randomUUID(), reason: REASON })
-        .expect(403);
+        .expect(404);
     }
   });
 });

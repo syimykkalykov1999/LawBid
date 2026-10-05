@@ -1,65 +1,27 @@
-import { createHash } from 'node:crypto';
-import {
-  ForbiddenException,
-  HttpException,
-  HttpStatus,
-  Inject,
-  Injectable,
-  NotFoundException,
-  Optional,
-  ServiceUnavailableException,
-} from '@nestjs/common';
-import type { Redis } from 'ioredis';
-import { PinoLogger } from 'nestjs-pino';
-import { CostGuardService } from '../../common/cost-guard/cost-guard.service';
-import { EntitlementsService } from '../plans/entitlements.service';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { ErrorCode } from '../../common/errors/error-code.enum';
-import { SecretsService } from '../../common/secrets/secrets.service';
 import { PrismaService } from '../../prisma/prisma.service';
-import { REDIS_CLIENT } from '../../redis/redis.constants';
-import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
+import {
+  type TextTranslation,
+  TranslationService,
+  translationUnavailable,
+} from '../translation/translation.service';
 
-export const CHAT_TRANSLATE_FLAG = 'chat_translate';
-/** Translations are kept a week, so re-opening a chat costs nothing. */
-const CACHE_TTL_S = 7 * 24 * 3600;
-/** Per person per day: a guard against a script running up the bill. */
-export const DAILY_TRANSLATIONS = 300;
-const TIMEOUT_MS = 8_000;
-
-export interface MessageTranslation {
-  text: string;
-  sourceLanguage: string | null;
-  targetLanguage: string;
-}
+export type MessageTranslation = TextTranslation;
 
 /**
- * Owner 2026-10-04: "Translate" under a chat message (chats only, not
- * comments). Google Cloud Translation (it covers Kyrgyz, Kazakh, Uzbek…),
- * key in Admin → Integrations; the app shows the button only while the
- * `chat_translate` flag is on AND the key is saved (bootstrap gate).
- * Translates the displayed text (hidden contacts stay hidden); the
- * original is never replaced.
+ * Owner 2026-10-04: "Translate" under a chat message. The app shows the
+ * button only while the chat zone is on and the key is saved (bootstrap
+ * gate); TranslationService checks the same before calling Google.
+ * Translates the displayed text (hidden contacts stay hidden).
  */
 @Injectable()
 export class ChatTranslationService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly secrets: SecretsService,
-    private readonly flags: FeatureFlagsService,
-    @Inject(REDIS_CLIENT) private readonly redis: Redis,
-    private readonly logger: PinoLogger,
-    private readonly costGuard: CostGuardService,
-    // Owner 2026-10-05 (plan builder): translation is a plan term.
-    @Optional() private readonly entitlements?: EntitlementsService,
+    private readonly translation: TranslationService,
   ) {}
-
-  /** The Google key when the feature is on and configured, else null. */
-  async apiKey(): Promise<string | null> {
-    if (!(await this.flags.isEnabled(CHAT_TRANSLATE_FLAG, false))) return null;
-    const key = (await this.secrets.get('google_translate'))?.fields.apiKey;
-    return key || null;
-  }
 
   async translate(
     user: RequestUser,
@@ -67,17 +29,11 @@ export class ChatTranslationService {
     messageId: string,
     target: string,
   ): Promise<MessageTranslation> {
-    if (
-      this.entitlements &&
-      !(await this.entitlements.has(user.sub, 'chat_translate'))
-    ) {
-      throw new ForbiddenException({
-        code: ErrorCode.ENTITLEMENT_REQUIRED,
-        message: 'Your plan does not include translation.',
-      });
+    // Plan, then zone and key: nothing is read when translation is off.
+    await this.translation.assertEntitled(user);
+    if (!(await this.translation.apiKey('chat'))) {
+      throw translationUnavailable();
     }
-    const key = await this.apiKey();
-    if (!key) throw unavailable();
     const m = await this.prisma.message.findFirst({
       where: {
         id: messageId,
@@ -94,102 +50,12 @@ export class ChatTranslationService {
         message: 'Message not found.',
       });
     }
-    const cacheKey = `chat:tr:${messageId}:${target}`;
-    const hit = await this.redis.get(cacheKey);
-    if (hit) return JSON.parse(hit) as MessageTranslation;
-
-    const day = new Date().toISOString().slice(0, 10);
-    const quotaKey = `chat:tr:quota:${user.sub}:${day}`;
-    const used = Number((await this.redis.get(quotaKey)) ?? 0);
-    const planQuota = this.entitlements
-      ? await this.entitlements.limit(user.sub, 'translations_per_day')
-      : null;
-    // null/undefined = the app default; 0 = unlimited on this plan.
-    const quota =
-      planQuota == null
-        ? DAILY_TRANSLATIONS
-        : planQuota === 0
-          ? null
-          : planQuota;
-    if (quota !== null && used >= quota) {
-      throw new HttpException(
-        {
-          code: ErrorCode.RATE_LIMITED,
-          message: 'Too many translations today.',
-        },
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
-    }
-
-    // Global cap across all users (PROVIDER_BUDGET_EXCEEDED, fails closed).
-    await this.costGuard.consume('translate');
-    const out = await this.callGoogle(key, text, target);
-    // Counted only after a successful call: a Google error costs no quota.
-    if ((await this.redis.incr(quotaKey)) === 1) {
-      await this.redis.expire(quotaKey, 26 * 3600);
-    }
-    await this.redis.set(cacheKey, JSON.stringify(out), 'EX', CACHE_TTL_S);
-    return out;
+    return this.translation.translate(
+      user,
+      'chat',
+      `msg:${messageId}`,
+      text,
+      target,
+    );
   }
-
-  private async callGoogle(
-    key: string,
-    text: string,
-    target: string,
-  ): Promise<MessageTranslation> {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
-    try {
-      const res = await fetch(
-        `https://translation.googleapis.com/language/translate/v2?key=${encodeURIComponent(key)}`,
-        {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ q: text, target, format: 'text' }),
-          signal: ctrl.signal,
-        },
-      );
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const body = (await res.json()) as {
-        data?: {
-          translations?: {
-            translatedText?: string;
-            detectedSourceLanguage?: string;
-          }[];
-        };
-      };
-      const t = body.data?.translations?.[0];
-      if (typeof t?.translatedText !== 'string') {
-        throw new Error('no translation in the answer');
-      }
-      return {
-        text: t.translatedText,
-        sourceLanguage: t.detectedSourceLanguage ?? null,
-        targetLanguage: target,
-      };
-    } catch (e) {
-      // Only the hash of the text is logged: chat content stays private.
-      this.logger.warn(
-        {
-          alert: 'translation_failed',
-          textHash: createHash('sha256')
-            .update(text)
-            .digest('hex')
-            .slice(0, 12),
-          err: e instanceof Error ? e.message : String(e),
-        },
-        'chat translation failed',
-      );
-      throw unavailable();
-    } finally {
-      clearTimeout(timer);
-    }
-  }
-}
-
-function unavailable(): ServiceUnavailableException {
-  return new ServiceUnavailableException({
-    code: ErrorCode.TRANSLATION_UNAVAILABLE,
-    message: 'Translation is not available right now.',
-  });
 }

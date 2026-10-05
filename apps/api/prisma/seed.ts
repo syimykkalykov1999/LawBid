@@ -266,6 +266,12 @@ async function seedFeatureFlags(): Promise<void> {
       description: 'Paid attorney profile promotion',
     },
     {
+      key: 'payments_in_app',
+      enabled: false,
+      description:
+        'Clients pay the accepted attorney through the platform (Stripe Connect)',
+    },
+    {
       key: 'stripe_identity',
       enabled: false,
       description: 'Stripe Identity as a verification provider',
@@ -279,6 +285,12 @@ async function seedFeatureFlags(): Promise<void> {
       key: 'chat_translate',
       enabled: false,
       description: 'Translate button under chat messages (Google Translate)',
+    },
+    {
+      key: 'payroll_stripe_payouts',
+      enabled: false,
+      description:
+        'Salaries paid out through Stripe Connect (employees link a bank account or card)',
     },
     {
       key: 'auto_bar_check',

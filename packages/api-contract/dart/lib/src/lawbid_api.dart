@@ -46,6 +46,7 @@ import 'clients/document_templates_client.dart';
 import 'clients/admin_document_templates_client.dart';
 import 'clients/admin_billing_client.dart';
 import 'clients/billing_client.dart';
+import 'clients/admin_payroll_client.dart';
 import 'clients/support_client.dart';
 import 'clients/admin_support_client.dart';
 import 'clients/admin_email_templates_client.dart';
@@ -68,9 +69,12 @@ import 'clients/partners_client.dart';
 import 'clients/admin_partners_client.dart';
 import 'clients/promotions_client.dart';
 import 'clients/admin_promotions_client.dart';
+import 'clients/case_payments_client.dart';
+import 'clients/admin_case_payments_client.dart';
 import 'clients/client_badge_client.dart';
 import 'clients/admin_client_badge_client.dart';
 import 'clients/chat_client.dart';
+import 'clients/translations_client.dart';
 import 'clients/calls_client.dart';
 import 'clients/notifications_client.dart';
 import 'clients/trust_client.dart';
@@ -130,6 +134,7 @@ class LawbidApi {
   AdminDocumentTemplatesClient? _adminDocumentTemplates;
   AdminBillingClient? _adminBilling;
   BillingClient? _billing;
+  AdminPayrollClient? _adminPayroll;
   SupportClient? _support;
   AdminSupportClient? _adminSupport;
   AdminEmailTemplatesClient? _adminEmailTemplates;
@@ -152,9 +157,12 @@ class LawbidApi {
   AdminPartnersClient? _adminPartners;
   PromotionsClient? _promotions;
   AdminPromotionsClient? _adminPromotions;
+  CasePaymentsClient? _casePayments;
+  AdminCasePaymentsClient? _adminCasePayments;
   ClientBadgeClient? _clientBadge;
   AdminClientBadgeClient? _adminClientBadge;
   ChatClient? _chat;
+  TranslationsClient? _translations;
   CallsClient? _calls;
   NotificationsClient? _notifications;
   TrustClient? _trust;
@@ -279,6 +287,9 @@ class LawbidApi {
   BillingClient get billing =>
       _billing ??= BillingClient(_dio, baseUrl: _baseUrl);
 
+  AdminPayrollClient get adminPayroll =>
+      _adminPayroll ??= AdminPayrollClient(_dio, baseUrl: _baseUrl);
+
   SupportClient get support =>
       _support ??= SupportClient(_dio, baseUrl: _baseUrl);
 
@@ -342,6 +353,12 @@ class LawbidApi {
   AdminPromotionsClient get adminPromotions =>
       _adminPromotions ??= AdminPromotionsClient(_dio, baseUrl: _baseUrl);
 
+  CasePaymentsClient get casePayments =>
+      _casePayments ??= CasePaymentsClient(_dio, baseUrl: _baseUrl);
+
+  AdminCasePaymentsClient get adminCasePayments =>
+      _adminCasePayments ??= AdminCasePaymentsClient(_dio, baseUrl: _baseUrl);
+
   ClientBadgeClient get clientBadge =>
       _clientBadge ??= ClientBadgeClient(_dio, baseUrl: _baseUrl);
 
@@ -349,6 +366,9 @@ class LawbidApi {
       _adminClientBadge ??= AdminClientBadgeClient(_dio, baseUrl: _baseUrl);
 
   ChatClient get chat => _chat ??= ChatClient(_dio, baseUrl: _baseUrl);
+
+  TranslationsClient get translations =>
+      _translations ??= TranslationsClient(_dio, baseUrl: _baseUrl);
 
   CallsClient get calls => _calls ??= CallsClient(_dio, baseUrl: _baseUrl);
 

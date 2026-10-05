@@ -8,6 +8,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/features/case_payments/presentation/case_payments_card.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/screens/attorney_case_screen.dart'
@@ -23,6 +24,8 @@ import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
+import 'package:lawbid/features/translation/data/content_translation_repository.dart';
+import 'package:lawbid/features/translation/presentation/translatable_text.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// docs/04 §8 + §11.2 "В работе": the case, the client's contacts (locked
@@ -252,18 +255,26 @@ class _WorkCaseScreenState extends ConsumerState<WorkCaseScreen> {
                   title: t.t('cases.work.terms'),
                   child: _TermsLine(bidId: c.ownBidId!, t: t, formats: formats),
                 ),
+              // Owner 2026-10-05: what the client paid through the platform.
+              CasePaymentsCard(caseId: c.id, asAttorney: true),
               // OQ-038: the hired attorney reviews the client (audit
               // 2026-10-02: in person — not an assistant in their name).
               if (!ref.watch(isAssistantProvider))
                 ClientReviewAction(caseId: c.id),
               DetailSection(
                 title: t.t('cases.detail.description'),
-                child: Text(
-                  c.description ?? '',
-                  style: Theme.of(context)
-                      .extension<AppTypographyTokens>()!
-                      .body
-                      .copyWith(color: colors.text),
+                // Owner 2026-10-05: «Перевести» (cases zone).
+                child: TranslatableText(
+                  kind: TranslatableKind.caseDescription,
+                  id: c.id,
+                  text: c.description ?? '',
+                  builder: (context, text) => Text(
+                    text,
+                    style: Theme.of(context)
+                        .extension<AppTypographyTokens>()!
+                        .body
+                        .copyWith(color: colors.text),
+                  ),
                 ),
               ),
               // OQ-031: the accepted attorney sees the case photos.

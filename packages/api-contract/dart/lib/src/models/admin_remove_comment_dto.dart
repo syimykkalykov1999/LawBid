@@ -10,7 +10,7 @@ part 'admin_remove_comment_dto.g.dart';
 
 @JsonSerializable()
 class AdminRemoveCommentDto {
-  const AdminRemoveCommentDto({required this.reason, required this.thread});
+  const AdminRemoveCommentDto({required this.thread, this.reason = ''});
 
   factory AdminRemoveCommentDto.fromJson(Map<String, Object?> json) =>
       _$AdminRemoveCommentDtoFromJson(json);

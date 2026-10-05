@@ -30,11 +30,13 @@ import { PresenceModule } from './modules/presence/presence.module';
 import { SecretsModule } from './common/secrets/secrets.module';
 import { AdminIntegrationsModule } from './modules/admin-integrations/admin-integrations.module';
 import { ReferralsModule } from './modules/referrals/referrals.module';
+import { CasePaymentsModule } from './modules/case-payments/case-payments.module';
 import { PromotionsModule } from './modules/promotions/promotions.module';
 import { PartnersModule } from './modules/partners/partners.module';
 import { ClientBadgeModule } from './modules/client-badge/client-badge.module';
 import { SearchModule } from './modules/search/search.module';
 import { ChatModule } from './modules/chat/chat.module';
+import { TranslationModule } from './modules/translation/translation.module';
 import { CallsModule } from './modules/calls/calls.module';
 import { MentionsModule } from './modules/mentions/mentions.module';
 import { NotificationsApiModule } from './modules/notifications/notifications-api.module';
@@ -69,6 +71,7 @@ import { AdminContentModule } from './modules/admin-content/admin-content.module
 import { AdminMediaModule } from './modules/admin-media/admin-media.module';
 import { DocumentTemplatesModule } from './modules/document-templates/document-templates.module';
 import { AdminBillingModule } from './modules/admin-billing/admin-billing.module';
+import { AdminPayrollModule } from './modules/admin-payroll/admin-payroll.module';
 import { SupportModule } from './modules/support/support.module';
 import { AdminEmailTemplatesModule } from './modules/admin-email-templates/admin-email-templates.module';
 import { PrivacyModule } from './modules/privacy/privacy.module';
@@ -116,6 +119,16 @@ export const pinoHttpOptions: PinoHttpOptions = {
       // Device attestation blobs (DeviceAttestationGuard) — opaque,
       // large, and replayable within their validity window.
       'req.headers["x-device-attestation"]',
+      // Owner 2026-10-05: keys, passwords and tokens never reach the logs.
+      'req.body.values',
+      'req.body.password',
+      'req.body.currentPassword',
+      'req.body.newPassword',
+      'req.body.totp',
+      'req.body.token',
+      'req.body.secret',
+      'req.body.apiKey',
+      'req.headers["stripe-signature"]',
     ],
     censor: '[REDACTED]',
   },
@@ -184,6 +197,7 @@ const isDev =
     AdminMediaModule,
     DocumentTemplatesModule,
     AdminBillingModule,
+    AdminPayrollModule,
     // Owner 2026-10-02: support tickets + transactional email editor.
     SupportModule,
     AdminEmailTemplatesModule,
@@ -218,11 +232,14 @@ const isDev =
     ReferralsModule,
     PartnersModule,
     PromotionsModule,
+    // Owner 2026-10-05: client → attorney payments via Stripe Connect.
+    CasePaymentsModule,
     ClientBadgeModule,
     // docs/05 §8 chats + §8.5 realtime (publisher global, gateway API-only).
     RealtimeModule,
     RealtimeGatewayModule,
     ChatModule,
+    TranslationModule,
     CallsModule,
     MentionsModule,
     // docs/05 §9-§10 notifications REST, badges, push tokens.

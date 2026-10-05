@@ -7,6 +7,8 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/widgets/language_picker_sheet.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/auth/application/sign_out.dart';
+import 'package:lawbid/features/case_payments/application/case_payments_providers.dart';
+import 'package:lawbid/features/case_payments/case_payments_routes.dart';
 import 'package:lawbid/features/chat/application/presence_providers.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/client_plan/client_plan_routes.dart';
@@ -111,6 +113,30 @@ class SettingsScreen extends ConsumerWidget {
               label: t.t('settings.assistants'),
               subtitle: t.t('settings.assistants.hint'),
               onTap: () => context.push(TeamRoutes.team),
+            ),
+          // Owner 2026-10-05: client → attorney payments through the
+          // platform (flag payments_in_app).
+          if (ref.watch(casePaymentsFlagProvider) &&
+              ref.watch(currentUserRoleProvider) == UserRole.attorney &&
+              !ref.watch(isAssistantProvider))
+            AppListRow(
+              key: const ValueKey('settings-payouts'),
+              icon: AppIcons.accountBalanceOutlined,
+              label: t.t('cpay.payout.title'),
+              subtitle: t.t('cpay.payout.hint'),
+              onTap: () => context.push(CasePaymentsRoutes.payoutAccount),
+            ),
+          if (ref.watch(casePaymentsFlagProvider))
+            AppListRow(
+              key: const ValueKey('settings-case-payments'),
+              icon: AppIcons.paymentsOutlined,
+              label: t.t('cpay.history.title'),
+              subtitle: t.t(
+                ref.watch(currentUserRoleProvider) == UserRole.attorney
+                    ? 'cpay.history.hintAttorney'
+                    : 'cpay.history.hint',
+              ),
+              onTap: () => context.push(CasePaymentsRoutes.history),
             ),
           // Owner 2026-10-02: clients can earn the gold badge (paid).
           if (ref.watch(currentUserRoleProvider) == UserRole.client)

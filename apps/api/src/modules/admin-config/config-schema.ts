@@ -1,7 +1,8 @@
 import { APP_SETTINGS } from '../../common/app-settings/app-settings.defaults';
 import { COST_PROVIDERS } from '../../common/cost-guard/cost-guard.constants';
 import type { ConfigValueType } from './admin-config.dto';
-import { SEATS_HARD_CAP } from '../billing/billing.constants';
+import { ADMIN_AREAS } from '../admin-auth/admin-permissions';
+import { SEATS_HARD_CAP, TRIAL_DAYS_MAX } from '../billing/billing.constants';
 
 export interface ConfigKeySchema {
   type: ConfigValueType;
@@ -21,6 +22,11 @@ export interface ConfigKeySchema {
  * app versions (file 01 §15). Unknown keys are refused — the panel can't
  * create arbitrary rows.
  */
+/** An admin area key (admin-permissions ADMIN_AREAS) or `money`. */
+const REASON_AREA_PATTERN = new RegExp(
+  `^(${[...ADMIN_AREAS, 'money'].join('|')})$`,
+);
+
 export function configSchema(): Record<string, ConfigKeySchema> {
   const out: Record<string, ConfigKeySchema> = {};
   for (const [key, def] of Object.entries(APP_SETTINGS)) {
@@ -61,6 +67,25 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     ...out['trust.complaint_window_days'],
     min: 1,
     max: 3650,
+  };
+  out['billing.trial_days'] = {
+    ...out['billing.trial_days'],
+    description:
+      'Free trial for new attorney subscriptions, days (0 = no trial). Running trials keep their end date.',
+    min: 0,
+    max: TRIAL_DAYS_MAX,
+  };
+  out['admin.reason_required_areas'] = {
+    ...out['admin.reason_required_areas'],
+    description:
+      'Sections where admins (not the super admin) must write a reason for an action.',
+    pattern: REASON_AREA_PATTERN,
+  };
+  out['translate.scope'] = {
+    ...out['translate.scope'],
+    description:
+      'Where the translator works: all = every zone, zones = only the switched-on translate.<zone> keys.',
+    pattern: /^(all|zones)$/,
   };
   out['sms.allowed_country_codes'] = {
     type: 'string[]',

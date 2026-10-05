@@ -8,7 +8,7 @@ part 'admin_media_reason_dto.g.dart';
 
 @JsonSerializable()
 class AdminMediaReasonDto {
-  const AdminMediaReasonDto({required this.reason});
+  const AdminMediaReasonDto({this.reason = ''});
 
   factory AdminMediaReasonDto.fromJson(Map<String, Object?> json) =>
       _$AdminMediaReasonDtoFromJson(json);

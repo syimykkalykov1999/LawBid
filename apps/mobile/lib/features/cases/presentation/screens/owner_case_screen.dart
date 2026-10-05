@@ -7,6 +7,7 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/features/case_payments/presentation/case_payments_card.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
@@ -404,6 +405,9 @@ class _OwnerCaseBody extends ConsumerWidget {
                 conversationId: c.conversationId,
               ),
             ),
+          // Owner 2026-10-05: pay the attorney through the platform.
+          if (c.acceptedBid != null)
+            CasePaymentsCard(caseId: c.id, asAttorney: false),
           // Owner 2026-10-05: the client's case file and adding files.
           Padding(
             padding: const EdgeInsets.only(top: AppSpacing.md),

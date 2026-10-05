@@ -9,7 +9,7 @@ part of 'moderation_action_dto.dart';
 ModerationActionDto _$ModerationActionDtoFromJson(Map<String, dynamic> json) =>
     ModerationActionDto(
       action: ModerationActionDtoAction.fromJson(json['action'] as String),
-      reason: json['reason'] as String,
+      reason: json['reason'] as String? ?? '',
     );
 
 Map<String, dynamic> _$ModerationActionDtoToJson(

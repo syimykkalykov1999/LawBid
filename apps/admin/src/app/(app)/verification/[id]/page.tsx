@@ -159,6 +159,7 @@ export default function VerificationCardPage() {
         title: 'Причина просмотра документа',
         description: 'Записывается в журнал аудита (docs/06 §2.1).',
         label: 'Причина',
+        required: true,
         confirm: 'Открыть',
       });
       if (!a) return null;

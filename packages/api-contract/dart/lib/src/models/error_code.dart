@@ -164,6 +164,8 @@ enum ErrorCode {
   barNumberBlocked('BAR_NUMBER_BLOCKED'),
   @JsonValue('JUSTIFICATION_REQUIRED')
   justificationRequired('JUSTIFICATION_REQUIRED'),
+  @JsonValue('REASON_REQUIRED')
+  reasonRequired('REASON_REQUIRED'),
   @JsonValue('ADMIN_TICKET_INVALID')
   adminTicketInvalid('ADMIN_TICKET_INVALID'),
   @JsonValue('ADMIN_TOTP_INVALID')
@@ -318,6 +320,14 @@ enum ErrorCode {
   promotionAlreadyActive('PROMOTION_ALREADY_ACTIVE'),
   @JsonValue('PROMOTION_INVALID_STATE')
   promotionInvalidState('PROMOTION_INVALID_STATE'),
+  @JsonValue('PAYOUT_ACCOUNT_NOT_READY')
+  payoutAccountNotReady('PAYOUT_ACCOUNT_NOT_READY'),
+  @JsonValue('PAYMENT_INVALID_STATE')
+  paymentInvalidState('PAYMENT_INVALID_STATE'),
+  @JsonValue('PAYMENT_AMOUNT_INVALID')
+  paymentAmountInvalid('PAYMENT_AMOUNT_INVALID'),
+  @JsonValue('PAYMENT_FEE_MAX_ROUNDS_REACHED')
+  paymentFeeMaxRoundsReached('PAYMENT_FEE_MAX_ROUNDS_REACHED'),
   @JsonValue('PROMO_CODE_INVALID')
   promoCodeInvalid('PROMO_CODE_INVALID'),
   @JsonValue('PROMO_CODE_EXISTS')

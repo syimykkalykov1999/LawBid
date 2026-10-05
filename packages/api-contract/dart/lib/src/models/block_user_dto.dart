@@ -9,11 +9,11 @@ part 'block_user_dto.g.dart';
 @JsonSerializable()
 class BlockUserDto {
   const BlockUserDto({
-    required this.reason,
+    this.days,
+    this.reason = '',
     this.banPhone = false,
     this.banEmail = false,
     this.banDevices = false,
-    this.days,
   });
 
   factory BlockUserDto.fromJson(Map<String, Object?> json) =>

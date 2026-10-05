@@ -11,7 +11,7 @@ AdminPartnerAdjustmentDto _$AdminPartnerAdjustmentDtoFromJson(
 ) => AdminPartnerAdjustmentDto(
   amountCents: (json['amountCents'] as num).toInt(),
   note: json['note'] as String,
-  reason: json['reason'] as String,
+  reason: json['reason'] as String? ?? '',
 );
 
 Map<String, dynamic> _$AdminPartnerAdjustmentDtoToJson(

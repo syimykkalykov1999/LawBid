@@ -44,11 +44,15 @@ OfferKind offerKindOf(SubscriptionOverview o) {
   String Function(int cents) price,
 ) {
   final monthly = price(o.prices.monthlyCents);
+  final days = trialDaysText(t, o.prices.trialDays);
   return switch (offerKindOf(o)) {
     OfferKind.trial || OfferKind.active => (
-        title: t.t('subscription.offer.trial.title'),
-        body: t.t('subscription.offer.trial.body', {'price': monthly}),
-        cta: t.t('subscription.offer.trial.cta'),
+        title: t.t('subscription.offer.trial.title', {'days': days}),
+        body: t.t(
+          'subscription.offer.trial.body',
+          {'price': monthly, 'days': days},
+        ),
+        cta: t.t('subscription.offer.trial.cta', {'days': days}),
       ),
     OfferKind.paid => (
         title: t.t('subscription.offer.paid.title'),
@@ -56,12 +60,17 @@ OfferKind offerKindOf(SubscriptionOverview o) {
         cta: t.t('subscription.offer.paid.cta'),
       ),
     OfferKind.verifyFirst => (
-        title: t.t('subscription.offer.trial.title'),
+        title: t.t('subscription.offer.trial.title', {'days': days}),
         body: t.t('subscription.offer.verifyFirst'),
-        cta: t.t('subscription.offer.trial.cta'),
+        cta: t.t('subscription.offer.trial.cta', {'days': days}),
       ),
   };
 }
+
+/// "7 дней" / "1 день" / "14 days": the admin-set trial length
+/// (owner 2026-10-05), for the {days} slot of the trial texts.
+String trialDaysText(Translator t, int days) =>
+    t.plural('subscription.trial.days', days);
 
 /// Starts the monthly plan on Stripe's hosted page (a 7-day trial when the
 /// attorney had none — the server decides) and reports the outcome with a

@@ -5,6 +5,7 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tansta
 import { useState } from 'react';
 import { GrantDialog, invalidateBilling, type PickedAttorney } from '@/components/billing/grant-dialog';
 import { Kpi, KpiSkeletons } from '@/components/billing/kpi';
+import { SubscriptionActions } from '@/components/billing/subscription-actions';
 import { formatDate, LoadMore, type SubscriptionRow, UserCell, useBillingRole, userName } from '@/components/billing/shared';
 import { ErrorNote, PageHeader } from '@/components/page-header';
 import { useReason } from '@/components/reason-dialog';
@@ -400,6 +401,11 @@ function SubscriptionDetails({
               >
                 <Handshake size={15} /> Выдать подписку по договору
               </Button>
+              {canExtend ? (
+                <div className="w-full">
+                  <SubscriptionActions userId={row.userId} status={row.status} cancelAtPeriodEnd={row.cancelAtPeriodEnd} periodEnd={row.currentPeriodEnd} />
+                </div>
+              ) : null}
             </div>
           ) : null}
         </div>

@@ -1,18 +1,36 @@
 'use client';
 
-import { MagnifyingGlass } from '@phosphor-icons/react';
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { ArrowCounterClockwise, MagnifyingGlass, Prohibit, SignOut } from '@phosphor-icons/react';
+import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import {
+  BulkBar,
+  bulkData,
+  EMPTY_FILTER,
+  FilterFields,
+  type ListFilter,
+  PageSelectBox,
+  RowSelectBox,
+  useBulkRun,
+  useSelection,
+} from '@/components/bulk/bulk-controls';
+import { CsvButton } from '@/components/csv-button';
 import { MotionRow } from '@/components/legacy/fade-in';
 import { MoreButton } from '@/components/legacy/more-button';
 import { useDebounced } from '@/components/legacy/use-debounced';
 import { ErrorNote, PageHeader } from '@/components/page-header';
+import { Button } from '@/components/ui/button';
 import { Input, Label, Select } from '@/components/ui/input';
 import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { VerifiedBadge } from '@/components/verified-badge';
 import { api, errorText } from '@/lib/api/client';
+import type { components } from '@/lib/api/schema';
+import { collectIds, dayBounds, type Noun } from '@/lib/bulk';
+import { useMe } from '@/lib/hooks';
+import { can } from '@/lib/rbac';
+import { US_STATES } from '@/lib/us-states';
 import { ROLE_TEXT, STATUS_LABEL, StatusBadge, StatusPill, VERIFICATION_STATUS } from '@/lib/labels';
 import { formatDateTime } from '@/lib/utils';
 
@@ -20,6 +38,20 @@ import { formatDateTime } from '@/lib/utils';
 type Role = '' | 'client' | 'attorney' | 'admin';
 type Status = '' | 'active' | 'suspended' | 'deletion_pending' | 'deleted';
 const ROLE_FILTER: Exclude<Role, ''>[] = ['client', 'attorney', 'admin'];
+type BulkAction = components['schemas']['AdminUsersBulkAction'];
+const USERS: Noun = ['пользователь', 'пользователя', 'пользователей'];
+
+/** Owner 2026-10-04: bulk actions on users, same rights as the single ones. */
+const ACTION_TEXT: Record<BulkAction, { verb: string; done: string; describe: string; danger?: boolean }> = {
+  suspend: {
+    verb: 'Заблокировать',
+    done: 'Заблокировано',
+    describe: 'Сеансы завершатся сразу, открытые дела клиентов уйдут в архив, профили адвокатов скроются. Уже заблокированные пропустим.',
+    danger: true,
+  },
+  restore: { verb: 'Разблокировать', done: 'Разблокировано', describe: 'Аккаунты снова станут активны. Не заблокированные пропустим.' },
+  logout: { verb: 'Завершить сеансы', done: 'Сеансы завершены', describe: 'Пользователям придётся войти заново на всех устройствах.' },
+};
 
 /** docs/06 §2.3 item 3: search by name, email, phone, @username, id. */
 export default function UsersPage() {
@@ -27,26 +59,53 @@ export default function UsersPage() {
   const [text, setText] = useState('');
   const [role, setRole] = useState<Role>('');
   const [status, setStatus] = useState<Status>('');
+  const [stateCode, setStateCode] = useState('');
+  const [dates, setDates] = useState<ListFilter>(EMPTY_FILTER);
   const search = useDebounced(text.trim(), 300);
-  const filters = { q: search, role, status };
+  const filters = { q: search, role, status, stateCode, ...dayBounds(dates.from, dates.to) };
+  const qc = useQueryClient();
+  const { data: me } = useMe();
+  const canWrite = can(me, 'users', 'manage');
+  const sel = useSelection(JSON.stringify(filters));
+  const bulk = useBulkRun();
+  const fetchPage = async (cursor?: string, limit = 20) =>
+    (
+      await api.GET('/admin/users', {
+        params: {
+          query: {
+            q: filters.q || undefined,
+            role: filters.role || undefined,
+            status: filters.status || undefined,
+            stateCode: filters.stateCode || undefined,
+            from: filters.from,
+            to: filters.to,
+            cursor,
+            limit,
+          },
+        },
+      })
+    ).data!;
+  const onBulk = (action: BulkAction) => {
+    const t = ACTION_TEXT[action];
+    bulk.run({
+      ids: [...sel.selected],
+      verb: t.verb,
+      doneVerb: t.done,
+      noun: USERS,
+      danger: t.danger,
+      description: t.describe,
+      send: async (ids, reason) => bulkData(await api.POST('/admin/users/bulk', { body: { action, ids, reason } })),
+      onDone: () => {
+        sel.clear();
+        void qc.invalidateQueries({ queryKey: ['users'] });
+      },
+    });
+  };
 
   const q = useInfiniteQuery({
     queryKey: ['users', filters],
     initialPageParam: undefined as string | undefined,
-    queryFn: async ({ pageParam }) =>
-      (
-        await api.GET('/admin/users', {
-          params: {
-            query: {
-              q: filters.q || undefined,
-              role: filters.role || undefined,
-              status: filters.status || undefined,
-              cursor: pageParam,
-              limit: 20,
-            },
-          },
-        })
-      ).data!,
+    queryFn: ({ pageParam }) => fetchPage(pageParam),
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
   });
   const rows = q.data?.pages.flatMap((p) => p.data) ?? [];
@@ -91,11 +150,55 @@ export default function UsersPage() {
             ))}
           </Select>
         </div>
+        <div className="w-44 space-y-1">
+          <Label htmlFor="state">Штат</Label>
+          <Select id="state" value={stateCode} onChange={(e) => setStateCode(e.target.value)}>
+            <option value="">любой</option>
+            {US_STATES.map((st) => (
+              <option key={st.code} value={st.code}>
+                {st.code} · {st.name}
+              </option>
+            ))}
+          </Select>
+        </div>
+        <FilterFields id="uf" value={dates} onChange={setDates} />
+        <CsvButton entity="users" />
       </div>
+      {bulk.dialog}
+      {canWrite ? (
+        <BulkBar
+          selectedCount={sel.selected.size}
+          noun={USERS}
+          onClear={sel.clear}
+          onSelectAll={async () => {
+            const r = await collectIds(async (c) => {
+              const p = await fetchPage(c, 50);
+              return { data: p.data, nextCursor: p.meta?.nextCursor };
+            });
+            sel.replace(r.ids);
+            return r.capped;
+          }}
+        >
+          <Button size="sm" variant="outline" className="text-danger" disabled={bulk.pending} onClick={() => onBulk('suspend')}>
+            <Prohibit size={14} /> Заблокировать
+          </Button>
+          <Button size="sm" variant="outline" disabled={bulk.pending} onClick={() => onBulk('restore')}>
+            <ArrowCounterClockwise size={14} /> Разблокировать
+          </Button>
+          <Button size="sm" variant="outline" disabled={bulk.pending} onClick={() => onBulk('logout')}>
+            <SignOut size={14} /> Завершить сеансы
+          </Button>
+        </BulkBar>
+      ) : null}
       <ErrorNote text={q.error ? errorText(q.error) : null} />
       <Table>
         <thead>
           <tr>
+            {canWrite ? (
+              <Th className="w-8">
+                <PageSelectBox selected={sel.selected} ids={rows.map((u) => u.id)} onToggle={sel.togglePage} />
+              </Th>
+            ) : null}
             <Th>Пользователь</Th>
             <Th>Роль</Th>
             <Th>Статус</Th>
@@ -105,12 +208,17 @@ export default function UsersPage() {
         </thead>
         <tbody>
           {q.isPending ? (
-            <TableEmpty colSpan={5} loading />
+            <TableEmpty colSpan={canWrite ? 6 : 5} loading />
           ) : rows.length === 0 ? (
-            <TableEmpty colSpan={5}>Никого не нашли. Измените запрос или фильтры.</TableEmpty>
+            <TableEmpty colSpan={canWrite ? 6 : 5}>Никого не нашли. Измените запрос или фильтры.</TableEmpty>
           ) : (
             rows.map((u, i) => (
               <MotionRow key={u.id} i={i} className="cursor-pointer" onClick={() => router.push(`/users/${u.id}`)}>
+                {canWrite ? (
+                  <Td>
+                    <RowSelectBox selected={sel.selected} id={u.id} onToggle={sel.toggle} />
+                  </Td>
+                ) : null}
                 <Td>
                   <Link
                     href={`/users/${u.id}`}

@@ -203,8 +203,9 @@ class _ClientBody extends ConsumerWidget {
               ),
             ),
           ),
-          // Flexible: a long "Visible only to you" can't push the title out.
-          Flexible(
+          // Natural width, capped: a long "Visible only to you" can't push
+          // the title out.
+          AppTrailingCap(
             child: Container(
               padding: const EdgeInsets.symmetric(
                 horizontal: AppSpacing.sm,
@@ -303,6 +304,9 @@ class _ClientBody extends ConsumerWidget {
     final controller = TextEditingController();
     final caseId = await showAppBottomSheet<String>(
       context: context,
+      // The keyboard opens under the field: the sheet grows above it and
+      // scrolls instead of overflowing.
+      isScrollControlled: true,
       builder: (sheetContext) {
         final colors = Theme.of(sheetContext).extension<AppColorTokens>()!;
         final typography =
@@ -314,34 +318,36 @@ class _ClientBody extends ConsumerWidget {
             AppSpacing.screenSide,
             AppSpacing.lg + MediaQuery.viewInsetsOf(sheetContext).bottom,
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const AppSheetHandle(),
-              Text(
-                t.t('reviews.placeholder.entry'),
-                style: typography.titleMedium.copyWith(color: colors.text),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              Text(
-                t.t('reviews.placeholder.body'),
-                style: typography.body.copyWith(color: colors.textSecondary),
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              AppTextField(
-                controller: controller,
-                label: t.t('reviews.placeholder.caseId'),
-                autofocus: true,
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              AppButton(
-                label: t.t('common.confirm'),
-                height: AppSizes.touchTarget,
-                onPressed: () =>
-                    Navigator.of(sheetContext).pop(controller.text.trim()),
-              ),
-            ],
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const AppSheetHandle(),
+                Text(
+                  t.t('reviews.placeholder.entry'),
+                  style: typography.titleMedium.copyWith(color: colors.text),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  t.t('reviews.placeholder.body'),
+                  style: typography.body.copyWith(color: colors.textSecondary),
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                AppTextField(
+                  controller: controller,
+                  label: t.t('reviews.placeholder.caseId'),
+                  autofocus: true,
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                AppButton(
+                  label: t.t('common.confirm'),
+                  height: AppSizes.touchTarget,
+                  onPressed: () =>
+                      Navigator.of(sheetContext).pop(controller.text.trim()),
+                ),
+              ],
+            ),
           ),
         );
       },

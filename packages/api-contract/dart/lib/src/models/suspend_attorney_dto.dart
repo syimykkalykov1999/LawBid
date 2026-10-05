@@ -8,7 +8,7 @@ part 'suspend_attorney_dto.g.dart';
 
 @JsonSerializable()
 class SuspendAttorneyDto {
-  const SuspendAttorneyDto({required this.reason});
+  const SuspendAttorneyDto({this.reason = ''});
 
   factory SuspendAttorneyDto.fromJson(Map<String, Object?> json) =>
       _$SuspendAttorneyDtoFromJson(json);

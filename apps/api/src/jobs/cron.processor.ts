@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { CRON_JOBS } from './jobs.constants';
+import { CasePaymentsService } from '../modules/case-payments/case-payments.service';
 import { PromotionsService } from '../modules/promotions/promotions.service';
 import { PartnersService } from '../modules/partners/partners.service';
 import { SessionsCleanupJob } from './handlers/sessions-cleanup.job';
@@ -60,6 +61,7 @@ export class CronProcessor {
     private readonly clientReviews: ClientReviewsService,
     private readonly postVideos: PostVideosService,
     private readonly promotions: PromotionsService,
+    private readonly casePayments: CasePaymentsService,
     private readonly partners: PartnersService,
     private readonly trust: AttorneyTrustService,
   ) {}
@@ -118,6 +120,10 @@ export class CronProcessor {
         return this.postVideos.sweep();
       case CRON_JOBS.promotionsExpire:
         return this.promotions.expire();
+      case CRON_JOBS.casePaymentsExpire:
+        return this.casePayments.expire();
+      case CRON_JOBS.casePaymentsRemind:
+        return this.casePayments.remind();
       case CRON_JOBS.partnersSweep:
         return this.partners.sweep();
       case CRON_JOBS.trustRecompute:

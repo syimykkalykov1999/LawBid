@@ -10,7 +10,7 @@ AdminExtendPromotionDto _$AdminExtendPromotionDtoFromJson(
   Map<String, dynamic> json,
 ) => AdminExtendPromotionDto(
   days: (json['days'] as num).toInt(),
-  reason: json['reason'] as String,
+  reason: json['reason'] as String? ?? '',
 );
 
 Map<String, dynamic> _$AdminExtendPromotionDtoToJson(
