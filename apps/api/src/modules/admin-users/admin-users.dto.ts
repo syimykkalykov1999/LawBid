@@ -160,6 +160,15 @@ export class AdminUserSubscriptionDto {
   graceEndsAt!: string | null;
 }
 
+/** Owner 2026-10-05 (audit): a license as the admin reads it. */
+export class AdminUserLicenseDto {
+  @ApiProperty() stateCode!: string;
+  @ApiProperty() barNumber!: string;
+  @ApiProperty() status!: string;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  expiresAt!: string | null;
+}
+
 export class AdminAttorneyCardDto {
   @ApiProperty() username!: string;
   @ApiProperty({ type: String, nullable: true }) firmName!: string | null;
@@ -172,6 +181,13 @@ export class AdminAttorneyCardDto {
   @ApiProperty({ type: 'integer' }) postsCount!: number;
   @ApiProperty({ type: [String], description: '`NY:verified`, …' })
   licenses!: string[];
+  @ApiProperty({ type: [AdminUserLicenseDto] })
+  licenseItems!: AdminUserLicenseDto[];
+  @ApiProperty({
+    type: [String],
+    description: 'English names of the chosen practice areas.',
+  })
+  practices!: string[];
   @ApiProperty({ type: AdminUserSubscriptionDto, nullable: true })
   subscription!: AdminUserSubscriptionDto | null;
 }

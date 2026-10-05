@@ -16,6 +16,7 @@ import { Input } from '@/components/ui/input';
 import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
+import { useMe } from '@/lib/hooks';
 import { PLAN } from '@/lib/labels';
 import { cn, formatDateTime } from '@/lib/utils';
 
@@ -112,7 +113,13 @@ export default function TeamsPage() {
                 {t.username ? <div className="text-xs text-muted">@{t.username}</div> : null}
               </Td>
               <Td>{t.plan ? PLAN[t.plan] ?? t.plan : '—'}</Td>
-              <Td>{t.seats}</Td>
+              <Td>
+                {t.seats}
+                <div className="text-xs text-muted">
+                  лимит {t.seatLimit}
+                  {t.seatLimitPersonal ? ' (личный)' : ''}
+                </div>
+              </Td>
               <Td>{t.active}</Td>
               <Td>{t.invited}</Td>
               <Td>{t.pendingRequests > 0 ? <Badge tone="gold">{t.pendingRequests}</Badge> : 0}</Td>
@@ -209,6 +216,7 @@ function TeamDetail({ attorneyId }: { attorneyId: string }) {
           <CardTitle>Помощники — {t.attorneyName}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          <SeatLimitEditor attorneyId={attorneyId} limit={t.seatLimit} personal={t.seatLimitPersonal} onSaved={refresh} />
           {t.members.length === 0 ? <div className="text-sm text-muted">Нет помощников</div> : null}
           {t.members.map((m) => (
             <div key={m.id} className="rounded-[var(--radius-md)] border border-line p-3 transition-colors hover:bg-surface-2">
@@ -287,5 +295,61 @@ function TeamDetail({ attorneyId }: { attorneyId: string }) {
         </CardContent>
       </Card>
     </FadeIn>
+  );
+}
+
+/** Owner 2026-10-05: the super admin sets this attorney's own assistant
+ * limit, or returns them to the global one (Деньги → Цены). */
+function SeatLimitEditor({
+  attorneyId,
+  limit,
+  personal,
+  onSaved,
+}: {
+  attorneyId: string;
+  limit: number;
+  personal: boolean;
+  onSaved: () => void;
+}) {
+  const toast = useToast();
+  const { data: me } = useMe();
+  const canWrite = me?.role === 'super_admin';
+  const [draft, setDraft] = useState(String(limit));
+  const n = Number(draft);
+  const ok = Number.isInteger(n) && n >= 1 && n <= 50 && n !== limit;
+  const save = useMutation({
+    mutationFn: async (value: number | null) => {
+      const r = await api.PATCH('/admin/teams/{id}/seat-limit', {
+        params: { path: { id: attorneyId } },
+        body: { limit: value },
+      });
+      if (r.error) throw r.error;
+    },
+    onSuccess: (_r, value) => {
+      toast.success(value == null ? 'Вернули общий лимит' : `Личный лимит: ${value}`);
+      onSaved();
+    },
+    onError: (e) => toast.error(e),
+  });
+  return (
+    <div className="flex flex-wrap items-end gap-2 rounded-[var(--radius-md)] border border-line p-3">
+      <div className="mr-auto text-sm">
+        <div className="font-medium text-heading">Лимит помощников: {limit}</div>
+        <div className="text-xs text-muted">{personal ? 'личный, задан администратором' : 'общий, из раздела «Цены»'}</div>
+      </div>
+      {canWrite ? (
+        <>
+          <Input aria-label="Личный лимит" inputMode="numeric" className="w-20" value={draft} onChange={(e) => setDraft(e.target.value)} />
+          <Button size="sm" variant="gold" loading={save.isPending} disabled={!ok || save.isPending} onClick={() => save.mutate(n)}>
+            Задать
+          </Button>
+          {personal ? (
+            <Button size="sm" variant="ghost" disabled={save.isPending} onClick={() => save.mutate(null)}>
+              Общий
+            </Button>
+          ) : null}
+        </>
+      ) : null}
+    </div>
   );
 }

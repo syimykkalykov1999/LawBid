@@ -668,7 +668,7 @@ describe('stage 6.7 — Stripe subscriptions (e2e, fake provider)', () => {
     expect(await access.isActive(a.id)).toBe(true);
   });
 
-  // OQ-048: plans — monthly + bought assistant seats, yearly with all six;
+  // OQ-048: plans — monthly + bought assistant seats, yearly with all seats (admin setting, default 10);
   // phones given at purchase join without a code.
   it('plans: yearly with assistant phones; monthly seats change later', async () => {
     const a = await attorney();
@@ -696,7 +696,7 @@ describe('stage 6.7 — Stripe subscriptions (e2e, fake provider)', () => {
       plan: 'yearly',
     });
     const team = await api().get('/api/v1/team').set(a.auth).expect(200);
-    expect((team.body as Body).data).toMatchObject({ seats: 6, used: 1 });
+    expect((team.body as Body).data).toMatchObject({ seats: 10, used: 1 });
     expect(
       (
         (team.body as Body).data as {
@@ -771,7 +771,7 @@ describe('stage 6.7 — Stripe subscriptions (e2e, fake provider)', () => {
           subscription: { plan: string; assistantSeats: number };
         }
       ).subscription,
-    ).toMatchObject({ plan: 'yearly', assistantSeats: 6 });
+    ).toMatchObject({ plan: 'yearly', assistantSeats: 10 });
     const again = await api()
       .post('/api/v1/subscriptions/plan/yearly')
       .set(a.auth);

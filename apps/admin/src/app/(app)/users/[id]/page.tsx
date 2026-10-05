@@ -27,6 +27,7 @@ import {
   SUBSCRIPTION_STATUS,
   usd,
   VERIFICATION_STATUS,
+  LICENSE_STATUS,
 } from '@/lib/labels';
 import { formatDateTime } from '@/lib/utils';
 
@@ -272,7 +273,25 @@ export default function UserCardPage() {
                   <Row k="Username" v={`@${u.attorney.username}`} />
                   <Row k="Фирма" v={u.attorney.firmName ?? '—'} />
                   <Row k="Верификация" v={<StatusPill map={VERIFICATION_STATUS} value={u.attorney.verificationStatus} />} />
-                  <Row k="Лицензии" v={u.attorney.licenses.join(', ') || '—'} />
+                  <Row
+                    k="Лицензии"
+                    v={
+                      u.attorney.licenseItems.length ? (
+                        <span className="flex flex-col items-end gap-1">
+                          {u.attorney.licenseItems.map((l) => (
+                            <span key={`${l.stateCode}-${l.barNumber}`} className="inline-flex items-center gap-1.5">
+                              <span className="font-medium">{l.stateCode}</span>
+                              <span className="text-xs text-muted">№ {l.barNumber}</span>
+                              <StatusPill map={LICENSE_STATUS} value={l.status} />
+                            </span>
+                          ))}
+                        </span>
+                      ) : (
+                        '—'
+                      )
+                    }
+                  />
+                  <Row k="Практики" v={u.attorney.practices.join(', ') || 'не выбраны'} />
                   <Row k="Рейтинг" v={`${u.attorney.ratingAvg.toFixed(1)} (${u.attorney.ratingCount})`} />
                   <Row k="Подписчики / посты" v={`${u.attorney.followersCount} / ${u.attorney.postsCount}`} />
                   <Row

@@ -10,6 +10,7 @@ import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_cards.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
+import 'package:lawbid/features/cases/presentation/widgets/invites_list.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/mine/presentation/widgets/mine_grid.dart';
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart';
@@ -26,7 +27,7 @@ enum _CaseSection { open, inProgress, completed }
 // Owner 2026-10-01: Planner first, My bids second.
 enum _AttorneyTab { planner, bids }
 
-enum _BidsSection { active, work, completed, saved }
+enum _BidsSection { active, invites, work, completed, saved }
 
 /// Owner 2026-09-30 — client "Mine": Open (with Archive), In progress,
 /// Completed and Saved (posts). Cases show as an Instagram-like grid —
@@ -248,6 +249,7 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
         value: _section,
         options: [
           (_BidsSection.active, t.t('mine.filter.active')),
+          (_BidsSection.invites, t.t('invites.section')),
           (_BidsSection.work, t.t('mine.tab.inWork')),
           (_BidsSection.completed, t.t('mine.tab.completed')),
           (_BidsSection.saved, t.t('mine.tab.saved')),
@@ -262,6 +264,8 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
           filter: MyBidsFilter.active,
           search: _search,
         ),
+      // Owner 2026-10-05: cases clients offered to this attorney.
+      _BidsSection.invites => const InvitesList(key: ValueKey('invites')),
       _BidsSection.work || _BidsSection.completed => _WorkGrid(
           key: ValueKey(_section.name),
           filter: _section == _BidsSection.work

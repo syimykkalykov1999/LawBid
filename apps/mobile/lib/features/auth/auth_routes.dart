@@ -2,6 +2,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:lawbid/core/navigation/app_page_transitions.dart';
 
+import 'package:lawbid/features/auth/presentation/screens/assistant_code_screen.dart';
 import 'package:lawbid/features/auth/presentation/screens/email_screen.dart';
 import 'package:lawbid/features/auth/presentation/screens/otp_screen.dart';
 import 'package:lawbid/features/auth/presentation/screens/phone_screen.dart';
@@ -21,6 +22,9 @@ abstract final class AuthRoutes {
   /// as phone; the code screen ([otp]) is shared and reads the channel
   /// from `OnboardingFlowState`.
   static const email = '/auth/email';
+
+  /// Owner 2026-10-04: an assistant signs in with the attorney's code.
+  static const assistant = '/auth/assistant';
 
   /// Same path as `OnboardingRoutes.forStep(OnboardingStepId.role)`; the
   /// route itself is registered by onboardingRoutes().
@@ -51,6 +55,11 @@ List<RouteBase> authRoutes() => [
         path: AuthRoutes.phone,
         pageBuilder: (context, state) =>
             AppPageTransitions.push(state, const PhoneScreen()),
+      ),
+      GoRoute(
+        path: AuthRoutes.assistant,
+        pageBuilder: (context, state) =>
+            AppPageTransitions.push(state, const AssistantCodeScreen()),
       ),
       GoRoute(
         path: AuthRoutes.otp,

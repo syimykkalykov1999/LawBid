@@ -27,12 +27,14 @@ enum OnboardingStepId {
   /// client order, which is what the progress bar shows until the role
   /// step resolves it.
   ///
-  /// OQ-048: an assistant only needs a verified phone and a name — then
-  /// joins an attorney (AssistantJoinScreen) instead of the tour.
+  /// OQ-048: an assistant only needs a name — then joins an attorney
+  /// (AssistantJoinScreen) instead of the tour. Owner 2026-10-04: no
+  /// contacts step either: assistants sign in with the attorney's
+  /// one-time code, so no phone (and no SMS) is needed.
   static List<OnboardingStepId> orderFor(UserRole? role) => [
         consents,
         OnboardingStepId.role,
-        contacts,
+        if (role != UserRole.assistant) contacts,
         profile,
         if (role != UserRole.assistant) ...[
           push,

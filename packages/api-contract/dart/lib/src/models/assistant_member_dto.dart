@@ -13,21 +13,23 @@ part 'assistant_member_dto.g.dart';
 class AssistantMemberDto {
   const AssistantMemberDto({
     required this.id,
-    required this.phone,
     required this.status,
     required this.approval,
     required this.duties,
     required this.createdAt,
+    this.phone,
     this.name,
     this.joinedAt,
     this.liabilityAcceptedAt,
+    this.joinCode,
+    this.joinCodeExpiresAt,
   });
 
   factory AssistantMemberDto.fromJson(Map<String, Object?> json) =>
       _$AssistantMemberDtoFromJson(json);
 
   final String id;
-  final String phone;
+  final String? phone;
   final String? name;
   final AssistantMemberDtoStatus status;
   final AssistantMemberDtoApproval approval;
@@ -37,6 +39,10 @@ class AssistantMemberDto {
 
   /// OQ-049: when the attorney last accepted responsibility for this assistant ("bids" / "publish").
   final String? liabilityAcceptedAt;
+
+  /// Owner 2026-10-04: the one-time code for this seat while it can be used (join, or sign in on a new phone); null once used or expired.
+  final String? joinCode;
+  final String? joinCodeExpiresAt;
 
   Map<String, Object?> toJson() => _$AssistantMemberDtoToJson(this);
 }

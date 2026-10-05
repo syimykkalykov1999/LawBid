@@ -255,8 +255,13 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
                 ? 'onboarding.role.assistant.body'
                 : 'onboarding.profile.subtitle.client',
       ),
-      onBack: () =>
-          context.go(OnboardingRoutes.forStep(OnboardingStepId.contacts)),
+      // Owner 2026-10-04: an assistant has no contacts step (code sign-in)
+      // and their role is fixed — back is the consents.
+      onBack: () => context.go(
+        OnboardingRoutes.forStep(
+          assistant ? OnboardingStepId.consents : OnboardingStepId.contacts,
+        ),
+      ),
       error: action.error,
       primaryLabel: t.t('onboarding.continue'),
       primaryLoading: action.busy,

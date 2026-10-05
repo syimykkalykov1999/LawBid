@@ -175,6 +175,16 @@ export const BID_STATUS: Record<string, string> = {
   failed_negotiation: 'переговоры не удались',
 };
 
+// Owner 2026-10-05: client → attorney case invites.
+export const INVITE_STATUS: Record<string, string> = {
+  pending: 'ждёт ответа',
+  accepted: 'адвокат ответил ставкой',
+  declined: 'отклонено',
+  cancelled: 'отменено клиентом',
+  expired: 'истекло',
+  closed: 'кейс закрыт',
+};
+
 export const FEE_TYPE: Record<string, string> = {
   fixed: 'фикс',
   hourly: 'почасово',
@@ -462,6 +472,8 @@ export const AUDIT_ACTION: Record<string, string> = {
   'billing.refund.create': 'Возврат платежа',
   'billing.promo_code.create': 'Создан промокод',
   'billing.promo_code.update': 'Изменён промокод',
+  'billing.seat_limit.approve': 'Одобрен лимит помощников',
+  'billing.seat_limit.reject': 'Отклонена заявка на лимит помощников',
   'billing.contract_grant.create': 'Выдан доступ по договору',
   'billing.contract_grant.extend': 'Продлён доступ по договору',
   'billing.contract_grant.revoke': 'Отозван доступ по договору',

@@ -12,6 +12,7 @@ import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { AssistantsController } from './assistants.controller';
 import { AssistantsService } from './assistants.service';
 import { TasksService } from './tasks.service';
+import { JoinCodeCipher } from './join-code';
 import { BidDraftsController, BidDraftsService } from './bid-drafts';
 import { AdminTeamsController, AdminTeamsService } from './admin-teams';
 import { AdminAccessModule } from '../admin-access/admin-access.module';
@@ -36,6 +37,7 @@ import { AdminAccessModule } from '../admin-access/admin-access.module';
   ],
   providers: [
     AssistantsService,
+    JoinCodeCipher,
     TasksService,
     BidDraftsService,
     AdminTeamsService,

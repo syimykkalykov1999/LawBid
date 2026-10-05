@@ -121,6 +121,22 @@ export const OWNER_LAWYER_VERIFICATION_SETTINGS = {
   'verification.self_attestation_auto_approve': true,
 } as const;
 
+// Owner 2026-10-05: a client offers a case to a chosen attorney. An
+// unanswered invite expires after `invites.expiry_days`; at most
+// `invites.max_pending_per_case` attorneys wait on one case, and a client
+// sends at most `invites.max_per_day` invites a day.
+export const OWNER_INVITE_SETTINGS = {
+  'invites.expiry_days': 7,
+  'invites.max_pending_per_case': 10,
+  'invites.max_per_day': 30,
+} as const;
+
+// Owner 2026-10-05: how many assistants an attorney may add, set in the
+// admin (was a fixed 6). The yearly plan covers this many seats.
+export const OWNER_SEAT_SETTINGS = {
+  'billing.max_assistant_seats': 10,
+} as const;
+
 /** Every typed app_config tunable with its spec default. */
 export const APP_SETTINGS = {
   ...FILE_03_SETTINGS,
@@ -131,6 +147,8 @@ export const APP_SETTINGS = {
   ...OWNER_SUPPORT_SETTINGS,
   ...OWNER_BADGE_SETTINGS,
   ...OWNER_LAWYER_VERIFICATION_SETTINGS,
+  ...OWNER_INVITE_SETTINGS,
+  ...OWNER_SEAT_SETTINGS,
 };
 
 export type AppSettingKey = keyof typeof APP_SETTINGS;

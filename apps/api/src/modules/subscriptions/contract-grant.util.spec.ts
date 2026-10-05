@@ -35,6 +35,7 @@ describe('contract grant rules (owner 2026-10-02)', () => {
 
   it('paid seats: yearly = 6, monthly = bought, none = 0', () => {
     expect(paidSeats({ plan: 'yearly', assistant_seats: 0 })).toBe(6);
+    expect(paidSeats({ plan: 'yearly', assistant_seats: 6 }, 10)).toBe(10);
     expect(paidSeats({ plan: 'monthly', assistant_seats: 2 })).toBe(2);
     expect(paidSeats(null)).toBe(0);
   });
