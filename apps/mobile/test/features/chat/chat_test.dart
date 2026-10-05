@@ -3,6 +3,7 @@ import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/connectivity/connectivity_providers.dart';
+import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
@@ -11,6 +12,7 @@ import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/notifications/presentation/notifications_view.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/data/social_local_database.dart';
+import 'package:lawbid/features/team/team_routes.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 
 import '../../helpers/ux_harness.dart';
@@ -176,5 +178,64 @@ void main() {
       ),
       '/mine/case/k1',
     );
+  });
+
+  test('audit 2026-10-04: notification routes', () {
+    String? r(String type, Map<String, Object?> p, {bool attorney = true}) =>
+        notificationRoute(type: type, payload: p, attorney: attorney);
+    expect(r('case_updated', {'caseId': 'k1'}), AppRoutes.caseDetail('k1'));
+    expect(r('case_archived', {'caseId': 'k1'}), AppRoutes.caseDetail('k1'));
+    expect(r('case_closed', {'caseId': 'k1'}), AppRoutes.workCase('k1'));
+    expect(r('case_disputed', {'caseId': 'k1'}), AppRoutes.workCase('k1'));
+    expect(
+      r('case_disputed', {'caseId': 'k1'}, attorney: false),
+      AppRoutes.myCase('k1'),
+    );
+    expect(
+      r('bid_accepted', {'caseId': 'k1', 'bidId': 'b1'}),
+      AppRoutes.workCase('k1'),
+    );
+    expect(r('bid_accepted', {'bidId': 'b1'}), AppRoutes.bid('b1'));
+    expect(
+      r('offer_accepted', {'caseId': 'k1', 'bidId': 'b1'}, attorney: false),
+      AppRoutes.bid('b1'),
+    );
+    expect(r('assistant_joined', {}), TeamRoutes.team);
+    // Push data carries strings.
+    expect(
+      r(
+        'review_received',
+        {'reply': 'true', 'actorUsername': 'anna'},
+        attorney: false,
+      ),
+      AppRoutes.lawyer('anna'),
+    );
+    expect(
+      r('review_received', {'reply': true}, attorney: false),
+      AppRoutes.profile,
+    );
+  });
+
+  test('audit 2026-10-04: a block applies except in an active case chat', () {
+    Conversation c({
+      String? caseId = 'k1',
+      bool unlocked = true,
+      ConversationStatus status = ConversationStatus.active,
+    }) =>
+        Conversation(
+          id: 'c1',
+          caseId: caseId,
+          caseTitle: null,
+          status: status,
+          contactsUnlocked: unlocked,
+          blocked: true,
+          counterpart: const Counterpart(isAttorney: false, verified: false),
+          unreadCount: 0,
+          updatedAt: DateTime(2026),
+        );
+    expect(c().blockedHere, isFalse);
+    expect(c(unlocked: false).blockedHere, isTrue);
+    expect(c(status: ConversationStatus.closed).blockedHere, isTrue);
+    expect(c(caseId: null).blockedHere, isTrue);
   });
 }

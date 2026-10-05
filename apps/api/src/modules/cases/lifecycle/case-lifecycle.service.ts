@@ -162,7 +162,8 @@ export class CaseLifecycleService {
 
   /** POST /cases/:id/dispute — the side that did not mark first disputes
    * with a mandatory reason (§10.1): pending_completion → disputed + a
-   * case_disputes row. */
+   * case_disputes row; the other side gets `case_disputed` and a system
+   * line in the case chat. */
   async dispute(
     user: RequestUser,
     caseId: string,
@@ -171,7 +172,9 @@ export class CaseLifecycleService {
     if (user.role !== 'client' && user.role !== 'attorney') {
       throw caseNotFound();
     }
-    return withTxRetry(this.prisma, async (tx) => {
+    const chat: ChatChange[] = [];
+    const after = await withTxRetry(this.prisma, async (tx) => {
+      chat.length = 0;
       const { clientId, attorneyId } = await this.parties(tx, caseId);
       const byClient = user.role === 'client';
       if ((byClient ? clientId : attorneyId) !== user.sub) throw caseNotFound();
@@ -195,8 +198,30 @@ export class CaseLifecycleService {
         event: plan.event,
         payload: { disputeId: dispute.id, reason },
       });
+      // The reason stays out of the payload (docs/05 §9.5: no free text).
+      await this.notifications.emit(
+        {
+          type: 'case_disputed',
+          recipientId: byClient ? attorneyId : clientId,
+          payload: {
+            caseId,
+            disputeId: dispute.id,
+            by: byClient ? 'client' : 'attorney',
+          },
+        },
+        tx,
+      );
+      chat.push(
+        ...(await this.chat.post(
+          tx,
+          { case_id: caseId, status: { not: 'closed' } },
+          'case_disputed',
+        )),
+      );
       return after;
     });
+    this.chat.publish(chat);
+    return after;
   }
 
   /** POST /admin/case-disputes/:id/resolve — docs/04 §10.1 "решение по
@@ -261,7 +286,7 @@ export class CaseLifecycleService {
           if (!recipientId) continue;
           await this.notifications.emit(
             {
-              type: 'case_updated',
+              type: 'dispute_resolved',
               recipientId,
               payload: { caseId, disputeId, decision },
             },
@@ -454,6 +479,8 @@ export class CaseLifecycleService {
           { close: true },
         )),
       );
+      // OQ-048: assistants' bid drafts for this case can't be sent now.
+      await tx.bidDraft.deleteMany({ where: { case_id: caseId } });
       await this.notifications.emit(
         { type: 'case_archived', recipientId: clientId, payload: { caseId } },
         tx,

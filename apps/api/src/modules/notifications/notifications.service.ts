@@ -27,6 +27,8 @@ export const NOTIFICATION_CATEGORY: Record<
   completion_requested: 'cases',
   completion_reminder: 'cases',
   case_closed: 'cases',
+  case_disputed: 'cases',
+  dispute_resolved: 'cases',
   contact_issue_update: 'cases',
   review_requested: 'cases',
   review_received: 'cases',

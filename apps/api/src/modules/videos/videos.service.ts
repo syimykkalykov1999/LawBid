@@ -111,7 +111,7 @@ export class VideosService {
       });
     }
     await this.limits.consume('video_upload', userId);
-    await this.costGuard.consume('storage');
+    await this.costGuard.consume('video');
     const keys = (await this.bunny.keys())!;
     const guid = await this.bunny.createVideo(dto.title?.trim() || 'LawBid');
     const ttlMin = await this.settings.number('video.upload_ttl_min');
@@ -191,6 +191,19 @@ export class VideosService {
             status: 'rejected',
             failure_reason: 'too_long',
             duration_sec: Math.round(v.length),
+          },
+        });
+      }
+      // The phone also declared the size; a TUS upload can be far bigger.
+      // 3× leaves room for the encoded renditions Bunny stores alongside.
+      const maxMb = await this.settings.number('video.max_size_mb');
+      if ((v.storageSize || 0) > 3 * maxMb * 1024 * 1024) {
+        return this.prisma.videoAsset.update({
+          where: { id: a.id },
+          data: {
+            status: 'rejected',
+            failure_reason: 'too_large',
+            storage_bytes: BigInt(Math.round(v.storageSize)),
           },
         });
       }

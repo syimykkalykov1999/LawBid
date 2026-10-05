@@ -31,6 +31,11 @@ BidDto _$BidDtoFromJson(Map<String, dynamic> json) => BidDto(
   offers: (json['offers'] as List<dynamic>)
       .map((e) => BidOfferDto.fromJson(e as Map<String, dynamic>))
       .toList(),
+  attorney: json['attorney'] == null
+      ? null
+      : BidAttorneySummaryDto.fromJson(
+          json['attorney'] as Map<String, dynamic>,
+        ),
 );
 
 Map<String, dynamic> _$BidDtoToJson(BidDto instance) => <String, dynamic>{
@@ -50,4 +55,5 @@ Map<String, dynamic> _$BidDtoToJson(BidDto instance) => <String, dynamic>{
   'outsidePractice': instance.outsidePractice,
   'createdAt': instance.createdAt.toIso8601String(),
   'offers': instance.offers.map((e) => e.toJson()).toList(),
+  'attorney': ?instance.attorney?.toJson(),
 };

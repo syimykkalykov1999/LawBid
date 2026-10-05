@@ -289,6 +289,12 @@ export class CaseDetailForAttorneyDto extends CaseFeedItemDto {
   })
   ownBidId!: string | null;
 
+  @ApiProperty({
+    description:
+      "True when this attorney's bid is the case's accepted one (the hired lawyer: open the work screen).",
+  })
+  acceptedBidIsMine!: boolean;
+
   @ApiPropertyOptional({
     enum: ['client', 'attorney'],
     nullable: true,

@@ -160,7 +160,6 @@ abstract interface class SocialRepository {
     String? cursor,
   });
   Future<CursorPage<PersonRow>> following(String attorneyId, {String? cursor});
-  Future<CursorPage<AttorneyRow>> myFollowing({String? cursor});
   Future<CursorPage<AttorneyRow>> suggestions({String? cursor});
 
   Future<void> report(
@@ -260,7 +259,8 @@ class ApiSocialRepository implements SocialRepository {
       () => _posts.listAttorneyPosts(
         id: attorneyId,
         cursor: cursor,
-        kind: newsOnly ? api.PostKind.news : null,
+        // The Posts tab must not repeat the News tab's items.
+        kind: newsOnly ? api.PostKind.news : api.PostKind.post,
       ),
     );
     return CursorPage(
@@ -559,10 +559,6 @@ class ApiSocialRepository implements SocialRepository {
       nextCursor: env.meta?.nextCursor,
     );
   }
-
-  @override
-  Future<CursorPage<AttorneyRow>> myFollowing({String? cursor}) =>
-      _rows(() => _follows.listMyFollowing(cursor: cursor));
 
   @override
   Future<CursorPage<AttorneyRow>> suggestions({String? cursor}) =>

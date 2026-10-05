@@ -119,6 +119,13 @@ export class CaseDto {
 
   @ApiPropertyOptional({ type: String, nullable: true })
   deletedAt!: string | null;
+
+  /**
+   * §10.2 "Is this case still relevant?" prompt time, else null. Set while
+   * the prompt is pending; POST /cases/:id/keep-alive clears it.
+   */
+  @ApiPropertyOptional({ type: String, nullable: true })
+  stalePromptSentAt!: string | null;
 }
 
 /** One card of GET /users/me/cases (docs/04 §11.1). */

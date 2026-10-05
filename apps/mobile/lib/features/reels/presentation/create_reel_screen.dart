@@ -21,10 +21,19 @@ import 'package:video_player/video_player.dart';
 /// progress bar, resumable); the reel appears in the feeds once Bunny has
 /// encoded it — the author gets a notification.
 class CreateReelScreen extends ConsumerStatefulWidget {
-  const CreateReelScreen({this.initialFile, super.key});
+  const CreateReelScreen({
+    this.initialFile,
+    this.initialTitle = '',
+    this.initialText = '',
+    super.key,
+  });
 
   /// A video already chosen in the post's gallery picker.
   final File? initialFile;
+
+  /// The title and text already typed on the post screen.
+  final String initialTitle;
+  final String initialText;
 
   @override
   ConsumerState<CreateReelScreen> createState() => _CreateReelScreenState();
@@ -35,8 +44,8 @@ class CreateReelScreen extends ConsumerStatefulWidget {
 const _kDefaultMaxSeconds = 90;
 
 class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
-  final _title = TextEditingController();
-  final _text = TextEditingController();
+  late final _title = TextEditingController(text: widget.initialTitle);
+  late final _text = TextEditingController(text: widget.initialText);
   final _place = TextEditingController();
   bool _comments = true;
   File? _file;

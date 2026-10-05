@@ -4,6 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'bid_attorney_summary_dto.dart';
 import 'bid_case_ref_dto.dart';
 import 'bid_offer_dto.dart';
 import 'bid_status.dart';
@@ -33,6 +34,7 @@ class MyBidItemDto {
     required this.createdAt,
     required this.caseValue,
     required this.lastOffer,
+    this.attorney,
     this.coverUrl,
   });
 
@@ -57,6 +59,9 @@ class MyBidItemDto {
   /// own — the client is told to discuss it first.
   final bool outsidePractice;
   final DateTime createdAt;
+
+  /// The attorney summary — only on GET /bids/:id.
+  final BidAttorneySummaryDto? attorney;
 
   /// The name has been replaced because it contains a keyword. Original name: `case`.
   @JsonKey(name: 'case')

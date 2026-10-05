@@ -31,6 +31,7 @@ CaseDetailForAttorneyDto _$CaseDetailForAttorneyDtoFromJson(
   isSaved: json['isSaved'] as bool,
   promoted: json['promoted'] as bool,
   description: json['description'] as String,
+  acceptedBidIsMine: json['acceptedBidIsMine'] as bool,
   photos: (json['photos'] as List<dynamic>)
       .map((e) => CasePhotoDto.fromJson(e as Map<String, dynamic>))
       .toList(),
@@ -75,6 +76,7 @@ Map<String, dynamic> _$CaseDetailForAttorneyDtoToJson(
   'promoted': instance.promoted,
   'description': instance.description,
   'ownBidId': ?instance.ownBidId,
+  'acceptedBidIsMine': instance.acceptedBidIsMine,
   'completionRequestedBy': ?instance.completionRequestedBy?.toJson(),
   'photos': instance.photos.map((e) => e.toJson()).toList(),
   'photosCount': instance.photosCount,

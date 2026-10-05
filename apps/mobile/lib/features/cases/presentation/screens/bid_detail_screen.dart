@@ -168,7 +168,7 @@ class _BidDetailScreenState extends ConsumerState<BidDetailScreen> {
           },
           child: _BidBody(
             bid: b,
-            attorney: widget.listed?.attorney,
+            attorney: widget.listed?.attorney ?? b.attorney,
             viewer: viewer,
             t: t,
             formats: formats,

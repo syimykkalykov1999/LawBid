@@ -37,6 +37,7 @@ class CaseDto {
     this.autoCloseAt,
     this.closedAt,
     this.deletedAt,
+    this.stalePromptSentAt,
   });
 
   factory CaseDto.fromJson(Map<String, Object?> json) =>
@@ -68,6 +69,10 @@ class CaseDto {
   final String? autoCloseAt;
   final String? closedAt;
   final String? deletedAt;
+
+  /// §10.2 "Is this case still relevant?" prompt time, else null. Set while.
+  /// the prompt is pending; POST /cases/:id/keep-alive clears it.
+  final String? stalePromptSentAt;
 
   Map<String, Object?> toJson() => _$CaseDtoToJson(this);
 }

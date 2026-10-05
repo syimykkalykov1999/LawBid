@@ -20,9 +20,6 @@ abstract final class SocialRoutes {
   static const followingPattern = '/attorney/:id/following';
   static String following(String id) =>
       '/attorney/${Uri.encodeComponent(id)}/following';
-
-  /// "Мои подписки" (docs/05 §6.2: visible to that user only).
-  static const myFollowing = '/me/following';
 }
 
 List<RouteBase> socialRoutes(GlobalKey<NavigatorState> root) => [
@@ -40,7 +37,7 @@ List<RouteBase> socialRoutes(GlobalKey<NavigatorState> root) => [
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
           FollowListScreen(
-            attorneyId: state.pathParameters['id'],
+            attorneyId: state.pathParameters['id'] ?? '',
             kind: FollowListKind.followers,
           ),
         ),
@@ -51,17 +48,9 @@ List<RouteBase> socialRoutes(GlobalKey<NavigatorState> root) => [
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
           FollowListScreen(
-            attorneyId: state.pathParameters['id'],
+            attorneyId: state.pathParameters['id'] ?? '',
             kind: FollowListKind.following,
           ),
-        ),
-      ),
-      GoRoute(
-        path: SocialRoutes.myFollowing,
-        parentNavigatorKey: root,
-        pageBuilder: (context, state) => AppPageTransitions.push(
-          state,
-          const FollowListScreen(kind: FollowListKind.following),
         ),
       ),
     ];

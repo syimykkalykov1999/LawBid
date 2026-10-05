@@ -121,7 +121,16 @@ export const pinoHttpOptions: PinoHttpOptions = {
             url: req.url.replace(/\?.*$/, '?[REDACTED]'),
             query: undefined,
           }
-        : req,
+        : // The Bunny webhook's secret token is a path segment.
+          req.url?.includes('/webhooks/bunny/')
+          ? {
+              ...req,
+              url: req.url.replace(
+                /\/webhooks\/bunny\/[^/?]+/,
+                '/webhooks/bunny/[REDACTED]',
+              ),
+            }
+          : req,
   },
   transport:
     process.env.NODE_ENV === 'development'

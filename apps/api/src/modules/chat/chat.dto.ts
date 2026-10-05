@@ -502,6 +502,12 @@ export class ConversationDto {
 
   @ApiProperty({ description: 'The viewer sent this message request.' })
   requestedByMe!: boolean;
+
+  @ApiProperty({
+    description:
+      'Either side blocked the other. Messages and calls still work in a case chat while the accepted case is not closed.',
+  })
+  blocked!: boolean;
 }
 
 /** POST /conversations/direct (OQ-043). */

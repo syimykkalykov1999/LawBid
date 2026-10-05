@@ -576,7 +576,7 @@ class _TopicChips extends ConsumerWidget {
     Widget pill({
       required String label,
       required bool main,
-      required VoidCallback onTap,
+      required VoidCallback? onTap,
       IconData? icon,
       bool gold = false,
     }) =>
@@ -673,7 +673,8 @@ class _TopicChips extends ConsumerWidget {
             main: false,
             gold: true,
             icon: AppIcons.newspaperRounded,
-            onTap: () {},
+            // A label, not a filter: there is no news-only route.
+            onTap: null,
           ),
         ),
       ],
@@ -706,11 +707,7 @@ class _AuthorRow extends ConsumerWidget {
               button: true,
               label: t.t('post.author.open', {'name': a.displayName}),
               child: AppPressable(
-                onTap: () => context.push(
-                  a.isClient
-                      ? AppRoutes.client(a.username)
-                      : AppRoutes.lawyer(a.username),
-                ),
+                onTap: () => openAuthorProfile(context, ref, a),
                 child: Row(
                   children: [
                     GoldRingAvatar(
