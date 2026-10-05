@@ -198,7 +198,12 @@ export class SubscriptionDto {
   @ApiProperty({ type: 'integer' }) priceCents!: number;
   @ApiProperty({ enum: ['monthly', 'yearly'], enumName: 'SubscriptionPlan' })
   plan!: 'monthly' | 'yearly';
-  @ApiProperty({ type: 'integer' }) assistantSeats!: number;
+  @ApiProperty({
+    type: 'integer',
+    description:
+      "Every assistant seat the attorney has: the plan's included seats + the extra bought (owner 2026-10-05).",
+  })
+  assistantSeats!: number;
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   trialEndsAt!: string | null;
   @ApiProperty({ type: String, format: 'date-time', nullable: true })

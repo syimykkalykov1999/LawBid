@@ -206,7 +206,7 @@ describe('Plan builder (e2e, owner 2026-10-05)', () => {
     expect(plansOf(res).baseline?.code).toBe('attorney_free');
     expect(plansOf(res).catalog.length).toBeGreaterThan(5);
     const yearly = plansOf(res).plans.find((p) => p.code === 'attorney_yearly');
-    expect(yearly?.entitlements.included_seats).toBe(6);
+    expect(yearly?.entitlements.included_seats).toBe(10);
     expect(typeof yearly?.amountCents).toBe('number');
 
     const client = await api().get('/api/v1/plans?audience=client');
@@ -307,7 +307,7 @@ describe('Plan builder (e2e, owner 2026-10-05)', () => {
     me = await api().get('/api/v1/me/entitlements').set(a.auth);
     expect(me.body.data.values.priority_search).toBe(false);
 
-    // applyNow:false raises the included seats only for new buyers.
+    // applyNow:false changes the included seats only for new buyers.
     const edit = await api()
       .put(`/api/v1/admin/billing/plans/${yearly.id}`)
       .set(admin)
@@ -317,7 +317,7 @@ describe('Plan builder (e2e, owner 2026-10-05)', () => {
       });
     expect(edit.status).toBe(200);
     me = await api().get('/api/v1/me/entitlements').set(a.auth);
-    expect(me.body.data.seats.included).toBe(6); // frozen
+    expect(me.body.data.seats.included).toBe(10); // frozen
 
     const applied = await api()
       .post(`/api/v1/admin/billing/plans/${yearly.id}/apply-to-subscribers`)
@@ -454,23 +454,30 @@ describe('Plan builder (e2e, owner 2026-10-05)', () => {
 
   it('chat translation: a client without the term gets 403 before anything else', async () => {
     const c = await user('client');
+    const a = await user('attorney');
+    const conv = await conversation(c.id, a.id);
+    const msg = await prisma.message.create({
+      data: {
+        conversation_id: conv,
+        sender_id: a.id,
+        type: 'text',
+        body_original: 'Hello from the attorney',
+        body_display: 'Hello from the attorney',
+        client_message_id: randomUUID(),
+      },
+    });
+    const translate = () =>
+      api()
+        .post(`/api/v1/conversations/${conv}/messages/${msg.id}/translate`)
+        .set(c.auth)
+        .send({ target: 'ru' });
     await setTerm('client_free', 'chat_translate', false);
-    const denied = await api()
-      .post(
-        `/api/v1/conversations/${randomUUID()}/messages/${randomUUID()}/translate`,
-      )
-      .set(c.auth)
-      .send({ target: 'ru' });
+    const denied = await translate();
     expect(denied.status).toBe(403);
     expect(denied.body.error.code).toBe('ENTITLEMENT_REQUIRED');
     await setTerm('client_free', 'chat_translate', true);
-    const next = await api()
-      .post(
-        `/api/v1/conversations/${randomUUID()}/messages/${randomUUID()}/translate`,
-      )
-      .set(c.auth)
-      .send({ target: 'ru' });
-    expect(next.status).not.toBe(403); // 503 (no Google key) or 404 — the plan no longer blocks
+    const next = await translate();
+    expect(next.status).not.toBe(403); // 503 (no Google key) — the plan no longer blocks
   });
 
   it('video posts: the global flag is on but the plan says no → 403', async () => {

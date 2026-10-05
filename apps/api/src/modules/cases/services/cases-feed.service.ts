@@ -29,7 +29,10 @@ import {
   buildVisibleCasesSql,
 } from '../queries/cases-visible.sql';
 import { CaseViewTrackingService } from './case-view-tracking.service';
-import { clientsWithEntitlementSql } from '../../plans/entitlements.service';
+import {
+  clientsWithEntitlementSql,
+  EntitlementsService,
+} from '../../plans/entitlements.service';
 
 /** Owner 2026-10-02: promoted cases on top of the first feed page. */
 const PROMOTED_FEED_SLOTS = 3;
@@ -73,6 +76,7 @@ export class CasesFeedService {
     private readonly posts: PostEngagementService,
     @Optional() private readonly photos?: CasePhotosService,
     @Optional() private readonly counters?: CounterAggregator,
+    @Optional() private readonly entitlements?: EntitlementsService,
   ) {}
 
   /** GET /cases (docs/04 §4.2). Empty page, not an error, for a caller
@@ -248,7 +252,12 @@ export class CasesFeedService {
       ...media,
       inMyPractice: access.inPractice,
       inMyLicensedStates: access.inLicensedState,
-      bidAllowed: access.kind !== 'attorney_browser',
+      // Owner 2026-10-04: an attorney may bid on any open case — unless the
+      // plan's "offers in any state" term is off (plan builder, 2026-10-05).
+      bidAllowed:
+        access.kind !== 'attorney_browser' ||
+        !this.entitlements ||
+        (await this.entitlements.has(attorneyId, 'bids_any_state')),
       priorityClient: item.priorityClient,
     };
   }

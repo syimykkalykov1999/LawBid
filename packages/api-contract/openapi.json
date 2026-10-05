@@ -56045,7 +56045,8 @@
             ]
           },
           "assistantSeats": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Every assistant seat the attorney has: the plan's included seats + the extra bought (owner 2026-10-05)."
           },
           "trialEndsAt": {
             "type": "string",

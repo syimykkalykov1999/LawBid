@@ -377,14 +377,19 @@ export class SubscriptionsService {
       Number.isFinite(quoted) && quoted > 0
         ? quoted
         : planCents(await this.pricing.amounts(), plan, seats);
-    const planFields = planRow
-      ? {
-          plan_id: planRow.id,
-          entitlements: this.plans.entitlementsOf(
-            planRow,
-          ) as PrismaNs.InputJsonObject,
-        }
-      : {};
+    const planTerms = planRow ? this.plans.entitlementsOf(planRow) : null;
+    const planFields =
+      planRow && planTerms
+        ? {
+            plan_id: planRow.id,
+            entitlements: planTerms as PrismaNs.InputJsonObject,
+          }
+        : {};
+    // Every seat the attorney has: the plan's included ones + the extra
+    // bought (a legacy row stores the total in `seats`).
+    const totalSeats = planTerms
+      ? entitlementNumber(planTerms, 'included_seats') + seats
+      : seats;
     await this.prisma.subscription.upsert({
       where: { user_id: owner },
       create: {
@@ -420,7 +425,7 @@ export class SubscriptionsService {
     const phones = (session.metadata.phones ?? '')
       .split(',')
       .filter((p) => /^\+[1-9][0-9]{7,14}$/.test(p))
-      .slice(0, seats);
+      .slice(0, totalSeats);
     for (const phone of phones) {
       // Audit 2026-10-01: the webhook and the app's call run at once —
       // check + create in one serializable transaction (no duplicates).
@@ -993,6 +998,13 @@ export function planCents(
     : amounts.monthly + seats * amounts.seat;
 }
 
+function includedSeatsOf(s: Subscription): number {
+  const snap = s.entitlements;
+  if (!snap || typeof snap !== 'object' || Array.isArray(snap)) return 0;
+  const v = (snap as Record<string, unknown>).included_seats;
+  return typeof v === 'number' && v > 0 ? Math.floor(v) : 0;
+}
+
 export function presentSubscription(s: Subscription): SubscriptionDto {
   return {
     id: s.id,
@@ -1000,7 +1012,10 @@ export function presentSubscription(s: Subscription): SubscriptionDto {
     isActive: SubscriptionAccessService.rowIsActive(s),
     priceCents: s.price_cents,
     plan: s.plan,
-    assistantSeats: s.assistant_seats,
+    // Owner 2026-10-05 (plan builder): every seat the attorney has — the
+    // plan's included ones (frozen on the row) + the extra bought. A row
+    // from before plans stores the total in assistant_seats already.
+    assistantSeats: includedSeatsOf(s) + s.assistant_seats,
     trialEndsAt: s.trial_ends_at?.toISOString() ?? null,
     currentPeriodEnd: s.current_period_end?.toISOString() ?? null,
     cancelAtPeriodEnd: s.cancel_at_period_end,
