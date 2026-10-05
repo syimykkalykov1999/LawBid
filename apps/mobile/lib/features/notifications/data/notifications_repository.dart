@@ -147,6 +147,7 @@ class NewCaseAlerts {
     required this.useProfile,
     required this.practiceAreaIds,
     required this.profilePracticeAreaIds,
+    this.urgentOnly = false,
   });
 
   /// true = the profile's qualifications (the default).
@@ -155,6 +156,10 @@ class NewCaseAlerts {
   /// The attorney's own list (kept while "as in my profile" is on).
   final List<String> practiceAreaIds;
   final List<String> profilePracticeAreaIds;
+
+  /// Owner 2026-10-05: only urgent cases (urgent / very urgent today,
+  /// a date within days) send alerts.
+  final bool urgentOnly;
 
   /// What actually sends alerts now.
   List<String> get effective =>
@@ -170,10 +175,12 @@ abstract interface class NotificationsRepository {
   Future<NotificationSettings> setQuietHours(QuietHours? quietHours);
   Future<NewCaseAlerts> newCaseAlerts();
 
-  /// [practiceAreaIds] null keeps the saved list (switching modes only).
+  /// [practiceAreaIds] null keeps the saved list (switching modes only);
+  /// [urgentOnly] null keeps the saved switch.
   Future<NewCaseAlerts> setNewCaseAlerts({
     required bool useProfile,
     List<String>? practiceAreaIds,
+    bool? urgentOnly,
   });
   Future<void> registerPushToken(String token, {required bool ios});
   Future<void> deletePushToken(String token);
@@ -297,6 +304,7 @@ class ApiNotificationsRepository implements NotificationsRepository {
         useProfile: d.useProfile,
         practiceAreaIds: d.practiceAreaIds,
         profilePracticeAreaIds: d.profilePracticeAreaIds,
+        urgentOnly: d.urgentOnly,
       );
 
   @override
@@ -307,6 +315,7 @@ class ApiNotificationsRepository implements NotificationsRepository {
   Future<NewCaseAlerts> setNewCaseAlerts({
     required bool useProfile,
     List<String>? practiceAreaIds,
+    bool? urgentOnly,
   }) async =>
       _alerts(
         (await guardApiCall(
@@ -314,6 +323,7 @@ class ApiNotificationsRepository implements NotificationsRepository {
             body: api.UpdateNewCaseAlertsDto(
               useProfile: useProfile,
               practiceAreaIds: practiceAreaIds,
+              urgentOnly: urgentOnly,
             ),
           ),
         ))

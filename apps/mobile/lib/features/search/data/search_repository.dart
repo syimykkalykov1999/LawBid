@@ -43,6 +43,8 @@ class SearchFilters {
     this.budgetMax,
     this.budgetUnknown = false,
     this.noBids = false,
+    this.minUrgency,
+    this.hasDeadline = false,
     this.caseStatus,
     this.withPhotos = false,
     this.postSort = PostSort.relevance,
@@ -72,6 +74,11 @@ class SearchFilters {
   final bool budgetUnknown;
   final bool noBids;
 
+  /// Owner 2026-10-05: at least this urgent (`soon` · `urgent` ·
+  /// `very_urgent`), and only cases with a date still ahead.
+  final String? minUrgency;
+  final bool hasDeadline;
+
   /// My cases (client).
   final MyCasesFilter? caseStatus;
 
@@ -95,6 +102,8 @@ class SearchFilters {
         if (budgetMin != null || budgetMax != null) true,
         if (budgetUnknown) true,
         if (noBids) true,
+        minUrgency,
+        if (hasDeadline) true,
         caseStatus,
         if (withPhotos) true,
         if (postSort != PostSort.relevance) postSort,
@@ -115,6 +124,8 @@ class SearchFilters {
         budgetMax,
         budgetUnknown,
         noBids,
+        minUrgency,
+        hasDeadline,
         caseStatus,
         withPhotos,
         postSort,
@@ -239,6 +250,10 @@ class ApiSearchRepository implements SearchRepository {
         budgetMax: f.budgetMax,
         budgetUnknown: f.budgetUnknown ? true : null,
         noBids: f.noBids ? true : null,
+        minUrgency: f.minUrgency == null
+            ? null
+            : api.MinUrgency.fromJson(f.minUrgency!),
+        hasDeadline: f.hasDeadline ? true : null,
       ),
     );
     return CursorPage(

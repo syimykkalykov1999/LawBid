@@ -1,3 +1,7 @@
+import type {
+  CaseMinUrgency,
+  UrgencyThresholds,
+} from '../cases/domain/case-urgency';
 import type { CreatedAtCursor } from '../../common/pagination/cursor.util';
 
 export const SEARCH_PROVIDER = Symbol('SEARCH_PROVIDER');
@@ -27,6 +31,10 @@ export interface CaseSearchParams {
   budgetMaxCents?: number;
   budgetUnknown?: boolean;
   noBids?: boolean;
+  /** Owner 2026-10-05: urgency filters (see urgencyFilterSql). */
+  minUrgency?: CaseMinUrgency;
+  hasDeadline?: boolean;
+  urgencyThresholds?: UrgencyThresholds;
 }
 
 /** OQ-036 Posts filters. */

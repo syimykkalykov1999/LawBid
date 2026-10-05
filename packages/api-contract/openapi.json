@@ -20593,13 +20593,7 @@
             "in": "query",
             "description": "Owner 2026-10-05: only cases at least this urgent today (a dated case by its days left; past dates excluded).",
             "schema": {
-              "type": "string",
-              "enum": [
-                "within_month",
-                "soon",
-                "urgent",
-                "very_urgent"
-              ]
+              "$ref": "#/components/schemas/MinUrgency"
             }
           },
           {
@@ -40353,6 +40347,24 @@
             "required": false,
             "in": "query",
             "description": "Only cases nobody has bid on yet.",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "minUrgency",
+            "required": false,
+            "in": "query",
+            "description": "Owner 2026-10-05: only cases at least this urgent today (a dated case by its days left; past dates excluded).",
+            "schema": {
+              "$ref": "#/components/schemas/MinUrgency"
+            }
+          },
+          {
+            "name": "hasDeadline",
+            "required": false,
+            "in": "query",
+            "description": "Owner 2026-10-05: only cases with a date (court hearing, filing deadline…) still ahead.",
             "schema": {
               "type": "boolean"
             }
@@ -62417,6 +62429,15 @@
           "promoted",
           "priorityClient",
           "dossier"
+        ]
+      },
+      "MinUrgency": {
+        "type": "string",
+        "enum": [
+          "within_month",
+          "soon",
+          "urgent",
+          "very_urgent"
         ]
       },
       "CaseFeedItemListEnvelope": {

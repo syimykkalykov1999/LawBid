@@ -124,6 +124,8 @@ class _SearchClient implements SearchClient {
     num? budgetMax,
     bool? budgetUnknown,
     bool? noBids,
+    MinUrgency? minUrgency,
+    bool? hasDeadline,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
@@ -139,6 +141,8 @@ class _SearchClient implements SearchClient {
       r'budgetMax': budgetMax,
       r'budgetUnknown': budgetUnknown,
       r'noBids': noBids,
+      r'minUrgency': minUrgency?.toJson(),
+      r'hasDeadline': hasDeadline,
     };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};

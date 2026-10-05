@@ -1,9 +1,8 @@
 import { CasePhotosService } from './case-photos.service';
 import {
-  CASE_URGENCY_LEVELS,
-  effectiveUrgencySql,
   loadUrgencyThresholds,
   urgencyFields,
+  urgencyFilterSql,
 } from '../domain/case-urgency';
 import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
 import { ForbiddenException, Injectable, Optional } from '@nestjs/common';
@@ -118,15 +117,8 @@ export class CasesFeedService {
     const since = spanMs ? new Date(Date.now() - spanMs) : undefined;
     // Owner 2026-10-05: "urgent and above" / "with a date" filters.
     const thresholds = await loadUrgencyThresholds(this.settings);
-    const minRank = query.minUrgency
-      ? CASE_URGENCY_LEVELS.indexOf(query.minUrgency)
-      : -1;
-    const atLeast = CASE_URGENCY_LEVELS.filter(
-      (l, i) => l !== 'overdue' && i >= minRank,
-    );
     const extra = Prisma.sql`
-      ${minRank >= 0 ? Prisma.sql`AND ${effectiveUrgencySql(thresholds)} = ANY(${atLeast}::STRING[])` : Prisma.empty}
-      ${query.hasDeadline ? Prisma.sql`AND c.deadline_at >= CURRENT_DATE` : Prisma.empty}
+      ${urgencyFilterSql(query.minUrgency, query.hasDeadline, thresholds)}
       ${query.budgetMin !== undefined ? Prisma.sql`AND c.budget_cents >= ${query.budgetMin * 100}` : Prisma.empty}
       ${query.budgetMax !== undefined ? Prisma.sql`AND c.budget_cents <= ${query.budgetMax * 100}` : Prisma.empty}
       ${query.budgetUnknown ? Prisma.sql`AND c.budget_mode = 'clarify_later'` : Prisma.empty}

@@ -14,6 +14,10 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
+import {
+  CASE_MIN_URGENCIES,
+  type CaseMinUrgency,
+} from '../cases/domain/case-urgency';
 
 export const SEARCH_PERIODS = ['24h', '7d', '30d', 'all'] as const;
 export type SearchPeriod = (typeof SEARCH_PERIODS)[number];
@@ -150,6 +154,31 @@ export class SearchCasesQueryDto extends SearchTextQueryDto {
   )
   @IsBoolean()
   noBids?: boolean;
+
+  @ApiPropertyOptional({
+    enum: CASE_MIN_URGENCIES,
+    enumName: 'MinUrgency',
+    description:
+      'Owner 2026-10-05: only cases at least this urgent today (a dated case by its days left; past dates excluded).',
+  })
+  @IsOptional()
+  @IsIn(CASE_MIN_URGENCIES)
+  minUrgency?: CaseMinUrgency;
+
+  @ApiPropertyOptional({
+    description:
+      'Owner 2026-10-05: only cases with a date (court hearing, filing deadline…) still ahead.',
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === true || value === 'true'
+      ? true
+      : value === false || value === 'false'
+        ? false
+        : value,
+  )
+  @IsBoolean()
+  hasDeadline?: boolean;
 }
 
 export const POST_SORTS = ['relevance', 'newest', 'popular'] as const;

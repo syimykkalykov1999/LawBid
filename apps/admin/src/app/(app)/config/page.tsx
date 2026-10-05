@@ -17,6 +17,12 @@ import { formatDateTime } from '@/lib/utils';
 /** Russian explanations for the known keys (most server descriptions are null or English). */
 const KEY_TEXT: Record<string, string> = {
   'billing.max_assistant_seats': 'Сколько помощников может добавить адвокат (годовой тариф включает все).',
+  'cases.urgency_days_very_urgent': 'Дело с датой считается «очень срочным», если до даты осталось не больше стольких дней.',
+  'cases.urgency_days_urgent': 'Дело с датой считается «срочным», если до даты осталось не больше стольких дней.',
+  'cases.urgency_days_soon': 'Дело с датой считается «на этой неделе», если до даты осталось не больше стольких дней.',
+  'cases.urgency_days_within_month': 'Дело с датой считается «в течение месяца», если до даты осталось не больше стольких дней (дальше — «не срочно»).',
+  'cases.deadline_reminder_days': 'За сколько дней до даты по делу (суд, срок подачи) напоминать клиенту и нанятому адвокату; 0 — в сам день.',
+  'cases.deadline_reminders_auto': 'Автоматические напоминания о датах по делам (выкл. — не отправлять).',
   'invites.expiry_days': 'Через сколько дней истекает приглашение клиента («Предложить дело»), если адвокат не ответил.',
   'invites.max_pending_per_case': 'Сколько адвокатов одновременно могут ждать ответа по одному делу.',
   'invites.max_per_day': 'Сколько приглашений клиент может отправить за день.',

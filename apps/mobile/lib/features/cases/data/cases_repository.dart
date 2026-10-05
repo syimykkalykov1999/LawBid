@@ -41,6 +41,8 @@ class CaseFeedExtras {
     this.budgetMax,
     this.budgetUnknown = false,
     this.noBids = false,
+    this.minUrgency,
+    this.hasDeadline = false,
   });
 
   /// `24h` · `7d` · `30d` · null = all.
@@ -50,9 +52,16 @@ class CaseFeedExtras {
   final bool budgetUnknown;
   final bool noBids;
 
+  /// Owner 2026-10-05: `soon` · `urgent` · `very_urgent` (at least), or
+  /// null; and only cases with a date still ahead.
+  final String? minUrgency;
+  final bool hasDeadline;
+
   @override
   bool operator ==(Object other) =>
       other is CaseFeedExtras &&
+      other.minUrgency == minUrgency &&
+      other.hasDeadline == hasDeadline &&
       other.period == period &&
       other.budgetMin == budgetMin &&
       other.budgetMax == budgetMax &&
@@ -60,8 +69,15 @@ class CaseFeedExtras {
       other.noBids == noBids;
 
   @override
-  int get hashCode =>
-      Object.hash(period, budgetMin, budgetMax, budgetUnknown, noBids);
+  int get hashCode => Object.hash(
+        period,
+        budgetMin,
+        budgetMax,
+        budgetUnknown,
+        noBids,
+        minUrgency,
+        hasDeadline,
+      );
 }
 
 /// docs/04 cases & bids for the app (§3–§12). Throws [ApiException].
@@ -454,6 +470,10 @@ class ApiCasesRepository implements CasesRepository {
         budgetMax: extras.budgetMax,
         budgetUnknown: extras.budgetUnknown ? true : null,
         noBids: extras.noBids ? true : null,
+        minUrgency: extras.minUrgency == null
+            ? null
+            : api.MinUrgency.fromJson(extras.minUrgency!),
+        hasDeadline: extras.hasDeadline ? true : null,
       ),
     );
     return CursorPage(

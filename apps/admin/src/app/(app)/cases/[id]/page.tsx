@@ -6,6 +6,7 @@ import { motion } from 'motion/react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { DossierChecklist } from '@/components/cases/dossier';
+import { deadlineText, URGENCY_LEVEL } from '@/components/cases/urgency';
 import { fadeUp } from '@/components/billing/shared';
 import { ErrorNote, PageHeader } from '@/components/page-header';
 import { useReason } from '@/components/reason-dialog';
@@ -193,6 +194,10 @@ export default function CaseDetailPage() {
                   ) : (
                     c.clientName || partyName(c.client)
                   )}
+                </Row>
+                <Row k="Срочность">
+                  {c.urgencyLevel ? URGENCY_LEVEL[c.urgencyLevel] : <span className="text-muted">не указана</span>}
+                  {deadlineText(c) ? <div className="text-xs text-muted">{deadlineText(c)}</div> : null}
                 </Row>
                 <Row k="Бюджет">{c.budgetMode === 'amount' ? usd(c.budgetCents) : <span className="text-muted">уточнить позже</span>}</Row>
                 <Row k="Область права">{c.practiceAreaName}</Row>

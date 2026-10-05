@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { LoadMore } from '@/components/billing/shared';
 import { DossierBadge } from '@/components/cases/dossier';
+import { UrgencyBadge } from '@/components/cases/urgency';
 import { ErrorNote } from '@/components/page-header';
 import { Badge } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty';
@@ -24,7 +25,7 @@ type Tab = 'all' | CaseStatus;
 
 const STATUSES: CaseStatus[] = ['open', 'in_progress', 'pending_completion', 'disputed', 'closed', 'archived'];
 
-/** All cases: status tabs, title search (Enter), "has reports" toggle, state filter. */
+/** All cases: status tabs, title search (Enter), "has reports" and "with a date" toggles, state filter. */
 export function CaseList() {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>('all');
@@ -33,9 +34,10 @@ export function CaseList() {
   const [hasReports, setHasReports] = useState(false);
   const [stateDraft, setStateDraft] = useState('');
   const [stateCode, setStateCode] = useState('');
+  const [withDeadline, setWithDeadline] = useState(false);
 
   const list = useInfiniteQuery({
-    queryKey: ['admin-cases', tab, q, hasReports, stateCode],
+    queryKey: ['admin-cases', tab, q, hasReports, stateCode, withDeadline],
     initialPageParam: undefined as string | undefined,
     queryFn: async ({ pageParam }) =>
       (
@@ -47,6 +49,7 @@ export function CaseList() {
               q: q || undefined,
               hasReports: hasReports || undefined,
               stateCode: stateCode || undefined,
+              withDeadline: withDeadline || undefined,
             },
           },
         })
@@ -54,7 +57,7 @@ export function CaseList() {
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
   });
   const rows = list.data?.pages.flatMap((p) => p.data) ?? [];
-  const filtered = tab !== 'all' || !!q || hasReports || !!stateCode;
+  const filtered = tab !== 'all' || !!q || hasReports || !!stateCode || withDeadline;
 
   return (
     <>
@@ -95,6 +98,10 @@ export function CaseList() {
             <Switch checked={hasReports} onChange={setHasReports} label="Только с жалобами" />
             Только с жалобами
           </label>
+          <label className="flex items-center gap-2 text-sm text-muted">
+            <Switch checked={withDeadline} onChange={setWithDeadline} label="С датой (суд, срок подачи)" />
+            С датой (суд, срок подачи)
+          </label>
         </div>
       </div>
 
@@ -125,6 +132,7 @@ export function CaseList() {
                     </Link>
                     <div className="mt-1 flex flex-wrap items-center gap-1.5">
                       <span className="text-xs text-faint">{c.practiceAreaName}</span>
+                      <UrgencyBadge c={c} />
                       <DossierBadge c={c} />
                       {c.openReports > 0 ? (
                         <Badge tone="danger">

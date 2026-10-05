@@ -1,8 +1,10 @@
 import {
   CASE_DEADLINE_KINDS,
+  CASE_MIN_URGENCIES,
   CASE_URGENCIES,
   CASE_URGENCY_LEVELS,
   type CaseDeadlineKind,
+  type CaseMinUrgency,
   type CaseUrgency,
   type CaseUrgencyLevel,
 } from '../domain/case-urgency';
@@ -154,13 +156,14 @@ export class ListCasesFeedQueryDto {
   noBids?: boolean;
 
   @ApiPropertyOptional({
-    enum: ['within_month', 'soon', 'urgent', 'very_urgent'],
+    enum: CASE_MIN_URGENCIES,
+    enumName: 'MinUrgency',
     description:
       'Owner 2026-10-05: only cases at least this urgent today (a dated case by its days left; past dates excluded).',
   })
   @IsOptional()
-  @IsIn(['within_month', 'soon', 'urgent', 'very_urgent'])
-  minUrgency?: 'within_month' | 'soon' | 'urgent' | 'very_urgent';
+  @IsIn(CASE_MIN_URGENCIES)
+  minUrgency?: CaseMinUrgency;
 
   @ApiPropertyOptional({
     description:

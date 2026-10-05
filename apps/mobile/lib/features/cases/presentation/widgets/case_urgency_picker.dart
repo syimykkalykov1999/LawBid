@@ -39,7 +39,7 @@ abstract final class CaseUrgencyText {
     if (days < 0) return t.t('cases.urgency.overdue');
     if (days == 0) return t.t('cases.deadline.today');
     if (days == 1) return t.t('cases.deadline.tomorrow');
-    return t.t('cases.deadline.inDays', {'count': '$days'});
+    return t.plural('cases.deadline.inDays', days);
   }
 
   static String kindLabel(Translator t, String kind) =>

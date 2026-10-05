@@ -259,6 +259,34 @@ export function effectiveUrgencySql(
     ELSE c.urgency END)`;
 }
 
+/** The feed/search filter values: "at least this urgent today". */
+export const CASE_MIN_URGENCIES = [
+  'within_month',
+  'soon',
+  'urgent',
+  'very_urgent',
+] as const;
+export type CaseMinUrgency = (typeof CASE_MIN_URGENCIES)[number];
+
+/**
+ * SQL conditions (case alias `c`) for the "at least this urgent" and
+ * "with a date still ahead" filters — one rule for the feed and search.
+ * Past dates (`overdue`) never match a minimum.
+ */
+export function urgencyFilterSql(
+  minUrgency: CaseMinUrgency | undefined,
+  hasDeadline: boolean | undefined,
+  t: UrgencyThresholds = DEFAULT_URGENCY_THRESHOLDS,
+): Prisma.Sql {
+  const minRank = minUrgency ? CASE_URGENCY_LEVELS.indexOf(minUrgency) : -1;
+  const atLeast = CASE_URGENCY_LEVELS.filter(
+    (l, i) => l !== 'overdue' && i >= minRank,
+  );
+  return Prisma.sql`
+    ${minRank >= 0 ? Prisma.sql`AND ${effectiveUrgencySql(t)} = ANY(${atLeast}::STRING[])` : Prisma.empty}
+    ${hasDeadline ? Prisma.sql`AND c.deadline_at >= CURRENT_DATE` : Prisma.empty}`;
+}
+
 /** Levels at or above which a case counts as urgent (alerts, filters). */
 export const URGENT_LEVELS: readonly CaseUrgencyLevel[] = [
   'urgent',
