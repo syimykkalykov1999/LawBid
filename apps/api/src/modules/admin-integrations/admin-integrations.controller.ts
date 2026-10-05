@@ -12,7 +12,7 @@ import {
   Post,
   Put,
 } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   ApiEnvelopeResponse,
   ApiErrors,
@@ -152,14 +152,16 @@ export class AdminIntegrationsController {
   @Post(':provider/rollback')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Back to the previous version (needs step-up)' })
+  // The body is optional: older clients send none (slot "main").
+  @ApiBody({ type: SlotBodyDto, required: false })
   @ApiEnvelopeResponse(IntegrationVersionDto)
   async rollbackIntegration(
     @CurrentAdmin() admin: AdminActor,
     @Param() p: ProviderParamDto,
-    @Body() dto: SlotBodyDto,
+    @Body() dto: SlotBodyDto = {},
   ): Promise<IntegrationVersionDto> {
     await this.guard(admin);
-    const v = await this.secrets.rollback(p.provider, dto.slot);
+    const v = await this.secrets.rollback(p.provider, dto?.slot);
     await this.log(admin, 'integration.rollback', p.provider, v);
     return v;
   }

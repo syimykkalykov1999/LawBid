@@ -188,7 +188,7 @@ class _AdminIntegrationsClient implements AdminIntegrationsClient {
   @override
   Future<IntegrationVersionEnvelope> rollbackIntegration({
     required String provider,
-    required SlotBodyDto body,
+    SlotBodyDto? body,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
@@ -197,7 +197,7 @@ class _AdminIntegrationsClient implements AdminIntegrationsClient {
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};
     final _data = <String, dynamic>{};
-    _data.addAll(body.toJson());
+    _data.addAll(body?.toJson() ?? <String, dynamic>{});
     final _options = _setStreamType<IntegrationVersionEnvelope>(
       Options(method: 'POST', headers: _headers, extra: _extra)
           .compose(

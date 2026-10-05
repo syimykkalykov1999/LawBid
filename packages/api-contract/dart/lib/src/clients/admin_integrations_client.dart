@@ -66,7 +66,7 @@ abstract class AdminIntegrationsClient {
   @POST('/admin/integrations/{provider}/rollback')
   Future<IntegrationVersionEnvelope> rollbackIntegration({
     @Path('provider') required String provider,
-    @Body() required SlotBodyDto body,
+    @Body() SlotBodyDto? body,
     @Extras() Map<String, dynamic>? extras,
   });
 
