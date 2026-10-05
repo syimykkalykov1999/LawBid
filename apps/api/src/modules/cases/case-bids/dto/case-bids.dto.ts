@@ -68,6 +68,14 @@ export class BidAttorneySummaryDto {
   verifiedBadge!: boolean;
 
   @ApiProperty({
+    type: 'integer',
+    minimum: 0,
+    maximum: 3,
+    description: 'Owner 2026-10-05: trust level (what LawBid checked).',
+  })
+  trustLevel!: number;
+
+  @ApiProperty({
     type: String,
     isArray: true,
     description:

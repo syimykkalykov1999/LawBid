@@ -52,6 +52,8 @@ const SEGMENT_AREA: Record<string, RouteArea> = {
   users: 'users',
   verification: 'verification',
   'client-badges': 'verification',
+  // Owner 2026-10-05: attorney trust levels.
+  trust: 'verification',
   moderation: 'moderation',
   'review-appeals': 'moderation',
   overview: 'content',

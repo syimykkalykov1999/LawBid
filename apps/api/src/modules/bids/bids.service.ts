@@ -18,6 +18,7 @@ import {
 import { CaseJournalService } from '../journal/case-journal.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { SubscriptionAccessService } from '../subscriptions/subscription-access.service';
+import { AttorneyTrustService } from '../attorney-trust/attorney-trust.service';
 import { BidStateMachine, bidNotFound } from './domain/bid-state-machine';
 import type { BidDto } from './dto/bid-responses.dto';
 import type { CounterOfferDto, CreateBidDto } from './dto/bid-requests.dto';
@@ -42,6 +43,7 @@ export class BidsService {
     private readonly subscriptions: SubscriptionAccessService,
     private readonly caseAccess: CaseAccessPolicy,
     private readonly chat: ChatSystemMessages,
+    private readonly trust: AttorneyTrustService,
   ) {}
 
   /** POST /cases/:caseId/bids (§5.1). One active-or-ever bid per attorney
@@ -83,6 +85,9 @@ export class BidsService {
         message: 'An active subscription or trial is required to bid.',
       });
     }
+    // Owner 2026-10-05 (trust levels): the bid gate — minimum level
+    // `trust.min_level_bids` and no hold (a client's fraud complaint).
+    await this.trust.assertCanBid(user.sub);
 
     try {
       const bid = await withTxRetry(this.prisma, async (tx) => {

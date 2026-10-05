@@ -12,6 +12,7 @@ import type { VerificationProviderSelector } from '../providers/verification-pro
 import { DOCUMENT_URL_LIMIT_PER_ADMIN_PER_HOUR } from '../verification.constants';
 import type { VerificationChecksService } from './verification-checks.service';
 import { VerificationAdminService } from './verification-admin.service';
+import type { AttorneyTrustService } from '../../attorney-trust/attorney-trust.service';
 
 describe('VerificationAdminService.documentUrl rate limit', () => {
   const admin = { id: 'admin-1', ip: '10.0.0.1' } as AdminActor;
@@ -50,6 +51,10 @@ describe('VerificationAdminService.documentUrl rate limit', () => {
       rateLimit,
       {} as BidStateMachine,
       {} as CaseJournalService,
+      {
+        recompute: jest.fn(),
+        confirmDocuments: jest.fn(),
+      } as unknown as AttorneyTrustService,
     );
     return {
       service,

@@ -18,6 +18,7 @@ import {
 import { CaseJournalService } from '../../journal/case-journal.service';
 import { NotificationsService } from '../../notifications/notifications.service';
 import { ReferralsService } from '../../referrals/referrals.service';
+import { AttorneyTrustService } from '../../attorney-trust/attorney-trust.service';
 import { SubscriptionAccessService } from '../../subscriptions/subscription-access.service';
 import {
   BidStateMachine,
@@ -40,7 +41,9 @@ export const WITHDRAW_REASON_ATTORNEY_INACTIVE = 'attorney_inactive';
  * answering BID_ATTORNEY_INACTIVE.
  */
 class AttorneyInactive extends Error {
-  constructor(readonly why: 'not_verified' | 'no_license' | 'no_subscription') {
+  constructor(
+    readonly why: 'not_verified' | 'no_license' | 'no_subscription' | 'on_hold',
+  ) {
     super(`attorney inactive: ${why}`);
   }
 }
@@ -71,6 +74,7 @@ export class BidAcceptanceService {
     private readonly notifications: NotificationsService,
     private readonly subscriptions: SubscriptionAccessService,
     private readonly chat: ChatSystemMessages,
+    private readonly trust: AttorneyTrustService,
     @Optional() private readonly referrals?: ReferralsService,
   ) {}
 
@@ -181,6 +185,11 @@ export class BidAcceptanceService {
     if (!license) throw new AttorneyInactive('no_license');
     if (!(await this.subscriptions.isActive(attorneyId, tx))) {
       throw new AttorneyInactive('no_subscription');
+    }
+    // Owner 2026-10-05 (trust levels): a hold or a level below the bid
+    // gate stops the hire too.
+    if (!(await this.trust.bidGate(attorneyId)).ok) {
+      throw new AttorneyInactive('on_hold');
     }
 
     // §7 step 3: pending offer → accepted, bid → accepted, decided_at.

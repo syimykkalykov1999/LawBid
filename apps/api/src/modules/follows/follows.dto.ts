@@ -37,6 +37,14 @@ export class AttorneyListItemDto {
   @ApiProperty()
   verifiedBadge!: boolean;
 
+  @ApiProperty({
+    type: 'integer',
+    minimum: 0,
+    maximum: 3,
+    description: 'Trust level.',
+  })
+  trustLevel!: number;
+
   @ApiProperty({ type: RatingDto })
   rating!: RatingDto;
 

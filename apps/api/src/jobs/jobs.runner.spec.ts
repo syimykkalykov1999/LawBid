@@ -32,6 +32,7 @@ import { JournalIntegrityService } from '../modules/privacy/journal-integrity.se
 import { JournalRetentionService } from '../modules/privacy/journal-retention.service';
 import type { PromotionsService } from '../modules/promotions/promotions.service';
 import type { PartnersService } from '../modules/partners/partners.service';
+import type { AttorneyTrustService } from '../modules/attorney-trust/attorney-trust.service';
 
 jest.mock('bullmq', () => {
   const queue = {
@@ -156,6 +157,11 @@ function processor() {
           Promise.resolve({ approved: 0, reversed: 0, monthlyBase: 0 }),
         ),
       } as unknown as PartnersService,
+      {
+        recomputeAll: jest.fn(() =>
+          Promise.resolve({ attorneys: 0, changed: 0 }),
+        ),
+      } as unknown as AttorneyTrustService,
     ),
   };
 }
@@ -183,8 +189,8 @@ describe('JobsRunner', () => {
     // review-appeal sweep; owner 2026-10-01: + videos.sweep every 5 min;
     // owner 2026-10-02: + promotions.expire every 5 min; owner 2026-10-04:
     // + monthly licenses.registry-recheck; owner 2026-10-05: + daily
-    // partners.sweep.
-    expect(upserts).toHaveLength(27);
+    // partners.sweep; owner 2026-10-05: + nightly trust.recompute.
+    expect(upserts).toHaveLength(28);
     const byName = Object.fromEntries(
       upserts.map((c: unknown[]) => [c[0], c[1]]),
     );

@@ -27,6 +27,7 @@ import { ClientReviewsService } from '../modules/client-reviews/client-reviews.s
 import { AccountAnonymizationService } from '../modules/privacy/account-anonymization.service';
 import { ExportsCleanupService } from '../modules/privacy/exports-cleanup.service';
 import { JournalIntegrityService } from '../modules/privacy/journal-integrity.service';
+import { AttorneyTrustService } from '../modules/attorney-trust/attorney-trust.service';
 import { JournalRetentionService } from '../modules/privacy/journal-retention.service';
 
 /** Routes a `cron` queue job to its handler by job name. The return value
@@ -60,6 +61,7 @@ export class CronProcessor {
     private readonly postVideos: PostVideosService,
     private readonly promotions: PromotionsService,
     private readonly partners: PartnersService,
+    private readonly trust: AttorneyTrustService,
   ) {}
 
   async process(name: string): Promise<unknown> {
@@ -118,6 +120,8 @@ export class CronProcessor {
         return this.promotions.expire();
       case CRON_JOBS.partnersSweep:
         return this.partners.sweep();
+      case CRON_JOBS.trustRecompute:
+        return this.trust.recomputeAll();
       default:
         // A job left over from an older/newer release: fail it visibly
         // rather than "succeed" doing nothing.

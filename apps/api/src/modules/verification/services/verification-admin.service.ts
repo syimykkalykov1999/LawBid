@@ -12,6 +12,7 @@ import {
 } from '../../../common/pagination/cursor.util';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { withTxRetry } from '../../../prisma/tx-retry.util';
+import { AttorneyTrustService } from '../../attorney-trust/attorney-trust.service';
 import { AuditLogService } from '../../admin-access/audit-log.service';
 import { BidStateMachine } from '../../bids/domain/bid-state-machine';
 import { CaseJournalService } from '../../journal/case-journal.service';
@@ -42,6 +43,7 @@ import {
   LICENSE_RECHECK_NOTE_PREFIX,
   OPEN_REQUEST_STATUSES,
   VERIFICATION_NOTIFICATION_KIND as KIND,
+  IDENTITY_DOC_TYPES,
 } from '../verification.constants';
 import { stateBarLookupUrl } from '../state-bar-links';
 import {
@@ -98,6 +100,7 @@ export class VerificationAdminService {
     private readonly rateLimit: RateLimitService,
     private readonly bidMachine: BidStateMachine,
     private readonly journal: CaseJournalService,
+    private readonly trust: AttorneyTrustService,
   ) {}
 
   /** §2.5.1: oldest submission first; keyset cursor on (submitted_at, id). */
@@ -383,6 +386,11 @@ export class VerificationAdminService {
         },
         tx,
       );
+      await this.trust.recompute(
+        req.attorney_id,
+        { type: 'admin', id: admin.id },
+        tx,
+      );
     });
     return this.card(requestId);
   }
@@ -443,6 +451,29 @@ export class VerificationAdminService {
         requestId: req.id,
         partial,
       });
+      // Owner 2026-10-05 (trust levels): a verifier who approved a request
+      // carrying an identity document and a selfie has checked the
+      // documents — identity confirmed by staff.
+      const docs = await tx.verificationDocument.findMany({
+        where: { request_id: req.id },
+        select: { doc_type: true },
+      });
+      const types = new Set<string>(docs.map((d) => d.doc_type));
+      const identity = IDENTITY_DOC_TYPES.some((t) => types.has(t));
+      if (identity && types.has('selfie')) {
+        await this.trust.confirmDocuments(
+          req.attorney_id,
+          { type: 'admin', id: admin.id },
+          `request ${req.id}`,
+          tx,
+        );
+      } else {
+        await this.trust.recompute(
+          req.attorney_id,
+          { type: 'admin', id: admin.id },
+          tx,
+        );
+      }
     });
     return this.card(requestId);
   }
@@ -516,6 +547,11 @@ export class VerificationAdminService {
         },
       });
       await syncProfileStatus(tx, req.attorney_id, 'rejected', now);
+      await this.trust.recompute(
+        req.attorney_id,
+        { type: 'admin', id: admin.id },
+        tx,
+      );
       const verifiedLeft = await tx.attorneyLicense.count({
         where: { attorney_id: req.attorney_id, license_status: 'verified' },
       });
@@ -730,6 +766,10 @@ export class VerificationAdminService {
       after: { flag: null },
       ip: admin.ip,
     });
+    await this.trust.recompute(license.attorney_id, {
+      type: 'admin',
+      id: admin.id,
+    });
     return licenseDto(updated);
   }
 
@@ -908,6 +948,11 @@ export class VerificationAdminService {
         tx,
       );
       await this.notify(tx, attorneyId, { kind: KIND.suspended });
+      await this.trust.recompute(
+        attorneyId,
+        { type: 'admin', id: admin.id },
+        tx,
+      );
       return {
         attorneyId,
         verificationStatus: 'suspended',
@@ -977,6 +1022,11 @@ export class VerificationAdminService {
         tx,
       );
       await this.notify(tx, attorneyId, { kind: KIND.restored });
+      await this.trust.recompute(
+        attorneyId,
+        { type: 'admin', id: admin.id },
+        tx,
+      );
       return { attorneyId, verificationStatus: restored, withdrawnBids: 0 };
     }
   }

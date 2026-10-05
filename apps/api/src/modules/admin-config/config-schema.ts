@@ -44,6 +44,32 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 1,
     max: SEATS_HARD_CAP,
   };
+  // Owner 2026-10-05: attorney trust levels are 0..3.
+  for (const key of [
+    'trust.min_level_bids',
+    'trust.min_level_payments',
+    'trust.min_level_badge',
+    'trust.payout_delay_until_level',
+  ]) {
+    out[key] = { ...out[key], min: 0, max: 3 };
+  }
+  out['trust.payout_delay_days'] = {
+    ...out['trust.payout_delay_days'],
+    description:
+      'Stripe payout delay (days) for attorneys below the level; 0 = Stripe default (2).',
+    min: 0,
+    max: 30,
+  };
+  out['trust.complaints_to_suspend'] = {
+    ...out['trust.complaints_to_suspend'],
+    min: 1,
+    max: 20,
+  };
+  out['trust.complaint_window_days'] = {
+    ...out['trust.complaint_window_days'],
+    min: 1,
+    max: 3650,
+  };
   out['sms.allowed_country_codes'] = {
     type: 'string[]',
     defaultValue: ['US'],

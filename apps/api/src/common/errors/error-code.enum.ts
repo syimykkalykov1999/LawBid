@@ -322,6 +322,11 @@ export enum ErrorCode {
   VIDEO_NOT_READY = 'VIDEO_NOT_READY',
   COMMENTS_DISABLED = 'COMMENTS_DISABLED',
   LICENSE_STATE_REQUIRED = 'LICENSE_STATE_REQUIRED',
+  // Owner 2026-10-05 (attorney trust levels): 403 — the action needs a
+  // higher trust level (details: required, current, gate).
+  TRUST_LEVEL_REQUIRED = 'TRUST_LEVEL_REQUIRED',
+  // 403 — payments / bids are paused until a verifier looks (details: hold).
+  ATTORNEY_ON_HOLD = 'ATTORNEY_ON_HOLD',
   // Owner 2026-10-04: 503 — chat translation is off, has no key or failed.
   TRANSLATION_UNAVAILABLE = 'TRANSLATION_UNAVAILABLE',
   // Owner 2026-10-01: stickers — 409: over a pack/sticker/install limit.

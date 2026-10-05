@@ -139,6 +139,43 @@ export const OWNER_SEAT_SETTINGS = {
   'billing.max_assistant_seats': 10,
 } as const;
 
+// Owner 2026-10-05: attorney trust levels (docs/ATTORNEY_TRUST.md). The
+// level is computed (0 self-attested, 1 license confirmed, 2 identity
+// confirmed, 3 both); these say which level each gate needs and what
+// happens automatically. A hold (complaint, name mismatch) closes the
+// payment / bid gates whatever the level.
+export const OWNER_TRUST_SETTINGS = {
+  /** Minimum level to place bids and chat (0 = everyone verified). */
+  'trust.min_level_bids': 0,
+  /** Minimum level to receive client money and send invoices. */
+  'trust.min_level_payments': 2,
+  /** Minimum level for the blue check in the app. */
+  'trust.min_level_badge': 2,
+  /** Stripe payout delay (days) asked for attorneys below
+   * `trust.payout_delay_until_level`; 0 = Stripe's default. */
+  'trust.payout_delay_days': 7,
+  'trust.payout_delay_until_level': 3,
+  /** A client's fraud / impersonation report → payments and new bids are
+   * paused until a verifier looks. */
+  'trust.auto_hold_on_complaint': true,
+  /** Distinct clients reporting within the window → profile suspended. */
+  'trust.complaints_to_suspend': 2,
+  'trust.complaint_window_days': 90,
+  /** Stripe's legal name differs from the profile / registry name →
+   * payments paused and documents requested. */
+  'trust.auto_hold_on_name_mismatch': true,
+  /** Someone tries to register an already-registered bar number → the
+   * holder's license is flagged for a registry check. */
+  'trust.flag_duplicate_claims': true,
+  /** Stripe company account where the attorney is neither representative
+   * nor owner: the link to the firm counts automatically when the firm in
+   * the state registry equals the Stripe company name, or when the
+   * attorney confirms an e-mail on the firm's website domain. Off = a
+   * verifier checks a letter on the firm's letterhead. */
+  'trust.firm_link_auto_registry': true,
+  'trust.firm_link_auto_email': true,
+} as const;
+
 /** Every typed app_config tunable with its spec default. */
 export const APP_SETTINGS = {
   ...FILE_03_SETTINGS,
@@ -151,6 +188,7 @@ export const APP_SETTINGS = {
   ...OWNER_LAWYER_VERIFICATION_SETTINGS,
   ...OWNER_INVITE_SETTINGS,
   ...OWNER_SEAT_SETTINGS,
+  ...OWNER_TRUST_SETTINGS,
 };
 
 export type AppSettingKey = keyof typeof APP_SETTINGS;

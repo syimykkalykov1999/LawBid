@@ -38,6 +38,9 @@ export const REGISTRY_FLAGS = [
   'name_mismatch',
   'not_found',
   'not_active',
+  // Owner 2026-10-05 (trust levels): another account tried to register
+  // this bar number.
+  'duplicate_claim',
 ] as const;
 
 export const QUEUE_PAGE_DEFAULT = 20;

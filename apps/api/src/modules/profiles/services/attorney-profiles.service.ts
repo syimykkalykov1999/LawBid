@@ -108,10 +108,10 @@ export class AttorneyProfilesService {
       firms: firmsOf(row),
       languages: row.languages,
       verificationStatus: row.verification_status,
-      verifiedBadge:
-        row.verification_status === 'verified' &&
-        !row.name_mismatch &&
-        row.licenses.some((l) => l.license_status === 'verified'),
+      // Owner 2026-10-05: the blue check follows the trust level
+      // (AttorneyTrustService keeps attorney_profiles.trust_badge).
+      verifiedBadge: row.trust_badge,
+      trustLevel: row.trust_level,
       nameMismatch: row.name_mismatch,
       usernameChangedAt: row.username_changed_at?.toISOString() ?? null,
       usernameNextChangeAt: next?.toISOString() ?? null,
@@ -263,6 +263,8 @@ export class AttorneyProfilesService {
         languages: true,
         verification_status: true,
         name_mismatch: true,
+        trust_level: true,
+        trust_badge: true,
         rating_avg: true,
         rating_count: true,
         posts_count: true,
@@ -328,10 +330,8 @@ export class AttorneyProfilesService {
       avatarUrl: avatar.url,
       avatarUrl256: avatar.url256,
       languages: row.languages,
-      verifiedBadge:
-        row.verification_status === 'verified' &&
-        !row.name_mismatch &&
-        row.licenses.length > 0,
+      verifiedBadge: row.trust_badge,
+      trustLevel: row.trust_level,
       licensedStates: [...states].map(([code, name]) => ({ code, name })),
       practiceAreas,
       rating: { avg: Number(row.rating_avg), count: row.rating_count },

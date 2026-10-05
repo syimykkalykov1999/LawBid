@@ -8,6 +8,7 @@ import { AppSettingsService } from '../../../common/app-settings/app-settings.se
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { withTxRetry } from '../../../prisma/tx-retry.util';
+import { AttorneyTrustService } from '../../attorney-trust/attorney-trust.service';
 import { FilesService } from '../../files/files.service';
 import {
   notFound,
@@ -82,6 +83,7 @@ export class VerificationRequestsService {
     private readonly settings: AppSettingsService,
     private readonly files: FilesService,
     private readonly checks: VerificationChecksService,
+    private readonly trust: AttorneyTrustService,
   ) {}
 
   /**
@@ -226,6 +228,7 @@ export class VerificationRequestsService {
     const expiresAt = dto.expiresAt
       ? new Date(`${dto.expiresAt}T00:00:00Z`)
       : null;
+    let duplicateOf: string | null = null;
     try {
       await withTxRetry(this.prisma, async (tx) => {
         const req = await this.load(tx, userId, requestId);
@@ -238,7 +241,12 @@ export class VerificationRequestsService {
             },
           },
         });
-        if (holder && holder.attorney_id !== userId) throw alreadyRegistered();
+        if (holder && holder.attorney_id !== userId) {
+          // Owner 2026-10-05 (trust levels): both sides are recorded and
+          // the holder's license goes to the registry queue.
+          duplicateOf = holder.attorney_id;
+          throw alreadyRegistered();
+        }
         // Owner 2026-10-05 (audit): re-adding a state that is already
         // verified would send it back to review; only an explicit renewal
         // may do that.
@@ -300,6 +308,14 @@ export class VerificationRequestsService {
         }
       });
     } catch (error) {
+      if (duplicateOf) {
+        await this.trust.onDuplicateClaim(
+          duplicateOf,
+          userId,
+          dto.stateCode,
+          dto.barNumber,
+        );
+      }
       // Another attorney inserted the same (state, bar number) after our read.
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&

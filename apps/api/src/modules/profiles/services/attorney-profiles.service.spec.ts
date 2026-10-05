@@ -221,6 +221,9 @@ describe('AttorneyProfilesService', () => {
       firm_name: null,
       languages: ['en'],
       verification_status: 'verified',
+      // Owner 2026-10-05: the badge follows the trust level, not the status.
+      trust_level: 2,
+      trust_badge: true,
       rating_avg: '4.50',
       rating_count: 2,
       posts_count: 1,
@@ -254,6 +257,8 @@ describe('AttorneyProfilesService', () => {
       const view = await withRow({
         ...base,
         verification_status: 'unverified',
+        trust_level: 0,
+        trust_badge: false,
         licenses: [],
       }).getPublic('saul', 'a');
       expect(view.verifiedBadge).toBe(false);

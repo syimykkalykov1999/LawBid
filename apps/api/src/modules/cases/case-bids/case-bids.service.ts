@@ -78,6 +78,8 @@ export const BID_LIST_INCLUDE = {
           username: true,
           verification_status: true,
           name_mismatch: true,
+          trust_level: true,
+          trust_badge: true,
           rating_avg: true,
           rating_count: true,
           licenses: {
@@ -202,10 +204,8 @@ export function toAttorneySummary(
     firstName: a.first_name,
     lastName: a.last_name,
     avatarUrl256,
-    verifiedBadge:
-      p?.verification_status === 'verified' &&
-      !p.name_mismatch &&
-      (p.licenses.length ?? 0) > 0,
+    verifiedBadge: p?.trust_badge ?? false,
+    trustLevel: p?.trust_level ?? 0,
     licensedStates: [...new Set((p?.licenses ?? []).map((l) => l.state_code))],
     rating: {
       avg: p ? Number(p.rating_avg) : 0,
