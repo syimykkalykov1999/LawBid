@@ -24,6 +24,7 @@ import 'package:lawbid/features/social/presentation/screens/social_screens.dart'
     show PracticePostsScreen;
 import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart'
     show FollowButton;
+import 'package:lawbid/features/social/presentation/widgets/post_documents.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/social/social_routes.dart';
@@ -358,6 +359,17 @@ class PostCard extends ConsumerWidget {
                 ),
               ),
             ),
+          ),
+        // Owner 2026-10-05: the post's documents (tap → download).
+        if (p.attachments.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              AppSpacing.md,
+              AppSpacing.lg,
+              0,
+            ),
+            child: PostDocumentsList(documents: p.attachments),
           ),
         // Owner 2026-10-01: inside the post the comment field is right
         // below — no comment button (it only reopened the same post).

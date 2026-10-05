@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-104 tables.
+105 tables.
 
 ```mermaid
 erDiagram
@@ -457,6 +457,14 @@ erDiagram
     Int height "nullable"
     DateTime created_at
   }
+  post_attachments {
+    String id PK
+    String post_id FK
+    String file_id FK,UK
+    String file_name
+    Int position
+    DateTime created_at
+  }
   tags {
     String id PK
     String tag_lower UK
@@ -543,6 +551,7 @@ erDiagram
     DateTime ended_at "nullable"
     Int duration_sec "nullable"
     String end_reason "nullable"
+    Boolean video
     DateTime created_at
     DateTime updated_at
   }
@@ -987,6 +996,9 @@ erDiagram
     Int height "nullable"
     BigInt storage_bytes "nullable"
     String failure_reason "nullable"
+    Int trim_start_ms "nullable"
+    Int trim_end_ms "nullable"
+    Int cover_time_ms "nullable"
     DateTime upload_expires_at
     DateTime created_at
     DateTime ready_at "nullable"
@@ -1268,6 +1280,8 @@ erDiagram
   case_photos }o--|| files : "file_id"
   post_media }o--|| posts : "post_id"
   post_media }o--|| files : "file_id"
+  post_attachments }o--|| posts : "post_id"
+  post_attachments |o--|| files : "file_id"
   post_tags }o--|| posts : "post_id"
   post_tags }o--|| tags : "tag_id"
   comments }o--|| posts : "post_id"

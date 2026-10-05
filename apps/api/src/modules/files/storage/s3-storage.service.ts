@@ -199,12 +199,20 @@ export class S3StorageService implements OnModuleDestroy {
     bucket: string,
     key: string,
     expiresSec: number,
+    /** Owner 2026-10-05: browsers save the file under this name. */
+    downloadName?: string,
   ): Promise<string> {
     await this.refresh();
     const { client } = this.require();
     return getSignedUrl(
       client,
-      new GetObjectCommand({ Bucket: bucket, Key: key }),
+      new GetObjectCommand({
+        Bucket: bucket,
+        Key: key,
+        ...(downloadName
+          ? { ResponseContentDisposition: contentDisposition(downloadName) }
+          : {}),
+      }),
       { expiresIn: Math.max(1, Math.floor(expiresSec)) },
     );
   }
@@ -249,4 +257,10 @@ function isNotFound(err: unknown): boolean {
     e?.name === 'NoSuchBucket' ||
     e?.$metadata?.httpStatusCode === 404
   );
+}
+
+/** RFC 6266 attachment header: an ASCII fallback plus the UTF-8 name. */
+export function contentDisposition(name: string): string {
+  const ascii = name.replace(/[^\x20-\x7e]/g, '_').replace(/["\\]/g, '_');
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(name)}`;
 }

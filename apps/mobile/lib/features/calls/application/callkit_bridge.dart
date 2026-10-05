@@ -23,6 +23,7 @@ class CallkitSystemUi implements SystemCallUi {
         callId: call.id,
         callerName: call.peer.name,
         avatarUrl: call.peer.avatarUrl,
+        video: call.video,
       );
 
   @override
@@ -43,6 +44,8 @@ Future<void> showLawbidIncoming({
   String? avatarUrl,
   // Owner 2026-10-02: "Calls" off in Settings → the call shows, silently.
   bool silent = false,
+  // Owner 2026-10-05: the system screen says "video call".
+  bool video = false,
 }) async {
   try {
     await FlutterCallkitIncoming.showCallkitIncoming(
@@ -52,8 +55,8 @@ Future<void> showLawbidIncoming({
         appName: 'LawBid',
         avatar: avatarUrl,
         handle: 'LawBid',
-        // 0 = audio call.
-        type: 0,
+        // 0 = audio call, 1 = video call.
+        type: video ? 1 : 0,
         duration: 45000,
         extra: {'callId': callId},
         missedCallNotification: const NotificationParams(
@@ -102,6 +105,7 @@ Future<void> lawbidBackgroundMessage(RemoteMessage message) async {
     callId: callId,
     callerName: '${d['callerName'] ?? d['title'] ?? 'LawBid'}',
     silent: d['silent'] == '1',
+    video: d['video'] == '1',
   );
 }
 

@@ -5,6 +5,40 @@ import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:video_player/video_player.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
+/// Owner 2026-10-05: the part of the video a reel plays (the author's
+/// trim): it starts at [start], loops back at [end], and the progress bar
+/// counts only this part.
+@immutable
+class ReelClip {
+  const ReelClip(this.start, this.end);
+
+  /// [total] = the whole file's length, from the player.
+  factory ReelClip.of(PostVideo v, Duration total) {
+    var start = v.playStart;
+    var end = v.playEnd ?? total;
+    if (total > Duration.zero && end > total) end = total;
+    if (start < Duration.zero || start >= end) start = Duration.zero;
+    if (end <= start) end = total;
+    return ReelClip(start, end);
+  }
+
+  final Duration start;
+  final Duration end;
+
+  bool get trimmed => start > Duration.zero;
+
+  /// Back to [start]: past the end, or before the start (a fresh loop).
+  bool outside(Duration position) =>
+      end > start && (position >= end || position < start);
+
+  /// 0..1 within the clip.
+  double progress(Duration position) {
+    final len = (end - start).inMilliseconds;
+    if (len <= 0) return 0;
+    return ((position - start).inMilliseconds / len).clamp(0, 1).toDouble();
+  }
+}
+
 /// Owner 2026-10-01 — one reel video: the poster frame until the stream is
 /// ready, then the video filling its box (cover), looping. Plays only while
 /// [active]; a widget that leaves the tree frees its player.
@@ -37,6 +71,8 @@ class _ReelVideoState extends State<ReelVideo> {
   bool _ready = false;
   bool _failed = false;
   Duration? _resumeAt;
+  ReelClip? _clip;
+  bool _seeking = false;
 
   @override
   void initState() {
@@ -73,9 +109,15 @@ class _ReelVideoState extends State<ReelVideo> {
     try {
       await c.initialize();
       await c.setLooping(true);
+      final clip = ReelClip.of(widget.video, c.value.duration);
+      _clip = clip;
       final at = _resumeAt;
       _resumeAt = null;
-      if (at != null) await c.seekTo(at);
+      if (at != null && !clip.outside(at)) {
+        await c.seekTo(at);
+      } else if (clip.trimmed) {
+        await c.seekTo(clip.start);
+      }
       if (!mounted || _c != c) return;
       setState(() => _ready = true);
       _apply();
@@ -86,10 +128,17 @@ class _ReelVideoState extends State<ReelVideo> {
 
   void _tick() {
     final c = _c;
-    final cb = widget.onProgress;
-    if (c == null || cb == null || !c.value.isInitialized) return;
-    final total = c.value.duration.inMilliseconds;
-    if (total > 0) cb(c.value.position.inMilliseconds / total);
+    final clip = _clip;
+    if (c == null || clip == null || !c.value.isInitialized) return;
+    final pos = c.value.position;
+    // Only the trimmed part plays: past its end (or after the player's own
+    // loop to 0) it jumps back to the start.
+    if (clip.outside(pos) && !_seeking) {
+      _seeking = true;
+      c.seekTo(clip.start).whenComplete(() => _seeking = false);
+      return;
+    }
+    widget.onProgress?.call(clip.progress(pos));
   }
 
   void _apply() {
@@ -109,6 +158,8 @@ class _ReelVideoState extends State<ReelVideo> {
     _c = null;
     _ready = false;
     _failed = false;
+    _clip = null;
+    _seeking = false;
     c?.removeListener(_tick);
     c?.dispose();
   }
