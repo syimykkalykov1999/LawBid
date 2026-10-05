@@ -240,7 +240,8 @@ class _Body extends ConsumerWidget {
         Padding(
           padding: const EdgeInsets.only(bottom: AppSpacing.md),
           child: CaseDossierPanel(
-            kase: c,
+            score: CaseDossierScore.of(c),
+            status: c.status,
             t: t,
             unlocked: c.photos.isNotEmpty,
           ),

@@ -348,15 +348,25 @@ export class CasesService {
     const practiceArea = hasPracticeChange
       ? await this.assertLeafPracticeArea(dto.practiceAreaId as string)
       : null;
+    // Owner 2026-10-05: files can be added/removed while the case is open.
+    if (dto.photoFileIds) {
+      await this.photos.assertAttachable(user.sub, dto.photoFileIds);
+    }
 
     const updated = await withTxRetry(this.prisma, async (tx) => {
       const current = await tx.case.findUnique({
         where: { id: caseId },
         include: {
           states: { select: { state_code: true, is_primary: true } },
+          photos: { orderBy: { position: 'asc' }, select: { file_id: true } },
         },
       });
       if (!current || current.client_id !== user.sub) throw caseNotFound();
+      const currentFiles = current.photos.map((p) => p.file_id);
+      const filesChanged =
+        dto.photoFileIds !== undefined &&
+        (dto.photoFileIds.length !== currentFiles.length ||
+          dto.photoFileIds.some((id, i) => id !== currentFiles[i]));
       if ((hasPracticeChange || hasStatesChange) && current.bids_count > 0) {
         throw statesLocked();
       }
@@ -434,6 +444,12 @@ export class CasesService {
           new: dto.practiceAreaId,
         };
       }
+      if (filesChanged) {
+        diff.files = {
+          old: currentFiles.length,
+          new: dto.photoFileIds!.length,
+        };
+      }
       if (states) {
         extra.primary_state_code = states[0].stateCode;
         diff.states = {
@@ -450,6 +466,11 @@ export class CasesService {
         action: 'client_edit',
         extra,
       });
+
+      if (filesChanged) {
+        await tx.casePhoto.deleteMany({ where: { case_id: caseId } });
+        await this.photos.attach(tx, caseId, dto.photoFileIds!);
+      }
 
       if (states) {
         await tx.caseState.deleteMany({ where: { case_id: caseId } });

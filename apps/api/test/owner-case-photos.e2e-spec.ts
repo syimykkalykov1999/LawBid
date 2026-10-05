@@ -251,6 +251,40 @@ describe('Case photos (e2e, OQ-031)', () => {
     expect(item?.dossier).toMatchObject({ imagesCount: 1, documentsCount: 1 });
   });
 
+  it('the owner adds and removes files after publishing; a foreign file is rejected', async () => {
+    const cli = await client();
+    const p1 = await photo(cli.id);
+    const created = await postCase(cli.auth);
+    expect(created.status).toBe(201);
+    const caseId = created.body.data.id as string;
+
+    const added = await api()
+      .patch(`/api/v1/cases/${caseId}`)
+      .set(cli.auth)
+      .send({ photoFileIds: [p1] });
+    expect(added.status).toBe(200);
+    const bidder = await attorney();
+    const seen = await api().get(`/api/v1/cases/${caseId}`).set(bidder.auth);
+    expect(seen.body.data.photos).toEqual([]);
+    expect(seen.body.data.dossier).toMatchObject({ imagesCount: 1 });
+
+    const other = await client();
+    const foreign = await photo(other.id);
+    const rejected = await api()
+      .patch(`/api/v1/cases/${caseId}`)
+      .set(cli.auth)
+      .send({ photoFileIds: [p1, foreign] });
+    expect(rejected.status).toBe(404);
+
+    const removed = await api()
+      .patch(`/api/v1/cases/${caseId}`)
+      .set(cli.auth)
+      .send({ photoFileIds: [] });
+    expect(removed.status).toBe(200);
+    const after = await api().get(`/api/v1/cases/${caseId}`).set(bidder.auth);
+    expect(after.body.data.photosCount).toBe(0);
+  });
+
   it('rejects more than 9 photos, foreign files and other purposes', async () => {
     const cli = await client();
     const ten = await Promise.all(

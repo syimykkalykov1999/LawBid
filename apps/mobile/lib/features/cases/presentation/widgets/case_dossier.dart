@@ -8,9 +8,10 @@ import 'package:lawbid/features/cases/domain/case_models.dart';
 const kDossierDetailedDescription = 200;
 
 /// Which rule line goes under the dossier: the attorney bids on the case
-/// (the files open once the client accepts the bid), or the client sent
-/// the case to the attorney as an offer (they open once it is accepted).
-enum CaseDossierRule { bid, offer }
+/// (the files open once the client accepts the bid), the client sent the
+/// case to the attorney as an offer (they open once it is accepted), or
+/// the client looks at their own case (who sees what, and a nudge).
+enum CaseDossierRule { bid, offer, owner }
 
 /// One line of the dossier checklist.
 class CaseDossierItem {
@@ -26,35 +27,61 @@ class CaseDossierItem {
 class CaseDossierScore {
   CaseDossierScore._(this.items, this.dossier);
 
-  factory CaseDossierScore.of(FeedCase c) => CaseDossierScore._(
+  /// The one rule (mirrored by apps/api cases/domain/case-dossier.ts).
+  factory CaseDossierScore.fromFields({
+    required CaseDossier dossier,
+    required String? city,
+    required CaseUrgency? urgency,
+    required CaseBudget budget,
+  }) =>
+      CaseDossierScore._(
         [
           CaseDossierItem(
             'cases.dossier.item.description',
-            done: c.dossier.descriptionLength >= kDossierDetailedDescription,
+            done: dossier.descriptionLength >= kDossierDetailedDescription,
           ),
           CaseDossierItem(
             'cases.dossier.item.city',
-            done: c.city != null && c.city!.trim().isNotEmpty,
+            done: city != null && city.trim().isNotEmpty,
           ),
-          CaseDossierItem(
-            'cases.dossier.item.urgency',
-            done: c.urgency != null,
-          ),
+          CaseDossierItem('cases.dossier.item.urgency', done: urgency != null),
           CaseDossierItem(
             'cases.dossier.item.budget',
-            done: !c.budget.isClarifyLater,
+            done: !budget.isClarifyLater,
           ),
           CaseDossierItem(
             'cases.dossier.item.documents',
-            done: c.dossier.documentsCount > 0,
+            done: dossier.documentsCount > 0,
           ),
           CaseDossierItem(
             'cases.dossier.item.photos',
-            done: c.dossier.imagesCount > 0,
+            done: dossier.imagesCount > 0,
           ),
         ],
-        c.dossier,
+        dossier,
       );
+
+  factory CaseDossierScore.of(FeedCase c) => CaseDossierScore.fromFields(
+        dossier: c.dossier,
+        city: c.city,
+        urgency: c.urgency,
+        budget: c.budget,
+      );
+
+  /// The client's own case: the files are counted from its photo list.
+  factory CaseDossierScore.ofOwner(OwnerCase c) {
+    final images = c.photos.where((p) => p.mime.startsWith('image/')).length;
+    return CaseDossierScore.fromFields(
+      dossier: CaseDossier(
+        imagesCount: images,
+        documentsCount: c.photos.length - images,
+        descriptionLength: c.description.length,
+      ),
+      city: c.city,
+      urgency: c.urgency,
+      budget: c.budget,
+    );
+  }
 
   final List<CaseDossierItem> items;
   final CaseDossier dossier;
@@ -211,27 +238,33 @@ class CaseDossierStrip extends StatelessWidget {
 /// this attorney (their bid was accepted).
 class CaseDossierPanel extends StatelessWidget {
   const CaseDossierPanel({
-    required this.kase,
+    required this.score,
+    required this.status,
     required this.t,
     this.rule = CaseDossierRule.bid,
     this.unlocked = false,
+    this.action,
     super.key,
   });
 
-  final FeedCase kase;
+  final CaseDossierScore score;
+  final CaseStatus status;
   final Translator t;
   final CaseDossierRule rule;
   final bool unlocked;
+
+  /// Owner view: "Add documents and photos" under the checklist.
+  final Widget? action;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final light = Theme.of(context).brightness == Brightness.light;
-    final s = CaseDossierScore.of(kase);
+    final s = score;
     final tone = _levelColor(colors, light, s.done);
     final caption = typography.caption.copyWith(color: colors.textSecondary);
-    final showRule = unlocked || kase.status == CaseStatus.open;
+    final showRule = unlocked || status == CaseStatus.open;
     return Semantics(
       container: true,
       label: [
@@ -353,15 +386,23 @@ class CaseDossierPanel extends StatelessWidget {
                       t.t(
                         unlocked
                             ? 'cases.dossier.unlocked'
-                            : rule == CaseDossierRule.offer
-                                ? 'cases.dossier.ruleOffer'
-                                : 'cases.dossier.ruleBid',
+                            : switch (rule) {
+                                CaseDossierRule.offer =>
+                                  'cases.dossier.ruleOffer',
+                                CaseDossierRule.owner =>
+                                  'cases.dossier.ruleOwner',
+                                CaseDossierRule.bid => 'cases.dossier.ruleBid',
+                              },
                       ),
                       style: caption,
                     ),
                   ),
                 ],
               ),
+            ],
+            if (action != null) ...[
+              const SizedBox(height: AppSpacing.md),
+              action!,
             ],
           ],
         ),

@@ -32,6 +32,12 @@ const caseDossierRu = <String, String>{
   'cases.dossier.ruleOffer':
       'Все документы, фото и контакты клиента откроются вам, как только вы примете это предложение. До этого видно только, что именно он приложил.',
   'cases.dossier.unlocked': 'Материалы клиента открыты вам',
+  'cases.dossier.ruleOwner':
+      'Адвокаты видят только, что и сколько вы приложили. Сами файлы и ваши контакты откроются адвокату, чей бид вы примете. Чем полнее досье, тем точнее биды.',
+  'cases.dossier.addFiles': 'Добавить документы и фото',
+  'cases.dossier.filesSaved': 'Файлы добавлены',
+  'cases.dossier.filesFailed': 'Не удалось добавить файлы. Попробуйте ещё раз.',
+  'cases.dossier.filesFull': 'Можно приложить не больше {max} файлов',
 };
 
 const caseDossierEn = <String, String>{
@@ -62,4 +68,10 @@ const caseDossierEn = <String, String>{
   'cases.dossier.ruleOffer':
       "All of the client's documents, photos and contacts open to you as soon as you accept this offer. Until then you only see what they attached.",
   'cases.dossier.unlocked': "The client's materials are open to you",
+  'cases.dossier.ruleOwner':
+      'Attorneys only see what and how much you attached. The files and your contacts open only to the attorney whose bid you accept. The fuller the case file, the more accurate the bids.',
+  'cases.dossier.addFiles': 'Add documents and photos',
+  'cases.dossier.filesSaved': 'Files added',
+  'cases.dossier.filesFailed': "Couldn't add the files. Please try again.",
+  'cases.dossier.filesFull': 'You can attach up to {max} files',
 };
