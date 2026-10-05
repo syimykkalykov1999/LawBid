@@ -217,6 +217,7 @@ export const GROUPS: readonly SectionGroup[] = [
     label: 'Система',
     icon: 'sliders-horizontal',
     items: [
+      { href: '/system-health', label: 'Здоровье системы', icon: 'heartbeat', area: 'super', hint: 'серверы, база, бэкапы, расходы — всё ли в порядке' },
       { href: '/flags', label: 'Функции', icon: 'toggle-right', area: 'settings', hint: 'флаги, скрытые функции' },
       { href: '/config', label: 'Настройки', icon: 'sliders-horizontal', area: 'settings', hint: 'лимиты, версии приложения' },
       { href: '/practice-areas', label: 'Квалификации', icon: 'books', area: 'content' },

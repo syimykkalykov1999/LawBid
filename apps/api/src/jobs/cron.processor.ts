@@ -25,6 +25,9 @@ import { FeedRecoJob } from '../modules/feed/feed-reco.job';
 import { TrendingTagsJob } from '../modules/search/trending-tags.job';
 import { NotificationsRetentionJob } from './handlers/notifications-retention.job';
 import { OpsMetricsJob } from './handlers/ops-metrics.job';
+import { OpsGuardJob } from './handlers/ops-guard.job';
+import { HEAVY_CRON_JOBS } from '../common/ops/ops.constants';
+import { OpsStateService } from '../common/ops/ops-state.service';
 import {
   TaskArchivePurgeJob,
   TaskRemindersJob,
@@ -79,9 +82,19 @@ export class CronProcessor {
     @Optional() private readonly rewards?: RewardsService,
     // Owner 2026-10-05 (legal): `outreach.retention`.
     @Optional() private readonly outreachRetention?: OutreachRetentionService,
+    @Optional() private readonly opsGuard?: OpsGuardJob,
+    @Optional() private readonly opsState?: OpsStateService,
   ) {}
 
   async process(name: string): Promise<unknown> {
+    // Owner 2026-10-05: «Пауза тяжёлых задач» (owner button or automatic
+    // while the database is slow) — skip this tick, the next one runs.
+    if (
+      HEAVY_CRON_JOBS.includes(name) &&
+      (await this.opsState?.isHeavyPaused())
+    ) {
+      return { skipped: 'heavy jobs paused' };
+    }
     switch (name) {
       case CRON_JOBS.sessionsCleanup:
         return this.sessionsCleanup.run();
@@ -155,6 +168,12 @@ export class CronProcessor {
         return this.rewards?.autoAward();
       case CRON_JOBS.outreachRetention:
         return this.outreachRetention?.run();
+      case CRON_JOBS.opsGuard:
+        return this.opsGuard?.guard();
+      case CRON_JOBS.opsCostCheck:
+        return this.opsGuard?.costCheck();
+      case CRON_JOBS.opsBackupCheck:
+        return this.opsGuard?.backupCheck();
       default:
         // A job left over from an older/newer release: fail it visibly
         // rather than "succeed" doing nothing.

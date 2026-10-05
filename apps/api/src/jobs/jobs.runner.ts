@@ -3,7 +3,13 @@ import {
   Injectable,
   OnApplicationBootstrap,
   OnApplicationShutdown,
+  Optional,
 } from '@nestjs/common';
+import { writeFile } from 'node:fs/promises';
+import { hostname } from 'node:os';
+import type Redis from 'ioredis';
+import { OPS_KEYS, WORKER_HEARTBEAT_FILE } from '../common/ops/ops.constants';
+import { REDIS_CLIENT } from '../redis/redis.constants';
 import { ConfigService } from '@nestjs/config';
 import { Queue, Worker, type Job } from 'bullmq';
 import { PinoLogger } from 'nestjs-pino';
@@ -51,12 +57,14 @@ export class JobsRunner
   private worker?: Worker;
   private starting?: Promise<void>;
   private stopping = false;
+  private heartbeat?: NodeJS.Timeout;
 
   constructor(
     @Inject(JOBS_OPTIONS) private readonly options: JobsModuleOptions,
     private readonly config: ConfigService,
     private readonly processor: CronProcessor,
     private readonly logger: PinoLogger,
+    @Optional() @Inject(REDIS_CLIENT) private readonly redis?: Redis,
   ) {
     this.logger.setContext(JobsRunner.name);
   }
@@ -125,6 +133,39 @@ export class JobsRunner
       { mode: this.options.mode, jobs: CRON_SCHEDULES.map((s) => s.name) },
       'cron jobs scheduled; worker started',
     );
+    this.startHeartbeat();
+  }
+
+  /**
+   * Owner 2026-10-05 zero maintenance: every 30 s, while the BullMQ worker
+   * runs, touch a local file (the ECS container health check replaces a
+   * worker whose file goes stale: hung event loop, dead worker) and a
+   * Redis key the admin «Здоровье системы» reads (TTL 180 s).
+   */
+  private startHeartbeat(): void {
+    const beat = async () => {
+      try {
+        if (this.stopping || !this.worker?.isRunning()) return;
+        const at = new Date().toISOString();
+        await writeFile(WORKER_HEARTBEAT_FILE, at).catch(() => undefined);
+        await this.redis?.set(
+          OPS_KEYS.workerHeartbeat,
+          JSON.stringify({
+            at,
+            pid: process.pid,
+            host: hostname(),
+            mode: this.options.mode,
+          }),
+          'EX',
+          180,
+        );
+      } catch {
+        // A missed beat is the signal; never crash the process over it.
+      }
+    };
+    void beat();
+    this.heartbeat = setInterval(() => void beat(), 30_000);
+    this.heartbeat.unref();
   }
 
   /** Idempotent: upserts every schedule, removes stale ones. */
@@ -157,6 +198,7 @@ export class JobsRunner
 
   async onApplicationShutdown(): Promise<void> {
     this.stopping = true;
+    if (this.heartbeat) clearInterval(this.heartbeat);
     // A background start still in flight would otherwise create the
     // worker after we closed everything.
     await this.starting?.catch(() => undefined);

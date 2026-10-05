@@ -1,5 +1,7 @@
 # stripe-webhooks — events moved to the dead-letter queue
 
+> **Для владельца:** Деньги не теряются: Stripe хранит события. Напишите Claude «Stripe DLQ». Все письма и кнопки: [OWNER.md](OWNER.md).
+
 An event lands in `stripe-webhooks-dlq` after 5 failed attempts
 (`stripe webhook moved to DLQ`, docs/06 §1.5). The handler always
 re-reads the subscription from Stripe, so replaying is safe.

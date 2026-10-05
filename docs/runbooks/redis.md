@@ -1,5 +1,7 @@
 # redis-cpu / redis-memory — ElastiCache above 80 %
 
+> **Для владельца:** Обычно проходит само. Держится больше суток — увеличить Redis при следующем «ставь на AWS». Все письма и кнопки: [OWNER.md](OWNER.md).
+
 Redis carries cache, rate limits, BullMQ queues, Socket.IO adapter,
 counters (docs/06 §6.3); it is not a source of truth (§6.4).
 

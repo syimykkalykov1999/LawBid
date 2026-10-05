@@ -114,3 +114,16 @@ variable "worker_memory" {
   type    = number
   default = 1024
 }
+
+# Zero maintenance (owner 2026-10-05): e-mails at 50/80/100 % of this, and
+# autoscaling is capped at the minimum when it is reached (switchable in
+# admin Система → Здоровье системы).
+variable "monthly_budget_usd" {
+  type    = number
+  default = 50
+}
+variable "create_anomaly_monitor" {
+  type        = bool
+  default     = true
+  description = "false when the AWS account already has a service-level Cost Anomaly monitor (one allowed per account)."
+}
